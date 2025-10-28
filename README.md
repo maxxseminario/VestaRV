@@ -66,7 +66,7 @@ Typical applications include:
 
 ---
 
-## MCU Peripherals
+## MCU Peripherals - Configurable
 
 - **System**
   - Clock Multiplexing/Dividing
@@ -85,7 +85,7 @@ Typical applications include:
 
 ---
 
-## Memory Architecture
+## MCU Memory Architecture - Configurable
 
 - **16 KiB ROM**
 - **2 × 16 KiB SRAM**
