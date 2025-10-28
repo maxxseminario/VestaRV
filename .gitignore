@@ -2,5 +2,9 @@ ic/
 ip/
 xcelium/
 logo/
+latex/
+python/
 riscv_sync.sh
 DrcWaiver.pptx
+cdspaths.sh
+libManager.log
