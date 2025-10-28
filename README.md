@@ -37,7 +37,6 @@ VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the ete
 Typical applications include:
 - SoC design prototyping
 - Custom embedded MCU development
-- Hardware-accelerated neural networks
 - Mixed signal and sensor interfacing
 
 ---
@@ -63,7 +62,7 @@ Typical applications include:
 
 - **ISA:** RV32I Base + M, C, A, ZBA, ZBB, ZBC, ZBS, ZICNTR (partial)
 - **Interrupts:** Stack-based, recursive, with risk of stack overflow
-- **Verification:** Post-physical (Innovus) verified
+- **Verification:** Post-physical verified
 - **Extensions:** Bit manipulation, atomic ops, compressed and multiply/divide instructions
 
 ---
@@ -107,20 +106,16 @@ Toolchains (gcc, binutils, etc.) can be obtained via the [RISC-V Website](https:
 
 ---
 
-## Evaluation and Synthesis Results
-
-Results for timing, resource utilization, and physical verification (Innovus) are provided for supported FPGAs and ASIC flows. Refer to the `results/` or documentation folders for details.
-
----
-
 ## Author and Support
 
 **Author:**  
 _Maxx Seminario_  
-Graduate Researcher, University of Nebraska-Lincoln  
+PhD Student, Integrated Circuit Design
+Analog, Mixed-Signal, and System-on-Chip Design
+University of Nebraska-Lincoln  
 Email: mseminario2@huskers.unl.edu
 
-If you need access, support, or have questions about VestaRV or its MCU subsystem, please reach out directly to the author via email. Collaboration and contributions are welcome!
+If you need access, support, or have questions about VestaRV or its MCU subsystem, please reach out directly to the author via email. 
 
 ---
 
