@@ -1,5 +1,0 @@
-cUiSetViewStatus {FeedbackCapacitor} {layout} {1}
-cUiSetViewStatus {FeedbackCapacitor} {logical} {0}
-cUiSetViewStatus {FeedbackCapacitor} {abstract.pin} {0}
-cUiSetViewStatus {FeedbackCapacitor} {abstract.ext} {0}
-cUiSetViewStatus {FeedbackCapacitor} {abstract} {0}

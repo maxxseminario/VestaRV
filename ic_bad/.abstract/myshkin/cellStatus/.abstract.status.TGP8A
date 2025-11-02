@@ -1,5 +1,0 @@
-cUiSetViewStatus {TGP8A} {layout} {1}
-cUiSetViewStatus {TGP8A} {logical} {0}
-cUiSetViewStatus {TGP8A} {abstract.pin} {0}
-cUiSetViewStatus {TGP8A} {abstract.ext} {0}
-cUiSetViewStatus {TGP8A} {abstract} {0}

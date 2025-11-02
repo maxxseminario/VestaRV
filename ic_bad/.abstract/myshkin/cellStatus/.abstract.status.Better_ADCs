@@ -1,5 +1,0 @@
-cUiSetViewStatus {Better_ADCs} {layout} {0}
-cUiSetViewStatus {Better_ADCs} {logical} {0}
-cUiSetViewStatus {Better_ADCs} {abstract.pin} {0}
-cUiSetViewStatus {Better_ADCs} {abstract.ext} {0}
-cUiSetViewStatus {Better_ADCs} {abstract} {0}

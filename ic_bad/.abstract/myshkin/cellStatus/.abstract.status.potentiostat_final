@@ -1,5 +1,0 @@
-cUiSetViewStatus {potentiostat_final} {layout} {0}
-cUiSetViewStatus {potentiostat_final} {logical} {0}
-cUiSetViewStatus {potentiostat_final} {abstract.pin} {0}
-cUiSetViewStatus {potentiostat_final} {abstract.ext} {0}
-cUiSetViewStatus {potentiostat_final} {abstract} {0}

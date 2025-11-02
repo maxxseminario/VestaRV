@@ -1,5 +1,0 @@
-cUiSetViewStatus {MUX4A} {layout} {1}
-cUiSetViewStatus {MUX4A} {logical} {0}
-cUiSetViewStatus {MUX4A} {abstract.pin} {0}
-cUiSetViewStatus {MUX4A} {abstract.ext} {0}
-cUiSetViewStatus {MUX4A} {abstract} {0}

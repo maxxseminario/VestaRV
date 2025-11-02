@@ -1,5 +1,0 @@
-cUiSetViewStatus {GlobalBiasGenerator} {layout} {1}
-cUiSetViewStatus {GlobalBiasGenerator} {logical} {0}
-cUiSetViewStatus {GlobalBiasGenerator} {abstract.pin} {0}
-cUiSetViewStatus {GlobalBiasGenerator} {abstract.ext} {0}
-cUiSetViewStatus {GlobalBiasGenerator} {abstract} {0}

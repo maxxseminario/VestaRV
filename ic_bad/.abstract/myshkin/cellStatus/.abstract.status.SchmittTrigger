@@ -1,5 +1,0 @@
-cUiSetViewStatus {SchmittTrigger} {layout} {1}
-cUiSetViewStatus {SchmittTrigger} {logical} {0}
-cUiSetViewStatus {SchmittTrigger} {abstract.pin} {0}
-cUiSetViewStatus {SchmittTrigger} {abstract.ext} {0}
-cUiSetViewStatus {SchmittTrigger} {abstract} {0}

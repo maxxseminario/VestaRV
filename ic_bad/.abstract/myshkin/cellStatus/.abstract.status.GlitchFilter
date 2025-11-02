@@ -1,5 +1,0 @@
-cUiSetViewStatus {GlitchFilter} {layout} {1}
-cUiSetViewStatus {GlitchFilter} {logical} {0}
-cUiSetViewStatus {GlitchFilter} {abstract.pin} {3}
-cUiSetViewStatus {GlitchFilter} {abstract.ext} {1}
-cUiSetViewStatus {GlitchFilter} {abstract} {3}

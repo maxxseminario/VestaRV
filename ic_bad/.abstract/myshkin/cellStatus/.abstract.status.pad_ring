@@ -1,6 +1,0 @@
-cUiSelectCellP {pad_ring}
-cUiSetViewStatus {pad_ring} {layout} {1}
-cUiSetViewStatus {pad_ring} {logical} {0}
-cUiSetViewStatus {pad_ring} {abstract.pin} {0}
-cUiSetViewStatus {pad_ring} {abstract.ext} {0}
-cUiSetViewStatus {pad_ring} {abstract} {0}

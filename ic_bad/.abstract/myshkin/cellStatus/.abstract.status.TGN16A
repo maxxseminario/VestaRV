@@ -1,5 +1,0 @@
-cUiSetViewStatus {TGN16A} {layout} {1}
-cUiSetViewStatus {TGN16A} {logical} {0}
-cUiSetViewStatus {TGN16A} {abstract.pin} {0}
-cUiSetViewStatus {TGN16A} {abstract.ext} {0}
-cUiSetViewStatus {TGN16A} {abstract} {0}

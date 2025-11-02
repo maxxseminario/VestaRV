@@ -1,5 +1,0 @@
-cUiSetViewStatus {BiasGenCascWideSwing} {layout} {1}
-cUiSetViewStatus {BiasGenCascWideSwing} {logical} {0}
-cUiSetViewStatus {BiasGenCascWideSwing} {abstract.pin} {0}
-cUiSetViewStatus {BiasGenCascWideSwing} {abstract.ext} {0}
-cUiSetViewStatus {BiasGenCascWideSwing} {abstract} {0}

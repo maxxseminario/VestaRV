@@ -1,5 +1,0 @@
-cUiSetViewStatus {LpfCapacitor} {layout} {1}
-cUiSetViewStatus {LpfCapacitor} {logical} {0}
-cUiSetViewStatus {LpfCapacitor} {abstract.pin} {0}
-cUiSetViewStatus {LpfCapacitor} {abstract.ext} {0}
-cUiSetViewStatus {LpfCapacitor} {abstract} {0}

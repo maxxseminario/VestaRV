@@ -1,8 +1,0 @@
-absSkillMode()
-absSetLibrary("myshkin")
-absDeselectCellFrom("GlitchFilter" "GlitchFilter")
-absDeselectCellFrom("OscillatorCurrentStarved" "OscillatorCurrentStarved")
-absDeselectCellFrom("PowerOnResetCheng" "PowerOnResetCheng")
-absSelectCellFrom("pad_ring" "pad_ring")
-absExit()
-absPins()

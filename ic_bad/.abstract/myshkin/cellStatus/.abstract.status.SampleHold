@@ -1,5 +1,0 @@
-cUiSetViewStatus {SampleHold} {layout} {1}
-cUiSetViewStatus {SampleHold} {logical} {0}
-cUiSetViewStatus {SampleHold} {abstract.pin} {0}
-cUiSetViewStatus {SampleHold} {abstract.ext} {0}
-cUiSetViewStatus {SampleHold} {abstract} {0}

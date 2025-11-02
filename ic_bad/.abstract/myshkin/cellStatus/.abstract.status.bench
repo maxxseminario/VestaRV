@@ -1,5 +1,0 @@
-cUiSetViewStatus {bench} {layout} {1}
-cUiSetViewStatus {bench} {logical} {0}
-cUiSetViewStatus {bench} {abstract.pin} {0}
-cUiSetViewStatus {bench} {abstract.ext} {0}
-cUiSetViewStatus {bench} {abstract} {0}
