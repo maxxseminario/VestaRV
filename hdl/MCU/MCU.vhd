@@ -2031,7 +2031,7 @@ begin
             Q     => mem_dout(1),
             CLK   => clk_mem(1),
             CEN   => mem_en(1),
-            WEN   => wen,
+            WEN   => wen_periph,
             A     => mem_addr,
             D     => write_data,
             EMA   => "000",

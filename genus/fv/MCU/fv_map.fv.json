@@ -36720,20 +36720,20 @@
 "object":"/designs/MCU/instances_seq/rom0",
 "type":"instance"},
 {"index": "1", 
- "date": "Sat Nov 01 20:05:48 UTC 2025",
- "seconds": 1762027548.8680508,
+ "date": "Sun Nov 02 00:15:08 UTC 2025",
+ "seconds": 1762042508.8697128,
  "netlist": "fv/MCU/fv_map.v.gz", 
  "netlist_exists": "1", 
  "netlist_normalize": "/home/mseminario2/chips/myshkin/genus/fv/MCU/fv_map.v.gz", 
- "netlist_mtime": "1762027545", 
- "netlist_timestamp": "Sat Nov 01 20:05:45 UTC 2025", 
- "netlist_size": "441542", 
- "netlist_cksum": "1100125653", 
+ "netlist_mtime": "1762042504", 
+ "netlist_timestamp": "Sun Nov 02 00:15:04 UTC 2025", 
+ "netlist_size": "440556", 
+ "netlist_cksum": "2520583589", 
  "design_name": "MCU", 
  "synth_workdir": "/home/mseminario2/chips/myshkin/genus", 
  "synthesis_command":"",
  "current_label": "fv_map", 
  "previous_label": "rtl", 
- "write_verif_file_runtime": 3.7123969999999997 
+ "write_verif_file_runtime": 3.920028 
  }
 ]
