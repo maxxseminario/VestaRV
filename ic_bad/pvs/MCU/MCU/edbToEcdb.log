@@ -1,0 +1,17 @@
+
+/opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : MCU_78485.db
+ECDB dir        : ./
+Top Cell        : MCU
+CDL netlist     : ./MCU.net
+Layer map file  : ./MCU.ecdbmap
+Text map file   : ./MCU.ports
+Dependency map  : MCU.lmap.perc
+Lvs file        : ./MCU.lvsfile
+Float net file  : .MCU.info.softchk
+threads         : 32
+debug           : 0
+Source Library  : MCU_78485

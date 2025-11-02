@@ -1,0 +1,67 @@
+********************************************************************************
+Product   : Virtuoso(R) XStream Out
+Program   : @(#)$CDS: strmout version 6.1.8-64b 11/10/2020 19:36 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 20-Sep-2025  11:38:38
+User Name : mseminario2
+Host Name : atlas
+Directory : /home/mseminario2/chips/demo-washakie/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+INFO (XSTRM-217): Reading the layer map file, /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+INFO (XSTRM-162): You have not used the viaMap option. If the OpenAccess design has native oaVia instances, use the -viaMap option for preserving oaVia instances in a Stream Out - Stream In round trip. Using the -viaMap option improves performance and VM usage of applications using the Streamed-In design.  For details on the viaMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+
+Summary of Options :
+library                                 washakie
+strmFile                                ./pvs/washakie/SchmittTrigger/washakie.SchmittTrigger.gds
+topCell                                 SchmittTrigger
+view                                    layout
+logFile                                 ./strmout/washakie.SchmittTrigger.strmout.log
+techLib                                 tsmcN65
+layerMap                                /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+case                                    Preserve
+convertDot                              node
+convertPin                              geometryAndText
+noWarn                                  20 32 33 35 315
+
+INFO (XSTRM-223): 1. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_758386318600.
+INFO (XSTRM-223): 2. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_758386318601.
+INFO (XSTRM-223): 3. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_758386318602.
+INFO (XSTRM-223): 4. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_758386318600.
+INFO (XSTRM-223): 5. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_758386318601.
+INFO (XSTRM-223): 6. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_758386318602.
+INFO (XSTRM-223): 7. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_758386318603.
+INFO (XSTRM-223): 8. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_758386318604.
+INFO (XSTRM-223): 9. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_758386318605.
+INFO (XSTRM-223): 10. Translating cellView washakie/SchmittTrigger/layout as STRUCTURE SchmittTrigger.
+INFO (XSTRM-180): You have not used the objectMap option. The design has instance(s) of at least one of following OpenAccess objects: oaBlockage, oaBoundary, oaRow, and oaMarker. Any information about these objects will not be translated into the generated stream file. Use the objectMap option to translate/preserve these objects using XStream. For details on the objectMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+
+Summary of Objects Translated:
+	Scalar Instances:                       6
+	Array Instances:                        0
+	Polygons:                               0
+	Paths:                                  0
+	Rectangles:                             197
+	Lines:                                  0
+	Arcs:                                   0
+	Donuts:                                 0
+	Dots:                                   0
+	Ellipses:                               0
+	Boundaries:                             0
+	Area Blockages:                         0
+	Layer Blockages:                        0
+	Area Halos:                             0
+	Markers:                                0
+	Rows:                                   0
+	Standard Vias                           14
+	Custom Vias:                            0
+	CdsGen Vias:                            0
+	Pathsegs:                               31
+	Text:                                   68
+	TextDisplay:                            0
+	Cells:                                  10
+
+Elapsed Time: 0.2s   User Time: 0.1s   CPU Time: 0.0s   Peak VM: 103024KB
+INFO (XSTRM-234): Translation completed. '0' error(s) and '0' warning(s) found.

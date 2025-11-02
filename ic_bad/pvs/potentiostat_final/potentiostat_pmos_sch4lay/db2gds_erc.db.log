@@ -1,0 +1,174 @@
+********************************************************************************
+db2gds 20.10-p029 64 bit (Mon Sep 28 20:09:41 PDT 2020)
+Build Ref No.: 029 Production (09-28-2020) [pvs_2010]
+
+Copyright 2020 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+Build O/S:       Linux x86_64 2.6.32-431.11.2.el6.x86_64
+Executed on:     atlas (Linux x86_64 5.3.18-lp152.106-default)
+Process Id:      97910
+Starting Time:   Mon Sep 22 16:23:25 2025 (Mon Sep 22 21:23:25 2025 GMT)
+With parameters: potentiostat_pmos_sch4lay_97772 erc.db potentiostat_pmos_sch4lay -lmap lmap2EjIvo -gdslib drc.db -gds_scale 1000 -property 
+********************************************************************************
+
+Library name: potentiostat_pmos_sch4lay_97772
+GDSII file name: erc.db
+Cells to be written out: potentiostat_pmos_sch4lay
+Source Library: potentiostat_pmos_sch4lay_97772
+Layer mapping file(GDS <- DMC): lmap2EjIvo
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+Cell name case: PRESERVE
+Option: output object property
+
+
+                Object Statistics of Cells                            
+Cell Name         Box  Polygon     Path   Label Instance Array    Total
+----------------------------------------------------------------------
+potentiostat_pmos_sch4lay        0        0        0       0   976      0       976
+M1_PO_CDNS_758576204180        0        0        0       0     0      0         0
+M3_M2_CDNS_758576204181        0        0        0       0     0      0         0
+M2_M1_CDNS_758576204182        0        0        0       0     0      0         0
+M3_M2_CDNS_758576204183        0        0        0       0     0      0         0
+M2_M1_CDNS_758576204184        0        0        0       0     0      0         0
+M1_PO_CDNS_758576204185        0        0        0       0     0      0         0
+M3_M2_CDNS_758576204189        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041810        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041811        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041812        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041813        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041814        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041815        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041816        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041818        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041820        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041821        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041822        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041823        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041824        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758576204180        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041826        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041827        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041828        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041829        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041830        0        0        0       0     0      0         0
+M1_PO_CDNS_7585762041831        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041832        0        0        0       0     0      0         0
+M8_M7_CDNS_7585762041835        0        0        0       0     0      0         0
+M7_M6_CDNS_7585762041836        0        0        0       0     0      0         0
+M6_M5_CDNS_7585762041837        0        0        0       0     0      0         0
+M5_M4_CDNS_7585762041838        0        0        0       0     0      0         0
+M4_M3_CDNS_7585762041839        0        0        0       0     0      0         0
+M3_M2_CDNS_7585762041840        0        0        0       0     0      0         0
+M2_M1_CDNS_7585762041841        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758576204181        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758576204182        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758576204183        0        0        0       0     0      0         0
+nch_25_mac_CDNS_758576204185        0        0        0       0     0      0         0
+nch_25_mac_CDNS_758576204186        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041816        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041818        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041827        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041828        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041830        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041831        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041833        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041836        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041837        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041839        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041840        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041842        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041843        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041846        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041850        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041854        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041857        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041858        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041859        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041860        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041862        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041863        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041864        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041865        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041866        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041867        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041870        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041872        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041873        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041874        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041877        0        0        0       0     0      0         0
+rppolywo_CDNS_7585762041878        0        0        0       0     0      0         0
+TGP2A               0        0        0       0     4      0         4
+pch_25_mac_CDNS_7585762041883        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041884        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041885        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041886        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041887        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041888        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041889        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041890        0        0        0       0     0      0         0
+folded_cascode_pmos        0        0        0       0   499      0       499
+pch_25_mac_CDNS_75857620418116        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418117        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418118        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418119        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418120        0        0        0       0     0      0         0
+M1_OD_CDNS_7585762041844        0        0        0       0     0      0         0
+pch_25_macx_CDNS_7585762041881        0        0        0       0     0      0         0
+nch_25_macx_CDNS_7585762041882        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041891        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041892        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041893        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041894        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041895        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041896        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585762041897        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041898        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585762041899        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418100        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418101        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418102        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418103        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418104        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418105        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418106        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418107        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418108        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418109        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418110        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418111        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418112        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418113        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418114        0        0        0       0     0      0         0
+pch_25_mac_CDNS_75857620418115        0        0        0       0     0      0         0
+----------------------------------------------------------------------
+
+Object Statistics of Layers
+Layer   Objects
+----------------
+----------------
+
+Object Summary
+------------------
+     Box         0
+ Polygon         0
+    Path         0
+   Label         0
+Instance      1479
+   Array         0
+------------------
+   Total      1479
+
+
+Output property: 1479
+Total CPU Time          : 0(s)
+Total Real Time         : 0(s)
+Peak Memory Used        : 7(M)

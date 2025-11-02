@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : potentiostat_pmos_sch4lay_97772.db
+ECDB dir        : ./
+Top Cell        : potentiostat_pmos_sch4lay
+CDL netlist     : ./potentiostat_pmos_sch4lay.net
+Layer map file  : ./potentiostat_pmos_sch4lay.ecdbmap
+Text map file   : ./potentiostat_pmos_sch4lay.ports
+Dependency map  : potentiostat_pmos_sch4lay.lmap.perc
+Lvs file        : ./potentiostat_pmos_sch4lay.lvsfile
+Float net file  : .potentiostat_pmos_sch4lay.info.softchk
+debug           : 0
+Source Library  : potentiostat_pmos_sch4lay_97772

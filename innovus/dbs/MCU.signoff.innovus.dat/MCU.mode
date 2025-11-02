@@ -39,7 +39,7 @@ catch {setNanoRouteMode -quiet -drouteStartIteration 0}
 catch {setNanoRouteMode -quiet -drouteUseLefPinTaperRule true}
 catch {setNanoRouteMode -quiet -drouteUseMultiCutViaEffort "medium"}
 catch {setNanoRouteMode -quiet -envNumberFailLimit 10}
-catch {setNanoRouteMode -quiet -extractDesignSignature 102681361}
+catch {setNanoRouteMode -quiet -extractDesignSignature 86307238}
 catch {setNanoRouteMode -quiet -extractRcModelFile "${::IMEX::libVar}/misc/rc_model.bin"}
 catch {setNanoRouteMode -quiet -extractThirdPartyCompatible false}
 catch {setNanoRouteMode -quiet -grouteExpTdStdDelay 21.300000}
@@ -55,7 +55,7 @@ catch {setNanoRouteMode -quiet -routeReInsertFillerCellList "FILLTIE128A10TH FIL
 catch {setNanoRouteMode -quiet -routeReInsertFillerCellListFromFile false}
 catch {setNanoRouteMode -quiet -routeTopRoutingLayer 7}
 catch {setNanoRouteMode -quiet -routeWithSiPostRouteFix false}
-catch {setNanoRouteMode -quiet -timingEngine "${::IMEX::libVar}/misc/.timing_file_49704.tif.gz"}
+catch {setNanoRouteMode -quiet -timingEngine "${::IMEX::libVar}/misc/.timing_file_112566.tif.gz"}
 
 catch { setIlmMode -keepHighFanoutPorts true -keepLoopBack false -keepInstInSdc false -keepFlatten true }
 catch { setUsefulSkewMode -ecoRoute false }

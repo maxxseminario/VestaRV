@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : Dac2V5R2R14_98591.db
+ECDB dir        : ./
+Top Cell        : Dac2V5R2R14
+CDL netlist     : ./Dac2V5R2R14.net
+Layer map file  : ./Dac2V5R2R14.ecdbmap
+Text map file   : ./Dac2V5R2R14.ports
+Dependency map  : Dac2V5R2R14.lmap.perc
+Lvs file        : ./Dac2V5R2R14.lvsfile
+Float net file  : .Dac2V5R2R14.info.softchk
+debug           : 0
+Source Library  : Dac2V5R2R14_98591

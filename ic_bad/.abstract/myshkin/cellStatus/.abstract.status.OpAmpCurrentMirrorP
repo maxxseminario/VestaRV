@@ -1,0 +1,5 @@
+cUiSetViewStatus {OpAmpCurrentMirrorP} {layout} {1}
+cUiSetViewStatus {OpAmpCurrentMirrorP} {logical} {0}
+cUiSetViewStatus {OpAmpCurrentMirrorP} {abstract.pin} {0}
+cUiSetViewStatus {OpAmpCurrentMirrorP} {abstract.ext} {0}
+cUiSetViewStatus {OpAmpCurrentMirrorP} {abstract} {0}

@@ -1,0 +1,51 @@
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-10-01 23:25:29 64881 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: --log_dir LOGS -top_cell pad_ring -ui_data --control /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pegasusdrcctl /home/mseminario2/chips/myshkin/ic/pvs/main25.rul /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul /home/mseminario2/chips/myshkin/ic/pvs/ant25.rul
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2200.14 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 13470 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 69 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI
+INFO:    Run directory same as current path
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/LOGS
+INFO:    PVL parsing results:
+WARNING: LAYOUT_FORMAT at line 227 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: LAYOUT_PATH at line 228 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: Cmd-line override: LAYOUT_PRIMARY "pad_ring";
+WARNING: RESULTS_DB -ascii at line 231 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: REPORT_SUMMARY statement at line 232 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is ignored.
+INFO:           summary file has been specified as pad_ring.sum
+WARNING: MAX_RESULTS -drc at line 235 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: LAYOUT_FORMAT at line 36 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+WARNING: LAYOUT_PATH at line 37 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+WARNING: Cmd-line override: LAYOUT_PRIMARY "pad_ring";
+WARNING: RESULTS_DB -ascii at line 40 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+WARNING: REPORT_SUMMARY statement at line 41 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is ignored.
+INFO:           summary file has been specified as pad_ring.sum
+WARNING: MAX_RESULTS -drc at line 44 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+ERROR:   Layer 'OD_18' has been defined in rule file at line 65 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'OD_25' has been defined in rule file at line 66 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'OD_33' has been defined in rule file at line 67 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CO' has been defined in rule file at line 68 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'AP' has been defined in rule file at line 443 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'RV' has been defined in rule file at line 446 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CB' has been defined in rule file at line 447 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CBD' has been defined in rule file at line 448 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CBM' has been defined in rule file at line 449 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CTM' has been defined in rule file at line 450 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'POLY' has been defined in rule file at line 458 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'OD' has been defined in rule file at line 3219 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'GATE' has been defined in rule file at line 3369 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'SD' has been defined in rule file at line 3371 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'VCAP_CTM' has been defined in rule file at line 15552 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'VCAP_CBM' has been defined in rule file at line 15553 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+INFO:    Finished parsing rule file(s) with error(s).
+INFO:    See /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/LOGS/pvl.log for additional details
+INFO:    Resource usage by worker at exit:
+                  CPU      Elapsed  Threads    CPU       Peak Total  Peak Active
+         Worker:  time[s]  time[s]  Allocated  usage[%]  Memory[MB]  Memory[MB]
+         Worker resource usage  summary: Total CPU[s]: 0  Run duration[s]: 0  Max peak memory[MB]: 0
+         Worker CPU utilization summary: 0 of 0 available CPU seconds (0.00%) with 0 average available CPUs
+INFO:    Checking in all SoftShare licenses.
+
+Pegasus finished abnormally with exit code 3 -- see above for earlier errors. 2025-10-01 23:25:29

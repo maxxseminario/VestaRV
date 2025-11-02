@@ -1,0 +1,19 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu May 19 16:08:59 2022 
+Best design point: 13
+Design specs: 
+	Better_ADCs:ADC_Main_1V0_S_Test:1	corner	Nominal - 
+	N_bit_set_msb		Error	No
+	n_comparator_regen		Error	No
+	Vcm		Error	No
+	digital_output		Error	No
+	code_100n		473
+Design parameters: 
+	input		-100m
+
+Interactive.133
+Number of points completed: 27
+Number of simulation errors: 108
+Interactive.133 completed. 
+Current time: Thu May 19 22:12:44 2022 

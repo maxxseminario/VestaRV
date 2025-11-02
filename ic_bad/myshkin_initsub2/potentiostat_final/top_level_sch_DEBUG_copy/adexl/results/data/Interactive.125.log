@@ -1,0 +1,13 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Mon Sep 29 16:07:35 2025 
+Best design point: 1
+Design specs: 
+	potentiostat_final:top_level_sch_w_VHDL:1	corner	Nominal - 
+Design parameters: 
+
+Interactive.125
+Number of points completed: 1
+Number of simulation errors: 0
+Interactive.125 completed. 
+Current time: Mon Sep 29 16:07:41 2025 

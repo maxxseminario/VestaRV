@@ -1,0 +1,24 @@
+45123
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_RV' version 22.1
+INFO:    License checkout successful ... 2025-09-22 17:57:27
+Error: The ECDB file version '35' does not match the software version '37'.  Please regenerate the ECDB by rerunning LVS.
+Error: The ECDB file version '35' does not match the software version '37'.  Please regenerate the ECDB by rerunning LVS.
+
+ERROR: GEX-00001
+Extraction database is missing
+Database file /home/mseminario2/chips/myshkin/ic/pvs/potentiostat_final/top_level_sch/.lvsExtReport.rdb not found
+Rerun extraction to create database
+Error: The ECDB file version '35' does not match the software version '37'.  Please regenerate the ECDB by rerunning LVS.
+
+ERROR: GEX-00005
+Cannot read cell information
+Database file :memory: corrupted or outdated
+The following error occured: no such table: run_flags
+Check job finish status or resubmit run to update database to actual version
+
+ERROR: GRV-00002
+Cannot open ECDB file
+An error occurred while opening the ECDB file /home/mseminario2/chips/myshkin/ic/pvs/potentiostat_final/top_level_sch/.probeData
+The following error occurred: Unexpected error
+Rerun engine to create database
+INFO:    Checking in all SoftShare licenses.

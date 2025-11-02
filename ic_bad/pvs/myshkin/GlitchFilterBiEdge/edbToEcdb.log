@@ -1,0 +1,17 @@
+
+/opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : GlitchFilterBiEdge_119045.db
+ECDB dir        : ./
+Top Cell        : GlitchFilterBiEdge
+CDL netlist     : ./GlitchFilterBiEdge.net
+Layer map file  : ./GlitchFilterBiEdge.ecdbmap
+Text map file   : ./GlitchFilterBiEdge.ports
+Dependency map  : GlitchFilterBiEdge.lmap.perc
+Lvs file        : ./GlitchFilterBiEdge.lvsfile
+Float net file  : .GlitchFilterBiEdge.info.softchk
+threads         : 32
+debug           : 0
+Source Library  : GlitchFilterBiEdge_119045

@@ -1,0 +1,5 @@
+cUiSetViewStatus {PadRing} {layout} {1}
+cUiSetViewStatus {PadRing} {logical} {0}
+cUiSetViewStatus {PadRing} {abstract.pin} {0}
+cUiSetViewStatus {PadRing} {abstract.ext} {0}
+cUiSetViewStatus {PadRing} {abstract} {0}

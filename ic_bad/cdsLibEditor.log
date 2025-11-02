@@ -1,0 +1,13 @@
+\o Program:		@(#)$CDS: cdsLibEditor version 6.1.8 - CAT37 10/27/2020 22:22 (sjfhw691) $
+\o Sub version:		sub-version  s154 
+\o Arguments:		-display :17 -mpssession virtuoso45674 -mpshost atlas -namespace CDBA -cdslib /home/smurray5/chips/washakie/ic/cds.lib 
+\o Working Directory:	atlas:/home/smurray5/chips/washakie/ic
+\o 64-bit offsets
+\a nrSetWindowVisibility(cdsLibEditor "show")
+\o Qt version: 		5.9.1
+\a nrSetCurrentWindow(cdsLibEditor)
+\a nrListItemAction(cdsLibEditor->mainTable 0 0)
+\o Active cell: 0 0 "cdsDefTechLib"
+\a nrResizeWindow(cdsLibEditor list(48 48 500 400))
+\a nrSetCurrentWindow(cdsLibEditor)
+\a exit(0)

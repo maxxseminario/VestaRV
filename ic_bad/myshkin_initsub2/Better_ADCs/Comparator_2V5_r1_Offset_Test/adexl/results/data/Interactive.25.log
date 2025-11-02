@@ -1,0 +1,15 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu Apr  7 17:21:24 2022 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Comparator_2V5_r2_Offset_Test:1	corner	Nominal - 
+	TrueVcm		1.25
+	Resolution		0
+Design parameters: 
+
+Interactive.25
+Number of points completed: 1
+Number of simulation errors: 0
+Interactive.25 completed. 
+Current time: Thu Apr  7 17:22:21 2022 

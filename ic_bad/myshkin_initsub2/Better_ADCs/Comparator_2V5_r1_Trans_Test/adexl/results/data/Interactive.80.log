@@ -1,0 +1,37 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu Oct 13 15:50:54 2022 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_typ - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_fast_best - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_slow_worst - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_typ_ss - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_typ_sf - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_typ_fs - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	tsmcN65_typ_ff - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+	Better_ADCs:Comparator_2V5_r1_Trans_Test:1	corner	Nominal - 
+	VT("/I0/net038")		Error	No
+	VT("/I0/net084")		Error	No
+Design parameters: 
+	vcm		1.25
+
+Interactive.80
+Number of points completed: 1
+Number of simulation errors: 16
+Interactive.80 completed. 
+Current time: Thu Oct 13 15:51:26 2022 

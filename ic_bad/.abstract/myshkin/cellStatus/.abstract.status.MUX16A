@@ -1,0 +1,5 @@
+cUiSetViewStatus {MUX16A} {layout} {1}
+cUiSetViewStatus {MUX16A} {logical} {0}
+cUiSetViewStatus {MUX16A} {abstract.pin} {0}
+cUiSetViewStatus {MUX16A} {abstract.ext} {0}
+cUiSetViewStatus {MUX16A} {abstract} {0}

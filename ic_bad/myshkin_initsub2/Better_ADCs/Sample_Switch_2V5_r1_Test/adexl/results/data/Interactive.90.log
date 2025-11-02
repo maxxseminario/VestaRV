@@ -1,0 +1,19 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu Oct 13 12:03:11 2022 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Sample_Switch_2V5_Test:1	corner	Nominal - 
+	ChargeInjection		2.997m
+	Vth		Error	No
+	gm		Error	No
+	Ron		Error	No
+	v		0
+Design parameters: 
+	vin		0
+
+Interactive.90
+Number of points completed: 51
+Number of simulation errors: 153
+Interactive.90 completed. 
+Current time: Thu Oct 13 12:03:37 2022 

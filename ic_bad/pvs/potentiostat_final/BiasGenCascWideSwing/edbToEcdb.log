@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : BiasGenCascWideSwing_88931.db
+ECDB dir        : ./
+Top Cell        : BiasGenCascWideSwing
+CDL netlist     : ./BiasGenCascWideSwing.net
+Layer map file  : ./BiasGenCascWideSwing.ecdbmap
+Text map file   : ./BiasGenCascWideSwing.ports
+Dependency map  : BiasGenCascWideSwing.lmap.perc
+Lvs file        : ./BiasGenCascWideSwing.lvsfile
+Float net file  : .BiasGenCascWideSwing.info.softchk
+debug           : 0
+Source Library  : BiasGenCascWideSwing_88931

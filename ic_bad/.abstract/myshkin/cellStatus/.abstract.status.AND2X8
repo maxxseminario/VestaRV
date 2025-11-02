@@ -1,0 +1,5 @@
+cUiSetViewStatus {AND2X8} {layout} {1}
+cUiSetViewStatus {AND2X8} {logical} {0}
+cUiSetViewStatus {AND2X8} {abstract.pin} {0}
+cUiSetViewStatus {AND2X8} {abstract.ext} {0}
+cUiSetViewStatus {AND2X8} {abstract} {0}

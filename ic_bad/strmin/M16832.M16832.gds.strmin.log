@@ -1,0 +1,14 @@
+********************************************************************************
+Product   : Virtuoso(R) XStream In
+Program   : @(#)$CDS: strmin version 6.1.8-64b 11/10/2020 19:35 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 02-Oct-2025  12:15:57
+User Name : mseminario2
+Host Name : atlas
+Directory : /home/mseminario2/chips/myshkin/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+ERROR (XSTRM-211): The argument with option '-strmFile' could not be found. This is because the value for the argument is not specified. Specify the valid value and then try again.
+INFO (XSTRM-273): Translation failed. '1' error(s) and '0' warning(s) found.

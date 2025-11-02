@@ -1,0 +1,108 @@
+********************************************************************************
+db2gds 22.14-s007 64 bit (Tue Jan 31 16:35:56 PST 2023)
+Build Ref No.: 031 Release Candidate (01-31-2023) [2214_pgs]
+
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+Build O/S:       Linux x86_64 3.10.0-693.el7.x86_64
+Executed on:     atlas (Linux x86_64 5.3.18-lp152.106-default)
+Process Id:      121628
+Starting Time:   Tue Sep 30 00:44:54 2025 (Tue Sep 30 05:44:54 2025 GMT)
+With parameters: OscillatorCurrentStarved_121216 erc.db OscillatorCurrentStarved -lmap lmapRZui1g -gdslib drc.db -gds_scale 1000 -property 
+********************************************************************************
+
+Library name: OscillatorCurrentStarved_121216
+GDSII file name: erc.db
+Cells to be written out: OscillatorCurrentStarved
+Source Library: OscillatorCurrentStarved_121216
+Layer mapping file(GDS <- DMC): lmapRZui1g
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+Cell name case: PRESERVE
+Option: output object property
+
+
+                Object Statistics of Cells                            
+Cell Name         Box  Polygon     Path   Label Instance Array    Total
+----------------------------------------------------------------------
+OscillatorCurrentStarved        0        0        0       0   602      0       602
+M1_PO_CDNS_759211086630        0        0        0       0     0      0         0
+M2_M1_CDNS_759211086631        0        0        0       0     0      0         0
+M2_M1_CDNS_759211086632        0        0        0       0     0      0         0
+M1_PO_CDNS_759211086635        0        0        0       0     0      0         0
+M2_M1_CDNS_759211086636        0        0        0       0     0      0         0
+M1_PO_CDNS_759211086638        0        0        0       0     0      0         0
+M1_PO_CDNS_759211086639        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866310        0        0        0       0     0      0         0
+M5_M4_CDNS_7592110866311        0        0        0       0     0      0         0
+M4_M3_CDNS_7592110866312        0        0        0       0     0      0         0
+M8_M7_CDNS_7592110866313        0        0        0       0     0      0         0
+M2_M1_CDNS_7592110866314        0        0        0       0     0      0         0
+M6_M5_CDNS_7592110866315        0        0        0       0     0      0         0
+M7_M6_CDNS_7592110866316        0        0        0       0     0      0         0
+M2_M1_CDNS_7592110866317        0        0        0       0     0      0         0
+M8_M7_CDNS_7592110866319        0        0        0       0     0      0         0
+M7_M6_CDNS_7592110866321        0        0        0       0     0      0         0
+M6_M5_CDNS_7592110866322        0        0        0       0     0      0         0
+M5_M4_CDNS_7592110866323        0        0        0       0     0      0         0
+M4_M3_CDNS_7592110866324        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866325        0        0        0       0     0      0         0
+M2_M1_CDNS_7592110866326        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866328        0        0        0       0     0      0         0
+M4_M3_CDNS_7592110866329        0        0        0       0     0      0         0
+M4_M3_CDNS_7592110866332        0        0        0       0     0      0         0
+M5_M4_CDNS_7592110866333        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866337        0        0        0       0     0      0         0
+M2_M1_CDNS_7592110866342        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866343        0        0        0       0     0      0         0
+M4_M3_CDNS_7592110866344        0        0        0       0     0      0         0
+M5_M4_CDNS_7592110866345        0        0        0       0     0      0         0
+M5_M4_CDNS_7592110866346        0        0        0       0     0      0         0
+M4_M3_CDNS_7592110866347        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866348        0        0        0       0     0      0         0
+M2_M1_CDNS_7592110866349        0        0        0       0     0      0         0
+pch_mac_CDNS_759211086634        0        0        0       0     0      0         0
+nch_macx_CDNS_759211086635        0        0        0       0     0      0         0
+pch_mac_CDNS_759211086636        0        0        0       0     0      0         0
+nch_macx_CDNS_759211086637        0        0        0       0     0      0         0
+nch_macx_CDNS_759211086639        0        0        0       0     0      0         0
+INVX1MA10TH         0        0        0       0     0      0         0
+FILLTIE2A10TH        0        0        0       0     0      0         0
+M3_M2_CDNS_7592110866351        0        0        0       0     0      0         0
+AND2X8MA10TH        0        0        0       0     0      0         0
+MASCO__A1           0        0        0       0     2      0         2
+MASCO__A2           0        0        0       0     2      0         2
+MASCO__A3           0        0        0       0     2      0         2
+MASCO__A4           0        0        0       0     2      0         2
+rppolywo_CDNS_7592110866310        0        0        0       0     0      0         0
+----------------------------------------------------------------------
+
+Object Statistics of Layers
+Layer   Objects
+----------------
+----------------
+
+Object Summary
+------------------
+     Box         0
+ Polygon         0
+    Path         0
+   Label         0
+Instance       610
+   Array         0
+------------------
+   Total       610
+
+
+Output property: 610
+Total CPU Time          : 0(s)
+Total Real Time         : 0(s)
+Peak Memory Used        : 7(M)

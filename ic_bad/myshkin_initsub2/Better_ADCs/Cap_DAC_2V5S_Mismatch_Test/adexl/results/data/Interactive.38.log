@@ -1,0 +1,25 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Sun Jan  9 00:05:06 2022 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Cap_DAC_Mismatch_Test:1	corner	Nominal - 
+	spe		Error	No
+	spectrumMeas((VT("/net3") - 1.25) 1e-08 5.19e-06 255 0 0 100000000 "Rectangular" 0 "enob")		-565.2m
+	spectrumMeas((VT("/cdac") - 1.25) 1e-08 5.19e-06 255 0 0 100000000 "Rectangular" 0 "enob")		-579.3m
+	VAR("TSTOP")		17.12u
+Design parameters: 
+	tone		503
+	numPoints		2.048K
+	TSTOP		17.12u
+	fsample		10M
+	fclk		120M
+	nob		10
+	period		8.333n
+	delay		20.83n
+
+Interactive.38
+Number of points completed: 1
+Number of simulation errors: 1
+Interactive.38 completed. 
+Current time: Sun Jan  9 00:05:24 2022 

@@ -1,0 +1,768 @@
+Running: /opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/pegasusvirt \
+  -isPegasus \
+  -mode drc \
+  -global_log_file /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pegasusuidrc.log \
+  -control /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pegasusdrcctl \
+  -cell_tree /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/cell_tree.txt \
+  -layLibName myshkin \
+  -layCellName pad_ring \
+  -layViewName layout \
+  -igds /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pad_ring.gds.gz \
+  -layScale 0.001 \
+  -layTechLib tsmcN65 \
+  -convertPin geometry \
+  -replaceBusBitChar nil \
+  -noConvertHalfWidthPath nil \
+  -layHierDepth 32 \
+  -layMaxVertices 2048 \
+  -rulesFile /home/mseminario2/chips/myshkin/ic/pvs/main25.rul \
+  -rulesFile /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul \
+  -rulesFile /home/mseminario2/chips/myshkin/ic/pvs/ant25.rul \
+  -log_dir LOGS \
+  -df2_version 6.1.8.0 \
+  -sign IPVS_1759379125_7362 \
+  -run_dir /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI \
+  -no_rules_check
+
+
+
+Virtuoso Framework License (111) was checked out successfully. Total checkout time was 0.01s.
+********************************************************************************
+Product   : Virtuoso(R) XStream Out
+Program   : @(#)$CDS: strmout version 6.1.8-64b 11/10/2020 19:36 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 01-Oct-2025  23:25:28
+User Name : mseminario2
+Host Name : atlas
+Directory : /home/mseminario2/chips/myshkin/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+Initializing from libInit.il for library tsmcN65...
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/pcode1.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/pcode2.cxt
+   --  tsmcN65_updateCDFs.il
+   --  tsmcPdkParamTable.il
+   --  tsmc_esti.ile
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65gp_v1d0c.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newAMS.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newRTMOM.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65GP_v1d0.cxt
+   --  tif_tcf_crn65gp_v1.0a.cxt
+   --  tsmcN65.cxt
+   --  tsmcN65Tool.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65GP_v1d0.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newRTMOM.cxt
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65GP_v1d0.cxt already loaded
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newAMS.cxt
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65_newRTMOM.cxt already loaded
+Loading Working place Display File '/home/mseminario2/chips/myshkin/ic/display.drf'
+WARNING (XSTRM-20): Output Stream file '/home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pad_ring.gds.gz' already exists. It will be overwritten.
+INFO (XSTRM-217): Reading the layer map file, /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'drawing0' at line number '47' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '114' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '115' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '131' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '132' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '146' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '147' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '161' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '162' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '176' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '177' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '191' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '192' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '206' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '207' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummyl' at line number '259' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummym' at line number '260' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummy0' at line number '261' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'drawing0' at line number '324' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummy0' at line number '335' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '351' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '352' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '353' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '354' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '355' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '356' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '357' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '358' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PSD' at line number '359' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummy0' at line number '365' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'STZONE' at line number '401' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '435' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '436' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '437' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '438' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '439' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '440' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '441' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '442' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '443' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '444' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '445' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '446' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '447' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '448' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '449' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '450' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '451' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '452' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '453' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '454' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '455' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '456' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '457' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '458' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '459' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '460' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '461' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '462' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '463' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '464' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '465' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '466' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '467' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '468' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '469' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '470' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '471' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '472' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '473' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '474' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '475' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '476' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '477' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '478' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '479' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '480' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '481' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '482' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '483' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '484' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '485' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '486' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '487' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '488' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '489' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '490' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '491' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '492' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '493' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '494' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '495' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR_OPC' at line number '496' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR_OPC' at line number '497' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR_OPC' at line number '498' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR_OPC' at line number '499' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR_OPC' at line number '500' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR' at line number '501' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '502' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '503' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '504' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '505' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '506' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '507' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '508' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '509' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '510' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '511' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '512' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '513' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '514' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '515' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '516' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '517' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '518' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '519' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '520' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '521' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '522' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '523' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '524' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '525' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '526' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '527' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '528' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '529' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '530' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '531' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '532' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '533' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '534' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '535' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '536' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '537' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '538' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '539' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '540' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '541' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '542' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '543' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '544' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR2' at line number '545' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '546' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '547' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '548' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '549' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '550' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '551' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '552' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '553' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '554' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '555' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '556' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '557' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '558' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '559' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '560' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '561' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '562' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '563' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '564' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '565' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '566' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '567' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '568' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '569' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '570' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '571' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '572' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '573' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '574' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '575' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '576' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '577' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR3' at line number '578' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '579' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '580' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '581' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '582' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '583' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '584' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '585' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '586' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '587' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '588' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '589' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '590' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '591' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '592' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '593' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '594' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '595' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '596' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '597' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '598' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '599' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '600' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '601' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '602' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '603' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '623' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '624' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '625' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '626' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '627' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '628' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '629' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '630' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '631' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '632' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '633' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'drawing0' at line number '639' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'dummy0' at line number '741' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'OTP' at line number '775' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'boundary1' at line number '880' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'boundary1' at line number '882' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'boundary1' at line number '884' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PCRAM' at line number '945' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PCRAM' at line number '946' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PCRAM' at line number '947' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PCRAM' at line number '948' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'DRCDMY' at line number '952' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'RES200' at line number '978' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MATCHING' at line number '979' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MATCHING' at line number '980' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MATCHING' at line number '981' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-33): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown purpose 'text' at line number '983' and will be ignored. This is because the purpose name specified in the layer map file is not defined in the technology file. Ensure that the purpose name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'OTP' at line number '984' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'LCDMY' at line number '985' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'AVT' at line number '986' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'ANALOG' at line number '987' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MEMS' at line number '995' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MEMS' at line number '996' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MEMS' at line number '997' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MEMS' at line number '998' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'MEMS' at line number '999' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1007' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1008' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1009' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1010' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1011' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1012' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'IMSOR4' at line number '1013' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'ANALOG' at line number '1017' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'GC' at line number '1047' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'GC' at line number '1048' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'GC' at line number '1049' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'GEWINDOW' at line number '1051' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'GEWINDOW' at line number '1052' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1055' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1056' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1057' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1058' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1059' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1060' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1061' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+WARNING (XSTRM-32): The layer map file '/opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap' contains unknown layer 'PHOTO' at line number '1062' and will be ignored. This is because the layer name specified in the layer map file is not defined in the technology file. Ensure that the layer name specified in the layer map file is both valid and defined in the technology file.
+INFO (XSTRM-280): The output file will be a compressed file because the file name has extension .gz
+INFO (XSTRM-162): You have not used the viaMap option. If the OpenAccess design has native oaVia instances, use the -viaMap option for preserving oaVia instances in a Stream Out - Stream In round trip. Using the -viaMap option improves performance and VM usage of applications using the Streamed-In design.  For details on the viaMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+
+Summary of Options :
+library                                 myshkin
+strmFile                                /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pad_ring.gds.gz
+topCell                                 pad_ring
+view                                    layout
+runDir                                  /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI
+logFile                                 /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/PIPO1.LOG
+techLib                                 tsmcN65
+hierDepth                               32
+maxVertices                             2048
+layerMap                                /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+userSkillFile                           /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/strmout.il
+labelDepth                              32
+case                                    Preserve
+convertDot                              node
+
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65_newAMS.cxt already loaded
+Load "/home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/oa/tphn65gpgv2od3_sl/libInit.il"
+INFO (TECH-150003): The technology database "tphn65gpgv2od3_sl" has been automatically
+updated from revision 226610(DM 4) to revision 227612(DM 4) in virtual memory.
+INFO (XSTRM-223): 1. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_1.
+INFO (XSTRM-223): 2. Translating cellView tphn65gpgv2od3_sl/HBG526_V2_BASE/layout as STRUCTURE HBG526_V2_BASE.
+INFO (XSTRM-223): 3. Translating cellView tphn65gpgv2od3_sl/HBG526_V2/layout as STRUCTURE HBG526_V2.
+INFO (XSTRM-223): 4. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_BASE/layout as STRUCTURE HBG526_V1_BASE.
+INFO (XSTRM-223): 5. Translating cellView tphn65gpgv2od3_sl/HBG526_V1/layout as STRUCTURE HBG526_V1.
+INFO (XSTRM-223): 6. Translating cellView tphn65gpgv2od3_sl/HBG526_OC/layout as STRUCTURE HBG526_OC.
+INFO (XSTRM-223): 7. Translating cellView tphn65gpgv2od3_sl/HBG526_PFILLER5_BASE_G/layout as STRUCTURE HBG526_PFILLER5_BASE_G.
+INFO (XSTRM-223): 8. Translating cellView tphn65gpgv2od3_sl/HBG526_V3X/layout as STRUCTURE HBG526_V3X.
+INFO (XSTRM-223): 9. Translating cellView tphn65gpgv2od3_sl/HBG526_V3XZ_4X4/layout as STRUCTURE HBG526_V3XZ_4X4.
+INFO (XSTRM-223): 10. Translating cellView tphn65gpgv2od3_sl/HBG526_V8Z/layout as STRUCTURE HBG526_V8Z.
+WARNING (XSTRM-399): The STRUCT 'HBG526_V8Z' generated for 'tphn65gpgv2od3_sl/HBG526_V8Z/layout' in GDS is empty because either the design is empty or no shape or object was translated.
+INFO (XSTRM-223): 11. Translating cellView tphn65gpgv2od3_sl/HBG526_V8Z_4X4/layout as STRUCTURE HBG526_V8Z_4X4.
+INFO (XSTRM-223): 12. Translating cellView tphn65gpgv2od3_sl/HBG526_V7Z/layout as STRUCTURE HBG526_V7Z.
+WARNING (XSTRM-399): The STRUCT 'HBG526_V7Z' generated for 'tphn65gpgv2od3_sl/HBG526_V7Z/layout' in GDS is empty because either the design is empty or no shape or object was translated.
+INFO (XSTRM-223): 13. Translating cellView tphn65gpgv2od3_sl/HBG526_V7Z_4X4/layout as STRUCTURE HBG526_V7Z_4X4.
+INFO (XSTRM-223): 14. Translating cellView tphn65gpgv2od3_sl/HBG526_V6X/layout as STRUCTURE HBG526_V6X.
+INFO (XSTRM-223): 15. Translating cellView tphn65gpgv2od3_sl/HBG526_V6XZ_4X4/layout as STRUCTURE HBG526_V6XZ_4X4.
+INFO (XSTRM-223): 16. Translating cellView tphn65gpgv2od3_sl/HBG526_V4X/layout as STRUCTURE HBG526_V4X.
+INFO (XSTRM-223): 17. Translating cellView tphn65gpgv2od3_sl/HBG526_V4XZ_4X4/layout as STRUCTURE HBG526_V4XZ_4X4.
+INFO (XSTRM-223): 18. Translating cellView tphn65gpgv2od3_sl/HBG526_V5X/layout as STRUCTURE HBG526_V5X.
+INFO (XSTRM-223): 19. Translating cellView tphn65gpgv2od3_sl/HBG526_V5XZ_4X4/layout as STRUCTURE HBG526_V5XZ_4X4.
+INFO (XSTRM-223): 20. Translating cellView tphn65gpgv2od3_sl/HBG526_V456789XZ_4X4/layout as STRUCTURE HBG526_V456789XZ_4X4.
+INFO (XSTRM-223): 21. Translating cellView tphn65gpgv2od3_sl/HBG526_V3456789XZ_4X4/layout as STRUCTURE HBG526_V3456789XZ_4X4.
+INFO (XSTRM-223): 22. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER5/layout as STRUCTURE HBG526_PL_M3456789_FILLER5.
+INFO (XSTRM-223): 23. Translating cellView tphn65gpgv2od3_sl/PFILLER20_G/layout as STRUCTURE PFILLER20_G.
+INFO (XSTRM-180): You have not used the objectMap option. The design has instance(s) of at least one of following OpenAccess objects: oaBlockage, oaBoundary, oaRow, and oaMarker. Any information about these objects will not be translated into the generated stream file. Use the objectMap option to translate/preserve these objects using XStream. For details on the objectMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+INFO (XSTRM-223): 24. Translating cellView tphn65gpgv2od3_sl/PFILLER10_G/layout as STRUCTURE PFILLER10_G.
+INFO (XSTRM-223): 25. Translating cellView tphn65gpgv2od3_sl/PFILLER50_G/layout as STRUCTURE PFILLER50_G.
+INFO (XSTRM-223): 26. Translating cellView tphn65gpgv2od3_sl/PFILLER5_G/layout as STRUCTURE PFILLER5_G.
+INFO (XSTRM-223): 27. Translating cellView tphn65gpgv2od3_sl/HBG526_PFILLER1_BASE_G/layout as STRUCTURE HBG526_PFILLER1_BASE_G.
+INFO (XSTRM-223): 28. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER1/layout as STRUCTURE HBG526_PL_M3456789_FILLER1.
+INFO (XSTRM-223): 29. Translating cellView tphn65gpgv2od3_sl/HBG526_SUB_FILLER1/layout as STRUCTURE HBG526_SUB_FILLER1.
+INFO (XSTRM-223): 30. Translating cellView tphn65gpgv2od3_sl/PFILLER1_G/layout as STRUCTURE PFILLER1_G.
+INFO (XSTRM-223): 31. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER0005/layout as STRUCTURE HBG526_PL_M3456789_FILLER0005.
+INFO (XSTRM-223): 32. Translating cellView tphn65gpgv2od3_sl/PFILLER0005_G/layout as STRUCTURE PFILLER0005_G.
+INFO (XSTRM-223): 33. Translating cellView tphn65gpgv2od3_sl/PFILLER58P95_G/layout as STRUCTURE PFILLER58P95_G.
+INFO (XSTRM-223): 34. Translating cellView tphn65gpgv2od3_sl/HBG526_PFILLER05_BASE_G/layout as STRUCTURE HBG526_PFILLER05_BASE_G.
+INFO (XSTRM-223): 35. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER05/layout as STRUCTURE HBG526_PL_M3456789_FILLER05.
+INFO (XSTRM-223): 36. Translating cellView tphn65gpgv2od3_sl/HBG526_SUB_FILLER05/layout as STRUCTURE HBG526_SUB_FILLER05.
+INFO (XSTRM-223): 37. Translating cellView tphn65gpgv2od3_sl/PFILLER05_G/layout as STRUCTURE PFILLER05_G.
+INFO (XSTRM-223): 38. Translating cellView tphn65gpgv2od3_sl/PFILLER25_G/layout as STRUCTURE PFILLER25_G.
+INFO (XSTRM-223): 39. Translating cellView tphn65gpgv2od3_sl/PFILLER97P6_G/layout as STRUCTURE PFILLER97P6_G.
+INFO (XSTRM-223): 40. Translating cellView tphn65gpgv2od3_sl/PFILLER61P3_G/layout as STRUCTURE PFILLER61P3_G.
+INFO (XSTRM-223): 41. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER05A/layout as STRUCTURE HBG526_PL_M3456789_FILLER05A.
+INFO (XSTRM-223): 42. Translating cellView tphn65gpgv2od3_sl/HBG526_FILLER05A_BASE/layout as STRUCTURE HBG526_FILLER05A_BASE.
+INFO (XSTRM-223): 43. Translating cellView tphn65gpgv2od3_sl/PFILLER05A_G/layout as STRUCTURE PFILLER05A_G.
+INFO (XSTRM-223): 44. Translating cellView tphn65gpgv2od3_sl/HBG526_V3X_1/layout as STRUCTURE HBG526_V3X_1.
+INFO (XSTRM-223): 45. Translating cellView tphn65gpgv2od3_sl/HBG526_V3XZ_4X4_1/layout as STRUCTURE HBG526_V3XZ_4X4_1.
+INFO (XSTRM-223): 46. Translating cellView tphn65gpgv2od3_sl/HBG526_V5X_1/layout as STRUCTURE HBG526_V5X_1.
+INFO (XSTRM-223): 47. Translating cellView tphn65gpgv2od3_sl/HBG526_V5XZ_4X4_1/layout as STRUCTURE HBG526_V5XZ_4X4_1.
+INFO (XSTRM-223): 48. Translating cellView tphn65gpgv2od3_sl/HBG526_V4X_1/layout as STRUCTURE HBG526_V4X_1.
+INFO (XSTRM-223): 49. Translating cellView tphn65gpgv2od3_sl/HBG526_V4XZ_4X4_1/layout as STRUCTURE HBG526_V4XZ_4X4_1.
+INFO (XSTRM-223): 50. Translating cellView tphn65gpgv2od3_sl/HBG526_V6X_1/layout as STRUCTURE HBG526_V6X_1.
+INFO (XSTRM-223): 51. Translating cellView tphn65gpgv2od3_sl/HBG526_V6XZ_4X4_1/layout as STRUCTURE HBG526_V6XZ_4X4_1.
+INFO (XSTRM-223): 52. Translating cellView tphn65gpgv2od3_sl/HBG526_V7Z_1/layout as STRUCTURE HBG526_V7Z_1.
+WARNING (XSTRM-399): The STRUCT 'HBG526_V7Z_1' generated for 'tphn65gpgv2od3_sl/HBG526_V7Z_1/layout' in GDS is empty because either the design is empty or no shape or object was translated.
+INFO (XSTRM-223): 53. Translating cellView tphn65gpgv2od3_sl/HBG526_V7Z_4X4_1/layout as STRUCTURE HBG526_V7Z_4X4_1.
+INFO (XSTRM-223): 54. Translating cellView tphn65gpgv2od3_sl/HBG526_V8Z_1/layout as STRUCTURE HBG526_V8Z_1.
+WARNING (XSTRM-399): The STRUCT 'HBG526_V8Z_1' generated for 'tphn65gpgv2od3_sl/HBG526_V8Z_1/layout' in GDS is empty because either the design is empty or no shape or object was translated.
+INFO (XSTRM-223): 55. Translating cellView tphn65gpgv2od3_sl/HBG526_V8Z_4X4_1/layout as STRUCTURE HBG526_V8Z_4X4_1.
+INFO (XSTRM-223): 56. Translating cellView tphn65gpgv2od3_sl/HBG526_V456789XZ_4X4_1/layout as STRUCTURE HBG526_V456789XZ_4X4_1.
+INFO (XSTRM-223): 57. Translating cellView tphn65gpgv2od3_sl/HBG526_V3456789XZ_4X4_1/layout as STRUCTURE HBG526_V3456789XZ_4X4_1.
+INFO (XSTRM-223): 58. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER5A/layout as STRUCTURE HBG526_PL_M3456789_FILLER5A.
+INFO (XSTRM-223): 59. Translating cellView tphn65gpgv2od3_sl/HBG526_OC_2/layout as STRUCTURE HBG526_OC_2.
+INFO (XSTRM-223): 60. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_BASE_1/layout as STRUCTURE HBG526_V1_BASE_1.
+INFO (XSTRM-223): 61. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_2/layout as STRUCTURE HBG526_V1_2.
+INFO (XSTRM-223): 62. Translating cellView tphn65gpgv2od3_sl/HBG526_V2_BASE_1/layout as STRUCTURE HBG526_V2_BASE_1.
+INFO (XSTRM-223): 63. Translating cellView tphn65gpgv2od3_sl/HBG526_V2_2/layout as STRUCTURE HBG526_V2_2.
+INFO (XSTRM-223): 64. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PFILLER5A/layout as STRUCTURE HBG526_BASE_PFILLER5A.
+INFO (XSTRM-223): 65. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE2_M_1/layout as STRUCTURE HBG526_PL_M3456789_BASE2_M_1.
+INFO (XSTRM-223): 66. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE2_1/layout as STRUCTURE HBG526_PL_M3456789_BASE2_1.
+INFO (XSTRM-223): 67. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE6_M_1/layout as STRUCTURE HBG526_PL_M3456789_BASE6_M_1.
+INFO (XSTRM-223): 68. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE6_1/layout as STRUCTURE HBG526_PL_M3456789_BASE6_1.
+INFO (XSTRM-223): 69. Translating cellView tphn65gpgv2od3_sl/PFILLER10A_G/layout as STRUCTURE PFILLER10A_G.
+INFO (XSTRM-223): 70. Translating cellView tphn65gpgv2od3_sl/PFILLER5A_G/layout as STRUCTURE PFILLER5A_G.
+INFO (XSTRM-223): 71. Translating cellView tphn65gpgv2od3_sl/PFILLER25A_G/layout as STRUCTURE PFILLER25A_G.
+INFO (XSTRM-223): 72. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_FILLER1A/layout as STRUCTURE HBG526_PL_M3456789_FILLER1A.
+INFO (XSTRM-223): 73. Translating cellView tphn65gpgv2od3_sl/HBG526_FILLER1A_BASE/layout as STRUCTURE HBG526_FILLER1A_BASE.
+INFO (XSTRM-223): 74. Translating cellView tphn65gpgv2od3_sl/PFILLER1A_G/layout as STRUCTURE PFILLER1A_G.
+INFO (XSTRM-223): 75. Translating cellView tphn65gpgv2od3_sl/PFILLER0005A_G/layout as STRUCTURE PFILLER0005A_G.
+INFO (XSTRM-223): 76. Translating cellView tphn65gpgv2od3_sl/PFILLER58P95A_G/layout as STRUCTURE PFILLER58P95A_G.
+INFO (XSTRM-223): 77. Translating cellView csr_cmn65gp/N65CHIPCDU2_New/layout as STRUCTURE N65CHIPCDU2_New.
+INFO (XSTRM-223): 78. Translating cellView csr_cmn65gp/VIA6/layout as STRUCTURE VIA6.
+INFO (XSTRM-223): 79. Translating cellView csr_cmn65gp/VIA5/layout as STRUCTURE VIA5.
+INFO (XSTRM-223): 80. Translating cellView csr_cmn65gp/VIA4/layout as STRUCTURE VIA4.
+INFO (XSTRM-223): 81. Translating cellView csr_cmn65gp/VIA3/layout as STRUCTURE VIA3.
+INFO (XSTRM-223): 82. Translating cellView csr_cmn65gp/VIA2/layout as STRUCTURE VIA2.
+INFO (XSTRM-223): 83. Translating cellView csr_cmn65gp/VIA1/layout as STRUCTURE VIA1.
+INFO (XSTRM-223): 84. Translating cellView csr_cmn65gp/CONT/layout as STRUCTURE CONT.
+INFO (XSTRM-223): 85. Translating cellView csr_cmn65gp/CONT_VIA1_6/layout as STRUCTURE CONT_VIA1_6.
+INFO (XSTRM-223): 86. Translating cellView csr_cmn65gp/VIA8/layout as STRUCTURE VIA8.
+INFO (XSTRM-223): 87. Translating cellView csr_cmn65gp/VIA7/layout as STRUCTURE VIA7.
+INFO (XSTRM-223): 88. Translating cellView csr_cmn65gp/VIA7_8/layout as STRUCTURE VIA7_8.
+INFO (XSTRM-223): 89. Translating cellView csr_cmn65gp/UCSRN/layout as STRUCTURE UCSRN.
+INFO (XSTRM-223): 90. Translating cellView csr_cmn65gp/UCSRN_NOVIA/layout as STRUCTURE UCSRN_NOVIA.
+INFO (XSTRM-223): 91. Translating cellView csr_cmn65gp/VZ_45/layout as STRUCTURE VZ_45.
+INFO (XSTRM-223): 92. Translating cellView csr_cmn65gp/VX_CO_45/layout as STRUCTURE VX_CO_45.
+INFO (XSTRM-223): 93. Translating cellView csr_cmn65gp/VZ_VX_CO_45_X351/layout as STRUCTURE VZ_VX_CO_45_X351.
+INFO (XSTRM-223): 94. Translating cellView csr_cmn65gp/CORNER_B/layout as STRUCTURE CORNER_B.
+INFO (XSTRM-223): 95. Translating cellView tpbn65v_cup/HAE261_V7Z_UNIT_4/layout as STRUCTURE HAE261_V7Z_UNIT_4.
+INFO (XSTRM-223): 96. Translating cellView tpbn65v_cup/HAE261_V8U_UNIT/layout as STRUCTURE HAE261_V8U_UNIT.
+INFO (XSTRM-223): 97. Translating cellView tpbn65v_cup/HAE261_V8U_UNIT_4/layout as STRUCTURE HAE261_V8U_UNIT_4.
+INFO (XSTRM-223): 98. Translating cellView tpbn65v_cup/PAD70GU_SL/layout as STRUCTURE PAD70GU_SL.
+INFO (XSTRM-223): 99. Translating cellView tphn65gpgv2od3_sl/HBG526_PASSGATE_OPTION/layout as STRUCTURE HBG526_PASSGATE_OPTION.
+INFO (XSTRM-223): 100. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTDRV16CELL/layout as STRUCTURE HBG526_POSTDRV16CELL.
+INFO (XSTRM-223): 101. Translating cellView tphn65gpgv2od3_sl/HBG526_PC/layout as STRUCTURE HBG526_PC.
+INFO (XSTRM-223): 102. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS1D7X04/layout as STRUCTURE HBG526_PMOS1D7X04.
+INFO (XSTRM-223): 103. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS1X05/layout as STRUCTURE HBG526_NMOS1X05.
+INFO (XSTRM-223): 104. Translating cellView tphn65gpgv2od3_sl/HBG526_SCHCELL/layout as STRUCTURE HBG526_SCHCELL.
+INFO (XSTRM-223): 105. Translating cellView tphn65gpgv2od3_sl/HBG526_NON_SLEW/layout as STRUCTURE HBG526_NON_SLEW.
+INFO (XSTRM-223): 106. Translating cellView tphn65gpgv2od3_sl/HBG526_PUPCELL/layout as STRUCTURE HBG526_PUPCELL.
+INFO (XSTRM-223): 107. Translating cellView tphn65gpgv2od3_sl/HBG526_CPIN/layout as STRUCTURE HBG526_CPIN.
+INFO (XSTRM-223): 108. Translating cellView tphn65gpgv2od3_sl/HBG526_RENPIN/layout as STRUCTURE HBG526_RENPIN.
+INFO (XSTRM-223): 109. Translating cellView tphn65gpgv2od3_sl/HBG526_IPIN/layout as STRUCTURE HBG526_IPIN.
+INFO (XSTRM-223): 110. Translating cellView tphn65gpgv2od3_sl/HBG526_OENPIN/layout as STRUCTURE HBG526_OENPIN.
+INFO (XSTRM-223): 111. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_1/layout as STRUCTURE HBG526_V1_1.
+INFO (XSTRM-223): 112. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_V2_BASE/layout as STRUCTURE HBG526_V1_V2_BASE.
+INFO (XSTRM-223): 113. Translating cellView tphn65gpgv2od3_sl/HBG526_OC_1/layout as STRUCTURE HBG526_OC_1.
+INFO (XSTRM-223): 114. Translating cellView tphn65gpgv2od3_sl/HBG526_MIDDLE_M12/layout as STRUCTURE HBG526_MIDDLE_M12.
+INFO (XSTRM-223): 115. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTDRV_PBASE_EDGE/layout as STRUCTURE HBG526_POSTDRV_PBASE_EDGE.
+INFO (XSTRM-223): 116. Translating cellView tphn65gpgv2od3_sl/HBG526_PC_1/layout as STRUCTURE HBG526_PC_1.
+INFO (XSTRM-223): 117. Translating cellView tphn65gpgv2od3_sl/HBG526_PC_2X1/layout as STRUCTURE HBG526_PC_2X1.
+INFO (XSTRM-223): 118. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS18X04X2_1/layout as STRUCTURE HBG526_PMOS18X04X2_1.
+INFO (XSTRM-223): 119. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS_1/layout as STRUCTURE HBG526_PMOS_1.
+INFO (XSTRM-223): 120. Translating cellView tphn65gpgv2od3_sl/HBG526_V2_1/layout as STRUCTURE HBG526_V2_1.
+INFO (XSTRM-223): 121. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS18X04X2/layout as STRUCTURE HBG526_PMOS18X04X2.
+INFO (XSTRM-223): 122. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS/layout as STRUCTURE HBG526_PMOS.
+INFO (XSTRM-223): 123. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTP/layout as STRUCTURE HBG526_POSTP.
+INFO (XSTRM-223): 124. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_N_041X05/layout as STRUCTURE HBG526_RES_N_041X05.
+INFO (XSTRM-223): 125. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTN_EDGE/layout as STRUCTURE HBG526_POSTN_EDGE.
+INFO (XSTRM-223): 126. Translating cellView tphn65gpgv2od3_sl/HBG526_MOS_ESDN01/layout as STRUCTURE HBG526_MOS_ESDN01.
+INFO (XSTRM-223): 127. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTN/layout as STRUCTURE HBG526_POSTN.
+INFO (XSTRM-223): 128. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTDRV/layout as STRUCTURE HBG526_POSTDRV.
+INFO (XSTRM-223): 129. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS04X0D98_NEW/layout as STRUCTURE HBG526_PMOS04X0D98_NEW.
+INFO (XSTRM-223): 130. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOSD2D7X04/layout as STRUCTURE HBG526_NMOSD2D7X04.
+INFO (XSTRM-223): 131. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS1D2X0D4/layout as STRUCTURE HBG526_PMOS1D2X0D4.
+INFO (XSTRM-223): 132. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS2D1X0D4/layout as STRUCTURE HBG526_PMOS2D1X0D4.
+INFO (XSTRM-223): 133. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_V2/layout as STRUCTURE HBG526_V1_V2.
+INFO (XSTRM-223): 134. Translating cellView tphn65gpgv2od3_sl/HBG526_PIN/layout as STRUCTURE HBG526_PIN.
+INFO (XSTRM-223): 135. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS0D7X05/layout as STRUCTURE HBG526_NMOS0D7X05.
+INFO (XSTRM-223): 136. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_1D5XD5/layout as STRUCTURE HBG526_RES_1D5XD5.
+INFO (XSTRM-223): 137. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS04X1_NEW/layout as STRUCTURE HBG526_PMOS04X1_NEW.
+INFO (XSTRM-223): 138. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS0D42X05/layout as STRUCTURE HBG526_NMOS0D42X05.
+INFO (XSTRM-223): 139. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS1D05X04/layout as STRUCTURE HBG526_PMOS1D05X04.
+INFO (XSTRM-223): 140. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_3X1D1/layout as STRUCTURE HBG526_RES_3X1D1.
+INFO (XSTRM-223): 141. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS2X05/layout as STRUCTURE HBG526_NMOS2X05.
+INFO (XSTRM-223): 142. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS_NTN_1D28X4D5/layout as STRUCTURE HBG526_NMOS_NTN_1D28X4D5.
+INFO (XSTRM-223): 143. Translating cellView tphn65gpgv2od3_sl/HBG526_NTN_LS_TINY/layout as STRUCTURE HBG526_NTN_LS_TINY.
+INFO (XSTRM-223): 144. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS5D3X9_2/layout as STRUCTURE HBG526_PMOS5D3X9_2.
+INFO (XSTRM-223): 145. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_3_5X08/layout as STRUCTURE HBG526_RES_3_5X08.
+INFO (XSTRM-223): 146. Translating cellView tphn65gpgv2od3_sl/HBG526_PREDRVVSS2/layout as STRUCTURE HBG526_PREDRVVSS2.
+INFO (XSTRM-223): 147. Translating cellView tphn65gpgv2od3_sl/HBG526_PREDRVVDD/layout as STRUCTURE HBG526_PREDRVVDD.
+INFO (XSTRM-223): 148. Translating cellView tphn65gpgv2od3_sl/HBG526_PREDRVVDDPST/layout as STRUCTURE HBG526_PREDRVVDDPST.
+INFO (XSTRM-223): 149. Translating cellView tphn65gpgv2od3_sl/HBG526_PREDRVVSS1/layout as STRUCTURE HBG526_PREDRVVSS1.
+INFO (XSTRM-223): 150. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS5D15X09/layout as STRUCTURE HBG526_NMOS5D15X09.
+INFO (XSTRM-223): 151. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS2D5X05_1/layout as STRUCTURE HBG526_NMOS2D5X05_1.
+INFO (XSTRM-223): 152. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOSD8X05/layout as STRUCTURE HBG526_NMOSD8X05.
+INFO (XSTRM-223): 153. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS3X04/layout as STRUCTURE HBG526_PMOS3X04.
+INFO (XSTRM-223): 154. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOSD09X04/layout as STRUCTURE HBG526_PMOSD09X04.
+INFO (XSTRM-223): 155. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS4X05/layout as STRUCTURE HBG526_NMOS4X05.
+INFO (XSTRM-223): 156. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS6X04/layout as STRUCTURE HBG526_PMOS6X04.
+INFO (XSTRM-223): 157. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS1X04/layout as STRUCTURE HBG526_PMOS1X04.
+INFO (XSTRM-223): 158. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS7X06/layout as STRUCTURE HBG526_NMOS7X06.
+INFO (XSTRM-223): 159. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS2D1X05/layout as STRUCTURE HBG526_NMOS2D1X05.
+INFO (XSTRM-223): 160. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS1D4X04/layout as STRUCTURE HBG526_PMOS1D4X04.
+INFO (XSTRM-223): 161. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS3D5X9/layout as STRUCTURE HBG526_PMOS3D5X9.
+INFO (XSTRM-223): 162. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS3D5X05/layout as STRUCTURE HBG526_NMOS3D5X05.
+INFO (XSTRM-223): 163. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS7X09/layout as STRUCTURE HBG526_NMOS7X09.
+INFO (XSTRM-223): 164. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS7X9/layout as STRUCTURE HBG526_PMOS7X9.
+INFO (XSTRM-223): 165. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS3D2X05/layout as STRUCTURE HBG526_NMOS3D2X05.
+INFO (XSTRM-223): 166. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS3D5X04/layout as STRUCTURE HBG526_PMOS3D5X04.
+INFO (XSTRM-223): 167. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS21X4/layout as STRUCTURE HBG526_PMOS21X4.
+INFO (XSTRM-223): 168. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS19D5X4/layout as STRUCTURE HBG526_PMOS19D5X4.
+INFO (XSTRM-223): 169. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS06X06/layout as STRUCTURE HBG526_NMOS06X06.
+INFO (XSTRM-223): 170. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS7X04/layout as STRUCTURE HBG526_PMOS7X04.
+INFO (XSTRM-223): 171. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS2D1X09/layout as STRUCTURE HBG526_NMOS2D1X09.
+INFO (XSTRM-223): 172. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS7X05/layout as STRUCTURE HBG526_NMOS7X05.
+INFO (XSTRM-223): 173. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS3X05/layout as STRUCTURE HBG526_NMOS3X05.
+INFO (XSTRM-223): 174. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS0D8X04/layout as STRUCTURE HBG526_PMOS0D8X04.
+INFO (XSTRM-223): 175. Translating cellView tphn65gpgv2od3_sl/HBG526_PREDRV/layout as STRUCTURE HBG526_PREDRV.
+INFO (XSTRM-223): 176. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE7/layout as STRUCTURE HBG526_PL_M3456789_BASE7.
+INFO (XSTRM-223): 177. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE5/layout as STRUCTURE HBG526_PL_M3456789_BASE5.
+INFO (XSTRM-223): 178. Translating cellView tphn65gpgv2od3_sl/HBG526_PAD_CONNECT/layout as STRUCTURE HBG526_PAD_CONNECT.
+INFO (XSTRM-223): 179. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE6_M/layout as STRUCTURE HBG526_PL_M3456789_BASE6_M.
+INFO (XSTRM-223): 180. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE6/layout as STRUCTURE HBG526_PL_M3456789_BASE6.
+INFO (XSTRM-223): 181. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE_UP/layout as STRUCTURE HBG526_PL_M3456789_BASE_UP.
+INFO (XSTRM-223): 182. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE4/layout as STRUCTURE HBG526_PL_M3456789_BASE4.
+INFO (XSTRM-223): 183. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE3/layout as STRUCTURE HBG526_PL_M3456789_BASE3.
+INFO (XSTRM-223): 184. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE2_M/layout as STRUCTURE HBG526_PL_M3456789_BASE2_M.
+INFO (XSTRM-223): 185. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE2/layout as STRUCTURE HBG526_PL_M3456789_BASE2.
+INFO (XSTRM-223): 186. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE1/layout as STRUCTURE HBG526_PL_M3456789_BASE1.
+INFO (XSTRM-223): 187. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789/layout as STRUCTURE HBG526_PL_M3456789.
+INFO (XSTRM-223): 188. Translating cellView tphn65gpgv2od3_sl/PDUW16SDGZ_G/layout as STRUCTURE PDUW16SDGZ_G.
+INFO (XSTRM-223): 189. Translating cellView tphn65gpgv2od3_sl/HBG526_SUB_CORNER/layout as STRUCTURE HBG526_SUB_CORNER.
+INFO (XSTRM-223): 190. Translating cellView tphn65gpgv2od3_sl/PCORNER_G/layout as STRUCTURE PCORNER_G.
+INFO (XSTRM-223): 191. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_04X22D11/layout as STRUCTURE HBG526_RES_04X22D11.
+INFO (XSTRM-223): 192. Translating cellView tphn65gpgv2od3_sl/HBG526_PC_1_2X1/layout as STRUCTURE HBG526_PC_1_2X1.
+INFO (XSTRM-223): 193. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_PO_04X025/layout as STRUCTURE HBG526_RES_PO_04X025.
+INFO (XSTRM-223): 194. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_04X22D11X47/layout as STRUCTURE HBG526_RES_04X22D11X47.
+INFO (XSTRM-223): 195. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSNVDD1/layout as STRUCTURE HBG526_NPLUSNVDD1.
+INFO (XSTRM-223): 196. Translating cellView tphn65gpgv2od3_sl/HBG526_PPLUSNVDD1/layout as STRUCTURE HBG526_PPLUSNVDD1.
+INFO (XSTRM-223): 197. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDD1_DIO/layout as STRUCTURE HBG526_POSTVDD1_DIO.
+INFO (XSTRM-223): 198. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTN_EDGE_VDD1/layout as STRUCTURE HBG526_POSTN_EDGE_VDD1.
+INFO (XSTRM-223): 199. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSSPST_VDD1/layout as STRUCTURE HBG526_POSTVSSPST_VDD1.
+INFO (XSTRM-223): 200. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDD1_PBASE_EDGE/layout as STRUCTURE HBG526_POSTVDD1_PBASE_EDGE.
+INFO (XSTRM-223): 201. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDDPST_VDD1/layout as STRUCTURE HBG526_POSTVDDPST_VDD1.
+INFO (XSTRM-223): 202. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS10X1D81/layout as STRUCTURE HBG526_NMOS10X1D81.
+INFO (XSTRM-223): 203. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDD1_CONN_M12_1/layout as STRUCTURE HBG526_POSTVDD1_CONN_M12_1.
+INFO (XSTRM-223): 204. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDD1_CONN_M12/layout as STRUCTURE HBG526_POSTVDD1_CONN_M12.
+INFO (XSTRM-223): 205. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD1_INV_P/layout as STRUCTURE HBG526_VDD1_INV_P.
+INFO (XSTRM-223): 206. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDD1/layout as STRUCTURE HBG526_POSTVDD1.
+INFO (XSTRM-223): 207. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD_CONN_M12/layout as STRUCTURE HBG526_VDD_CONN_M12.
+INFO (XSTRM-223): 208. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD1_CONN_M12/layout as STRUCTURE HBG526_PREVDD1_CONN_M12.
+INFO (XSTRM-223): 209. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS0D13X34D99X2/layout as STRUCTURE HBG526_NMOS0D13X34D99X2.
+INFO (XSTRM-223): 210. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD1_INV_N/layout as STRUCTURE HBG526_VDD1_INV_N.
+INFO (XSTRM-223): 211. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD1/layout as STRUCTURE HBG526_PREVDD1.
+INFO (XSTRM-223): 212. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_VDD2/layout as STRUCTURE HBG526_PL_M3456789_VDD2.
+INFO (XSTRM-223): 213. Translating cellView tphn65gpgv2od3_sl/PVDD1DGZ_G/layout as STRUCTURE PVDD1DGZ_G.
+INFO (XSTRM-223): 214. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD/layout as STRUCTURE HBG526_PREVDD.
+INFO (XSTRM-223): 215. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_04X23/layout as STRUCTURE HBG526_RES_04X23.
+INFO (XSTRM-223): 216. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS1/layout as STRUCTURE HBG526_PREVSS1.
+INFO (XSTRM-223): 217. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_H/layout as STRUCTURE HBG526_RES_H.
+INFO (XSTRM-223): 218. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS2/layout as STRUCTURE HBG526_PREVSS2.
+INFO (XSTRM-223): 219. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDDPST/layout as STRUCTURE HBG526_PREVDDPST.
+INFO (XSTRM-223): 220. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_2X3D68/layout as STRUCTURE HBG526_RES_2X3D68.
+INFO (XSTRM-223): 221. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS_NTN_1X2/layout as STRUCTURE HBG526_NMOS_NTN_1X2.
+INFO (XSTRM-223): 222. Translating cellView tphn65gpgv2od3_sl/HBG526_NMOS2XD4/layout as STRUCTURE HBG526_NMOS2XD4.
+INFO (XSTRM-223): 223. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_04X23D87/layout as STRUCTURE HBG526_RES_04X23D87.
+INFO (XSTRM-223): 224. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS6D5XD5/layout as STRUCTURE HBG526_PMOS6D5XD5.
+INFO (XSTRM-223): 225. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD2/layout as STRUCTURE HBG526_PREVDD2.
+INFO (XSTRM-223): 226. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDDPSR_PBASE_EDGE/layout as STRUCTURE HBG526_POSTVDDPSR_PBASE_EDGE.
+INFO (XSTRM-223): 227. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDDPST/layout as STRUCTURE HBG526_POSTVDDPST.
+INFO (XSTRM-223): 228. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_04X21D86/layout as STRUCTURE HBG526_RES_04X21D86.
+INFO (XSTRM-223): 229. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_04X21D86X54/layout as STRUCTURE HBG526_RES_04X21D86X54.
+INFO (XSTRM-223): 230. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTN_EDGE_VDD2/layout as STRUCTURE HBG526_POSTN_EDGE_VDD2.
+INFO (XSTRM-223): 231. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSSPST_RPO_095/layout as STRUCTURE HBG526_POSTVSSPST_RPO_095.
+INFO (XSTRM-223): 232. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD2_INV_P_1/layout as STRUCTURE HBG526_VDD2_INV_P_1.
+INFO (XSTRM-223): 233. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD2_INV_P/layout as STRUCTURE HBG526_VDD2_INV_P.
+INFO (XSTRM-223): 234. Translating cellView tphn65gpgv2od3_sl/HBG526_POST_CONN_M12_RPO_048/layout as STRUCTURE HBG526_POST_CONN_M12_RPO_048.
+INFO (XSTRM-223): 235. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD2_C_3D5X3D3/layout as STRUCTURE HBG526_VDD2_C_3D5X3D3.
+INFO (XSTRM-223): 236. Translating cellView tphn65gpgv2od3_sl/HBG526_VDD2_INV_N/layout as STRUCTURE HBG526_VDD2_INV_N.
+INFO (XSTRM-223): 237. Translating cellView tphn65gpgv2od3_sl/HBG526_MOS_ESDN01_VDD2_RPO_095/layout as STRUCTURE HBG526_MOS_ESDN01_VDD2_RPO_095.
+INFO (XSTRM-223): 238. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDD2POC_G/layout as STRUCTURE HBG526_POSTVDD2POC_G.
+INFO (XSTRM-223): 239. Translating cellView tphn65gpgv2od3_sl/HBG526_OPTION_PVDD2POC/layout as STRUCTURE HBG526_OPTION_PVDD2POC.
+INFO (XSTRM-223): 240. Translating cellView tphn65gpgv2od3_sl/PVDD2POC_G/layout as STRUCTURE PVDD2POC_G.
+INFO (XSTRM-223): 241. Translating cellView tphn65gpgv2od3_sl/HBG526_OPTION_PVDD2DGZ/layout as STRUCTURE HBG526_OPTION_PVDD2DGZ.
+INFO (XSTRM-223): 242. Translating cellView tphn65gpgv2od3_sl/PVDD2DGZ_G/layout as STRUCTURE PVDD2DGZ_G.
+INFO (XSTRM-223): 243. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_PRCUTA/layout as STRUCTURE HBG526_PL_M3456789_PRCUTA.
+INFO (XSTRM-223): 244. Translating cellView tphn65gpgv2od3_sl/HBG526_V1_V2_BASE_1/layout as STRUCTURE HBG526_V1_V2_BASE_1.
+INFO (XSTRM-223): 245. Translating cellView tphn65gpgv2od3_sl/HBG526_POST_PRCUT_1/layout as STRUCTURE HBG526_POST_PRCUT_1.
+INFO (XSTRM-223): 246. Translating cellView tphn65gpgv2od3_sl/HBG526_PRE_PRCUT_1/layout as STRUCTURE HBG526_PRE_PRCUT_1.
+INFO (XSTRM-223): 247. Translating cellView tphn65gpgv2od3_sl/HBG526_PRE_TAVDD_PRCUT/layout as STRUCTURE HBG526_PRE_TAVDD_PRCUT.
+INFO (XSTRM-223): 248. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PRCUTA/layout as STRUCTURE HBG526_BASE_PRCUTA.
+INFO (XSTRM-223): 249. Translating cellView tphn65gpgv2od3_sl/PRCUTA_G/layout as STRUCTURE PRCUTA_G.
+INFO (XSTRM-223): 250. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3A_RPO_EN_RC_V2/layout as STRUCTURE HBG526_BASE_PVDD3A_RPO_EN_RC_V2.
+INFO (XSTRM-223): 251. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3A_RPO_EN_RC_V12/layout as STRUCTURE HBG526_BASE_PVDD3A_RPO_EN_RC_V12.
+INFO (XSTRM-223): 252. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3/layout as STRUCTURE HBG526_BASE_PVDD3.
+INFO (XSTRM-223): 253. Translating cellView tphn65gpgv2od3_sl/HBG526_POST_EDGE_EN_RC/layout as STRUCTURE HBG526_POST_EDGE_EN_RC.
+INFO (XSTRM-223): 254. Translating cellView tphn65gpgv2od3_sl/HBG526_PC_2/layout as STRUCTURE HBG526_PC_2.
+INFO (XSTRM-223): 255. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS5XD4/layout as STRUCTURE HBG526_PMOS5XD4.
+INFO (XSTRM-223): 256. Translating cellView tphn65gpgv2od3_sl/HBG526_PMOS_DIV2_EN_RC/layout as STRUCTURE HBG526_PMOS_DIV2_EN_RC.
+INFO (XSTRM-223): 257. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_D4X22D92/layout as STRUCTURE HBG526_RES_D4X22D92.
+INFO (XSTRM-223): 258. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_PO_04X025_1/layout as STRUCTURE HBG526_RES_PO_04X025_1.
+INFO (XSTRM-223): 259. Translating cellView tphn65gpgv2od3_sl/HBG526_RES_D4X22D92X54/layout as STRUCTURE HBG526_RES_D4X22D92X54.
+INFO (XSTRM-223): 260. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD3A_GR/layout as STRUCTURE HBG526_PREVDD3A_GR.
+INFO (XSTRM-223): 261. Translating cellView tphn65gpgv2od3_sl/HBG526_MOS35D925XD5_RPO_DIS/layout as STRUCTURE HBG526_MOS35D925XD5_RPO_DIS.
+INFO (XSTRM-223): 262. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD3A_RPO_DIS_M2/layout as STRUCTURE HBG526_PREVDD3A_RPO_DIS_M2.
+INFO (XSTRM-223): 263. Translating cellView tphn65gpgv2od3_sl/HBG526_MOS1D2XD5X2/layout as STRUCTURE HBG526_MOS1D2XD5X2.
+INFO (XSTRM-223): 264. Translating cellView tphn65gpgv2od3_sl/HBG526_PC_1_1/layout as STRUCTURE HBG526_PC_1_1.
+INFO (XSTRM-223): 265. Translating cellView tphn65gpgv2od3_sl/HBG526_PC_1_2X1_1/layout as STRUCTURE HBG526_PC_1_2X1_1.
+INFO (XSTRM-223): 266. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDD3A_RPO_DIS/layout as STRUCTURE HBG526_PREVDD3A_RPO_DIS.
+INFO (XSTRM-223): 267. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3A_DCAP_M1/layout as STRUCTURE HBG526_BASE_PVDD3A_DCAP_M1.
+INFO (XSTRM-223): 268. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3A_DCAP_M/layout as STRUCTURE HBG526_BASE_PVDD3A_DCAP_M.
+INFO (XSTRM-223): 269. Translating cellView tphn65gpgv2od3_sl/HBG526_MOS36XD5_RPO_DIS/layout as STRUCTURE HBG526_MOS36XD5_RPO_DIS.
+INFO (XSTRM-223): 270. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3A_M12_RPO_EN_RC/layout as STRUCTURE HBG526_BASE_PVDD3A_M12_RPO_EN_RC.
+INFO (XSTRM-223): 271. Translating cellView tphn65gpgv2od3_sl/HBG526_C_4X7/layout as STRUCTURE HBG526_C_4X7.
+INFO (XSTRM-223): 272. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVDD3A_RPO_EN_RC/layout as STRUCTURE HBG526_BASE_PVDD3A_RPO_EN_RC.
+INFO (XSTRM-223): 273. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE5_1/layout as STRUCTURE HBG526_PL_M3456789_BASE5_1.
+INFO (XSTRM-223): 274. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE7_1/layout as STRUCTURE HBG526_PL_M3456789_BASE7_1.
+INFO (XSTRM-223): 275. Translating cellView tphn65gpgv2od3_sl/HBG526_PAD_CONNECT_1/layout as STRUCTURE HBG526_PAD_CONNECT_1.
+INFO (XSTRM-223): 276. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE1_1/layout as STRUCTURE HBG526_PL_M3456789_BASE1_1.
+INFO (XSTRM-223): 277. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE3_1/layout as STRUCTURE HBG526_PL_M3456789_BASE3_1.
+INFO (XSTRM-223): 278. Translating cellView tphn65gpgv2od3_sl/HBG526_PL_M3456789_BASE4_1/layout as STRUCTURE HBG526_PL_M3456789_BASE4_1.
+INFO (XSTRM-223): 279. Translating cellView tphn65gpgv2od3_sl/HBG526_POWERLINE/layout as STRUCTURE HBG526_POWERLINE.
+INFO (XSTRM-223): 280. Translating cellView tphn65gpgv2od3_sl/PVDD3A_G/layout as STRUCTURE PVDD3A_G.
+INFO (XSTRM-223): 281. Translating cellView tphn65gpgv2od3_sl/HBG526_PREPDB3A_GR/layout as STRUCTURE HBG526_PREPDB3A_GR.
+INFO (XSTRM-223): 282. Translating cellView tphn65gpgv2od3_sl/HBG526_POST_EDGE_PDB3A/layout as STRUCTURE HBG526_POST_EDGE_PDB3A.
+INFO (XSTRM-223): 283. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_1D7X19/layout as STRUCTURE HBG526_DIO_1D7X19.
+INFO (XSTRM-223): 284. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_1D7X19_N/layout as STRUCTURE HBG526_DIO_1D7X19_N.
+INFO (XSTRM-223): 285. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PDB3A_M2/layout as STRUCTURE HBG526_BASE_PDB3A_M2.
+INFO (XSTRM-223): 286. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PDB3A_VSS/layout as STRUCTURE HBG526_BASE_PDB3A_VSS.
+INFO (XSTRM-223): 287. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_GR_TAVDD/layout as STRUCTURE HBG526_DIO_GR_TAVDD.
+INFO (XSTRM-223): 288. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_1D7X19_P/layout as STRUCTURE HBG526_DIO_1D7X19_P.
+INFO (XSTRM-223): 289. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PDB3A/layout as STRUCTURE HBG526_BASE_PDB3A.
+INFO (XSTRM-223): 290. Translating cellView tphn65gpgv2od3_sl/PDB3A_G/layout as STRUCTURE PDB3A_G.
+INFO (XSTRM-223): 291. Translating cellView tsmcN65/rppoly/layout as STRUCTURE rppoly_CDNS_2.
+INFO (XSTRM-223): 292. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTN_EDGE_VSS2DGZ_G/layout as STRUCTURE HBG526_POSTN_EDGE_VSS2DGZ_G.
+INFO (XSTRM-223): 293. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSSPST_VSS2DGZ_G/layout as STRUCTURE HBG526_POSTVSSPST_VSS2DGZ_G.
+INFO (XSTRM-223): 294. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSS2DGZ_PBASE_EDGE/layout as STRUCTURE HBG526_POSTVSS2DGZ_PBASE_EDGE.
+INFO (XSTRM-223): 295. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVDDPST_VSS2DGZ_G/layout as STRUCTURE HBG526_POSTVDDPST_VSS2DGZ_G.
+INFO (XSTRM-223): 296. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSS2DGZ_MIDDLE/layout as STRUCTURE HBG526_POSTVSS2DGZ_MIDDLE.
+INFO (XSTRM-223): 297. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSH_D6X22D58_BOT/layout as STRUCTURE HBG526_NPLUSH_D6X22D58_BOT.
+INFO (XSTRM-223): 298. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSH_D6X22D58/layout as STRUCTURE HBG526_NPLUSH_D6X22D58.
+INFO (XSTRM-223): 299. Translating cellView tphn65gpgv2od3_sl/HBG526_PPLUSH_1D66X22D58/layout as STRUCTURE HBG526_PPLUSH_1D66X22D58.
+INFO (XSTRM-223): 300. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSS2DGZ_COMM_V2/layout as STRUCTURE HBG526_POSTVSS2DGZ_COMM_V2.
+INFO (XSTRM-223): 301. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSS2DGZ_G/layout as STRUCTURE HBG526_POSTVSS2DGZ_G.
+INFO (XSTRM-223): 302. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS2DGZ_CONN_V12/layout as STRUCTURE HBG526_PREVSS2DGZ_CONN_V12.
+INFO (XSTRM-223): 303. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS2DGZ_CONN_V12_6X1/layout as STRUCTURE HBG526_PREVSS2DGZ_CONN_V12_6X1.
+INFO (XSTRM-223): 304. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSSDN_CUT/layout as STRUCTURE HBG526_PREVSSDN_CUT.
+INFO (XSTRM-223): 305. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVDDPST_CUT/layout as STRUCTURE HBG526_PREVDDPST_CUT.
+INFO (XSTRM-223): 306. Translating cellView tphn65gpgv2od3_sl/HBG526_PREDIO_VDD_VSS/layout as STRUCTURE HBG526_PREDIO_VDD_VSS.
+INFO (XSTRM-223): 307. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSH_D6X9D54/layout as STRUCTURE HBG526_NPLUSH_D6X9D54.
+INFO (XSTRM-223): 308. Translating cellView tphn65gpgv2od3_sl/HBG526_PPLUSH_1D66X8D77/layout as STRUCTURE HBG526_PPLUSH_1D66X8D77.
+INFO (XSTRM-223): 309. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS2DGZ_G/layout as STRUCTURE HBG526_PREVSS2DGZ_G.
+INFO (XSTRM-223): 310. Translating cellView tphn65gpgv2od3_sl/PVSS2DGZ_G/layout as STRUCTURE PVSS2DGZ_G.
+INFO (XSTRM-223): 311. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTN_EDGE_VSS1DGZ_G/layout as STRUCTURE HBG526_POSTN_EDGE_VSS1DGZ_G.
+INFO (XSTRM-223): 312. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSSPST_VSS1DGZ_G/layout as STRUCTURE HBG526_POSTVSSPST_VSS1DGZ_G.
+INFO (XSTRM-223): 313. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSH_D6X18D88/layout as STRUCTURE HBG526_NPLUSH_D6X18D88.
+INFO (XSTRM-223): 314. Translating cellView tphn65gpgv2od3_sl/HBG526_PPLUSH_1D66X18D88/layout as STRUCTURE HBG526_PPLUSH_1D66X18D88.
+INFO (XSTRM-223): 315. Translating cellView tphn65gpgv2od3_sl/HBG526_PPLUSH_D6X18D88/layout as STRUCTURE HBG526_PPLUSH_D6X18D88.
+INFO (XSTRM-223): 316. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSH_1D66X18D88/layout as STRUCTURE HBG526_NPLUSH_1D66X18D88.
+INFO (XSTRM-223): 317. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSS1DGZ_COMM_V2/layout as STRUCTURE HBG526_POSTVSS1DGZ_COMM_V2.
+INFO (XSTRM-223): 318. Translating cellView tphn65gpgv2od3_sl/HBG526_POSTVSS1DGZ_G/layout as STRUCTURE HBG526_POSTVSS1DGZ_G.
+INFO (XSTRM-223): 319. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS1DGZ_CONN_V12/layout as STRUCTURE HBG526_PREVSS1DGZ_CONN_V12.
+INFO (XSTRM-223): 320. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS1DGZ_CONN_V12_6X1/layout as STRUCTURE HBG526_PREVSS1DGZ_CONN_V12_6X1.
+INFO (XSTRM-223): 321. Translating cellView tphn65gpgv2od3_sl/HBG526_NPLUSH_D6X9D54_PVSS1DGZ/layout as STRUCTURE HBG526_NPLUSH_D6X9D54_PVSS1DGZ.
+INFO (XSTRM-223): 322. Translating cellView tphn65gpgv2od3_sl/HBG526_PREVSS1DGZ_G/layout as STRUCTURE HBG526_PREVSS1DGZ_G.
+INFO (XSTRM-223): 323. Translating cellView tphn65gpgv2od3_sl/PVSS1DGZ_G/layout as STRUCTURE PVSS1DGZ_G.
+INFO (XSTRM-223): 324. Translating cellView tphn65gpgv2od3_sl/HBG526_POST_EDGE/layout as STRUCTURE HBG526_POST_EDGE.
+INFO (XSTRM-223): 325. Translating cellView tphn65gpgv2od3_sl/HBG526_C_8X4/layout as STRUCTURE HBG526_C_8X4.
+INFO (XSTRM-223): 326. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_3D2X20_P/layout as STRUCTURE HBG526_DIO_3D2X20_P.
+INFO (XSTRM-223): 327. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_3D2X16D4/layout as STRUCTURE HBG526_DIO_3D2X16D4.
+INFO (XSTRM-223): 328. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_3D2X16D4_P/layout as STRUCTURE HBG526_DIO_3D2X16D4_P.
+INFO (XSTRM-223): 329. Translating cellView tphn65gpgv2od3_sl/HBG526_DIO_3D2X16D4_N/layout as STRUCTURE HBG526_DIO_3D2X16D4_N.
+INFO (XSTRM-223): 330. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVSS3A_M12/layout as STRUCTURE HBG526_BASE_PVSS3A_M12.
+INFO (XSTRM-223): 331. Translating cellView tphn65gpgv2od3_sl/HBG526_BASE_PVSS3A/layout as STRUCTURE HBG526_BASE_PVSS3A.
+INFO (XSTRM-223): 332. Translating cellView tphn65gpgv2od3_sl/PVSS3A_G/layout as STRUCTURE PVSS3A_G.
+INFO (XSTRM-223): 333. Translating cellView myshkin/pad_ring/layout as STRUCTURE pad_ring.
+
+Summary of Objects Translated:
+	Scalar Instances:                       947
+	Array Instances:                        3508
+	Polygons:                               888
+	Paths:                                  3
+	Rectangles:                             26849
+	Lines:                                  0
+	Arcs:                                   0
+	Donuts:                                 0
+	Dots:                                   0
+	Ellipses:                               0
+	Boundaries:                             0
+	Area Blockages:                         0
+	Layer Blockages:                        0
+	Area Halos:                             0
+	Markers:                                0
+	Rows:                                   0
+	Standard Vias                           8
+	Custom Vias:                            0
+	CdsGen Vias:                            0
+	Pathsegs:                               0
+	Text:                                   1998
+	TextDisplay:                            2
+	Cells:                                  333
+
+Elapsed Time: 0.4s   User Time: 0.3s   CPU Time: 0.1s   Peak VM: 102980KB
+INFO (XSTRM-234): Translation completed. '0' error(s) and '262' warning(s) found.
+
+
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-10-01 23:25:29 64881 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: --log_dir LOGS -top_cell pad_ring -ui_data --control /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pegasusdrcctl /home/mseminario2/chips/myshkin/ic/pvs/main25.rul /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul /home/mseminario2/chips/myshkin/ic/pvs/ant25.rul
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2200.14 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 13470 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 69 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI
+INFO:    Run directory same as current path
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/LOGS
+INFO:    PVL parsing results:
+WARNING: LAYOUT_FORMAT at line 227 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: LAYOUT_PATH at line 228 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: Cmd-line override: LAYOUT_PRIMARY "pad_ring";
+WARNING: RESULTS_DB -ascii at line 231 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: REPORT_SUMMARY statement at line 232 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is ignored.
+INFO:           summary file has been specified as pad_ring.sum
+WARNING: MAX_RESULTS -drc at line 235 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul is skipped. It is set in control file.
+WARNING: LAYOUT_FORMAT at line 36 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+WARNING: LAYOUT_PATH at line 37 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+WARNING: Cmd-line override: LAYOUT_PRIMARY "pad_ring";
+WARNING: RESULTS_DB -ascii at line 40 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+WARNING: REPORT_SUMMARY statement at line 41 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is ignored.
+INFO:           summary file has been specified as pad_ring.sum
+WARNING: MAX_RESULTS -drc at line 44 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul is skipped. It is set in control file.
+ERROR:   Layer 'OD_18' has been defined in rule file at line 65 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'OD_25' has been defined in rule file at line 66 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'OD_33' has been defined in rule file at line 67 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CO' has been defined in rule file at line 68 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'AP' has been defined in rule file at line 443 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'RV' has been defined in rule file at line 446 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CB' has been defined in rule file at line 447 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CBD' has been defined in rule file at line 448 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CBM' has been defined in rule file at line 449 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'CTM' has been defined in rule file at line 450 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'POLY' has been defined in rule file at line 458 in file /home/mseminario2/chips/myshkin/ic/pvs/antmim25.rul
+ERROR:   Layer 'OD' has been defined in rule file at line 3219 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'GATE' has been defined in rule file at line 3369 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'SD' has been defined in rule file at line 3371 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'VCAP_CTM' has been defined in rule file at line 15552 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+ERROR:   Layer 'VCAP_CBM' has been defined in rule file at line 15553 in file /home/mseminario2/chips/myshkin/ic/pvs/main25.rul
+INFO:    Finished parsing rule file(s) with error(s).
+INFO:    See /home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/LOGS/pvl.log for additional details
+INFO:    Resource usage by worker at exit:
+                  CPU      Elapsed  Threads    CPU       Peak Total  Peak Active
+         Worker:  time[s]  time[s]  Allocated  usage[%]  Memory[MB]  Memory[MB]
+         Worker resource usage  summary: Total CPU[s]: 0  Run duration[s]: 0  Max peak memory[MB]: 0
+         Worker CPU utilization summary: 0 of 0 available CPU seconds (0.00%) with 0 average available CPUs
+INFO:    Checking in all SoftShare licenses.
+
+Pegasus finished abnormally with exit code 3 -- see above for earlier errors. 2025-10-01 23:25:29
+
+
+
+
+ERROR: pegasusvirt: pegasus failed
+
+Info: Errors file '/home/mseminario2/chips/myshkin/ic/pvs/myshkin/ASIC/DRCGUI/pad_ring.drc_errors.ascii' doesn't exist.

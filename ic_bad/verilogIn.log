@@ -1,0 +1,7 @@
+@(#)$CDS: ihdl version 6.1.8-64b 11/10/2020 19:36 (cpgsrv13) $  Tue Oct 21 15:21:51 2025
+
+WARNING (VERILOGIN-19): The library, sample, is not specified in the cds.lib file. Add the library in the
+cds.lib file and run the command again.
+INFO (VERILOGIN-589): Using xmvlog binary for compilation.
+INFO (VERILOGIN-378): Checked-in symbol sram1p16k_hvt_pg. Module is a cell
+INFO (VERILOGIN-206): End of Logfile.

@@ -1,0 +1,22 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Sun Apr 10 17:40:46 2022 
+Best design point: 3
+Design specs: 
+	Better_ADCs:Comparator_2V5_r1_Noise_Test:1	corner	Nominal - 
+	total_noise		33.56m
+	input_referred_noise		335.6u
+Design parameters: 
+	vin		-9m
+	gain		100
+	vout		900m
+	fclk		250M
+	vdd25		2.5
+	vcm		1.25
+	voutn		-900m
+
+Interactive.365
+Number of points completed: 41
+Number of simulation errors: 0
+Interactive.365 completed. 
+Current time: Sun Apr 10 17:42:12 2022 

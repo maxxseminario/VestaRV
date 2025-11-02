@@ -1,0 +1,12 @@
+Checking out SoftShare license Phys_Ver_Sys_Results_Viewer 20.1 Qty: 1 ... failed.
+
+ERROR (LMF-03005): License call failed for feature Phys_Ver_Sys_Results_Viewer, version 20.100 and quantity 1. The license server search path is defined as 5280@poseidon:5280@poseidon:27020@poseidon:1717@poseidon. The FLEXnet error message is as follows,
+    FLEXnet ERROR(-5, 0, 0): No such feature exists.
+
+Run 'lic_error LMF-03005' for more information.Checking out SoftShare license Pegasus_RV 20.3 Qty: 1
+Unable to queue for a license on the license server.
+License checkout failed.
+ ... succeeded (1s).
+File read error:
+Corrupted cell name and/or scale data at line 1
+Checking in SoftShare license Pegasus_RV ... succeeded (1s).

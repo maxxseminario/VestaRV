@@ -1,0 +1,14 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu Dec 23 15:32:07 2021 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Comparator_1V0_Trans_Noise_Test:1	corner	Nominal - 
+	trans_noise		-7.134m
+Design parameters: 
+
+ExplorerRun.0
+Number of points completed: 1
+Number of simulation errors: 0
+ExplorerRun.0 completed. 
+Current time: Thu Dec 23 16:00:00 2021 

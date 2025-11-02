@@ -1,0 +1,95 @@
+********************************************************************************
+db2gds 20.10-p029 64 bit (Mon Sep 28 20:09:41 PDT 2020)
+Build Ref No.: 029 Production (09-28-2020) [pvs_2010]
+
+Copyright 2020 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+Build O/S:       Linux x86_64 2.6.32-431.11.2.el6.x86_64
+Executed on:     atlas (Linux x86_64 5.3.18-lp152.106-default)
+Process Id:      89069
+Starting Time:   Mon Sep 22 15:59:23 2025 (Mon Sep 22 20:59:23 2025 GMT)
+With parameters: BiasGenCascWideSwing_88931 erc.db BiasGenCascWideSwing -lmap lmapxRKFlb -gdslib drc.db -gds_scale 1000 -property 
+********************************************************************************
+
+Library name: BiasGenCascWideSwing_88931
+GDSII file name: erc.db
+Cells to be written out: BiasGenCascWideSwing
+Source Library: BiasGenCascWideSwing_88931
+Layer mapping file(GDS <- DMC): lmapxRKFlb
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+Cell name case: PRESERVE
+Option: output object property
+
+
+                Object Statistics of Cells                            
+Cell Name         Box  Polygon     Path   Label Instance Array    Total
+----------------------------------------------------------------------
+BiasGenCascWideSwing        0        0        0       0   217      0       217
+M1_PO_CDNS_758574762410        0        0        0       0     0      0         0
+M2_M1_CDNS_758574762411        0        0        0       0     0      0         0
+M1_PO_CDNS_758574762412        0        0        0       0     0      0         0
+M1_PO_CDNS_758574762413        0        0        0       0     0      0         0
+M2_M1_CDNS_758574762414        0        0        0       0     0      0         0
+M2_M1_CDNS_758574762415        0        0        0       0     0      0         0
+M3_M2_CDNS_758574762416        0        0        0       0     0      0         0
+M3_M2_CDNS_758574762417        0        0        0       0     0      0         0
+M3_M2_CDNS_758574762418        0        0        0       0     0      0         0
+M1_PO_CDNS_758574762419        0        0        0       0     0      0         0
+M2_M1_CDNS_7585747624110        0        0        0       0     0      0         0
+M2_M1_CDNS_7585747624111        0        0        0       0     0      0         0
+M1_OD_CDNS_7585747624112        0        0        0       0     0      0         0
+M4_M3_CDNS_7585747624113        0        0        0       0     0      0         0
+M5_M4_CDNS_7585747624114        0        0        0       0     0      0         0
+M6_M5_CDNS_7585747624115        0        0        0       0     0      0         0
+M7_M6_CDNS_7585747624116        0        0        0       0     0      0         0
+M8_M7_CDNS_7585747624117        0        0        0       0     0      0         0
+M8_M7_CDNS_7585747624118        0        0        0       0     0      0         0
+M3_M2_CDNS_7585747624119        0        0        0       0     0      0         0
+M3_M2_CDNS_7585747624120        0        0        0       0     0      0         0
+M1_PO_CDNS_7585747624121        0        0        0       0     0      0         0
+pch_25_macx_CDNS_758574762414        0        0        0       0     0      0         0
+nch_25x_CDNS_758574762418        0        0        0       0     0      0         0
+nch_25_macx_CDNS_758574762419        0        0        0       0     0      0         0
+pch_25_macx_CDNS_7585747624110        0        0        0       0     0      0         0
+pch_25_macx_CDNS_7585747624111        0        0        0       0     0      0         0
+nch_25_macx_CDNS_7585747624114        0        0        0       0     0      0         0
+nch_25_macx_CDNS_7585747624115        0        0        0       0     0      0         0
+mimcap_CDNS_7585747624118        0        0        0       0     0      0         0
+nch_25_macx_CDNS_7585747624122        0        0        0       0     0      0         0
+nch_25_macx_CDNS_7585747624123        0        0        0       0     0      0         0
+pch_25_macx_CDNS_7585747624124        0        0        0       0     0      0         0
+pch_25_macx_CDNS_7585747624125        0        0        0       0     0      0         0
+INVX1               0        0        0       0     3      0         3
+M1_OD_CDNS_7585747624122        0        0        0       0     0      0         0
+----------------------------------------------------------------------
+
+Object Statistics of Layers
+Layer   Objects
+----------------
+----------------
+
+Object Summary
+------------------
+     Box         0
+ Polygon         0
+    Path         0
+   Label         0
+Instance       220
+   Array         0
+------------------
+   Total       220
+
+
+Output property: 220
+Total CPU Time          : 0(s)
+Total Real Time         : 0(s)
+Peak Memory Used        : 7(M)

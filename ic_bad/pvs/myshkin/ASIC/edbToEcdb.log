@@ -1,0 +1,17 @@
+
+/opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : ASIC_119423.db
+ECDB dir        : ./
+Top Cell        : ASIC
+CDL netlist     : ./ASIC.net
+Layer map file  : ./ASIC.ecdbmap
+Text map file   : ./ASIC.ports
+Dependency map  : ASIC.lmap.perc
+Lvs file        : ./ASIC.lvsfile
+Float net file  : .ASIC.info.softchk
+threads         : 32
+debug           : 0
+Source Library  : ASIC_119423

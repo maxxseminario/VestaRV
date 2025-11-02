@@ -1,0 +1,94 @@
+********************************************************************************
+db2gds 20.10-p029 64 bit (Mon Sep 28 20:09:41 PDT 2020)
+Build Ref No.: 029 Production (09-28-2020) [pvs_2010]
+
+Copyright 2020 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+Build O/S:       Linux x86_64 2.6.32-431.11.2.el6.x86_64
+Executed on:     atlas (Linux x86_64 5.3.18-lp152.106-default)
+Process Id:      92689
+Starting Time:   Mon Sep 22 16:02:37 2025 (Mon Sep 22 21:02:37 2025 GMT)
+With parameters: folded_cascode_pmos_92551 erc.db folded_cascode_pmos -lmap lmapxd2X8t -gdslib drc.db -gds_scale 1000 -property 
+********************************************************************************
+
+Library name: folded_cascode_pmos_92551
+GDSII file name: erc.db
+Cells to be written out: folded_cascode_pmos
+Source Library: folded_cascode_pmos_92551
+Layer mapping file(GDS <- DMC): lmapxd2X8t
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+Cell name case: PRESERVE
+Option: output object property
+
+
+                Object Statistics of Cells                            
+Cell Name         Box  Polygon     Path   Label Instance Array    Total
+----------------------------------------------------------------------
+folded_cascode_pmos        0        0        0       0   498      0       498
+M2_M1_CDNS_758574955760        0        0        0       0     0      0         0
+M3_M2_CDNS_758574955761        0        0        0       0     0      0         0
+M2_M1_CDNS_758574955762        0        0        0       0     0      0         0
+M1_PO_CDNS_758574955763        0        0        0       0     0      0         0
+M3_M2_CDNS_758574955764        0        0        0       0     0      0         0
+M3_M2_CDNS_758574955765        0        0        0       0     0      0         0
+M2_M1_CDNS_758574955766        0        0        0       0     0      0         0
+M1_PO_CDNS_758574955767        0        0        0       0     0      0         0
+M3_M2_CDNS_758574955768        0        0        0       0     0      0         0
+M1_PO_CDNS_7585749557610        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758574955760        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758574955761        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758574955762        0        0        0       0     0      0         0
+nch_25_mac_CDNS_758574955763        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758574955764        0        0        0       0     0      0         0
+nch_25_mac_CDNS_758574955765        0        0        0       0     0      0         0
+nch_25_mac_CDNS_758574955766        0        0        0       0     0      0         0
+nch_25_mac_CDNS_758574955767        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758574955768        0        0        0       0     0      0         0
+pch_25_mac_CDNS_758574955769        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557610        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557611        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585749557612        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557613        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557614        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557615        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585749557616        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557617        0        0        0       0     0      0         0
+nch_25_mac_CDNS_7585749557618        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557619        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557620        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557621        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557622        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557623        0        0        0       0     0      0         0
+pch_25_mac_CDNS_7585749557624        0        0        0       0     0      0         0
+----------------------------------------------------------------------
+
+Object Statistics of Layers
+Layer   Objects
+----------------
+----------------
+
+Object Summary
+------------------
+     Box         0
+ Polygon         0
+    Path         0
+   Label         0
+Instance       498
+   Array         0
+------------------
+   Total       498
+
+
+Output property: 498
+Total CPU Time          : 0(s)
+Total Real Time         : 0(s)
+Peak Memory Used        : 7(M)

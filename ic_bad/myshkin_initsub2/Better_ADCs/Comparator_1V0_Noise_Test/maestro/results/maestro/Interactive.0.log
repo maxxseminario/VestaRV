@@ -1,0 +1,16 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu Nov 18 02:16:40 2021 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Comparator_1V0_Noise_Test:1	corner	Nominal - 
+	crossTime		Error	No
+	TotalNoiseOutput		513.1m
+	InputReferredNoise		5.131m
+Design parameters: 
+
+Interactive.0
+Number of points completed: 1
+Number of simulation errors: 1
+Interactive.0 completed. 
+Current time: Thu Nov 18 02:17:17 2021 

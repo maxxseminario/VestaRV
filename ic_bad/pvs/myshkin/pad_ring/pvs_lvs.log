@@ -1,0 +1,2789 @@
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-10-03 23:48:46 28794 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: -dp 8 -lvs -qrc_data -ui_data -layout_top_cell pad_ring -source_top_cell pad_ring -gds ./pvs/myshkin/pad_ring/myshkin.pad_ring.gds -source_cdl /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added -source_cdl /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl -source_cdl /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi -source_cdl ./pvs/myshkin/pad_ring/myshkin.pad_ring.schematic.cdl -check_schematic -run_dir ./pvs/myshkin/pad_ring ./pvs/myshkin/pad_ring/pvs.lvs
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2276.66 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 161732 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 64 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic
+INFO:    Run directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/pegasus-1759553326-atlas-28794
+INFO:    PVL parsing results:
+WARNING: Cmd-line override: LAYOUT_PRIMARY "pad_ring";
+WARNING: Cmd-line override: LAYOUT_PATH "/home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/myshkin.pad_ring.gds";
+WARNING: Cmd-line override: SCHEMATIC_PRIMARY "pad_ring";
+WARNING: Cmd-line override: SCHEMATIC_PATH "/opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added";
+WARNING: option -drc is skipped at line 691 in file /home/mseminario2/chips/myshkin/ic/./pvs/myshkin/pad_ring/pvs.lvs
+WARNING: REPORT_SUMMARY -drc is skipped at line 692 in file /home/mseminario2/chips/myshkin/ic/./pvs/myshkin/pad_ring/pvs.lvs
+
+INFO:    See "/home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/pegasus-1759553326-atlas-28794/pvl.log" for additional details.
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_LVS' version 22.1
+INFO:    License checkout successful ... 2025-10-03 23:48:47
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_16nm' version 22.1
+INFO:    License checkout successful ... 2025-10-03 23:48:47
+WARNING: Neither hcell nor -automatch option is specified.
+INFO:    LVS report file: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/lvs.rep 
+INFO:    Extracted layout netlist: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/svdb/cap_devices.net (Runset Evaluator)) 
+INFO:    Setting LAYOUT_PATH to: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/myshkin.pad_ring.gds 
+INFO:    Setting LAYOUT_PRIMARY to: pad_ring 
+INFO:    Setting SCHEMATIC_PATH to: /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added 
+INFO:    Setting SCHEMATIC_PRIMARY to: pad_ring 
+
+INFO:    Gdsii input summary
+         File name: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/myshkin.pad_ring.gds
+         File size: 2217984
+         Version: 5.0
+         Library name: myshkin
+         Last modified: 2025-10-3 23:48:12
+         Last accessed: 2025-10-3 23:48:45
+         Database unit in user units: 0.001
+         Database unit in meters: 1e-09
+         Magnification: 1 
+
+INFO:    Cell Summary:
+         ----------------------------------------------------------------------------
+             CELL                                INSTANCE    GEOMETRY      LABELS        HREF        FREF
+         ----------------------------------------------------------------------------
+         M2_M1_CDNS_759553325730                        0          62           0           8           8
+         HBG526_V2_BASE                                 0           3           0        6983     1837162
+         HBG526_V2                                      1           2           0       45510     1094167
+         HBG526_V1_BASE                                 0           3           0       10121     1655760
+         HBG526_V1                                      1           2           0       39475     1012604
+         HBG526_OC                                      0           3           0       58216     2751461
+         HBG526_PFILLER5_BASE_G                      9221         143           0           7         409
+         HBG526_V8Z                                     0           0           0           1      303425
+         HBG526_V8Z_4X4                                 1           0           0           1      303425
+         HBG526_V7Z                                     0           0           0           1      303425
+         HBG526_V7Z_4X4                                 1           1           0           1      303425
+         HBG526_V6XZ_4X4                                0          18           0           1      303425
+         HBG526_V4XZ_4X4                                0          18           0           1      303425
+         HBG526_V5XZ_4X4                                0          18           0           1      303425
+         HBG526_V456789XZ_4X4                           5           0           0         553      303425
+         HBG526_V3XZ_4X4                                0          18           0           1      275950
+         HBG526_V3456789XZ_4X4                          2           0           0        5387      275950
+         HBG526_PL_M3456789_FILLER5                   415          96           0           7         409
+         PFILLER20_G                                    8           0          78           9          72
+         PFILLER10_G                                    4           0          78           7          50
+         HBG526_PFILLER1_BASE_G                      2681         143           0           1         126
+         HBG526_PL_M3456789_FILLER1                    83          96           0           1         126
+         HBG526_SUB_FILLER1                             2           0           0           1         126
+         PFILLER1_G                                     1           0          78          65         126
+         PFILLER50_G                                    3           0           0           2          31
+         PFILLER5_G                                     2           0          78           2          21
+         HBG526_PL_M3456789_FILLER0005                  0          96           0           1        4190
+         PFILLER0005_G                                  1          27          39         370        4190
+         PFILLER58P95_G                               195           0           0          17          17
+         HBG526_PFILLER05_BASE_G                        0         140           0           1          44
+         HBG526_PL_M3456789_FILLER05                    0          96           0           1          44
+         HBG526_SUB_FILLER05                            2           0           0           1          44
+         PFILLER05_G                                    1           0          78          44          44
+         PFILLER25_G                                    2           0           0           4           4
+         PFILLER97P6_G                                132           0           0           1           1
+         PFILLER61P3_G                                 63           0           0          14          14
+         HBG526_PL_M3456789_FILLER05A                   0         105           0           1          11
+         HBG526_FILLER05A_BASE                          0         126           0           1          11
+         PFILLER05A_G                                   2           0           0          11          11
+         HBG526_V3XZ_4X4_1                              0          18           0           1       47750
+         HBG526_V5XZ_4X4_1                              0          18           0           1       48200
+         HBG526_V4XZ_4X4_1                              0          18           0           1       48200
+         HBG526_V6XZ_4X4_1                              0          18           0           1       48200
+         HBG526_V7Z_1                                   0           0           0           1       48200
+         HBG526_V7Z_4X4_1                               1           1           0           1       48200
+         HBG526_V8Z_1                                   0           0           0           1       48200
+         HBG526_V8Z_4X4_1                               1           0           0           1       48200
+         HBG526_V456789XZ_4X4_1                         5           0           0         226       48200
+         HBG526_V3456789XZ_4X4_1                        2           0           0        2883       47750
+         HBG526_PL_M3456789_FILLER5A                  425         105           0           7          41
+         HBG526_OC_2                                    0           3           0       21864      501419
+         HBG526_V1_BASE_1                               0           3           0        1901      357161
+         HBG526_V1_2                                    1           2           0       36462      316048
+         HBG526_V2_BASE_1                               0           3           0        1742      248087
+         HBG526_V2_2                                    1           2           0       15179      190705
+         HBG526_BASE_PFILLER5A                       9582         129           0           7          41
+         HBG526_PL_M3456789_BASE2_M_1                   0           5           0           1         132
+         HBG526_PL_M3456789_BASE2_1                     7           0           0          18         132
+         HBG526_PL_M3456789_BASE6_M_1                   0           5           0           1          44
+         HBG526_PL_M3456789_BASE6_1                     7           0           0           6          44
+         PFILLER10A_G                                  72          15           0           5           5
+         PFILLER5A_G                                    2           0           0           2           7
+         PFILLER25A_G                                  77          15           0           6           6
+         HBG526_PL_M3456789_FILLER1A                   85         105           0           1           3
+         HBG526_FILLER1A_BASE                        2782         134           0           1           3
+         PFILLER1A_G                                    2           0           0           3           3
+         PFILLER0005A_G                                 0         134           0         190         190
+         PFILLER58P95A_G                              197           0           0           1           1
+         N65CHIPCDU2_New                                0        1102           0           4           4
+         VIA6                                           0           1           0           1       93968
+         VIA5                                           0           1           0           1       93968
+         VIA4                                           0           1           0           1       93968
+         VIA3                                           0           1           0           1       93968
+         VIA2                                           0           1           0           1       93968
+         VIA1                                           0           1           0           1       93968
+         CONT                                           0           4           0           1       93968
+         CONT_VIA1_6                                    7           0           0          56       93968
+         VIA8                                           0           1           0           1       15102
+         VIA7                                           0           1           0           1       15102
+         VIA7_8                                         2           0           0           9       15102
+         UCSRN                                         65          62           0        1390        1678
+         UCSRN_NOVIA                                    0          62           0           6           6
+         VZ_45                                          0           4           0          93         372
+         VX_CO_45                                       0          60           0         351        1404
+         VZ_VX_CO_45_X351                             444         499           0           1           4
+         CORNER_B                                      97       20371           0           4           4
+         HAE261_V7Z_UNIT_4                              0           3           0          92        3956
+         HAE261_V8U_UNIT                                0           4           0        1221       52503
+         HAE261_V8U_UNIT_4                              0           3           0         332       14276
+         PAD70GU_SL                                  1645          12           0          43          43
+         HBG526_PASSGATE_OPTION                         0           8           0           1          33
+         HBG526_POSTDRV16CELL                           0           4           0           1          33
+         HBG526_PC                                      0           3           0         378       17109
+         HBG526_PMOS1D7X04                             18          10           0           1          33
+         HBG526_NMOS1X05                               12           8           0           1          33
+         HBG526_SCHCELL                                 8           6           0           1          33
+         HBG526_NON_SLEW                                0           2           0           1          33
+         HBG526_PUPCELL                                 0           2           0           1          33
+         HBG526_CPIN                                    0           1           0           1          33
+         HBG526_RENPIN                                  0           1           0           1          33
+         HBG526_IPIN                                    0           1           0           1          33
+         HBG526_OENPIN                                  0           1           0           1          33
+         HBG526_V1_1                                    0           3           0       15734      550435
+         HBG526_V1_V2_BASE                              2           0           0         141        5703
+         HBG526_OC_1                                    0           5           0         585       80439
+         HBG526_MIDDLE_M12                           2157          65           0           1          33
+         HBG526_POSTDRV_PBASE_EDGE                    392          16           0           2          66
+         HBG526_PC_1                                    0           5           0          41        3537
+         HBG526_PC_2X1                                  8           8           0           7         231
+         HBG526_PMOS18X04X2_1                        1067          13           0           1         231
+         HBG526_PMOS_1                                 29           8           0           7         231
+         HBG526_V2_1                                    0           3           0        5738      142148
+         HBG526_PMOS18X04X2                          1045          13           0           1         231
+         HBG526_PMOS                                   43           6           0           7         231
+         HBG526_POSTP                                  75           7           0           1          33
+         HBG526_RES_N_041X05                            4           5           0           1          33
+         HBG526_POSTN_EDGE                            555          17           0           2          66
+         HBG526_MOS_ESDN01                           3331          24           0           5         165
+         HBG526_POSTN                                 274          13           0           1          33
+         HBG526_POSTDRV                                 3           0           0           1          33
+         HBG526_PMOS04X0D98_NEW                         7           8           0           1          33
+         HBG526_NMOSD2D7X04                            14           8           0           1          33
+         HBG526_PMOS1D2X0D4                             8           9           0           4         132
+         HBG526_PMOS2D1X0D4                            18           9           0           1          33
+         HBG526_V1_V2                                   2           0           0          54        6534
+         HBG526_PIN                                    51           7           0           4         132
+         HBG526_NMOS0D7X05                              8           8           0           1          33
+         HBG526_RES_1D5XD5                             24           6           0           2          66
+         HBG526_PMOS04X1_NEW                            7           8           0           2          66
+         HBG526_NMOS0D42X05                             8           8           0           1          33
+         HBG526_PMOS1D05X04                            12          10           0           1          33
+         HBG526_RES_3X1D1                              48           6           0           1          33
+         HBG526_NMOS2X05                               20           8           0           6         198
+         HBG526_NMOS_NTN_1D28X4D5                      46           8           0           1         132
+         HBG526_NTN_LS_TINY                            87          14           0           4         132
+         HBG526_PMOS5D3X9_2                            42           8           0           3          99
+         HBG526_RES_3_5X08                             16           6           0           1          33
+         HBG526_PREDRVVSS2                           2790          37           0           1          33
+         HBG526_PREDRVVDD                            4438          70           0           1          33
+         HBG526_PREDRVVDDPST                          504          45           0           1          33
+         HBG526_PREDRVVSS1                           3225          28           0           1          33
+         HBG526_NMOS5D15X09                            48           8           0           2          66
+         HBG526_NMOS2D5X05_1                           22           8           0           2          66
+         HBG526_NMOSD8X05                              10           8           0           1          33
+         HBG526_PMOS3X04                               30           8           0           2          66
+         HBG526_PMOSD09X04                             10           8           0           1          33
+         HBG526_NMOS4X05                               38           8           0           1          33
+         HBG526_PMOS6X04                               56           8           0           1          33
+         HBG526_PMOS1X04                               12           8           0           2          66
+         HBG526_NMOS7X06                               66           8           0           2          66
+         HBG526_NMOS2D1X05                             22           8           0           1          33
+         HBG526_PMOS1D4X04                             14           8           0           1          33
+         HBG526_PMOS3D5X9                              34           8           0           2          66
+         HBG526_NMOS3D5X05                             34           8           0          11         153
+         HBG526_NMOS7X09                               66           8           0           1          33
+         HBG526_PMOS7X9                                66           8           0           3          99
+         HBG526_NMOS3D2X05                             32           8           0           3          99
+         HBG526_PMOS3D5X04                             34           8           0           6         198
+         HBG526_PMOS21X4                              194           8           0           3          99
+         HBG526_PMOS19D5X4                            194           8           0           2          66
+         HBG526_NMOS06X06                               8           8           0           1          33
+         HBG526_PMOS7X04                               66           6           0          14         162
+         HBG526_NMOS2D1X09                             22           8           0           3          99
+         HBG526_NMOS7X05                               66           6           0           7         231
+         HBG526_NMOS3X05                               30           8           0           6         108
+         HBG526_PMOS0D8X04                              8           7           0           4         132
+         HBG526_PREDRV                               1631         250           0           1          33
+         HBG526_PL_M3456789_BASE7                     135           5           0           2          41
+         HBG526_PL_M3456789_BASE5                     162           5           0           6         123
+         HBG526_PAD_CONNECT                            92           5           0           2          41
+         HBG526_PL_M3456789_BASE6_M                     0           5           0           1          82
+         HBG526_PL_M3456789_BASE6                       7           0           0           4          82
+         HBG526_PL_M3456789_BASE_UP                   189           5           0           2          41
+         HBG526_PL_M3456789_BASE4                      81           5           0           2          41
+         HBG526_PL_M3456789_BASE3                      54           5           0           2          41
+         HBG526_PL_M3456789_BASE2_M                     0           5           0           1         123
+         HBG526_PL_M3456789_BASE2                      10           0           0           6         123
+         HBG526_PL_M3456789_BASE1                     189           5           0           6         123
+         HBG526_PL_M3456789                           793          63           0           1          33
+         PDUW16SDGZ_G                                  12          33         113          33          33
+         HBG526_SUB_CORNER                          88871           2           0           2           8
+         PCORNER_G                                      2         217          78           4           4
+         HBG526_RES_04X22D11                            0           5           0          47         141
+         HBG526_PC_1_2X1                                2           1           0          91         273
+         HBG526_RES_04X22D11X47                        97          56           0           1           3
+         HBG526_NPLUSNVDD1                            450           4           0           8          24
+         HBG526_PPLUSNVDD1                            442           4           0          11          33
+         HBG526_POSTVDD1_DIO                          493          11           0           1           3
+         HBG526_POSTN_EDGE_VDD1                       745          20           0           2           6
+         HBG526_POSTVSSPST_VDD1                        28           4           0           1           3
+         HBG526_POSTVDD1_PBASE_EDGE                   945          25           0           2           6
+         HBG526_POSTVDDPST_VDD1                         2           0           0           1           3
+         HBG526_NMOS10X1D81                            94          11           0          20          60
+         HBG526_POSTVDD1_CONN_M12_1                  1476           8           0           2           6
+         HBG526_POSTVDD1_CONN_M12                    1484          10           0           8          24
+         HBG526_VDD1_INV_P                             97          16           0           8          24
+         HBG526_POSTVDD1                              612           4           0           1           3
+         HBG526_VDD_CONN_M12                           10           2           0          20          60
+         HBG526_PREVDD1_CONN_M12                     1526          13           0          10          30
+         HBG526_NMOS0D13X34D99X2                      176          12           0          20          60
+         HBG526_VDD1_INV_N                             17          15           0          10          30
+         HBG526_PREVDD1                              2305          54           0           1           3
+         HBG526_PL_M3456789_VDD2                      793          65           0           5           8
+         PVDD1DGZ_G                                     3          45         103           3           3
+         HBG526_RES_PO_04X025                           0           1           0           5          15
+         HBG526_PREVDD                               5793          49           0           1           3
+         HBG526_RES_04X23                               0           5           0          13          39
+         HBG526_PREVSS1                              3509          41           0           1           3
+         HBG526_RES_H                                   2           1           0           6          18
+         HBG526_PREVSS2                              3261          66           0           1           3
+         HBG526_PREVDDPST                            1678          68           0           1           3
+         HBG526_RES_2X3D68                             32           6           0           1           3
+         HBG526_NMOS_NTN_1X2                           18           8           0           1           3
+         HBG526_NMOS2XD4                               16          11           0           1           3
+         HBG526_RES_04X23D87                            0           5           0          19          57
+         HBG526_PMOS6D5XD5                             60           7           0           2           6
+         HBG526_PREVDD2                               129          77           0           2           3
+         HBG526_POSTVDDPSR_PBASE_EDGE                 423          18           0           2           6
+         HBG526_POSTVDDPST                              9           1           0           1           3
+         HBG526_RES_04X21D86                            0           5           0          54         162
+         HBG526_RES_04X21D86X54                        62          62           0           1           3
+         HBG526_POSTN_EDGE_VDD2                       575          21           0           2           6
+         HBG526_POSTVSSPST_RPO_095                     24           6           0           1           3
+         HBG526_VDD2_INV_P_1                           66          15           0           2           6
+         HBG526_VDD2_INV_P                             66          15           0           4          12
+         HBG526_POST_CONN_M12_RPO_048                4053          17           0           6          18
+         HBG526_VDD2_C_3D5X3D3                         52           8           0           6          18
+         HBG526_VDD2_INV_N                             12           9           0           6          18
+         HBG526_MOS_ESDN01_VDD2_RPO_095              2118          12           0           6          18
+         HBG526_POSTVDD2POC_G                        2662          94           0           2           3
+         HBG526_OPTION_PVDD2POC                         0           2           0           1           1
+         PVDD2POC_G                                     4           5          83           1           1
+         HBG526_OPTION_PVDD2DGZ                         0           1           0           1           2
+         PVDD2DGZ_G                                     4           5          83           2           2
+         HBG526_PL_M3456789_PRCUTA                   1035         103           0           1           2
+         HBG526_V1_V2_BASE_1                            2           0           0         236         944
+         HBG526_POST_PRCUT_1                         5136          88           0           2           4
+         HBG526_PRE_PRCUT_1                          2125          27           0           5          10
+         HBG526_PRE_TAVDD_PRCUT                        23           6           0           2           4
+         HBG526_BASE_PRCUTA                             9           0           0           1           2
+         PRCUTA_G                                       2           1          46           2           2
+         HBG526_BASE_PVDD3A_RPO_EN_RC_V2                6           3           0           6          12
+         HBG526_BASE_PVDD3A_RPO_EN_RC_V12              12           3           0           6          12
+         HBG526_BASE_PVDD3                            330           2           0           2           4
+         HBG526_POST_EDGE_EN_RC                       972          20           0           2           4
+         HBG526_PC_2                                    0           3           0          28         332
+         HBG526_PMOS5XD4                              134           9           0           6          12
+         HBG526_PMOS_DIV2_EN_RC                        74          10           0           1           2
+         HBG526_RES_D4X22D92                            0           5           0          54         108
+         HBG526_RES_D4X22D92X54                        54          62           0           1           2
+         HBG526_PC_1_1                                  0           3           0          26         392
+         HBG526_PREVDD3A_GR                           643           6           0           4           6
+         HBG526_MOS35D925XD5_RPO_DIS                  124          10           0           6          12
+         HBG526_PREVDD3A_RPO_DIS_M2                  2044           6           0           6          12
+         HBG526_MOS1D2XD5X2                            30           6           0          11          22
+         HBG526_PC_1_2X1_1                              2           2           0          16         152
+         HBG526_PREVDD3A_RPO_DIS                      569          28           0           1           2
+         HBG526_BASE_PVDD3A_DCAP_M1                    49           2           0           3           6
+         HBG526_BASE_PVDD3A_DCAP_M                     52           2           0           4           8
+         HBG526_MOS36XD5_RPO_DIS                     2122          12           0           6          12
+         HBG526_BASE_PVDD3A_M12_RPO_EN_RC            3317          38           0           6          12
+         HBG526_C_4X7                                  32           6           0           3           6
+         HBG526_BASE_PVDD3A_RPO_EN_RC                1255          27           0           1           2
+         HBG526_PL_M3456789_BASE5_1                   162           5           0           3          33
+         HBG526_PL_M3456789_BASE7_1                   135           5           0           1          11
+         HBG526_PAD_CONNECT_1                          92           5           0           1          11
+         HBG526_PL_M3456789_BASE1_1                   135           5           0           6          66
+         HBG526_PL_M3456789_BASE3_1                    54           5           0           1          11
+         HBG526_PL_M3456789_BASE4_1                    81           5           0           1          11
+         HBG526_POWERLINE                             789          63           0           3          11
+         PVDD3A_G                                       2          19          61           2           2
+         HBG526_PREPDB3A_GR                           647           8           0           2          16
+         HBG526_POST_EDGE_PDB3A                      1024          35           0           2          16
+         HBG526_DIO_1D7X19                           2480           6           0           2          96
+         HBG526_DIO_1D7X19_N                            1           2           0           9          72
+         HBG526_BASE_PDB3A_M2                       11362          39           0           2          16
+         HBG526_BASE_PDB3A_VSS                          0           2           0           3          24
+         HBG526_DIO_GR_TAVDD                         2068           6           0           2          16
+         HBG526_DIO_1D7X19_P                            1           3           0           3          24
+         HBG526_BASE_PDB3A                             31           9           0           1           8
+         PDB3A_G                                        2           8          52           8           8
+         rppoly_CDNS_759553325730                       0          35           0           4           4
+         HBG526_POSTN_EDGE_VSS2DGZ_G                 1027          18           0           2           2
+         HBG526_POSTVSSPST_VSS2DGZ_G                   66           3           0           1           1
+         HBG526_POSTVSS2DGZ_PBASE_EDGE                254           7           0           2           4
+         HBG526_POSTVDDPST_VSS2DGZ_G                    2           0           0           2           2
+         HBG526_POSTVSS2DGZ_MIDDLE                    300           4           0           8           8
+         HBG526_NPLUSH_D6X22D58_BOT                   382           4           0          16          16
+         HBG526_NPLUSH_D6X22D58                       404           4           0          16          16
+         HBG526_PPLUSH_1D66X22D58                    1050           5           0          28          28
+         HBG526_POSTVSS2DGZ_COMM_V2                  2572           2           0           7           7
+         HBG526_POSTVSS2DGZ_G                          43           7           0           1           1
+         HBG526_PREVSS2DGZ_CONN_V12                   756           3           0           7           7
+         HBG526_PREVSS2DGZ_CONN_V12_6X1              1584           8           0           1           1
+         HBG526_PREVSSDN_CUT                         8648          32           0           2           2
+         HBG526_PREVDDPST_CUT                         148          38           0           2           2
+         HBG526_PREDIO_VDD_VSS                       2308          19           0           2           2
+         HBG526_NPLUSH_D6X9D54                        196           4           0           8           8
+         HBG526_PPLUSH_1D66X8D77                      516           5           0          14          14
+         HBG526_PREVSS2DGZ_G                           19           0           0           1           1
+         PVSS2DGZ_G                                     3           5          83           1           1
+         HBG526_POSTN_EDGE_VSS1DGZ_G                 1027          18           0           2           2
+         HBG526_POSTVSSPST_VSS1DGZ_G                   66           3           0           1           1
+         HBG526_NPLUSH_D6X18D88                       366           4           0           8           8
+         HBG526_PPLUSH_1D66X18D88                     444           5           0           7           7
+         HBG526_PPLUSH_D6X18D88                       362           4           0           8           8
+         HBG526_NPLUSH_1D66X18D88                     444           5           0           7           7
+         HBG526_POSTVSS1DGZ_COMM_V2                  2348           6           0           7           7
+         HBG526_POSTVSS1DGZ_G                          73          20           0           1           1
+         HBG526_PREVSS1DGZ_CONN_V12                   966           2           0           7           7
+         HBG526_PREVSS1DGZ_CONN_V12_6X1                59           4           0           1           1
+         HBG526_NPLUSH_D6X9D54_PVSS1DGZ               184           4           0           8           8
+         HBG526_PREVSS1DGZ_G                          463           2           0           1           1
+         PVSS1DGZ_G                                     3          33          97           1           1
+         HBG526_POST_EDGE                             972          20           0           2           2
+         HBG526_C_8X4                                  80           7           0          16          16
+         HBG526_DIO_3D2X20_P                         1654          15           0          10          10
+         HBG526_DIO_3D2X16D4                         1374           6           0           2           6
+         HBG526_DIO_3D2X16D4_P                          1           3           0           3           3
+         HBG526_DIO_3D2X16D4_N                          1           2           0           3           3
+         HBG526_BASE_PVSS3A_M12                     23651          17           0           2           2
+         HBG526_BASE_PVSS3A                           829          11           0           1           1
+         PVSS3A_G                                       2          17          59           1           1
+         pad_ring                                    1581          12         184           1           1
+         ----------------------------------------------------------------------------
+         TOTAL CELL = 324;  INSTANCE = 275018;  GEOMETRY = 27686;  LABEL = 1471
+
+INFO:    Layer Summary:
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       HPN      HTC        FPN       FTC
+         ----------------------------------------------------------------------------
+         ODI                                            262144       814         0   3404534         0
+         DNW                                                 1         0         0         0         0
+         NW                                                  3        61         0     15717         0
+         NT_Ni                                              11         3         0       137         0
+         OD33                                               15         0         0         0         0
+         OD18                                               16         0         0         0         0
+         POI                                                17       522         0     30853         0
+         PP                                                 25       199         0     22627         0
+         NP                                                 26       172         0     18488         0
+         OD1T                                               27         0         0         0         0
+         RPO                                                29        23         0      2016         0
+         CO                                                 30      2620         0   3472529         0
+         M1                                                 31      1642         0   7509487         0
+         M2                                                 32       632         0   7443020         0
+         M3                                                 33       422         0   3945958         0
+         M4                                                 34       346         0    776835         0
+         M5                                                 35       346         0    804760         0
+         M6                                                 36       364         0    804832         0
+         M7                                                 37       350         0    808761         0
+         M8                                                 38        56         0     21956         0
+         M9                                                 39        16         0     17844         0
+         RODMY                                              49         0         0         0         0
+         VIA1i                                              51      2008         0   2679008         0
+         VIA2i                                              52      1928         0   2342489         0
+         VIA3i                                              53      1977         0   5294372         0
+         VIA4i                                              54      1977         0   5741172         0
+         VIA5i                                              55      1977         0   5741172         0
+         VIA6i                                              56      1977         0   5741172         0
+         VIA7i                                              57       588         0     27166         0
+         VIA8i                                              58       592         0    247498         0
+         VTH_N                                              67         1         0         3         0
+         VTH_P                                              68         0         0         0         0
+         CB                                                 76         4         0      1731         0
+         ctm                                                77         0         0         0         0
+         CAP1TDMY                                           78         0         0         0         0
+         RV                                                 85         3         0      1688         0
+         cbm                                                88         0         0         0         0
+         blc                                               101      1945         0    115172         0
+         crown                                             102      1945         0    115172         0
+         p3                                                103      1945         0    115172         0
+         PSUB2                                             111        24         0      5263         0
+         RH                                                117        16         0       692         0
+         DIODMY                                            119         8         0       171         0
+         ESD3                                              147         0         0         0         0
+         RFDMY                                             161         0         0         0         0
+         CBD                                               169         3         0      1688         0
+         MAC                                              3000         0         0         0         0
+         RDKDMY                                           3001         0         0         0         0
+         DOD                                              3004         0         0         0         0
+         VTL_N                                            3006         0         0         0         0
+         VTL_P                                            3008         0         0         0         0
+         DPO                                              3013         0         0         0         0
+         ILVT                                             3015         0         0         0         0
+         OD25                                             3016        76         0      8295         0
+         OD25_33                                          3017        74         0      8160         0
+         OD25_18                                          3018         0         0         0         0
+         OD25_28                                          3019         0         0         0         0
+         EDRAM_DECAP                                      3025         0         0         0         0
+         DUM1                                             3032         0         0         0         0
+         DUM2                                             3035         0         0         0         0
+         DUM3                                             3038         0         0         0         0
+         DUM4                                             3041         0         0         0         0
+         DUM5                                             3044         0         0         0         0
+         DUM6                                             3047         0         0         0         0
+         DUM7                                             3050         0         0         0         0
+         DUM8                                             3052         0         0         0         0
+         DUM9                                             3054         0         0         0         0
+         SRM                                              3055         0         0         0         0
+         SRM10                                            3056         0         0         0         0
+         SRM11                                            3057         0         0         0         0
+         SRM12                                            3058         0         0         0         0
+         SRM13                                            3059         0         0         0         0
+         SRM14                                            3060         0         0         0         0
+         SRM16                                            3062         0         0         0         0
+         SRM17                                            3063         0         0         0         0
+         SRM_ULL                                          3065         0         0         0         0
+         VAR                                              3076         0         0         0         0
+         SBDDMY                                           3078         0         0         0         0
+         SBD3TDMY                                         3079         0         0         0         0
+         CB2                                              3085         4         0      1731         0
+         AP                                               3086         4         0      1731         0
+         DAP                                              3087         0         0         0         0
+         OD5                                              3089         0         0         0         0
+         OD6                                              3090         0         0         0         0
+         HVNWi                                            3093         0         0         0         0
+         HVPWi                                            3094         0         0         0         0
+         HVPSUB                                           3095         0         0         0         0
+         VTUL_N                                           3100         0         0         0         0
+         VTUL_P                                           3101         0         0         0         0
+         HVD_P                                            3102         0         0         0         0
+         HVD_NW                                           3103         0         0         0         0
+         HVD_DPW                                          3104         0         0         0         0
+         UHVT_N                                           3106         0         0         0         0
+         UHVT_P                                           3107         0         0         0         0
+         EHVT_N                                           3108         0         0         0         0
+         EHVT_P                                           3109         0         0         0         0
+         ELVT_N                                           3110         0         0         0         0
+         ELVT_P                                           3111         0         0         0         0
+         BJTDMY                                           3113         0         0         0         0
+         BJTDMY1                                          3114         0         0         0         0
+         BJT4TDMY                                         3115         0         0         0         0
+         NWDMYi                                           3123         0         0         0         0
+         NWDMY1                                           3124         0         0         0         0
+         RPDMYi                                           3125        18         0       698         0
+         RPDMY1                                           3126         0         0         0         0
+         DIO3TDMY                                         3128         0         0         0         0
+         MOMDMY0                                          3129         0         0         0         0
+         MOMDMY1                                          3130         0         0         0         0
+         MOMDMY2                                          3131         0         0         0         0
+         MOMDMY3                                          3132         0         0         0         0
+         MOMDMY4                                          3133         0         0         0         0
+         MOMDMY5                                          3134         0         0         0         0
+         MOMDMY6                                          3135         0         0         0         0
+         MOMDMY7                                          3136         0         0         0         0
+         MOMDMY_2T                                        3137         0         0         0         0
+         MOMDMY22                                         3139         0         0         0         0
+         MOMDMY23                                         3140         0         0         0         0
+         MOMDMY24                                         3141         0         0         0         0
+         MOMDMY25                                         3142         0         0         0         0
+         RFDMY5T                                          3144         0         0         0         0
+         RFDMY6T                                          3145         0         0         0         0
+         RFDMYUD                                          3146         0         0         0         0
+         RMDMY1                                           3147         2         0         3         0
+         RMDMY2                                           3148         2         0         3         0
+         RMDMY3                                           3149         0         0         0         0
+         RMDMY4                                           3150         0         0         0         0
+         RMDMY5                                           3151         0         0         0         0
+         RMDMY6                                           3152         0         0         0         0
+         RMDMY7                                           3153         0         0         0         0
+         RMDMY8                                           3154         0         0         0         0
+         RMDMY9                                           3155         0         0         0         0
+         RMDMYAP                                          3156         0         0         0         0
+         SRAMPSGT                                         3158         0         0         0         0
+         SRAMTIMER                                        3160         0         0         0         0
+         IND_STD                                          3161         0         0         0         0
+         IND_SYM                                          3162         0         0         0         0
+         IND_CT                                           3163         0         0         0         0
+         IND_STD_MUA                                      3164         0         0         0         0
+         IND_SYM_MUA                                      3165         0         0         0         0
+         IND_CT_MUA                                       3166         0         0         0         0
+         IND_RADi                                         3173         0         0         0         0
+         IND_GDIS                                         3174         0         0         0         0
+         IND_NR                                           3175         0         0         0         0
+         IND_MP                                           3176         0         0         0         0
+         IND_D4                                           3177         0         0         0         0
+         IND_S                                            3178         0         0         0         0
+         TLDMY                                            3182         0         0         0         0
+         DRAIN                                            3183         0         0         0         0
+         CAP1P5                                           3186         0         0         0         0
+         CAP2P0                                           3187         0         0         0         0
+         CAP1P0                                           3188         0         0         0         0
+         MIM_3TDMY                                        3189         0         0         0         0
+         CTMDMYUD                                         3190         0         0         0         0
+         PROBEM1                                          3191         0         0         0         0
+         PROBEM2                                          3192         0         0         0         0
+         PROBEM3                                          3193         0         0         0         0
+         PROBEM4                                          3194         0         0         0         0
+         PROBEM5                                          3195         0         0         0         0
+         PROBEM6                                          3196         0         0         0         0
+         PROBEM7                                          3197         0         0         0         0
+         DCO                                              3199         0         0         0         0
+         TCDDMY                                           3200         0         0         0         0
+         VTDN                                             3201         0         0         0         0
+         RFPADDMY                                         3202         0         0         0         0
+         RFPADDMY1                                        3203         0         0         0         0
+         RFPADDMY2                                        3204         0         0         0         0
+         RFPADDMY3                                        3205         0         0         0         0
+         HIADMY                                           3206         0         0         0         0
+         CAP_IMP                                          3208         0         0         0         0
+         CELLM                                            3209         0         0         0         0
+         MEDP                                             3210         0         0         0         0
+         RBCDMY                                           3214         0         0         0         0
+         DIFRBC                                           3215         0         0         0         0
+         XCLRBC                                           3216         0         0         0         0
+         CASRBC                                           3217         0         0         0         0
+         GTDMY1                                           3218         0         0         0         0
+         GTDMY2                                           3219         0         0         0         0
+         RFESDMY                                          3220         0         0         0         0
+         IND_TEXT                                         3224         0         0         0         0
+         RBC_TEXT                                         3226         0         0         0         0
+         metal1_text                                      3227         0       144         0     19842
+         metal10_text                                     3228         0        43         0        43
+         metal2_text                                      3229         0       283         0     20002
+         metal3_text                                      3230         0       219         0     34627
+         metal4_text                                      3231         0       195         0     29724
+         metal5_text                                      3232         0       195         0     29724
+         metal6_text                                      3233         0       195         0     29724
+         metal7_text                                      3234         0       195         0     29724
+         metal8_text                                      3235         0         0         0         0
+         metal9_text                                      3236         0         0         0         0
+         poly_text                                        3237         0         2         0        66
+         sline_m9m_text                                   3238         0         0         0         0
+         sline_m9p_text                                   3239         0         0         0         0
+         ----------------------------------------------------------------------------
+
+INFO:    CHIP EXTENT: 0 0 1500000 1000000
+
+INFO:    Worker 1 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2181.42 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161567 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 2 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2177.61 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161571 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 3 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2183.13 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161569 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 4 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2199.9 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161566 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 5 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2257.19 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161577 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 6 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2177.61 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161571 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 7 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2147.1 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161567 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+INFO:    Worker 8 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2147.1 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 161568 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 65 MB
+
+INFO:    Ports ...
+         ========================================================================
+
+INFO:    Texts For Connectivity ...
+         ========================================================================
+         vss! (1298.580, 846.085) 3227 pad_ring
+         vdd! (844.700, 845.872) 3227 pad_ring
+         VSSPST (1136.300, 56.815) 3228 pad_ring
+         VSS (1222.100, 56.815) 3228 pad_ring
+         VDDPST (364.100, 56.815) 3228 pad_ring
+         VDD (192.500, 56.815) 3228 pad_ring
+         TAVSS (1307.900, 943.185) 3228 pad_ring
+         TAVDD (878.900, 943.185) 3228 pad_ring
+         resetn (278.300, 56.815) 3228 pad_ring
+         prt4<7> (793.100, 943.185) 3228 pad_ring
+         prt4<6> (707.300, 943.185) 3228 pad_ring
+         prt4<5> (621.500, 943.185) 3228 pad_ring
+         prt4<4> (535.700, 943.185) 3228 pad_ring
+         prt4<3> (449.900, 943.185) 3228 pad_ring
+         prt4<2> (364.100, 943.185) 3228 pad_ring
+         prt4<1> (278.300, 943.185) 3228 pad_ring
+         prt4<0> (192.500, 943.185) 3228 pad_ring
+         prt3<7> (56.815, 808.500) 3228 pad_ring
+         prt3<6> (56.815, 720.500) 3228 pad_ring
+         prt3<5> (56.815, 632.500) 3228 pad_ring
+         prt3<4> (56.815, 544.500) 3228 pad_ring
+         prt3<3> (56.815, 456.500) 3228 pad_ring
+         prt3<2> (56.815, 368.500) 3228 pad_ring
+         prt3<1> (56.815, 280.500) 3228 pad_ring
+         prt3<0> (56.815, 192.500) 3228 pad_ring
+         prt2<7> (449.900, 56.815) 3228 pad_ring
+         prt2<6> (535.700, 56.815) 3228 pad_ring
+         prt2<5> (621.500, 56.815) 3228 pad_ring
+         prt2<4> (707.300, 56.815) 3228 pad_ring
+         prt2<3> (793.100, 56.815) 3228 pad_ring
+         prt2<2> (878.900, 56.815) 3228 pad_ring
+         prt2<1> (964.700, 56.815) 3228 pad_ring
+         prt2<0> (1050.500, 56.815) 3228 pad_ring
+         prt1<7> (1443.180, 192.495) 3228 pad_ring
+         prt1<6> (1443.180, 280.505) 3228 pad_ring
+         prt1<5> (1443.180, 368.505) 3228 pad_ring
+         prt1<4> (1443.180, 456.505) 3228 pad_ring
+         prt1<3> (1443.180, 544.505) 3228 pad_ring
+         prt1<2> (1443.180, 632.505) 3228 pad_ring
+         prt1<1> (1443.180, 720.505) 3228 pad_ring
+         prt1<0> (1443.180, 808.505) 3228 pad_ring
+         PinRE (1222.100, 943.185) 3228 pad_ring
+         PinCE (1136.300, 943.185) 3228 pad_ring
+         PinATP (964.700, 943.185) 3228 pad_ring
+         PinADCEXTIN (1050.500, 943.185) 3228 pad_ring
+         VSS (1222.100, 154.220) 3229 pad_ring
+         VDD (192.500, 154.080) 3229 pad_ring
+         resetn_ren (282.735, 154.500) 3229 pad_ring
+         resetn_out (268.180, 154.500) 3229 pad_ring
+         resetn_in (288.415, 154.500) 3229 pad_ring
+         resetn_dir (278.775, 154.500) 3229 pad_ring
+         RE (1189.830, 847.250) 3229 pad_ring
+         prt4_ren<7> (797.535, 845.500) 3229 pad_ring
+         prt4_ren<6> (711.735, 845.500) 3229 pad_ring
+         prt4_ren<5> (625.935, 845.500) 3229 pad_ring
+         prt4_ren<4> (540.135, 845.500) 3229 pad_ring
+         prt4_ren<3> (454.335, 845.500) 3229 pad_ring
+         prt4_ren<2> (368.535, 845.500) 3229 pad_ring
+         prt4_ren<1> (282.735, 845.500) 3229 pad_ring
+         prt4_ren<0> (196.935, 845.500) 3229 pad_ring
+         prt4_out<7> (782.980, 845.500) 3229 pad_ring
+         prt4_out<6> (697.180, 845.500) 3229 pad_ring
+         prt4_out<5> (611.380, 845.500) 3229 pad_ring
+         prt4_out<4> (525.580, 845.500) 3229 pad_ring
+         prt4_out<3> (439.780, 845.500) 3229 pad_ring
+         prt4_out<2> (353.980, 845.500) 3229 pad_ring
+         prt4_out<1> (268.180, 845.500) 3229 pad_ring
+         prt4_out<0> (182.380, 845.500) 3229 pad_ring
+         prt4_in<7> (803.215, 845.500) 3229 pad_ring
+         prt4_in<6> (717.415, 845.500) 3229 pad_ring
+         prt4_in<5> (631.615, 845.500) 3229 pad_ring
+         prt4_in<4> (545.815, 845.500) 3229 pad_ring
+         prt4_in<3> (460.015, 845.500) 3229 pad_ring
+         prt4_in<2> (374.215, 845.500) 3229 pad_ring
+         prt4_in<1> (288.415, 845.500) 3229 pad_ring
+         prt4_in<0> (202.615, 845.500) 3229 pad_ring
+         prt4_dir<7> (793.575, 845.500) 3229 pad_ring
+         prt4_dir<6> (707.775, 845.500) 3229 pad_ring
+         prt4_dir<5> (621.975, 845.500) 3229 pad_ring
+         prt4_dir<4> (536.175, 845.500) 3229 pad_ring
+         prt4_dir<3> (450.375, 845.500) 3229 pad_ring
+         prt4_dir<2> (364.575, 845.500) 3229 pad_ring
+         prt4_dir<1> (278.775, 845.500) 3229 pad_ring
+         prt4_dir<0> (192.975, 845.500) 3229 pad_ring
+         prt3_ren<7> (154.500, 804.065) 3229 pad_ring
+         prt3_ren<6> (154.500, 716.065) 3229 pad_ring
+         prt3_ren<5> (154.500, 628.065) 3229 pad_ring
+         prt3_ren<4> (154.500, 540.065) 3229 pad_ring
+         prt3_ren<3> (154.500, 452.065) 3229 pad_ring
+         prt3_ren<2> (154.500, 364.065) 3229 pad_ring
+         prt3_ren<1> (154.500, 276.065) 3229 pad_ring
+         prt3_ren<0> (154.500, 188.065) 3229 pad_ring
+         prt3_out<7> (154.500, 818.620) 3229 pad_ring
+         prt3_out<6> (154.500, 730.620) 3229 pad_ring
+         prt3_out<5> (154.500, 642.620) 3229 pad_ring
+         prt3_out<4> (154.500, 554.620) 3229 pad_ring
+         prt3_out<3> (154.500, 466.620) 3229 pad_ring
+         prt3_out<2> (154.500, 378.620) 3229 pad_ring
+         prt3_out<1> (154.500, 290.620) 3229 pad_ring
+         prt3_out<0> (154.500, 202.620) 3229 pad_ring
+         prt3_in<7> (154.500, 798.385) 3229 pad_ring
+         prt3_in<6> (154.500, 710.385) 3229 pad_ring
+         prt3_in<5> (154.500, 622.385) 3229 pad_ring
+         prt3_in<4> (154.500, 534.385) 3229 pad_ring
+         prt3_in<3> (154.500, 446.385) 3229 pad_ring
+         prt3_in<2> (154.500, 358.385) 3229 pad_ring
+         prt3_in<1> (154.500, 270.385) 3229 pad_ring
+         prt3_in<0> (154.500, 182.385) 3229 pad_ring
+         prt3_dir<7> (154.500, 808.025) 3229 pad_ring
+         prt3_dir<6> (154.500, 720.025) 3229 pad_ring
+         prt3_dir<5> (154.500, 632.025) 3229 pad_ring
+         prt3_dir<4> (154.500, 544.025) 3229 pad_ring
+         prt3_dir<3> (154.500, 456.025) 3229 pad_ring
+         prt3_dir<2> (154.500, 368.025) 3229 pad_ring
+         prt3_dir<1> (154.500, 280.025) 3229 pad_ring
+         prt3_dir<0> (154.500, 192.025) 3229 pad_ring
+         prt2_ren<7> (454.335, 154.500) 3229 pad_ring
+         prt2_ren<6> (540.135, 154.500) 3229 pad_ring
+         prt2_ren<5> (625.935, 154.500) 3229 pad_ring
+         prt2_ren<4> (711.735, 154.500) 3229 pad_ring
+         prt2_ren<3> (797.535, 154.500) 3229 pad_ring
+         prt2_ren<2> (883.335, 154.500) 3229 pad_ring
+         prt2_ren<1> (969.135, 154.500) 3229 pad_ring
+         prt2_ren<0> (1054.935, 154.500) 3229 pad_ring
+         prt2_out<7> (439.780, 154.500) 3229 pad_ring
+         prt2_out<6> (525.580, 154.500) 3229 pad_ring
+         prt2_out<5> (611.380, 154.500) 3229 pad_ring
+         prt2_out<4> (697.180, 154.500) 3229 pad_ring
+         prt2_out<3> (782.980, 154.500) 3229 pad_ring
+         prt2_out<2> (868.780, 154.500) 3229 pad_ring
+         prt2_out<1> (954.580, 154.500) 3229 pad_ring
+         prt2_out<0> (1040.380, 154.500) 3229 pad_ring
+         prt2_in<7> (460.015, 154.500) 3229 pad_ring
+         prt2_in<6> (545.815, 154.500) 3229 pad_ring
+         prt2_in<5> (631.615, 154.500) 3229 pad_ring
+         prt2_in<4> (717.415, 154.500) 3229 pad_ring
+         prt2_in<3> (803.215, 154.500) 3229 pad_ring
+         prt2_in<2> (889.015, 154.500) 3229 pad_ring
+         prt2_in<1> (974.815, 154.500) 3229 pad_ring
+         prt2_in<0> (1060.615, 154.500) 3229 pad_ring
+         prt2_dir<7> (450.375, 154.500) 3229 pad_ring
+         prt2_dir<6> (536.175, 154.500) 3229 pad_ring
+         prt2_dir<5> (621.975, 154.500) 3229 pad_ring
+         prt2_dir<4> (707.775, 154.500) 3229 pad_ring
+         prt2_dir<3> (793.575, 154.500) 3229 pad_ring
+         prt2_dir<2> (879.375, 154.500) 3229 pad_ring
+         prt2_dir<1> (965.175, 154.500) 3229 pad_ring
+         prt2_dir<0> (1050.975, 154.500) 3229 pad_ring
+         prt1_ren<7> (1345.500, 196.935) 3229 pad_ring
+         prt1_ren<6> (1345.500, 284.935) 3229 pad_ring
+         prt1_ren<5> (1345.500, 372.935) 3229 pad_ring
+         prt1_ren<4> (1345.500, 460.935) 3229 pad_ring
+         prt1_ren<3> (1345.500, 548.935) 3229 pad_ring
+         prt1_ren<2> (1345.500, 636.935) 3229 pad_ring
+         prt1_ren<1> (1345.500, 724.935) 3229 pad_ring
+         prt1_ren<0> (1345.500, 812.935) 3229 pad_ring
+         prt1_out<7> (1345.500, 182.380) 3229 pad_ring
+         prt1_out<6> (1345.500, 270.380) 3229 pad_ring
+         prt1_out<5> (1345.500, 358.380) 3229 pad_ring
+         prt1_out<4> (1345.500, 446.380) 3229 pad_ring
+         prt1_out<3> (1345.500, 534.380) 3229 pad_ring
+         prt1_out<2> (1345.500, 622.380) 3229 pad_ring
+         prt1_out<1> (1345.500, 710.380) 3229 pad_ring
+         prt1_out<0> (1345.500, 798.380) 3229 pad_ring
+         prt1_in<7> (1345.500, 202.615) 3229 pad_ring
+         prt1_in<6> (1345.500, 290.615) 3229 pad_ring
+         prt1_in<5> (1345.500, 378.615) 3229 pad_ring
+         prt1_in<4> (1345.500, 466.615) 3229 pad_ring
+         prt1_in<3> (1345.500, 554.615) 3229 pad_ring
+         prt1_in<2> (1345.500, 642.615) 3229 pad_ring
+         prt1_in<1> (1345.500, 730.615) 3229 pad_ring
+         prt1_in<0> (1345.500, 818.615) 3229 pad_ring
+         prt1_dir<7> (1345.500, 192.975) 3229 pad_ring
+         prt1_dir<6> (1345.500, 280.975) 3229 pad_ring
+         prt1_dir<5> (1345.500, 368.975) 3229 pad_ring
+         prt1_dir<4> (1345.500, 456.975) 3229 pad_ring
+         prt1_dir<3> (1345.500, 544.975) 3229 pad_ring
+         prt1_dir<2> (1345.500, 632.975) 3229 pad_ring
+         prt1_dir<1> (1345.500, 720.975) 3229 pad_ring
+         prt1_dir<0> (1345.500, 808.975) 3229 pad_ring
+         CE (1104.030, 847.250) 3229 pad_ring
+         ATP (932.430, 847.250) 3229 pad_ring
+         ADCEXTIN (1018.230, 847.250) 3229 pad_ring
+         POC (153.577, 153.690) 3230 pad_ring
+         VSS (24.930, 114.785) 3227 PVSS3A_G
+         VSS (0.145, 114.785) 3227 PVSS3A_G
+         AVSS (21.420, 133.875) 3227 PVSS3A_G
+         AVSS (16.960, 133.875) 3227 PVSS3A_G
+         AVSS (12.500, 133.875) 3227 PVSS3A_G
+         AVSS (8.040, 133.875) 3227 PVSS3A_G
+         AVSS (3.580, 133.875) 3227 PVSS3A_G
+         VSS (24.930, 114.785) 3229 PVSS3A_G
+         VSS (0.145, 114.785) 3229 PVSS3A_G
+         AVSS (21.420, 133.875) 3229 PVSS3A_G
+         AVSS (16.960, 133.875) 3229 PVSS3A_G
+         AVSS (12.500, 133.875) 3229 PVSS3A_G
+         AVSS (8.040, 133.875) 3229 PVSS3A_G
+         AVSS (3.580, 133.875) 3229 PVSS3A_G
+         VSS (24.930, 114.785) 3230 PVSS3A_G
+         VSS (0.145, 114.785) 3230 PVSS3A_G
+         TAVSS (24.930, 30.365) 3230 PVSS3A_G
+         TAVSS (12.500, 84.815) 3230 PVSS3A_G
+         TAVSS (0.125, 30.365) 3230 PVSS3A_G
+         TAVDD (24.965, 89.690) 3230 PVSS3A_G
+         TAVDD (24.965, 69.945) 3230 PVSS3A_G
+         TAVDD (0.160, 89.690) 3230 PVSS3A_G
+         TAVDD (0.160, 69.945) 3230 PVSS3A_G
+         VSS (24.930, 114.785) 3231 PVSS3A_G
+         VSS (0.145, 114.785) 3231 PVSS3A_G
+         TAVSS (24.930, 30.365) 3231 PVSS3A_G
+         TAVSS (12.500, 84.815) 3231 PVSS3A_G
+         TAVSS (0.125, 30.365) 3231 PVSS3A_G
+         TAVDD (24.965, 89.690) 3231 PVSS3A_G
+         TAVDD (24.965, 69.945) 3231 PVSS3A_G
+         TAVDD (0.160, 89.690) 3231 PVSS3A_G
+         TAVDD (0.160, 69.945) 3231 PVSS3A_G
+         VSS (24.930, 114.785) 3232 PVSS3A_G
+         VSS (0.145, 114.785) 3232 PVSS3A_G
+         TAVSS (24.930, 30.365) 3232 PVSS3A_G
+         TAVSS (12.500, 84.815) 3232 PVSS3A_G
+         TAVSS (0.125, 30.365) 3232 PVSS3A_G
+         TAVDD (24.965, 89.690) 3232 PVSS3A_G
+         TAVDD (24.965, 69.945) 3232 PVSS3A_G
+         TAVDD (0.160, 89.690) 3232 PVSS3A_G
+         TAVDD (0.160, 69.945) 3232 PVSS3A_G
+         VSS (24.930, 114.785) 3233 PVSS3A_G
+         VSS (0.145, 114.785) 3233 PVSS3A_G
+         TAVSS (24.930, 30.365) 3233 PVSS3A_G
+         TAVSS (12.500, 84.815) 3233 PVSS3A_G
+         TAVSS (0.125, 30.365) 3233 PVSS3A_G
+         TAVDD (24.965, 89.690) 3233 PVSS3A_G
+         TAVDD (24.965, 69.945) 3233 PVSS3A_G
+         TAVDD (0.160, 89.690) 3233 PVSS3A_G
+         TAVDD (0.160, 69.945) 3233 PVSS3A_G
+         VSS (24.930, 114.785) 3234 PVSS3A_G
+         VSS (0.145, 114.785) 3234 PVSS3A_G
+         TAVSS (24.930, 30.365) 3234 PVSS3A_G
+         TAVSS (12.500, 84.815) 3234 PVSS3A_G
+         TAVSS (0.125, 30.365) 3234 PVSS3A_G
+         TAVDD (24.965, 89.690) 3234 PVSS3A_G
+         TAVDD (24.965, 69.945) 3234 PVSS3A_G
+         TAVDD (0.160, 89.690) 3234 PVSS3A_G
+         TAVDD (0.160, 69.945) 3234 PVSS3A_G
+         VSS (25.000, 114.785) 3227 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3227 PVSS1DGZ_G
+         VSS (20.360, 134.220) 3227 PVSS1DGZ_G
+         VSS (17.740, 134.220) 3227 PVSS1DGZ_G
+         VSS (15.120, 134.220) 3227 PVSS1DGZ_G
+         VSS (12.500, 134.220) 3227 PVSS1DGZ_G
+         VSS (9.880, 134.220) 3227 PVSS1DGZ_G
+         VSS (7.260, 134.220) 3227 PVSS1DGZ_G
+         VSS (4.640, 134.220) 3227 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3227 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3227 PVSS1DGZ_G
+         VDDPST (25.000, 97.305) 3227 PVSS1DGZ_G
+         VDDPST (0.000, 97.305) 3227 PVSS1DGZ_G
+         VDD (25.000, 123.555) 3227 PVSS1DGZ_G
+         VDD (0.000, 123.555) 3227 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3229 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3229 PVSS1DGZ_G
+         VSS (20.360, 134.220) 3229 PVSS1DGZ_G
+         VSS (17.740, 134.220) 3229 PVSS1DGZ_G
+         VSS (15.120, 134.220) 3229 PVSS1DGZ_G
+         VSS (12.500, 134.220) 3229 PVSS1DGZ_G
+         VSS (9.880, 134.220) 3229 PVSS1DGZ_G
+         VSS (7.260, 134.220) 3229 PVSS1DGZ_G
+         VSS (4.640, 134.220) 3229 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3229 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3229 PVSS1DGZ_G
+         VDDPST (25.000, 97.305) 3229 PVSS1DGZ_G
+         VDDPST (0.000, 97.305) 3229 PVSS1DGZ_G
+         VDD (25.000, 123.555) 3229 PVSS1DGZ_G
+         VDD (0.000, 123.555) 3229 PVSS1DGZ_G
+         VSSPST (24.930, 33.365) 3230 PVSS1DGZ_G
+         VSSPST (0.090, 33.365) 3230 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3230 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3230 PVSS1DGZ_G
+         VSS (25.000, 98.200) 3230 PVSS1DGZ_G
+         VSS (12.500, 84.815) 3230 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3230 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3230 PVSS1DGZ_G
+         VSS (0.000, 98.200) 3230 PVSS1DGZ_G
+         VDDPST (24.965, 69.945) 3230 PVSS1DGZ_G
+         VDDPST (0.090, 69.945) 3230 PVSS1DGZ_G
+         VDD (25.000, 123.555) 3230 PVSS1DGZ_G
+         VDD (0.000, 123.555) 3230 PVSS1DGZ_G
+         POC (25.000, 133.010) 3230 PVSS1DGZ_G
+         POC (0.000, 133.010) 3230 PVSS1DGZ_G
+         VSSPST (24.930, 33.365) 3231 PVSS1DGZ_G
+         VSSPST (0.090, 33.365) 3231 PVSS1DGZ_G
+         VSS (25.000, 124.555) 3231 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3231 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3231 PVSS1DGZ_G
+         VSS (25.000, 98.200) 3231 PVSS1DGZ_G
+         VSS (12.500, 84.815) 3231 PVSS1DGZ_G
+         VSS (0.000, 124.555) 3231 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3231 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3231 PVSS1DGZ_G
+         VSS (0.000, 98.200) 3231 PVSS1DGZ_G
+         VDDPST (24.965, 69.945) 3231 PVSS1DGZ_G
+         VDDPST (0.090, 69.945) 3231 PVSS1DGZ_G
+         VSSPST (24.930, 33.365) 3232 PVSS1DGZ_G
+         VSSPST (0.090, 33.365) 3232 PVSS1DGZ_G
+         VSS (25.000, 124.555) 3232 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3232 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3232 PVSS1DGZ_G
+         VSS (25.000, 98.200) 3232 PVSS1DGZ_G
+         VSS (12.500, 84.815) 3232 PVSS1DGZ_G
+         VSS (0.000, 124.555) 3232 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3232 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3232 PVSS1DGZ_G
+         VSS (0.000, 98.200) 3232 PVSS1DGZ_G
+         VDDPST (24.965, 69.945) 3232 PVSS1DGZ_G
+         VDDPST (0.090, 69.945) 3232 PVSS1DGZ_G
+         VSSPST (24.930, 33.365) 3233 PVSS1DGZ_G
+         VSSPST (0.090, 33.365) 3233 PVSS1DGZ_G
+         VSS (25.000, 124.555) 3233 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3233 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3233 PVSS1DGZ_G
+         VSS (25.000, 98.200) 3233 PVSS1DGZ_G
+         VSS (12.500, 84.815) 3233 PVSS1DGZ_G
+         VSS (0.000, 124.555) 3233 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3233 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3233 PVSS1DGZ_G
+         VSS (0.000, 98.200) 3233 PVSS1DGZ_G
+         VDDPST (24.965, 69.945) 3233 PVSS1DGZ_G
+         VDDPST (0.090, 69.945) 3233 PVSS1DGZ_G
+         VSSPST (24.930, 33.365) 3234 PVSS1DGZ_G
+         VSSPST (0.090, 33.365) 3234 PVSS1DGZ_G
+         VSS (25.000, 124.555) 3234 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3234 PVSS1DGZ_G
+         VSS (25.000, 108.130) 3234 PVSS1DGZ_G
+         VSS (25.000, 98.200) 3234 PVSS1DGZ_G
+         VSS (12.500, 84.815) 3234 PVSS1DGZ_G
+         VSS (0.000, 124.555) 3234 PVSS1DGZ_G
+         VSS (0.000, 114.785) 3234 PVSS1DGZ_G
+         VSS (0.000, 108.130) 3234 PVSS1DGZ_G
+         VSS (0.000, 98.200) 3234 PVSS1DGZ_G
+         VDDPST (24.965, 69.945) 3234 PVSS1DGZ_G
+         VDDPST (0.090, 69.945) 3234 PVSS1DGZ_G
+         VSS (25.000, 114.785) 3227 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3227 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3227 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3227 PVSS2DGZ_G
+         VDDPST (25.000, 97.305) 3227 PVSS2DGZ_G
+         VDDPST (0.000, 97.305) 3227 PVSS2DGZ_G
+         VDD (25.000, 123.555) 3227 PVSS2DGZ_G
+         VDD (0.000, 123.555) 3227 PVSS2DGZ_G
+         VSS (25.000, 114.785) 3229 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3229 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3229 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3229 PVSS2DGZ_G
+         VDDPST (25.000, 97.305) 3229 PVSS2DGZ_G
+         VDDPST (0.000, 97.305) 3229 PVSS2DGZ_G
+         VDD (25.000, 123.555) 3229 PVSS2DGZ_G
+         VDD (0.000, 123.555) 3229 PVSS2DGZ_G
+         VSSPST (24.930, 33.365) 3230 PVSS2DGZ_G
+         VSSPST (12.500, 84.815) 3230 PVSS2DGZ_G
+         VSSPST (0.090, 33.365) 3230 PVSS2DGZ_G
+         VSS (25.000, 114.785) 3230 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3230 PVSS2DGZ_G
+         VSS (25.000, 98.200) 3230 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3230 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3230 PVSS2DGZ_G
+         VSS (0.000, 98.200) 3230 PVSS2DGZ_G
+         VDDPST (24.965, 69.945) 3230 PVSS2DGZ_G
+         VDDPST (0.090, 69.945) 3230 PVSS2DGZ_G
+         VDD (25.000, 123.555) 3230 PVSS2DGZ_G
+         VDD (0.000, 123.555) 3230 PVSS2DGZ_G
+         POC (25.000, 133.010) 3230 PVSS2DGZ_G
+         POC (0.000, 133.010) 3230 PVSS2DGZ_G
+         VSSPST (24.930, 33.365) 3231 PVSS2DGZ_G
+         VSSPST (12.500, 84.815) 3231 PVSS2DGZ_G
+         VSSPST (0.090, 33.365) 3231 PVSS2DGZ_G
+         VSS (25.000, 124.555) 3231 PVSS2DGZ_G
+         VSS (25.000, 114.785) 3231 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3231 PVSS2DGZ_G
+         VSS (25.000, 98.200) 3231 PVSS2DGZ_G
+         VSS (0.000, 124.555) 3231 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3231 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3231 PVSS2DGZ_G
+         VSS (0.000, 98.200) 3231 PVSS2DGZ_G
+         VDDPST (24.965, 69.945) 3231 PVSS2DGZ_G
+         VDDPST (0.090, 69.945) 3231 PVSS2DGZ_G
+         VSSPST (24.930, 33.365) 3232 PVSS2DGZ_G
+         VSSPST (12.500, 84.815) 3232 PVSS2DGZ_G
+         VSSPST (0.090, 33.365) 3232 PVSS2DGZ_G
+         VSS (25.000, 124.555) 3232 PVSS2DGZ_G
+         VSS (25.000, 114.785) 3232 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3232 PVSS2DGZ_G
+         VSS (25.000, 98.200) 3232 PVSS2DGZ_G
+         VSS (0.000, 124.555) 3232 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3232 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3232 PVSS2DGZ_G
+         VSS (0.000, 98.200) 3232 PVSS2DGZ_G
+         VDDPST (24.965, 69.945) 3232 PVSS2DGZ_G
+         VDDPST (0.090, 69.945) 3232 PVSS2DGZ_G
+         VSSPST (24.930, 33.365) 3233 PVSS2DGZ_G
+         VSSPST (12.500, 84.815) 3233 PVSS2DGZ_G
+         VSSPST (0.090, 33.365) 3233 PVSS2DGZ_G
+         VSS (25.000, 124.555) 3233 PVSS2DGZ_G
+         VSS (25.000, 114.785) 3233 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3233 PVSS2DGZ_G
+         VSS (25.000, 98.200) 3233 PVSS2DGZ_G
+         VSS (0.000, 124.555) 3233 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3233 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3233 PVSS2DGZ_G
+         VSS (0.000, 98.200) 3233 PVSS2DGZ_G
+         VDDPST (24.965, 69.945) 3233 PVSS2DGZ_G
+         VDDPST (0.090, 69.945) 3233 PVSS2DGZ_G
+         VSSPST (24.930, 33.365) 3234 PVSS2DGZ_G
+         VSSPST (12.500, 84.815) 3234 PVSS2DGZ_G
+         VSSPST (0.090, 33.365) 3234 PVSS2DGZ_G
+         VSS (25.000, 124.555) 3234 PVSS2DGZ_G
+         VSS (25.000, 114.785) 3234 PVSS2DGZ_G
+         VSS (25.000, 108.130) 3234 PVSS2DGZ_G
+         VSS (25.000, 98.200) 3234 PVSS2DGZ_G
+         VSS (0.000, 124.555) 3234 PVSS2DGZ_G
+         VSS (0.000, 114.785) 3234 PVSS2DGZ_G
+         VSS (0.000, 108.130) 3234 PVSS2DGZ_G
+         VSS (0.000, 98.200) 3234 PVSS2DGZ_G
+         VDDPST (24.965, 69.945) 3234 PVSS2DGZ_G
+         VDDPST (0.090, 69.945) 3234 PVSS2DGZ_G
+         VSS (24.930, 114.785) 3227 PDB3A_G
+         VSS (0.145, 114.785) 3227 PDB3A_G
+         VSS (24.930, 114.785) 3229 PDB3A_G
+         VSS (0.145, 114.785) 3229 PDB3A_G
+         AIO (19.730, 132.750) 3229 PDB3A_G
+         AIO (12.480, 132.750) 3229 PDB3A_G
+         AIO (5.230, 132.750) 3229 PDB3A_G
+         VSS (24.930, 114.785) 3230 PDB3A_G
+         VSS (0.145, 114.785) 3230 PDB3A_G
+         TAVSS (24.930, 30.365) 3230 PDB3A_G
+         TAVSS (0.125, 30.365) 3230 PDB3A_G
+         TAVDD (24.965, 89.690) 3230 PDB3A_G
+         TAVDD (24.965, 69.945) 3230 PDB3A_G
+         TAVDD (0.160, 89.690) 3230 PDB3A_G
+         TAVDD (0.160, 69.945) 3230 PDB3A_G
+         AIO (12.500, 84.815) 3230 PDB3A_G
+         VSS (24.930, 114.785) 3231 PDB3A_G
+         VSS (0.145, 114.785) 3231 PDB3A_G
+         TAVSS (24.930, 30.365) 3231 PDB3A_G
+         TAVSS (0.125, 30.365) 3231 PDB3A_G
+         TAVDD (24.965, 89.690) 3231 PDB3A_G
+         TAVDD (24.965, 69.945) 3231 PDB3A_G
+         TAVDD (0.160, 89.690) 3231 PDB3A_G
+         TAVDD (0.160, 69.945) 3231 PDB3A_G
+         AIO (12.500, 84.815) 3231 PDB3A_G
+         VSS (24.930, 114.785) 3232 PDB3A_G
+         VSS (0.145, 114.785) 3232 PDB3A_G
+         TAVSS (24.930, 30.365) 3232 PDB3A_G
+         TAVSS (0.125, 30.365) 3232 PDB3A_G
+         TAVDD (24.965, 89.690) 3232 PDB3A_G
+         TAVDD (24.965, 69.945) 3232 PDB3A_G
+         TAVDD (0.160, 89.690) 3232 PDB3A_G
+         TAVDD (0.160, 69.945) 3232 PDB3A_G
+         AIO (12.500, 84.815) 3232 PDB3A_G
+         VSS (24.930, 114.785) 3233 PDB3A_G
+         VSS (0.145, 114.785) 3233 PDB3A_G
+         TAVSS (24.930, 30.365) 3233 PDB3A_G
+         TAVSS (0.125, 30.365) 3233 PDB3A_G
+         TAVDD (24.965, 89.690) 3233 PDB3A_G
+         TAVDD (24.965, 69.945) 3233 PDB3A_G
+         TAVDD (0.160, 89.690) 3233 PDB3A_G
+         TAVDD (0.160, 69.945) 3233 PDB3A_G
+         AIO (12.500, 84.815) 3233 PDB3A_G
+         VSS (24.930, 114.785) 3234 PDB3A_G
+         VSS (0.145, 114.785) 3234 PDB3A_G
+         TAVSS (24.930, 30.365) 3234 PDB3A_G
+         TAVSS (0.125, 30.365) 3234 PDB3A_G
+         TAVDD (24.965, 89.690) 3234 PDB3A_G
+         TAVDD (24.965, 69.945) 3234 PDB3A_G
+         TAVDD (0.160, 89.690) 3234 PDB3A_G
+         TAVDD (0.160, 69.945) 3234 PDB3A_G
+         AIO (12.500, 84.815) 3234 PDB3A_G
+         VSS (24.930, 114.785) 3227 PVDD3A_G
+         VSS (0.145, 114.785) 3227 PVDD3A_G
+         AVDD (21.700, 134.105) 3227 PVDD3A_G
+         AVDD (18.020, 134.105) 3227 PVDD3A_G
+         AVDD (14.340, 134.105) 3227 PVDD3A_G
+         AVDD (10.660, 134.105) 3227 PVDD3A_G
+         AVDD (6.980, 134.105) 3227 PVDD3A_G
+         AVDD (3.300, 134.105) 3227 PVDD3A_G
+         VSS (24.930, 114.785) 3229 PVDD3A_G
+         VSS (0.145, 114.785) 3229 PVDD3A_G
+         AVDD (21.700, 134.105) 3229 PVDD3A_G
+         AVDD (18.020, 134.105) 3229 PVDD3A_G
+         AVDD (14.340, 134.105) 3229 PVDD3A_G
+         AVDD (10.660, 134.105) 3229 PVDD3A_G
+         AVDD (6.980, 134.105) 3229 PVDD3A_G
+         AVDD (3.300, 134.105) 3229 PVDD3A_G
+         VSS (24.930, 114.785) 3230 PVDD3A_G
+         VSS (0.145, 114.785) 3230 PVDD3A_G
+         TAVSS (24.930, 30.365) 3230 PVDD3A_G
+         TAVSS (0.125, 30.365) 3230 PVDD3A_G
+         TAVDD (24.965, 89.690) 3230 PVDD3A_G
+         TAVDD (24.965, 69.945) 3230 PVDD3A_G
+         TAVDD (12.500, 84.815) 3230 PVDD3A_G
+         TAVDD (0.160, 89.690) 3230 PVDD3A_G
+         TAVDD (0.160, 69.945) 3230 PVDD3A_G
+         VSS (24.930, 114.785) 3231 PVDD3A_G
+         VSS (0.145, 114.785) 3231 PVDD3A_G
+         TAVSS (24.930, 30.365) 3231 PVDD3A_G
+         TAVSS (0.125, 30.365) 3231 PVDD3A_G
+         TAVDD (24.965, 89.690) 3231 PVDD3A_G
+         TAVDD (24.965, 69.945) 3231 PVDD3A_G
+         TAVDD (12.500, 84.815) 3231 PVDD3A_G
+         TAVDD (0.160, 89.690) 3231 PVDD3A_G
+         TAVDD (0.160, 69.945) 3231 PVDD3A_G
+         VSS (24.930, 114.785) 3232 PVDD3A_G
+         VSS (0.145, 114.785) 3232 PVDD3A_G
+         TAVSS (24.930, 30.365) 3232 PVDD3A_G
+         TAVSS (0.125, 30.365) 3232 PVDD3A_G
+         TAVDD (24.965, 89.690) 3232 PVDD3A_G
+         TAVDD (24.965, 69.945) 3232 PVDD3A_G
+         TAVDD (12.500, 84.815) 3232 PVDD3A_G
+         TAVDD (0.160, 89.690) 3232 PVDD3A_G
+         TAVDD (0.160, 69.945) 3232 PVDD3A_G
+         VSS (24.930, 114.785) 3233 PVDD3A_G
+         VSS (0.145, 114.785) 3233 PVDD3A_G
+         TAVSS (24.930, 30.365) 3233 PVDD3A_G
+         TAVSS (0.125, 30.365) 3233 PVDD3A_G
+         TAVDD (24.965, 89.690) 3233 PVDD3A_G
+         TAVDD (24.965, 69.945) 3233 PVDD3A_G
+         TAVDD (12.500, 84.815) 3233 PVDD3A_G
+         TAVDD (0.160, 89.690) 3233 PVDD3A_G
+         TAVDD (0.160, 69.945) 3233 PVDD3A_G
+         VSS (24.930, 114.785) 3234 PVDD3A_G
+         VSS (0.145, 114.785) 3234 PVDD3A_G
+         TAVSS (24.930, 30.365) 3234 PVDD3A_G
+         TAVSS (0.125, 30.365) 3234 PVDD3A_G
+         TAVDD (24.965, 89.690) 3234 PVDD3A_G
+         TAVDD (24.965, 69.945) 3234 PVDD3A_G
+         TAVDD (12.500, 84.815) 3234 PVDD3A_G
+         TAVDD (0.160, 89.690) 3234 PVDD3A_G
+         TAVDD (0.160, 69.945) 3234 PVDD3A_G
+         VSS (24.880, 114.785) 3227 PRCUTA_G
+         VSS (24.880, 108.130) 3227 PRCUTA_G
+         VSS (0.120, 114.785) 3227 PRCUTA_G
+         VSS (0.120, 108.130) 3227 PRCUTA_G
+         VSS (24.880, 114.785) 3229 PRCUTA_G
+         VSS (24.880, 108.130) 3229 PRCUTA_G
+         VSS (0.120, 114.785) 3229 PRCUTA_G
+         VSS (0.120, 108.130) 3229 PRCUTA_G
+         VSS (24.880, 114.785) 3230 PRCUTA_G
+         VSS (24.880, 108.130) 3230 PRCUTA_G
+         VSS (24.880, 98.200) 3230 PRCUTA_G
+         VSS (0.120, 114.785) 3230 PRCUTA_G
+         VSS (0.120, 108.130) 3230 PRCUTA_G
+         VSS (0.120, 98.200) 3230 PRCUTA_G
+         VSS (24.880, 124.555) 3231 PRCUTA_G
+         VSS (24.880, 114.785) 3231 PRCUTA_G
+         VSS (24.880, 108.130) 3231 PRCUTA_G
+         VSS (24.880, 98.200) 3231 PRCUTA_G
+         VSS (0.120, 124.555) 3231 PRCUTA_G
+         VSS (0.120, 114.785) 3231 PRCUTA_G
+         VSS (0.120, 108.130) 3231 PRCUTA_G
+         VSS (0.120, 98.200) 3231 PRCUTA_G
+         VSS (24.880, 124.555) 3232 PRCUTA_G
+         VSS (24.880, 114.785) 3232 PRCUTA_G
+         VSS (24.880, 108.130) 3232 PRCUTA_G
+         VSS (24.880, 98.200) 3232 PRCUTA_G
+         VSS (0.120, 124.555) 3232 PRCUTA_G
+         VSS (0.120, 114.785) 3232 PRCUTA_G
+         VSS (0.120, 108.130) 3232 PRCUTA_G
+         VSS (0.120, 98.200) 3232 PRCUTA_G
+         VSS (24.880, 124.555) 3233 PRCUTA_G
+         VSS (24.880, 114.785) 3233 PRCUTA_G
+         VSS (24.880, 108.130) 3233 PRCUTA_G
+         VSS (24.880, 98.200) 3233 PRCUTA_G
+         VSS (0.120, 124.555) 3233 PRCUTA_G
+         VSS (0.120, 114.785) 3233 PRCUTA_G
+         VSS (0.120, 108.130) 3233 PRCUTA_G
+         VSS (0.120, 98.200) 3233 PRCUTA_G
+         VSS (24.880, 124.555) 3234 PRCUTA_G
+         VSS (24.880, 114.785) 3234 PRCUTA_G
+         VSS (24.880, 108.130) 3234 PRCUTA_G
+         VSS (24.880, 98.200) 3234 PRCUTA_G
+         VSS (0.120, 124.555) 3234 PRCUTA_G
+         VSS (0.120, 114.785) 3234 PRCUTA_G
+         VSS (0.120, 108.130) 3234 PRCUTA_G
+         VSS (0.120, 98.200) 3234 PRCUTA_G
+         VSS (25.000, 114.785) 3227 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3227 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3227 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3227 PVDD2DGZ_G
+         VDDPST (25.000, 97.305) 3227 PVDD2DGZ_G
+         VDDPST (0.000, 97.305) 3227 PVDD2DGZ_G
+         VDD (25.000, 123.555) 3227 PVDD2DGZ_G
+         VDD (0.000, 123.555) 3227 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3229 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3229 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3229 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3229 PVDD2DGZ_G
+         VDDPST (25.000, 97.305) 3229 PVDD2DGZ_G
+         VDDPST (0.000, 97.305) 3229 PVDD2DGZ_G
+         VDD (25.000, 123.555) 3229 PVDD2DGZ_G
+         VDD (0.000, 123.555) 3229 PVDD2DGZ_G
+         VSSPST (24.930, 33.365) 3230 PVDD2DGZ_G
+         VSSPST (0.090, 33.365) 3230 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3230 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3230 PVDD2DGZ_G
+         VSS (25.000, 98.200) 3230 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3230 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3230 PVDD2DGZ_G
+         VSS (0.000, 98.200) 3230 PVDD2DGZ_G
+         VDDPST (24.965, 69.945) 3230 PVDD2DGZ_G
+         VDDPST (12.500, 84.815) 3230 PVDD2DGZ_G
+         VDDPST (0.090, 69.945) 3230 PVDD2DGZ_G
+         VDD (25.000, 123.555) 3230 PVDD2DGZ_G
+         VDD (0.000, 123.555) 3230 PVDD2DGZ_G
+         POC (25.000, 133.010) 3230 PVDD2DGZ_G
+         POC (0.000, 133.010) 3230 PVDD2DGZ_G
+         VSSPST (24.930, 33.365) 3231 PVDD2DGZ_G
+         VSSPST (0.090, 33.365) 3231 PVDD2DGZ_G
+         VSS (25.000, 124.555) 3231 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3231 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3231 PVDD2DGZ_G
+         VSS (25.000, 98.200) 3231 PVDD2DGZ_G
+         VSS (0.000, 124.555) 3231 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3231 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3231 PVDD2DGZ_G
+         VSS (0.000, 98.200) 3231 PVDD2DGZ_G
+         VDDPST (24.965, 69.945) 3231 PVDD2DGZ_G
+         VDDPST (12.500, 84.815) 3231 PVDD2DGZ_G
+         VDDPST (0.090, 69.945) 3231 PVDD2DGZ_G
+         VSSPST (24.930, 33.365) 3232 PVDD2DGZ_G
+         VSSPST (0.090, 33.365) 3232 PVDD2DGZ_G
+         VSS (25.000, 124.555) 3232 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3232 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3232 PVDD2DGZ_G
+         VSS (25.000, 98.200) 3232 PVDD2DGZ_G
+         VSS (0.000, 124.555) 3232 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3232 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3232 PVDD2DGZ_G
+         VSS (0.000, 98.200) 3232 PVDD2DGZ_G
+         VDDPST (24.965, 69.945) 3232 PVDD2DGZ_G
+         VDDPST (12.500, 84.815) 3232 PVDD2DGZ_G
+         VDDPST (0.090, 69.945) 3232 PVDD2DGZ_G
+         VSSPST (24.930, 33.365) 3233 PVDD2DGZ_G
+         VSSPST (0.090, 33.365) 3233 PVDD2DGZ_G
+         VSS (25.000, 124.555) 3233 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3233 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3233 PVDD2DGZ_G
+         VSS (25.000, 98.200) 3233 PVDD2DGZ_G
+         VSS (0.000, 124.555) 3233 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3233 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3233 PVDD2DGZ_G
+         VSS (0.000, 98.200) 3233 PVDD2DGZ_G
+         VDDPST (24.965, 69.945) 3233 PVDD2DGZ_G
+         VDDPST (12.500, 84.815) 3233 PVDD2DGZ_G
+         VDDPST (0.090, 69.945) 3233 PVDD2DGZ_G
+         VSSPST (24.930, 33.365) 3234 PVDD2DGZ_G
+         VSSPST (0.090, 33.365) 3234 PVDD2DGZ_G
+         VSS (25.000, 124.555) 3234 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3234 PVDD2DGZ_G
+         VSS (25.000, 108.130) 3234 PVDD2DGZ_G
+         VSS (25.000, 98.200) 3234 PVDD2DGZ_G
+         VSS (0.000, 124.555) 3234 PVDD2DGZ_G
+         VSS (0.000, 114.785) 3234 PVDD2DGZ_G
+         VSS (0.000, 108.130) 3234 PVDD2DGZ_G
+         VSS (0.000, 98.200) 3234 PVDD2DGZ_G
+         VDDPST (24.965, 69.945) 3234 PVDD2DGZ_G
+         VDDPST (12.500, 84.815) 3234 PVDD2DGZ_G
+         VDDPST (0.090, 69.945) 3234 PVDD2DGZ_G
+         VSS (25.000, 114.785) 3227 PVDD2POC_G
+         VSS (25.000, 108.130) 3227 PVDD2POC_G
+         VSS (0.000, 114.785) 3227 PVDD2POC_G
+         VSS (0.000, 108.130) 3227 PVDD2POC_G
+         VDDPST (25.000, 97.305) 3227 PVDD2POC_G
+         VDDPST (0.000, 97.305) 3227 PVDD2POC_G
+         VDD (25.000, 123.555) 3227 PVDD2POC_G
+         VDD (0.000, 123.555) 3227 PVDD2POC_G
+         VSS (25.000, 114.785) 3229 PVDD2POC_G
+         VSS (25.000, 108.130) 3229 PVDD2POC_G
+         VSS (0.000, 114.785) 3229 PVDD2POC_G
+         VSS (0.000, 108.130) 3229 PVDD2POC_G
+         VDDPST (25.000, 97.305) 3229 PVDD2POC_G
+         VDDPST (0.000, 97.305) 3229 PVDD2POC_G
+         VDD (25.000, 123.555) 3229 PVDD2POC_G
+         VDD (0.000, 123.555) 3229 PVDD2POC_G
+         VSSPST (24.930, 33.365) 3230 PVDD2POC_G
+         VSSPST (0.090, 33.365) 3230 PVDD2POC_G
+         VSS (25.000, 114.785) 3230 PVDD2POC_G
+         VSS (25.000, 108.130) 3230 PVDD2POC_G
+         VSS (25.000, 98.200) 3230 PVDD2POC_G
+         VSS (0.000, 114.785) 3230 PVDD2POC_G
+         VSS (0.000, 108.130) 3230 PVDD2POC_G
+         VSS (0.000, 98.200) 3230 PVDD2POC_G
+         VDDPST (24.965, 69.945) 3230 PVDD2POC_G
+         VDDPST (12.500, 84.815) 3230 PVDD2POC_G
+         VDDPST (0.090, 69.945) 3230 PVDD2POC_G
+         VDD (25.000, 123.555) 3230 PVDD2POC_G
+         VDD (0.000, 123.555) 3230 PVDD2POC_G
+         POC (25.000, 133.010) 3230 PVDD2POC_G
+         POC (0.000, 133.010) 3230 PVDD2POC_G
+         VSSPST (24.930, 33.365) 3231 PVDD2POC_G
+         VSSPST (0.090, 33.365) 3231 PVDD2POC_G
+         VSS (25.000, 124.555) 3231 PVDD2POC_G
+         VSS (25.000, 114.785) 3231 PVDD2POC_G
+         VSS (25.000, 108.130) 3231 PVDD2POC_G
+         VSS (25.000, 98.200) 3231 PVDD2POC_G
+         VSS (0.000, 124.555) 3231 PVDD2POC_G
+         VSS (0.000, 114.785) 3231 PVDD2POC_G
+         VSS (0.000, 108.130) 3231 PVDD2POC_G
+         VSS (0.000, 98.200) 3231 PVDD2POC_G
+         VDDPST (24.965, 69.945) 3231 PVDD2POC_G
+         VDDPST (12.500, 84.815) 3231 PVDD2POC_G
+         VDDPST (0.090, 69.945) 3231 PVDD2POC_G
+         VSSPST (24.930, 33.365) 3232 PVDD2POC_G
+         VSSPST (0.090, 33.365) 3232 PVDD2POC_G
+         VSS (25.000, 124.555) 3232 PVDD2POC_G
+         VSS (25.000, 114.785) 3232 PVDD2POC_G
+         VSS (25.000, 108.130) 3232 PVDD2POC_G
+         VSS (25.000, 98.200) 3232 PVDD2POC_G
+         VSS (0.000, 124.555) 3232 PVDD2POC_G
+         VSS (0.000, 114.785) 3232 PVDD2POC_G
+         VSS (0.000, 108.130) 3232 PVDD2POC_G
+         VSS (0.000, 98.200) 3232 PVDD2POC_G
+         VDDPST (24.965, 69.945) 3232 PVDD2POC_G
+         VDDPST (12.500, 84.815) 3232 PVDD2POC_G
+         VDDPST (0.090, 69.945) 3232 PVDD2POC_G
+         VSSPST (24.930, 33.365) 3233 PVDD2POC_G
+         VSSPST (0.090, 33.365) 3233 PVDD2POC_G
+         VSS (25.000, 124.555) 3233 PVDD2POC_G
+         VSS (25.000, 114.785) 3233 PVDD2POC_G
+         VSS (25.000, 108.130) 3233 PVDD2POC_G
+         VSS (25.000, 98.200) 3233 PVDD2POC_G
+         VSS (0.000, 124.555) 3233 PVDD2POC_G
+         VSS (0.000, 114.785) 3233 PVDD2POC_G
+         VSS (0.000, 108.130) 3233 PVDD2POC_G
+         VSS (0.000, 98.200) 3233 PVDD2POC_G
+         VDDPST (24.965, 69.945) 3233 PVDD2POC_G
+         VDDPST (12.500, 84.815) 3233 PVDD2POC_G
+         VDDPST (0.090, 69.945) 3233 PVDD2POC_G
+         VSSPST (24.930, 33.365) 3234 PVDD2POC_G
+         VSSPST (0.090, 33.365) 3234 PVDD2POC_G
+         VSS (25.000, 124.555) 3234 PVDD2POC_G
+         VSS (25.000, 114.785) 3234 PVDD2POC_G
+         VSS (25.000, 108.130) 3234 PVDD2POC_G
+         VSS (25.000, 98.200) 3234 PVDD2POC_G
+         VSS (0.000, 124.555) 3234 PVDD2POC_G
+         VSS (0.000, 114.785) 3234 PVDD2POC_G
+         VSS (0.000, 108.130) 3234 PVDD2POC_G
+         VSS (0.000, 98.200) 3234 PVDD2POC_G
+         VDDPST (24.965, 69.945) 3234 PVDD2POC_G
+         VDDPST (12.500, 84.815) 3234 PVDD2POC_G
+         VDDPST (0.090, 69.945) 3234 PVDD2POC_G
+         VSS (25.000, 114.785) 3227 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3227 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3227 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3227 PVDD1DGZ_G
+         VDDPST (25.000, 97.305) 3227 PVDD1DGZ_G
+         VDDPST (0.000, 97.305) 3227 PVDD1DGZ_G
+         VDD (25.000, 123.555) 3227 PVDD1DGZ_G
+         VDD (22.220, 134.080) 3227 PVDD1DGZ_G
+         VDD (20.060, 134.080) 3227 PVDD1DGZ_G
+         VDD (17.900, 134.080) 3227 PVDD1DGZ_G
+         VDD (15.740, 134.080) 3227 PVDD1DGZ_G
+         VDD (13.580, 134.080) 3227 PVDD1DGZ_G
+         VDD (11.420, 134.080) 3227 PVDD1DGZ_G
+         VDD (9.260, 134.080) 3227 PVDD1DGZ_G
+         VDD (7.100, 134.080) 3227 PVDD1DGZ_G
+         VDD (4.940, 134.080) 3227 PVDD1DGZ_G
+         VDD (2.780, 134.080) 3227 PVDD1DGZ_G
+         VDD (0.000, 123.555) 3227 PVDD1DGZ_G
+         VSS (25.000, 114.785) 3229 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3229 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3229 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3229 PVDD1DGZ_G
+         VDDPST (25.000, 97.305) 3229 PVDD1DGZ_G
+         VDDPST (0.000, 97.305) 3229 PVDD1DGZ_G
+         VDD (25.000, 123.555) 3229 PVDD1DGZ_G
+         VDD (22.220, 134.080) 3229 PVDD1DGZ_G
+         VDD (20.060, 134.080) 3229 PVDD1DGZ_G
+         VDD (17.900, 134.080) 3229 PVDD1DGZ_G
+         VDD (15.740, 134.080) 3229 PVDD1DGZ_G
+         VDD (13.580, 134.080) 3229 PVDD1DGZ_G
+         VDD (11.420, 134.080) 3229 PVDD1DGZ_G
+         VDD (9.260, 134.080) 3229 PVDD1DGZ_G
+         VDD (7.100, 134.080) 3229 PVDD1DGZ_G
+         VDD (4.940, 134.080) 3229 PVDD1DGZ_G
+         VDD (2.780, 134.080) 3229 PVDD1DGZ_G
+         VDD (0.000, 123.555) 3229 PVDD1DGZ_G
+         VSSPST (24.930, 33.365) 3230 PVDD1DGZ_G
+         VSSPST (0.090, 33.365) 3230 PVDD1DGZ_G
+         VSS (25.000, 114.785) 3230 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3230 PVDD1DGZ_G
+         VSS (25.000, 98.200) 3230 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3230 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3230 PVDD1DGZ_G
+         VSS (0.000, 98.200) 3230 PVDD1DGZ_G
+         VDDPST (24.965, 69.945) 3230 PVDD1DGZ_G
+         VDDPST (0.090, 69.945) 3230 PVDD1DGZ_G
+         VDD (25.000, 123.555) 3230 PVDD1DGZ_G
+         VDD (12.500, 84.815) 3230 PVDD1DGZ_G
+         VDD (0.000, 123.555) 3230 PVDD1DGZ_G
+         POC (25.000, 133.010) 3230 PVDD1DGZ_G
+         POC (0.000, 133.010) 3230 PVDD1DGZ_G
+         VSSPST (24.930, 33.365) 3231 PVDD1DGZ_G
+         VSSPST (0.090, 33.365) 3231 PVDD1DGZ_G
+         VSS (25.000, 124.555) 3231 PVDD1DGZ_G
+         VSS (25.000, 114.785) 3231 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3231 PVDD1DGZ_G
+         VSS (25.000, 98.200) 3231 PVDD1DGZ_G
+         VSS (0.000, 124.555) 3231 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3231 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3231 PVDD1DGZ_G
+         VSS (0.000, 98.200) 3231 PVDD1DGZ_G
+         VDDPST (24.965, 69.945) 3231 PVDD1DGZ_G
+         VDDPST (0.090, 69.945) 3231 PVDD1DGZ_G
+         VDD (12.500, 84.815) 3231 PVDD1DGZ_G
+         VSSPST (24.930, 33.365) 3232 PVDD1DGZ_G
+         VSSPST (0.090, 33.365) 3232 PVDD1DGZ_G
+         VSS (25.000, 124.555) 3232 PVDD1DGZ_G
+         VSS (25.000, 114.785) 3232 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3232 PVDD1DGZ_G
+         VSS (25.000, 98.200) 3232 PVDD1DGZ_G
+         VSS (0.000, 124.555) 3232 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3232 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3232 PVDD1DGZ_G
+         VSS (0.000, 98.200) 3232 PVDD1DGZ_G
+         VDDPST (24.965, 69.945) 3232 PVDD1DGZ_G
+         VDDPST (0.090, 69.945) 3232 PVDD1DGZ_G
+         VDD (12.500, 84.815) 3232 PVDD1DGZ_G
+         VSSPST (24.930, 33.365) 3233 PVDD1DGZ_G
+         VSSPST (0.090, 33.365) 3233 PVDD1DGZ_G
+         VSS (25.000, 124.555) 3233 PVDD1DGZ_G
+         VSS (25.000, 114.785) 3233 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3233 PVDD1DGZ_G
+         VSS (25.000, 98.200) 3233 PVDD1DGZ_G
+         VSS (0.000, 124.555) 3233 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3233 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3233 PVDD1DGZ_G
+         VSS (0.000, 98.200) 3233 PVDD1DGZ_G
+         VDDPST (24.965, 69.945) 3233 PVDD1DGZ_G
+         VDDPST (0.090, 69.945) 3233 PVDD1DGZ_G
+         VDD (12.500, 84.815) 3233 PVDD1DGZ_G
+         VSSPST (24.930, 33.365) 3234 PVDD1DGZ_G
+         VSSPST (0.090, 33.365) 3234 PVDD1DGZ_G
+         VSS (25.000, 124.555) 3234 PVDD1DGZ_G
+         VSS (25.000, 114.785) 3234 PVDD1DGZ_G
+         VSS (25.000, 108.130) 3234 PVDD1DGZ_G
+         VSS (25.000, 98.200) 3234 PVDD1DGZ_G
+         VSS (0.000, 124.555) 3234 PVDD1DGZ_G
+         VSS (0.000, 114.785) 3234 PVDD1DGZ_G
+         VSS (0.000, 108.130) 3234 PVDD1DGZ_G
+         VSS (0.000, 98.200) 3234 PVDD1DGZ_G
+         VDDPST (24.965, 69.945) 3234 PVDD1DGZ_G
+         VDDPST (0.090, 69.945) 3234 PVDD1DGZ_G
+         VDD (12.500, 84.815) 3234 PVDD1DGZ_G
+         VSS: (135.000, 114.785) 3227 PCORNER_G
+         VSS: (135.000, 108.130) 3227 PCORNER_G
+         VSS: (114.785, 135.000) 3227 PCORNER_G
+         VSS: (108.130, 135.000) 3227 PCORNER_G
+         VDDPST (135.000, 96.355) 3227 PCORNER_G
+         VDDPST (96.515, 135.000) 3227 PCORNER_G
+         VDD (135.000, 123.555) 3227 PCORNER_G
+         VDD (123.555, 135.000) 3227 PCORNER_G
+         VSS: (135.000, 114.785) 3229 PCORNER_G
+         VSS: (135.000, 108.130) 3229 PCORNER_G
+         VSS: (114.785, 135.000) 3229 PCORNER_G
+         VSS: (108.130, 135.000) 3229 PCORNER_G
+         VDDPST (135.000, 96.355) 3229 PCORNER_G
+         VDDPST (96.515, 135.000) 3229 PCORNER_G
+         VDD (135.000, 123.555) 3229 PCORNER_G
+         VDD (123.555, 135.000) 3229 PCORNER_G
+         VSSPST (134.910, 33.365) 3230 PCORNER_G
+         VSSPST (33.365, 134.910) 3230 PCORNER_G
+         VSS: (135.000, 114.785) 3230 PCORNER_G
+         VSS: (135.000, 108.130) 3230 PCORNER_G
+         VSS: (135.000, 98.200) 3230 PCORNER_G
+         VSS: (114.785, 135.000) 3230 PCORNER_G
+         VSS: (108.130, 135.000) 3230 PCORNER_G
+         VSS: (98.200, 135.000) 3230 PCORNER_G
+         VDDPST (134.910, 69.945) 3230 PCORNER_G
+         VDDPST (69.945, 134.910) 3230 PCORNER_G
+         VDD (135.000, 123.555) 3230 PCORNER_G
+         VDD (123.555, 135.000) 3230 PCORNER_G
+         POC (135.000, 133.010) 3230 PCORNER_G
+         POC (133.010, 135.000) 3230 PCORNER_G
+         VSSPST (134.910, 33.365) 3231 PCORNER_G
+         VSSPST (33.365, 134.910) 3231 PCORNER_G
+         VSS: (135.000, 124.555) 3231 PCORNER_G
+         VSS: (135.000, 114.785) 3231 PCORNER_G
+         VSS: (135.000, 108.130) 3231 PCORNER_G
+         VSS: (135.000, 98.200) 3231 PCORNER_G
+         VSS: (124.555, 135.000) 3231 PCORNER_G
+         VSS: (114.785, 135.000) 3231 PCORNER_G
+         VSS: (108.130, 135.000) 3231 PCORNER_G
+         VSS: (98.200, 135.000) 3231 PCORNER_G
+         VDDPST (134.910, 69.945) 3231 PCORNER_G
+         VDDPST (69.945, 134.910) 3231 PCORNER_G
+         VSSPST (134.910, 33.365) 3232 PCORNER_G
+         VSSPST (33.365, 134.910) 3232 PCORNER_G
+         VSS: (135.000, 124.555) 3232 PCORNER_G
+         VSS: (135.000, 114.785) 3232 PCORNER_G
+         VSS: (135.000, 108.130) 3232 PCORNER_G
+         VSS: (135.000, 98.200) 3232 PCORNER_G
+         VSS: (124.555, 135.000) 3232 PCORNER_G
+         VSS: (114.785, 135.000) 3232 PCORNER_G
+         VSS: (108.130, 135.000) 3232 PCORNER_G
+         VSS: (98.200, 135.000) 3232 PCORNER_G
+         VDDPST (134.910, 69.945) 3232 PCORNER_G
+         VDDPST (69.945, 134.910) 3232 PCORNER_G
+         VSSPST (134.910, 33.365) 3233 PCORNER_G
+         VSSPST (33.365, 134.910) 3233 PCORNER_G
+         VSS: (135.000, 124.555) 3233 PCORNER_G
+         VSS: (135.000, 114.785) 3233 PCORNER_G
+         VSS: (135.000, 108.130) 3233 PCORNER_G
+         VSS: (135.000, 98.200) 3233 PCORNER_G
+         VSS: (124.555, 135.000) 3233 PCORNER_G
+         VSS: (114.785, 135.000) 3233 PCORNER_G
+         VSS: (108.130, 135.000) 3233 PCORNER_G
+         VSS: (98.200, 135.000) 3233 PCORNER_G
+         VDDPST (134.910, 69.945) 3233 PCORNER_G
+         VDDPST (69.945, 134.910) 3233 PCORNER_G
+         VSSPST (134.910, 33.365) 3234 PCORNER_G
+         VSSPST (33.365, 134.910) 3234 PCORNER_G
+         VSS: (135.000, 124.555) 3234 PCORNER_G
+         VSS: (135.000, 114.785) 3234 PCORNER_G
+         VSS: (135.000, 108.130) 3234 PCORNER_G
+         VSS: (135.000, 98.200) 3234 PCORNER_G
+         VSS: (124.555, 135.000) 3234 PCORNER_G
+         VSS: (114.785, 135.000) 3234 PCORNER_G
+         VSS: (108.130, 135.000) 3234 PCORNER_G
+         VSS: (98.200, 135.000) 3234 PCORNER_G
+         VDDPST (134.910, 69.945) 3234 PCORNER_G
+         VDDPST (69.945, 134.910) 3234 PCORNER_G
+         VSS (25.000, 114.785) 3227 PDUW16SDGZ_G
+         VSS (25.000, 108.130) 3227 PDUW16SDGZ_G
+         VSS (0.000, 114.785) 3227 PDUW16SDGZ_G
+         VSS (0.000, 108.130) 3227 PDUW16SDGZ_G
+         VDDPST (25.000, 97.305) 3227 PDUW16SDGZ_G
+         VDDPST (0.000, 97.305) 3227 PDUW16SDGZ_G
+         VDD (25.000, 123.555) 3227 PDUW16SDGZ_G
+         VDD (0.000, 123.555) 3227 PDUW16SDGZ_G
+         REN (16.935, 134.500) 3227 PDUW16SDGZ_G
+         OEN (12.975, 134.500) 3227 PDUW16SDGZ_G
+         I (2.380, 134.500) 3227 PDUW16SDGZ_G
+         C (22.615, 134.500) 3227 PDUW16SDGZ_G
+         VSS (25.000, 114.785) 3229 PDUW16SDGZ_G
+         VSS (25.000, 108.130) 3229 PDUW16SDGZ_G
+         VSS (0.000, 114.785) 3229 PDUW16SDGZ_G
+         VSS (0.000, 108.130) 3229 PDUW16SDGZ_G
+         VDDPST (25.000, 97.305) 3229 PDUW16SDGZ_G
+         VDDPST (0.000, 97.305) 3229 PDUW16SDGZ_G
+         VDD (25.000, 123.555) 3229 PDUW16SDGZ_G
+         VDD (0.000, 123.555) 3229 PDUW16SDGZ_G
+         REN (16.935, 134.500) 3229 PDUW16SDGZ_G
+         OEN (12.975, 134.500) 3229 PDUW16SDGZ_G
+         I (2.380, 134.500) 3229 PDUW16SDGZ_G
+         C (22.615, 134.500) 3229 PDUW16SDGZ_G
+         VSSPST (24.930, 33.365) 3230 PDUW16SDGZ_G
+         VSSPST (0.090, 33.365) 3230 PDUW16SDGZ_G
+         VSS (25.000, 114.785) 3230 PDUW16SDGZ_G
+         VSS (25.000, 108.130) 3230 PDUW16SDGZ_G
+         VSS (25.000, 98.200) 3230 PDUW16SDGZ_G
+         VSS (0.000, 114.785) 3230 PDUW16SDGZ_G
+         VSS (0.000, 108.130) 3230 PDUW16SDGZ_G
+         VSS (0.000, 98.200) 3230 PDUW16SDGZ_G
+         VDDPST (24.965, 69.945) 3230 PDUW16SDGZ_G
+         VDDPST (0.090, 69.945) 3230 PDUW16SDGZ_G
+         VDD (25.000, 123.555) 3230 PDUW16SDGZ_G
+         VDD (0.000, 123.555) 3230 PDUW16SDGZ_G
+         REN (16.935, 134.500) 3230 PDUW16SDGZ_G
+         POC (25.000, 133.010) 3230 PDUW16SDGZ_G
+         POC (0.000, 133.010) 3230 PDUW16SDGZ_G
+         PAD (12.500, 84.815) 3230 PDUW16SDGZ_G
+         OEN (12.975, 134.500) 3230 PDUW16SDGZ_G
+         I (2.380, 134.500) 3230 PDUW16SDGZ_G
+         C (22.615, 134.500) 3230 PDUW16SDGZ_G
+         VSSPST (24.930, 33.365) 3231 PDUW16SDGZ_G
+         VSSPST (0.090, 33.365) 3231 PDUW16SDGZ_G
+         VSS (25.000, 124.555) 3231 PDUW16SDGZ_G
+         VSS (25.000, 114.785) 3231 PDUW16SDGZ_G
+         VSS (25.000, 108.130) 3231 PDUW16SDGZ_G
+         VSS (25.000, 98.200) 3231 PDUW16SDGZ_G
+         VSS (0.000, 124.555) 3231 PDUW16SDGZ_G
+         VSS (0.000, 114.785) 3231 PDUW16SDGZ_G
+         VSS (0.000, 108.130) 3231 PDUW16SDGZ_G
+         VSS (0.000, 98.200) 3231 PDUW16SDGZ_G
+         VDDPST (24.965, 69.945) 3231 PDUW16SDGZ_G
+         VDDPST (0.090, 69.945) 3231 PDUW16SDGZ_G
+         REN (16.935, 134.500) 3231 PDUW16SDGZ_G
+         PAD (12.500, 84.815) 3231 PDUW16SDGZ_G
+         OEN (12.975, 134.500) 3231 PDUW16SDGZ_G
+         I (2.380, 134.500) 3231 PDUW16SDGZ_G
+         C (22.615, 134.500) 3231 PDUW16SDGZ_G
+         VSSPST (24.930, 33.365) 3232 PDUW16SDGZ_G
+         VSSPST (0.090, 33.365) 3232 PDUW16SDGZ_G
+         VSS (25.000, 124.555) 3232 PDUW16SDGZ_G
+         VSS (25.000, 114.785) 3232 PDUW16SDGZ_G
+         VSS (25.000, 108.130) 3232 PDUW16SDGZ_G
+         VSS (25.000, 98.200) 3232 PDUW16SDGZ_G
+         VSS (0.000, 124.555) 3232 PDUW16SDGZ_G
+         VSS (0.000, 114.785) 3232 PDUW16SDGZ_G
+         VSS (0.000, 108.130) 3232 PDUW16SDGZ_G
+         VSS (0.000, 98.200) 3232 PDUW16SDGZ_G
+         VDDPST (24.965, 69.945) 3232 PDUW16SDGZ_G
+WARNING:  [WARN] Reach the TEXT_PRINT_MAXIMUM: 1000, the rest of texts will not print out
+
+INFO:    Texts For SELECT -LABEL ...
+         ========================================================================
+
+INFO:    Texts For EXPAND_TEXT_ORIGIN ...
+         ========================================================================
+
+INFO:    Texts For DFM_TEXT ...
+         ========================================================================
+
+INFO:    Texts For Device Text Model Layer ...
+         ========================================================================
+
+INFO:    Texts For Device Text Property Layer ...
+         ========================================================================
+
+INFO:    Layer Summary(Texts For Connectivity):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         metal1_text                                      3227       144
+         metal10_text                                     3228        43
+         metal2_text                                      3229       283
+         metal3_text                                      3230       219
+         metal4_text                                      3231       195
+         metal5_text                                      3232       195
+         metal6_text                                      3233       195
+         metal7_text                                      3234       195
+         poly_text                                        3237         2
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For SELECT -LABEL):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For EXPAND_TEXT_ORIGIN):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For DFM_TEXT):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Expanded Cell Summary
+         HBG526_V8Z_4X4_1 is expanded.
+         HBG526_V8Z_1 is expanded.
+         HBG526_V7Z_1 is expanded.
+         HBG526_V8Z_4X4 is expanded.
+         HBG526_V7Z is expanded.
+         HBG526_V8Z is expanded.
+         HBG526_NMOS_NTN_1D28X4D5 is expanded.
+         HBG526_PMOS18X04X2 is expanded.
+         HBG526_PMOS18X04X2_1 is expanded.
+         VIA7 is expanded.
+         VIA8 is expanded.
+         CONT is expanded.
+         VIA1 is expanded.
+         VIA2 is expanded.
+         VIA3 is expanded.
+         VIA4 is expanded.
+         VIA5 is expanded.
+         VIA6 is expanded.
+         HBG526_SUB_FILLER05 is expanded.
+         HBG526_PL_M3456789_FILLER0005 is expanded.
+         HBG526_SUB_FILLER1 is expanded.
+         HBG526_V7Z_4X4 is expanded.
+         HBG526_V7Z_4X4_1 is expanded.
+         HBG526_CPIN is expanded.
+         HBG526_RENPIN is expanded.
+         HBG526_IPIN is expanded.
+         HBG526_OENPIN is expanded.
+         HBG526_RES_PO_04X025 is expanded.
+         HBG526_OPTION_PVDD2DGZ is expanded.
+         HBG526_PASSGATE_OPTION is expanded.
+         HBG526_POSTDRV16CELL is expanded.
+         HBG526_NON_SLEW is expanded.
+         HBG526_PUPCELL is expanded.
+         HBG526_OPTION_PVDD2POC is expanded.
+         HBG526_PL_M3456789_BASE2_M_1 is expanded.
+         HBG526_PL_M3456789_BASE6_M_1 is expanded.
+         HBG526_PL_M3456789_BASE6_M is expanded.
+         HBG526_PL_M3456789_BASE2_M is expanded.
+         HBG526_V6XZ_4X4 is expanded.
+         HBG526_V4XZ_4X4 is expanded.
+         HBG526_V5XZ_4X4 is expanded.
+         HBG526_V3XZ_4X4 is expanded.
+         HBG526_PL_M3456789_FILLER1 is expanded.
+         HBG526_PL_M3456789_FILLER05 is expanded.
+         HBG526_PL_M3456789_FILLER05A is expanded.
+         HBG526_V3XZ_4X4_1 is expanded.
+         HBG526_V5XZ_4X4_1 is expanded.
+         HBG526_V4XZ_4X4_1 is expanded.
+         HBG526_V6XZ_4X4_1 is expanded.
+         HBG526_PL_M3456789_FILLER1A is expanded.
+         VZ_VX_CO_45_X351 is expanded.
+         HBG526_MIDDLE_M12 is expanded.
+         HBG526_RES_3X1D1 is expanded.
+         HBG526_RES_3_5X08 is expanded.
+         HBG526_PL_M3456789 is expanded.
+         HBG526_RES_2X3D68 is expanded.
+         HBG526_PL_M3456789_PRCUTA is expanded.
+         HBG526_PL_M3456789_BASE7_1 is expanded.
+         HBG526_PAD_CONNECT_1 is expanded.
+         HBG526_PL_M3456789_BASE3_1 is expanded.
+         HBG526_PL_M3456789_BASE4_1 is expanded.
+         HBG526_PREVSS2DGZ_CONN_V12_6X1 is expanded.
+         HBG526_PREVSS1DGZ_CONN_V12_6X1 is expanded.
+         HBG526_FILLER05A_BASE is expanded.
+         HBG526_FILLER1A_BASE is expanded.
+         HBG526_PMOS1D7X04 is expanded.
+         HBG526_NMOS1X05 is expanded.
+         HBG526_POSTP is expanded.
+         HBG526_RES_N_041X05 is expanded.
+         HBG526_PMOS04X0D98_NEW is expanded.
+         HBG526_NMOSD2D7X04 is expanded.
+         HBG526_PMOS2D1X0D4 is expanded.
+         HBG526_NMOS0D7X05 is expanded.
+         HBG526_NMOS0D42X05 is expanded.
+         HBG526_PMOS1D05X04 is expanded.
+         HBG526_PREDRVVDDPST is expanded.
+         HBG526_NMOSD8X05 is expanded.
+         HBG526_PMOSD09X04 is expanded.
+         HBG526_NMOS4X05 is expanded.
+         HBG526_PMOS6X04 is expanded.
+         HBG526_NMOS2D1X05 is expanded.
+         HBG526_PMOS1D4X04 is expanded.
+         HBG526_NMOS7X09 is expanded.
+         HBG526_NMOS06X06 is expanded.
+         HBG526_POSTVSSPST_VDD1 is expanded.
+         HBG526_POSTVDDPST_VDD1 is expanded.
+         HBG526_NMOS_NTN_1X2 is expanded.
+         HBG526_NMOS2XD4 is expanded.
+         HBG526_POSTVDDPST is expanded.
+         HBG526_RES_04X21D86X54 is expanded.
+         HBG526_POSTVSSPST_RPO_095 is expanded.
+         HBG526_BASE_PRCUTA is expanded.
+         HBG526_PMOS_DIV2_EN_RC is expanded.
+         HBG526_RES_D4X22D92X54 is expanded.
+         HBG526_BASE_PDB3A is expanded.
+         HBG526_POSTVSSPST_VSS2DGZ_G is expanded.
+         HBG526_POSTVSSPST_VSS1DGZ_G is expanded.
+         PVSS1DGZ_G is expanded.
+         HBG526_BASE_PVSS3A is expanded.
+         HBG526_SCHCELL is expanded.
+         HBG526_POSTDRV is expanded.
+         HBG526_POSTVDD1 is expanded.
+         HBG526_BASE_PVDD3A_RPO_EN_RC is expanded.
+         HBG526_POSTVSS2DGZ_G is expanded.
+         HBG526_POST_EDGE_EN_RC is expanded.
+         HBG526_PREVDD3A_GR is expanded.
+         HBG526_PREPDB3A_GR is expanded.
+         HBG526_POSTVSS2DGZ_MIDDLE is expanded.
+         HBG526_POST_EDGE is expanded.
+
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET tndiff
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET tndiff
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET tpdiff
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET tpdiff
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET nxwell_float
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET psub
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET npvss49:ntap_not_var
+INFO:    Rule npvss49 completed with 2 violations, 1/9
+         Remaining rules: mnpg  mppg  mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  ppvdd49 
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET ptap
+INFO:    Rule ppvdd49 completed with no violations, 2/9
+         Remaining rules: mnpg  mppg  mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub 
+INFO:    Rule floating.psub completed with no violations, 3/9
+         Remaining rules: mnpg  mppg  mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv 
+INFO:    Rule floating.nxwell_hv completed with no violations, 4/9
+         Remaining rules: mnpg  mppg  mnpg_ldd1  mppg_ldd1  floating.nxwell_float 
+INFO:    Rule floating.nxwell_float completed with 2 violations, 5/9
+         Remaining rules: mnpg  mppg  mnpg_ldd1  mppg_ldd1 
+INFO:    Rule mnpg_ldd1 completed with no violations, 6/9
+         Remaining rules: mnpg  mppg  mppg_ldd1 
+INFO:    Rule mppg_ldd1 completed with no violations, 7/9
+         Remaining rules: mnpg  mppg 
+INFO:    Rule mnpg completed with 8 violations, 8/9
+         Remaining rules: mppg 
+INFO:    Rule mppg completed with no violations, 9/9
+INFO:    Status: Runset 100% complete as of 2025-10-03 23:48:58   Elapsed: 00:00:11
+         Worker: Active CPUs  Total Mem(MB)  Active Mem(MB)  CPU time(s)
+              1:    1 /   1             34              28            1
+              2:    1 /   1             34              28            2
+              3:    1 /   1             29              28            1
+              4:    1 /   1             33              32            1
+              5:    1 /   1             33              32            0
+              6:    1 /   1             40              32            1
+              7:    1 /   1             33              28            0
+              8:    1 /   1             29              28            0
+INFO:	 Status: Finishing as of 2025-10-03 23:48:58   Elapsed: 00:00:11   CPU time[s]: 11
+INFO:    Resource usage by worker at exit:
+                  CPU      Elapsed  CPUs       CPU       Peak        Peak engine
+         Worker:  time[s]  time[s]  Allocated  usage[%]  Memory[MB]  Memory[MB]
+              1:        1        6          1     26.30          54           28
+              2:        2        6          1     35.80          91           28
+              3:        1        6          1     17.81          61           28
+              4:        1        6          1     20.56          60           32
+              5:        0        6          1     15.53          53           32
+              6:        1        6          1     16.78          69           32
+              7:        0        6          1     13.78          49           28
+              8:        0        6          1     13.50          45           28
+         Worker resource usage  summary: Total CPU[s]: 6  Run duration[s]: 6  Max peak memory[MB]: 91
+         Worker CPU utilization summary: 6 of 48 available CPU seconds (12.50%) with 8 average available CPU(s)
+INFO:    Extraction result: CLEAN (Reporter)
+INFO:    Generating summary in /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/erc.sum
+INFO:    All selected rules completed
+         Total CPU Time                    : 16(s)
+         Total Real Time                   : 12(s)
+         Total Original Geometry           : 27686(57291776)
+         Total ERC RuleChecks              : 9
+         Total ERC Results                 : 12 (212)
+         Graphic report database is /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/erc.db
+INFO:    Pegasus extracted connectivity database creation started
+INFO:    CmdLine: /opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb -kf -edb pad_ring_28794.db -ecdb ./ -topcell pad_ring -netlist ./pad_ring.net -layermap ./pad_ring.ecdbmap -textmap ./pad_ring.ports -dependmap pad_ring.lmap.perc -kvp ifs:KWxS -lvsfile ./pad_ring.lvsfile -saveFloatingNets .pad_ring.info.softchk 
+INFO:    Opening layer file 'pad_ring_28794.db/__layer'...
+INFO:    Loading layer map file './pad_ring.ecdbmap'...
+INFO:    Loading text map file './pad_ring.ports'...
+INFO:    Loading dependency map file 'pad_ring.lmap.perc'...
+INFO:    Pre loading edb directory contents...
+INFO:    ECDB file name './/.pad_ring.ecdb'...
+INFO:    Loading Floating nets file '.pad_ring.info.softchk'...
+INFO:    Loading lvs file './pad_ring.lvsfile'...
+INFO:    Writing db header information...(0s)
+INFO:    Transfering cdl structures to ecdb structures...
+INFO:    Read Netlist (32 threads)...
+INFO:      DONE - (1s)
+INFO:    Process (32 threads)...
+INFO:    Cell(      10):   0% Done...(1s), rnpolywo                                
+INFO:    Cell(     264):   0% Done...(1s), MASCO__Y207                             
+INFO:    Cell(     132):   0% Done...(1s), MASCO__X31                              
+INFO:    Cell(     251):   0% Done...(1s), MASCO__Y193                             
+INFO:    Cell(     253):   0% Done...(1s), MASCO__Y196                             
+INFO:    Cell(     506):   1% Done...(1s), MASCO__A272                             
+INFO:    Cell(     508):   1% Done...(1s), MASCO__A284                             
+INFO:    Cell(     261):   1% Done...(1s), MASCO__Y204                             
+INFO:    Cell(     123):   1% Done...(1s), HAE261_V7Z_UNIT_4                       
+INFO:    Cell(     248):   1% Done...(1s), MASCO__Y189                             
+INFO:    Cell(     518):   2% Done...(1s), MASCO__B292                             
+INFO:    Cell(     247):   2% Done...(1s), MASCO__Y188                             
+INFO:    Cell(     257):   2% Done...(1s), MASCO__Y200                             
+INFO:    Cell(     260):   2% Done...(1s), MASCO__Y203                             
+INFO:    Cell(      94):   2% Done...(1s), MASCO__Y168                             
+INFO:    Cell(     502):   3% Done...(1s), MASCO__A271                             
+INFO:    Cell(     241):   3% Done...(1s), MASCO__Y182                             
+INFO:    Cell(     494):   3% Done...(1s), MASCO__X246                             
+INFO:    Cell(      35):   3% Done...(1s), MASCO__Y239                             
+INFO:    Cell(     488):   3% Done...(1s), MASCO__Y116                             
+INFO:    Cell(      64):   3% Done...(1s), PFILLER97P6_G                           
+INFO:    Cell(     495):   4% Done...(1s), MASCO__Y115                             
+INFO:    Cell(     190):   4% Done...(1s), HBG526_NMOS2D1X09                       
+INFO:    Cell(     497):   4% Done...(1s), MASCO__X248                             
+INFO:    Cell(     240):   4% Done...(1s), MASCO__Y181                             
+INFO:    Cell(     236):   4% Done...(1s), MASCO__X85                              
+INFO:    Cell(     242):   5% Done...(1s), MASCO__Y183                             
+INFO:    Cell(     486):   5% Done...(1s), HBG526_DIO_3D2X16D4_N                   
+INFO:    Cell(     475):   5% Done...(1s), MASCO__X24                              
+INFO:    Cell(     484):   5% Done...(1s), HBG526_DIO_3D2X16D4                     
+INFO:    Cell(     245):   5% Done...(1s), MASCO__Y186                             
+INFO:    Cell(     477):   6% Done...(1s), HBG526_PREVSS1DGZ_CONN_V12              
+INFO:    Cell(     235):   6% Done...(1s), MASCO__X84                              
+INFO:    Cell(     232):   6% Done...(1s), MASCO__X79                              
+INFO:    Cell(     230):   6% Done...(1s), MASCO__X77                              
+INFO:    Cell(      27):   6% Done...(1s), MASCO__X66                              
+INFO:    Cell(     114):   6% Done...(1s), VIA7_8                                  
+INFO:    Cell(     464):   7% Done...(1s), MASCO__X249                             
+INFO:    Cell(     231):   7% Done...(1s), MASCO__X78                              
+INFO:    Cell(     471):   7% Done...(1s), HBG526_NPLUSH_1D66X18D88                
+INFO:    Cell(     107):   7% Done...(1s), PFILLER5A_G                             
+INFO:    Cell(     468):   7% Done...(1s), HBG526_NPLUSH_D6X18D88                  
+INFO:    Cell(      26):   8% Done...(1s), MASCO__X58                              
+INFO:    Cell(      55):   8% Done...(1s), PFILLER1_G                              
+INFO:    Cell(     462):   8% Done...(1s), MASCO__X21                              
+INFO:    Cell(     224):   8% Done...(1s), MASCO__Y219                             
+INFO:    Cell(     456):   8% Done...(1s), MASCO__Y134                             
+INFO:    Cell(       6):   9% Done...(1s), rm1                                     
+INFO:    Cell(     469):   9% Done...(1s), HBG526_PPLUSH_1D66X18D88                
+INFO:    Cell(      58):   9% Done...(1s), PFILLER0005_G                           
+INFO:    Cell(     451):   9% Done...(1s), MASCO__Y139                             
+INFO:    Cell(     117):   9% Done...(1s), VZ_45                                   
+INFO:    Cell(     461):  10% Done...(1s), HBG526_PPLUSH_1D66X8D77                 
+INFO:    Cell(     448):  10% Done...(1s), MASCO__X29                              
+INFO:    Cell(     219):  10% Done...(1s), MASCO__X25                              
+INFO:    Cell(     221):  10% Done...(1s), MASCO__Y128                             
+INFO:    Cell(      51):  10% Done...(1s), PFILLER20_G                             
+INFO:    Cell(     450):  10% Done...(1s), MASCO__Y138                             
+INFO:    Cell(     459):  11% Done...(1s), HBG526_PREVDDPST_CUT                    
+INFO:    Cell(     446):  11% Done...(1s), MASCO__Y140                             
+INFO:    Cell(     116):  11% Done...(1s), UCSRN_NOVIA                             
+INFO:    Cell(     444):  11% Done...(1s), HBG526_NPLUSH_D6X22D58_BOT              
+INFO:    Cell(     440):  11% Done...(1s), MASCO__Y129                             
+INFO:    Cell(     479):  12% Done...(1s), HBG526_PREVSS1DGZ_G                     
+INFO:    Cell(      20):  12% Done...(1s), MASCO__X34                              
+INFO:    Cell(     454):  12% Done...(1s), HBG526_POSTVSS2DGZ_COMM_V2              
+INFO:    Cell(     216):  12% Done...(1s), HBG526_PL_M3456789_BASE3                
+INFO:    Cell(     217):  12% Done...(1s), HBG526_PL_M3456789_BASE2                
+INFO:    Cell(      25):  13% Done...(1s), MASCO__X42                              
+INFO:    Cell(      53):  13% Done...(1s), MASCO__X43                              
+INFO:    Cell(     430):  13% Done...(1s), MASCO__X252                             
+INFO:    Cell(     436):  13% Done...(1s), HBG526_DIO_GR_TAVDD                     
+INFO:    Cell(     429):  13% Done...(1s), MASCO__Y153                             
+INFO:    Cell(     427):  13% Done...(1s), MASCO__X47                              
+INFO:    Cell(      48):  14% Done...(1s), MASCO__B327                             
+INFO:    Cell(     458):  14% Done...(1s), HBG526_PREVSSDN_CUT                     
+INFO:    Cell(     424):  14% Done...(1s), MASCO__Y149                             
+INFO:    Cell(     423):  14% Done...(1s), MASCO__Y148                             
+INFO:    Cell(     422):  14% Done...(1s), MASCO__Y147                             
+INFO:    Cell(     421):  15% Done...(1s), MASCO__Y146                             
+INFO:    Cell(     420):  15% Done...(1s), MASCO__Y145                             
+INFO:    Cell(     419):  15% Done...(1s), MASCO__Y143                             
+INFO:    Cell(     418):  15% Done...(1s), MASCO__X16                              
+INFO:    Cell(     417):  15% Done...(1s), HBG526_DIO_1D7X19_N                     
+INFO:    Cell(     102):  16% Done...(1s), MASCO__Y265                             
+INFO:    Cell(      97):  16% Done...(1s), MASCO__X242                             
+INFO:    Cell(     414):  16% Done...(1s), MASCO__Y155                             
+INFO:    Cell(     413):  16% Done...(1s), MASCO__X15                              
+INFO:    Cell(     501):  16% Done...(1s), PVSS3A_G                                
+INFO:    Cell(     205):  16% Done...(1s), MASCO__Y225                             
+INFO:    Cell(     412):  17% Done...(1s), HBG526_POST_EDGE_PDB3A                  
+INFO:    Cell(     201):  17% Done...(1s), MASCO__X89                              
+INFO:    Cell(     409):  17% Done...(1s), MASCO__X50                              
+INFO:    Cell(     408):  17% Done...(1s), MASCO__Y157                             
+INFO:    Cell(     200):  17% Done...(1s), MASCO__X88                              
+INFO:    Cell(     406):  18% Done...(1s), MASCO__X5                               
+INFO:    Cell(     407):  18% Done...(1s), MASCO__Y112                             
+INFO:    Cell(     438):  18% Done...(1s), PDB3A_G                                 
+INFO:    Cell(      23):  18% Done...(1s), MASCO__X40                              
+INFO:    Cell(     209):  18% Done...(1s), HBG526_PL_M3456789_BASE7                
+INFO:    Cell(     432):  19% Done...(1s), HBG526_BASE_PDB3A_M2                    
+INFO:    Cell(     399):  19% Done...(1s), MASCO__A310                             
+INFO:    Cell(     401):  19% Done...(1s), HBG526_PL_M3456789_BASE1_1              
+INFO:    Cell(      91):  19% Done...(1s), MASCO__Y166                             
+INFO:    Cell(     195):  19% Done...(1s), MASCO__X28                              
+INFO:    Cell(     402):  20% Done...(1s), MASCO__A304                             
+INFO:    Cell(     398):  20% Done...(1s), HBG526_C_4X7                            
+INFO:    Cell(     416):  20% Done...(1s), HBG526_DIO_1D7X19                       
+INFO:    Cell(      96):  20% Done...(1s), MASCO__Y234                             
+INFO:    Cell(     391):  20% Done...(1s), HBG526_MOS36XD5_RPO_DIS                 
+INFO:    Cell(     390):  20% Done...(1s), MASCO__X243                             
+INFO:    Cell(     389):  21% Done...(1s), MASCO__Y162                             
+INFO:    Cell(     126):  21% Done...(1s), MASCO__Y232                             
+INFO:    Cell(     393):  21% Done...(1s), MASCO__X46                              
+INFO:    Cell(     386):  21% Done...(1s), HBG526_BASE_PVDD3A_DCAP_M1              
+INFO:    Cell(     397):  21% Done...(1s), HBG526_BASE_PVDD3A_M12_RPO_EN_RC        
+INFO:    Cell(     388):  22% Done...(1s), MASCO__X48                              
+INFO:    Cell(      89):  22% Done...(1s), MASCO__Y165                             
+INFO:    Cell(     382):  22% Done...(1s), MASCO__X49                              
+INFO:    Cell(     381):  22% Done...(1s), MASCO__X1                               
+INFO:    Cell(     380):  22% Done...(1s), HBG526_PC_1_2X1_1                       
+INFO:    Cell(     189):  23% Done...(1s), HBG526_PMOS7X04                         
+INFO:    Cell(     185):  23% Done...(1s), HBG526_PMOS3D5X04                       
+INFO:    Cell(     377):  23% Done...(1s), MASCO__Y164                             
+INFO:    Cell(     376):  23% Done...(1s), MASCO__X54                              
+INFO:    Cell(     375):  23% Done...(1s), MASCO__X6                               
+INFO:    Cell(     374):  23% Done...(1s), MASCO__X2                               
+INFO:    Cell(     385):  24% Done...(1s), HBG526_PREVDD3A_RPO_DIS                 
+INFO:    Cell(     372):  24% Done...(1s), HBG526_PC_1_1                           
+INFO:    Cell(     371):  24% Done...(1s), HBG526_RES_D4X22D92                     
+INFO:    Cell(     373):  24% Done...(1s), HBG526_MOS35D925XD5_RPO_DIS             
+INFO:    Cell(     370):  24% Done...(1s), HBG526_PMOS5XD4                         
+INFO:    Cell(     368):  25% Done...(1s), HBG526_PC_2                             
+INFO:    Cell(     184):  25% Done...(1s), HBG526_NMOS3D2X05                       
+INFO:    Cell(      45):  25% Done...(1s), HBG526_V3456789XZ_4X4                   
+INFO:    Cell(     180):  25% Done...(1s), HBG526_NMOS7X06                         
+INFO:    Cell(     364):  25% Done...(1s), HBG526_BASE_PVDD3A_RPO_EN_RC_V2         
+INFO:    Cell(     365):  26% Done...(1s), HBG526_BASE_PVDD3A_RPO_EN_RC_V12        
+INFO:    Cell(     177):  26% Done...(1s), HBG526_NMOS2D5X05_1                     
+INFO:    Cell(     378):  26% Done...(1s), HBG526_PREVDD3A_RPO_DIS_M2              
+INFO:    Cell(     361):  26% Done...(1s), MASCO__B307                             
+INFO:    Cell(     360):  26% Done...(1s), HBG526_PRE_TAVDD_PRCUT                  
+INFO:    Cell(     358):  26% Done...(1s), MASCO__X51                              
+INFO:    Cell(     176):  27% Done...(1s), HBG526_NMOS5D15X09                      
+INFO:    Cell(     356):  27% Done...(1s), MASCO__X254                             
+INFO:    Cell(     355):  27% Done...(1s), MASCO__X56                              
+INFO:    Cell(     354):  27% Done...(1s), MASCO__X53                              
+INFO:    Cell(     353):  27% Done...(1s), HBG526_V1_V2_BASE_1                     
+INFO:    Cell(     352):  28% Done...(1s), PVDD2DGZ_G                              
+INFO:    Cell(      81):  28% Done...(1s), MASCO__X13                              
+INFO:    Cell(     359):  28% Done...(1s), HBG526_PRE_PRCUT_1                      
+INFO:    Cell(     173):  28% Done...(1s), MASCO__Y136                             
+INFO:    Cell(     170):  28% Done...(1s), MASCO__X45                              
+INFO:    Cell(     347):  29% Done...(1s), MASCO__Y169                             
+INFO:    Cell(     350):  29% Done...(1s), HBG526_POSTVDD2POC_G                    
+INFO:    Cell(     346):  29% Done...(1s), HBG526_MOS_ESDN01_VDD2_RPO_095          
+INFO:    Cell(     345):  29% Done...(1s), MASCO__Y172                             
+INFO:    Cell(     344):  29% Done...(1s), MASCO__X63                              
+INFO:    Cell(     348):  30% Done...(1s), MASCO__Y170                             
+INFO:    Cell(     168):  30% Done...(1s), HBG526_PMOS5D3X9_2                      
+INFO:    Cell(     341):  30% Done...(1s), HBG526_VDD2_C_3D5X3D3                   
+INFO:    Cell(     166):  30% Done...(1s), HBG526_NMOS2X05                         
+INFO:    Cell(     343):  30% Done...(1s), MASCO__X62                              
+INFO:    Cell(     338):  30% Done...(1s), MASCO__X60                              
+INFO:    Cell(     339):  31% Done...(1s), MASCO__Y173                             
+INFO:    Cell(     164):  31% Done...(1s), HBG526_RES_1D5XD5                       
+INFO:    Cell(     336):  31% Done...(1s), HBG526_VDD2_INV_P_1                     
+INFO:    Cell(     333):  31% Done...(1s), HBG526_POSTVDDPSR_PBASE_EDGE            
+INFO:    Cell(     332):  31% Done...(1s), HBG526_PREVDD2                          
+INFO:    Cell(      41):  32% Done...(1s), MASCO__Y235                             
+INFO:    Cell(     161):  32% Done...(1s), HBG526_V1_V2                            
+INFO:    Cell(     329):  32% Done...(1s), HBG526_RES_04X23D87                     
+INFO:    Cell(     340):  32% Done...(1s), HBG526_POST_CONN_M12_RPO_048            
+INFO:    Cell(     160):  32% Done...(1s), HBG526_PMOS1D2X0D4                      
+INFO:    Cell(     330):  33% Done...(1s), MASCO__Y175                             
+INFO:    Cell(     328):  33% Done...(1s), HBG526_PREVDDPST                        
+INFO:    Cell(     324):  33% Done...(1s), MASCO__Y178                             
+INFO:    Cell(     327):  33% Done...(1s), MASCO__Y177                             
+INFO:    Cell(      85):  33% Done...(1s), MASCO__X108                             
+INFO:    Cell(     321):  33% Done...(1s), MASCO__X44                              
+INFO:    Cell(     320):  34% Done...(1s), HBG526_RES_H                            
+INFO:    Cell(      73):  34% Done...(1s), HBG526_OC_2                             
+INFO:    Cell(     318):  34% Done...(1s), HBG526_RES_04X23                        
+INFO:    Cell(     325):  34% Done...(1s), HBG526_PREVSS2                          
+INFO:    Cell(     322):  34% Done...(1s), MASCO__X69                              
+INFO:    Cell(     156):  35% Done...(1s), HBG526_MOS_ESDN01                       
+INFO:    Cell(     153):  35% Done...(1s), MASCO__X94                              
+INFO:    Cell(     498):  35% Done...(1s), HBG526_BASE_PVSS3A_M12                  
+INFO:    Cell(      76):  35% Done...(1s), HBG526_V2_BASE_1                        
+INFO:    Cell(     157):  35% Done...(1s), MASCO__X74                              
+INFO:    Cell(     310):  36% Done...(1s), HBG526_VDD1_INV_N                       
+INFO:    Cell(     317):  36% Done...(1s), HBG526_PREVDD                           
+INFO:    Cell(     309):  36% Done...(1s), HBG526_NMOS0D13X34D99X2                 
+INFO:    Cell(     308):  36% Done...(1s), MASCO__X73                              
+INFO:    Cell(     152):  36% Done...(1s), MASCO__X64                              
+INFO:    Cell(     306):  36% Done...(1s), MASCO__X61                              
+INFO:    Cell(     305):  37% Done...(1s), MASCO__X59                              
+INFO:    Cell(     304):  37% Done...(1s), MASCO__X33                              
+INFO:    Cell(     148):  37% Done...(1s), MASCO__X18                              
+INFO:    Cell(      67):  37% Done...(1s), HBG526_V456789XZ_4X4_1                  
+INFO:    Cell(     302):  37% Done...(1s), HBG526_VDD1_INV_P                       
+INFO:    Cell(     301):  38% Done...(1s), HBG526_POSTVDD1_CONN_M12                
+INFO:    Cell(     298):  38% Done...(1s), HBG526_NMOS10X1D81                      
+INFO:    Cell(      37):  38% Done...(1s), MASCO__Y241                             
+INFO:    Cell(      72):  38% Done...(1s), HBG526_PL_M3456789_FILLER5A             
+INFO:    Cell(     312):  38% Done...(1s), HBG526_PREVDD1                          
+INFO:    Cell(     295):  39% Done...(1s), HBG526_POSTN_EDGE_VDD1                  
+INFO:    Cell(     294):  39% Done...(1s), HBG526_PPLUSNVDD1                       
+INFO:    Cell(     293):  39% Done...(1s), MASCO__X67                              
+INFO:    Cell(     144):  39% Done...(1s), MASCO__X96                              
+INFO:    Cell(     290):  39% Done...(1s), HBG526_RES_04X22D11                     
+INFO:    Cell(     289):  40% Done...(1s), HBG526_PL_M3456789_VDD2                 
+INFO:    Cell(      70):  40% Done...(1s), MASCO__A306                             
+INFO:    Cell(     296):  40% Done...(1s), HBG526_POSTVDD1_PBASE_EDGE              
+INFO:    Cell(      65):  40% Done...(1s), PFILLER61P3_G                           
+INFO:    Cell(     286):  40% Done...(1s), MASCO__Y269                             
+INFO:    Cell(     285):  40% Done...(1s), MASCO__Y268                             
+INFO:    Cell(     284):  41% Done...(1s), MASCO__Y267                             
+INFO:    Cell(     140):  41% Done...(1s), MASCO__X260                             
+INFO:    Cell(     281):  41% Done...(1s), MASCO__X258                             
+INFO:    Cell(     282):  41% Done...(1s), MASCO__Y266                             
+INFO:    Cell(     280):  41% Done...(1s), MASCO__X257                             
+INFO:    Cell(     136):  42% Done...(1s), HBG526_PC_2X1                           
+INFO:    Cell(     277):  42% Done...(1s), MASCO__X256                             
+INFO:    Cell(     276):  42% Done...(1s), MASCO__X255                             
+INFO:    Cell(     275):  42% Done...(1s), MASCO__X80                              
+INFO:    Cell(     274):  42% Done...(1s), MASCO__Y217                             
+INFO:    Cell(     273):  43% Done...(1s), MASCO__X81                              
+INFO:    Cell(     272):  43% Done...(1s), MASCO__Y215                             
+INFO:    Cell(     512):  43% Done...(1s), MASCO__B288                             
+INFO:    Cell(     270):  43% Done...(1s), MASCO__Y213                             
+INFO:    Cell(     269):  43% Done...(1s), MASCO__Y212                             
+INFO:    Cell(     268):  43% Done...(1s), MASCO__Y211                             
+INFO:    Cell(     267):  44% Done...(1s), MASCO__Y210                             
+INFO:    Cell(     266):  44% Done...(1s), MASCO__Y209                             
+INFO:    Cell(     265):  44% Done...(1s), MASCO__Y208                             
+INFO:    Cell(     256):  44% Done...(1s), MASCO__Y199                             
+INFO:    Cell(     127):  44% Done...(1s), PAD70GU_SL                              
+INFO:    Cell(     288):  45% Done...(1s), PCORNER_G                               
+INFO:    Cell(     283):  45% Done...(1s), MASCO__Y216                             
+INFO:    Cell(     128):  45% Done...(1s), HBG526_PC                               
+INFO:    Cell(     522):  45% Done...(1s), MASCO__A294                             
+INFO:    Cell(     255):  45% Done...(1s), MASCO__Y198                             
+INFO:    Cell(      46):  46% Done...(1s), MASCO__B321                             
+INFO:    Cell(     141):  46% Done...(1s), HBG526_PMOS_1                           
+INFO:    Cell(     480):  46% Done...(1s), HBG526_C_8X4                            
+INFO:    Cell(     254):  46% Done...(1s), MASCO__Y197                             
+INFO:    Cell(     227):  46% Done...(1s), MASCO__Y222                             
+INFO:    Cell(     503):  46% Done...(1s), MASCO__A275                             
+INFO:    Cell(     392):  47% Done...(1s), MASCO__X11                              
+INFO:    Cell(     500):  47% Done...(1s), MASCO__X244                             
+INFO:    Cell(     119):  47% Done...(1s), HAE261_V8U_UNIT                         
+INFO:    Cell(     496):  47% Done...(1s), MASCO__X247                             
+INFO:    Cell(     250):  47% Done...(1s), MASCO__Y191                             
+INFO:    Cell(     491):  48% Done...(1s), MASCO__Y119                             
+INFO:    Cell(     252):  48% Done...(1s), MASCO__Y195                             
+INFO:    Cell(     244):  48% Done...(1s), MASCO__Y185                             
+INFO:    Cell(     505):  48% Done...(1s), MASCO__A281                             
+INFO:    Cell(     483):  48% Done...(1s), MASCO__Y121                             
+INFO:    Cell(     243):  49% Done...(1s), MASCO__Y184                             
+INFO:    Cell(       2):  49% Done...(1s), probe6                                  
+INFO:    Cell(     455):  49% Done...(1s), HBG526_PREVSS2DGZ_CONN_V12              
+INFO:    Cell(     118):  49% Done...(1s), VX_CO_45                                
+INFO:    Cell(     490):  49% Done...(1s), MASCO__Y118                             
+INFO:    Cell(     474):  50% Done...(1s), HBG526_POSTVSS1DGZ_G                    
+INFO:    Cell(     238):  50% Done...(1s), MASCO__Y137                             
+INFO:    Cell(      54):  50% Done...(1s), HBG526_PFILLER1_BASE_G                  
+INFO:    Cell(     113):  50% Done...(1s), CONT_VIA1_6                             
+INFO:    Cell(     465):  50% Done...(1s), HBG526_PREVSS2DGZ_G                     
+INFO:    Cell(     111):  50% Done...(1s), PFILLER58P95A_G                         
+INFO:    Cell(     226):  51% Done...(1s), MASCO__Y221                             
+INFO:    Cell(      13):  51% Done...(1s), HBG526_V2_BASE                          
+INFO:    Cell(     229):  51% Done...(1s), PDUW16SDGZ_G                            
+INFO:    Cell(     489):  51% Done...(1s), MASCO__Y117                             
+INFO:    Cell(     452):  51% Done...(1s), MASCO__X22                              
+INFO:    Cell(      57):  52% Done...(1s), PFILLER5_G                              
+INFO:    Cell(     222):  52% Done...(1s), MASCO__X30                              
+INFO:    Cell(     426):  52% Done...(1s), MASCO__Y151                             
+INFO:    Cell(     220):  52% Done...(1s), MASCO__Y125                             
+INFO:    Cell(     395):  52% Done...(1s), MASCO__Y154                             
+INFO:    Cell(     445):  53% Done...(1s), HBG526_NPLUSH_D6X22D58                  
+INFO:    Cell(      60):  53% Done...(1s), PFILLER58P95_G                          
+INFO:    Cell(     435):  53% Done...(1s), MASCO__Y144                             
+INFO:    Cell(     103):  53% Done...(1s), HBG526_BASE_PFILLER5A                   
+INFO:    Cell(     439):  53% Done...(1s), rppoly_CDNS_759553325730                
+INFO:    Cell(     443):  53% Done...(1s), HBG526_POSTVSS2DGZ_PBASE_EDGE           
+INFO:    Cell(      99):  54% Done...(1s), MASCO__X261                             
+INFO:    Cell(     215):  54% Done...(1s), HBG526_PL_M3456789_BASE4                
+INFO:    Cell(     425):  54% Done...(1s), MASCO__Y150                             
+INFO:    Cell(     213):  54% Done...(1s), HBG526_PL_M3456789_BASE6                
+INFO:    Cell(       3):  54% Done...(1s), probe7                                  
+INFO:    Cell(     211):  55% Done...(1s), HBG526_PL_M3456789_BASE5                
+INFO:    Cell(     208):  55% Done...(1s), HBG526_PREDRV                           
+INFO:    Cell(     383):  55% Done...(1s), MASCO__Y163                             
+INFO:    Cell(      95):  55% Done...(1s), MASCO__Y233                             
+INFO:    Cell(     207):  55% Done...(1s), MASCO__Y227                             
+INFO:    Cell(     204):  56% Done...(1s), MASCO__Y224                             
+INFO:    Cell(     109):  56% Done...(1s), PFILLER1A_G                             
+INFO:    Cell(     198):  56% Done...(1s), MASCO__X86                              
+INFO:    Cell(     203):  56% Done...(1s), MASCO__Y133                             
+INFO:    Cell(      98):  56% Done...(1s), MASCO__X106                             
+INFO:    Cell(      30):  56% Done...(1s), MASCO__Y236                             
+INFO:    Cell(     194):  57% Done...(1s), MASCO__X23                              
+INFO:    Cell(     199):  57% Done...(1s), MASCO__X87                              
+INFO:    Cell(      14):  57% Done...(1s), HBG526_V2                               
+INFO:    Cell(      11):  57% Done...(1s), probe3                                  
+INFO:    Cell(     192):  57% Done...(1s), HBG526_NMOS3X05                         
+INFO:    Cell(     196):  58% Done...(1s), MASCO__X37                              
+INFO:    Cell(      62):  58% Done...(1s), PFILLER05_G                             
+INFO:    Cell(      43):  58% Done...(1s), HBG526_PFILLER5_BASE_G                  
+INFO:    Cell(      87):  58% Done...(1s), MASCO__X110                             
+INFO:    Cell(     362):  58% Done...(1s), MASCO__B313                             
+INFO:    Cell(     188):  59% Done...(1s), HBG526_PMOS19D5X4                       
+INFO:    Cell(     259):  59% Done...(1s), MASCO__Y202                             
+INFO:    Cell(      16):  59% Done...(1s), HBG526_V1                               
+INFO:    Cell(     187):  59% Done...(1s), HBG526_PMOS21X4                         
+INFO:    Cell(      21):  59% Done...(1s), MASCO__X35                              
+INFO:    Cell(      42):  60% Done...(1s), MASCO__Y270                             
+INFO:    Cell(     179):  60% Done...(1s), HBG526_PMOS1X04                         
+INFO:    Cell(     183):  60% Done...(1s), HBG526_PMOS7X9                          
+INFO:    Cell(      83):  60% Done...(1s), MASCO__X55                              
+INFO:    Cell(     181):  60% Done...(1s), HBG526_PMOS3D5X9                        
+INFO:    Cell(       1):  60% Done...(1s), probe5                                  
+INFO:    Cell(     366):  61% Done...(1s), MASCO__X12                              
+INFO:    Cell(      39):  61% Done...(1s), MASCO__X65                              
+INFO:    Cell(     525):  61% Done...(1s), MASCO__B295                             
+INFO:    Cell(     172):  61% Done...(1s), MASCO__X92                              
+INFO:    Cell(     175):  61% Done...(1s), HBG526_PREDRVVDD                        
+INFO:    Cell(      38):  62% Done...(1s), MASCO__X263                             
+INFO:    Cell(      93):  62% Done...(1s), MASCO__Y167                             
+INFO:    Cell(       9):  62% Done...(1s), probe2                                  
+INFO:    Cell(     171):  62% Done...(1s), MASCO__X91                              
+INFO:    Cell(      19):  62% Done...(1s), MASCO__X20                              
+INFO:    Cell(     169):  63% Done...(1s), MASCO__X17                              
+INFO:    Cell(     529):  63% Done...(1s), pad_ring                                
+INFO:    Cell(     165):  63% Done...(1s), HBG526_PMOS04X1_NEW                     
+INFO:    Cell(     319):  63% Done...(1s), HBG526_PREVSS1                          
+INFO:    Cell(     334):  63% Done...(1s), HBG526_RES_04X21D86                     
+INFO:    Cell(     159):  63% Done...(1s), HBG526_POSTN                            
+INFO:    Cell(      18):  64% Done...(1s), MASCO__X19                              
+INFO:    Cell(       4):  64% Done...(1s), rppolyl                                 
+INFO:    Cell(      28):  64% Done...(1s), MASCO__X70                              
+INFO:    Cell(     154):  64% Done...(1s), MASCO__X95                              
+INFO:    Cell(     314):  64% Done...(1s), MASCO__X72                              
+INFO:    Cell(     313):  65% Done...(1s), MASCO__X71                              
+INFO:    Cell(      44):  65% Done...(1s), HBG526_V456789XZ_4X4                    
+INFO:    Cell(       5):  65% Done...(1s), probe1                                  
+INFO:    Cell(     155):  65% Done...(1s), MASCO__Y229                             
+INFO:    Cell(      17):  65% Done...(1s), HBG526_OC                               
+INFO:    Cell(      34):  66% Done...(1s), MASCO__Y238                             
+INFO:    Cell(     146):  66% Done...(1s), MASCO__X259                             
+INFO:    Cell(     151):  66% Done...(1s), MASCO__X26                              
+INFO:    Cell(     299):  66% Done...(1s), MASCO__X32                              
+INFO:    Cell(     149):  66% Done...(1s), MASCO__X27                              
+INFO:    Cell(     142):  66% Done...(1s), HBG526_V2_1                             
+INFO:    Cell(     147):  67% Done...(1s), HBG526_PMOS                             
+INFO:    Cell(       0):  67% Done...(1s), probe4                                  
+INFO:    Cell(      36):  67% Done...(1s), MASCO__Y240                             
+INFO:    Cell(      63):  67% Done...(1s), PFILLER25_G                             
+INFO:    Cell(     143):  67% Done...(1s), MASCO__X98                              
+INFO:    Cell(      22):  68% Done...(1s), MASCO__X39                              
+INFO:    Cell(      77):  68% Done...(1s), HBG526_V2_2                             
+INFO:    Cell(     135):  68% Done...(1s), HBG526_PC_1                             
+INFO:    Cell(     139):  68% Done...(1s), MASCO__X100                             
+INFO:    Cell(      15):  68% Done...(1s), HBG526_V1_BASE                          
+INFO:    Cell(     137):  69% Done...(1s), MASCO__X99                              
+INFO:    Cell(      12):  69% Done...(1s), M2_M1_CDNS_759553325730                 
+INFO:    Cell(     278):  69% Done...(1s), MASCO__X76                              
+INFO:    Cell(     258):  69% Done...(1s), MASCO__Y201                             
+INFO:    Cell(     133):  69% Done...(1s), MASCO__X101                             
+INFO:    Cell(     513):  70% Done...(1s), MASCO__B278                             
+INFO:    Cell(     131):  70% Done...(1s), HBG526_OC_1                             
+INFO:    Cell(     516):  70% Done...(1s), MASCO__B279                             
+INFO:    Cell(     223):  70% Done...(1s), MASCO__Y218                             
+INFO:    Cell(     246):  70% Done...(1s), MASCO__Y187                             
+INFO:    Cell(     124):  70% Done...(1s), MASCO__X105                             
+INFO:    Cell(     499):  71% Done...(1s), MASCO__Y113                             
+INFO:    Cell(     122):  71% Done...(1s), MASCO__X103                             
+INFO:    Cell(     239):  71% Done...(1s), MASCO__Y174                             
+INFO:    Cell(      61):  71% Done...(1s), HBG526_PFILLER05_BASE_G                 
+INFO:    Cell(     125):  71% Done...(1s), MASCO__X104                             
+INFO:    Cell(     482):  72% Done...(1s), HBG526_DIO_3D2X20_P                     
+INFO:    Cell(     473):  72% Done...(1s), HBG526_POSTVSS1DGZ_COMM_V2              
+INFO:    Cell(     233):  72% Done...(1s), MASCO__X82                              
+INFO:    Cell(     463):  72% Done...(1s), MASCO__Y130                             
+INFO:    Cell(     470):  72% Done...(1s), HBG526_PPLUSH_D6X18D88                  
+INFO:    Cell(     110):  73% Done...(1s), PFILLER0005A_G                          
+INFO:    Cell(     457):  73% Done...(1s), MASCO__Y135                             
+INFO:    Cell(     453):  73% Done...(1s), MASCO__X250                             
+INFO:    Cell(     191):  73% Done...(1s), HBG526_NMOS7X05                         
+INFO:    Cell(     433):  73% Done...(1s), HBG526_BASE_PDB3A_VSS                   
+INFO:    Cell(     441):  73% Done...(1s), HBG526_POSTN_EDGE_VSS2DGZ_G             
+INFO:    Cell(     431):  74% Done...(1s), MASCO__X253                             
+INFO:    Cell(     437):  74% Done...(1s), HBG526_DIO_1D7X19_P                     
+INFO:    Cell(      47):  74% Done...(1s), MASCO__B322                             
+INFO:    Cell(      50):  74% Done...(1s), HBG526_PL_M3456789_FILLER5              
+INFO:    Cell(     106):  74% Done...(1s), PFILLER10A_G                            
+INFO:    Cell(     415):  75% Done...(1s), MASCO__Y156                             
+INFO:    Cell(     400):  75% Done...(1s), HBG526_PL_M3456789_BASE5_1              
+INFO:    Cell(     411):  75% Done...(1s), PVDD3A_G                                
+INFO:    Cell(     403):  75% Done...(1s), HBG526_POWERLINE                        
+INFO:    Cell(     405):  75% Done...(1s), MASCO__X4                               
+INFO:    Cell(     384):  76% Done...(1s), MASCO__X251                             
+INFO:    Cell(      49):  76% Done...(1s), MASCO__B342                             
+INFO:    Cell(     387):  76% Done...(1s), HBG526_BASE_PVDD3A_DCAP_M               
+INFO:    Cell(     326):  76% Done...(1s), MASCO__X68                              
+INFO:    Cell(      90):  76% Done...(1s), MASCO__X57                              
+INFO:    Cell(     379):  76% Done...(1s), HBG526_MOS1D2XD5X2                      
+INFO:    Cell(     369):  77% Done...(1s), MASCO__X52                              
+INFO:    Cell(     367):  77% Done...(1s), HBG526_BASE_PVDD3                       
+INFO:    Cell(      86):  77% Done...(1s), MASCO__X109                             
+INFO:    Cell(     363):  77% Done...(1s), PRCUTA_G                                
+INFO:    Cell(     351):  77% Done...(1s), PVDD2POC_G                              
+INFO:    Cell(     357):  78% Done...(1s), HBG526_POST_PRCUT_1                     
+INFO:    Cell(      82):  78% Done...(1s), MASCO__X14                              
+INFO:    Cell(     349):  78% Done...(1s), MASCO__Y171                             
+INFO:    Cell(     337):  78% Done...(1s), HBG526_VDD2_INV_P                       
+INFO:    Cell(     335):  78% Done...(1s), HBG526_POSTN_EDGE_VDD2                  
+INFO:    Cell(      78):  79% Done...(1s), MASCO__X7                               
+INFO:    Cell(     331):  79% Done...(1s), HBG526_PMOS6D5XD5                       
+INFO:    Cell(     162):  79% Done...(1s), MASCO__X93                              
+INFO:    Cell(     526):  79% Done...(1s), MASCO__B299                             
+INFO:    Cell(      74):  79% Done...(1s), HBG526_V1_BASE_1                        
+INFO:    Cell(     311):  80% Done...(1s), MASCO__Y180                             
+INFO:    Cell(     307):  80% Done...(1s), HBG526_PREVDD1_CONN_M12                 
+INFO:    Cell(     303):  80% Done...(1s), HBG526_VDD_CONN_M12                     
+INFO:    Cell(      31):  80% Done...(1s), MASCO__X97                              
+INFO:    Cell(     297):  80% Done...(1s), MASCO__X75                              
+INFO:    Cell(     291):  80% Done...(1s), HBG526_PC_1_2X1                         
+INFO:    Cell(     287):  81% Done...(1s), HBG526_SUB_CORNER                       
+INFO:    Cell(      66):  81% Done...(1s), PFILLER05A_G                            
+INFO:    Cell(     279):  81% Done...(1s), MASCO__Y192                             
+INFO:    Cell(     271):  81% Done...(1s), MASCO__Y214                             
+INFO:    Cell(       7):  81% Done...(1s), rppolywo                                
+INFO:    Cell(     517):  82% Done...(1s), MASCO__B287                             
+INFO:    Cell(     263):  82% Done...(1s), MASCO__Y206                             
+INFO:    Cell(     524):  82% Done...(1s), MASCO__A298                             
+INFO:    Cell(       8):  82% Done...(1s), rm2                                     
+INFO:    Cell(     447):  82% Done...(1s), HBG526_PPLUSH_1D66X22D58                
+INFO:    Cell(     492):  83% Done...(1s), MASCO__Y120                             
+INFO:    Cell(     509):  83% Done...(1s), MASCO__B277                             
+INFO:    Cell(     115):  83% Done...(1s), UCSRN                                   
+INFO:    Cell(     120):  83% Done...(1s), HAE261_V8U_UNIT_4                       
+INFO:    Cell(     460):  83% Done...(1s), HBG526_NPLUSH_D6X9D54                   
+INFO:    Cell(     476):  83% Done...(1s), MASCO__Y124                             
+INFO:    Cell(     466):  84% Done...(1s), PVSS2DGZ_G                              
+INFO:    Cell(      52):  84% Done...(1s), PFILLER10_G                             
+INFO:    Cell(     210):  84% Done...(1s), MASCO__A330                             
+INFO:    Cell(     108):  84% Done...(1s), PFILLER25A_G                            
+INFO:    Cell(     212):  84% Done...(1s), HBG526_PAD_CONNECT                      
+INFO:    Cell(     104):  85% Done...(1s), HBG526_PL_M3456789_BASE2_1              
+INFO:    Cell(     396):  85% Done...(1s), MASCO__Y161                             
+INFO:    Cell(     100):  85% Done...(1s), MASCO__X262                             
+INFO:    Cell(     521):  85% Done...(1s), MASCO__A290                             
+INFO:    Cell(     323):  85% Done...(1s), MASCO__Y132                             
+INFO:    Cell(     178):  86% Done...(1s), HBG526_PMOS3X04                         
+INFO:    Cell(      92):  86% Done...(1s), MASCO__X9                               
+INFO:    Cell(      40):  86% Done...(1s), MASCO__X264                             
+INFO:    Cell(      88):  86% Done...(1s), MASCO__Y160                             
+INFO:    Cell(     342):  86% Done...(1s), HBG526_VDD2_INV_N                       
+INFO:    Cell(      84):  86% Done...(1s), MASCO__X107                             
+INFO:    Cell(      75):  87% Done...(1s), HBG526_V1_2                             
+INFO:    Cell(     527):  87% Done...(1s), MASCO__B296                             
+INFO:    Cell(     300):  87% Done...(1s), HBG526_POSTVDD1_CONN_M12_1              
+INFO:    Cell(      71):  87% Done...(1s), MASCO__B308                             
+INFO:    Cell(     145):  87% Done...(1s), MASCO__Y230                             
+INFO:    Cell(      32):  88% Done...(1s), MASCO__Y237                             
+INFO:    Cell(     130):  88% Done...(1s), HBG526_V1_V2_BASE                       
+INFO:    Cell(      68):  88% Done...(1s), HBG526_V3456789XZ_4X4_1                 
+INFO:    Cell(     101):  88% Done...(1s), MASCO__Y159                             
+INFO:    Cell(      24):  88% Done...(1s), MASCO__X41                              
+INFO:    Cell(     485):  89% Done...(1s), HBG526_DIO_3D2X16D4_P                   
+INFO:    Cell(     467):  89% Done...(1s), HBG526_POSTN_EDGE_VSS1DGZ_G             
+INFO:    Cell(     225):  89% Done...(1s), MASCO__Y220                             
+INFO:    Cell(     214):  89% Done...(1s), HBG526_PL_M3456789_BASE_UP              
+INFO:    Cell(     206):  89% Done...(1s), MASCO__Y226                             
+INFO:    Cell(     404):  90% Done...(1s), MASCO__X3                               
+INFO:    Cell(     520):  90% Done...(1s), MASCO__A293                             
+INFO:    Cell(     182):  90% Done...(1s), HBG526_NMOS3D5X05                       
+INFO:    Cell(     174):  90% Done...(1s), MASCO__Y228                             
+INFO:    Cell(     167):  90% Done...(1s), HBG526_NTN_LS_TINY                      
+INFO:    Cell(     158):  90% Done...(1s), MASCO__Y176                             
+INFO:    Cell(     150):  91% Done...(1s), HBG526_POSTN_EDGE                       
+INFO:    Cell(     292):  91% Done...(1s), HBG526_NPLUSNVDD1                       
+INFO:    Cell(     134):  91% Done...(1s), HBG526_POSTDRV_PBASE_EDGE               
+INFO:    Cell(     112):  91% Done...(1s), N65CHIPCDU2_New                         
+INFO:    Cell(     394):  91% Done...(1s), MASCO__Y111                             
+INFO:    Cell(     193):  92% Done...(1s), HBG526_PMOS0D8X04                       
+INFO:    Cell(     237):  92% Done...(1s), MASCO__Y123                             
+INFO:    Cell(      80):  92% Done...(1s), MASCO__X10                              
+INFO:    Cell(     129):  92% Done...(1s), HBG526_V1_1                             
+INFO:    Cell(     262):  92% Done...(1s), MASCO__Y205                             
+INFO:    Cell(      79):  93% Done...(1s), MASCO__X8                               
+INFO:    Cell(      59):  93% Done...(1s), MASCO__A339                             
+INFO:    Cell(     218):  93% Done...(1s), HBG526_PL_M3456789_BASE1                
+INFO:    Cell(     186):  93% Done...(1s), MASCO__X90                              
+INFO:    Cell(     316):  93% Done...(1s), PVDD1DGZ_G                              
+INFO:    Cell(     202):  93% Done...(1s), MASCO__Y131                             
+INFO:    Cell(     138):  94% Done...(1s), MASCO__Y231                             
+INFO:    Cell(     528):  94% Done...(2s), MASCO__B300                             
+INFO:    Cell(     515):  94% Done...(2s), MASCO__B291                             
+INFO:    Cell(      33):  94% Done...(2s), MASCO__X36                              
+INFO:    Cell(     510):  94% Done...(2s), MASCO__B285                             
+INFO:    Cell(     519):  95% Done...(2s), MASCO__A289                             
+INFO:    Cell(     511):  95% Done...(2s), MASCO__B280                             
+INFO:    Cell(     523):  95% Done...(2s), MASCO__A297                             
+INFO:    Cell(     487):  95% Done...(2s), MASCO__Y114                             
+INFO:    Cell(     249):  95% Done...(2s), MASCO__Y190                             
+INFO:    Cell(     493):  96% Done...(2s), MASCO__X245                             
+INFO:    Cell(      69):  96% Done...(2s), MASCO__B303                             
+INFO:    Cell(     234):  96% Done...(2s), MASCO__X83                              
+INFO:    Cell(     472):  96% Done...(2s), MASCO__Y127                             
+INFO:    Cell(      56):  96% Done...(2s), PFILLER50_G                             
+INFO:    Cell(     481):  96% Done...(2s), MASCO__Y122                             
+INFO:    Cell(     228):  97% Done...(2s), MASCO__Y223                             
+INFO:    Cell(     478):  97% Done...(2s), HBG526_NPLUSH_D6X9D54_PVSS1DGZ          
+INFO:    Cell(     105):  97% Done...(2s), HBG526_PL_M3456789_BASE6_1              
+INFO:    Cell(     442):  97% Done...(2s), MASCO__Y141                             
+INFO:    Cell(     434):  97% Done...(2s), MASCO__Y142                             
+INFO:    Cell(     428):  98% Done...(2s), MASCO__Y152                             
+INFO:    Cell(     410):  98% Done...(2s), MASCO__Y158                             
+INFO:    Cell(     197):  98% Done...(2s), MASCO__X38                              
+INFO:    Cell(     315):  98% Done...(2s), MASCO__Y179                             
+INFO:    Cell(     163):  98% Done...(2s), HBG526_PIN                              
+INFO:    Cell(     504):  99% Done...(3s), MASCO__A276                             
+INFO:    Cell(     514):  99% Done...(3s), MASCO__B286                             
+INFO:    Cell(     507):  99% Done...(3s), MASCO__A282                             
+INFO:    Cell(     121):  99% Done...(3s), MASCO__X102                             
+INFO:    Cell(      29):  99% Done...(3s), MASCO__Y194                             
+INFO:    Cell(     449): 100% Done...(3s), MASCO__Y126                             
+INFO:      DONE - (2s)
+INFO:    Cells creation time: (3s)
+INFO:    Write netlist items...         (3s)
+INFO:    Saving name table to db...
+INFO:    Save device templates to the db...
+INFO:    Save connect rules to the db...
+INFO:    Write calculated header information to the top of file...
+INFO:    Erasing cdl subckts...          (0s)
+
+INFO:    edbToEcdb Header Information:
+  ECDB file version   : 37
+  DevTmpl offset      : 4618862
+  Connect offset      : 4619698
+  NameTable offset    : 4462489
+  Layer Map offset    : 167
+  Cell Start offset   : 4425389
+  Cell End offset     : 4462489
+  Aux Data offset     : 4621574
+  Labels     offset   : 0
+  Layer RW   offset   : 0
+  NVP                 : ifs:0.01 
+  Scale               : 4000
+  GDS Scale           : 1000
+  File size (static)  : 4683017
+  File size (dynamic) : 0
+  Cell count          : 530
+  ECDB create time    : 3
+  EDB info            : 10
+  Top Cell            : pad_ring
+  EDB info (Trans)    : WRITTEN_64 W_NOT_NET_ORDER 
+
+INFO:    edbToEcdb Sizes written to disk (MB):
+  NameTbl             :     0.156373
+  Layers              :     0.066144
+  Shapes              :     1.953031
+  XYTree              :     0.655605
+  LookUpTbls          :     0.132036
+  Cells               :     0.044999
+  Insts               :     1.081710
+  Ports               :     0.488262
+  Nets                :     0.010472
+  Pins                :     0.004083
+  Labels              :     0.025984
+  DevTmpl             :     0.000836
+  Connect             :     0.001872
+  Header              :     0.000167
+  AuxData             :     0.061441
+  NvnLabels           :     0.000002
+---------------------------------
+  Total               :     4.683017
+
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 3 Peak memory(MB): 2217.91
+INFO:    Pegasus extracted connectivity database creation completed. 2025-10-03 23:49:02
+
+
+INFO:    Creating annotated GDS ...
+INFO:    Library name: pad_ring_28794
+INFO:    GDSII file name: ./pad_ring.agf
+INFO:    Cells to be written out: pad_ring
+INFO:    Source Library: pad_ring_28794
+INFO:    Status: Task in progress ...
+INFO:    Pegasus creating annotated GDS completed. 2025-10-03 23:48:59
+INFO:    Pegasus REPORTDB creation started...
+INFO:    Processing file lvs.rep
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 1 Peak memory(MB): 27.99
+INFO:    Pegasus REPORTDB creation completed. 2025-10-03 23:49:03
+
+
+INFO:    Comparing netlists ...
+INFO:    Setup VLDB (0s)
+INFO:    Init sch rules (0s)
+INFO:    Init lay rules (0s)
+INFO:    Init structures (0s)
+INFO:    Set cells to delete (0s)
+INFO:    Check expand on pin error (0s)
+INFO:    Reading schematic network
+INFO:     inputting cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added...
+INFO:     finished loading cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi...
+INFO:     finished loading cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/myshkin.pad_ring.schematic.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.RESI is not supported.
+WARNING (NVN-13002): *.RESVAL is not supported.
+WARNING (NVN-13002): *.CAPVAL is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.EQUATION is not supported.
+WARNING (NVN-13003): "*.SCALE" is not supported. Use ".OPTION SCALE" instead or specify  'lvs_cdn_flow_options -cdl_use_scale' in the rule file.
+WARNING (NVN-13002): *.PIN is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/myshkin/pad_ring/myshkin.pad_ring.schematic.cdl (0s)
+INFO:     commit cdl netlist(s)...
+INFO:     finished committing cdl netlists (0s)
+INFO:    Post sch netlist rule processing (0s)
+INFO:    Reading layout network
+INFO:     inputting (fast parser) cdl netlist  pad_ring.net...
+INFO:     finished loading cdl netlist pad_ring.net (0s)
+INFO:     commit cdl netlist(s)...
+INFO:     finished committing cdl netlists (0s)
+INFO:    Post lay netlist rule processing (0s)
+INFO:    Processing blackBox rules (0s)
+INFO:    Processing bindings (0s)
+INFO:    Commit sch verilog netlist (0s)
+INFO:    Commit lay verilog netlist (0s)
+INFO:    Erase netlist data (0s)
+INFO:    Set blackbox cells (0s)
+INFO:    Sch put cells in memory (0s)
+INFO:    Sch update netlist rules (0s)
+INFO:    Sch adjust device pins (0s)
+INFO:    Sch calc hier order (0s)
+INFO:    Sch process inherited connections (0s)
+INFO:    Sch generate qrc files (0s)
+INFO:    Sch handle global pins (0s)
+INFO:    Sch apply rule actions with processed netlist (0s)
+INFO:    Sch process cell supply (0s)
+INFO:    Lay put cells in memory (0s)
+INFO:    Lay update netlist rules (0s)
+INFO:    Lay calc hier order (0s)
+INFO:    Lay process inherited connections (0s)
+INFO:    Lay generate qrc files (0s)
+INFO:    Lay handle global pins (0s)
+INFO:    Lay apply rule actions with processed netlist (0s)
+INFO:    Lay process cell supply (0s)
+INFO:    Check if interposer flow (0s)
+INFO:    Check binding file (0s)
+INFO:    Set topcell global pin indicator (0s)
+INFO:    Calculate preserve parameterized cells (0s)
+INFO:    Check generic device bindings (0s)
+INFO:    Calculate primitive device bindings (0s)
+INFO:    Remove unused device parameters (0s)
+INFO:    Set instances to flatten inside cells (0s)
+INFO:    Calculate parameters (0s)
+INFO:    Start sch normalization (0s)
+INFO:    Start lay normalization (0s)
+INFO:    Calculate primitive device bindings (2nd time) (0s)
+INFO:    Finalize binding (0s)
+INFO:    Sch join nets (0s)
+INFO:    Sch setup hier normalization (0s)
+INFO:    Sch remove feedthroughs and black box cell instances (0s)
+INFO:    Sch remove identical pins (0s)
+INFO:    Sch calc connection counts (0s)
+INFO:    Run genHierCells (0s)
+INFO:    Reset normalization flags (0s)
+INFO:    Lay join nets (0s)
+INFO:    Lay setup hier normalization (0s)
+INFO:    Lay remove feedthroughs and black box cell instances (0s)
+INFO:    Lay remove identical pins (0s)
+INFO:    Lay calc connection counts (0s)
+INFO:    Normalize sch (0s)
+INFO:    Read in color file (0s)
+INFO:    Set scale factor per cell (0s)
+INFO:    Setup property init rules (0s)
+INFO:    Write sch vldb file (0s)
+INFO:    Write lay vldb file (0s)
+INFO:    Apply preserve parameterized cells (1s)
+INFO:    Cleanup after VLDB processing (0s)
+
+INFO:    Cell comparison output format:
+            <Comparing|Top Cell> <Layout Cell> vs <Schematic Cell>
+               <Layout instances> insts vs <Schematic instances> insts  (<Time>)-<Status>
+
+         Top Cell  pad_ring vs pad_ring
+            2953 insts vs 2953 insts . . . . . . . . . . . . . . . . . . . . . (0s)-match
+
+INFO:    Generating the LVS report...
+           Report Init (0s)
+           Load common queries (0s)
+           Create report (0s)
+           Cleanup (0s)
+INFO:    Report finished
+
+INFO:    Extraction Run Summary
+         Total CPU Time        : 16(s)
+         Total Real Time       : 12(s)
+         Peak Memory Used      : 409.00(M)
+
+
+INFO:    NVN Run Summary
+         Total CPU Time        : 1(s)
+         Total Real Time       : 1(s)
+         Peak Memory Used      : 389.46(M)
+
+
+INFO:    LVS Summary
+         Total CPU Time        : 17(s)
+         Total Real Time       : 13(s)
+         Peak Memory Used      : 409.00(M)
+
+    ########################################################################################
+    #                                                                                      #
+    # Run Result             : MATCH                                                       #
+    #                                                                                      #
+    # Run Summary            : [INFO]  ERC Results: Non-Empty (refer to ERC Summary File)  #
+    #                        : [INFO]  Extraction Clean                                    #
+    #                                                                                      #
+    # ERC Summary File       : erc.sum                                                     #
+    # Extraction Report File : lvs.rep                                                     #
+    # Comparison Report File : lvs.rep.cls                                                 #
+    #                                                                                      #
+    ########################################################################################
+
+
+INFO:    Creating cross reference database ...
+INFO:    Manager summary: CPU(s): 1 Elapsed(s): 1 Peak memory(MB): 135.30
+INFO:    Checking in all SoftShare licenses.
+INFO:    Creating cross reference database completed. Fri Oct  3 23:49:05 2025
+
+
+Pegasus finished normally. 2025-10-03 23:49:05

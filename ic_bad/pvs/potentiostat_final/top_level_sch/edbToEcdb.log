@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : top_level_sch_40462.db
+ECDB dir        : ./
+Top Cell        : top_level_sch
+CDL netlist     : ./top_level_sch.net
+Layer map file  : ./top_level_sch.ecdbmap
+Text map file   : ./top_level_sch.ports
+Dependency map  : top_level_sch.lmap.perc
+Lvs file        : ./top_level_sch.lvsfile
+Float net file  : .top_level_sch.info.softchk
+debug           : 0
+Source Library  : top_level_sch_40462

@@ -1,0 +1,2266 @@
+//  Calibre v2022.1_14.8    Wed Jan 5 16:27:44 PST 2022
+//  Calibre Utility Library   v0-10_13-2017-1    Thu Jul 29 11:52:11 PDT 2021
+//  Litho Libraries v2022.1_14.8  Wed Jan 5 16:27:44 PST 2022
+//
+//                   Copyright Siemens 1996-2022
+//                       All Rights Reserved.
+//   THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY INFORMATION
+//      WHICH IS THE PROPERTY OF MENTOR GRAPHICS CORPORATION
+//        OR ITS LICENSORS AND IS SUBJECT TO LICENSE TERMS.
+//
+//  The registered trademark Linux is used pursuant to a sublicense from LMI, the
+//  exclusive licensee of Linus Torvalds, owner of the mark on a world-wide basis.
+//
+//  Mentor Graphics software executing under x86-64 Linux
+//
+//  Running on 1 CPU 
+//
+//
+//  calinteractive license acquired.
+//  Calibre Interactive authorized.
+MGC_HOME = /opt/mentor/calibre/aoj_cal
+$MGC_HOME/bin/calibre -drc -hier -nowait _mim25.rul_
+
+Running: $MGC_HOME/bin/calibre -drc -hier -nowait _mim25.rul_
+//  Calibre v2022.1_14.8    Wed Jan 5 16:27:43 PST 2022
+//  Calibre Utility Library   v0-10_13-2017-1    Thu Jul 29 11:52:11 PDT 2021
+//  Litho Libraries v2022.1_14.8  Wed Jan 5 16:27:43 PST 2022
+//
+//                   Copyright Siemens 1996-2022
+//                       All Rights Reserved.
+//   THIS WORK CONTAINS TRADE SECRET AND PROPRIETARY INFORMATION
+//      WHICH IS THE PROPERTY OF MENTOR GRAPHICS CORPORATION
+//        OR ITS LICENSORS AND IS SUBJECT TO LICENSE TERMS.
+//
+//  The registered trademark Linux is used pursuant to a sublicense from LMI, the
+//  exclusive licensee of Linus Torvalds, owner of the mark on a world-wide basis.
+//
+//  Mentor Graphics software executing under x86-64 Linux
+//
+//  Running on Linux atlas (10.182.0.87) 5.3.18-lp152.106-default #1 SMP Mon Nov 22 08:38:17 UTC 2021 (52078fe) x86_64 glibc 2.26/NPTL 2.26
+//  OS: openSUSE Leap 15.2[5.3.18-lp152.106-default]
+//
+//  Entries in /proc/meminfo:
+//
+//  MemTotal:       263795392 kB
+//  MemFree:        13852628 kB
+//  MemAvailable:   236633660 kB
+//  Buffers:            1040 kB
+//  Cached:         208898560 kB
+//  SwapCached:           28 kB
+//  Active:         132708224 kB
+//  Inactive:       92144908 kB
+//  Active(anon):   16379360 kB
+//  Inactive(anon):  1636408 kB
+//  Active(file):   116328864 kB
+//  Inactive(file): 90508500 kB
+//  Unevictable:           0 kB
+//  Mlocked:               0 kB
+//  SwapTotal:      16777212 kB
+//  SwapFree:       16772860 kB
+//  Dirty:              2244 kB
+//  Writeback:             0 kB
+//  AnonPages:      15864292 kB
+//  Mapped:          2009036 kB
+//  Shmem:           2062236 kB
+//  KReclaimable:   18236104 kB
+//  Slab:           20337088 kB
+//  SReclaimable:   18236104 kB
+//  SUnreclaim:      2100984 kB
+//  KernelStack:       46336 kB
+//  PageTables:       145500 kB
+//  NFS_Unstable:          0 kB
+//  Bounce:                0 kB
+//  WritebackTmp:          0 kB
+//  CommitLimit:    148674908 kB
+//  Committed_AS:   28703280 kB
+//  VmallocTotal:   34359738367 kB
+//  VmallocUsed:       71276 kB
+//  VmallocChunk:          0 kB
+//  Percpu:            46080 kB
+//  HardwareCorrupted:     0 kB
+//  AnonHugePages:  12781568 kB
+//  ShmemHugePages:        0 kB
+//  ShmemPmdMapped:        0 kB
+//  HugePages_Total:       0
+//  HugePages_Free:        0
+//  HugePages_Rsvd:        0
+//  HugePages_Surp:        0
+//  Hugepagesize:       2048 kB
+//  Hugetlb:               0 kB
+//  DirectMap4k:     5428100 kB
+//  DirectMap2M:    187398144 kB
+//  DirectMap1G:    75497472 kB
+//
+//  User limits:
+//
+//  Data size: unlimited
+//  RSS: unlimited
+//  Stack size: 8192 kB
+//  Max user processes: 1030374
+//  VM: unlimited
+//  nf_conntrack_max: 262144
+//
+WARNING: Please increase descriptors limit for best performance (1024)
+//
+//  Processor AMD Ryzen Threadripper 3990X 64-Core Processor  [23490] (4th generation)
+//  CPU Info: Cores = 64, SMT enabled with 64 additional virtual processors
+//  Max file descriptors: 1024
+//  64 bit virtual addressing enabled
+//  Running aoj_cal/pkgs/icv/pvt/calibre -drc -hier -nowait _mim25.rul_
+//  Process ID: 71123
+//
+//  Starting time: Wed Oct  1 23:57:22 2025
+//
+
+--- CALIBRE_* ENVIRONMENT VARIABLES:
+
+CALIBRE_ATOMIC_LVHEAP=0
+CALIBRE_CMD_LINE='/opt/mentor/calibre/aoj_cal/pkgs/icv/pvt/calibre  -drc -hier -nowait _mim25.rul_'
+CALIBRE_HOME=/opt/mentor/calibre/aoj_cal
+CALIBRE_INITIAL_CMD_LINE='/opt/mentor/calibre/aoj_cal/bin/calibre -drc -hier -nowait _mim25.rul_'
+CALIBRE_READDB_LD_LIBRARY_PATH=/opt/mentor/calibre/aoj_cal/pkgs/icv/julia/0.6/lib/julia:/opt/mentor/calibre/aoj_cal/pkgs/icv/julia/0.6/lib:/opt/mentor/calibre/aoj_cal/shared/pkgs/icv/tools/calibre_client/lib/64:/opt/mentor/calibre/aoj_cal/pkgs/calibre_base/lib64:/opt/mentor/calibre/aoj_cal/pkgs/icv_lib/lib64:/opt/mentor/calibre/aoj_cal/pkgs/icv_qt5_comp/plugins:/opt/mentor/calibre/aoj_cal/pkgs/icv_oa/22.41p004/lib/linux_rhel68_gcc44x_64/opt:/opt/mentor/calibre/aoj_cal/shared/pkgs/icv/tools/calibre_client/lib/64:/opt/mentor/calibre/aoj_cal/shared/pkgs/icv/tools/calibre_client/lib/64
+CALIBRE_SKIP_OS_CHECKS=
+//  Running on 1 CPU (pending licensing) 
+//
+//
+
+--- CALIBRE::DRC-H - Wed Oct  1 23:57:22 2025
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-----          STANDARD VERIFICATION RULE FILE COMPILATION MODULE          -----
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--- RULE FILE = _mim25.rul_
+
+//
+//  Rule file generated on Wed Oct 1 23:57:22 2025
+//  by Calibre Interactive v2022.1_14.8    Wed Jan 5 16:27:44 PST 2022
+//
+//      *** PLEASE DO NOT MODIFY THIS FILE ***
+//
+//
+
+LAYOUT PATH "layout.gds"
+LAYOUT SYSTEM GDSII
+LAYOUT PRIMARY "INVX1"
+
+DRC RESULTS DATABASE "results/mim25.db" ASCII
+DRC CELL NAME NO
+
+DRC SUMMARY REPORT "results/mim25.rpt" REPLACE HIER
+
+DRC MAXIMUM RESULTS ALL
+
+DRC MAXIMUM VERTEX 4096
+
+DRC ICSTATION YES
+
+INCLUDE "../../mim25.rul"
+
+
+--- STANDARD VERIFICATION RULE FILE COMPILATION MODULE COMPLETED.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/3
+
+--- CALIBRE_* ENVIRONMENT VARIABLES:
+
+CALIBRE_ATOMIC_LVHEAP=0
+CALIBRE_CMD_LINE='/opt/mentor/calibre/aoj_cal/pkgs/icv/pvt/calibre  -drc -hier -nowait _mim25.rul_'
+CALIBRE_HOME=/opt/mentor/calibre/aoj_cal
+CALIBRE_INITIAL_CMD_LINE='/opt/mentor/calibre/aoj_cal/bin/calibre -drc -hier -nowait _mim25.rul_'
+CALIBRE_READDB_LD_LIBRARY_PATH=/opt/mentor/calibre/aoj_cal/pkgs/icv/julia/0.6/lib/julia:/opt/mentor/calibre/aoj_cal/pkgs/icv/julia/0.6/lib:/opt/mentor/calibre/aoj_cal/shared/pkgs/icv/tools/calibre_client/lib/64:/opt/mentor/calibre/aoj_cal/pkgs/calibre_base/lib64:/opt/mentor/calibre/aoj_cal/pkgs/icv_lib/lib64:/opt/mentor/calibre/aoj_cal/pkgs/icv_qt5_comp/plugins:/opt/mentor/calibre/aoj_cal/pkgs/icv_oa/22.41p004/lib/linux_rhel68_gcc44x_64/opt:/opt/mentor/calibre/aoj_cal/shared/pkgs/icv/tools/calibre_client/lib/64:/opt/mentor/calibre/aoj_cal/shared/pkgs/icv/tools/calibre_client/lib/64
+CALIBRE_SKIP_OS_CHECKS=
+
+
+--- VARIABLES:
+    LargeNumber 1e+09
+    AP_THICKNESS 1.45
+
+--- SELECTED RULE CHECKS:
+    A.R.MIM.4:VIA7_CTM
+    A.R.MIM.4:VIA7_CBM
+    A.R.MIM.1:M8
+    A.R.MIM.2:M8_CTM
+    A.R.MIM.2:M8_CBM
+    A.R.MIM.3:M8_CTM
+    A.R.MIM.3:M8_CBM
+    A.R.MIM.4:VIA8_CTM
+    A.R.MIM.4:VIA8_CBM
+    A.R.MIM.5:VIA8_CTM
+    A.R.MIM.5:VIA8_CBM
+    A.R.MIM.1:M9
+    A.R.MIM.2:M9_CTM
+    A.R.MIM.2:M9_CBM
+    A.R.MIM.3:M9_CTM
+    A.R.MIM.3:M9_CBM
+    A.R.MIM.4:RV_CTM
+    A.R.MIM.4:RV_CBM
+    A.R.MIM.5:RV_CTM
+    A.R.MIM.5:RV_CBM
+    A.R.MIM.1:AP
+    A.R.MIM.2:AP_CTM
+    A.R.MIM.2:AP_CBM
+    A.R.MIM.3:AP_CTM
+    A.R.MIM.3:AP_CBM
+
+--- UNSELECTED RULE CHECKS (IMPLICIT):
+
+--- UNSELECTED RULE CHECKS (EXPLICIT):
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-----                  CALIBRE::DRC-H - LICENSING MODULE                   -----
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+//  Applying licensing policy...
+//  calibrehdrc license acquired.
+//  calibredrc license acquired.
+
+//  Licensed Products
+//  -----------------
+//  Base products running on 1 core:
+//  - DRC (Hierarchical)
+
+--- CALIBRE::DRC-H LICENSING MODULE COMPLETED.  CPU TIME = 0  REAL TIME = 0
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-----                   CALIBRE LAYOUT DATA INPUT MODULE                   -----
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--- LAYOUT SYSTEM = GDS
+--- LAYOUT MAGNIFICATION = 1
+
+--------------------------------------------------------------------------------
+-----                     GDS FILE SUMMARY INFORMATION                     -----
+--------------------------------------------------------------------------------
+
+GDS FILENAME:        layout.gds
+GDS VERSION:         5
+LIBRARY NAME:        myshkin
+LAST MODIFIED:       ON 2025/10/1 AT 15:43:40
+LAST ACCESSED:       ON 2025/10/1 AT 23:57:21
+DATABASE PRECISION:  0.001 user units per database unit
+PHYSICAL PRECISION:  1e-09 meters per database unit
+MAGNIFICATION:       1
+
+--------------------------------------------------------------------------------
+-----                 GDS INPUT DATA FOR INDIVIDUAL CELLS                  -----
+--------------------------------------------------------------------------------
+     CELL NAME                  PLACEMENTS   ARRAYS   POLYGONS    PATHS    TEXTS
+--------------------------------------------------------------------------------
+M1_PO_CDNS_759381041400                  0        0          4        0        0
+M1_OD_CDNS_759381041401                  0        0          4        0        0
+nch_25_macx_CDNS_759381041400            0        0         16        0       10
+pch_25_macx_CDNS_759381041401            0        0         22        0       10
+INVX1                                    5        0         14        4        0
+
+NOTE: UNUSED geometric data is present on the following layer/datatype pairs:
+    LAYER = 3 DATATYPE = 0
+    LAYER = 18 DATATYPE = 0
+    LAYER = 25 DATATYPE = 0
+    LAYER = 26 DATATYPE = 0
+    LAYER = 75 DATATYPE = 0
+    LAYER = 131 DATATYPE = 0
+    LAYER = 208 DATATYPE = 1
+
+NOTE: USED geometric data is present on the following layer/datatype pairs:
+    SIMPLE LAYER = 30
+        LAYER = 30 DATATYPE = 0
+    SIMPLE LAYER = 3231
+        LAYER = 6 DATATYPE = 0
+    SIMPLE LAYER = 3234
+        LAYER = 17 DATATYPE = 0
+    SIMPLE LAYER = 3932
+        LAYER = 31 DATATYPE = 0
+
+NOTE: The following required simple layers are EMPTY:
+    74
+    76
+    77
+    85
+    88
+    169
+    3026
+    3027
+    3028
+    3029
+    3030
+    3031
+    3149
+    3150
+    3232
+    3233
+    3801
+    3933
+    3934
+    3935
+    3936
+    3937
+    3938
+    4145
+
+--- LAYOUT DATABASE CONSTRUCTOR COMPLETED.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 3/4/4
+
+CONSTRUCTING HIERARCHICAL DATABASE
+    COPYING LAYOUT DATABASE
+    COPY COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    (P=5 A=0(0) AX=0(0) AY=0(0) D=0)
+    LITHO HEURISTICS OFF
+    MDP HEURISTICS OFF
+    ANTENNA HEURISTICS ON
+    CLONE STATE: LCTP(Y/N/U) = U LCRP(Y/N/U) = U LCXP(Y/N/U) = U LCYP(Y/N/U) = U LITHO(0/1/2) = 0 DFM(0/1/2) = 0
+    PROCESSING TEXT
+    ELIMINATING DUPLICATE TEXT
+    DUPLICATE TEXT ELIMINATION COMPLETE (0 -> 0 = 0). CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    ELIMINATING EMPTY CELLS
+    EMPTY CELL ELIMINATION COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    COMPUTING RECTANGULAR EXTENTS
+    RECTANGULAR EXTENTS COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    IDENTIFYING TOP LAYER CELLS
+    TOP LAYER CELL IDENTIFICATION COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    IDENTIFYING VERY SMALL CELLS
+        M1_OD_CDNS_759381041401
+        M1_PO_CDNS_759381041400
+    VERY SMALL CELL IDENTIFICATION COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    CHECKING ACUTE/SKEW/ANGLED/OFFGRID
+    CHECKING COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    ELIMINATING DUPLICATE PLACEMENTS
+    DUPLICATE PLACEMENT ELIMINATION COMPLETE (5 -> 5 = 0). CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    FLATTENING SELECTED LAYERS
+    EXPANDING UNIQUE ICV PLACEMENTS
+    COMPUTING RECTILINEAR EXTENTS
+    RECTILINEAR EXTENTS COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    SORTING PLACEMENTS VERTICALLY
+    SORT COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    ELIMINATING DUPLICATE PLACEMENTS
+    DUPLICATE PLACEMENT ELIMINATION COMPLETE (5 -> 5 = 0). CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    EXPANDING UNIQUE TRANSPARENT CELL PLACEMENTS
+      PRE-EXPAND COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    EXPANDING UNIQUE LIGHT-WEIGHT CELL PLACEMENTS
+      PRE-EXPAND COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+        M1_PO_CDNS_759381041400 in INVX1 at (0.19,1.58)
+        pch_25_macx_CDNS_759381041401 in INVX1 at (0.13,2.08)
+        nch_25_macx_CDNS_759381041400 in INVX1 at (0.13,0.53)
+    EXPAND COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    EXPANDING TRIVIAL CELL PLACEMENTS
+      PRE-EXPAND COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    EXPANDING VERY SPARSE ARRAY PLACEMENTS
+    EXPANDING LARGE CELL ARRAY PLACEMENTS
+    EXPANDING VERY SPARSE CELL PLACEMENTS
+      PRE-EXPAND COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    ELIMINATING DUPLICATE SUPER-HIERARCHICAL PLACEMENTS
+    DUPLICATE SUPER-HIERARCHICAL PLACEMENT ELIMINATION COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    EXPANDING DENSE OVERLAPS
+    EXPANDING UNIQUE META-CELL PLACEMENTS
+      PRE-EXPAND COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    EXPANDING DENSE OVERLAPS
+    MERGING CURVILINEAR GEOMETRY
+    CURVILINEAR MERGE COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    ANALYZING HIERARCHY FOR AUTOMATIC TURBO FLEX
+    ANALYSIS COMPLETE (TA=3.9882). CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    IDENTIFYING MULTI-CORE CELLS
+    INJECTING HIERARCHY
+      INJECTION PREP COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+      PRIORITY INJECTION COMPLETE CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+      INJECTION POST COMPLETE (0 0). CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    INJECTION COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    COMPUTING RECTANGULAR EXTENTS
+    RECTANGULAR EXTENTS COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    SORTING PLACEMENTS VERTICALLY
+    SORT COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    PUSHING VERY SMALL CELL PLACEMENTS
+    PUSH COMPLETE (P=0 PA1=0 PA2=0) CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    PUSHING TOP LAYER CELL PLACEMENTS
+    COMPUTING CELL-TO-WORLD TRANSFORMS
+    COMPUTE COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    SORTING PLACEMENTS BY CELL
+    SORT COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    PACKING HIERARCHY. (C=1 CN=1 P1=1 P2=0 XF=0) LVHEAP = 1/3/4
+    PACKING COMPLETE. (C=1 CN=1 P=1 XF=0) CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/3/4
+    COMPUTING PLACEMENT OVERLAPS
+    COMPUTE COMPLETE (OC=0 V1=0 V2=0 SC=0 FC=0). CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5
+    COMPUTING CELL OVERLAP AREAS
+    COMPUTE COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5
+    COMPUTING PLACEMENT / OVERLAP AREA INTERSECTIONS
+    COMPUTE COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5
+HIERARCHICAL DATABASE CONSTRUCTOR COMPLETE. CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5
+(C=1 CN=1 P=1 G=5 GH=1 D=0 TXT=0 XF=0 PO=0)
+
+--------------------------------------------------------------------------------
+-----                           VPC REQUIREMENTS                           -----
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-----               TEXT OBJECTS FOR CONNECTIVITY EXTRACTION               -----
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----                TEXT OBJECTS FOR WITH TEXT OPERATIONS                 -----
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----               TEXT OBJECTS FOR EXPAND TEXT OPERATIONS                -----
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----                  TEXT OBJECTS FOR CAPI OPERATIONS                    -----
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----             LAYER READ SUMMARY (SIMPLE LAYER GEOMETRIES)             -----
+--------------------------------------------------------------------------------
+SIMPLE LAYER      GEOMETRIES                                                    
+--------------------------------------------------------------------------------
+
+  30                    18
+  74                     0
+  76                     0
+  77                     0
+  85                     0
+  88                     0
+  169                    0
+  3026                   0
+  3027                   0
+  3028                   0
+  3029                   0
+  3030                   0
+  3031                   0
+  3149                   0
+  3150                   0
+  3231                   9
+  3232                   0
+  3233                   0
+  3234                   8
+  3801                   0
+  3932                  12
+  3933                   0
+  3934                   0
+  3935                   0
+  3936                   0
+  3937                   0
+  3938                   0
+  4145                   0
+
+--------------------------------------------------------------------------------
+-----            LAYER READ SUMMARY (ORIGINAL LAYER GEOMETRIES)            -----
+--------------------------------------------------------------------------------
+ORIGINAL LAYER       INITIAL GEOMETRIES                 FINAL GEOMETRIES        
+--------------------------------------------------------------------------------
+
+M8_NEW                     0 (0)                            0 (0)               
+M9_NEW                     0 (0)                            0 (0)               
+VIA7_NEW                   0 (0)                            0 (0)               
+VIA8_NEW                   0 (0)                            0 (0)               
+NDIFFi                     0 (0)                            0 (0)               
+PDIFFi                     0 (0)                            0 (0)               
+DIFFi                      9 (10)                           9 (10)              
+POLY                       8 (8)                            8 (8)               
+CO                        18 (20)                          18 (20)              
+CTM                        0 (0)                            0 (0)               
+CBM                        0 (0)                            0 (0)               
+RV                         0 (0)                            0 (0)               
+AP                         0 (0)                            0 (0)               
+M1i                       12 (13)                          12 (13)              
+VIA1i                      0 (0)                            0 (0)               
+M2i                        0 (0)                            0 (0)               
+VIA2i                      0 (0)                            0 (0)               
+M3i                        0 (0)                            0 (0)               
+VIA3i                      0 (0)                            0 (0)               
+M4i                        0 (0)                            0 (0)               
+VIA4i                      0 (0)                            0 (0)               
+M5i                        0 (0)                            0 (0)               
+VIA5i                      0 (0)                            0 (0)               
+M6i                        0 (0)                            0 (0)               
+VIA6i                      0 (0)                            0 (0)               
+M7i                        0 (0)                            0 (0)               
+CB                         0 (0)                            0 (0)               
+CBD                        0 (0)                            0 (0)               
+
+--------------------------------------------------------------------------------
+-----         LAYER READ SUMMARY (TEXT FOR CONNECTIVITY EXTRACTION)        -----
+--------------------------------------------------------------------------------
+SIMPLE LAYER              TEXTS                                                 
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----          LAYER READ SUMMARY (TEXT FOR WITH TEXT OPERATIONS)          -----
+--------------------------------------------------------------------------------
+SIMPLE LAYER              TEXTS                                                 
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----         LAYER READ SUMMARY (TEXT FOR EXPAND TEXT OPERATIONS)         -----
+--------------------------------------------------------------------------------
+SIMPLE LAYER              TEXTS                                                 
+--------------------------------------------------------------------------------
+
+
+--------------------------------------------------------------------------------
+-----            LAYER READ SUMMARY (TEXT FOR CAPI OPERATIONS)             -----
+--------------------------------------------------------------------------------
+SIMPLE LAYER              TEXTS                                                 
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-----               LAYOUT INPUT EXCEPTION SEVERITY SUMMARY                -----
+--------------------------------------------------------------------------------
+EXCEPTION                           SEVERITY  DEFAULT  COUNT        RDB         
+--------------------------------------------------------------------------------
+
+AREF_ANGLED                            0         Y       0         
+AREF_DIAGONAL                          0         Y       0         
+AREF_PLACEMENT                         0         Y       0         
+AREF_UNPLACED                          0         Y       0         
+ARRAY_PITCH_ZERO                       0         Y       0         
+REPETITION_TYPE_8_9_10_11              0         Y       0         
+DUPLICATE_CELL                         2         Y       0         
+EXCLUDE_CELL_NAME                      1         Y       0         
+EXPAND_CELL                            1         Y       0         
+EXTENT_CELL                            1         Y       0         
+INSIDE_CELL                            1         Y       0         
+MISSING_REFERENCE                      2         Y       0         
+RENAME_CELL                            0         Y       0         
+TOP_CELL_CHOSEN                        1         Y       0         
+TOP_CELL_MULTIPLE                      0         Y       0         
+LAYER_DIRECTORY                        2         Y       0         
+DATATYPE_MAP_SOURCE                    1         Y       0         
+DATATYPE_MAP_TARGET                    1         Y       0         
+EMPTY_BASE_LAYER                       1         Y       0         
+EMPTY_LAYER                            1         Y       24        
+LAYER_OVER_BUMP                        1         Y       0         
+UNUSED_DATA                            1         Y       7         
+MAGNIFICATION_AUTO                     0         Y       0         
+BOX_RECORD                             2         N       5         
+CIRCLE                                 2         Y       0         
+CIRCLE_RADIUS_ZERO                     1         Y       0         
+CTRAPEZOID_AREA_ZERO                   1         Y       0         
+CTRAPEZOID_DEGENERATE                  2         Y       0         
+TRAPEZOID_AREA_ZERO                    1         Y       0         
+TRAPEZOID_DEGENERATE                   2         Y       0         
+XGEOMETRY_UNSUPPORTED                  2         Y       0         
+NODE_RECORD                            0         Y       5         
+XELEMENT_UNSUPPORTED                   2         Y       0         
+XNAME_UNSUPPORTED                      2         Y       0         
+PATH_ACUTE                             1         Y       4         
+PATH_ANGLED                            1         Y       4         
+PATH_BIG                               0         Y       0         
+PATH_CIRCULAR                          1         Y       0         
+PATH_COINCIDENT                        1         Y       4         
+PATH_DEGENERATE                        2         Y       0         
+PATH_ENDSEGMENT_SHORT                  1         Y       0         
+PATH_EXTENSION                         2         Y       0         
+PATH_EXTENSION_MULTIPLE                1         Y       0         
+PATH_NEGATIVE                          1         Y       0         
+PATH_NONORIENTABLE                     2         Y       0         
+PATH_NONSIMPLE                         1         N       0         
+PATH_SPIKE                             2         Y       0         
+PATH_VARIABLE                          1         Y       0         
+PATH_WIDTH_ABSOLUTE                    2         Y       0         
+PATH_WIDTH_MULTIPLE                    1         Y       0         
+PATH_WIDTH_ODD                         0         Y       0         
+PATH_WIDTH_ZERO                        1         Y       0         
+PLACEMENT_ANGLE_ABSOLUTE               2         Y       0         
+PLACEMENT_MAGNIFICATION_ABSOLUTE       2         Y       0         
+PLACEMENT_MAGNIFICATION_NONPOSITIVE    2         Y       0         
+PLACEMENT_MAGNIFIED                    0         Y       0         
+PLACEMENT_MULTIPLE                     0         Y       0         
+LAYOUT_POLYGON                         1         Y       0         
+POLYGON_ACUTE                          0         Y       0         
+POLYGON_AREA_ZERO                      1         Y       0         
+POLYGON_DEGENERATE                     2         Y       0         
+POLYGON_IS_RECTANGLE                   0         Y       0         
+POLYGON_NONORIENTABLE                  2         Y       0         
+POLYGON_NONSIMPLE                      1         N       0         
+POLYGON_NOT_CLOSED                     0         Y       0         
+POLYGON_SPIKE                          0         Y       0         
+RECTANGLE_SIDE_ZERO                    1         Y       0         
+CELLNAME_NSTRING                       2         Y       0         
+PROPNAME_NSTRING                       2         Y       0         
+TEXT_LENGTH                            1         Y       0         
+TEXTSTRING_ASTRING                     2         Y       0         
+LAYOUT_TEXT                            1         Y       0         
+TEXT_BIG                               2         Y       0         
+TEXT_DEGENERATE                        2         Y       0         
+METRIC_INPUT_FILE                      2         Y       0         
+METRIC_RULE_FILE                       1         Y       0         
+PRECISION_LAYOUT                       2         Y       0         
+PRECISION_INPUT_FILE                   2         Y       0         
+PRECISION_RULE_FILE                    2         Y       0         
+
+
+--------------------------------------------------------------------------------
+-----                      CELL AND PLACEMENT SUMMARY                      -----
+--------------------------------------------------------------------------------
+CELL TYPE                 CELLS           PLACEMENTS       FLAT PLACEMENTS      
+--------------------------------------------------------------------------------
+
+USER                          2                    2                     2
+ VERY SMALL                   1                    2                     2
+ TOP LAYER                    0                    0                     0
+  VERY SMALL                  0                    0                     0
+PSEUDO                        0                    0                     0
+TOTAL                         2                    2                     2
+
+--------------------------------------------------------------------------------
+-----                   LAYOUT DATA INPUT MODULE SUMMARY                   -----
+--------------------------------------------------------------------------------
+
+--- TOTAL GEOMETRIES READ FROM SIMPLE LAYERS = 47
+--- TOTAL GEOMETRIES READ FROM ORIGINAL LAYERS = 47 (51)
+--- TOTAL GEOMETRIES WRITTEN TO ORIGINAL LAYERS = 47 (51)
+--- LVHEAP = 1/5/5
+--- DATABASE EXTENT = [ 0 , 0 ] -> [ 1 , 3.89 ]
+--- GEOMETRIC DEPTH = ALL
+--- TEXT DEPTH FOR CONNECTIVITY EXTRACTION = PRIMARY
+--- TOTAL TEXT OBJECTS FOR CONNECTIVITY EXTRACTION = 0 (0)
+--- TOTAL TEXT OBJECTS FOR WITH TEXT OPERATIONS = 0 (0)
+--- TOTAL TEXT OBJECTS FOR EXPAND TEXT OPERATIONS = 0 (0)
+--- TOTAL TEXT OBJECTS FOR CAPI OPERATIONS = 0 (0)
+--- GEOMETRY FLAGGING = ACUTE (YES)  SKEW (YES)  ANGLED (NO)  OFFGRID (YES)
+                        NONSIMPLE POLYGON (YES)  NONSIMPLE PATH (YES)
+--- PRIMARY CELL = INVX1
+--- EXCLUDED CELLS =
+--- LAYOUT BASE LAYER = (NOT SPECIFIED)
+--- LAYOUT TOP LAYER = M1i VIA1i M2i VIA2i M3i
+                       VIA3i M4i VIA4i M5i VIA5i
+                       M6i VIA6i
+--- LAYOUT IGNORE LAYER [INVERSE] = (NOT SPECIFIED)
+
+--- CALIBRE LAYOUT DATA INPUT MODULE COMPLETED.  CPU TIME = 0  REAL TIME = 0
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-----        CALIBRE::DRC-H - RESULTS DATABASE INITIALIZATION MODULE       -----
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--- GLOBAL DRC RESULTS DATABASE FILE = results/mim25.db (ASCII)
+--- GLOBAL MAXIMUM RESULTS PER RULECHECK = ALL
+--- GLOBAL MAXIMUM VERTICES PER RESULT POLYGON = 4096
+--- CHECK TEXT MAPPING = ALL
+--- KEEP EMPTY RULE CHECKS = NO
+--- DRC RESULTS MAGNIFICATION = 1
+--- DRC RESULTS DATABASE PRECISION = 1000
+
+--------------------------------------------------------------------------------
+-----              DRC RULECHECK -> RESULTS DATABASE MAPPING               -----
+--------------------------------------------------------------------------------
+                                                          DATA        MAX    MAX
+RULECHECK            RESULTS DATABASE         TYPE LAYER  TYPE     RESULT VERTEX
+--------------------------------------------------------------------------------
+A.R.MIM.4:VIA7_CTM   results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.4:VIA7_CBM   results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.1:M8         results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.2:M8_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.2:M8_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.3:M8_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.3:M8_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.4:VIA8_CTM   results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.4:VIA8_CBM   results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.5:VIA8_CTM   results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.5:VIA8_CBM   results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.1:M9         results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.2:M9_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.2:M9_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.3:M9_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.3:M9_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.4:RV_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.4:RV_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.5:RV_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.5:RV_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.1:AP         results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.2:AP_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.2:AP_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.3:AP_CTM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+A.R.MIM.3:AP_CBM     results/mim25.db        ASCII   N/A   N/A        ALL   4096
+
+--- CALIBRE::DRC-H RESULTS DATABASE INITIALIZATION MODULE COMPLETED.  CPU TIME = 0  REAL TIME = 0
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-----                   CALIBRE::DRC-H - EXECUTIVE MODULE                  -----
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+DIFFi = OR DIFFi
+----------------
+DIFFi (HIER TYP=1 CFG=0 HGC=5 FGC=6 HEC=20 FEC=24 IGC=1 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 1 OF 151  ELAPSED TIME = 1
+
+Original Layer DIFFi DELETED -- LVHEAP = 1/5/5
+
+PDIFFi = OR PDIFFi
+------------------
+PDIFFi (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 2 OF 151  ELAPSED TIME = 1
+
+Original Layer PDIFFi DELETED -- LVHEAP = 1/5/5
+
+TMP<1> = DIFFi OR PDIFFi
+------------------------
+TMP<1> (HIER TYP=1 CFG=0 HGC=5 FGC=6 HEC=20 FEC=24 IGC=1 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 3 OF 151  ELAPSED TIME = 1
+
+Layer DIFFi DELETED -- LVHEAP = 1/5/5
+
+Layer PDIFFi DELETED -- LVHEAP = 1/5/5
+
+NDIFFi = OR NDIFFi
+------------------
+NDIFFi (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 4 OF 151  ELAPSED TIME = 1
+
+Original Layer NDIFFi DELETED -- LVHEAP = 1/5/5
+
+OD = TMP<1> OR NDIFFi
+---------------------
+OD (HIER TYP=1 CFG=0 HGC=5 FGC=6 HEC=20 FEC=24 IGC=1 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 5 OF 151  ELAPSED TIME = 1
+
+Layer TMP<1> DELETED -- LVHEAP = 1/5/5
+
+Layer NDIFFi DELETED -- LVHEAP = 1/5/5
+
+POLY = OR POLY
+--------------
+POLY (HIER TYP=1 CFG=1 HGC=1 FGC=1 HEC=8 FEC=8 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 6 OF 151  ELAPSED TIME = 1
+
+Original Layer POLY DELETED -- LVHEAP = 1/5/5
+
+GATE = OD AND POLY
+------------------
+GATE (HIER TYP=1 CFG=3 HGC=2 FGC=2 HEC=8 FEC=8 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 7 OF 151  ELAPSED TIME = 1
+
+CO = OR CO
+----------
+CO (HIER TYP=1 CFG=1 HGC=18 FGC=20 HEC=72 FEC=80 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 8 OF 151  ELAPSED TIME = 1
+
+Original Layer CO DELETED -- LVHEAP = 1/5/5
+
+M1i = OR M1i
+------------
+M1i (HIER TYP=1 CFG=1 HGC=5 FGC=6 HEC=28 FEC=32 IGC=1 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 9 OF 151  ELAPSED TIME = 1
+
+Original Layer M1i DELETED -- LVHEAP = 1/5/5
+
+SD = OD NOT POLY
+----------------
+SD (HIER TYP=1 CFG=3 HGC=7 FGC=8 HEC=28 FEC=32 IGC=1 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 10 OF 151  ELAPSED TIME = 1
+
+Layer OD DELETED -- LVHEAP = 1/5/5
+
+VIA1i = OR VIA1i
+----------------
+VIA1i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 11 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA1i DELETED -- LVHEAP = 1/5/5
+
+M2i = OR M2i
+------------
+M2i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 12 OF 151  ELAPSED TIME = 1
+
+Original Layer M2i DELETED -- LVHEAP = 1/5/5
+
+VIA2i = OR VIA2i
+----------------
+VIA2i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 13 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA2i DELETED -- LVHEAP = 1/5/5
+
+M3i = OR M3i
+------------
+M3i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 14 OF 151  ELAPSED TIME = 1
+
+Original Layer M3i DELETED -- LVHEAP = 1/5/5
+
+VIA3i = OR VIA3i
+----------------
+VIA3i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 15 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA3i DELETED -- LVHEAP = 1/5/5
+
+M4i = OR M4i
+------------
+M4i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 16 OF 151  ELAPSED TIME = 1
+
+Original Layer M4i DELETED -- LVHEAP = 1/5/5
+
+VIA4i = OR VIA4i
+----------------
+VIA4i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 17 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA4i DELETED -- LVHEAP = 1/5/5
+
+M5i = OR M5i
+------------
+M5i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 18 OF 151  ELAPSED TIME = 1
+
+Original Layer M5i DELETED -- LVHEAP = 1/5/5
+
+VIA5i = OR VIA5i
+----------------
+VIA5i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 19 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA5i DELETED -- LVHEAP = 1/5/5
+
+M6i = OR M6i
+------------
+M6i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 20 OF 151  ELAPSED TIME = 1
+
+Original Layer M6i DELETED -- LVHEAP = 1/5/5
+
+VIA6i = OR VIA6i
+----------------
+VIA6i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 21 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA6i DELETED -- LVHEAP = 1/5/5
+
+M7i = OR M7i
+------------
+M7i (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 1/5/5  OPS COMPLETE = 22 OF 151  ELAPSED TIME = 1
+
+Original Layer M7i DELETED -- LVHEAP = 1/5/5
+
+CONNECT started.  LVHEAP = 1/5/5  ELAPSED TIME = 1
+
+CONNECT GATE POLY ...
+CONNECT M1i POLY SD BY CO ...
+CONNECT M2i M1i BY VIA1i ...
+CONNECT M3i M2i BY VIA2i ...
+CONNECT M4i M3i BY VIA3i ...
+CONNECT M5i M4i BY VIA4i ...
+CONNECT M6i M5i BY VIA5i ...
+CONNECT M7i M6i BY VIA6i ...
+
+NODE UPDATE: GATE
+NODE UPDATE: SD
+NODE UPDATE: M7i
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+Layer CO DELETED -- LVHEAP = 2/5/5
+
+Layer POLY DELETED -- LVHEAP = 2/5/5
+
+Layer VIA1i DELETED -- LVHEAP = 2/5/5
+
+Layer M1i DELETED -- LVHEAP = 2/5/5
+
+Layer VIA2i DELETED -- LVHEAP = 2/5/5
+
+Layer M2i DELETED -- LVHEAP = 2/5/5
+
+Layer VIA3i DELETED -- LVHEAP = 2/5/5
+
+Layer M3i DELETED -- LVHEAP = 2/5/5
+
+Layer VIA4i DELETED -- LVHEAP = 2/5/5
+
+Layer M4i DELETED -- LVHEAP = 2/5/5
+
+Layer VIA5i DELETED -- LVHEAP = 2/5/5
+
+Layer M5i DELETED -- LVHEAP = 2/5/5
+
+Layer VIA6i DELETED -- LVHEAP = 2/5/5
+
+Layer M6i DELETED -- LVHEAP = 2/5/5
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer M7i
+
+VIA7_NEW = OR VIA7_NEW
+----------------------
+VIA7_NEW (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 23 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA7_NEW DELETED -- LVHEAP = 2/5/5
+
+VIA7i = COPY VIA7_NEW
+---------------------
+VIA7i (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 24 OF 151  ELAPSED TIME = 1
+
+Layer VIA7_NEW DELETED -- LVHEAP = 2/5/5
+
+CTM = OR CTM
+------------
+CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 25 OF 151  ELAPSED TIME = 1
+
+Original Layer CTM DELETED -- LVHEAP = 2/5/5
+
+VCAP_CTM = VIA7i AND CTM
+------------------------
+VCAP_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 26 OF 151  ELAPSED TIME = 1
+
+TMP<2> = VIA7i NOT CTM
+----------------------
+TMP<2> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 27 OF 151  ELAPSED TIME = 1
+
+CBM = OR CBM
+------------
+CBM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 28 OF 151  ELAPSED TIME = 1
+
+Original Layer CBM DELETED -- LVHEAP = 2/5/5
+
+VCAP_CBM = TMP<2> AND CBM
+-------------------------
+VCAP_CBM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 29 OF 151  ELAPSED TIME = 1
+
+Layer TMP<2> DELETED -- LVHEAP = 2/5/5
+
+CTMc = COPY CTM
+---------------
+CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 30 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT VCAP_CTM CTM ...
+CONNECT VCAP_CBM CBM ...
+CONNECT CTMc CBM ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer M7i
+
+HIERARCHICAL CONNECTIVITY marked on layer VCAP_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer VCAP_CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+A.R.MIM.4:VIA7_CTM::<1> = NET AREA RATIO VCAP_CTM CTM > 0
+                                         [!!AREA(CTM)*(AREA(VCAP_CTM)/AREA(CTM)-20)]
+                                         RDB A.R.MIM.4.VIA7.CTM.rep VCAP_CTM CTM BY LAYER
+ACC_VIA7_CTM = NET AREA RATIO VCAP_CTM CTM > 0 ACCUMULATE
+-----------------------------------------------------------------------------------------
+A.R.MIM.4:VIA7_CTM::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+ACC_VIA7_CTM (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 32 OF 151  ELAPSED TIME = 1
+
+Layer VCAP_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.4:VIA7_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.4:VIA7_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.4:VIA7_CBM::<1> = NET AREA RATIO VCAP_CBM CTMc > 0
+                                         [!!AREA(CTMc)*(AREA(VCAP_CBM)/AREA(CTMc)-20)]
+                                         RDB A.R.MIM.4.VIA7.CBM.rep VCAP_CBM CTMc BY LAYER
+ACC_VIA7_CTMc = NET AREA RATIO VCAP_CBM CTMc > 0 ACCUMULATE
+------------------------------------------------------------------------------------------
+A.R.MIM.4:VIA7_CBM::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+ACC_VIA7_CTMc (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 34 OF 151  ELAPSED TIME = 1
+
+Layer VCAP_CBM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.4:VIA7_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.4:VIA7_CBM COMPLETED. Number of Results = 0 (0)
+
+M8_NEW = OR M8_NEW
+------------------
+M8_NEW (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 35 OF 151  ELAPSED TIME = 1
+
+Original Layer M8_NEW DELETED -- LVHEAP = 2/5/5
+
+M8i = COPY M8_NEW
+-----------------
+M8i (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 36 OF 151  ELAPSED TIME = 1
+
+Layer M8_NEW DELETED -- LVHEAP = 2/5/5
+
+VIA8_NEW = OR VIA8_NEW
+----------------------
+VIA8_NEW (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 37 OF 151  ELAPSED TIME = 1
+
+Original Layer VIA8_NEW DELETED -- LVHEAP = 2/5/5
+
+VIA8i = COPY VIA8_NEW
+---------------------
+VIA8i (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 38 OF 151  ELAPSED TIME = 1
+
+Layer VIA8_NEW DELETED -- LVHEAP = 2/5/5
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT M8i CTM CBM M7i BY VIA7i ...
+CONNECT VIA8i M8i ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+Layer VIA7i DELETED -- LVHEAP = 2/5/5
+
+Layer M7i DELETED -- LVHEAP = 2/5/5
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer VIA8i
+
+CTM_M8_W_OD = NET AREA RATIO CTM SD > 0
+---------------------------------------
+CTM_M8_W_OD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 39 OF 151  ELAPSED TIME = 1
+
+CBM_M8_W_OD = NET AREA RATIO CBM SD > 0
+---------------------------------------
+CBM_M8_W_OD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 40 OF 151  ELAPSED TIME = 1
+
+CTM_M8_W_GATE = NET AREA RATIO CTM GATE > 0
+-------------------------------------------
+CTM_M8_W_GATE (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 41 OF 151  ELAPSED TIME = 1
+
+CBM_M8_W_GATE = NET AREA RATIO CBM GATE > 0
+-------------------------------------------
+CBM_M8_W_GATE (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 42 OF 151  ELAPSED TIME = 1
+
+TMP<3> = CTM_M8_W_OD OR CTM_M8_W_GATE
+-------------------------------------
+TMP<3> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 43 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M8_W_GATE DELETED -- LVHEAP = 2/5/5
+
+CTM_M8_FLOAT = CTM NOT TMP<3>
+-----------------------------
+CTM_M8_FLOAT (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 44 OF 151  ELAPSED TIME = 1
+
+Layer TMP<3> DELETED -- LVHEAP = 2/5/5
+
+CTM_M8_FLOATING = COPY CTM_M8_FLOAT
+-----------------------------------
+CTM_M8_FLOATING (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 45 OF 151  ELAPSED TIME = 1
+
+TMP<4> = CBM_M8_W_OD OR CBM_M8_W_GATE
+-------------------------------------
+TMP<4> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 46 OF 151  ELAPSED TIME = 1
+
+Layer CBM_M8_W_GATE DELETED -- LVHEAP = 2/5/5
+
+CBM_M8_FLOAT = CBM NOT TMP<4>
+-----------------------------
+CBM_M8_FLOAT (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 47 OF 151  ELAPSED TIME = 1
+
+Layer TMP<4> DELETED -- LVHEAP = 2/5/5
+
+CBM_M8_FLOATING = COPY CBM_M8_FLOAT
+-----------------------------------
+CBM_M8_FLOATING (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 48 OF 151  ELAPSED TIME = 1
+
+MIM_M8_FLOATING_CTM = CTM_M8_FLOATING INTERACT CBM_M8_FLOATING
+--------------------------------------------------------------
+MIM_M8_FLOATING_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 49 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M8_FLOATING DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M8_FLOATING DELETED -- LVHEAP = 2/5/5
+
+MIM_M8_FLOATING_CTMc = COPY MIM_M8_FLOATING_CTM
+-----------------------------------------------
+MIM_M8_FLOATING_CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 50 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT MIM_M8_FLOATING_CTM CTM ...
+CONNECT MIM_M8_FLOATING_CTMc CBM ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer VIA8i
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M8_FLOATING_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M8_FLOATING_CTMc
+
+CTM_M8_CONNECTED = COPY CTM_M8_W_OD
+-----------------------------------
+CTM_M8_CONNECTED (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 51 OF 151  ELAPSED TIME = 1
+
+CBM_M8_CONNECTED = COPY CBM_M8_W_OD
+-----------------------------------
+CBM_M8_CONNECTED (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 52 OF 151  ELAPSED TIME = 1
+
+MIM_M8_CONNECTED_CTM = CTM_M8_CONNECTED INTERACT CBM_M8_CONNECTED
+-----------------------------------------------------------------
+MIM_M8_CONNECTED_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 53 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M8_CONNECTED DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M8_CONNECTED DELETED -- LVHEAP = 2/5/5
+
+MIM_M8_CONNECTED_CTMc = COPY MIM_M8_CONNECTED_CTM
+-------------------------------------------------
+MIM_M8_CONNECTED_CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 54 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT MIM_M8_CONNECTED_CTM CTM ...
+CONNECT MIM_M8_CONNECTED_CTMc CBM ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer VIA8i
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M8_FLOATING_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M8_FLOATING_CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M8_CONNECTED_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M8_CONNECTED_CTMc
+
+CTM_M8_1 = CTM_M8_FLOAT INTERACT CBM_M8_FLOAT
+---------------------------------------------
+CTM_M8_1 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 55 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M8_FLOAT DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M8_FLOAT DELETED -- LVHEAP = 2/5/5
+
+CTM_M8_2 = CTM_M8_W_OD INTERACT CBM_M8_W_OD
+-------------------------------------------
+CTM_M8_2 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 56 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M8_W_OD DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M8_W_OD DELETED -- LVHEAP = 2/5/5
+
+Bal_CTM_M8 = CTM_M8_1 OR CTM_M8_2
+---------------------------------
+Bal_CTM_M8 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 57 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M8_1 DELETED -- LVHEAP = 2/5/5
+
+Layer CTM_M8_2 DELETED -- LVHEAP = 2/5/5
+
+unBal_CTM_M8 = CTM NOT Bal_CTM_M8
+---------------------------------
+unBal_CTM_M8 (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 58 OF 151  ELAPSED TIME = 1
+
+Layer Bal_CTM_M8 DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M8::A = STAMP unBal_CTM_M8 BY CTM
+-------------------------------------------
+A.R.MIM.1:M8::A (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 59 OF 151  ELAPSED TIME = 1
+
+A.R.MIM.1:M8::<1> = NET AREA RATIO A.R.MIM.1:M8::A M8i > 0
+                                   [!!AREA(M8i)*AREA(A.R.MIM.1:M8::A)]
+----------------------------------------------------------------------
+A.R.MIM.1:M8::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 60 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M8::A DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:M8::<1> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M8::B = STAMP unBal_CTM_M8 BY CBM
+-------------------------------------------
+A.R.MIM.1:M8::B (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 61 OF 151  ELAPSED TIME = 1
+
+Layer unBal_CTM_M8 DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M8::<2> = NET AREA RATIO A.R.MIM.1:M8::B M8i > 0
+                                   [!!AREA(M8i)*AREA(A.R.MIM.1:M8::B)]
+----------------------------------------------------------------------
+A.R.MIM.1:M8::<2> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 62 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M8::B DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:M8::<2> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M8::<3> = NET AREA RATIO CTM M8i GATE SD > 0
+                                   [!!AREA(M8i)*!!AREA(CTM)*!!AREA(GATE)*!AREA(SD)]
+-----------------------------------------------------------------------------------
+A.R.MIM.1:M8::<3> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 63 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M8::<3> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M8::<4> = NET AREA RATIO CBM M8i GATE SD > 0
+                                   [!!AREA(M8i)*!!AREA(CBM)*!!AREA(GATE)*!AREA(SD)]
+-----------------------------------------------------------------------------------
+A.R.MIM.1:M8::<4> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 64 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M8::<4> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.1:M8 COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.2:M8_CTM::<1> = NET AREA RATIO M8i MIM_M8_FLOATING_CTM > 0
+                                       [!!AREA(MIM_M8_FLOATING_CTM)*(AREA(M8i)/AREA(MIM_M8_FLOATING_CTM)-1000)]
+                                       RDB A.R.MIM.2.M8.CTM.rep M8i MIM_M8_FLOATING_CTM BY LAYER
+---------------------------------------------------------------------------------------------------------------
+A.R.MIM.2:M8_CTM::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 65 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.2:M8_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.2:M8_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.2:M8_CBM::<1> = NET AREA RATIO M8i MIM_M8_FLOATING_CTMc > 0
+                                       [!!AREA(MIM_M8_FLOATING_CTMc)*(AREA(M8i)/AREA(MIM_M8_FLOATING_CTMc)-1000)]
+                                       RDB A.R.MIM.2.M8.CBM.rep M8i MIM_M8_FLOATING_CTMc BY LAYER
+-----------------------------------------------------------------------------------------------------------------
+A.R.MIM.2:M8_CBM::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 66 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.2:M8_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.2:M8_CBM COMPLETED. Number of Results = 0 (0)
+
+M8_DIO = NET AREA SD >= 0
+-------------------------
+M8_DIO (HIER TYP=1 CFG=3 HGC=7 FGC=8 HEC=28 FEC=32 IGC=1 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 67 OF 151  ELAPSED TIME = 1
+
+A.R.MIM.3:M8_CTM::<1> = NET AREA RATIO M8i MIM_M8_CONNECTED_CTM M8_DIO > 0
+                                       [!!AREA(MIM_M8_CONNECTED_CTM)*(AREA(M8i)/AREA(MIM_M8_CONNECTED_CTM)-AREA(M8_DIO)*8000-1000)]
+                                       RDB A.R.MIM.3.M8.CTM.rep M8i MIM_M8_CONNECTED_CTM M8_DIO BY LAYER
+-----------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.3:M8_CTM::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 68 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.3:M8_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.3:M8_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.3:M8_CBM::<1> = NET AREA RATIO M8i MIM_M8_CONNECTED_CTMc M8_DIO > 0
+                                       [!!AREA(MIM_M8_CONNECTED_CTMc)*(AREA(M8i)/AREA(MIM_M8_CONNECTED_CTMc)-AREA(M8_DIO)*8000-1000)]
+                                       RDB A.R.MIM.3.M8.CBM.rep M8i MIM_M8_CONNECTED_CTMc M8_DIO BY LAYER
+-------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.3:M8_CBM::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 69 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.3:M8_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.3:M8_CBM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.4:VIA8_CTM::<1> = NET AREA RATIO VIA8i MIM_M8_FLOATING_CTM CTM > 0 ACCUMULATE ACC_VIA7_CTM
+                                         [!!AREA(MIM_M8_FLOATING_CTM)*(AREA(VIA8i)/AREA(MIM_M8_FLOATING_CTM)-20)]
+                                         RDB A.R.MIM.4.VIA8.CTM.rep VIA8i MIM_M8_FLOATING_CTM BY LAYER
+-----------------------------------------------------------------------------------------------------------------
+A.R.MIM.4:VIA8_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 70 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M8_FLOATING_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.4:VIA8_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.4:VIA8_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.4:VIA8_CBM::<1> = NET AREA RATIO VIA8i MIM_M8_FLOATING_CTMc CTMc > 0 ACCUMULATE ACC_VIA7_CTMc
+                                         [!!AREA(MIM_M8_FLOATING_CTMc)*(AREA(VIA8i)/AREA(MIM_M8_FLOATING_CTMc)-20)]
+                                         RDB A.R.MIM.4.VIA8.CBM.rep VIA8i MIM_M8_FLOATING_CTMc BY LAYER
+-------------------------------------------------------------------------------------------------------------------
+A.R.MIM.4:VIA8_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 71 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M8_FLOATING_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.4:VIA8_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.4:VIA8_CBM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.5:VIA8_CTM::<1> = NET AREA RATIO VIA8i MIM_M8_CONNECTED_CTM M8_DIO CTM > 0 ACCUMULATE ACC_VIA7_CTM
+                                         [!!AREA(MIM_M8_CONNECTED_CTM)*(AREA(VIA8i)/AREA(MIM_M8_CONNECTED_CTM)-AREA(M8_DIO)*210-20)]
+                                         RDB A.R.MIM.5.VIA8.CTM.rep VIA8i MIM_M8_CONNECTED_CTM M8_DIO BY LAYER
+------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.5:VIA8_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 72 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M8_CONNECTED_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.5:VIA8_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.5:VIA8_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.5:VIA8_CBM::<1> = NET AREA RATIO VIA8i MIM_M8_CONNECTED_CTMc M8_DIO CTMc > 0 ACCUMULATE ACC_VIA7_CTMc
+                                         [!!AREA(MIM_M8_CONNECTED_CTMc)*(AREA(VIA8i)/AREA(MIM_M8_CONNECTED_CTMc)-AREA(M8_DIO)*210-20)]
+                                         RDB A.R.MIM.5.VIA8.CBM.rep VIA8i MIM_M8_CONNECTED_CTMc M8_DIO BY LAYER
+--------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.5:VIA8_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 73 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M8_CONNECTED_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer M8_DIO DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.5:VIA8_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.5:VIA8_CBM COMPLETED. Number of Results = 0 (0)
+
+ACC_M8_CTM = NET AREA RATIO M8i CTM > 0 ACCUMULATE
+--------------------------------------------------
+ACC_M8_CTM (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 74 OF 151  ELAPSED TIME = 1
+
+ACC_M8_CTMc = NET AREA RATIO M8i CTMc > 0 ACCUMULATE
+----------------------------------------------------
+ACC_M8_CTMc (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 75 OF 151  ELAPSED TIME = 1
+
+ACC_VIA8_CTM = NET AREA RATIO VIA8i CTM > 0 ACCUMULATE ACC_VIA7_CTM
+-------------------------------------------------------------------
+ACC_VIA8_CTM (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 76 OF 151  ELAPSED TIME = 1
+
+Layer ACC_VIA7_CTM DELETED -- LVHEAP = 2/5/5
+
+ACC_VIA8_CTMc = NET AREA RATIO VIA8i CTMc > 0 ACCUMULATE ACC_VIA7_CTMc
+----------------------------------------------------------------------
+ACC_VIA8_CTMc (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 77 OF 151  ELAPSED TIME = 1
+
+Layer ACC_VIA7_CTMc DELETED -- LVHEAP = 2/5/5
+
+M9_NEW = OR M9_NEW
+------------------
+M9_NEW (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 78 OF 151  ELAPSED TIME = 1
+
+Original Layer M9_NEW DELETED -- LVHEAP = 2/5/5
+
+M9i = COPY M9_NEW
+-----------------
+M9i (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 79 OF 151  ELAPSED TIME = 1
+
+Layer M9_NEW DELETED -- LVHEAP = 2/5/5
+
+RV = OR RV
+----------
+RV (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 80 OF 151  ELAPSED TIME = 1
+
+Original Layer RV DELETED -- LVHEAP = 2/5/5
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT M9i M8i BY VIA8i ...
+CONNECT RV M9i ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+Layer VIA8i DELETED -- LVHEAP = 2/5/5
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer M9i
+
+HIERARCHICAL CONNECTIVITY marked on layer RV
+
+CTM_M9_W_OD = NET AREA RATIO CTM SD > 0
+---------------------------------------
+CTM_M9_W_OD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 81 OF 151  ELAPSED TIME = 1
+
+CBM_M9_W_OD = NET AREA RATIO CBM SD > 0
+---------------------------------------
+CBM_M9_W_OD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 82 OF 151  ELAPSED TIME = 1
+
+CTM_M9_W_GATE = NET AREA RATIO CTM GATE > 0
+-------------------------------------------
+CTM_M9_W_GATE (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 83 OF 151  ELAPSED TIME = 1
+
+CBM_M9_W_GATE = NET AREA RATIO CBM GATE > 0
+-------------------------------------------
+CBM_M9_W_GATE (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 84 OF 151  ELAPSED TIME = 1
+
+TMP<5> = CTM_M9_W_OD OR CTM_M9_W_GATE
+-------------------------------------
+TMP<5> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 85 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M9_W_GATE DELETED -- LVHEAP = 2/5/5
+
+CTM_M9_FLOAT = CTM NOT TMP<5>
+-----------------------------
+CTM_M9_FLOAT (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 86 OF 151  ELAPSED TIME = 1
+
+Layer TMP<5> DELETED -- LVHEAP = 2/5/5
+
+CTM_M9_FLOATING = COPY CTM_M9_FLOAT
+-----------------------------------
+CTM_M9_FLOATING (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 87 OF 151  ELAPSED TIME = 1
+
+TMP<6> = CBM_M9_W_OD OR CBM_M9_W_GATE
+-------------------------------------
+TMP<6> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 88 OF 151  ELAPSED TIME = 1
+
+Layer CBM_M9_W_GATE DELETED -- LVHEAP = 2/5/5
+
+CBM_M9_FLOAT = CBM NOT TMP<6>
+-----------------------------
+CBM_M9_FLOAT (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 89 OF 151  ELAPSED TIME = 1
+
+Layer TMP<6> DELETED -- LVHEAP = 2/5/5
+
+CBM_M9_FLOATING = COPY CBM_M9_FLOAT
+-----------------------------------
+CBM_M9_FLOATING (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 90 OF 151  ELAPSED TIME = 1
+
+MIM_M9_FLOATING_CTM = CTM_M9_FLOATING INTERACT CBM_M9_FLOATING
+--------------------------------------------------------------
+MIM_M9_FLOATING_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 91 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M9_FLOATING DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M9_FLOATING DELETED -- LVHEAP = 2/5/5
+
+MIM_M9_FLOATING_CTMc = COPY MIM_M9_FLOATING_CTM
+-----------------------------------------------
+MIM_M9_FLOATING_CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 92 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT MIM_M9_FLOATING_CTM CTM ...
+CONNECT MIM_M9_FLOATING_CTMc CBM ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer M9i
+
+HIERARCHICAL CONNECTIVITY marked on layer RV
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M9_FLOATING_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M9_FLOATING_CTMc
+
+CTM_M9_CONNECTED = COPY CTM_M9_W_OD
+-----------------------------------
+CTM_M9_CONNECTED (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 93 OF 151  ELAPSED TIME = 1
+
+CBM_M9_CONNECTED = COPY CBM_M9_W_OD
+-----------------------------------
+CBM_M9_CONNECTED (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 94 OF 151  ELAPSED TIME = 1
+
+MIM_M9_CONNECTED_CTM = CTM_M9_CONNECTED INTERACT CBM_M9_CONNECTED
+-----------------------------------------------------------------
+MIM_M9_CONNECTED_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 95 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M9_CONNECTED DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M9_CONNECTED DELETED -- LVHEAP = 2/5/5
+
+MIM_M9_CONNECTED_CTMc = COPY MIM_M9_CONNECTED_CTM
+-------------------------------------------------
+MIM_M9_CONNECTED_CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 96 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT MIM_M9_CONNECTED_CTM CTM ...
+CONNECT MIM_M9_CONNECTED_CTMc CBM ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer M9i
+
+HIERARCHICAL CONNECTIVITY marked on layer RV
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M9_FLOATING_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M9_FLOATING_CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M9_CONNECTED_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_M9_CONNECTED_CTMc
+
+CTM_M9_1 = CTM_M9_FLOAT INTERACT CBM_M9_FLOAT
+---------------------------------------------
+CTM_M9_1 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 97 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M9_FLOAT DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M9_FLOAT DELETED -- LVHEAP = 2/5/5
+
+CTM_M9_2 = CTM_M9_W_OD INTERACT CBM_M9_W_OD
+-------------------------------------------
+CTM_M9_2 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 98 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M9_W_OD DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_M9_W_OD DELETED -- LVHEAP = 2/5/5
+
+Bal_CTM_M9 = CTM_M9_1 OR CTM_M9_2
+---------------------------------
+Bal_CTM_M9 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 99 OF 151  ELAPSED TIME = 1
+
+Layer CTM_M9_1 DELETED -- LVHEAP = 2/5/5
+
+Layer CTM_M9_2 DELETED -- LVHEAP = 2/5/5
+
+unBal_CTM_M9 = CTM NOT Bal_CTM_M9
+---------------------------------
+unBal_CTM_M9 (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 100 OF 151  ELAPSED TIME = 1
+
+Layer Bal_CTM_M9 DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M9::A = STAMP unBal_CTM_M9 BY CTM
+-------------------------------------------
+A.R.MIM.1:M9::A (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 101 OF 151  ELAPSED TIME = 1
+
+A.R.MIM.1:M9::<1> = NET AREA RATIO A.R.MIM.1:M9::A M9i > 0
+                                   [!!AREA(M9i)*AREA(A.R.MIM.1:M9::A)]
+----------------------------------------------------------------------
+A.R.MIM.1:M9::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 102 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M9::A DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:M9::<1> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M9::B = STAMP unBal_CTM_M9 BY CBM
+-------------------------------------------
+A.R.MIM.1:M9::B (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 103 OF 151  ELAPSED TIME = 1
+
+Layer unBal_CTM_M9 DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M9::<2> = NET AREA RATIO A.R.MIM.1:M9::B M9i > 0
+                                   [!!AREA(M9i)*AREA(A.R.MIM.1:M9::B)]
+----------------------------------------------------------------------
+A.R.MIM.1:M9::<2> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 104 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M9::B DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:M9::<2> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M9::<3> = NET AREA RATIO CTM M9i GATE SD > 0
+                                   [!!AREA(M9i)*!!AREA(CTM)*!!AREA(GATE)*!AREA(SD)]
+-----------------------------------------------------------------------------------
+A.R.MIM.1:M9::<3> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 105 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M9::<3> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:M9::<4> = NET AREA RATIO CBM M9i GATE SD > 0
+                                   [!!AREA(M9i)*!!AREA(CBM)*!!AREA(GATE)*!AREA(SD)]
+-----------------------------------------------------------------------------------
+A.R.MIM.1:M9::<4> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 106 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:M9::<4> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.1:M9 COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.2:M9_CTM::<1> = NET AREA RATIO M9i M8i MIM_M9_FLOATING_CTM CTM > 0 ACCUMULATE ACC_M8_CTM
+                                       [!!AREA(M9i)*!!AREA(MIM_M9_FLOATING_CTM)*(AREA(M9i)/AREA(MIM_M9_FLOATING_CTM)-1000)-(!AREA(M9i)+!AREA(MIM_M9_FLOATING_CTM))*1000000000]
+                                       RDB A.R.MIM.2.M9.CTM.rep M9i M8i MIM_M9_FLOATING_CTM BY LAYER
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.2:M9_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 107 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.2:M9_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.2:M9_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.2:M9_CBM::<1> = NET AREA RATIO M9i M8i MIM_M9_FLOATING_CTMc CTMc > 0 ACCUMULATE ACC_M8_CTMc
+                                       [!!AREA(M9i)*!!AREA(MIM_M9_FLOATING_CTMc)*(AREA(M9i)/AREA(MIM_M9_FLOATING_CTMc)-1000)-(!AREA(M9i)+!AREA(MIM_M9_FLOATING_CTMc))*1000000000]
+                                       RDB A.R.MIM.2.M9.CBM.rep M9i M8i MIM_M9_FLOATING_CTMc CTMc BY LAYER
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.2:M9_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 108 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.2:M9_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.2:M9_CBM COMPLETED. Number of Results = 0 (0)
+
+M9_DIO = NET AREA SD >= 0
+-------------------------
+M9_DIO (HIER TYP=1 CFG=3 HGC=7 FGC=8 HEC=28 FEC=32 IGC=1 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 109 OF 151  ELAPSED TIME = 1
+
+A.R.MIM.3:M9_CTM::<1> = NET AREA RATIO M9i M8i MIM_M9_CONNECTED_CTM M9_DIO CTM > 0 ACCUMULATE ACC_M8_CTM
+                                       [!!AREA(M9i)*!!AREA(MIM_M9_CONNECTED_CTM)*(AREA(M9i)/AREA(MIM_M9_CONNECTED_CTM)-AREA(M9_DIO)*8000-1000)-(!AREA(M9i)+!AREA(MIM_M9_CONNECTED_CTM))*1000000000]
+                                       RDB A.R.MIM.3.M9.CTM.rep M9i M8i MIM_M9_CONNECTED_CTM M9_DIO CTM BY LAYER
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.3:M9_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 110 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.3:M9_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.3:M9_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.3:M9_CBM::<1> = NET AREA RATIO M9i M8i MIM_M9_CONNECTED_CTMc M9_DIO CTMc > 0 ACCUMULATE ACC_M8_CTMc
+                                       [!!AREA(M9i)*!!AREA(MIM_M9_CONNECTED_CTMc)*(AREA(M9i)/AREA(MIM_M9_CONNECTED_CTMc)-AREA(M9_DIO)*8000-1000)-(!AREA(M9i)+!AREA(MIM_M9_CONNECTED_CTMc))*1000000000]
+                                       RDB A.R.MIM.3.M9.CBM.rep M9i M8i MIM_M9_CONNECTED_CTMc M9_DIO CTMc BY LAYER
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.3:M9_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 111 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.3:M9_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.3:M9_CBM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.4:RV_CTM::<1> = NET AREA RATIO RV MIM_M9_FLOATING_CTM CTM > 0 ACCUMULATE ACC_VIA8_CTM
+                                       [!!AREA(MIM_M9_FLOATING_CTM)*(AREA(RV)/AREA(MIM_M9_FLOATING_CTM)-20)]
+                                       RDB A.R.MIM.4.RV.CTM.rep RV MIM_M9_FLOATING_CTM BY LAYER
+------------------------------------------------------------------------------------------------------------
+A.R.MIM.4:RV_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 112 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M9_FLOATING_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.4:RV_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.4:RV_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.4:RV_CBM::<1> = NET AREA RATIO RV MIM_M9_FLOATING_CTMc CTMc > 0 ACCUMULATE ACC_VIA8_CTMc
+                                       [!!AREA(MIM_M9_FLOATING_CTMc)*(AREA(RV)/AREA(MIM_M9_FLOATING_CTMc)-20)]
+                                       RDB A.R.MIM.4.RV.CBM.rep RV MIM_M9_FLOATING_CTMc BY LAYER
+--------------------------------------------------------------------------------------------------------------
+A.R.MIM.4:RV_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 113 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M9_FLOATING_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.4:RV_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.4:RV_CBM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.5:RV_CTM::<1> = NET AREA RATIO RV MIM_M9_CONNECTED_CTM M9_DIO CTM > 0 ACCUMULATE ACC_VIA8_CTM
+                                       [!!AREA(MIM_M9_CONNECTED_CTM)*(AREA(RV)/AREA(MIM_M9_CONNECTED_CTM)-AREA(M9_DIO)*210-20)]
+                                       RDB A.R.MIM.5.RV.CTM.rep RV MIM_M9_CONNECTED_CTM M9_DIO BY LAYER
+-------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.5:RV_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 114 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M9_CONNECTED_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer ACC_VIA8_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.5:RV_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.5:RV_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.5:RV_CBM::<1> = NET AREA RATIO RV MIM_M9_CONNECTED_CTMc M9_DIO CTMc > 0 ACCUMULATE ACC_VIA8_CTMc
+                                       [!!AREA(MIM_M9_CONNECTED_CTMc)*(AREA(RV)/AREA(MIM_M9_CONNECTED_CTMc)-AREA(M9_DIO)*210-20)]
+                                       RDB A.R.MIM.5.RV.CBM.rep RV MIM_M9_CONNECTED_CTMc M9_DIO BY LAYER
+---------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.5:RV_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 115 OF 151  ELAPSED TIME = 1
+
+Layer MIM_M9_CONNECTED_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer M9_DIO DELETED -- LVHEAP = 2/5/5
+
+Layer ACC_VIA8_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.5:RV_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.5:RV_CBM COMPLETED. Number of Results = 0 (0)
+
+ACC_M9_CTM = NET AREA RATIO M9i CTM > 0 ACCUMULATE ACC_M8_CTM
+-------------------------------------------------------------
+ACC_M9_CTM (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 116 OF 151  ELAPSED TIME = 1
+
+Layer ACC_M8_CTM DELETED -- LVHEAP = 2/5/5
+
+ACC_M9_CTMc = NET AREA RATIO M9i CTMc > 0 ACCUMULATE ACC_M8_CTMc
+----------------------------------------------------------------
+ACC_M9_CTMc (HIER-FMF TYP=1 CFG=2 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 117 OF 151  ELAPSED TIME = 1
+
+Layer ACC_M8_CTMc DELETED -- LVHEAP = 2/5/5
+
+AP = OR AP
+----------
+AP (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 118 OF 151  ELAPSED TIME = 1
+
+Original Layer AP DELETED -- LVHEAP = 2/5/5
+
+CB = OR CB
+----------
+CB (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 119 OF 151  ELAPSED TIME = 1
+
+Original Layer CB DELETED -- LVHEAP = 2/5/5
+
+CBD = OR CBD
+------------
+CBD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 120 OF 151  ELAPSED TIME = 1
+
+Original Layer CBD DELETED -- LVHEAP = 2/5/5
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT AP M9i BY RV ...
+CONNECT AP M9i BY CB ...
+CONNECT AP M9i BY CBD ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+Layer RV DELETED -- LVHEAP = 2/5/5
+
+Layer CB DELETED -- LVHEAP = 2/5/5
+
+Layer CBD DELETED -- LVHEAP = 2/5/5
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer M9i
+
+HIERARCHICAL CONNECTIVITY marked on layer AP
+
+CTM_AP_W_OD = NET AREA RATIO CTM SD > 0
+---------------------------------------
+CTM_AP_W_OD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 121 OF 151  ELAPSED TIME = 1
+
+CBM_AP_W_OD = NET AREA RATIO CBM SD > 0
+---------------------------------------
+CBM_AP_W_OD (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 122 OF 151  ELAPSED TIME = 1
+
+CTM_AP_W_GATE = NET AREA RATIO CTM GATE > 0
+-------------------------------------------
+CTM_AP_W_GATE (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 123 OF 151  ELAPSED TIME = 1
+
+CBM_AP_W_GATE = NET AREA RATIO CBM GATE > 0
+-------------------------------------------
+CBM_AP_W_GATE (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 124 OF 151  ELAPSED TIME = 1
+
+TMP<7> = CTM_AP_W_OD OR CTM_AP_W_GATE
+-------------------------------------
+TMP<7> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 125 OF 151  ELAPSED TIME = 1
+
+Layer CTM_AP_W_GATE DELETED -- LVHEAP = 2/5/5
+
+CTM_AP_FLOAT = CTM NOT TMP<7>
+-----------------------------
+CTM_AP_FLOAT (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 126 OF 151  ELAPSED TIME = 1
+
+Layer TMP<7> DELETED -- LVHEAP = 2/5/5
+
+CTM_AP_FLOATING = COPY CTM_AP_FLOAT
+-----------------------------------
+CTM_AP_FLOATING (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 127 OF 151  ELAPSED TIME = 1
+
+TMP<8> = CBM_AP_W_OD OR CBM_AP_W_GATE
+-------------------------------------
+TMP<8> (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 128 OF 151  ELAPSED TIME = 1
+
+Layer CBM_AP_W_GATE DELETED -- LVHEAP = 2/5/5
+
+CBM_AP_FLOAT = CBM NOT TMP<8>
+-----------------------------
+CBM_AP_FLOAT (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 129 OF 151  ELAPSED TIME = 1
+
+Layer TMP<8> DELETED -- LVHEAP = 2/5/5
+
+CBM_AP_FLOATING = COPY CBM_AP_FLOAT
+-----------------------------------
+CBM_AP_FLOATING (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 130 OF 151  ELAPSED TIME = 1
+
+MIM_AP_FLOATING_CTM = CTM_AP_FLOATING INTERACT CBM_AP_FLOATING
+--------------------------------------------------------------
+MIM_AP_FLOATING_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 131 OF 151  ELAPSED TIME = 1
+
+Layer CTM_AP_FLOATING DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_AP_FLOATING DELETED -- LVHEAP = 2/5/5
+
+MIM_AP_FLOATING_CTMc = COPY MIM_AP_FLOATING_CTM
+-----------------------------------------------
+MIM_AP_FLOATING_CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 132 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT MIM_AP_FLOATING_CTM CTM ...
+CONNECT MIM_AP_FLOATING_CTMc CBM ...
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer M9i
+
+HIERARCHICAL CONNECTIVITY marked on layer AP
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_AP_FLOATING_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_AP_FLOATING_CTMc
+
+CTM_AP_CONNECTED = COPY CTM_AP_W_OD
+-----------------------------------
+CTM_AP_CONNECTED (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 133 OF 151  ELAPSED TIME = 1
+
+CBM_AP_CONNECTED = COPY CBM_AP_W_OD
+-----------------------------------
+CBM_AP_CONNECTED (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 134 OF 151  ELAPSED TIME = 1
+
+MIM_AP_CONNECTED_CTM = CTM_AP_CONNECTED INTERACT CBM_AP_CONNECTED
+-----------------------------------------------------------------
+MIM_AP_CONNECTED_CTM (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 135 OF 151  ELAPSED TIME = 1
+
+Layer CTM_AP_CONNECTED DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_AP_CONNECTED DELETED -- LVHEAP = 2/5/5
+
+MIM_AP_CONNECTED_CTMc = COPY MIM_AP_CONNECTED_CTM
+-------------------------------------------------
+MIM_AP_CONNECTED_CTMc (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 136 OF 151  ELAPSED TIME = 1
+
+CONNECT started.  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+CONNECT MIM_AP_CONNECTED_CTM CTM ...
+CONNECT MIM_AP_CONNECTED_CTMc CBM ...
+
+NODE UPDATE: CTM
+NODE UPDATE: CBM
+NODE UPDATE: MIM_AP_CONNECTED_CTM
+NODE UPDATE: MIM_AP_CONNECTED_CTMc
+
+NODE UPDATE completed. CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5
+
+CONNECT completed.  CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  ELAPSED TIME = 1
+
+NETS = 5 (2)  EPINS = 1 (2)
+
+HIERARCHICAL CONNECTIVITY marked on layer GATE
+
+HIERARCHICAL CONNECTIVITY marked on layer SD
+
+HIERARCHICAL CONNECTIVITY marked on layer CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer CBM
+
+HIERARCHICAL CONNECTIVITY marked on layer CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer M8i
+
+HIERARCHICAL CONNECTIVITY marked on layer M9i
+
+HIERARCHICAL CONNECTIVITY marked on layer AP
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_AP_FLOATING_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_AP_FLOATING_CTMc
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_AP_CONNECTED_CTM
+
+HIERARCHICAL CONNECTIVITY marked on layer MIM_AP_CONNECTED_CTMc
+
+CTM_AP_1 = CTM_AP_FLOAT INTERACT CBM_AP_FLOAT
+---------------------------------------------
+CTM_AP_1 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 137 OF 151  ELAPSED TIME = 1
+
+Layer CTM_AP_FLOAT DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_AP_FLOAT DELETED -- LVHEAP = 2/5/5
+
+CTM_AP_2 = CTM_AP_W_OD INTERACT CBM_AP_W_OD
+-------------------------------------------
+CTM_AP_2 (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 138 OF 151  ELAPSED TIME = 1
+
+Layer CTM_AP_W_OD DELETED -- LVHEAP = 2/5/5
+
+Layer CBM_AP_W_OD DELETED -- LVHEAP = 2/5/5
+
+Bal_CTM_AP = CTM_AP_1 OR CTM_AP_2
+---------------------------------
+Bal_CTM_AP (HIER TYP=1 CFG=0 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 139 OF 151  ELAPSED TIME = 1
+
+Layer CTM_AP_1 DELETED -- LVHEAP = 2/5/5
+
+Layer CTM_AP_2 DELETED -- LVHEAP = 2/5/5
+
+unBal_CTM_AP = CTM NOT Bal_CTM_AP
+---------------------------------
+unBal_CTM_AP (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 140 OF 151  ELAPSED TIME = 1
+
+Layer Bal_CTM_AP DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:AP::A = STAMP unBal_CTM_AP BY CTM
+-------------------------------------------
+A.R.MIM.1:AP::A (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 141 OF 151  ELAPSED TIME = 1
+
+A.R.MIM.1:AP::<1> = NET AREA RATIO A.R.MIM.1:AP::A AP > 0
+                                   [!!AREA(AP)*AREA(A.R.MIM.1:AP::A)]
+---------------------------------------------------------------------
+A.R.MIM.1:AP::<1> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 142 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:AP::A DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:AP::<1> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:AP::B = STAMP unBal_CTM_AP BY CBM
+-------------------------------------------
+A.R.MIM.1:AP::B (HIER TYP=1 CFG=3 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 143 OF 151  ELAPSED TIME = 1
+
+Layer unBal_CTM_AP DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:AP::<2> = NET AREA RATIO A.R.MIM.1:AP::B AP > 0
+                                   [!!AREA(AP)*AREA(A.R.MIM.1:AP::B)]
+---------------------------------------------------------------------
+A.R.MIM.1:AP::<2> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 144 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:AP::B DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:AP::<2> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:AP::<3> = NET AREA RATIO CTM AP GATE SD > 0
+                                   [!!AREA(AP)*!!AREA(CTM)*!!AREA(GATE)*!AREA(SD)]
+----------------------------------------------------------------------------------
+A.R.MIM.1:AP::<3> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 145 OF 151  ELAPSED TIME = 1
+
+Layer A.R.MIM.1:AP::<3> DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.1:AP::<4> = NET AREA RATIO CBM AP GATE SD > 0
+                                   [!!AREA(AP)*!!AREA(CBM)*!!AREA(GATE)*!AREA(SD)]
+----------------------------------------------------------------------------------
+A.R.MIM.1:AP::<4> (HIER TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 146 OF 151  ELAPSED TIME = 1
+
+Layer CBM DELETED -- LVHEAP = 2/5/5
+
+Layer GATE DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.1:AP::<4> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.1:AP COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.2:AP_CTM::<1> = NET AREA RATIO AP M9i M8i MIM_AP_FLOATING_CTM CTM > 0 ACCUMULATE ACC_M9_CTM
+                                       [!!AREA(AP)*!!AREA(MIM_AP_FLOATING_CTM)*(PERIMETER(AP)*1.45/AREA(MIM_AP_FLOATING_CTM)-1000)-(!AREA(AP)+!AREA(MIM_AP_FLOATING_CTM))*1000000000]
+                                       RDB A.R.MIM.2.AP.CTM.rep AP M9i M8i MIM_AP_FLOATING_CTM CTM BY LAYER
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.2:AP_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 147 OF 151  ELAPSED TIME = 1
+
+Layer MIM_AP_FLOATING_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.2:AP_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.2:AP_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.2:AP_CBM::<1> = NET AREA RATIO AP M9i M8i MIM_AP_FLOATING_CTMc CTMc > 0 ACCUMULATE ACC_M9_CTMc
+                                       [!!AREA(AP)*!!AREA(MIM_AP_FLOATING_CTMc)*(PERIMETER(AP)*1.45/AREA(MIM_AP_FLOATING_CTMc)-1000)-(!AREA(AP)+!AREA(MIM_AP_FLOATING_CTMc))*1000000000]
+                                       RDB A.R.MIM.2.AP.CBM.rep AP M9i M8i MIM_AP_FLOATING_CTMc CTMc BY LAYER
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.2:AP_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 148 OF 151  ELAPSED TIME = 1
+
+Layer MIM_AP_FLOATING_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.2:AP_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.2:AP_CBM COMPLETED. Number of Results = 0 (0)
+
+AP_DIO = NET AREA SD >= 0
+-------------------------
+AP_DIO (HIER TYP=1 CFG=3 HGC=7 FGC=8 HEC=28 FEC=32 IGC=1 VHC=T VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 149 OF 151  ELAPSED TIME = 1
+
+Layer SD DELETED -- LVHEAP = 2/5/5
+
+A.R.MIM.3:AP_CTM::<1> = NET AREA RATIO AP M9i M8i MIM_AP_CONNECTED_CTM AP_DIO CTM > 0 ACCUMULATE ACC_M9_CTM
+                                       [!!AREA(AP)*!!AREA(MIM_AP_CONNECTED_CTM)*(PERIMETER(AP)*1.45/AREA(MIM_AP_CONNECTED_CTM)-AREA(AP_DIO)*8000-1000)-(!AREA(AP)+!AREA(MIM_AP_CONNECTED_CTM))*1000000000]
+                                       RDB A.R.MIM.3.AP.CTM.rep AP M9i M8i MIM_AP_CONNECTED_CTM AP_DIO CTM BY LAYER
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.3:AP_CTM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 150 OF 151  ELAPSED TIME = 1
+
+Layer MIM_AP_CONNECTED_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer CTM DELETED -- LVHEAP = 2/5/5
+
+Layer ACC_M9_CTM DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.3:AP_CTM::<1> DELETED -- LVHEAP = 2/5/5
+
+DRC RuleCheck A.R.MIM.3:AP_CTM COMPLETED. Number of Results = 0 (0)
+
+A.R.MIM.3:AP_CBM::<1> = NET AREA RATIO AP M9i M8i MIM_AP_CONNECTED_CTMc AP_DIO CTMc > 0 ACCUMULATE ACC_M9_CTMc
+                                       [!!AREA(AP)*!!AREA(MIM_AP_CONNECTED_CTMc)*(PERIMETER(AP)*1.45/AREA(MIM_AP_CONNECTED_CTMc)-AREA(AP_DIO)*8000-1000)-(!AREA(AP)+!AREA(MIM_AP_CONNECTED_CTMc))*1000000000]
+                                       RDB A.R.MIM.3.AP.CBM.rep AP M9i M8i MIM_AP_CONNECTED_CTMc AP_DIO CTMc BY LAYER
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+A.R.MIM.3:AP_CBM::<1> (HIER-FMF TYP=1 CFG=1 HGC=0 FGC=0 HEC=0 FEC=0 IGC=0 VHC=F VPC=F)
+CPU TIME = 0  REAL TIME = 0  LVHEAP = 2/5/5  OPS COMPLETE = 151 OF 151  ELAPSED TIME = 1
+
+Layer AP DELETED -- LVHEAP = 2/5/5
+
+Layer M9i DELETED -- LVHEAP = 2/5/5
+
+Layer M8i DELETED -- LVHEAP = 2/5/5
+
+Layer MIM_AP_CONNECTED_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer AP_DIO DELETED -- LVHEAP = 2/5/5
+
+Layer CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer ACC_M9_CTMc DELETED -- LVHEAP = 2/5/5
+
+Layer A.R.MIM.3:AP_CBM::<1> DELETED -- LVHEAP = 2/5/5
+
+WRITE to ASCII DRC Results Database results/mim25.db COMPLETED
+
+DRC RuleCheck A.R.MIM.3:AP_CBM COMPLETED. Number of Results = 0 (0)
+
+Cumulative ONE-LAYER BOOLEAN Time: CPU = 0  REAL = 0
+Cumulative TWO-LAYER BOOLEAN Time: CPU = 0  REAL = 0
+Cumulative POLYGON TOPOLOGICAL Time: CPU = 0  REAL = 0
+Cumulative STAMP Time: CPU = 0  REAL = 0
+Cumulative NET AREA (RATIO) Time: CPU = 0  REAL = 0
+Cumulative MISCELLANEOUS Time: CPU = 0  REAL = 0
+Cumulative CONNECT Time: CPU = 0  REAL = 0
+Cumulative RDB Time: CPU = 0  REAL = 0
+
+--- CALIBRE::DRC-H EXECUTIVE MODULE COMPLETED.  CPU TIME = 0  REAL TIME = 0
+--- TOTAL RULECHECKS EXECUTED = 25
+--- TOTAL RESULTS GENERATED = 0 (0)
+--- DRC RESULTS DATABASE FILE = results/mim25.db (ASCII)
+
+--- CALIBRE::DRC-H COMPLETED - Wed Oct  1 23:57:23 2025
+--- TOTAL CPU TIME = 0  REAL TIME = 0
+--- PROCESSOR COUNT = 1
+--- SUMMARY REPORT FILE = results/mim25.rpt
+
+
+*** DRC run finished with exit code 0 ***
+

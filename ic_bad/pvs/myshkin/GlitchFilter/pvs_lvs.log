@@ -1,0 +1,945 @@
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-10-02 14:26:01 11498 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: -lvs -qrc_data -ui_data -layout_top_cell GlitchFilter -source_top_cell GlitchFilter -gds ./pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.gds -source_cdl /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added -source_cdl /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl -source_cdl /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi -source_cdl ./pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.schematic.cdl -check_schematic -run_dir ./pvs/myshkin/GlitchFilter ./pvs/myshkin/GlitchFilter/pvs.lvs
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2012.78 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 15085 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 72 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic
+INFO:    Run directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/pegasus-1759433161-atlas-11498
+INFO:    PVL parsing results:
+WARNING: Cmd-line override: LAYOUT_PRIMARY "GlitchFilter";
+WARNING: Cmd-line override: LAYOUT_PATH "/home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.gds";
+WARNING: Cmd-line override: SCHEMATIC_PRIMARY "GlitchFilter";
+WARNING: Cmd-line override: SCHEMATIC_PATH "/opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added";
+WARNING: option -drc is skipped at line 691 in file /home/mseminario2/chips/myshkin/ic/./pvs/myshkin/GlitchFilter/pvs.lvs
+WARNING: REPORT_SUMMARY -drc is skipped at line 692 in file /home/mseminario2/chips/myshkin/ic/./pvs/myshkin/GlitchFilter/pvs.lvs
+
+INFO:    See "/home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/pegasus-1759433161-atlas-11498/pvl.log" for additional details.
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_LVS' version 22.1
+INFO:    License checkout successful ... 2025-10-02 14:26:03
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_16nm' version 22.1
+INFO:    License checkout successful ... 2025-10-02 14:26:03
+WARNING: Neither hcell nor -automatch option is specified.
+INFO:    Worker 0 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2249.78 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 15075 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 72 MB
+INFO:    LVS report file: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/lvs.rep 
+INFO:    Extracted layout netlist: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/svdb/cap_devices.net (Runset Evaluator)) 
+INFO:    Setting LAYOUT_PATH to: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.gds 
+INFO:    Setting LAYOUT_PRIMARY to: GlitchFilter 
+INFO:    Setting SCHEMATIC_PATH to: /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added 
+INFO:    Setting SCHEMATIC_PRIMARY to: GlitchFilter 
+
+INFO:    Gdsii input summary
+         File name: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.gds
+         File size: 120832
+         Version: 5.0
+         Library name: myshkin
+         Last modified: 2025-10-2 13:53:36
+         Last accessed: 2025-10-2 14:26:1
+         Database unit in user units: 0.001
+         Database unit in meters: 1e-09
+         Magnification: 1 
+
+INFO:    Cell Summary:
+         ----------------------------------------------------------------------------
+             CELL                          INSTANCE    GEOMETRY      LABELS        HREF        FREF
+         ----------------------------------------------------------------------------
+         M2_M1_CDNS_759433161710                  0           4           0          64          64
+         M2_M1_CDNS_759433161711                  0           6           0          10          10
+         M2_M1_CDNS_759433161712                  0           6           0          10          10
+         M2_M1_CDNS_759433161713                  0           7           0           8           8
+         M3_M2_CDNS_759433161714                  0           7           0           8           8
+         M1_PO_CDNS_759433161715                  0           4           0           2          64
+         M1_PO_CDNS_759433161716                  0           4           0           5         160
+         M1_NW_CDNS_759433161717                  0           6           0           1          32
+         nch_hvtx_CDNS_759433161710               0          12           0           1          32
+         pch_hvt_CDNS_759433161711                0          13           0           3          96
+         FhcHyXqFJTnai                            0           0           0           1          32
+         pch_hvt_CDNS_759433161712                0          15           0           1          32
+         GlitchFilterBiEdge                      14         199           8          32          32
+         GlitchFilter                           132         986         132           1           1
+         ----------------------------------------------------------------------------
+         TOTAL CELL = 14;  INSTANCE = 146;  GEOMETRY = 1269;  LABEL = 140
+
+INFO:    Layer Summary:
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       HPN      HTC        FPN       FTC
+         ----------------------------------------------------------------------------
+         ODI                                            262144        45         0      1570         0
+         DNW                                                 1         0         0         0         0
+         NW                                                  3         9         0       321         0
+         NT_Ni                                              11         0         0         0         0
+         OD33                                               15         0         0         0         0
+         OD18                                               16         0         0         0         0
+         POI                                                17        59         0      2240         0
+         PP                                                 25        10         0       353         0
+         NP                                                 26        16         0       450         0
+         OD1T                                               27         0         0         0         0
+         RPO                                                29         0         0         0         0
+         CO                                                 30       980         0      2327         0
+         M1                                                 31        85         0      2600         0
+         M2                                                 32        15         0       110         0
+         M3                                                 33         5         0        12         0
+         M4                                                 34         0         0         0         0
+         M5                                                 35         0         0         0         0
+         M6                                                 36         0         0         0         0
+         M7                                                 37         0         0         0         0
+         M8                                                 38         0         0         0         0
+         M9                                                 39         0         0         0         0
+         RODMY                                              49         0         0         0         0
+         VIA1i                                              51        15         0       248         0
+         VIA2i                                              52         5         0        40         0
+         VIA3i                                              53         0         0         0         0
+         VIA4i                                              54         0         0         0         0
+         VIA5i                                              55         0         0         0         0
+         VIA6i                                              56         0         0         0         0
+         VIA7i                                              57         0         0         0         0
+         VIA8i                                              58         0         0         0         0
+         VTH_N                                              67        15         0       387         0
+         VTH_P                                              68        10         0       384         0
+         CB                                                 76         0         0         0         0
+         ctm                                                77         0         0         0         0
+         CAP1TDMY                                           78         0         0         0         0
+         RV                                                 85         0         0         0         0
+         cbm                                                88         0         0         0         0
+         blc                                               101         0         0         0         0
+         crown                                             102         0         0         0         0
+         p3                                                103         0         0         0         0
+         PSUB2                                             111         0         0         0         0
+         RH                                                117         0         0         0         0
+         DIODMY                                            119         0         0         0         0
+         ESD3                                              147         0         0         0         0
+         RFDMY                                             161         0         0         0         0
+         CBD                                               169         0         0         0         0
+         MAC                                              3000         0         0         0         0
+         RDKDMY                                           3001         0         0         0         0
+         DOD                                              3004         0         0         0         0
+         VTL_N                                            3006         0         0         0         0
+         VTL_P                                            3008         0         0         0         0
+         DPO                                              3013         0         0         0         0
+         ILVT                                             3015         0         0         0         0
+         OD25                                             3016         0         0         0         0
+         OD25_33                                          3017         0         0         0         0
+         OD25_18                                          3018         0         0         0         0
+         OD25_28                                          3019         0         0         0         0
+         EDRAM_DECAP                                      3025         0         0         0         0
+         DUM1                                             3032         0         0         0         0
+         DUM2                                             3035         0         0         0         0
+         DUM3                                             3038         0         0         0         0
+         DUM4                                             3041         0         0         0         0
+         DUM5                                             3044         0         0         0         0
+         DUM6                                             3047         0         0         0         0
+         DUM7                                             3050         0         0         0         0
+         DUM8                                             3052         0         0         0         0
+         DUM9                                             3054         0         0         0         0
+         SRM                                              3055         0         0         0         0
+         SRM10                                            3056         0         0         0         0
+         SRM11                                            3057         0         0         0         0
+         SRM12                                            3058         0         0         0         0
+         SRM13                                            3059         0         0         0         0
+         SRM14                                            3060         0         0         0         0
+         SRM16                                            3062         0         0         0         0
+         SRM17                                            3063         0         0         0         0
+         SRM_ULL                                          3065         0         0         0         0
+         VAR                                              3076         0         0         0         0
+         SBDDMY                                           3078         0         0         0         0
+         SBD3TDMY                                         3079         0         0         0         0
+         CB2                                              3085         0         0         0         0
+         AP                                               3086         0         0         0         0
+         DAP                                              3087         0         0         0         0
+         OD5                                              3089         0         0         0         0
+         OD6                                              3090         0         0         0         0
+         HVNWi                                            3093         0         0         0         0
+         HVPWi                                            3094         0         0         0         0
+         HVPSUB                                           3095         0         0         0         0
+         VTUL_N                                           3100         0         0         0         0
+         VTUL_P                                           3101         0         0         0         0
+         HVD_P                                            3102         0         0         0         0
+         HVD_NW                                           3103         0         0         0         0
+         HVD_DPW                                          3104         0         0         0         0
+         UHVT_N                                           3106         0         0         0         0
+         UHVT_P                                           3107         0         0         0         0
+         EHVT_N                                           3108         0         0         0         0
+         EHVT_P                                           3109         0         0         0         0
+         ELVT_N                                           3110         0         0         0         0
+         ELVT_P                                           3111         0         0         0         0
+         BJTDMY                                           3113         0         0         0         0
+         BJTDMY1                                          3114         0         0         0         0
+         BJT4TDMY                                         3115         0         0         0         0
+         NWDMYi                                           3123         0         0         0         0
+         NWDMY1                                           3124         0         0         0         0
+         RPDMYi                                           3125         0         0         0         0
+         RPDMY1                                           3126         0         0         0         0
+         DIO3TDMY                                         3128         0         0         0         0
+         MOMDMY0                                          3129         0         0         0         0
+         MOMDMY1                                          3130         0         0         0         0
+         MOMDMY2                                          3131         0         0         0         0
+         MOMDMY3                                          3132         0         0         0         0
+         MOMDMY4                                          3133         0         0         0         0
+         MOMDMY5                                          3134         0         0         0         0
+         MOMDMY6                                          3135         0         0         0         0
+         MOMDMY7                                          3136         0         0         0         0
+         MOMDMY_2T                                        3137         0         0         0         0
+         MOMDMY22                                         3139         0         0         0         0
+         MOMDMY23                                         3140         0         0         0         0
+         MOMDMY24                                         3141         0         0         0         0
+         MOMDMY25                                         3142         0         0         0         0
+         RFDMY5T                                          3144         0         0         0         0
+         RFDMY6T                                          3145         0         0         0         0
+         RFDMYUD                                          3146         0         0         0         0
+         RMDMY1                                           3147         0         0         0         0
+         RMDMY2                                           3148         0         0         0         0
+         RMDMY3                                           3149         0         0         0         0
+         RMDMY4                                           3150         0         0         0         0
+         RMDMY5                                           3151         0         0         0         0
+         RMDMY6                                           3152         0         0         0         0
+         RMDMY7                                           3153         0         0         0         0
+         RMDMY8                                           3154         0         0         0         0
+         RMDMY9                                           3155         0         0         0         0
+         RMDMYAP                                          3156         0         0         0         0
+         SRAMPSGT                                         3158         0         0         0         0
+         SRAMTIMER                                        3160         0         0         0         0
+         IND_STD                                          3161         0         0         0         0
+         IND_SYM                                          3162         0         0         0         0
+         IND_CT                                           3163         0         0         0         0
+         IND_STD_MUA                                      3164         0         0         0         0
+         IND_SYM_MUA                                      3165         0         0         0         0
+         IND_CT_MUA                                       3166         0         0         0         0
+         IND_RADi                                         3173         0         0         0         0
+         IND_GDIS                                         3174         0         0         0         0
+         IND_NR                                           3175         0         0         0         0
+         IND_MP                                           3176         0         0         0         0
+         IND_D4                                           3177         0         0         0         0
+         IND_S                                            3178         0         0         0         0
+         TLDMY                                            3182         0         0         0         0
+         DRAIN                                            3183         0         0         0         0
+         CAP1P5                                           3186         0         0         0         0
+         CAP2P0                                           3187         0         0         0         0
+         CAP1P0                                           3188         0         0         0         0
+         MIM_3TDMY                                        3189         0         0         0         0
+         CTMDMYUD                                         3190         0         0         0         0
+         PROBEM1                                          3191         0         0         0         0
+         PROBEM2                                          3192         0         0         0         0
+         PROBEM3                                          3193         0         0         0         0
+         PROBEM4                                          3194         0         0         0         0
+         PROBEM5                                          3195         0         0         0         0
+         PROBEM6                                          3196         0         0         0         0
+         PROBEM7                                          3197         0         0         0         0
+         DCO                                              3199         0         0         0         0
+         TCDDMY                                           3200         0         0         0         0
+         VTDN                                             3201         0         0         0         0
+         RFPADDMY                                         3202         0         0         0         0
+         RFPADDMY1                                        3203         0         0         0         0
+         RFPADDMY2                                        3204         0         0         0         0
+         RFPADDMY3                                        3205         0         0         0         0
+         HIADMY                                           3206         0         0         0         0
+         CAP_IMP                                          3208         0         0         0         0
+         CELLM                                            3209         0         0         0         0
+         MEDP                                             3210         0         0         0         0
+         RBCDMY                                           3214         0         0         0         0
+         DIFRBC                                           3215         0         0         0         0
+         XCLRBC                                           3216         0         0         0         0
+         CASRBC                                           3217         0         0         0         0
+         GTDMY1                                           3218         0         0         0         0
+         GTDMY2                                           3219         0         0         0         0
+         RFESDMY                                          3220         0         0         0         0
+         IND_TEXT                                         3224         0         0         0         0
+         RBC_TEXT                                         3226         0         0         0         0
+         metal1_text                                      3227         0         8         0       256
+         metal10_text                                     3228         0         0         0         0
+         metal2_text                                      3229         0       128         0       128
+         metal3_text                                      3230         0         4         0         4
+         metal4_text                                      3231         0         0         0         0
+         metal5_text                                      3232         0         0         0         0
+         metal6_text                                      3233         0         0         0         0
+         metal7_text                                      3234         0         0         0         0
+         metal8_text                                      3235         0         0         0         0
+         metal9_text                                      3236         0         0         0         0
+         poly_text                                        3237         0         0         0         0
+         sline_m9m_text                                   3238         0         0         0         0
+         sline_m9p_text                                   3239         0         0         0         0
+         ----------------------------------------------------------------------------
+
+INFO:    CHIP EXTENT: 0 0 31195 18870
+
+
+INFO:    Ports ...
+         ========================================================================
+
+INFO:    Texts For Connectivity ...
+         ========================================================================
+         IrqGlitchy<9> (8.585, 6.475) 3229 GlitchFilter
+         IrqGlitchy<9> (8.585, 6.380) 3229 GlitchFilter
+         IrqGlitchy<8> (1.450, 6.475) 3229 GlitchFilter
+         IrqGlitchy<8> (1.450, 6.380) 3229 GlitchFilter
+         IrqGlitchy<7> (22.855, 4.350) 3229 GlitchFilter
+         IrqGlitchy<7> (22.855, 4.345) 3229 GlitchFilter
+         IrqGlitchy<6> (15.720, 4.350) 3229 GlitchFilter
+         IrqGlitchy<6> (15.720, 4.345) 3229 GlitchFilter
+         IrqGlitchy<5> (8.585, 4.350) 3229 GlitchFilter
+         IrqGlitchy<5> (8.585, 4.345) 3229 GlitchFilter
+         IrqGlitchy<4> (1.450, 4.350) 3229 GlitchFilter
+         IrqGlitchy<4> (1.450, 4.345) 3229 GlitchFilter
+         IrqGlitchy<3> (22.855, 2.415) 3229 GlitchFilter
+         IrqGlitchy<3> (22.855, 2.320) 3229 GlitchFilter
+         IrqGlitchy<31> (22.855, 16.530) 3229 GlitchFilter
+         IrqGlitchy<31> (22.855, 16.525) 3229 GlitchFilter
+         IrqGlitchy<30> (15.720, 16.530) 3229 GlitchFilter
+         IrqGlitchy<30> (15.720, 16.525) 3229 GlitchFilter
+         IrqGlitchy<2> (15.720, 2.415) 3229 GlitchFilter
+         IrqGlitchy<2> (15.720, 2.320) 3229 GlitchFilter
+         IrqGlitchy<29> (8.585, 16.530) 3229 GlitchFilter
+         IrqGlitchy<29> (8.585, 16.525) 3229 GlitchFilter
+         IrqGlitchy<28> (1.450, 16.530) 3229 GlitchFilter
+         IrqGlitchy<28> (1.450, 16.525) 3229 GlitchFilter
+         IrqGlitchy<27> (22.855, 14.595) 3229 GlitchFilter
+         IrqGlitchy<27> (22.855, 14.500) 3229 GlitchFilter
+         IrqGlitchy<26> (15.720, 14.595) 3229 GlitchFilter
+         IrqGlitchy<26> (15.720, 14.500) 3229 GlitchFilter
+         IrqGlitchy<25> (8.585, 14.595) 3229 GlitchFilter
+         IrqGlitchy<25> (8.585, 14.500) 3229 GlitchFilter
+         IrqGlitchy<24> (1.450, 14.595) 3229 GlitchFilter
+         IrqGlitchy<24> (1.450, 14.500) 3229 GlitchFilter
+         IrqGlitchy<23> (22.855, 12.470) 3229 GlitchFilter
+         IrqGlitchy<23> (22.855, 12.465) 3229 GlitchFilter
+         IrqGlitchy<22> (15.720, 12.470) 3229 GlitchFilter
+         IrqGlitchy<22> (15.720, 12.465) 3229 GlitchFilter
+         IrqGlitchy<21> (8.585, 12.470) 3229 GlitchFilter
+         IrqGlitchy<21> (8.585, 12.465) 3229 GlitchFilter
+         IrqGlitchy<20> (1.450, 12.470) 3229 GlitchFilter
+         IrqGlitchy<20> (1.450, 12.460) 3229 GlitchFilter
+         IrqGlitchy<1> (8.585, 2.415) 3229 GlitchFilter
+         IrqGlitchy<1> (8.585, 2.320) 3229 GlitchFilter
+         IrqGlitchy<19> (22.855, 10.535) 3229 GlitchFilter
+         IrqGlitchy<19> (22.855, 10.440) 3229 GlitchFilter
+         IrqGlitchy<18> (15.720, 10.535) 3229 GlitchFilter
+         IrqGlitchy<18> (15.720, 10.440) 3229 GlitchFilter
+         IrqGlitchy<17> (8.585, 10.535) 3229 GlitchFilter
+         IrqGlitchy<17> (8.585, 10.440) 3229 GlitchFilter
+         IrqGlitchy<16> (1.450, 10.535) 3229 GlitchFilter
+         IrqGlitchy<16> (1.450, 10.440) 3229 GlitchFilter
+         IrqGlitchy<15> (22.855, 8.410) 3229 GlitchFilter
+         IrqGlitchy<15> (22.855, 8.405) 3229 GlitchFilter
+         IrqGlitchy<14> (15.720, 8.410) 3229 GlitchFilter
+         IrqGlitchy<14> (15.720, 8.405) 3229 GlitchFilter
+         IrqGlitchy<13> (8.585, 8.410) 3229 GlitchFilter
+         IrqGlitchy<13> (8.585, 8.405) 3229 GlitchFilter
+         IrqGlitchy<12> (1.450, 8.410) 3229 GlitchFilter
+         IrqGlitchy<12> (1.450, 8.405) 3229 GlitchFilter
+         IrqGlitchy<11> (22.855, 6.475) 3229 GlitchFilter
+         IrqGlitchy<11> (22.855, 6.380) 3229 GlitchFilter
+         IrqGlitchy<10> (15.720, 6.475) 3229 GlitchFilter
+         IrqGlitchy<10> (15.720, 6.380) 3229 GlitchFilter
+         IrqGlitchy<0> (1.450, 2.415) 3229 GlitchFilter
+         IrqGlitchy<0> (1.450, 2.320) 3229 GlitchFilter
+         IrqDeglitched<9> (14.975, 6.475) 3229 GlitchFilter
+         IrqDeglitched<9> (14.975, 6.380) 3229 GlitchFilter
+         IrqDeglitched<8> (7.840, 6.475) 3229 GlitchFilter
+         IrqDeglitched<8> (7.840, 6.380) 3229 GlitchFilter
+         IrqDeglitched<7> (29.245, 4.350) 3229 GlitchFilter
+         IrqDeglitched<7> (29.245, 4.345) 3229 GlitchFilter
+         IrqDeglitched<6> (22.110, 4.350) 3229 GlitchFilter
+         IrqDeglitched<6> (22.110, 4.345) 3229 GlitchFilter
+         IrqDeglitched<5> (14.975, 4.350) 3229 GlitchFilter
+         IrqDeglitched<5> (14.975, 4.345) 3229 GlitchFilter
+         IrqDeglitched<4> (7.840, 4.350) 3229 GlitchFilter
+         IrqDeglitched<4> (7.840, 4.345) 3229 GlitchFilter
+         IrqDeglitched<3> (29.245, 2.415) 3229 GlitchFilter
+         IrqDeglitched<3> (29.245, 2.320) 3229 GlitchFilter
+         IrqDeglitched<31> (29.245, 16.530) 3229 GlitchFilter
+         IrqDeglitched<31> (29.245, 16.525) 3229 GlitchFilter
+         IrqDeglitched<30> (22.110, 16.530) 3229 GlitchFilter
+         IrqDeglitched<30> (22.110, 16.525) 3229 GlitchFilter
+         IrqDeglitched<2> (22.110, 2.415) 3229 GlitchFilter
+         IrqDeglitched<2> (22.110, 2.320) 3229 GlitchFilter
+         IrqDeglitched<29> (14.975, 16.530) 3229 GlitchFilter
+         IrqDeglitched<29> (14.975, 16.525) 3229 GlitchFilter
+         IrqDeglitched<28> (7.840, 16.530) 3229 GlitchFilter
+         IrqDeglitched<28> (7.840, 16.525) 3229 GlitchFilter
+         IrqDeglitched<27> (29.245, 14.595) 3229 GlitchFilter
+         IrqDeglitched<27> (29.245, 14.500) 3229 GlitchFilter
+         IrqDeglitched<26> (22.110, 14.595) 3229 GlitchFilter
+         IrqDeglitched<26> (22.110, 14.500) 3229 GlitchFilter
+         IrqDeglitched<25> (14.975, 14.595) 3229 GlitchFilter
+         IrqDeglitched<25> (14.975, 14.500) 3229 GlitchFilter
+         IrqDeglitched<24> (7.840, 14.595) 3229 GlitchFilter
+         IrqDeglitched<24> (7.840, 14.500) 3229 GlitchFilter
+         IrqDeglitched<23> (29.245, 12.470) 3229 GlitchFilter
+         IrqDeglitched<23> (29.245, 12.465) 3229 GlitchFilter
+         IrqDeglitched<22> (22.110, 12.470) 3229 GlitchFilter
+         IrqDeglitched<22> (22.110, 12.465) 3229 GlitchFilter
+         IrqDeglitched<21> (14.975, 12.470) 3229 GlitchFilter
+         IrqDeglitched<21> (14.975, 12.465) 3229 GlitchFilter
+         IrqDeglitched<20> (7.840, 12.470) 3229 GlitchFilter
+         IrqDeglitched<20> (7.840, 12.465) 3229 GlitchFilter
+         IrqDeglitched<1> (14.975, 2.415) 3229 GlitchFilter
+         IrqDeglitched<1> (14.975, 2.320) 3229 GlitchFilter
+         IrqDeglitched<19> (29.245, 10.535) 3229 GlitchFilter
+         IrqDeglitched<19> (29.245, 10.440) 3229 GlitchFilter
+         IrqDeglitched<18> (22.110, 10.535) 3229 GlitchFilter
+         IrqDeglitched<18> (22.110, 10.440) 3229 GlitchFilter
+         IrqDeglitched<17> (14.975, 10.535) 3229 GlitchFilter
+         IrqDeglitched<17> (14.975, 10.440) 3229 GlitchFilter
+         IrqDeglitched<16> (7.840, 10.535) 3229 GlitchFilter
+         IrqDeglitched<16> (7.840, 10.440) 3229 GlitchFilter
+         IrqDeglitched<15> (29.245, 8.410) 3229 GlitchFilter
+         IrqDeglitched<15> (29.245, 8.405) 3229 GlitchFilter
+         IrqDeglitched<14> (22.110, 8.410) 3229 GlitchFilter
+         IrqDeglitched<14> (22.110, 8.405) 3229 GlitchFilter
+         IrqDeglitched<13> (14.975, 8.410) 3229 GlitchFilter
+         IrqDeglitched<13> (14.975, 8.405) 3229 GlitchFilter
+         IrqDeglitched<12> (7.840, 8.410) 3229 GlitchFilter
+         IrqDeglitched<12> (7.840, 8.405) 3229 GlitchFilter
+         IrqDeglitched<11> (29.245, 6.475) 3229 GlitchFilter
+         IrqDeglitched<11> (29.245, 6.380) 3229 GlitchFilter
+         IrqDeglitched<10> (22.110, 6.475) 3229 GlitchFilter
+         IrqDeglitched<10> (22.110, 6.380) 3229 GlitchFilter
+         IrqDeglitched<0> (7.840, 2.415) 3229 GlitchFilter
+         IrqDeglitched<0> (7.840, 2.320) 3229 GlitchFilter
+         vss! (15.597, 1.730) 3230 GlitchFilter
+         vss! (0.090, 1.275) 3230 GlitchFilter
+         vdd! (15.597, 16.605) 3230 GlitchFilter
+         vdd! (0.100, 16.150) 3230 GlitchFilter
+         vss! (3.542, 0.000) 3227 GlitchFilterBiEdge
+         vss! (0.005, -0.105) 3227 GlitchFilterBiEdge
+         vdd! (3.542, 2.000) 3227 GlitchFilterBiEdge
+         vdd! (0.005, 2.110) 3227 GlitchFilterBiEdge
+         Q (6.530, 0.955) 3227 GlitchFilterBiEdge
+         Q (6.505, 1.040) 3227 GlitchFilterBiEdge
+         A (0.160, 1.035) 3227 GlitchFilterBiEdge
+         A (0.090, 1.040) 3227 GlitchFilterBiEdge
+
+INFO:    Texts For SELECT -LABEL ...
+         ========================================================================
+
+INFO:    Texts For EXPAND_TEXT_ORIGIN ...
+         ========================================================================
+
+INFO:    Texts For DFM_TEXT ...
+         ========================================================================
+
+INFO:    Texts For Device Text Model Layer ...
+         ========================================================================
+
+INFO:    Texts For Device Text Property Layer ...
+         ========================================================================
+
+INFO:    Layer Summary(Texts For Connectivity):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         metal1_text                                      3227         8
+         metal2_text                                      3229       128
+         metal3_text                                      3230         4
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For SELECT -LABEL):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For EXPAND_TEXT_ORIGIN):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For DFM_TEXT):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Expanded Cell Summary
+         FhcHyXqFJTnai is expanded.
+         M1_NW_CDNS_759433161717 is expanded.
+         nch_hvtx_CDNS_759433161710 is expanded.
+         pch_hvt_CDNS_759433161712 is expanded.
+
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET tndiff
+INFO:    Rule mnpg completed with no violations, 1/9
+         Remaining rules: mppg  mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET tpdiff
+INFO:    Rule mppg completed with no violations, 2/9
+         Remaining rules: mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+INFO:    Rule mnpg_ldd1 completed with no violations, 3/9
+         Remaining rules: mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+INFO:    Rule mppg_ldd1 completed with no violations, 4/9
+         Remaining rules: floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+WARNING: ERC operations not executed due to no LVS Power Name or no LVS Ground Name found:
+    PATHCHK nxwell_float -power not -ports_also (Worker 1)
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name VSS.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TAVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSPST.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET nxwell_float
+INFO:    Rule floating.nxwell_float completed with no violations, 5/9
+         Remaining rules: floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+WARNING: ERC operations not executed due to no LVS Power Name or no LVS Ground Name found:
+    PATHCHK nxwell_hv -power not -ports_also (Worker 1)
+INFO:    Rule floating.nxwell_hv completed with no violations, 6/9
+         Remaining rules: floating.psub  npvss49  ppvdd49 
+WARNING: ERC operations not executed due to no LVS Power Name or no LVS Ground Name found:
+    PATHCHK psub -ground not -ports_also (Worker 1)
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET psub
+INFO:    Rule floating.psub completed with no violations, 7/9
+         Remaining rules: npvss49  ppvdd49 
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name VSS.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TAVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSPST.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET npvss49:ntap_not_var
+INFO:    Rule npvss49 completed with no violations, 8/9
+         Remaining rules: ppvdd49 
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET ptap
+INFO:    Rule ppvdd49 completed with no violations, 9/9
+INFO:    Status: Runset 100% complete as of 2025-10-02 14:26:05   Elapsed: 00:00:01
+         Worker: Active CPUs  Total Mem(MB)  Active Mem(MB)  CPU time(s)
+              0:    1 /   1             32              19            1
+INFO:	 Status: Finishing as of 2025-10-02 14:26:05   Elapsed: 00:00:01   CPU time[s]: 1
+INFO:    Resource usage by worker at exit:
+                  CPU      Elapsed  CPUs       CPU       Peak        Peak engine
+         Worker:  time[s]  time[s]  Allocated  usage[%]  Memory[MB]  Memory[MB]
+              0:        1        1          1     68.19          32           19
+         Worker resource usage  summary: Total CPU[s]: 1  Run duration[s]: 1  Max peak memory[MB]: 32
+         Worker CPU utilization summary: 1 of 1 available CPU seconds (100.00%) with 1 average available CPU(s)
+INFO:    Extraction result: CLEAN (Reporter)
+INFO:    Generating summary in /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/erc.sum
+INFO:    All selected rules completed
+         Total CPU Time                    : 1(s)
+         Total Real Time                   : 2(s)
+         Total Original Geometry           : 1269(11042)
+         Total ERC RuleChecks              : 9
+         Total ERC Results                 : 0 (0)
+         Graphic report database is /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/erc.db
+INFO:    Pegasus extracted connectivity database creation started
+INFO:    CmdLine: /opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb -kf -edb GlitchFilter_11498.db -ecdb ./ -topcell GlitchFilter -netlist ./GlitchFilter.net -layermap ./GlitchFilter.ecdbmap -textmap ./GlitchFilter.ports -dependmap GlitchFilter.lmap.perc -kvp ifs:KWx -lvsfile ./GlitchFilter.lvsfile -saveFloatingNets .GlitchFilter.info.softchk 
+INFO:    Opening layer file 'GlitchFilter_11498.db/__layer'...
+INFO:    Loading layer map file './GlitchFilter.ecdbmap'...
+INFO:    Loading text map file './GlitchFilter.ports'...
+INFO:    Loading dependency map file 'GlitchFilter.lmap.perc'...
+INFO:    Pre loading edb directory contents...
+INFO:    ECDB file name './/.GlitchFilter.ecdb'...
+INFO:    Loading lvs file './GlitchFilter.lvsfile'...
+INFO:    Writing db header information...(0s)
+INFO:    Transfering cdl structures to ecdb structures...
+INFO:    Read Netlist (32 threads)...
+INFO:      DONE - (1s)
+INFO:    Process (32 threads)...
+INFO:    Cell(       1):   5% Done...(1s), probe4                                  
+INFO:    Cell(      16):  10% Done...(1s), MASCO__A1                               
+INFO:    Cell(       9):  15% Done...(1s), M2_M1_CDNS_759433161712                 
+INFO:    Cell(       5):  20% Done...(1s), probe6                                  
+INFO:    Cell(      12):  25% Done...(1s), M1_PO_CDNS_759433161715                 
+INFO:    Cell(       0):  30% Done...(1s), probe7                                  
+INFO:    Cell(       3):  35% Done...(1s), probe5                                  
+INFO:    Cell(       4):  40% Done...(1s), probe2                                  
+INFO:    Cell(      17):  45% Done...(1s), MASCO__A2                               
+INFO:    Cell(      18):  50% Done...(1s), MASCO__B3                               
+INFO:    Cell(      13):  55% Done...(1s), M1_PO_CDNS_759433161716                 
+INFO:    Cell(      11):  60% Done...(1s), M3_M2_CDNS_759433161714                 
+INFO:    Cell(      14):  65% Done...(1s), pch_hvt_CDNS_759433161711               
+INFO:    Cell(      15):  70% Done...(1s), GlitchFilterBiEdge                      
+INFO:    Cell(      19):  75% Done...(1s), GlitchFilter                            
+INFO:    Cell(       6):  80% Done...(2s), probe3                                  
+INFO:    Cell(       2):  85% Done...(2s), probe1                                  
+INFO:    Cell(       7):  90% Done...(2s), M2_M1_CDNS_759433161710                 
+INFO:    Cell(      10):  95% Done...(2s), M2_M1_CDNS_759433161713                 
+INFO:    Cell(       8): 100% Done...(2s), M2_M1_CDNS_759433161711                 
+INFO:      DONE - (1s)
+INFO:    Cells creation time: (2s)
+INFO:    Write netlist items...         (2s)
+INFO:    Saving name table to db...
+INFO:    Save device templates to the db...
+INFO:    Save connect rules to the db...
+INFO:    Write calculated header information to the top of file...
+INFO:    Erasing cdl subckts...          (0s)
+
+INFO:    edbToEcdb Header Information:
+  ECDB file version   : 37
+  DevTmpl offset      : 77990
+  Connect offset      : 78314
+  NameTable offset    : 74409
+  Layer Map offset    : 167
+  Cell Start offset   : 73009
+  Cell End offset     : 74409
+  Aux Data offset     : 80190
+  Labels     offset   : 0
+  Layer RW   offset   : 0
+  NVP                 : ifs:0.01 
+  Scale               : 4000
+  GDS Scale           : 1000
+  File size (static)  : 140222
+  File size (dynamic) : 0
+  Cell count          : 20
+  ECDB create time    : 2
+  EDB info            : 10
+  Top Cell            : GlitchFilter
+  EDB info (Trans)    : WRITTEN_64 W_NOT_NET_ORDER 
+
+INFO:    edbToEcdb Sizes written to disk (MB):
+  NameTbl             :     0.003581
+  Layers              :     0.040547
+  Shapes              :     0.010457
+  XYTree              :     0.011335
+  LookUpTbls          :     0.000976
+  Cells               :     0.001500
+  Insts               :     0.002466
+  Ports               :     0.001674
+  Nets                :     0.001000
+  Pins                :     0.000371
+  Labels              :     0.003920
+  DevTmpl             :     0.000324
+  Connect             :     0.001872
+  Header              :     0.000167
+  AuxData             :     0.060030
+  NvnLabels           :     0.000002
+---------------------------------
+  Total               :     0.140222
+
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 2 Peak memory(MB): 1204.72
+INFO:    Pegasus extracted connectivity database creation completed. 2025-10-02 14:26:07
+
+
+INFO:    Creating annotated GDS ...
+INFO:    Library name: GlitchFilter_11498
+INFO:    GDSII file name: ./GlitchFilter.agf
+INFO:    Cells to be written out: GlitchFilter
+INFO:    Source Library: GlitchFilter_11498
+INFO:    Status: Task in progress ...
+INFO:    Pegasus creating annotated GDS completed. 2025-10-02 14:26:05
+INFO:    Pegasus REPORTDB creation started...
+INFO:    Processing file lvs.rep
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 0 Peak memory(MB): 27.99
+INFO:    Pegasus REPORTDB creation completed. 2025-10-02 14:26:07
+
+
+INFO:    Comparing netlists ...
+INFO:    Setup VLDB (0s)
+INFO:    Init sch rules (0s)
+INFO:    Init lay rules (0s)
+INFO:    Init structures (0s)
+INFO:    Set cells to delete (0s)
+INFO:    Check expand on pin error (0s)
+INFO:    Reading schematic network
+INFO:     inputting cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added...
+INFO:     finished loading cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi...
+INFO:     finished loading cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.schematic.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.RESI is not supported.
+WARNING (NVN-13002): *.RESVAL is not supported.
+WARNING (NVN-13002): *.CAPVAL is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.EQUATION is not supported.
+WARNING (NVN-13003): "*.SCALE" is not supported. Use ".OPTION SCALE" instead or specify  'lvs_cdn_flow_options -cdl_use_scale' in the rule file.
+WARNING (NVN-13002): *.PIN is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/myshkin/GlitchFilter/myshkin.GlitchFilter.schematic.cdl (0s)
+INFO:     commit cdl netlist(s)...
+INFO:     finished committing cdl netlists (0s)
+INFO:    Post sch netlist rule processing (0s)
+INFO:    Reading layout network
+INFO:     inputting (fast parser) cdl netlist  GlitchFilter.net...
+INFO:     finished loading cdl netlist GlitchFilter.net (0s)
+INFO:     commit cdl netlist(s)...
+INFO:     finished committing cdl netlists (0s)
+INFO:    Post lay netlist rule processing (0s)
+INFO:    Processing blackBox rules (0s)
+INFO:    Processing bindings (0s)
+INFO:    Commit sch verilog netlist (0s)
+INFO:    Commit lay verilog netlist (0s)
+INFO:    Erase netlist data (0s)
+INFO:    Set blackbox cells (0s)
+INFO:    Sch put cells in memory (0s)
+INFO:    Sch update netlist rules (0s)
+INFO:    Sch adjust device pins (0s)
+INFO:    Sch calc hier order (0s)
+INFO:    Sch process inherited connections (0s)
+INFO:    Sch generate qrc files (0s)
+INFO:    Sch handle global pins (0s)
+INFO:    Sch apply rule actions with processed netlist (0s)
+INFO:    Sch process cell supply (0s)
+INFO:    Lay put cells in memory (0s)
+INFO:    Lay update netlist rules (0s)
+INFO:    Lay calc hier order (0s)
+INFO:    Lay process inherited connections (0s)
+INFO:    Lay generate qrc files (0s)
+INFO:    Lay handle global pins (0s)
+INFO:    Lay apply rule actions with processed netlist (0s)
+INFO:    Lay process cell supply (0s)
+INFO:    Check if interposer flow (0s)
+INFO:    Check binding file (0s)
+INFO:    Set topcell global pin indicator (0s)
+INFO:    Calculate preserve parameterized cells (0s)
+INFO:    Check generic device bindings (0s)
+INFO:    Calculate primitive device bindings (0s)
+INFO:    Remove unused device parameters (0s)
+INFO:    Set instances to flatten inside cells (0s)
+INFO:    Calculate parameters (0s)
+INFO:    Start sch normalization (0s)
+INFO:    Start lay normalization (0s)
+INFO:    Calculate primitive device bindings (2nd time) (0s)
+INFO:    Finalize binding (0s)
+INFO:    Sch join nets (0s)
+INFO:    Sch setup hier normalization (0s)
+INFO:    Sch remove feedthroughs and black box cell instances (0s)
+INFO:    Sch remove identical pins (0s)
+INFO:    Sch calc connection counts (0s)
+INFO:    Run genHierCells (0s)
+INFO:    Reset normalization flags (0s)
+INFO:    Lay join nets (0s)
+INFO:    Lay setup hier normalization (0s)
+INFO:    Lay remove feedthroughs and black box cell instances (0s)
+INFO:    Lay remove identical pins (0s)
+INFO:    Lay calc connection counts (0s)
+INFO:    Normalize sch (0s)
+INFO:    Read in color file (0s)
+INFO:    Set scale factor per cell (0s)
+INFO:    Setup property init rules (0s)
+INFO:    Write sch vldb file (0s)
+INFO:    Write lay vldb file (0s)
+INFO:    Apply preserve parameterized cells (0s)
+INFO:    Cleanup after VLDB processing (0s)
+
+INFO:    Cell comparison output format:
+            <Comparing|Top Cell> <Layout Cell> vs <Schematic Cell>
+               <Layout instances> insts vs <Schematic instances> insts  (<Time>)-<Status>
+
+         Top Cell  GlitchFilter vs GlitchFilter
+            480 insts vs 480 insts . . . . . . . . . . . . . . . . . . . . . . (0s)-match
+
+INFO:    Generating the LVS report...
+           Report Init (0s)
+           Load common queries (0s)
+           Create report (0s)
+           Cleanup (0s)
+INFO:    Report finished
+
+INFO:    Extraction Run Summary
+         Total CPU Time        : 1(s)
+         Total Real Time       : 2(s)
+         Peak Memory Used      : 32.00(M)
+
+
+INFO:    NVN Run Summary
+         Total CPU Time        : 1(s)
+         Total Real Time       : 1(s)
+         Peak Memory Used      : 412.55(M)
+
+
+INFO:    LVS Summary
+         Total CPU Time        : 2(s)
+         Total Real Time       : 3(s)
+         Peak Memory Used      : 412.55(M)
+
+    #######################################################################################################################
+    #                                                                                                                     #
+    # Run Result             : MATCH                                                                                      #
+    #                                                                                                                     #
+    # Run Summary            : [INFO]  ERC Results: Empty, non-executed ERC operations exist (refer to ERC Summary File)  #
+    #                        : [INFO]  Extraction Clean                                                                   #
+    #                                                                                                                     #
+    # ERC Summary File       : erc.sum                                                                                    #
+    # Extraction Report File : lvs.rep                                                                                    #
+    # Comparison Report File : lvs.rep.cls                                                                                #
+    #                                                                                                                     #
+    #######################################################################################################################
+
+
+INFO:    Creating cross reference database ...
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 0 Peak memory(MB): 97.39
+INFO:    Checking in all SoftShare licenses.
+INFO:    Creating cross reference database completed. Thu Oct  2 14:26:08 2025
+
+
+Pegasus finished normally. 2025-10-02 14:26:08

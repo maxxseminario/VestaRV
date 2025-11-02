@@ -446,10 +446,8 @@ begin
                     
                 when "110010" => -- CLMULR: Carry-less multiply (reversed)
                     -- Reverse operand order for polynomial reduction
-                    -- This computes the low 32 bits of (a[31:0] × b[31:0]) >> 1
                     mult_result := clmul_64(a, b);
-                    -- Right shift by 1 and take low 32 bits
-                    ResultSignal <= '0' & mult_result(31 downto 1);
+                    ResultSignal <= mult_result(62 downto 31);
 
 
                 when others =>

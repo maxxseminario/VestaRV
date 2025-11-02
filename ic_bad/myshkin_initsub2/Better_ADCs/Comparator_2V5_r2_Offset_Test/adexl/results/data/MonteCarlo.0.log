@@ -1,0 +1,42 @@
+Starting Monte Carlo Sampling...
+
+Current time: Sun Jan  2 17:36:38 2022 
+
+Variation: Mismatch
+Sampling Method: Low-Discrepancy Sequence
+Seed: 
+
+MonteCarlo.0
+Number of points completed: 1000
+Number of simulation errors: 0
+MonteCarlo.0 completed. 
+Current time: Sun Jan  2 18:23:42 2022 
+Monte Carlo Sampling yield summary:
+Number of spec values are in this yield data: 7
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	CLK:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	Neg_In:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	Neg_Out:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	Pos_In:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	Pos_Out:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	Resolution:	Yield	100%
+		Min 0	Max 9.24354e-11	Mean 2.49381e-12	Number of errors 0
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1	Nominal - 
+	TrueVcm:	Yield	100%
+		Min 1.20651	Max 1.2844	Mean 1.25001	Number of errors 0
+
+Better_ADCs:Comparator_2V5_r2_Offset_Test:1
+	Overall Yield	100%	Number of points passed	1000	Total number of points	1000
+
+Estimated yield = 100% (1000/1000), 0 errors
+Estimated yield (No opregions) = 100% (1000/1000)

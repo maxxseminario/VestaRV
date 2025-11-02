@@ -1,0 +1,63 @@
+********************************************************************************
+Product   : Virtuoso(R) XStream Out
+Program   : @(#)$CDS: strmout version 6.1.8-64b 11/10/2020 19:36 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 22-Sep-2025  15:58:08
+User Name : mseminario2
+Host Name : atlas
+Directory : /home/mseminario2/chips/myshkin/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+INFO (XSTRM-217): Reading the layer map file, /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+INFO (XSTRM-162): You have not used the viaMap option. If the OpenAccess design has native oaVia instances, use the -viaMap option for preserving oaVia instances in a Stream Out - Stream In round trip. Using the -viaMap option improves performance and VM usage of applications using the Streamed-In design.  For details on the viaMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+
+Summary of Options :
+library                                 myshkin
+strmFile                                ./pvs/myshkin/AND2X8/myshkin.AND2X8.gds
+topCell                                 AND2X8
+view                                    layout
+logFile                                 ./strmout/myshkin.AND2X8.strmout.log
+techLib                                 tsmcN65
+layerMap                                /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+case                                    Preserve
+convertDot                              node
+convertPin                              geometryAndText
+noWarn                                  20 32 33 35 315
+
+INFO (XSTRM-223): 1. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_758574688790.
+INFO (XSTRM-223): 2. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_758574688791.
+INFO (XSTRM-223): 3. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_758574688790.
+INFO (XSTRM-223): 4. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_758574688791.
+INFO (XSTRM-223): 5. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_758574688792.
+INFO (XSTRM-223): 6. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_758574688793.
+INFO (XSTRM-223): 7. Translating cellView myshkin/AND2X8/layout as STRUCTURE AND2X8.
+
+Summary of Objects Translated:
+	Scalar Instances:                       5
+	Array Instances:                        0
+	Polygons:                               0
+	Paths:                                  3
+	Rectangles:                             255
+	Lines:                                  0
+	Arcs:                                   0
+	Donuts:                                 0
+	Dots:                                   0
+	Ellipses:                               0
+	Boundaries:                             0
+	Area Blockages:                         0
+	Layer Blockages:                        0
+	Area Halos:                             0
+	Markers:                                0
+	Rows:                                   0
+	Standard Vias                           3
+	Custom Vias:                            0
+	CdsGen Vias:                            0
+	Pathsegs:                               52
+	Text:                                   66
+	TextDisplay:                            0
+	Cells:                                  7
+
+Elapsed Time: 0.2s   User Time: 0.1s   CPU Time: 0.0s   Peak VM: 103496KB
+INFO (XSTRM-234): Translation completed. '0' error(s) and '0' warning(s) found.

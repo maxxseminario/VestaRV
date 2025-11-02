@@ -1,0 +1,67 @@
+Virtuoso Framework License (111) was checked out successfully. Total checkout time was 0.01s.
+MPS timeout is set to '60' seconds.
+MPS timeout is set to '60' seconds.
+*WARNING* LIB rom_hvt_pg from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 57 redefines
+LIB rom_hvt_pg from the same file (defined earlier.)
+*WARNING* LIB MCU from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 58 redefines
+LIB MCU from the same file (defined earlier.)
+*WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/sram1p8k_hvt_pg' does not exist
+	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'sram1p8k_hvt_pg'.
+*WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/sram1p16k_hvt_pg' does not exist
+	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'sram1p16k_hvt_pg'.
+*WARNING* LIB rom_hvt_pg from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 57 redefines
+LIB rom_hvt_pg from the same file (defined earlier.)
+*WARNING* LIB MCU from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 58 redefines
+LIB MCU from the same file (defined earlier.)
+*WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/sram1p8k_hvt_pg' does not exist
+	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'sram1p8k_hvt_pg'.
+*WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/sram1p16k_hvt_pg' does not exist
+	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'sram1p16k_hvt_pg'.
+Initializing from libInit.il for library tsmcN65...
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/pcode1.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/pcode2.cxt
+   --  tsmcN65_updateCDFs.il
+   --  tsmcPdkParamTable.il
+   --  tsmc_esti.ile
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65gp_v1d0c.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newAMS.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newRTMOM.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65GP_v1d0.cxt
+   --  tif_tcf_crn65gp_v1.0a.cxt
+   --  tsmcN65.cxt
+   --  tsmcN65Tool.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65GP_v1d0.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newRTMOM.cxt
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65GP_v1d0.cxt already loaded
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newAMS.cxt
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65_newRTMOM.cxt already loaded
+Loading Working place Display File '/home/mseminario2/chips/myshkin/ic/display.drf'
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65_newAMS.cxt already loaded
+Running Artist Hierarchical Netlisting ...
+MPS timeout is set to '60' seconds.
+MPS timeout is set to '60' seconds.
+MPS timeout is set to '60' seconds.
+MPS timeout is set to '60' seconds.
+MPS timeout is set to '60' seconds.
+MPS timeout is set to '60' seconds.
+WARNING (OSSHNL-117): Ignoring switch view 'symbol' of cell 'pch_hvt' in library 'tsmcN65', as it does not contain
+any instance. To netlist this cell, add this switch view to the stop list or to
+ignore any specific instance set the property 'nlAction' to value "ignore" on
+this cell view.
+
+WARNING (OSSHNL-117): Ignoring switch view 'symbol' of cell 'nch_hvt' in library 'tsmcN65', as it does not contain
+any instance. To netlist this cell, add this switch view to the stop list or to
+ignore any specific instance set the property 'nlAction' to value "ignore" on
+this cell view.
+
+MPS timeout is set to '60' seconds.
+Loading cdf.cxt 
+WARNING (AUCDL-42): Terminal In<31> appearing in CDF termOrder for 
+		component   : GlitchFilter
+		in cellview : schematic
+		of library  : myshkin
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+End netlisting Sep 30 13:24:35 2025

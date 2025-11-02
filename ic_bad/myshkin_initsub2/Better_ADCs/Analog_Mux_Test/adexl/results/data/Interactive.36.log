@@ -1,0 +1,15 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Thu Aug 11 21:25:22 2022 
+Best design point: 1
+Design specs: 
+	Better_ADCs:Analog_Mux_Test:1	corner	Nominal - 
+	r		61.87
+Design parameters: 
+	v		10m
+
+Interactive.36
+Number of points completed: 50
+Number of simulation errors: 0
+Interactive.36 completed. 
+Current time: Thu Aug 11 21:27:30 2022 

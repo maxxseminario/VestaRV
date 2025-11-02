@@ -1,0 +1,95 @@
+********************************************************************************
+Product   : Virtuoso(R) XStream Out
+Program   : @(#)$CDS: strmout version 6.1.8-64b 11/10/2020 19:36 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 02-Oct-2025  14:26:51
+User Name : mseminario2
+Host Name : atlas
+Directory : /home/mseminario2/chips/myshkin/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+INFO (XSTRM-217): Reading the layer map file, /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+INFO (XSTRM-162): You have not used the viaMap option. If the OpenAccess design has native oaVia instances, use the -viaMap option for preserving oaVia instances in a Stream Out - Stream In round trip. Using the -viaMap option improves performance and VM usage of applications using the Streamed-In design.  For details on the viaMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+
+Summary of Options :
+library                                 myshkin
+strmFile                                ./pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.gds
+topCell                                 PowerOnResetCheng
+view                                    layout
+logFile                                 ./strmout/myshkin.PowerOnResetCheng.strmout.log
+techLib                                 tsmcN65
+layerMap                                /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+case                                    Preserve
+convertDot                              node
+convertPin                              geometryAndText
+noWarn                                  20 32 33 35 315
+
+INFO (XSTRM-223): 1. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_759433211750.
+INFO (XSTRM-223): 2. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_759433211751.
+INFO (XSTRM-223): 3. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_759433211752.
+INFO (XSTRM-223): 4. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_759433211753.
+INFO (XSTRM-223): 5. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_759433211754.
+INFO (XSTRM-223): 6. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_759433211755.
+INFO (XSTRM-223): 7. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_759433211756.
+INFO (XSTRM-223): 8. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_759433211757.
+INFO (XSTRM-223): 9. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_759433211758.
+INFO (XSTRM-223): 10. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_759433211759.
+INFO (XSTRM-223): 11. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_7594332117510.
+INFO (XSTRM-223): 12. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_7594332117511.
+INFO (XSTRM-223): 13. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_7594332117512.
+INFO (XSTRM-223): 14. Translating cellView tsmcN65/pch_mac/layout as STRUCTURE pch_mac_CDNS_759433211750.
+INFO (XSTRM-223): 15. Translating cellView tsmcN65/nch_macx/layout as STRUCTURE nch_macx_CDNS_759433211751.
+INFO (XSTRM-223): 16. Translating cellView tsmcN65/nch_macx/layout as STRUCTURE nch_macx_CDNS_759433211752.
+INFO (XSTRM-223): 17. Translating cellView tsmcN65/nmoscap/layout as STRUCTURE nmoscap_CDNS_759433211753.
+INFO (XSTRM-223): 18. Translating cellView tsmcN65/pch_mac/layout as STRUCTURE pch_mac_CDNS_759433211754.
+INFO (XSTRM-223): 19. Translating cellView tsmcN65/pch_mac/layout as STRUCTURE pch_mac_CDNS_759433211755.
+INFO (XSTRM-223): 20. Translating cellView tsmc65_sc_adv10/ILXCBcuzlDW/layout as STRUCTURE ILXCBcuzlDW.
+INFO (XSTRM-223): 21. Translating cellView tsmc65_sc_adv10/INVX1MA10TH/layout as STRUCTURE INVX1MA10TH.
+INFO (XSTRM-223): 22. Translating cellView tsmc65_sc_adv10/N8bn4Uo0JTnai/layout as STRUCTURE N8bn4Uo0JTnai.
+INFO (XSTRM-223): 23. Translating cellView tsmc65_sc_adv10/NOR2BX1MA10TH/layout as STRUCTURE NOR2BX1MA10TH.
+INFO (XSTRM-223): 24. Translating cellView tsmc65_sc_adv10/BtwC7cuzlDW/layout as STRUCTURE BtwC7cuzlDW.
+INFO (XSTRM-223): 25. Translating cellView tsmc65_sc_adv10/BUFX4MA10TH/layout as STRUCTURE BUFX4MA10TH.
+INFO (XSTRM-223): 26. Translating cellView tsmcN65/pch_hvt_mac/layout as STRUCTURE pch_hvt_mac_CDNS_759433211756.
+INFO (XSTRM-223): 27. Translating cellView tsmc65_sc_adv10/FhcHyXqFJTnai/layout as STRUCTURE FhcHyXqFJTnai.
+INFO (XSTRM-223): 28. Translating cellView tsmc65_sc_adv10/FILLTIE2A10TH/layout as STRUCTURE FILLTIE2A10TH.
+INFO (XSTRM-223): 29. Translating cellView tsmc65_sc_adv10/DPjGsSkggI9iAZ/layout as STRUCTURE DPjGsSkggI9iAZ.
+INFO (XSTRM-223): 30. Translating cellView myshkin/DelayCell0P5MA10TH/layout as STRUCTURE DelayCell0P5MA10TH.
+INFO (XSTRM-223): 31. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_7594332117513.
+INFO (XSTRM-223): 32. Translating stdVia tsmcN65/M1_NW/layout as STRUCTURE M1_NW_CDNS_7594332117514.
+INFO (XSTRM-223): 33. Translating cellView tsmcN65/nch_hvtx/layout as STRUCTURE nch_hvtx_CDNS_759433211757.
+INFO (XSTRM-223): 34. Translating cellView tsmcN65/pch_hvt/layout as STRUCTURE pch_hvt_CDNS_759433211758.
+INFO (XSTRM-223): 35. Translating cellView tsmcN65/pch_hvt/layout as STRUCTURE pch_hvt_CDNS_759433211759.
+INFO (XSTRM-223): 36. Translating cellView myshkin/GlitchFilterBiEdge/layout as STRUCTURE GlitchFilterBiEdge.
+INFO (XSTRM-223): 37. Translating cellView myshkin/PowerOnResetCheng/layout as STRUCTURE PowerOnResetCheng.
+INFO (XSTRM-317): The 'myshkin/PowerOnResetCheng/layout' has a pathSeg with diagonal orientation, or end style as custom or chamfer at (13250, 5075). This pathSeg will be translated as a boundary record in the GDS file during Stream Out.
+INFO (XSTRM-317): The 'myshkin/PowerOnResetCheng/layout' has a pathSeg with diagonal orientation, or end style as custom or chamfer at (26340, 5075). This pathSeg will be translated as a boundary record in the GDS file during Stream Out.
+
+Summary of Objects Translated:
+	Scalar Instances:                       35
+	Array Instances:                        0
+	Polygons:                               39
+	Paths:                                  11
+	Rectangles:                             1139
+	Lines:                                  0
+	Arcs:                                   0
+	Donuts:                                 0
+	Dots:                                   0
+	Ellipses:                               0
+	Boundaries:                             0
+	Area Blockages:                         0
+	Layer Blockages:                        0
+	Area Halos:                             0
+	Markers:                                0
+	Rows:                                   0
+	Standard Vias                           73
+	Custom Vias:                            0
+	CdsGen Vias:                            0
+	Pathsegs:                               111
+	Text:                                   623
+	TextDisplay:                            0
+	Cells:                                  37
+
+Elapsed Time: 0.2s   User Time: 0.1s   CPU Time: 0.0s   Peak VM: 102944KB
+INFO (XSTRM-234): Translation completed. '0' error(s) and '0' warning(s) found.

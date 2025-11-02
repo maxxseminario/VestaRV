@@ -1,0 +1,5 @@
+cUiSetViewStatus {Dac2BgR2R14Buf} {layout} {1}
+cUiSetViewStatus {Dac2BgR2R14Buf} {logical} {0}
+cUiSetViewStatus {Dac2BgR2R14Buf} {abstract.pin} {0}
+cUiSetViewStatus {Dac2BgR2R14Buf} {abstract.ext} {0}
+cUiSetViewStatus {Dac2BgR2R14Buf} {abstract} {0}

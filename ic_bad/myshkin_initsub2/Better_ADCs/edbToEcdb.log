@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS161/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : ADC_Main_1V0_S_4809.db
+ECDB dir        : ./
+Top Cell        : ADC_Main_1V0_S
+CDL netlist     : /home/zpan/tsmc65/ic/Better_ADCs/svdb/ADC_Main_1V0_S.net
+Layer map file  : /home/zpan/tsmc65/ic/Better_ADCs/svdb/ADC_Main_1V0_S.ecdbmap
+Text map file   : /home/zpan/tsmc65/ic/Better_ADCs/svdb/ADC_Main_1V0_S.ports
+Dependency map  : ADC_Main_1V0_S.lmap.perc
+Lvs file        : /home/zpan/tsmc65/ic/Better_ADCs/svdb/ADC_Main_1V0_S.lvsfile
+Float net file : .ADC_Main_1V0_S.info.softchk
+debug           : 0
+Source Library  : ADC_Main_1V0_S_4809

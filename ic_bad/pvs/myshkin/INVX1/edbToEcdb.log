@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : INVX1_86118.db
+ECDB dir        : ./
+Top Cell        : INVX1
+CDL netlist     : ./INVX1.net
+Layer map file  : ./INVX1.ecdbmap
+Text map file   : ./INVX1.ports
+Dependency map  : INVX1.lmap.perc
+Lvs file        : ./INVX1.lvsfile
+Float net file  : .INVX1.info.softchk
+debug           : 0
+Source Library  : INVX1_86118

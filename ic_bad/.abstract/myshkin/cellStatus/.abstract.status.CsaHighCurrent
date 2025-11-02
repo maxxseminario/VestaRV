@@ -1,0 +1,5 @@
+cUiSetViewStatus {CsaHighCurrent} {layout} {1}
+cUiSetViewStatus {CsaHighCurrent} {logical} {0}
+cUiSetViewStatus {CsaHighCurrent} {abstract.pin} {0}
+cUiSetViewStatus {CsaHighCurrent} {abstract.ext} {0}
+cUiSetViewStatus {CsaHighCurrent} {abstract} {0}

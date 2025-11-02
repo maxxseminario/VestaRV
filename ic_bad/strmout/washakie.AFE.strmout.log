@@ -1,0 +1,531 @@
+********************************************************************************
+Product   : Virtuoso(R) XStream Out
+Program   : @(#)$CDS: strmout version 6.1.8-64b 11/10/2020 19:36 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 08-Mar-2022  11:43:22
+User Name : smurray5
+Host Name : atlas
+Directory : /home/smurray5/chips/washakie/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+INFO (XSTRM-217): Reading the layer map file, /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+INFO (XSTRM-162): You have not used the viaMap option. If the OpenAccess design has native oaVia instances, use the -viaMap option for preserving oaVia instances in a Stream Out - Stream In round trip. Using the -viaMap option improves performance and VM usage of applications using the Streamed-In design.  For details on the viaMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+
+Summary of Options :
+library                                 washakie
+strmFile                                ./pvs/washakie/AFE/washakie.AFE.gds
+topCell                                 AFE
+view                                    layout
+logFile                                 ./strmout/washakie.AFE.strmout.log
+techLib                                 tsmcN65
+layerMap                                /opt/design_kits/TSMC65-PDK/tsmcN65/tsmcN65.layermap
+case                                    Preserve
+convertDot                              node
+convertPin                              geometryAndText
+noWarn                                  20 32 33 35 315
+
+INFO (XSTRM-223): 1. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_646761402310.
+INFO (XSTRM-223): 2. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402311.
+INFO (XSTRM-223): 3. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_646761402312.
+INFO (XSTRM-223): 4. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_646761402313.
+INFO (XSTRM-223): 5. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402314.
+INFO (XSTRM-223): 6. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402315.
+INFO (XSTRM-223): 7. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402316.
+INFO (XSTRM-223): 8. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402317.
+INFO (XSTRM-223): 9. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402318.
+INFO (XSTRM-223): 10. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_646761402319.
+INFO (XSTRM-223): 11. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023110.
+INFO (XSTRM-223): 12. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023111.
+INFO (XSTRM-223): 13. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023112.
+INFO (XSTRM-223): 14. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023113.
+INFO (XSTRM-223): 15. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023114.
+INFO (XSTRM-223): 16. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023115.
+INFO (XSTRM-223): 17. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023116.
+INFO (XSTRM-223): 18. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023117.
+INFO (XSTRM-223): 19. Translating stdVia tsmcN65/M8_M7/layout as STRUCTURE M8_M7_CDNS_6467614023118.
+INFO (XSTRM-223): 20. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_6467614023119.
+INFO (XSTRM-223): 21. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_6467614023120.
+INFO (XSTRM-223): 22. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023121.
+INFO (XSTRM-223): 23. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023122.
+INFO (XSTRM-223): 24. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023123.
+INFO (XSTRM-223): 25. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023124.
+INFO (XSTRM-223): 26. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023125.
+INFO (XSTRM-223): 27. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023126.
+INFO (XSTRM-223): 28. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023127.
+INFO (XSTRM-223): 29. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023128.
+INFO (XSTRM-223): 30. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023129.
+INFO (XSTRM-223): 31. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023130.
+INFO (XSTRM-223): 32. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023131.
+INFO (XSTRM-223): 33. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023132.
+INFO (XSTRM-223): 34. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023133.
+INFO (XSTRM-223): 35. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023134.
+INFO (XSTRM-223): 36. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023135.
+INFO (XSTRM-223): 37. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023136.
+INFO (XSTRM-223): 38. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023137.
+INFO (XSTRM-223): 39. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023138.
+INFO (XSTRM-223): 40. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023139.
+INFO (XSTRM-223): 41. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023140.
+INFO (XSTRM-223): 42. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023141.
+INFO (XSTRM-223): 43. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023142.
+INFO (XSTRM-223): 44. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023143.
+INFO (XSTRM-223): 45. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023144.
+INFO (XSTRM-223): 46. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023145.
+INFO (XSTRM-223): 47. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023146.
+INFO (XSTRM-223): 48. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023147.
+INFO (XSTRM-223): 49. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023148.
+INFO (XSTRM-223): 50. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023149.
+INFO (XSTRM-223): 51. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023150.
+INFO (XSTRM-223): 52. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023151.
+INFO (XSTRM-223): 53. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023152.
+INFO (XSTRM-223): 54. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023153.
+INFO (XSTRM-223): 55. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_6467614023154.
+INFO (XSTRM-223): 56. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023155.
+INFO (XSTRM-223): 57. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023156.
+INFO (XSTRM-223): 58. Translating stdVia tsmcN65/M8_M7/layout as STRUCTURE M8_M7_CDNS_6467614023157.
+INFO (XSTRM-223): 59. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_6467614023158.
+INFO (XSTRM-223): 60. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023159.
+INFO (XSTRM-223): 61. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023160.
+INFO (XSTRM-223): 62. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023161.
+INFO (XSTRM-223): 63. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023162.
+INFO (XSTRM-223): 64. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023163.
+INFO (XSTRM-223): 65. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023164.
+INFO (XSTRM-223): 66. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023165.
+INFO (XSTRM-223): 67. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023166.
+INFO (XSTRM-223): 68. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023167.
+INFO (XSTRM-223): 69. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023168.
+INFO (XSTRM-223): 70. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023169.
+INFO (XSTRM-223): 71. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023170.
+INFO (XSTRM-223): 72. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023171.
+INFO (XSTRM-223): 73. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023172.
+INFO (XSTRM-223): 74. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023173.
+INFO (XSTRM-223): 75. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023174.
+INFO (XSTRM-223): 76. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023175.
+INFO (XSTRM-223): 77. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023176.
+INFO (XSTRM-223): 78. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_6467614023177.
+INFO (XSTRM-223): 79. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023178.
+INFO (XSTRM-223): 80. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023179.
+INFO (XSTRM-223): 81. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023180.
+INFO (XSTRM-223): 82. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023181.
+INFO (XSTRM-223): 83. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023182.
+INFO (XSTRM-223): 84. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023183.
+INFO (XSTRM-223): 85. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023184.
+INFO (XSTRM-223): 86. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023185.
+INFO (XSTRM-223): 87. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023186.
+INFO (XSTRM-223): 88. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023187.
+INFO (XSTRM-223): 89. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023188.
+INFO (XSTRM-223): 90. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023189.
+INFO (XSTRM-223): 91. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023190.
+INFO (XSTRM-223): 92. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023191.
+INFO (XSTRM-223): 93. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023192.
+INFO (XSTRM-223): 94. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023193.
+INFO (XSTRM-223): 95. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_6467614023194.
+INFO (XSTRM-223): 96. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_6467614023195.
+INFO (XSTRM-223): 97. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023196.
+INFO (XSTRM-223): 98. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023197.
+INFO (XSTRM-223): 99. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023198.
+INFO (XSTRM-223): 100. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_6467614023199.
+INFO (XSTRM-223): 101. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231100.
+INFO (XSTRM-223): 102. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231101.
+INFO (XSTRM-223): 103. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231102.
+INFO (XSTRM-223): 104. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231103.
+INFO (XSTRM-223): 105. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231104.
+INFO (XSTRM-223): 106. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231105.
+INFO (XSTRM-223): 107. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231106.
+INFO (XSTRM-223): 108. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231107.
+INFO (XSTRM-223): 109. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231108.
+INFO (XSTRM-223): 110. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231109.
+INFO (XSTRM-223): 111. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231110.
+INFO (XSTRM-223): 112. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231111.
+INFO (XSTRM-223): 113. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231112.
+INFO (XSTRM-223): 114. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231113.
+INFO (XSTRM-223): 115. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231114.
+INFO (XSTRM-223): 116. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231115.
+INFO (XSTRM-223): 117. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231116.
+INFO (XSTRM-223): 118. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231117.
+INFO (XSTRM-223): 119. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231118.
+INFO (XSTRM-223): 120. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231119.
+INFO (XSTRM-223): 121. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231120.
+INFO (XSTRM-223): 122. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231121.
+INFO (XSTRM-223): 123. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231122.
+INFO (XSTRM-223): 124. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231123.
+INFO (XSTRM-223): 125. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231124.
+INFO (XSTRM-223): 126. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231125.
+INFO (XSTRM-223): 127. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231126.
+INFO (XSTRM-223): 128. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231127.
+INFO (XSTRM-223): 129. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231128.
+INFO (XSTRM-223): 130. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231129.
+INFO (XSTRM-223): 131. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231130.
+INFO (XSTRM-223): 132. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231131.
+INFO (XSTRM-223): 133. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231132.
+INFO (XSTRM-223): 134. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231133.
+INFO (XSTRM-223): 135. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231134.
+INFO (XSTRM-223): 136. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231135.
+INFO (XSTRM-223): 137. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231136.
+INFO (XSTRM-223): 138. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231137.
+INFO (XSTRM-223): 139. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231138.
+INFO (XSTRM-223): 140. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231139.
+INFO (XSTRM-223): 141. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231140.
+INFO (XSTRM-223): 142. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231141.
+INFO (XSTRM-223): 143. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231142.
+INFO (XSTRM-223): 144. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231143.
+INFO (XSTRM-223): 145. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231144.
+INFO (XSTRM-223): 146. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_64676140231145.
+INFO (XSTRM-223): 147. Translating stdVia tsmcN65/M8_M7/layout as STRUCTURE M8_M7_CDNS_64676140231146.
+INFO (XSTRM-223): 148. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231147.
+INFO (XSTRM-223): 149. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231148.
+INFO (XSTRM-223): 150. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231149.
+INFO (XSTRM-223): 151. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231150.
+INFO (XSTRM-223): 152. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231151.
+INFO (XSTRM-223): 153. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231152.
+INFO (XSTRM-223): 154. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231153.
+INFO (XSTRM-223): 155. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231154.
+INFO (XSTRM-223): 156. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231155.
+INFO (XSTRM-223): 157. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231156.
+INFO (XSTRM-223): 158. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231157.
+INFO (XSTRM-223): 159. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_646761402310.
+INFO (XSTRM-223): 160. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_646761402311.
+INFO (XSTRM-223): 161. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_646761402312.
+INFO (XSTRM-223): 162. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_646761402313.
+INFO (XSTRM-223): 163. Translating cellView tsmcN65/nch_na25_macx/layout as STRUCTURE nch_na25_macx_CDNS_646761402314.
+INFO (XSTRM-223): 164. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_646761402315.
+INFO (XSTRM-223): 165. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_646761402316.
+INFO (XSTRM-223): 166. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_646761402317.
+INFO (XSTRM-223): 167. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_646761402318.
+INFO (XSTRM-223): 168. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_646761402319.
+INFO (XSTRM-223): 169. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_6467614023110.
+INFO (XSTRM-223): 170. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_6467614023111.
+INFO (XSTRM-223): 171. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_6467614023112.
+INFO (XSTRM-223): 172. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023113.
+INFO (XSTRM-223): 173. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231158.
+INFO (XSTRM-223): 174. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231159.
+INFO (XSTRM-223): 175. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023114.
+INFO (XSTRM-223): 176. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023115.
+INFO (XSTRM-223): 177. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023116.
+INFO (XSTRM-223): 178. Translating cellView teewinot/TGP2A/layout as STRUCTURE TGP2A.
+INFO (XSTRM-180): You have not used the objectMap option. The design has instance(s) of at least one of following OpenAccess objects: oaBlockage, oaBoundary, oaRow, and oaMarker. Any information about these objects will not be translated into the generated stream file. Use the objectMap option to translate/preserve these objects using XStream. For details on the objectMap option, refer to the "Design Data Translator's Reference" guide for XStream.
+INFO (XSTRM-223): 179. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023117.
+INFO (XSTRM-223): 180. Translating cellView teewinot/BiasSwitchCascode/layout as STRUCTURE BiasSwitchCascode.
+INFO (XSTRM-223): 181. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023118.
+INFO (XSTRM-223): 182. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023119.
+INFO (XSTRM-223): 183. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231160.
+INFO (XSTRM-223): 184. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231161.
+INFO (XSTRM-223): 185. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023120.
+INFO (XSTRM-223): 186. Translating cellView washakie/INVX1/layout as STRUCTURE INVX1.
+INFO (XSTRM-223): 187. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023121.
+INFO (XSTRM-223): 188. Translating cellView washakie/CsaHighCurrent/layout as STRUCTURE CsaHighCurrent.
+INFO (XSTRM-223): 189. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231162.
+INFO (XSTRM-223): 190. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231163.
+INFO (XSTRM-223): 191. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231164.
+INFO (XSTRM-223): 192. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231165.
+INFO (XSTRM-223): 193. Translating stdVia tsmcN65/M8_M7/layout as STRUCTURE M8_M7_CDNS_64676140231166.
+INFO (XSTRM-223): 194. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_6467614023122.
+INFO (XSTRM-223): 195. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_6467614023123.
+INFO (XSTRM-223): 196. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_6467614023124.
+INFO (XSTRM-223): 197. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_6467614023125.
+INFO (XSTRM-223): 198. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023126.
+INFO (XSTRM-223): 199. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023127.
+INFO (XSTRM-223): 200. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023128.
+INFO (XSTRM-223): 201. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_6467614023129.
+INFO (XSTRM-223): 202. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023130.
+INFO (XSTRM-223): 203. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023131.
+INFO (XSTRM-223): 204. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023132.
+INFO (XSTRM-223): 205. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023133.
+INFO (XSTRM-223): 206. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023134.
+INFO (XSTRM-223): 207. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023135.
+INFO (XSTRM-223): 208. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023136.
+INFO (XSTRM-223): 209. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023137.
+INFO (XSTRM-223): 210. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023138.
+INFO (XSTRM-223): 211. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023139.
+INFO (XSTRM-223): 212. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023140.
+INFO (XSTRM-223): 213. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023141.
+INFO (XSTRM-223): 214. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023142.
+INFO (XSTRM-223): 215. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023143.
+INFO (XSTRM-223): 216. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023144.
+INFO (XSTRM-223): 217. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023145.
+INFO (XSTRM-223): 218. Translating cellView washakie/OpAmpCurrentMirrorP/layout as STRUCTURE OpAmpCurrentMirrorP.
+INFO (XSTRM-223): 219. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231167.
+INFO (XSTRM-223): 220. Translating stdVia tsmcN65/M4_M3/layout as STRUCTURE M4_M3_CDNS_64676140231168.
+INFO (XSTRM-223): 221. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023146.
+INFO (XSTRM-223): 222. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023147.
+INFO (XSTRM-223): 223. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023148.
+INFO (XSTRM-223): 224. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023149.
+INFO (XSTRM-223): 225. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023150.
+INFO (XSTRM-223): 226. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023151.
+INFO (XSTRM-223): 227. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023152.
+INFO (XSTRM-223): 228. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023153.
+INFO (XSTRM-223): 229. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023154.
+INFO (XSTRM-223): 230. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023155.
+INFO (XSTRM-223): 231. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023156.
+INFO (XSTRM-223): 232. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023157.
+INFO (XSTRM-223): 233. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023158.
+INFO (XSTRM-223): 234. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023159.
+INFO (XSTRM-223): 235. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023160.
+INFO (XSTRM-223): 236. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023161.
+INFO (XSTRM-223): 237. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023162.
+INFO (XSTRM-223): 238. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023163.
+INFO (XSTRM-223): 239. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023164.
+INFO (XSTRM-223): 240. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023165.
+INFO (XSTRM-223): 241. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023166.
+INFO (XSTRM-223): 242. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023167.
+INFO (XSTRM-223): 243. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023168.
+INFO (XSTRM-223): 244. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023169.
+INFO (XSTRM-223): 245. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023170.
+INFO (XSTRM-223): 246. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023171.
+INFO (XSTRM-223): 247. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023172.
+INFO (XSTRM-223): 248. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023173.
+WARNING (XSTRM-145): The structure name 'INVX1' has been changed to 'INVX1_0' by the translator. This could be because multiple cells with the same cell name exist in different libraries, the same cell name has been mapped to multiple cell names, or the cell name length is greater than the '32' that was specified using the '-respectGDSIINameLimit' or '-gdsCellNameLength' option.
+INFO (XSTRM-223): 249. Translating cellView teewinot/INVX1/layout as STRUCTURE INVX1_0.
+INFO (XSTRM-223): 250. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231169.
+INFO (XSTRM-223): 251. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231170.
+INFO (XSTRM-223): 252. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231171.
+INFO (XSTRM-223): 253. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_6467614023174.
+INFO (XSTRM-223): 254. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_6467614023175.
+INFO (XSTRM-223): 255. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_6467614023176.
+INFO (XSTRM-223): 256. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_6467614023177.
+INFO (XSTRM-223): 257. Translating cellView tsmcN65/pch_25x/layout as STRUCTURE pch_25x_CDNS_6467614023178.
+INFO (XSTRM-223): 258. Translating cellView tsmcN65/pch_25x/layout as STRUCTURE pch_25x_CDNS_6467614023179.
+INFO (XSTRM-223): 259. Translating cellView tsmcN65/pch_25x/layout as STRUCTURE pch_25x_CDNS_6467614023180.
+INFO (XSTRM-223): 260. Translating cellView tsmcN65/pch_25x/layout as STRUCTURE pch_25x_CDNS_6467614023181.
+INFO (XSTRM-223): 261. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_6467614023182.
+INFO (XSTRM-223): 262. Translating cellView tsmcN65/pch_25x/layout as STRUCTURE pch_25x_CDNS_6467614023183.
+INFO (XSTRM-223): 263. Translating cellView teewinot/MUX2A/layout as STRUCTURE MUX2A.
+INFO (XSTRM-223): 264. Translating cellView teewinot/CurrentMirrorArray/layout as STRUCTURE CurrentMirrorArray.
+INFO (XSTRM-236): A path with a rounded extension, an acute angle or a length segment less than half width is encountered at (41225, 17585). This path will be written as a boundary record in the GDS file.
+WARNING (XSTRM-145): The structure name 'MUX2A' has been changed to 'MUX2A_0' by the translator. This could be because multiple cells with the same cell name exist in different libraries, the same cell name has been mapped to multiple cell names, or the cell name length is greater than the '32' that was specified using the '-respectGDSIINameLimit' or '-gdsCellNameLength' option.
+INFO (XSTRM-223): 265. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023184.
+INFO (XSTRM-223): 266. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023185.
+INFO (XSTRM-223): 267. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023186.
+INFO (XSTRM-223): 268. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023187.
+INFO (XSTRM-223): 269. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023188.
+INFO (XSTRM-223): 270. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023189.
+INFO (XSTRM-223): 271. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023190.
+INFO (XSTRM-223): 272. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023191.
+INFO (XSTRM-223): 273. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023192.
+INFO (XSTRM-223): 274. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023193.
+INFO (XSTRM-223): 275. Translating cellView washakie/MUX2A/layout as STRUCTURE MUX2A_0.
+INFO (XSTRM-223): 276. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231172.
+INFO (XSTRM-223): 277. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231173.
+INFO (XSTRM-223): 278. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_6467614023194.
+INFO (XSTRM-223): 279. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023195.
+INFO (XSTRM-223): 280. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023196.
+INFO (XSTRM-223): 281. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023197.
+INFO (XSTRM-223): 282. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023198.
+INFO (XSTRM-223): 283. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_6467614023199.
+INFO (XSTRM-223): 284. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231100.
+INFO (XSTRM-223): 285. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231101.
+INFO (XSTRM-223): 286. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231102.
+INFO (XSTRM-223): 287. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231103.
+INFO (XSTRM-223): 288. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231104.
+INFO (XSTRM-223): 289. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231105.
+INFO (XSTRM-223): 290. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231106.
+INFO (XSTRM-223): 291. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231107.
+INFO (XSTRM-223): 292. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231108.
+INFO (XSTRM-223): 293. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231109.
+INFO (XSTRM-223): 294. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231110.
+INFO (XSTRM-223): 295. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231111.
+INFO (XSTRM-223): 296. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231112.
+INFO (XSTRM-223): 297. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231113.
+INFO (XSTRM-223): 298. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231114.
+INFO (XSTRM-223): 299. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231115.
+INFO (XSTRM-223): 300. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231116.
+INFO (XSTRM-223): 301. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231117.
+INFO (XSTRM-223): 302. Translating cellView teewinot/CurrentSourceAdjustable/layout as STRUCTURE CurrentSourceAdjustable.
+INFO (XSTRM-223): 303. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_64676140231174.
+INFO (XSTRM-223): 304. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231175.
+INFO (XSTRM-223): 305. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231176.
+INFO (XSTRM-223): 306. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231177.
+INFO (XSTRM-223): 307. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231178.
+INFO (XSTRM-223): 308. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231179.
+INFO (XSTRM-223): 309. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231180.
+INFO (XSTRM-223): 310. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231118.
+INFO (XSTRM-223): 311. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231119.
+INFO (XSTRM-223): 312. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231120.
+INFO (XSTRM-223): 313. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231121.
+INFO (XSTRM-223): 314. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231122.
+INFO (XSTRM-223): 315. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231123.
+INFO (XSTRM-223): 316. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231124.
+INFO (XSTRM-223): 317. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231181.
+INFO (XSTRM-223): 318. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231125.
+INFO (XSTRM-223): 319. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231126.
+INFO (XSTRM-223): 320. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231127.
+INFO (XSTRM-223): 321. Translating cellView washakie/TGP16A/layout as STRUCTURE TGP16A.
+INFO (XSTRM-223): 322. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231128.
+INFO (XSTRM-223): 323. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231129.
+INFO (XSTRM-223): 324. Translating cellView washakie/FeedbackCapacitor/layout as STRUCTURE FeedbackCapacitor.
+INFO (XSTRM-223): 325. Translating cellView washakie/MUX4A/layout as STRUCTURE MUX4A.
+INFO (XSTRM-223): 326. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231182.
+INFO (XSTRM-223): 327. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231130.
+INFO (XSTRM-223): 328. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231131.
+INFO (XSTRM-223): 329. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231132.
+INFO (XSTRM-223): 330. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231133.
+INFO (XSTRM-223): 331. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231134.
+INFO (XSTRM-223): 332. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_64676140231135.
+INFO (XSTRM-223): 333. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_64676140231136.
+INFO (XSTRM-223): 334. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_64676140231137.
+INFO (XSTRM-223): 335. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_64676140231138.
+INFO (XSTRM-223): 336. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231139.
+INFO (XSTRM-223): 337. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231140.
+INFO (XSTRM-223): 338. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231141.
+INFO (XSTRM-223): 339. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231142.
+INFO (XSTRM-223): 340. Translating cellView teewinot/Comparator/layout as STRUCTURE Comparator.
+INFO (XSTRM-223): 341. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231183.
+INFO (XSTRM-223): 342. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231143.
+INFO (XSTRM-223): 343. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231144.
+INFO (XSTRM-223): 344. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231145.
+INFO (XSTRM-223): 345. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231146.
+INFO (XSTRM-223): 346. Translating cellView washakie/SchmittTrigger/layout as STRUCTURE SchmittTrigger.
+INFO (XSTRM-223): 347. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231184.
+INFO (XSTRM-223): 348. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231185.
+INFO (XSTRM-223): 349. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231186.
+INFO (XSTRM-223): 350. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_64676140231187.
+INFO (XSTRM-223): 351. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231188.
+INFO (XSTRM-223): 352. Translating cellView tsmcN65/rppolywo/layout as STRUCTURE rppolywo_CDNS_64676140231147.
+INFO (XSTRM-223): 353. Translating cellView teewinot/R2R14/layout as STRUCTURE R2R14.
+INFO (XSTRM-223): 354. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231148.
+INFO (XSTRM-223): 355. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231149.
+INFO (XSTRM-223): 356. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231150.
+INFO (XSTRM-223): 357. Translating cellView washakie/Dac2BgR2R14Buf/layout as STRUCTURE Dac2BgR2R14Buf.
+WARNING (XSTRM-145): The structure name 'SchmittTrigger' has been changed to 'SchmittTrigger_0' by the translator. This could be because multiple cells with the same cell name exist in different libraries, the same cell name has been mapped to multiple cell names, or the cell name length is greater than the '32' that was specified using the '-respectGDSIINameLimit' or '-gdsCellNameLength' option.
+INFO (XSTRM-223): 358. Translating cellView teewinot/SchmittTrigger/layout as STRUCTURE SchmittTrigger_0.
+INFO (XSTRM-223): 359. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231189.
+INFO (XSTRM-223): 360. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231190.
+INFO (XSTRM-223): 361. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231191.
+INFO (XSTRM-223): 362. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231192.
+INFO (XSTRM-223): 363. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231193.
+INFO (XSTRM-223): 364. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231194.
+INFO (XSTRM-223): 365. Translating cellView tsmcN65/nch/layout as STRUCTURE nch_CDNS_64676140231151.
+INFO (XSTRM-223): 366. Translating cellView tsmcN65/pch/layout as STRUCTURE pch_CDNS_64676140231152.
+INFO (XSTRM-223): 367. Translating cellView tsmcN65/nch/layout as STRUCTURE nch_CDNS_64676140231153.
+INFO (XSTRM-223): 368. Translating cellView tsmcN65/pch/layout as STRUCTURE pch_CDNS_64676140231154.
+INFO (XSTRM-223): 369. Translating cellView tsmcN65/nch_25/layout as STRUCTURE nch_25_CDNS_64676140231155.
+INFO (XSTRM-223): 370. Translating cellView tsmcN65/pch_25/layout as STRUCTURE pch_25_CDNS_64676140231156.
+INFO (XSTRM-223): 371. Translating cellView washakie/LVLD10A25PP/layout as STRUCTURE LVLD10A25PP.
+INFO (XSTRM-223): 372. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_64676140231195.
+INFO (XSTRM-223): 373. Translating cellView washakie/LpfCapacitor/layout as STRUCTURE LpfCapacitor.
+INFO (XSTRM-223): 374. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231196.
+INFO (XSTRM-223): 375. Translating cellView washakie/MUX16A/layout as STRUCTURE MUX16A.
+INFO (XSTRM-223): 376. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231197.
+INFO (XSTRM-223): 377. Translating cellView teewinot/TGN16A/layout as STRUCTURE TGN16A.
+INFO (XSTRM-223): 378. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231198.
+INFO (XSTRM-223): 379. Translating stdVia tsmcN65/M8_M7/layout as STRUCTURE M8_M7_CDNS_64676140231199.
+INFO (XSTRM-223): 380. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231200.
+INFO (XSTRM-223): 381. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231201.
+INFO (XSTRM-223): 382. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231202.
+INFO (XSTRM-223): 383. Translating stdVia tsmcN65/M1_SUB/layout as STRUCTURE M1_SUB_CDNS_64676140231203.
+INFO (XSTRM-223): 384. Translating stdVia tsmcN65/M1_NW/layout as STRUCTURE M1_NW_CDNS_64676140231204.
+INFO (XSTRM-223): 385. Translating cellView teewinot/AdcMimDacInvertersAll/layout as STRUCTURE AdcMimDacInvertersAll.
+INFO (XSTRM-223): 386. Translating stdVia tsmcN65/M8_M7/layout as STRUCTURE M8_M7_CDNS_64676140231205.
+INFO (XSTRM-223): 387. Translating stdVia tsmcN65/M7_M6/layout as STRUCTURE M7_M6_CDNS_64676140231206.
+INFO (XSTRM-223): 388. Translating stdVia tsmcN65/M6_M5/layout as STRUCTURE M6_M5_CDNS_64676140231207.
+INFO (XSTRM-223): 389. Translating stdVia tsmcN65/M5_M4/layout as STRUCTURE M5_M4_CDNS_64676140231208.
+INFO (XSTRM-223): 390. Translating cellView teewinot/AdcDacCapBaseC/layout as STRUCTURE AdcDacCapBaseC.
+INFO (XSTRM-223): 391. Translating cellView teewinot/AdcDacCapCMosaicVIA/layout as STRUCTURE AdcDacCapCMosaicVIA.
+INFO (XSTRM-223): 392. Translating cellView teewinot/AdcDacCapCMosaicMid9/layout as STRUCTURE AdcDacCapCMosaicMid9.
+INFO (XSTRM-223): 393. Translating cellView teewinot/AdcDacCapCMosaicMid8/layout as STRUCTURE AdcDacCapCMosaicMid8.
+INFO (XSTRM-223): 394. Translating cellView teewinot/AdcDacCapCMosaicMid7/layout as STRUCTURE AdcDacCapCMosaicMid7.
+INFO (XSTRM-223): 395. Translating cellView teewinot/AdcDacCapCMosaicMid6/layout as STRUCTURE AdcDacCapCMosaicMid6.
+INFO (XSTRM-223): 396. Translating cellView teewinot/AdcDacCapCMosaicMid5/layout as STRUCTURE AdcDacCapCMosaicMid5.
+INFO (XSTRM-223): 397. Translating cellView teewinot/AdcDacCapCMosaicMid4/layout as STRUCTURE AdcDacCapCMosaicMid4.
+INFO (XSTRM-223): 398. Translating cellView teewinot/AdcDacCapCMosaicMid3/layout as STRUCTURE AdcDacCapCMosaicMid3.
+INFO (XSTRM-223): 399. Translating cellView teewinot/AdcDacCapCMosaicMid2/layout as STRUCTURE AdcDacCapCMosaicMid2.
+INFO (XSTRM-223): 400. Translating cellView teewinot/AdcDacCapCMosaicMid1/layout as STRUCTURE AdcDacCapCMosaicMid1.
+INFO (XSTRM-223): 401. Translating cellView teewinot/AdcDacCapCMosaicMid0/layout as STRUCTURE AdcDacCapCMosaicMid0.
+INFO (XSTRM-223): 402. Translating cellView teewinot/AdcDacCapCMosaic/layout as STRUCTURE AdcDacCapCMosaic.
+INFO (XSTRM-223): 403. Translating cellView teewinot/AdcMimDac/layout as STRUCTURE AdcMimDac.
+INFO (XSTRM-223): 404. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_64676140231157.
+INFO (XSTRM-223): 405. Translating cellView tsmcN65/nch_25x/layout as STRUCTURE nch_25x_CDNS_64676140231158.
+INFO (XSTRM-223): 406. Translating cellView tsmcN65/pch_25/layout as STRUCTURE pch_25_CDNS_64676140231159.
+INFO (XSTRM-223): 407. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231160.
+INFO (XSTRM-223): 408. Translating cellView teewinot/AdcMimGateBoostSwitchDessouky/layout as STRUCTURE AdcMimGateBoostSwitchDessouky.
+INFO (XSTRM-223): 409. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231161.
+INFO (XSTRM-223): 410. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231162.
+INFO (XSTRM-223): 411. Translating stdVia tsmcN65/M1_OD/layout as STRUCTURE M1_OD_CDNS_64676140231209.
+INFO (XSTRM-223): 412. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231163.
+INFO (XSTRM-223): 413. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231164.
+INFO (XSTRM-223): 414. Translating cellView teewinot/TGP8A/layout as STRUCTURE TGP8A.
+INFO (XSTRM-223): 415. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231165.
+INFO (XSTRM-223): 416. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231166.
+INFO (XSTRM-223): 417. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231167.
+INFO (XSTRM-223): 418. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231168.
+INFO (XSTRM-223): 419. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231169.
+WARNING (XSTRM-145): The structure name 'TGP16A' has been changed to 'TGP16A_0' by the translator. This could be because multiple cells with the same cell name exist in different libraries, the same cell name has been mapped to multiple cell names, or the cell name length is greater than the '32' that was specified using the '-respectGDSIINameLimit' or '-gdsCellNameLength' option.
+INFO (XSTRM-223): 420. Translating cellView teewinot/TGP16A/layout as STRUCTURE TGP16A_0.
+INFO (XSTRM-223): 421. Translating cellView teewinot/AdcMimCpArray/layout as STRUCTURE AdcMimCpArray.
+INFO (XSTRM-223): 422. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231170.
+INFO (XSTRM-223): 423. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231210.
+INFO (XSTRM-223): 424. Translating cellView tsmcN65/pch_25/layout as STRUCTURE pch_25_CDNS_64676140231171.
+INFO (XSTRM-223): 425. Translating cellView tsmcN65/nch_25/layout as STRUCTURE nch_25_CDNS_64676140231172.
+INFO (XSTRM-223): 426. Translating cellView teewinot/NOR2X1/layout as STRUCTURE NOR2X1.
+INFO (XSTRM-223): 427. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231173.
+INFO (XSTRM-223): 428. Translating cellView teewinot/AdcMimComparatorMei/layout as STRUCTURE AdcMimComparatorMei.
+INFO (XSTRM-223): 429. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231211.
+INFO (XSTRM-223): 430. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231212.
+INFO (XSTRM-223): 431. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231174.
+INFO (XSTRM-223): 432. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231175.
+INFO (XSTRM-223): 433. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231176.
+INFO (XSTRM-223): 434. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231177.
+INFO (XSTRM-223): 435. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231178.
+INFO (XSTRM-223): 436. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231179.
+INFO (XSTRM-223): 437. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231180.
+INFO (XSTRM-223): 438. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231181.
+INFO (XSTRM-223): 439. Translating cellView tsmcN65/pch_25_mac/layout as STRUCTURE pch_25_mac_CDNS_64676140231182.
+INFO (XSTRM-223): 440. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231183.
+INFO (XSTRM-223): 441. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231184.
+INFO (XSTRM-223): 442. Translating cellView teewinot/AdcBufferOpamp/layout as STRUCTURE AdcBufferOpamp.
+INFO (XSTRM-223): 443. Translating cellView tsmcN65/rppolywo/layout as STRUCTURE rppolywo_CDNS_64676140231185.
+INFO (XSTRM-223): 444. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231186.
+INFO (XSTRM-223): 445. Translating cellView teewinot/AdcBuffer/layout as STRUCTURE AdcBuffer.
+INFO (XSTRM-223): 446. Translating cellView teewinot/AdcMim/layout as STRUCTURE AdcMim.
+INFO (XSTRM-223): 447. Translating cellView washakie/LVLD10A25PP6/layout as STRUCTURE LVLD10A25PP6.
+INFO (XSTRM-223): 448. Translating stdVia tsmcN65/M1_PO/layout as STRUCTURE M1_PO_CDNS_64676140231213.
+INFO (XSTRM-223): 449. Translating cellView tsmcN65/pch_25/layout as STRUCTURE pch_25_CDNS_64676140231187.
+INFO (XSTRM-223): 450. Translating cellView washakie/LVLA25D10PP/layout as STRUCTURE LVLA25D10PP.
+INFO (XSTRM-223): 451. Translating stdVia tsmcN65/M2_M1/layout as STRUCTURE M2_M1_CDNS_64676140231214.
+INFO (XSTRM-223): 452. Translating cellView tsmcN65/rppolywo/layout as STRUCTURE rppolywo_CDNS_64676140231188.
+INFO (XSTRM-223): 453. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231189.
+INFO (XSTRM-223): 454. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231190.
+INFO (XSTRM-223): 455. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231191.
+INFO (XSTRM-223): 456. Translating cellView teewinot/AND2X8/layout as STRUCTURE AND2X8.
+INFO (XSTRM-223): 457. Translating cellView teewinot/AdcVCMGen/layout as STRUCTURE AdcVCMGen.
+INFO (XSTRM-223): 458. Translating cellView tsmcN65/rppolywo/layout as STRUCTURE rppolywo_CDNS_64676140231192.
+INFO (XSTRM-223): 459. Translating cellView tsmcN65/rppolywo/layout as STRUCTURE rppolywo_CDNS_64676140231193.
+INFO (XSTRM-223): 460. Translating cellView washakie/LVLD10A25PP4/layout as STRUCTURE LVLD10A25PP4.
+INFO (XSTRM-223): 461. Translating cellView washakie/LVLD10A25PP10/layout as STRUCTURE LVLD10A25PP10.
+INFO (XSTRM-223): 462. Translating cellView washakie/LVLD10A25PP14/layout as STRUCTURE LVLD10A25PP14.
+INFO (XSTRM-223): 463. Translating cellView washakie/LVLD10A25PP8/layout as STRUCTURE LVLD10A25PP8.
+INFO (XSTRM-223): 464. Translating stdVia tsmcN65/M3_M2/layout as STRUCTURE M3_M2_CDNS_64676140231215.
+INFO (XSTRM-223): 465. Translating cellView tsmcN65/pch_25_macx/layout as STRUCTURE pch_25_macx_CDNS_64676140231194.
+INFO (XSTRM-223): 466. Translating cellView tsmcN65/nch_25_macx/layout as STRUCTURE nch_25_macx_CDNS_64676140231195.
+INFO (XSTRM-223): 467. Translating cellView tsmcN65/mimcap/layout as STRUCTURE mimcap_CDNS_64676140231196.
+INFO (XSTRM-223): 468. Translating cellView washakie/SampleHold/layout as STRUCTURE SampleHold.
+INFO (XSTRM-223): 469. Translating cellView washakie/AFE/layout as STRUCTURE AFE.
+
+Summary of Objects Translated:
+	Scalar Instances:                       860
+	Array Instances:                        13
+	Polygons:                               29
+	Paths:                                  133
+	Rectangles:                             88926
+	Lines:                                  0
+	Arcs:                                   0
+	Donuts:                                 0
+	Dots:                                   0
+	Ellipses:                               0
+	Boundaries:                             0
+	Area Blockages:                         0
+	Layer Blockages:                        0
+	Area Halos:                             0
+	Markers:                                0
+	Rows:                                   0
+	Standard Vias                           4788
+	Custom Vias:                            0
+	CdsGen Vias:                            0
+	Pathsegs:                               5130
+	Text:                                   2452
+	TextDisplay:                            0
+	Cells:                                  469
+
+Elapsed Time: 0.7s   User Time: 0.6s   CPU Time: 0.0s   Peak VM: 127012KB
+INFO (XSTRM-234): Translation completed. '0' error(s) and '4' warning(s) found.

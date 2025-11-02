@@ -1,0 +1,71 @@
+********************************************************************************
+db2gds 22.14-s007 64 bit (Tue Jan 31 16:35:56 PST 2023)
+Build Ref No.: 031 Release Candidate (01-31-2023) [2214_pgs]
+
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+Build O/S:       Linux x86_64 3.10.0-693.el7.x86_64
+Executed on:     atlas (Linux x86_64 5.3.18-lp152.106-default)
+Process Id:      11931
+Starting Time:   Thu Oct  2 14:26:07 2025 (Thu Oct  2 19:26:07 2025 GMT)
+With parameters: GlitchFilter_11498 erc.db GlitchFilter -lmap lmapIKuEpr -gdslib drc.db -gds_scale 1000 -property 
+********************************************************************************
+
+Library name: GlitchFilter_11498
+GDSII file name: erc.db
+Cells to be written out: GlitchFilter
+Source Library: GlitchFilter_11498
+Layer mapping file(GDS <- DMC): lmapIKuEpr
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+    0 (dt:0) <- 0
+Cell name case: PRESERVE
+Option: output object property
+
+
+                Object Statistics of Cells                            
+Cell Name         Box  Polygon     Path   Label Instance Array    Total
+----------------------------------------------------------------------
+GlitchFilter        0        0        0       0   108      0       108
+M2_M1_CDNS_759433161710        0        0        0       0     0      0         0
+M2_M1_CDNS_759433161711        0        0        0       0     0      0         0
+M2_M1_CDNS_759433161712        0        0        0       0     0      0         0
+M2_M1_CDNS_759433161713        0        0        0       0     0      0         0
+M3_M2_CDNS_759433161714        0        0        0       0     0      0         0
+MASCO__B3           0        0        0       0     2      0         2
+MASCO__A1           0        0        0       0     2      0         2
+MASCO__A2           0        0        0       0     2      0         2
+GlitchFilterBiEdge        0        0        0       0    10      0        10
+M1_PO_CDNS_759433161715        0        0        0       0     0      0         0
+M1_PO_CDNS_759433161716        0        0        0       0     0      0         0
+pch_hvt_CDNS_759433161711        0        0        0       0     0      0         0
+----------------------------------------------------------------------
+
+Object Statistics of Layers
+Layer   Objects
+----------------
+----------------
+
+Object Summary
+------------------
+     Box         0
+ Polygon         0
+    Path         0
+   Label         0
+Instance       124
+   Array         0
+------------------
+   Total       124
+
+
+Output property: 124
+Total CPU Time          : 0(s)
+Total Real Time         : 0(s)
+Peak Memory Used        : 7(M)

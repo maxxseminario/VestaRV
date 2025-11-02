@@ -1,0 +1,883 @@
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-10-02 14:26:52 12363 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: -lvs -qrc_data -ui_data -layout_top_cell PowerOnResetCheng -source_top_cell PowerOnResetCheng -gds ./pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.gds -source_cdl /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added -source_cdl /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl -source_cdl /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi -source_cdl ./pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.schematic.cdl -check_schematic -run_dir ./pvs/myshkin/PowerOnResetCheng ./pvs/myshkin/PowerOnResetCheng/pvs.lvs
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2012.97 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 15089 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 72 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic
+INFO:    Run directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/pegasus-1759433212-atlas-12363
+INFO:    PVL parsing results:
+WARNING: Cmd-line override: LAYOUT_PRIMARY "PowerOnResetCheng";
+WARNING: Cmd-line override: LAYOUT_PATH "/home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.gds";
+WARNING: Cmd-line override: SCHEMATIC_PRIMARY "PowerOnResetCheng";
+WARNING: Cmd-line override: SCHEMATIC_PATH "/opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added";
+WARNING: option -drc is skipped at line 691 in file /home/mseminario2/chips/myshkin/ic/./pvs/myshkin/PowerOnResetCheng/pvs.lvs
+WARNING: REPORT_SUMMARY -drc is skipped at line 692 in file /home/mseminario2/chips/myshkin/ic/./pvs/myshkin/PowerOnResetCheng/pvs.lvs
+
+INFO:    See "/home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/pegasus-1759433212-atlas-12363/pvl.log" for additional details.
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_LVS' version 22.1
+INFO:    License checkout successful ... 2025-10-02 14:26:54
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_16nm' version 22.1
+INFO:    License checkout successful ... 2025-10-02 14:26:54
+WARNING: Neither hcell nor -automatch option is specified.
+INFO:    Worker 0 started on host atlas with 1 cpu(s)
+         CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2024.94 MHz
+         Memory: MemTotal: 257612 MB,  MemFree: 15073 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 72 MB
+INFO:    LVS report file: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/lvs.rep 
+INFO:    Extracted layout netlist: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/svdb/cap_devices.net (Runset Evaluator)) 
+INFO:    Setting LAYOUT_PATH to: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.gds 
+INFO:    Setting LAYOUT_PRIMARY to: PowerOnResetCheng 
+INFO:    Setting SCHEMATIC_PATH to: /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added 
+INFO:    Setting SCHEMATIC_PRIMARY to: PowerOnResetCheng 
+
+INFO:    Gdsii input summary
+         File name: /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.gds
+         File size: 153600
+         Version: 5.0
+         Library name: myshkin
+         Last modified: 2025-10-2 13:53:36
+         Last accessed: 2025-10-2 14:26:51
+         Database unit in user units: 0.001
+         Database unit in meters: 1e-09
+         Magnification: 1 
+
+INFO:    Cell Summary:
+         ----------------------------------------------------------------------------
+             CELL                             INSTANCE    GEOMETRY      LABELS        HREF        FREF
+         ----------------------------------------------------------------------------
+         M1_PO_CDNS_759433211750                     0           3           0           2           2
+         M2_M1_CDNS_759433211751                     0           4           0          14          14
+         M1_PO_CDNS_759433211752                     0           4           0           7           7
+         M2_M1_CDNS_759433211753                     0           3           0           1           1
+         M2_M1_CDNS_759433211754                     0           6           0          21          21
+         M2_M1_CDNS_759433211755                     0           3           0           1           1
+         M2_M1_CDNS_759433211756                     0           3           0           1           1
+         M3_M2_CDNS_759433211757                     0           6           0          17          17
+         M3_M2_CDNS_759433211758                     0           4           0           2           2
+         M1_OD_CDNS_759433211759                     0           6           0           1           1
+         M3_M2_CDNS_7594332117510                    0           3           0           1           1
+         M3_M2_CDNS_7594332117511                    0           3           0           1           1
+         M3_M2_CDNS_7594332117512                    0           3           0           1           1
+         pch_mac_CDNS_759433211750                   0          13           0           1           1
+         nch_macx_CDNS_759433211751                  0          14           0           1           1
+         nch_macx_CDNS_759433211752                  0          12           0           1           1
+         nmoscap_CDNS_759433211753                   0         161           0           1           1
+         pch_mac_CDNS_759433211754                   0          15           0           1           1
+         pch_mac_CDNS_759433211755                   0          15           0           1           1
+         ILXCBcuzlDW                                 0           0           0           1           1
+         INVX1MA10TH                                 1          31           4           1           1
+         N8bn4Uo0JTnai                               0           0           0           1           2
+         NOR2BX1MA10TH                               1          43           5           2           2
+         BtwC7cuzlDW                                 0           0           0           1           1
+         BUFX4MA10TH                                 1          67           4           1           1
+         pch_hvt_mac_CDNS_759433211756               0          14           0           1           1
+         FhcHyXqFJTnai                               0           0           0           3          12
+         FILLTIE2A10TH                               1          23           2           3           3
+         DPjGsSkggI9iAZ                              0           0           0           1           8
+         DelayCell0P5MA10TH                          2         101           4           8           8
+         M1_PO_CDNS_7594332117513                    0           4           0           2           2
+         M1_NW_CDNS_7594332117514                    0           6           0           1           1
+         nch_hvtx_CDNS_759433211757                  0          12           0           1           1
+         pch_hvt_CDNS_759433211758                   0          13           0           3           3
+         pch_hvt_CDNS_759433211759                   0          15           0           1           1
+         GlitchFilterBiEdge                         14         199           8           1           1
+         PowerOnResetCheng                          88         466           8           1           1
+         ----------------------------------------------------------------------------
+         TOTAL CELL = 37;  INSTANCE = 108;  GEOMETRY = 1275;  LABEL = 35
+
+INFO:    Layer Summary:
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       HPN      HTC        FPN       FTC
+         ----------------------------------------------------------------------------
+         ODI                                            262144        97         0       221         0
+         DNW                                                 1         0         0         0         0
+         NW                                                  3        19         0        31         0
+         NT_Ni                                              11         0         0         0         0
+         OD33                                               15         0         0         0         0
+         OD18                                               16         0         0         0         0
+         POI                                                17        94         0       139         0
+         PP                                                 25        23         0        37         0
+         NP                                                 26        25         0        37         0
+         OD1T                                               27         0         0         0         0
+         RPO                                                29         0         0         0         0
+         CO                                                 30       661         0       978         0
+         M1                                                 31       239         0       579         0
+         M2                                                 32        40         0        90         0
+         M3                                                 33        15         0        32         0
+         M4                                                 34         0         0         0         0
+         M5                                                 35         0         0         0         0
+         M6                                                 36         0         0         0         0
+         M7                                                 37         0         0         0         0
+         M8                                                 38         0         0         0         0
+         M9                                                 39         0         0         0         0
+         RODMY                                              49         0         0         0         0
+         VIA1i                                              51         9         0       115         0
+         VIA2i                                              52         9         0        75         0
+         VIA3i                                              53         0         0         0         0
+         VIA4i                                              54         0         0         0         0
+         VIA5i                                              55         0         0         0         0
+         VIA6i                                              56         0         0         0         0
+         VIA7i                                              57         0         0         0         0
+         VIA8i                                              58         0         0         0         0
+         VTH_N                                              67        17         0        27         0
+         VTH_P                                              68        16         0        28         0
+         CB                                                 76         0         0         0         0
+         ctm                                                77         0         0         0         0
+         CAP1TDMY                                           78         0         0         0         0
+         RV                                                 85         0         0         0         0
+         cbm                                                88         0         0         0         0
+         blc                                               101         0         0         0         0
+         crown                                             102         0         0         0         0
+         p3                                                103         0         0         0         0
+         PSUB2                                             111         0         0         0         0
+         RH                                                117         0         0         0         0
+         DIODMY                                            119         0         0         0         0
+         ESD3                                              147         0         0         0         0
+         RFDMY                                             161         0         0         0         0
+         CBD                                               169         0         0         0         0
+         MAC                                              3000         6         0         6         0
+         RDKDMY                                           3001         0         0         0         0
+         DOD                                              3004         0         0         0         0
+         VTL_N                                            3006         0         0         0         0
+         VTL_P                                            3008         0         0         0         0
+         DPO                                              3013         0         0         0         0
+         ILVT                                             3015         0         0         0         0
+         OD25                                             3016         0         0         0         0
+         OD25_33                                          3017         0         0         0         0
+         OD25_18                                          3018         0         0         0         0
+         OD25_28                                          3019         0         0         0         0
+         EDRAM_DECAP                                      3025         0         0         0         0
+         DUM1                                             3032         4         0         4         0
+         DUM2                                             3035         0         0         0         0
+         DUM3                                             3038         0         0         0         0
+         DUM4                                             3041         0         0         0         0
+         DUM5                                             3044         0         0         0         0
+         DUM6                                             3047         0         0         0         0
+         DUM7                                             3050         0         0         0         0
+         DUM8                                             3052         0         0         0         0
+         DUM9                                             3054         0         0         0         0
+         SRM                                              3055         0         0         0         0
+         SRM10                                            3056         0         0         0         0
+         SRM11                                            3057         0         0         0         0
+         SRM12                                            3058         0         0         0         0
+         SRM13                                            3059         0         0         0         0
+         SRM14                                            3060         0         0         0         0
+         SRM16                                            3062         0         0         0         0
+         SRM17                                            3063         0         0         0         0
+         SRM_ULL                                          3065         0         0         0         0
+         VAR                                              3076         1         0         1         0
+         SBDDMY                                           3078         0         0         0         0
+         SBD3TDMY                                         3079         0         0         0         0
+         CB2                                              3085         0         0         0         0
+         AP                                               3086         0         0         0         0
+         DAP                                              3087         0         0         0         0
+         OD5                                              3089         0         0         0         0
+         OD6                                              3090         0         0         0         0
+         HVNWi                                            3093         0         0         0         0
+         HVPWi                                            3094         0         0         0         0
+         HVPSUB                                           3095         0         0         0         0
+         VTUL_N                                           3100         0         0         0         0
+         VTUL_P                                           3101         0         0         0         0
+         HVD_P                                            3102         0         0         0         0
+         HVD_NW                                           3103         0         0         0         0
+         HVD_DPW                                          3104         0         0         0         0
+         UHVT_N                                           3106         0         0         0         0
+         UHVT_P                                           3107         0         0         0         0
+         EHVT_N                                           3108         0         0         0         0
+         EHVT_P                                           3109         0         0         0         0
+         ELVT_N                                           3110         0         0         0         0
+         ELVT_P                                           3111         0         0         0         0
+         BJTDMY                                           3113         0         0         0         0
+         BJTDMY1                                          3114         0         0         0         0
+         BJT4TDMY                                         3115         0         0         0         0
+         NWDMYi                                           3123         0         0         0         0
+         NWDMY1                                           3124         0         0         0         0
+         RPDMYi                                           3125         0         0         0         0
+         RPDMY1                                           3126         0         0         0         0
+         DIO3TDMY                                         3128         0         0         0         0
+         MOMDMY0                                          3129         0         0         0         0
+         MOMDMY1                                          3130         0         0         0         0
+         MOMDMY2                                          3131         0         0         0         0
+         MOMDMY3                                          3132         0         0         0         0
+         MOMDMY4                                          3133         0         0         0         0
+         MOMDMY5                                          3134         0         0         0         0
+         MOMDMY6                                          3135         0         0         0         0
+         MOMDMY7                                          3136         0         0         0         0
+         MOMDMY_2T                                        3137         0         0         0         0
+         MOMDMY22                                         3139         0         0         0         0
+         MOMDMY23                                         3140         0         0         0         0
+         MOMDMY24                                         3141         0         0         0         0
+         MOMDMY25                                         3142         0         0         0         0
+         RFDMY5T                                          3144         0         0         0         0
+         RFDMY6T                                          3145         0         0         0         0
+         RFDMYUD                                          3146         0         0         0         0
+         RMDMY1                                           3147         0         0         0         0
+         RMDMY2                                           3148         0         0         0         0
+         RMDMY3                                           3149         0         0         0         0
+         RMDMY4                                           3150         0         0         0         0
+         RMDMY5                                           3151         0         0         0         0
+         RMDMY6                                           3152         0         0         0         0
+         RMDMY7                                           3153         0         0         0         0
+         RMDMY8                                           3154         0         0         0         0
+         RMDMY9                                           3155         0         0         0         0
+         RMDMYAP                                          3156         0         0         0         0
+         SRAMPSGT                                         3158         0         0         0         0
+         SRAMTIMER                                        3160         0         0         0         0
+         IND_STD                                          3161         0         0         0         0
+         IND_SYM                                          3162         0         0         0         0
+         IND_CT                                           3163         0         0         0         0
+         IND_STD_MUA                                      3164         0         0         0         0
+         IND_SYM_MUA                                      3165         0         0         0         0
+         IND_CT_MUA                                       3166         0         0         0         0
+         IND_RADi                                         3173         0         0         0         0
+         IND_GDIS                                         3174         0         0         0         0
+         IND_NR                                           3175         0         0         0         0
+         IND_MP                                           3176         0         0         0         0
+         IND_D4                                           3177         0         0         0         0
+         IND_S                                            3178         0         0         0         0
+         TLDMY                                            3182         0         0         0         0
+         DRAIN                                            3183         0         0         0         0
+         CAP1P5                                           3186         0         0         0         0
+         CAP2P0                                           3187         0         0         0         0
+         CAP1P0                                           3188         0         0         0         0
+         MIM_3TDMY                                        3189         0         0         0         0
+         CTMDMYUD                                         3190         0         0         0         0
+         PROBEM1                                          3191         0         0         0         0
+         PROBEM2                                          3192         0         0         0         0
+         PROBEM3                                          3193         0         0         0         0
+         PROBEM4                                          3194         0         0         0         0
+         PROBEM5                                          3195         0         0         0         0
+         PROBEM6                                          3196         0         0         0         0
+         PROBEM7                                          3197         0         0         0         0
+         DCO                                              3199         0         0         0         0
+         TCDDMY                                           3200         0         0         0         0
+         VTDN                                             3201         0         0         0         0
+         RFPADDMY                                         3202         0         0         0         0
+         RFPADDMY1                                        3203         0         0         0         0
+         RFPADDMY2                                        3204         0         0         0         0
+         RFPADDMY3                                        3205         0         0         0         0
+         HIADMY                                           3206         0         0         0         0
+         CAP_IMP                                          3208         0         0         0         0
+         CELLM                                            3209         0         0         0         0
+         MEDP                                             3210         0         0         0         0
+         RBCDMY                                           3214         0         0         0         0
+         DIFRBC                                           3215         0         0         0         0
+         XCLRBC                                           3216         0         0         0         0
+         CASRBC                                           3217         0         0         0         0
+         GTDMY1                                           3218         0         0         0         0
+         GTDMY2                                           3219         0         0         0         0
+         RFESDMY                                          3220         0         0         0         0
+         IND_TEXT                                         3224         0         0         0         0
+         RBC_TEXT                                         3226         0         0         0         0
+         metal1_text                                      3227         0        27         0        64
+         metal10_text                                     3228         0         0         0         0
+         metal2_text                                      3229         0         0         0         0
+         metal3_text                                      3230         0         8         0         8
+         metal4_text                                      3231         0         0         0         0
+         metal5_text                                      3232         0         0         0         0
+         metal6_text                                      3233         0         0         0         0
+         metal7_text                                      3234         0         0         0         0
+         metal8_text                                      3235         0         0         0         0
+         metal9_text                                      3236         0         0         0         0
+         poly_text                                        3237         0         0         0         0
+         sline_m9m_text                                   3238         0         0         0         0
+         sline_m9p_text                                   3239         0         0         0         0
+         ----------------------------------------------------------------------------
+
+INFO:    CHIP EXTENT: 0 0 26650 11790
+
+
+INFO:    Ports ...
+         ========================================================================
+
+INFO:    Texts For Connectivity ...
+         ========================================================================
+         vss! (13.325, 9.075) 3230 PowerOnResetCheng
+         vss! (1.140, 9.075) 3230 PowerOnResetCheng
+         vdd! (13.325, 7.075) 3230 PowerOnResetCheng
+         vdd! (1.090, 7.075) 3230 PowerOnResetCheng
+         resetn_out (24.200, 4.665) 3230 PowerOnResetCheng
+         resetn_in (14.455, 2.160) 3230 PowerOnResetCheng
+         vss! (3.542, 0.000) 3227 GlitchFilterBiEdge
+         vss! (0.005, -0.105) 3227 GlitchFilterBiEdge
+         vdd! (3.542, 2.000) 3227 GlitchFilterBiEdge
+         vdd! (0.005, 2.110) 3227 GlitchFilterBiEdge
+         Q (6.530, 0.955) 3227 GlitchFilterBiEdge
+         Q (6.505, 1.040) 3227 GlitchFilterBiEdge
+         A (0.160, 1.035) 3227 GlitchFilterBiEdge
+         A (0.090, 1.040) 3227 GlitchFilterBiEdge
+         Y (3.160, 0.940) 3227 DelayCell0P5MA10TH
+         vss! (1.515, 0.000) 3227 DelayCell0P5MA10TH
+         vdd! (1.395, 2.000) 3227 DelayCell0P5MA10TH
+         A (0.285, 0.940) 3227 DelayCell0P5MA10TH
+         vss! (0.200, 0.000) 3227 FILLTIE2A10TH
+         vdd! (0.200, 2.000) 3227 FILLTIE2A10TH
+         Y (1.500, 1.100) 3227 BUFX4MA10TH
+         vss! (1.000, 0.000) 3227 BUFX4MA10TH
+         vdd! (1.000, 2.000) 3227 BUFX4MA10TH
+         A (0.500, 0.900) 3227 BUFX4MA10TH
+         Y (1.100, 0.900) 3227 NOR2BX1MA10TH
+         vss! (0.600, 0.000) 3227 NOR2BX1MA10TH
+         vdd! (0.600, 2.000) 3227 NOR2BX1MA10TH
+         B (0.700, 0.900) 3227 NOR2BX1MA10TH
+         AN (0.300, 0.900) 3227 NOR2BX1MA10TH
+         Y (0.500, 1.100) 3227 INVX1MA10TH
+         vss! (0.300, 0.000) 3227 INVX1MA10TH
+         vdd! (0.300, 2.000) 3227 INVX1MA10TH
+         A (0.300, 0.900) 3227 INVX1MA10TH
+
+INFO:    Texts For SELECT -LABEL ...
+         ========================================================================
+
+INFO:    Texts For EXPAND_TEXT_ORIGIN ...
+         ========================================================================
+
+INFO:    Texts For DFM_TEXT ...
+         ========================================================================
+
+INFO:    Texts For Device Text Model Layer ...
+         ========================================================================
+
+INFO:    Texts For Device Text Property Layer ...
+         ========================================================================
+
+INFO:    Layer Summary(Texts For Connectivity):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         metal1_text                                      3227        27
+         metal3_text                                      3230         6
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For SELECT -LABEL):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For EXPAND_TEXT_ORIGIN):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Layer Summary(Texts For DFM_TEXT):
+         ----------------------------------------------------------------------------
+             LAYER                                          ID       TEXTS
+         ----------------------------------------------------------------------------
+         ----------------------------------------------------------------------------
+
+INFO:    Expanded Cell Summary
+         FhcHyXqFJTnai is expanded.
+         FhcHyXqFJTnai is expanded.
+         DPjGsSkggI9iAZ is expanded.
+         FhcHyXqFJTnai is expanded.
+         BtwC7cuzlDW is expanded.
+         N8bn4Uo0JTnai is expanded.
+         ILXCBcuzlDW is expanded.
+         M2_M1_CDNS_759433211753 is expanded.
+         M2_M1_CDNS_759433211755 is expanded.
+         M1_OD_CDNS_759433211759 is expanded.
+         M3_M2_CDNS_7594332117510 is expanded.
+         M3_M2_CDNS_7594332117511 is expanded.
+         M3_M2_CDNS_7594332117512 is expanded.
+         M1_NW_CDNS_7594332117514 is expanded.
+         M2_M1_CDNS_759433211756 is expanded.
+         pch_mac_CDNS_759433211750 is expanded.
+         nch_macx_CDNS_759433211751 is expanded.
+         nch_macx_CDNS_759433211752 is expanded.
+         nmoscap_CDNS_759433211753 is expanded.
+         pch_mac_CDNS_759433211754 is expanded.
+         pch_mac_CDNS_759433211755 is expanded.
+         INVX1MA10TH is expanded.
+         BUFX4MA10TH is expanded.
+         pch_hvt_mac_CDNS_759433211756 is expanded.
+         nch_hvtx_CDNS_759433211757 is expanded.
+         pch_hvt_CDNS_759433211759 is expanded.
+         GlitchFilterBiEdge is expanded.
+
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET tndiff
+INFO:    Rule mnpg completed with no violations, 1/9
+         Remaining rules: mppg  mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET tpdiff
+INFO:    Rule mppg completed with no violations, 2/9
+         Remaining rules: mnpg_ldd1  mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+INFO:    Rule mnpg_ldd1 completed with no violations, 3/9
+         Remaining rules: mppg_ldd1  floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+INFO:    Rule mppg_ldd1 completed with no violations, 4/9
+         Remaining rules: floating.nxwell_float  floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+WARNING: ERC operations not executed due to no LVS Power Name or no LVS Ground Name found:
+    PATHCHK nxwell_float -power not -ports_also (Worker 1)
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name VSS.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TAVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSPST.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET nxwell_float
+INFO:    Rule floating.nxwell_float completed with no violations, 5/9
+         Remaining rules: floating.nxwell_hv  floating.psub  npvss49  ppvdd49 
+WARNING: ERC operations not executed due to no LVS Power Name or no LVS Ground Name found:
+    PATHCHK nxwell_hv -power not -ports_also (Worker 1)
+INFO:    Rule floating.nxwell_hv completed with no violations, 6/9
+         Remaining rules: floating.psub  npvss49  ppvdd49 
+WARNING: ERC operations not executed due to no LVS Power Name or no LVS Ground Name found:
+    PATHCHK psub -ground not -ports_also (Worker 1)
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET psub
+INFO:    Rule floating.psub completed with no violations, 7/9
+         Remaining rules: npvss49  ppvdd49 
+WARNING: There is no geometry for net name VSSM.
+WARNING: There is no geometry for net name TAVSSPST.
+WARNING: There is no geometry for net name VSSUB.
+WARNING: There is no geometry for net name HVSSUB.
+WARNING: There is no geometry for net name AVSSUB.
+WARNING: There is no geometry for net name AVSSB.
+WARNING: There is no geometry for net name AHVSSUB.
+WARNING: There is no geometry for net name AHVSSB.
+WARNING: There is no geometry for net name VSSESD.
+WARNING: There is no geometry for net name GND.
+WARNING: There is no geometry for net name AGND.
+WARNING: There is no geometry for net name AHVSSR.
+WARNING: There is no geometry for net name AVSSR.
+WARNING: There is no geometry for net name VSS.
+WARNING: There is no geometry for net name TVSS.
+WARNING: There is no geometry for net name TAVSS.
+WARNING: There is no geometry for net name TACVSS.
+WARNING: There is no geometry for net name DVSS.
+WARNING: There is no geometry for net name DHVSS.
+WARNING: There is no geometry for net name AHVSS.
+WARNING: There is no geometry for net name AVSS.
+WARNING: There is no geometry for net name VSSPST.
+WARNING: There is no geometry for net name VSSG.
+WARNING: There is no geometry for net name VS33.
+WARNING: There is no geometry for net name AVSSBG.
+WARNING: There is no geometry for net name AHVSSG.
+WARNING: There is no geometry for net name AVSSG.
+WARNING: SELECT_NET npvss49:ntap_not_var
+INFO:    Rule npvss49 completed with no violations, 8/9
+         Remaining rules: ppvdd49 
+WARNING: There is no geometry for net name VDD5V.
+WARNING: There is no geometry for net name TAVD33PST.
+WARNING: There is no geometry for net name VDWELL.
+WARNING: There is no geometry for net name AVDWELL.
+WARNING: There is no geometry for net name VDDM.
+WARNING: There is no geometry for net name TAVDDPST.
+WARNING: There is no geometry for net name VDDSA.
+WARNING: There is no geometry for net name AHVDDWELL.
+WARNING: There is no geometry for net name AVDDB.
+WARNING: There is no geometry for net name AHVDDB.
+WARNING: There is no geometry for net name VDDESD.
+WARNING: There is no geometry for net name VDD.
+WARNING: There is no geometry for net name TVDD.
+WARNING: There is no geometry for net name TAVDD.
+WARNING: There is no geometry for net name TACVDD.
+WARNING: There is no geometry for net name DVDD.
+WARNING: There is no geometry for net name DHVDD.
+WARNING: There is no geometry for net name AHVDD.
+WARNING: There is no geometry for net name AVDD.
+WARNING: There is no geometry for net name HVDDWELL.
+WARNING: There is no geometry for net name AHVDDR.
+WARNING: There is no geometry for net name AVDDR.
+WARNING: There is no geometry for net name VDDPST.
+WARNING: There is no geometry for net name VDDG.
+WARNING: There is no geometry for net name VD33.
+WARNING: There is no geometry for net name TAVD33.
+WARNING: There is no geometry for net name AVDDBG.
+WARNING: There is no geometry for net name AHVDDG.
+WARNING: There is no geometry for net name AVDDG.
+WARNING: SELECT_NET ptap
+INFO:    Rule ppvdd49 completed with no violations, 9/9
+INFO:    Status: Runset 100% complete as of 2025-10-02 14:26:56   Elapsed: 00:00:02
+         Worker: Active CPUs  Total Mem(MB)  Active Mem(MB)  CPU time(s)
+              0:    1 /   1             32              19            1
+INFO:	 Status: Finishing as of 2025-10-02 14:26:56   Elapsed: 00:00:02   CPU time[s]: 2
+INFO:    Resource usage by worker at exit:
+                  CPU      Elapsed  CPUs       CPU       Peak        Peak engine
+         Worker:  time[s]  time[s]  Allocated  usage[%]  Memory[MB]  Memory[MB]
+              0:        1        2          1     64.30          32           19
+         Worker resource usage  summary: Total CPU[s]: 1  Run duration[s]: 2  Max peak memory[MB]: 32
+         Worker CPU utilization summary: 1 of 2 available CPU seconds (50.00%) with 1 average available CPU(s)
+INFO:    Extraction result: CLEAN (Reporter)
+INFO:    Generating summary in /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/erc.sum
+INFO:    All selected rules completed
+         Total CPU Time                    : 1(s)
+         Total Real Time                   : 2(s)
+         Total Original Geometry           : 1275(2400)
+         Total ERC RuleChecks              : 9
+         Total ERC Results                 : 0 (0)
+         Graphic report database is /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/erc.db
+INFO:    Pegasus extracted connectivity database creation started
+INFO:    CmdLine: /opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb -kf -edb PowerOnResetCheng_12363.db -ecdb ./ -topcell PowerOnResetCheng -netlist ./PowerOnResetCheng.net -layermap ./PowerOnResetCheng.ecdbmap -textmap ./PowerOnResetCheng.ports -dependmap PowerOnResetCheng.lmap.perc -kvp ifs:KWb -lvsfile ./PowerOnResetCheng.lvsfile -saveFloatingNets .PowerOnResetCheng.info.softchk 
+INFO:    Opening layer file 'PowerOnResetCheng_12363.db/__layer'...
+INFO:    Loading layer map file './PowerOnResetCheng.ecdbmap'...
+INFO:    Loading text map file './PowerOnResetCheng.ports'...
+INFO:    Loading dependency map file 'PowerOnResetCheng.lmap.perc'...
+INFO:    Pre loading edb directory contents...
+INFO:    ECDB file name './/.PowerOnResetCheng.ecdb'...
+INFO:    Loading lvs file './PowerOnResetCheng.lvsfile'...
+INFO:    Writing db header information...(0s)
+INFO:    Transfering cdl structures to ecdb structures...
+INFO:    Read Netlist (32 threads)...
+INFO:      DONE - (2s)
+INFO:    Process (32 threads)...
+INFO:    Cell(       7):   5% Done...(2s), probe3                                  
+INFO:    Cell(       5):  10% Done...(2s), probe2                                  
+INFO:    Cell(       9):  15% Done...(2s), M2_M1_CDNS_759433211751                 
+INFO:    Cell(       0):  20% Done...(2s), probe7                                  
+INFO:    Cell(       2):  25% Done...(2s), probe1                                  
+INFO:    Cell(       6):  30% Done...(2s), probe6                                  
+INFO:    Cell(       3):  35% Done...(2s), nmoscap                                 
+INFO:    Cell(      13):  40% Done...(2s), M3_M2_CDNS_759433211758                 
+INFO:    Cell(       1):  45% Done...(2s), probe4                                  
+INFO:    Cell(       4):  50% Done...(2s), probe5                                  
+INFO:    Cell(      10):  55% Done...(2s), M1_PO_CDNS_759433211752                 
+INFO:    Cell(      11):  60% Done...(2s), M2_M1_CDNS_759433211754                 
+INFO:    Cell(      12):  65% Done...(2s), M3_M2_CDNS_759433211757                 
+INFO:    Cell(       8):  70% Done...(2s), M1_PO_CDNS_759433211750                 
+INFO:    Cell(      18):  75% Done...(2s), pch_hvt_CDNS_759433211758               
+INFO:    Cell(      16):  80% Done...(2s), DelayCell0P5MA10TH                      
+INFO:    Cell(      14):  85% Done...(2s), NOR2BX1MA10TH                           
+INFO:    Cell(      19):  90% Done...(2s), PowerOnResetCheng                       
+INFO:    Cell(      17):  95% Done...(3s), M1_PO_CDNS_7594332117513                
+INFO:    Cell(      15): 100% Done...(3s), FILLTIE2A10TH                           
+INFO:      DONE - (1s)
+INFO:    Cells creation time: (3s)
+INFO:    Write netlist items...         (3s)
+INFO:    Saving name table to db...
+INFO:    Save device templates to the db...
+INFO:    Save connect rules to the db...
+INFO:    Write calculated header information to the top of file...
+INFO:    Erasing cdl subckts...          (0s)
+
+INFO:    edbToEcdb Header Information:
+  ECDB file version   : 37
+  DevTmpl offset      : 76955
+  Connect offset      : 77455
+  NameTable offset    : 73976
+  Layer Map offset    : 167
+  Cell Start offset   : 72576
+  Cell End offset     : 73976
+  Aux Data offset     : 79331
+  Labels     offset   : 0
+  Layer RW   offset   : 0
+  NVP                 : ifs:0.01 
+  Scale               : 4000
+  GDS Scale           : 1000
+  File size (static)  : 137467
+  File size (dynamic) : 0
+  Cell count          : 20
+  ECDB create time    : 3
+  EDB info            : 10
+  Top Cell            : PowerOnResetCheng
+  EDB info (Trans)    : WRITTEN_64 W_NOT_NET_ORDER 
+
+INFO:    edbToEcdb Sizes written to disk (MB):
+  NameTbl             :     0.002979
+  Layers              :     0.040931
+  Shapes              :     0.013585
+  XYTree              :     0.010395
+  LookUpTbls          :     0.001591
+  Cells               :     0.001525
+  Insts               :     0.002466
+  Ports               :     0.002082
+  Nets                :     0.000616
+  Pins                :     0.000146
+  Labels              :     0.000476
+  DevTmpl             :     0.000500
+  Connect             :     0.001872
+  Header              :     0.000167
+  AuxData             :     0.058134
+  NvnLabels           :     0.000002
+---------------------------------
+  Total               :     0.137467
+
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 3 Peak memory(MB): 948.96
+INFO:    Pegasus extracted connectivity database creation completed. 2025-10-02 14:26:59
+
+
+INFO:    Creating annotated GDS ...
+INFO:    Library name: PowerOnResetCheng_12363
+INFO:    GDSII file name: ./PowerOnResetCheng.agf
+INFO:    Cells to be written out: PowerOnResetCheng
+INFO:    Source Library: PowerOnResetCheng_12363
+INFO:    Status: Task in progress ...
+INFO:    Pegasus creating annotated GDS completed. 2025-10-02 14:26:56
+INFO:    Pegasus REPORTDB creation started...
+INFO:    Processing file lvs.rep
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 0 Peak memory(MB): 27.99
+INFO:    Pegasus REPORTDB creation completed. 2025-10-02 14:26:59
+
+
+INFO:    Comparing netlists ...
+INFO:    Setup VLDB (0s)
+INFO:    Init sch rules (0s)
+INFO:    Init lay rules (0s)
+INFO:    Init structures (0s)
+INFO:    Set cells to delete (0s)
+INFO:    Check expand on pin error (0s)
+INFO:    Reading schematic network
+INFO:     inputting cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added...
+INFO:     finished loading cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl (0s)
+INFO:     inputting cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi...
+INFO:     finished loading cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi (0s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.schematic.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.RESI is not supported.
+WARNING (NVN-13002): *.RESVAL is not supported.
+WARNING (NVN-13002): *.CAPVAL is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.EQUATION is not supported.
+WARNING (NVN-13003): "*.SCALE" is not supported. Use ".OPTION SCALE" instead or specify  'lvs_cdn_flow_options -cdl_use_scale' in the rule file.
+WARNING (NVN-13002): *.PIN is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/myshkin/PowerOnResetCheng/myshkin.PowerOnResetCheng.schematic.cdl (0s)
+INFO:     commit cdl netlist(s)...
+INFO:     finished committing cdl netlists (0s)
+INFO:    Post sch netlist rule processing (0s)
+INFO:    Reading layout network
+INFO:     inputting (fast parser) cdl netlist  PowerOnResetCheng.net...
+INFO:     finished loading cdl netlist PowerOnResetCheng.net (0s)
+INFO:     commit cdl netlist(s)...
+INFO:     finished committing cdl netlists (0s)
+INFO:    Post lay netlist rule processing (0s)
+INFO:    Processing blackBox rules (0s)
+INFO:    Processing bindings (0s)
+INFO:    Commit sch verilog netlist (0s)
+INFO:    Commit lay verilog netlist (0s)
+INFO:    Erase netlist data (0s)
+INFO:    Set blackbox cells (0s)
+INFO:    Sch put cells in memory (0s)
+INFO:    Sch update netlist rules (0s)
+INFO:    Sch adjust device pins (0s)
+INFO:    Sch calc hier order (0s)
+INFO:    Sch process inherited connections (0s)
+INFO:    Sch generate qrc files (0s)
+INFO:    Sch handle global pins (0s)
+INFO:    Sch apply rule actions with processed netlist (0s)
+INFO:    Sch process cell supply (0s)
+INFO:    Lay put cells in memory (0s)
+INFO:    Lay update netlist rules (0s)
+INFO:    Lay calc hier order (0s)
+INFO:    Lay process inherited connections (0s)
+INFO:    Lay generate qrc files (0s)
+INFO:    Lay handle global pins (0s)
+INFO:    Lay apply rule actions with processed netlist (0s)
+INFO:    Lay process cell supply (0s)
+INFO:    Check if interposer flow (0s)
+INFO:    Check binding file (0s)
+INFO:    Set topcell global pin indicator (0s)
+INFO:    Calculate preserve parameterized cells (0s)
+INFO:    Check generic device bindings (0s)
+INFO:    Calculate primitive device bindings (0s)
+INFO:    Remove unused device parameters (0s)
+INFO:    Set instances to flatten inside cells (0s)
+INFO:    Calculate parameters (0s)
+INFO:    Start sch normalization (0s)
+INFO:    Start lay normalization (0s)
+INFO:    Calculate primitive device bindings (2nd time) (0s)
+INFO:    Finalize binding (0s)
+INFO:    Sch join nets (0s)
+INFO:    Sch setup hier normalization (0s)
+INFO:    Sch remove feedthroughs and black box cell instances (0s)
+INFO:    Sch remove identical pins (0s)
+INFO:    Sch calc connection counts (0s)
+INFO:    Run genHierCells (0s)
+INFO:    Reset normalization flags (0s)
+INFO:    Lay join nets (0s)
+INFO:    Lay setup hier normalization (0s)
+INFO:    Lay remove feedthroughs and black box cell instances (0s)
+INFO:    Lay remove identical pins (0s)
+INFO:    Lay calc connection counts (0s)
+INFO:    Normalize sch (0s)
+INFO:    Read in color file (0s)
+INFO:    Set scale factor per cell (0s)
+INFO:    Setup property init rules (0s)
+INFO:    Write sch vldb file (0s)
+INFO:    Write lay vldb file (0s)
+INFO:    Apply preserve parameterized cells (0s)
+INFO:    Cleanup after VLDB processing (0s)
+
+INFO:    Cell comparison output format:
+            <Comparing|Top Cell> <Layout Cell> vs <Schematic Cell>
+               <Layout instances> insts vs <Schematic instances> insts  (<Time>)-<Status>
+
+         Top Cell  PowerOnResetCheng vs PowerOnResetCheng
+            168 insts vs 168 insts . . . . . . . . . . . . . . . . . . . . . . (0s)-match
+
+INFO:    Generating the LVS report...
+           Report Init (0s)
+           Load common queries (0s)
+           Create report (0s)
+           Cleanup (0s)
+INFO:    Report finished
+
+INFO:    Extraction Run Summary
+         Total CPU Time        : 1(s)
+         Total Real Time       : 2(s)
+         Peak Memory Used      : 32.00(M)
+
+
+INFO:    NVN Run Summary
+         Total CPU Time        : 1(s)
+         Total Real Time       : 0(s)
+         Peak Memory Used      : 412.55(M)
+
+
+INFO:    LVS Summary
+         Total CPU Time        : 2(s)
+         Total Real Time       : 2(s)
+         Peak Memory Used      : 412.55(M)
+
+    #######################################################################################################################
+    #                                                                                                                     #
+    # Run Result             : MATCH                                                                                      #
+    #                                                                                                                     #
+    # Run Summary            : [INFO]  ERC Results: Empty, non-executed ERC operations exist (refer to ERC Summary File)  #
+    #                        : [INFO]  Extraction Clean                                                                   #
+    #                                                                                                                     #
+    # ERC Summary File       : erc.sum                                                                                    #
+    # Extraction Report File : lvs.rep                                                                                    #
+    # Comparison Report File : lvs.rep.cls                                                                                #
+    #                                                                                                                     #
+    #######################################################################################################################
+
+
+INFO:    Creating cross reference database ...
+INFO:    Manager summary: CPU(s): 0 Elapsed(s): 0 Peak memory(MB): 105.77
+INFO:    Checking in all SoftShare licenses.
+INFO:    Creating cross reference database completed. Thu Oct  2 14:27:00 2025
+
+
+Pegasus finished normally. 2025-10-02 14:27:00

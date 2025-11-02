@@ -1,0 +1,20 @@
+Starting Single Run, Sweeps and Corners...
+
+Current time: Wed Jul 20 16:09:50 2022 
+Best design point: 1
+Design specs: 
+	Better_ADCs:ADC_Main_1V0_S_Test:1	corner	Nominal - 
+	VT("/I1/I26/net043")		Error	No
+	VT("/I0/C7P")		Error	No
+	VT("/I0/C7N")		Error	No
+	VT("/net13")		Error	No
+	VT("/I0/net14")		Error	No
+	iinteg((IT("/I0/VDDA10") + IT("/I0/VDDD10")))		Error	No
+Design parameters: 
+	input		0
+
+Interactive.60
+Number of points completed: 1
+Number of simulation errors: 6
+Interactive.60 completed. 
+Current time: Wed Jul 20 17:55:09 2022 

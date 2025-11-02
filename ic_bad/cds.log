@@ -1,0 +1,151 @@
+\# Program start time:     UTC 2025.11.01 20:28:25.239
+\# Local time: CDT (UTC-05:00) 2025.11.01 15:28:25.239
+\o Program:		@(#)$CDS: virtuoso version 6.1.8-64b 11/10/2020 19:41 (cpgsrv13) $
+\o Hierarchy:		/opt/cadence/IC618/tools.lnx86/dfII/
+\o Sub version:		sub-version  IC6.1.8-64b.500.15  (64-bit addresses)
+\# Command line:	/opt/cadence/IC618/tools/dfII/bin/64bit/virtuoso -noblink -log cds.log
+\# Host name (type):	atlas (x86_64)
+\# Operating system:	Linux 5.3.18-lp152.106-default #1 SMP Mon Nov 22 08:38:17 UTC 2021 (52078fe)
+\# Linux /etc/issue:	Welcome to \S - Kernel \r (\l).
+\# X display name (WxH):	:3 (3440x1440)
+\# Available geometry:			TL(0:0) BR(3439:1439)
+\# X server:			The X.Org Foundation
+\# Depth of Visual (Root):	24 (24)
+\# Number of Planes Used:	24
+\# X version:		11.0 (vendor release 12003000)
+\# X resource pool:	base 0x4600000, mask 0x1fffff (2097151), shift 0
+\# 			current id 0x0, current max 0x1ffffa (2097146)
+\# Max data seg size:	     unlimited
+\# Max process size:	     unlimited
+\# Initial sbrk value:	        548 MB
+\# Available memory:	     36,407 MB
+\# System memory:	    273,997 MB
+\# Maximum memory size:	    273,762 MB
+\# Max mem available:	     36,721 MB
+\# Initial memory used:	        314 MB
+\#        process size:	      3,919 MB
+\# Thread usage limits (effective/default):	maxthreads 1030374/1030374 maxload 128.00/128.00
+\# Qt version:		5.9.1
+\# Window Manager:	kde
+\# User Name:		mseminario2
+\o Working Directory:	atlas:/home/mseminario2/chips/myshkin/ic
+\# Process Id:		19845
+\o 
+\o COPYRIGHT (C) 1992-2020  CADENCE DESIGN SYSTEMS INC.  ALL RIGHTS RESERVED.
+\o           (C) 1992-2020  UNIX SYSTEMS Laboratories INC.,
+\o                          Reproduced with permission.
+\o 
+\o This Cadence Design Systems program and online documentation are
+\o proprietary/confidential information and may be disclosed/used only
+\o as authorized in a license agreement controlling such use and disclosure.
+\o 
+\o           RESTRICTED RIGHTS NOTICE (SHORT FORM)
+\o Use/reproduction/disclosure is subject to restriction
+\o set forth at FAR 1252.227-19 or its equivalent.
+\o Loading geView.cxt 
+\o Loading menuBuilder.cxt 
+\o Loading schView.cxt 
+\o Loading selectSv.cxt 
+\o Loading pegasusui.cxt
+\# Memory report: using         432 MB, process size 4,060 MB at UTC 2025.11.01 20:28:26.103
+\o Loading wireEdit.cxt 
+\o Loading pte2.cxt 
+\o Loading xlUI.cxt 
+\o Loading auCore.cxt 
+\o Loading dal.cxt 
+\o Loading awv.cxt 
+\w *WARNING* defstruct: Redefining Structure abFamilySignal.
+\o function make_abFamilySignal redefined
+\o function copy_abFamilySignal redefined
+\o function abUnwrapFamily redefined
+\w *WARNING* (reader): a '(' at line 95 was still unclosed on EOF, ')' added
+\w                     at line 422 of file /home/mseminario2/sw/skill_calc/abDumpWaveformsToVCSV.il 
+\o Loading vhdl.cxt 
+\o Loading seismic.cxt 
+\o Loading ci.cxt 
+\o Loading ams.cxt 
+\o Loading adexlDM.cxt 
+\o Loading cpf.cxt 
+\o Loading cli.cxt 
+\o Loading lp.cxt 
+\o Virtuoso Framework License (111) was checked out successfully. Total checkout time was 0.01s.
+\w *WARNING* LIB rom_hvt_pg from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 64 redefines
+\w LIB rom_hvt_pg from the same file (defined earlier.)
+\w *WARNING* LIB rom_hvt_pg from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 65 redefines
+\w LIB rom_hvt_pg from the same file (defined earlier.)
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/myshkin_fill_dodpo' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'myshkin_fill_dodpo'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/myshkin_fill_metal' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'myshkin_fill_metal'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/M16832' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'M16832'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/Better_ADCs' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'Better_ADCs'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/potentiostat_final' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'potentiostat_final'.
+\w *WARNING* The directory: '/home/mseminario2/chips/demo-washakie/ic/washakie' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'washakie'.
+\p > 
+\a _treeSetOpcGUI(t)
+\r t
+\# Available memory:         36,207 MB at UTC 2025.11.01 20:28:35.928
+\# Memory report: Maximum memory size now 36,727 MB at UTC 2025.11.01 20:28:35.928
+\# Thread usage report: 129 active threads, active load 1.00 at UTC 2025.11.01 20:28:35.928
+\a hiResizeWindow(window(1) list(1323:27 2118:542))
+\r t
+\a ddsOpenLibManager()
+\w *WARNING* LIB rom_hvt_pg from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 64 redefines
+\w LIB rom_hvt_pg from the same file (defined earlier.)
+\w *WARNING* LIB rom_hvt_pg from File /home/mseminario2/chips/myshkin/ic/cds.lib Line 65 redefines
+\w LIB rom_hvt_pg from the same file (defined earlier.)
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/myshkin_fill_dodpo' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'myshkin_fill_dodpo'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/myshkin_fill_metal' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'myshkin_fill_metal'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/M16832' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'M16832'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/Better_ADCs' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'Better_ADCs'.
+\w *WARNING* The directory: '/home/mseminario2/chips/myshkin/ic/potentiostat_final' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'potentiostat_final'.
+\w *WARNING* The directory: '/home/mseminario2/chips/demo-washakie/ic/washakie' does not exist
+\w 	but was defined in libFile '/home/mseminario2/chips/myshkin/ic/cds.lib' for Lib 'washakie'.
+\r t
+\i ddsServOpen("myshkin" "ASIC" "layout" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/layout/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "layout" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/layout/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\i ddsServOpen("myshkin" "ASIC" "schematic" "edit" nil)
+\w *WARNING* ddsServOpen: Unable to find view type for myshkin/ASIC/schematic/thumbnail_128x128.png
+\a ciwHiExit()
+\# Displaying modal dbox "ciwDBox", title "Exit virtuoso?"
+\p > 
+\a hiDBoxOK(ciwDBox)
+\r t
+\o 
+\# Memory report: on exit            523 MB, process size 4,137 MB at UTC 2025.11.01 20:29:37.220
+\# Memory report: peak usage         523 MB, process size 4,137 MB

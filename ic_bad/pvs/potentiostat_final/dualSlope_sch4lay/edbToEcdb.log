@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : dualSlope_sch4lay_98230.db
+ECDB dir        : ./
+Top Cell        : dualSlope_sch4lay
+CDL netlist     : ./dualSlope_sch4lay.net
+Layer map file  : ./dualSlope_sch4lay.ecdbmap
+Text map file   : ./dualSlope_sch4lay.ports
+Dependency map  : dualSlope_sch4lay.lmap.perc
+Lvs file        : ./dualSlope_sch4lay.lvsfile
+Float net file  : .dualSlope_sch4lay.info.softchk
+debug           : 0
+Source Library  : dualSlope_sch4lay_98230

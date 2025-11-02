@@ -1,0 +1,16 @@
+
+/opt/cadence/PVS201/tools.lnx86/pvs/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : AND2X8_93995.db
+ECDB dir        : ./
+Top Cell        : AND2X8
+CDL netlist     : ./AND2X8.net
+Layer map file  : ./AND2X8.ecdbmap
+Text map file   : ./AND2X8.ports
+Dependency map  : AND2X8.lmap.perc
+Lvs file        : ./AND2X8.lvsfile
+Float net file  : .AND2X8.info.softchk
+debug           : 0
+Source Library  : AND2X8_93995

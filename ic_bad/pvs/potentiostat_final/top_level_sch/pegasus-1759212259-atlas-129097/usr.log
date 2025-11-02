@@ -1,0 +1,10 @@
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-09-30 01:04:19 129097 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: -lvs -qrc_data -ui_data -layout_top_cell top_level_sch -source_top_cell top_level_sch -gds ./pvs/potentiostat_final/top_level_sch/potentiostat_final.top_level_sch.gds -source_cdl /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added -source_cdl ../ip/rom_hvt_pg/rom_hvt_pg.cdl -source_cdl ../ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl -source_cdl ../ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.cdl -source_cdl ../ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.cdl -source_cdl /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi -source_cdl ./pvs/potentiostat_final/top_level_sch/potentiostat_final.top_level_sch.schematic.cdl -check_schematic -run_dir ./pvs/potentiostat_final/top_level_sch ./pvs/potentiostat_final/top_level_sch/pvs.lvs
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2200.01 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 24833 MB,  SwapTotal: 16383 MB,  SwapFree: 16379 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 63 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic
+INFO:    Run directory: /home/mseminario2/chips/myshkin/ic/pvs/potentiostat_final/top_level_sch
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/potentiostat_final/top_level_sch/pegasus-1759212259-atlas-129097

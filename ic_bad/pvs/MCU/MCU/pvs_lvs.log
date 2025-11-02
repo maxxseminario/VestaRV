@@ -1,0 +1,63 @@
+Pegasus 22.14-s007 YHq7WOyNq0hn3aUFJryqDw 2025-10-03 15:20:22 30093 atlas
+Copyright 2023 Cadence Design Systems, Inc.
+All rights reserved worldwide.
+
+INFO:    Command Line Options: -dp 8 -lvs -qrc_data -ui_data -layout_top_cell MCU -source_top_cell MCU -gds ./pvs/MCU/MCU/MCU.MCU.gds -source_cdl /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added -source_cdl /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl -source_cdl /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl -source_cdl /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi -source_cdl ./pvs/MCU/MCU/MCU.MCU.schematic.cdl -check_schematic -run_dir ./pvs/MCU/MCU ./pvs/MCU/MCU/pvs.lvs
+INFO:    Launch host CPU: Model: AMD Ryzen Threadripper 3990X 64-Core Processor, OS: openSUSE Leap 15.2, Logical cores: 128, Physical cores: 64, Cache: 512 KB, CPU Speed: 2200.09 MHz
+         Launch host Memory: MemTotal: 257612 MB,  MemFree: 220352 MB,  SwapTotal: 16383 MB,  SwapFree: 16383 MB,  VmallocTotal: 33554431 MB,  VmallocUsed: 61 MB
+INFO:    Current path: /home/mseminario2/chips/myshkin/ic
+INFO:    Run directory: /home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU
+INFO:    Log directory: /home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/pegasus-1759522822-atlas-30093
+INFO:    PVL parsing results:
+WARNING: Cmd-line override: LAYOUT_PRIMARY "MCU";
+WARNING: Cmd-line override: LAYOUT_PATH "/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/MCU.MCU.gds";
+WARNING: Cmd-line override: SCHEMATIC_PRIMARY "MCU";
+WARNING: Cmd-line override: SCHEMATIC_PATH "/opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added";
+WARNING: option -drc is skipped at line 691 in file /home/mseminario2/chips/myshkin/ic/./pvs/MCU/MCU/pvs.lvs
+WARNING: REPORT_SUMMARY -drc is skipped at line 692 in file /home/mseminario2/chips/myshkin/ic/./pvs/MCU/MCU/pvs.lvs
+
+INFO:    See "/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/pegasus-1759522822-atlas-30093/pvl.log" for additional details.
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_LVS' version 22.1
+INFO:    License checkout successful ... 2025-10-03 15:20:23
+
+INFO:    Checking out 1 license(s) of feature: 'Pegasus_16nm' version 22.1
+INFO:    License checkout successful ... 2025-10-03 15:20:23
+INFO:    Checking the schematic ...
+INFO:    Reading schematic network
+INFO:     inputting cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added...
+INFO:     finished loading cdl netlist /opt/design_kits/TSMC65-PDK/kit/PVS/LVS/DFM_LVS_RC_PVS_N65RF_1P9M_ALRDL_v1.6b/source.added (-1s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl (-1s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+INFO:     finished loading cdl netlist /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl (-1s)
+INFO:     inputting cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi...
+INFO:     finished loading cdl netlist /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/spice/tphn65gpgv2od3_sl_1_2.spi (-1s)
+INFO:     inputting cdl netlist /home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/MCU.MCU.schematic.cdl...
+WARNING (NVN-13002): *.BIPOLAR is not supported.
+WARNING (NVN-13002): *.RESI is not supported.
+WARNING (NVN-13002): *.RESVAL is not supported.
+WARNING (NVN-13002): *.CAPVAL is not supported.
+WARNING (NVN-13002): *.DIOPERI is not supported.
+WARNING (NVN-13002): *.DIOAREA is not supported.
+WARNING (NVN-13002): *.EQUATION is not supported.
+WARNING (NVN-13003): "*.SCALE" is not supported. Use ".OPTION SCALE" instead or specify  'lvs_cdn_flow_options -cdl_use_scale' in the rule file.
+
+**** runtime error on line 32 in file /home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/MCU.MCU.schematic.cdl
+? Expected value for .PARAM statement
++ /home/mseminario2/lib/TSMC65-IP/arm/standard_cells/tsmc65_sc_adv10/TIEHIX1MA10TH/schematic
+____________________________________________________________________________________________
+WARNING (NVN-13143): Extraneous '.ends' will be ignored at line 38 in file '/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/MCU.MCU.schematic.cdl'.
+ERROR (NVN-15310): Netlist file '/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/MCU.MCU.schematic.cdl' contains syntax error(s). Check the netlist file and rerun it.
+Fatal error encountered
+
+Execution aborted.  Exiting with status 1.
+INFO:    Checking in all SoftShare licenses.
+
+Pegasus finished abnormally. 2025-10-03 15:20:24

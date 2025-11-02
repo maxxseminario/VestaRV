@@ -1,0 +1,75 @@
+Starting Monte Carlo Sampling...
+
+Current time: Tue Feb 15 15:53:35 2022 
+
+Variation: All
+Sampling Method: Low-Discrepancy Sequence
+Seed: 
+
+MonteCarlo.7
+Number of points completed: 100
+Number of simulation errors: 200
+MonteCarlo.7 completed. 
+Current time: Tue Feb 15 15:54:34 2022 
+Monte Carlo Sampling yield summary:
+Number of spec values are in this yield data: 18
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	CDAC:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	Discharge_CLK:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	ENOB:	Yield	100%
+		Min 9.91265	Max 9.9887	Mean 9.96646	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	Ideal_ADC_CLK:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	SFDR:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 100
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	SINAD:	Yield	100%
+		Min 61.441	Max 61.8989	Mean 61.765	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	SNHR:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 100
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	Sine_In:	Yield	0%
+		Min 0	Max 0	Mean 0	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c0:	Yield	100%
+		Min 2.03822e-15	Max 2.07359e-15	Mean 2.05636e-15	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c1:	Yield	100%
+		Min 4.08529e-15	Max 4.13648e-15	Mean 4.11254e-15	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c2:	Yield	100%
+		Min 8.19454e-15	Max 8.25614e-15	Mean 8.22524e-15	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c3:	Yield	100%
+		Min 1.64029e-14	Max 1.64975e-14	Mean 1.64502e-14	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c4:	Yield	100%
+		Min 3.28306e-14	Max 3.29885e-14	Mean 3.29008e-14	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c5:	Yield	100%
+		Min 6.56702e-14	Max 6.59034e-14	Mean 6.58007e-14	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c6:	Yield	100%
+		Min 1.31435e-13	Max 1.31764e-13	Mean 1.31602e-13	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c7:	Yield	100%
+		Min 2.62931e-13	Max 2.63409e-13	Mean 2.63201e-13	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c8:	Yield	100%
+		Min 5.25966e-13	Max 5.26762e-13	Mean 5.26403e-13	Number of errors 0
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1	Nominal - 
+	c9:	Yield	100%
+		Min 1.05226e-12	Max 1.0535e-12	Mean 1.05282e-12	Number of errors 0
+
+Better_ADCs:Cap_DAC_2V5D_Mismatch_Test:1
+	Overall Yield	100%	Number of points passed	100	Total number of points	100
+
+Estimated yield = 100% (100/100), 100 errors
+Estimated yield (No opregions) = 100% (100/100)

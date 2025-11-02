@@ -1,0 +1,5 @@
+cUiSetViewStatus {LVLD10A25PP16} {layout} {1}
+cUiSetViewStatus {LVLD10A25PP16} {logical} {0}
+cUiSetViewStatus {LVLD10A25PP16} {abstract.pin} {0}
+cUiSetViewStatus {LVLD10A25PP16} {abstract.ext} {0}
+cUiSetViewStatus {LVLD10A25PP16} {abstract} {0}

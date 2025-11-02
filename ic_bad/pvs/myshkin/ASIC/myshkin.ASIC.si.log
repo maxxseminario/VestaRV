@@ -1,0 +1,362 @@
+Virtuoso Framework License (111) was checked out successfully. Total checkout time was 0.01s.
+Initializing from libInit.il for library tsmcN65...
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/pcode1.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/pcode2.cxt
+   --  tsmcN65_updateCDFs.il
+   --  tsmcPdkParamTable.il
+   --  tsmc_esti.ile
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65gp_v1d0c.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newAMS.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newRTMOM.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65GP_v1d0.cxt
+   --  tif_tcf_crn65gp_v1.0a.cxt
+   --  tsmcN65.cxt
+   --  tsmcN65Tool.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65GP_v1d0.cxt
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newRTMOM.cxt
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65GP_v1d0.cxt already loaded
+   --  /opt/design_kits/TSMC65-PDK/tsmcN65/../skill/tsmcN65_newAMS.cxt
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65_newRTMOM.cxt already loaded
+Loading Working place Display File '/home/mseminario2/chips/myshkin/ic/display.drf'
+*WARNING* (loadContext): context //opt/design_kits/TSMC65-PDK/tsmcN65/../skill/64bit/tsmcN65_newAMS.cxt already loaded
+Running Artist Hierarchical Netlisting ...
+Load "/home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/oa/tphn65gpgv2od3_sl/libInit.il"
+INFO (TECH-150003): The technology database "tphn65gpgv2od3_sl" has been automatically
+updated from revision 226610(DM 4) to revision 227612(DM 4) in virtual memory.
+WARNING (AUCDL-42): Terminal vdd! appearing in CDF termOrder for 
+		component   : pad_ring
+		in cellview : schematic
+		of library  : myshkin
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+Loading cdf.cxt 
+(ancGetSimPropValue netdpl mapList 'model) : "PVSS1DGZ_G"
+modelName : "PVSS1DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVSS1DGZ_G
+artMakeString(modelName) : "PVSS1DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVSS2DGZ_G"
+modelName : "PVSS2DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVSS2DGZ_G
+artMakeString(modelName) : "PVSS2DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD1DGZ_G"
+modelName : "PVDD1DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVDD1DGZ_G
+artMakeString(modelName) : "PVDD1DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD1DGZ_G"
+modelName : "PVDD1DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVDD1DGZ_G
+artMakeString(modelName) : "PVDD1DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD1DGZ_G"
+modelName : "PVDD1DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVDD1DGZ_G
+artMakeString(modelName) : "PVDD1DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD2DGZ_G"
+modelName : "PVDD2DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVDD2DGZ_G
+artMakeString(modelName) : "PVDD2DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD2DGZ_G"
+modelName : "PVDD2DGZ_G"
+key_stop : tphn65gpgv2od3_sl_PVDD2DGZ_G
+artMakeString(modelName) : "PVDD2DGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD3A_G"
+modelName : "PVDD3A_G"
+key_stop : tphn65gpgv2od3_sl_PVDD3A_G
+artMakeString(modelName) : "PVDD3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD3A_G"
+modelName : "PVDD3A_G"
+key_stop : tphn65gpgv2od3_sl_PVDD3A_G
+artMakeString(modelName) : "PVDD3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PVDD2POC_G"
+modelName : "PVDD2POC_G"
+key_stop : tphn65gpgv2od3_sl_PVDD2POC_G
+artMakeString(modelName) : "PVDD2POC_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDUW16SDGZ_G"
+modelName : "PDUW16SDGZ_G"
+key_stop : tphn65gpgv2od3_sl_PDUW16SDGZ_G
+artMakeString(modelName) : "PDUW16SDGZ_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+(ancGetSimPropValue netdpl mapList 'model) : "PDB3A_G"
+modelName : "PDB3A_G"
+key_stop : tphn65gpgv2od3_sl_PDB3A_G
+artMakeString(modelName) : "PDB3A_G"
+WARNING (AUCDL-42): Terminal B appearing in CDF termOrder for 
+		component   : MUX2A
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal BiasAdj<7> appearing in CDF termOrder for 
+		component   : BiasGenCascWideSwing
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal Tap<14> appearing in CDF termOrder for 
+		component   : R2R14
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal SFBias appearing in CDF termOrder for 
+		component   : DacPowerSupply
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal A appearing in CDF termOrder for 
+		component   : LVLD10A25PP
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal A appearing in CDF termOrder for 
+		component   : LVLD10A25PP14
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal A appearing in CDF termOrder for 
+		component   : LVLD10A25PP6
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal EN appearing in CDF termOrder for 
+		component   : BiasSwitchCascode
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal En appearing in CDF termOrder for 
+		component   : TGN16A
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal D25_BiasAdj<5> appearing in CDF termOrder for 
+		component   : BiasGenCascWideSwingGlobal
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal EnBar appearing in CDF termOrder for 
+		component   : AdcMimComparatorMei
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+WARNING (AUCDL-42): Terminal A appearing in CDF termOrder for 
+		component   : LVLA25D10PP
+		in cellview : schematic
+		of library  : potentiostat_final
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+(ancGetSimPropValue netdpl mapList 'model) : "PCLAMPAC_G"
+modelName : "PCLAMPAC_G"
+key_stop : tphn65gpgv2od3_sl_PCLAMPAC_G
+artMakeString(modelName) : "PCLAMPAC_G"
+INFO (OSSHNL-251): Mismatch found in the direction of terminal 'S' in the placed master
+'tsmc65_sc_adv10/ADDHX1MA10TH/symbol' and its corresponding terminal in the switch master 'tsmc65_sc_adv10/ADDHX1MA10TH/schematic',
+however, this terminal is printed in the netlist because the variable
+simCheckTermDirectionMismatch is either set to 'ignore' or is not set.
+
+INFO (OSSHNL-251): Mismatch found in the direction of terminal 'S' in the placed master
+'tsmc65_sc_adv10/ADDHX1P4MA10TH/symbol' and its corresponding terminal in the switch master 'tsmc65_sc_adv10/ADDHX1P4MA10TH/schematic',
+however, this terminal is printed in the netlist because the variable
+simCheckTermDirectionMismatch is either set to 'ignore' or is not set.
+
+INFO (OSSHNL-251): Mismatch found in the direction of terminal 'S' in the placed master
+'tsmc65_sc_adv10/ADDHX2MA10TH/symbol' and its corresponding terminal in the switch master 'tsmc65_sc_adv10/ADDHX2MA10TH/schematic',
+however, this terminal is printed in the netlist because the variable
+simCheckTermDirectionMismatch is either set to 'ignore' or is not set.
+
+WARNING (AUCDL-42): Terminal In<31> appearing in CDF termOrder for 
+		component   : GlitchFilter
+		in cellview : schematic
+		of library  : myshkin
+is either invalid or duplicated. CDF termOrder for this component will be ignored.
+Ensure that termOrder matches actual terminals in cellview and re-netlist to reflect any change in termOrder.
+Nets will be printed in default terminal order for this component.
+
+End netlisting Oct  5 22:54:43 2025

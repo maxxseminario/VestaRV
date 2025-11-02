@@ -1,0 +1,126 @@
+*----------------------------------------------------------------------------------------
+*	Innovus 20.12-s088_1 (64bit) 11/06/2020 10:29 (Linux 2.6.32-431.11.2.el6.x86_64)
+*	
+*
+* 	Date & Time:	2025-Nov-02 12:55:46 (2025-Nov-02 18:55:46 GMT)
+*
+*----------------------------------------------------------------------------------------
+*
+*	Design: MCU
+*
+*	Liberty Libraries used: 
+*	        setup_analysis_view: /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib
+*	        setup_analysis_view: ../ip/rom_hvt_pg/rom_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib
+*	        setup_analysis_view: ../ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib
+*	        setup_analysis_view: ../ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib
+*	        setup_analysis_view: ../ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib
+*
+*	Power Domain used: 
+*              Rail:        VDD      Voltage:        0.9 
+*
+*       Power View : setup_analysis_view
+*
+*       User-Defined Activity : N.A.
+*
+*       Activity File: N.A.
+*
+*       Hierarchical Global Activity: N.A.
+*
+*       Global Activity: N.A.
+*
+*       Sequential Element Activity: 0.200000
+*
+*       Primary Input Activity: 0.200000
+*
+*       Default icg ratio: N.A.
+*
+*       Global Comb ClockGate Ratio: N.A.
+*
+*	Power Units = 1mW
+*
+*	Time Units = 1e-09 secs 
+*
+*       report_power -outfile ./timingReports/MCU_postRoute.power -leakage
+*
+-----------------------------------------------------------------------------------------
+
+
+Total Power 
+-----------------------------------------------------------------------------------------
+Total Leakage Power:         1.25458465 
+-----------------------------------------------------------------------------------------
+
+
+Group                           Leakage       Percentage 
+                                Power         (%)        
+-----------------------------------------------------------------------------------------
+Sequential                        0.1115       8.886 
+Macro                             0.8624       68.74 
+IO                                     0           0 
+Combinational                     0.2709       21.59 
+Clock (Combinational)           0.002629      0.2095 
+Clock (Sequential)              0.007109      0.5667 
+-----------------------------------------------------------------------------------------
+Total                              1.255         100 
+-----------------------------------------------------------------------------------------
+
+
+Rail                  Voltage   Leakage       Percentage 
+                                Power         (%)        
+-----------------------------------------------------------------------------------------
+VDD                       0.9      1.255         100 
+
+
+Clock                           Leakage       Percentage 
+                                Power         (%)        
+-----------------------------------------------------------------------------------------
+clk_sck1                       0.0001892     0.01508 
+smclk                            0.00353      0.2814 
+mclk                             0.00284      0.2264 
+clk_cpu                         0.003586      0.2858 
+clk_sck0                       0.0001888     0.01505 
+-----------------------------------------------------------------------------------------
+Total (excluding duplicates)    0.009738      0.7762 
+-----------------------------------------------------------------------------------------
+Clock: clk_sck1
+Clock Period: 0.028571 usec 
+Clock Toggle Rate:    70.0000 Mhz 
+Clock Static Probability:  0.5000
+
+Clock: smclk
+Clock Period: 0.028571 usec 
+Clock Toggle Rate:    70.0000 Mhz 
+Clock Static Probability:  0.5000
+
+Clock: mclk
+Clock Period: 0.028571 usec 
+Clock Toggle Rate:    70.0000 Mhz 
+Clock Static Probability:  0.5000
+
+Clock: clk_cpu
+Clock Period: 0.028571 usec 
+Clock Toggle Rate:    70.0000 Mhz 
+Clock Static Probability:  0.5000
+
+Clock: clk_sck0
+Clock Period: 0.028571 usec 
+Clock Toggle Rate:    70.0000 Mhz 
+Clock Static Probability:  0.5000
+
+
+
+-----------------------------------------------------------------------------------------
+*	Power Distribution Summary: 
+*                Highest Average Power:                      ram0 (sram1p16k_hvt_pg):           0.3719 
+*                Highest Leakage Power:                      ram0 (sram1p16k_hvt_pg):           0.3719 
+*          Total Cap:      5.00992e-10 F
+*          Total instances in design: 30055
+*          Total instances in design with no power:     6
+*          Total instances in design with no activity:     0
+*          Total Fillers and Decap:     6
+-----------------------------------------------------------------------------------------
+
+Total leakage power = 1.25458 mW
+Cell usage statistics:  
+Library USERLIB_nldm_ss_0p90v_0p90v_125c , 3 cells ( 0.000000%) , 0.862443 mW ( 68.743311%  ) 
+Library scadv10_cln65gp_hvt_ss_0p9v_125c , 30046 cells ( 0.000000%) , 0.392142 mW ( 31.256689%  ) 

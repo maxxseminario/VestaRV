@@ -1,0 +1,5 @@
+cUiSetViewStatus {OscillatorCurrentStarvedTest} {layout} {0}
+cUiSetViewStatus {OscillatorCurrentStarvedTest} {logical} {0}
+cUiSetViewStatus {OscillatorCurrentStarvedTest} {abstract.pin} {0}
+cUiSetViewStatus {OscillatorCurrentStarvedTest} {abstract.ext} {0}
+cUiSetViewStatus {OscillatorCurrentStarvedTest} {abstract} {0}

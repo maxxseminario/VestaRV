@@ -1,0 +1,5 @@
+cUiSetViewStatus {PowerOnResetChengTest} {layout} {0}
+cUiSetViewStatus {PowerOnResetChengTest} {logical} {0}
+cUiSetViewStatus {PowerOnResetChengTest} {abstract.pin} {0}
+cUiSetViewStatus {PowerOnResetChengTest} {abstract.ext} {0}
+cUiSetViewStatus {PowerOnResetChengTest} {abstract} {0}

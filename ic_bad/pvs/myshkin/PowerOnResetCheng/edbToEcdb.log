@@ -1,0 +1,17 @@
+
+/opt/cadence/PEGASUS221/tools.lnx86/Pegasus/bin/64bit/edbToEcdb Output Summary
+========================================================================
+
+Delete EDB      : N
+EDB Library dir : PowerOnResetCheng_12363.db
+ECDB dir        : ./
+Top Cell        : PowerOnResetCheng
+CDL netlist     : ./PowerOnResetCheng.net
+Layer map file  : ./PowerOnResetCheng.ecdbmap
+Text map file   : ./PowerOnResetCheng.ports
+Dependency map  : PowerOnResetCheng.lmap.perc
+Lvs file        : ./PowerOnResetCheng.lvsfile
+Float net file  : .PowerOnResetCheng.info.softchk
+threads         : 32
+debug           : 0
+Source Library  : PowerOnResetCheng_12363

@@ -1,0 +1,5 @@
+cUiSetViewStatus {PreliminaryLayout_filled} {layout} {1}
+cUiSetViewStatus {PreliminaryLayout_filled} {logical} {0}
+cUiSetViewStatus {PreliminaryLayout_filled} {abstract.pin} {0}
+cUiSetViewStatus {PreliminaryLayout_filled} {abstract.ext} {0}
+cUiSetViewStatus {PreliminaryLayout_filled} {abstract} {0}

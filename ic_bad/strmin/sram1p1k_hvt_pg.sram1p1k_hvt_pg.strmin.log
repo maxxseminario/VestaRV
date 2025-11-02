@@ -1,0 +1,15 @@
+********************************************************************************
+Product   : Virtuoso(R) XStream In
+Program   : @(#)$CDS: strmin version 6.1.8-64b 11/10/2020 19:35 (cpgsrv13) $
+          : sub-version  IC6.1.8-64b.500.15 
+Started at: 21-Oct-2025  15:20:45
+User Name : mseminario2
+Host Name : atlas
+Directory : /home/mseminario2/chips/myshkin/ic
+CADENCE Design Systems, Inc.
+********************************************************************************
+Info: Cellview Rev Num:99,  Tech Rev Num:59
+
+ERROR (XSTRM-3006): Translation Failed - Unable to create library sram1p1k_hvt_pg at path sram1p1k_hvt_pg: Non-empty Directory.
+If problem persists, contact the Cadence Customer Support.
+INFO (XSTRM-273): Translation failed. '1' error(s) and '0' warning(s) found.
