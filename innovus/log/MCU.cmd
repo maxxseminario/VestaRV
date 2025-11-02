@@ -1,7 +1,7 @@
 #######################################################
 #                                                     
 #  Innovus Command Logging File                     
-#  Created on Sat Nov  1 19:22:24 2025                
+#  Created on Sun Nov  2 12:34:49 2025                
 #                                                     
 #######################################################
 
@@ -77,17 +77,17 @@ addStripe -layer M7 -nets {VDD VSS} -direction vertical -extend_to design_bounda
 editTrim -all
 setCheckMode -globalNet true -io true -route true -tapeOut true
 sroute -nets { VSS VDD } -allowLayerChange 0 -allowJogging 0 -connect corePin -corePinWidth 0.3
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_0.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_6.drc
-loadDrc -incremental /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmp3adxyv/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_1.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_6.drc
+loadDrc -incremental /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpJwLkWu/qthread_src.drc
 fixVia -short
 fixVia -minCut
 fixVia -minStep
@@ -135,78 +135,77 @@ redraw
 optDesign -postRoute -setup -hold
 fit
 redraw
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_6.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_0.drc
-loadDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread.drc
-loadDrc -incremental /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpWfmlrr/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_6.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread_1.drc
+loadDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp4CjuH4/qthread.drc
 ecoRoute -fix_drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_6.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread_0.drc
-loadDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpIGIVM1/qthread.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_6.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread_1.drc
+loadDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpVUTe7d/qthread.drc
 ecoRoute -fix_drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_6.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread_0.drc
-loadDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpfsyPN3/qthread.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_6.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread_1.drc
+loadDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmp5Xr0FQ/qthread.drc
 routeDesign
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_6.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread_0.drc
-loadDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpPAdE7i/qthread.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_6.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread_1.drc
+loadDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpDSyYeN/qthread.drc
 streamOut out/MCU.gds2 -libName WorkLib -structureName MCU -stripes 1 -units 1000 -mode ALL -mapFile in/innovus2gds.map
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_6.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread_0.drc
-loadDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpCtCqOL/qthread.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_6.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread_1.drc
+loadDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpunH4NX/qthread.drc
 addFiller
 verifyConnectivity -error 100000 -connectPadSpecialPorts -report rpt/MCU.verifyConnectivity.signoff.rpt
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_src.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_src.drc
 clearDrc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_5.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_6.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_4.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_7.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_2.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_3.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_1.drc
-saveDrc /tmp/innovus_temp_55013_atlas_mseminario2_eNVWrA/vergQTmpi6DwLy/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_5.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_6.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_4.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_7.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_3.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_0.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_2.drc
+saveDrc /tmp/innovus_temp_112566_atlas_mseminario2_UnsLA3/vergQTmpPYzAht/qthread_1.drc
 verifyProcessAntenna -report rpt/MCU.verifyProcessAntenna.signoff.rpt
 fit
 redraw
