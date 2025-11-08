@@ -69,7 +69,7 @@ architecture behavior of rv4th_tb is
     signal BIAS_DBNC   : std_logic_vector(13 downto 0);
     signal BIAS_TC_POT    : std_logic_vector(5 downto 0);
     signal BIAS_LC_POT : std_logic_vector(5 downto 0);
-    signal BIAS_TIA_G_POT: std_logic_vector(15 downto 0);
+    signal BIAS_TIA_G_POT: std_logic_vector(16 downto 0);
     signal BIAS_DSADC_VCM : std_logic_vector(13 downto 0);
     signal BIAS_REV_POT: std_logic_vector(13 downto 0);
     signal BIAS_TC_DSADC : std_logic_vector(5 downto 0);
@@ -160,7 +160,7 @@ architecture behavior of rv4th_tb is
             BIAS_DBNC		: out	std_logic_vector(13 downto 0);
             BIAS_TC_POT     : out   std_logic_vector(5 downto 0);
             BIAS_LC_POT     : out   std_logic_vector(5 downto 0);
-            BIAS_TIA_G_POT  : out   std_logic_vector(15 downto 0); 
+            BIAS_TIA_G_POT  : out   std_logic_vector(16 downto 0); 
             BIAS_REV_POT    : out   std_logic_vector(13 downto 0);
             BIAS_TC_DSADC  : out   std_logic_vector(5 downto 0);
             BIAS_LC_DSADC  : out   std_logic_vector(5 downto 0);

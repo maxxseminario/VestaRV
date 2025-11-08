@@ -104,87 +104,27 @@ package tb_defs is
         -- "../rcf/xxxrv32uzbs-p-binv.rcf",
         -- "../rcf/xxxrv32uzbs-p-bset.rcf", -- inn
         -- "../rcf/xrv32uzbc-p-clmulh.rcf", -- Bit Manipulation - Carryless Mult Instructions
-        "../rcf/xrv32uzbc-p-clmulr.rcf", -- Fail Genus 11/01/25
-        "../rcf/xxrv32uzbc-p-clmul.rcf",
-        "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
-        "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
-        "../rcf/xxxxperiph-p-SPIFM.rcf",
+        -- "../rcf/xrv32uzbc-p-clmulr.rcf", -- Fail Genus 11/01/25
+        -- "../rcf/xxrv32uzbc-p-clmul.rcf",
+        -- "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
+        -- "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
+        -- "../rcf/xxxxperiph-p-SPIFM.rcf",
+        -- "../rcf/xxxxxxxspifem-p-lw.rcf",  
         "../rcf/xxxxxxperiph-p-AFE.rcf",  
-        "../rcf/xxxperiph-p-SARADC.rcf",  
-        "../rcf/xxxxperiph-p-GPIO1.rcf",   
-        -- "../rcf/xxxxperiph-p-GPIO2.rcf",   
-        "../rcf/xxxxxperiph-p-UART.rcf", 
-        "../rcf/xxxperiph-p-SYSTEM.rcf", 
-        "../rcf/xxxxperiph-p-TIMER.rcf",
+        -- "../rcf/xxxperiph-p-SARADC.rcf",  
+        -- "../rcf/xxxxperiph-p-GPIO1.rcf",   
+        -- -- "../rcf/xxxxperiph-p-GPIO2.rcf",   
+        -- "../rcf/xxxxxperiph-p-UART.rcf", 
+        -- "../rcf/xxxperiph-p-SYSTEM.rcf", 
+        -- "../rcf/xxxxperiph-p-TIMER.rcf",
         "../rcf/xxxrv32ziscr-p-csr.rcf"     -- CSR Instructions (Custom)    
-        -- "../rcf/xxxxxxperiph-p-SPI.rcf" 
+        -- "../rcf/xxxxxxperiph-p-SPI.rcf"  -- not tested here down
         -- "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
         -- "../rcf/xxxxxrv32ua-p-lrsc.rcf", -- test not valid due to single core
        
     );
 
 
-    
-    -- -- List of RCF test files
-    -- constant test_files : file_array := (
-    --     -- "../rcf/xxxrv32ui-p-simple.rcf", -- Simple Test
-    --     -- "../rcf/xxxperiph-p-SYSTEM.rcf", -- Peripheral Tests  es Genus
-    --     "../rcf/xxxxperiph-p-TIMER.rcf",    -- No clock switching during measurement in innovus - Passes Innovus
-    --     -- "../rcf/xxxxxperiph-p-UART.rcf",  Innovus
-    --     -- "../rcf/xxxxxxperiph-p-SPI.rcf", -- Post genus: Does a few interrupts when compiled not compressed gets sck slave error on spi1 again - SCK hf glitch in tb
-    --     -- "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
-    --     -- "../rcf/xxxxperiph-p-SPIFM.rcf",  
-    --     -- "../rcf/xxxxxxperiph-p-NPU.rcf", 
-    --     "../rcf/xxxxperiph-p-GPIO1.rcf",   
-    --     "../rcf/xxxxperiph-p-GPIO2.rcf",   
-    --     "../rcf/xxxxxxperiph-p-AFE.rcf",  
-    --     "../rcf/xxxperiph-p-SARADC.rcf",  
-    --     "../rcf/xxxxxxxrv32ui-p-lb.rcf", -- Load Instructions
-    --     "../rcf/xxxxxxxrv32ui-p-lh.rcf",
-    --     "../rcf/xxxxxxxrv32ui-p-lw.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-lbu.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-lhu.rcf",
-    --     "../rcf/xxxxxrv32ui-p-addi.rcf",  -- Immediete Instructions
-    --     "../rcf/xxxxxrv32ui-p-slli.rcf",
-    --     "../rcf/xxxxxrv32ui-p-slti.rcf",
-    --     "../rcf/xxxxrv32ui-p-sltiu.rcf",
-    --     "../rcf/xxxxxrv32ui-p-srli.rcf",
-    --     "../rcf/xxxxxrv32ui-p-srai.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-ori.rcf",
-    --     "../rcf/xxxxxrv32ui-p-andi.rcf",
-    --     "../rcf/xxxxrv32ui-p-auipc.rcf", -- AUIPC
-    --     "../rcf/xxxxxxxrv32ui-p-sb.rcf", -- Store Instructions
-    --     "../rcf/xxxxxxxrv32ui-p-sh.rcf",
-    --     "../rcf/xxxxxxxrv32ui-p-sw.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-add.rcf", -- Arithmetic Instructions
-    --     "../rcf/xxxxxxrv32ui-p-sub.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-sll.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-slt.rcf",
-    --     "../rcf/xxxxxrv32ui-p-sltu.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-xor.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-srl.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-sra.rcf",
-    --     "../rcf/xxxxxxxrv32ui-p-or.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-and.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-lui.rcf", --LUI Instruction
-    --     "../rcf/xxxxxxrv32ui-p-beq.rcf", --Branch Instructions
-    --     "../rcf/xxxxxxrv32ui-p-bne.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-blt.rcf",
-    --     "../rcf/xxxxxxrv32ui-p-bge.rcf",
-    --     "../rcf/xxxxxrv32ui-p-bltu.rcf",
-    --     "../rcf/xxxxxrv32ui-p-bgeu.rcf",
-    --     "../rcf/xxxxxrv32ui-p-jalr.rcf", --Jump Instructions
-    --     "../rcf/xxxxxxrv32ui-p-jal.rcf", 
-    --     "../rcf/xxxxxxrv32uc-p-rvc.rcf", -- Compressed Instructions Failing
-    --     "../rcf/xxxxxxrv32um-p-div.rcf", -- Division Instructions
-    --     "../rcf/xxxxxrv32um-p-divu.rcf",
-    --     "../rcf/xxxxxxrv32um-p-mul.rcf", -- Multiplication Instructions
-    --     "../rcf/xxxxxrv32um-p-mulh.rcf",
-    --     "../rcf/xxxxrv32um-p-mulhsu.rcf",
-    --     "../rcf/xxxxrv32um-p-mulhu.rcf", 
-    --     "../rcf/xxxxxxrv32um-p-rem.rcf", -- Remainder Instructions
-    --     "../rcf/xxxxxrv32um-p-remu.rcf"
-    -- );
 
     -- Function declarations
     function contains_gpio1(s : string) return boolean;

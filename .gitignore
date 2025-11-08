@@ -8,3 +8,4 @@ riscv_sync.sh
 DrcWaiver.pptx
 cdspaths.sh
 libManager.log
+makefile

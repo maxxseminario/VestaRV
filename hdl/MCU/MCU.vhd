@@ -54,7 +54,7 @@ entity MCU is
         -- Potentiostat Biases
         BIAS_TC_POT     : out   std_logic_vector(5 downto 0);
         BIAS_LC_POT     : out   std_logic_vector(5 downto 0);
-        BIAS_TIA_G_POT  : out   std_logic_vector(15 downto 0); 
+        BIAS_TIA_G_POT  : out   std_logic_vector(16 downto 0); 
         BIAS_REV_POT    : out   std_logic_vector(13 downto 0);
 
         -- DSADC Biases
@@ -537,7 +537,7 @@ architecture behav of MCU is
             -- Potentiostat Biases
             BIAS_TC_POT      : out std_logic_vector(5 downto 0);    -- Bias Current BTS - Potentiostat
             BIAS_LC_POT      : out std_logic_vector(5 downto 0);    -- LC Resistor      - Potentiostat
-            BIAS_TIA_G_POT   : out  std_logic_vector(15 downto 0);  -- TIA Gain Resistor - Potentiostat
+            BIAS_TIA_G_POT   : out  std_logic_vector(16 downto 0);  -- TIA Gain Resistor - Potentiostat
             BIAS_REV_POT     : out std_logic_vector(13 downto 0);   -- Potentiostat Reference Electrode Voltage (DAC)
 
             -- DSADC Biases

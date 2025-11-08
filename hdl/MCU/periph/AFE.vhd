@@ -58,7 +58,7 @@ entity AFE is
         -- Potentiostat Biases
         BIAS_TC_POT      : out std_logic_vector(5 downto 0);    -- Bias Current BTS - Potentiostat
         BIAS_LC_POT      : out std_logic_vector(5 downto 0);    -- LC Resistor      - Potentiostat
-        BIAS_TIA_G_POT   : out  std_logic_vector(15 downto 0);  -- TIA Gain Resistor - Potentiostat
+        BIAS_TIA_G_POT   : out  std_logic_vector(16 downto 0);  -- TIA Gain Resistor - Potentiostat
         BIAS_REV_POT     : out std_logic_vector(13 downto 0);   -- Potentiostat Reference Electrode Voltage (DAC)
 
         -- DSADC Biases
@@ -145,7 +145,7 @@ architecture Behavioral of AFE is
     signal BIAS_DBNC_int : std_logic_vector(13 downto 0);
     signal BIAS_TC_POT_int : std_logic_vector(5 downto 0);
     signal BIAS_LC_POT_int : std_logic_vector(5 downto 0);
-    signal BIAS_TIA_G_POT_int : std_logic_vector(15 downto 0);
+    signal BIAS_TIA_G_POT_int : std_logic_vector(16 downto 0);
     signal BIAS_DSADC_VCM_int : std_logic_vector(13 downto 0);
     signal BIAS_REV_POT_int : std_logic_vector(13 downto 0);
     signal BIAS_TC_DSADC_int : std_logic_vector(5 downto 0);
@@ -364,7 +364,7 @@ begin
             BIAS_CR             <= "01100";
             BIAS_TC_POT_int     <= "010000";
             BIAS_LC_POT_int     <= "101000";
-            BIAS_TIA_G_POT_int  <= x"FFF8";
+            BIAS_TIA_G_POT_int  <= (others => '1');
             BIAS_DSADC_VCM_int  <= "10000000000000";
             BIAS_REV_POT_int    <= "00111101011100";
             BIAS_ADJ_int        <= "011000";

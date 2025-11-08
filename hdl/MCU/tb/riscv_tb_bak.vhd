@@ -59,7 +59,7 @@ architecture behavioral of riscv_tb is
             BIAS_DBNC		: out	std_logic_vector(13 downto 0);
             BIAS_BTS        : out   std_logic_vector(5 downto 0);
             BIAS_LC_RES     : out   std_logic_vector(5 downto 0);
-            BIAS_TIA_RES    : out   std_logic_vector(15 downto 0); 
+            BIAS_TIA_RES    : out   std_logic_vector(16 downto 0); 
             BIAS_DSADC_VCM  : out   std_logic_vector(13 downto 0); 
             BIAS_POT_REV    : out   std_logic_vector(13 downto 0);
 
@@ -216,7 +216,7 @@ end component;
     signal BIAS_DBNC   : std_logic_vector(13 downto 0);
     signal BIAS_BTS    : std_logic_vector(5 downto 0);
     signal BIAS_LC_RES : std_logic_vector(5 downto 0);
-    signal BIAS_TIA_RES: std_logic_vector(15 downto 0);
+    signal BIAS_TIA_RES: std_logic_vector(16 downto 0);
     signal BIAS_DSADC_VCM : std_logic_vector(13 downto 0);
     signal BIAS_POT_REV: std_logic_vector(13 downto 0);
 

@@ -59,14 +59,14 @@
 #define BIAS_ADJ_MASK           0x0000003F  # 6 bits
 #define BIAS_14BIT_MASK         0x00003FFF  # 14 bits
 #define BIAS_6BIT_MASK          0x0000003F  # 6 bits
-#define BIAS_TIA_G_MASK         0x0000FFFF  # 16 bits
+#define BIAS_TIA_G_MASK         0x0001FFFF  # 16 bits
 
 # Reset values from VHDL
 #define AFE_CR_RESET            0x00FFF717
 #define BIAS_CR_RESET           0x0000000C  # "01100"
 #define BIAS_TC_POT_RESET       0x00000010  # "010000"
 #define BIAS_LC_POT_RESET       0x00000028  # "101000"
-#define BIAS_TIA_G_POT_RESET    0x0000FFF8
+#define BIAS_TIA_G_POT_RESET    0x0000FFF8 # "1111111111111000" Note: This is not used but it should be reset to unity gain
 #define BIAS_DSADC_VCM_RESET    0x00002000  # "10000000000000"
 #define BIAS_REV_POT_RESET      0x00000F5C  # "00111101011100"
 #define BIAS_ADJ_RESET          0x00000018  # "011000"
@@ -359,24 +359,41 @@ test_bias_registers:
     and s4, s4, s3
     bne s0, s4, fail
 
-    # Test 41-45: BIAS_TIA_G_POT (16-bit)
+    # Test 41-45: BIAS_TIA_G_POT (17-bit) - Updated comment
     addi gp, gp, 1
-    li s3, BIAS_TIA_G_MASK
-    li s0, 0xFFFF
+    li s3, BIAS_TIA_G_MASK  # Should be 0x1FFFF for 17 bits
+    li s0, 0x1FFFF          # All 17 bits set
     sw s0, BIAS_TIA_G_POT_OFFSET(a0)
     lw s4, BIAS_TIA_G_POT_OFFSET(a0)
     and s4, s4, s3
     bne s0, s4, fail
 
     addi gp, gp, 1
-    li s0, 0x5555
+    li s0, 0x15555          # 17-bit alternating pattern (0x15555)
     sw s0, BIAS_TIA_G_POT_OFFSET(a0)
     lw s4, BIAS_TIA_G_POT_OFFSET(a0)
     and s4, s4, s3
     bne s0, s4, fail
 
     addi gp, gp, 1
-    li s0, 0xAAAA
+    li s0, 0x0AAAA          # 17-bit alternating pattern (0x0AAAA)
+    sw s0, BIAS_TIA_G_POT_OFFSET(a0)
+    lw s4, BIAS_TIA_G_POT_OFFSET(a0)
+    and s4, s4, s3
+    bne s0, s4, fail
+
+    # New 17th bit with Seth's 1M ohm Rf option 
+    # Test the 17th bit specifically
+    addi gp, gp, 1
+    li s0, 0x10000          # Only 17th bit set
+    sw s0, BIAS_TIA_G_POT_OFFSET(a0)
+    lw s4, BIAS_TIA_G_POT_OFFSET(a0)
+    and s4, s4, s3
+    bne s0, s4, fail
+
+    # Test with 17th bit clear
+    addi gp, gp, 1
+    li s0, 0x0FFFF          # All bits except 17th set
     sw s0, BIAS_TIA_G_POT_OFFSET(a0)
     lw s4, BIAS_TIA_G_POT_OFFSET(a0)
     and s4, s4, s3
