@@ -106,9 +106,6 @@ architecture behav of MCU is
             read_data        : in  std_logic_vector(31 downto 0);
             mask             : in  std_logic_vector(1 downto 0);
 
-            mem_instr     : out std_logic; -- Rising edge when instruction has completed
-            mem_access        : out std_logic; -- rising edge when memory access
-
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -299,11 +296,8 @@ architecture behav of MCU is
             miso_ren_in  : in  std_logic;
 
             -- Flash Extended Memory Signals (only used when ENABLE_EXTENDED_MEM = true)
-            -- Extended Memory Interface (conditional on ENABLE_EXTENDED_MEM)
             en_mem_flash    : in std_logic;
             clk_mem_flash   : in std_logic;
-            -- inst_retired    : in std_logic; -- Rising edge when instruction has completed
-            -- mem_access      : in std_logic; -- Rising edge when memory access has completed
             mab             : in std_logic_vector(31 downto 0);
             rdata_flash     : out std_logic_vector(31 downto 0);
             disable_clk_cpu : out std_logic;
@@ -312,8 +306,6 @@ architecture behav of MCU is
             cs_flash_dir    : out std_logic;
             cs_flash_ren    : out std_logic
 
-            -- wdata_flash     : in std_logic_vector(31 downto 0);
-            -- wen_flash       : in std_logic_vector(3 downto 0)
         );
     end component;
 
@@ -692,8 +684,8 @@ architecture behav of MCU is
         signal data_addr        : std_logic_vector(31 downto 0);
         signal wen              : std_logic_vector(3 downto 0);
         signal wen_periph       : std_logic_vector(3 downto 0);
-        signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
-        signal mem_access       : std_logic; -- High when memory access is occurring
+        -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
+        -- signal mem_access       : std_logic; -- High when memory access is occurring
 
         -- Memory and RAM Control Signals  
         signal RAM_Dout         : std_logic_vector(31 downto 0);
@@ -1301,9 +1293,6 @@ begin
             read_data    => read_data,
             mask         => mask, 
 
-            mem_instr    => inst_retired,
-            mem_access      => mem_access,
-
             irq_vector   => irq_deglitch,
             irq_priority => irq_priority,
             irq_recursion_en => irq_recursion_en,
@@ -1554,7 +1543,6 @@ begin
         port map (
             clk             => smclk,
             mclk            => mclk,
-            -- clk_cpu         => clk_cpu,
             resetn          => resetn,
             irq_tc          => irq_spi0_tc,
             irq_te          => irq_spi0_te,
@@ -1588,8 +1576,6 @@ begin
 
             en_mem_flash    => mem_en_flash,
             clk_mem_flash   => clk_mem_flash,
-            -- inst_retired    => inst_retired,
-            -- mem_access      => mem_access, -- high when CPU is accessing memory
             mab             => mab_flash,
             rdata_flash      => flash_dout,
             disable_clk_cpu => flash_ext_meming,
@@ -1598,8 +1584,7 @@ begin
             cs_flash_dir   => cs_flash_dir,
             cs_flash_ren   => cs_flash_ren
 
-            -- wdata_flash    => write_data,  
-            -- wen_flash      => wen  
+
         );
 
     spi1: SPI
@@ -1610,12 +1595,11 @@ begin
 
             clk             => smclk,
             mclk            => mclk,
-            -- clk_cpu         => clk_cpu,
             resetn          => resetn,
             irq_tc          => irq_spi1_tc,
             irq_te          => irq_spi1_te,
 
-            clk_mem         => clk_periph(PeriphSlotSPI1), -- Clock for SPI peripheral
+            clk_mem         => clk_periph(PeriphSlotSPI1),
             en_mem          => mem_en_periph(PeriphSlotSPI1),
             wen             => wen_periph,
             write_data      => write_data,
@@ -1644,8 +1628,6 @@ begin
 
             en_mem_flash    => '1', 
             clk_mem_flash   => '1',
-            -- inst_retired    => '1',
-            -- mem_access      => '0', -- high when CPU is accessing memory
             mab             => (others => '1'),
             rdata_flash     => open,
             disable_clk_cpu => open,
@@ -1654,8 +1636,6 @@ begin
             cs_flash_dir   => open,
             cs_flash_ren   => open
 
-            -- wdata_flash    => (others => '1'),  
-            -- wen_flash      => (others => '1')  
     );
 
     uart0: UART

@@ -21,8 +21,8 @@ entity vesta is
         read_data  : in  std_logic_vector(31 downto 0);
         mask       : in  std_logic_vector(1 downto 0);
 
-        mem_instr : out std_logic; -- Rising edge when instruction has completed
-        mem_access : out std_logic; -- rising edge when memory access
+        -- mem_instr : out std_logic; -- Rising edge when instruction has completed
+        -- mem_access : out std_logic; -- rising edge when memory access
 
         -- IRQ Interface
         irq_vector   : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -309,19 +309,15 @@ architecture struct of vesta is
     signal csr_addr               : std_logic_vector(11 downto 0);
     signal csr_rdata              : std_logic_vector(31 downto 0);
     signal csr_wdata              : std_logic_vector(31 downto 0);
-    -- signal clk_insret             : std_logic; -- Instruction retired clock
     signal csr_op                 : std_logic_vector(2 downto 0);
     signal csr_valid              : std_logic;
     signal en_cg_insret           : std_logic;
-
-    signal clk_inst_ret          : std_logic;
     signal inst_retired          : std_logic;
-    signal mem_access_clk_en            : std_logic;
-    signal clk_mem_access        : std_logic;
-begin
+
+    begin
 
     -- ==========================================
-    -- Direct Signal Assignments
+    -- Signal Assignments
     -- ==========================================
     instr <= read_data;
 
@@ -332,10 +328,7 @@ begin
     -- - IRQ is active (always process interrupts)
     -- - Not in external sleep mode
     -- - Not in SLEEPING state
-    --  If cpu clock gets disabled, finish current instruction first
-    -- for flash extended memory, we will enable cpu until next time memory is needed
     en_clk_cpu <= '1' when irq_active = '1' else
-                --   '1' when (mem_access_instr = '0') else -- memory access not in progress - spi extended mem only
                   '0' when sleep = '1' else
                   '0' when current_state = SLEEPING else
                   '1';
@@ -353,40 +346,11 @@ begin
         port map (
             ClkIn  => not clk_cpu,
             En     => en_cg_insret,
-            ClkOut => clk_inst_ret
+            ClkOut => inst_retired
         );
 
-    inst_retired <= clk_inst_ret when en_clk_cpu = '1' else '0';
-    -- mem_instr <= inst_retired;
-    mem_instr <=   '0' when en_clk_cpu = '0' else
-                    '1' when next_state = EXECUTE else
-                    '0';
+    -- inst_retired <= clk_inst_ret when en_clk_cpu = '1' else '0';
 
-
-    -- Signal for indicating a memory access has occurred
-    mem_access <=   '0' when en_clk_cpu = '0' else
-                    '1' when next_state = EXECUTE else
-                    '1' when next_state = MEMORY_WAIT else
-                    '0';
-    -- cg_mem_access: entity work.ClkGate
-    --     port map (
-    --         ClkIn  => not clk_cpu,
-    --         En     => mem_access_clk_en,
-    --         ClkOut => clk_mem_access
-    --     );
-
-    -- mem_access <= clk_mem_access when en_clk_cpu = '1' else '0';
-
-    -- -- TODO: Check timing for csr unit - simpler to just use combinational
-    -- -- inst_retired <= '1' when next_state = EXECUTE else '0';
-    -- instr_ret_proc : process(clk_cpu, resetn)
-    -- begin
-    --     if resetn = '0' then
-    --         inst_retired <= '0';
-    --     elsif falling_edge(clk_cpu) then
-    --         inst_retired <= '1' when next_state = EXECUTE else '0';
-    --     end if;
-    -- end process;
 
     -- ==========================================
     -- PC Return Value Latching
