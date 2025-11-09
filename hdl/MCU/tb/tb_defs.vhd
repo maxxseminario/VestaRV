@@ -5,6 +5,7 @@ use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 use ieee.math_real.all;
 use ieee.numeric_std.all;
+use std.textio.all;
 
 package tb_defs is
 
@@ -134,11 +135,17 @@ package tb_defs is
     function contains_timer(s : string) return boolean;
     function contains_spifem(s : string) return boolean;
     function get_pass_logo return string;
+
+    procedure check_file_exists(
+        constant filename : in string;
+        variable exists : out boolean
+    );
     
 end package tb_defs;
 
 package body tb_defs is
 
+    -- Peripheral detection functions - for external MCU routing in TB
 
     function contains_spifem(s : string) return boolean is
         constant substr : string := "SPIFM";
@@ -155,7 +162,6 @@ package body tb_defs is
             end loop;
             return found;
     end function;      
-    
     
     function contains_gpio1(s : string) return boolean is
         constant substr : string := "GPIO1";
@@ -236,6 +242,25 @@ package body tb_defs is
             end loop;
             return found;
     end function; 
+
+
+    procedure check_file_exists(
+            constant filename : in string;
+            variable exists : out boolean
+        ) is
+            file test_file : text;
+            variable file_status : file_open_status;
+        begin
+            file_open(file_status, test_file, filename, read_mode);
+            if file_status = open_ok then
+                exists := true;
+                file_close(test_file);
+            else
+                exists := false;
+            end if;
+    end procedure;
+
+
     
     function get_pass_logo return string is
     begin

@@ -11,6 +11,7 @@ use work.constants.all;
 use work.MemoryMap.all;
 use work.tb_defs.all;
 
+
 entity riscv_tb is
 end riscv_tb;
 
@@ -258,7 +259,6 @@ end component;
     signal saradc_rst   : std_logic;
     signal saradc_data  : std_logic_vector(9 downto 0);
     signal saradc_clk   : std_logic;
-
 
     
     begin
@@ -638,6 +638,7 @@ end component;
     -- Main test sequence
     test_sequence: process
         variable current_file : string(1 to 29);
+        variable file_exists : boolean;
     begin
         -- Reset MCU at begining of test 
         resetn <= '0';
@@ -653,6 +654,15 @@ end component;
                     current_file(j) := test_files(i)(j);
                 end if;
             end loop;
+
+            -- Verify file exists
+            check_file_exists(current_file, file_exists);
+
+            if not file_exists then
+                report "FATAL ERROR: Test file not found: " & current_file 
+                    & LF & "Please verify the file path and ensure the file exists."
+                    severity failure;
+            end if;
 
             --Delay for visual clarity of setting up filename before rising edge of reset
             wait for 5*CLK_PERIOD;
