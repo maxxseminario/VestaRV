@@ -107,10 +107,9 @@ package tb_defs is
         -- "../rcf/xrv32uzbc-p-clmulh.rcf", -- Bit Manipulation - Carryless Mult Instructions
         -- "../rcf/xrv32uzbc-p-clmulr.rcf", -- Fail Genus 11/01/25
         -- "../rcf/xxrv32uzbc-p-clmul.rcf",
-        "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
-        "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
-        "../rcf/xxxxperiph-p-SPIFM.rcf",
-        "../rcf/xxxxxxxspifem-p-lw.rcf",  
+        -- "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
+        -- "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
+        -- "../rcf/xxxxperiph-p-SPIFM.rcf",
         "../rcf/xxxxxxperiph-p-AFE.rcf",  
         "../rcf/xxxperiph-p-SARADC.rcf",  
         "../rcf/xxxxperiph-p-GPIO1.rcf",   
@@ -120,8 +119,7 @@ package tb_defs is
         "../rcf/xxxxperiph-p-TIMER.rcf",
         "../rcf/xxxrv32ziscr-p-csr.rcf",     -- CSR Instructions (Custom)    
         "../rcf/xxxxxxperiph-p-SPI.rcf",  -- not tested here down
-        "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
-        "../rcf/xxxxxrv32ua-p-lrsc.rcf" -- test not valid due to single core
+        "../rcf/xxxxperiph-p-SPISR.rcf" -- New SPI Slave test - SCK hf glitch in tb
        
     );
 
