@@ -106,6 +106,9 @@ architecture behav of MCU is
             read_data        : in  std_logic_vector(31 downto 0);
             mask             : in  std_logic_vector(1 downto 0);
 
+            mem_instr     : out std_logic; -- Rising edge when instruction has completed
+            mem_access        : out std_logic; -- rising edge when memory access
+
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -262,6 +265,8 @@ architecture behav of MCU is
         );
         port (
             clk         : in  std_logic;
+            mclk        : in  std_logic;
+            -- clk_cpu     : in  std_logic;
             resetn      : in  std_logic;
             irq_tc      : out std_logic;
             irq_te      : out std_logic;
@@ -297,6 +302,8 @@ architecture behav of MCU is
             -- Extended Memory Interface (conditional on ENABLE_EXTENDED_MEM)
             en_mem_flash    : in std_logic;
             clk_mem_flash   : in std_logic;
+            -- inst_retired    : in std_logic; -- Rising edge when instruction has completed
+            -- mem_access      : in std_logic; -- Rising edge when memory access has completed
             mab             : in std_logic_vector(31 downto 0);
             rdata_flash     : out std_logic_vector(31 downto 0);
             disable_clk_cpu : out std_logic;
@@ -680,12 +687,14 @@ architecture behav of MCU is
 
 
         -- RISCV Core Interface Signals 
-        signal read_data         : std_logic_vector(31 downto 0);
-        signal write_word        : std_logic_vector(31 downto 0);
-        signal data_addr          : std_logic_vector(31 downto 0);
+        signal read_data        : std_logic_vector(31 downto 0);
+        signal write_word       : std_logic_vector(31 downto 0);
+        signal data_addr        : std_logic_vector(31 downto 0);
         signal wen              : std_logic_vector(3 downto 0);
         signal wen_periph       : std_logic_vector(3 downto 0);
-        
+        signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
+        signal mem_access       : std_logic; -- High when memory access is occurring
+
         -- Memory and RAM Control Signals  
         signal RAM_Dout         : std_logic_vector(31 downto 0);
         signal write_data       : std_logic_vector(31 downto 0);
@@ -1292,6 +1301,9 @@ begin
             read_data    => read_data,
             mask         => mask, 
 
+            mem_instr    => inst_retired,
+            mem_access      => mem_access,
+
             irq_vector   => irq_deglitch,
             irq_priority => irq_priority,
             irq_recursion_en => irq_recursion_en,
@@ -1541,6 +1553,8 @@ begin
         )
         port map (
             clk             => smclk,
+            mclk            => mclk,
+            -- clk_cpu         => clk_cpu,
             resetn          => resetn,
             irq_tc          => irq_spi0_tc,
             irq_te          => irq_spi0_te,
@@ -1574,6 +1588,8 @@ begin
 
             en_mem_flash    => mem_en_flash,
             clk_mem_flash   => clk_mem_flash,
+            -- inst_retired    => inst_retired,
+            -- mem_access      => mem_access, -- high when CPU is accessing memory
             mab             => mab_flash,
             rdata_flash      => flash_dout,
             disable_clk_cpu => flash_ext_meming,
@@ -1593,6 +1609,8 @@ begin
         port map (
 
             clk             => smclk,
+            mclk            => mclk,
+            -- clk_cpu         => clk_cpu,
             resetn          => resetn,
             irq_tc          => irq_spi1_tc,
             irq_te          => irq_spi1_te,
@@ -1626,6 +1644,8 @@ begin
 
             en_mem_flash    => '1', 
             clk_mem_flash   => '1',
+            -- inst_retired    => '1',
+            -- mem_access      => '0', -- high when CPU is accessing memory
             mab             => (others => '1'),
             rdata_flash     => open,
             disable_clk_cpu => open,

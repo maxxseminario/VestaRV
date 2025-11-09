@@ -1,6 +1,6 @@
 # ####################################################################
 
-#  Created by Genus(TM) Synthesis Solution 19.15-s090_1 on Sun Nov 02 12:34:01 CST 2025
+#  Created by Genus(TM) Synthesis Solution 19.15-s090_1 on Sat Nov 08 18:15:14 CST 2025
 
 # ####################################################################
 
@@ -269,6 +269,7 @@ set_load -pin_load 0.6 [get_ports {BIAS_LC_POT[3]}]
 set_load -pin_load 0.6 [get_ports {BIAS_LC_POT[2]}]
 set_load -pin_load 0.6 [get_ports {BIAS_LC_POT[1]}]
 set_load -pin_load 0.6 [get_ports {BIAS_LC_POT[0]}]
+set_load -pin_load 0.6 [get_ports {BIAS_TIA_G_POT[16]}]
 set_load -pin_load 0.6 [get_ports {BIAS_TIA_G_POT[15]}]
 set_load -pin_load 0.6 [get_ports {BIAS_TIA_G_POT[14]}]
 set_load -pin_load 0.6 [get_ports {BIAS_TIA_G_POT[13]}]

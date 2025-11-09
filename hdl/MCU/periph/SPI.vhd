@@ -1,31 +1,3 @@
---------------------------------------------------------------------------------
--- SPI Master/Slave Controller with Extended Flash Memory Interface
---------------------------------------------------------------------------------
--- Author: maxxseminario
--- Date: 2025-10-05
--- 
---
--- Extended Memory Operation:
---   When ENABLE_EXTENDED_MEM is true and SPIFEN bit is set, the peripheral
---   enters flash memory mode, allowing the CPU to fetch and execute instructions
---   directly from an external SPI flash device. The controller automatically:
---   - Manages CS (chip select) assertion/deassertion
---   - Sends read commands (0x0B - fast read with dummy byte)
---   - Handles sequential and non-sequential memory accesses
---   - Stalls the CPU clock during flash access operations
---   - Provides address offset capability via SPIxFOS register for memory mapping
---   - A useage notes:
---   - Extended memory mode is read only
---   - Extended Memory only supports rv32ui instructions 
---   - mclk and smclk must be set to same clock source for extended memory mode to work
---
--- Address Translation (Extended Memory Mode):
---   Flash_Address = CPU_Address + SPIxFOS
---   Where SPIxFOS can be negative (two's complement) for address space mapping
---
---------------------------------------------------------------------------------
-
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -42,6 +14,7 @@ entity SPI is
     port
     (
         clk         : in std_logic;
+        mclk        : in std_logic;
         resetn      : in std_logic;
 
         -- IRQ Signals
@@ -182,6 +155,19 @@ architecture behavioral of SPI is
     signal TXDataFlash_reversed : std_logic_vector(31 downto 0);
     signal mab_top          : std_logic_vector(23 downto 2);
     -- signal clr_flash_active_ack : std_logic;
+
+    -- SPIFEM synchronizer signals
+    signal en_mem_flash_d1 : std_logic;
+    signal en_mem_flash_falling : std_logic;
+    signal flash_access_request : std_logic;
+    signal flash_access_request_sync : std_logic_vector(1 downto 0);
+    signal flash_complete : std_logic;
+    signal flash_complete_sync : std_logic_vector(1 downto 0);
+
+    -- New signals for mclk domain synchronization
+    signal ClearFlashActive_smclk : std_logic;
+    signal ClearFlashActive_sync : std_logic_vector(2 downto 0);
+    signal ClearFlashActive_pulse : std_logic;
 
 begin
 
@@ -541,32 +527,45 @@ begin
             s_spi_tcif <= '0'; -- Clear Transmit Complete Interrupt Flag
         end if;
     end process;
+
     
 
     ---------- SPI Flash Extended Memory Core ----------
     -- Generate Flash logic only if ENABLE_EXTENDED_MEM is true
     gen_flash: if ENABLE_EXTENDED_MEM generate
-        -- Activity monitor
-        process (resetn, spi_en, spi_fen, ClearFlashActive, clk_mem_flash)
+        -- Synchronizer for ClearFlashActive from smclk to mclk domain
+        -- Creates a single mclk cycle pulse when ClearFlashActive_smclk is asserted
+        process(mclk, resetn)
+        begin
+            if resetn = '0' then
+                ClearFlashActive_sync <= (others => '0');
+                ClearFlashActive_pulse <= '0';
+            elsif rising_edge(mclk) then
+                -- Synchronize the signal
+                ClearFlashActive_sync <= ClearFlashActive_sync(1 downto 0) & ClearFlashActive_smclk;
+                -- Generate single cycle pulse on rising edge
+                ClearFlashActive_pulse <= ClearFlashActive_sync(1) and not ClearFlashActive_sync(2);
+            end if;
+        end process;
+
+        -- Use the pulse for ClearFlashActive in mclk domain
+        ClearFlashActive <= ClearFlashActive_pulse;
+
+        -- Activity monitor 
+        process (resetn, spi_en, spi_fen, ClearFlashActive, clk_mem_flash, mclk)
         begin
             if resetn = '0' or spi_en = '0' or spi_fen = '0' or ClearFlashActive = '1' then
                 FlashActive <= '0';
-                -- if ClearFlashActive = '1' then
-                --     clr_flash_active_ack <= '1';
-                -- else 
-                --     clr_flash_active_ack <= '0';
-                -- end if;
             elsif rising_edge(clk_mem_flash) then
                 if en_mem_flash = '0' then
                     FlashActive <= '1';
-                    -- clr_flash_active_ack <= '0';
                 end if;
             end if;
         end process;
 
         -- Clock generator
-        -- This is a bug, should be smclk as clkIn here. 
-        EnClkFlash <= FlashActive or ClearFlashActive;
+        -- clk is smclk
+        EnClkFlash <= FlashActive or ClearFlashActive_smclk;
         CGFlash: entity work.ClkGate
         port map
         (
@@ -575,17 +574,17 @@ begin
             ClkOut  => ClkFlash
         );
 
-        -- State machine
-        process (resetn, spi_en, spi_fen, ClkFlash, clr_start_tx) --clr_flash_active_ack
+        -- State machine 
+        process (resetn, spi_en, spi_fen, ClkFlash, clr_start_tx)
         begin
             if resetn = '0' or spi_en = '0' or spi_fen = '0' then
                 FlashState <= FlashStateCSHigh;
                 FlashDelay <= (others => '0');
                 StartTXFlash <= '0';
-                ClearFlashActive <= '0';
+                ClearFlashActive_smclk <= '0';
                 NextMAB <= (others => '0');
             elsif rising_edge(ClkFlash) then
-                ClearFlashActive <= '0';
+                ClearFlashActive_smclk <= '0';
 
                 if clr_start_tx = '1' then
                     StartTXFlash <= '0';
@@ -621,11 +620,11 @@ begin
                         -- Read the 32-bit word from the SPI flash
                         if tx_in_progress = '0' and StartTXFlash = '0' then
                             FlashState <= FlashStateIdle1;
-                            ClearFlashActive <= '1';
+                            ClearFlashActive_smclk <= '1';
                             NextMAB <= NextMAB + 1;
                         end if;
                     when FlashStateIdle1 =>
-                        -- This is simply a 1 clock cycle buffer to set ClearFlashActive back to '0' before Idle2
+                        -- This is simply a 1 clock cycle buffer to set ClearFlashActive_smclk back to '0' before Idle2
                         FlashState <= FlashStateIdle2;
                     when FlashStateIdle2 =>
                         -- 
@@ -637,10 +636,6 @@ begin
                         end if;
                 end case;
             end if;
-
-            -- if clr_flash_active_ack = '1' then
-            --     ClearFlashActive <= '0';
-            -- end if;
         end process;
 
         mab_top <= mab(23 downto 2);
@@ -668,6 +663,7 @@ begin
     gen_no_flash: if not ENABLE_EXTENDED_MEM generate
         FlashActive <= '0';
         ClearFlashActive <= '0';
+        ClearFlashActive_smclk <= '0';
         StartTXFlash <= '0';
         FlashDL <= '0';
         TXDataFlash <= (others => '0');
@@ -807,4 +803,3 @@ begin
     end process;
 
 end behavioral;
-

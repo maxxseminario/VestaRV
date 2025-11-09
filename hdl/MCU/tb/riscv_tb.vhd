@@ -104,7 +104,7 @@ end component;
     constant clk_lfxt_delay : time := (0.5 sec) / 32768;	-- 32.768 kHz
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
-    constant SIMULATION_TIMEOUT : time := 1500000 us;
+    constant SIMULATION_TIMEOUT : time := 10000000 us;
     
     -- Test control addresses
     constant FAIL_LABEL : std_logic_vector(31 downto 0) := x"DEADBEEF"; -- fail label

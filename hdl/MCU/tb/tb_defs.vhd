@@ -108,19 +108,19 @@ package tb_defs is
         -- "../rcf/xxrv32uzbc-p-clmul.rcf",
         -- "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
         -- "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
-        -- "../rcf/xxxxperiph-p-SPIFM.rcf",
+        "../rcf/xxxxperiph-p-SPIFM.rcf",
         -- "../rcf/xxxxxxxspifem-p-lw.rcf",  
-        "../rcf/xxxxxxperiph-p-AFE.rcf",  
+        -- "../rcf/xxxxxxperiph-p-AFE.rcf",  
         -- "../rcf/xxxperiph-p-SARADC.rcf",  
         -- "../rcf/xxxxperiph-p-GPIO1.rcf",   
-        -- -- "../rcf/xxxxperiph-p-GPIO2.rcf",   
+        -- "../rcf/xxxxperiph-p-GPIO2.rcf",   
         -- "../rcf/xxxxxperiph-p-UART.rcf", 
         -- "../rcf/xxxperiph-p-SYSTEM.rcf", 
         -- "../rcf/xxxxperiph-p-TIMER.rcf",
-        "../rcf/xxxrv32ziscr-p-csr.rcf"     -- CSR Instructions (Custom)    
-        -- "../rcf/xxxxxxperiph-p-SPI.rcf"  -- not tested here down
-        -- "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
-        -- "../rcf/xxxxxrv32ua-p-lrsc.rcf", -- test not valid due to single core
+        -- "../rcf/xxxrv32ziscr-p-csr.rcf"     -- CSR Instructions (Custom)    
+        "../rcf/xxxxxxperiph-p-SPI.rcf",  -- not tested here down
+        "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
+        "../rcf/xxxxxrv32ua-p-lrsc.rcf" -- test not valid due to single core
        
     );
 

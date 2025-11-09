@@ -167,7 +167,7 @@ Disassembly of section .text.init:
     8310:	9ff10113          	addi	sp,sp,-1537 # f9ff <fromhost+0x757f>
     8314:	000052b7          	lui	t0,0x5
     8318:	90028293          	addi	t0,t0,-1792 # 4900 <_start-0x3900>
-    831c:	00000313          	li	t1,0
+    831c:	00400313          	li	t1,4
     8320:	0062a023          	sw	t1,0(t0)
     8324:	000042b7          	lui	t0,0x4
     8328:	20028293          	addi	t0,t0,512 # 4200 <_start-0x4000>
@@ -191,7 +191,7 @@ Disassembly of section .text.init:
     8368:	0fff2337          	lui	t1,0xfff2
     836c:	0062a823          	sw	t1,16(t0)
     8370:	00090337          	lui	t1,0x90
-    8374:	4c830313          	addi	t1,t1,1224 # 904c8 <_end+0x806c8>
+    8374:	0c830313          	addi	t1,t1,200 # 900c8 <_end+0x802c8>
     8378:	00f00393          	li	t2,15
     837c:	02752223          	sw	t2,36(a0)
     8380:	0062a023          	sw	t1,0(t0)
@@ -225,8 +225,8 @@ Disassembly of section .text.init:
     83c8:	00008067          	ret
 
 000083cc <flash_slave_power_up_delay>:
-    83cc:	00001837          	lui	a6,0x1
-    83d0:	fa080813          	addi	a6,a6,-96 # fa0 <_start-0x7260>
+    83cc:	00031837          	lui	a6,0x31
+    83d0:	d4080813          	addi	a6,a6,-704 # 30d40 <_end+0x20f40>
 
 000083d4 <delay_loop>:
     83d4:	fff80813          	addi	a6,a6,-1

@@ -34,10 +34,12 @@
 #define SPI_CR_INIT 0x304C8 // 0b110000010011001000 = TX/RX byte swap, BR=4, EN, MSB, 32-bit
 
 #define FLASH_SLAVE_HFREAD      0x0B // Flash Slave High Frequency Read Command
-#define FLASH_SLAVE_PU_DELAY    4000 // at least 30 us delay (in cycles) (40 us with 100MHz clock)
+//# define FLASH_SLAVE_PU_DELAY    4000 // at least 30 us delay (in cycles) (40 us with 100MHz clock) this is sufficient when smclk = mclk, not else
+#define FLASH_SLAVE_PU_DELAY    200000 // at least 30 us delay (in cycles) (80 us with 100MHz clock) to be safe when smclk != mclk
 #define FLASH_SLAVE_PD          0xB9 // Flash Slave Power Down Command
 
-#define SPI_CR_INIT_FLASH   (SPI_FEN_MASK | SPI_BR(SPI_BR_DIV10) |SPI_EN_MASK | SPI_MSB_MASK |  SPI_DL_32BIT | SPI_RXSB_MASK)
+### define SPI_CR_INIT_FLASH   (SPI_FEN_MASK | SPI_BR(SPI_BR_DIV10) |SPI_EN_MASK | SPI_MSB_MASK |  SPI_DL_32BIT | SPI_RXSB_MASK)
+#define SPI_CR_INIT_FLASH   (SPI_FEN_MASK | SPI_BR(SPI_BR_DIV2) |SPI_EN_MASK | SPI_MSB_MASK |  SPI_DL_32BIT | SPI_RXSB_MASK)
 
 RVTEST_RV64U
 RVTEST_CODE_BEGIN
@@ -51,7 +53,7 @@ INIT_XREG
     li t0, PERIPH_SYSTEM0_BASE
     # li t1, 0x02 // Set smclk to lfxt
     # Set mclk to hfxt, and smclk to lftxt
-    li t1, SYS_MCLKSEL_HFXT | SYS_SMCLKSEL_HFXT
+    li t1, SYS_MCLKSEL_HFXT | SYS_SMCLKSEL_LFXT
     sw t1, SYS_CLK_CR(t0) // Write to System Clock Control Register
 
 
