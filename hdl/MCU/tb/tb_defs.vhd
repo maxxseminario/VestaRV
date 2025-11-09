@@ -109,7 +109,7 @@ package tb_defs is
         -- "../rcf/xxrv32uzbc-p-clmul.rcf",
         -- "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
         -- "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
-        -- "../rcf/xxxxperiph-p-SPIFM.rcf",
+        "../rcf/xxxxperiph-p-SPIFM.rcf",
         "../rcf/xxxxxxperiph-p-AFE.rcf",  
         "../rcf/xxxperiph-p-SARADC.rcf",  
         "../rcf/xxxxperiph-p-GPIO1.rcf",   

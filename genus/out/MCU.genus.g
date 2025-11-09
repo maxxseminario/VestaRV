@@ -1,6 +1,6 @@
 ######################################################################
 
-# Created by Genus(TM) Synthesis Solution 19.15-s090_1 on Sat Nov 08 18:15:12 CST 2025
+# Created by Genus(TM) Synthesis Solution 19.15-s090_1 on Sun Nov 09 14:31:18 CST 2025
 
 # This file contains the RC script for design:MCU
 
@@ -16,21 +16,21 @@ set_db -quiet phys_route_time_out 120.0
 set_db -quiet capacitance_per_unit_length_mmmc {}
 set_db -quiet resistance_per_unit_length_mmmc {}
 set_db -quiet lp_insert_clock_gating true
-set_db -quiet runtime_by_stage {{PBS_Generic-Start 0 32 0.0 39.0} {to_generic 366 403 385 428} {first_condense 88 542 38 516} {PBS_Generic_Opt-Post 522 554 501.59358299999997 540.593583} {{PBS_Generic-Postgen HBO Optimizations} 1 555 1.0 541.593583} {PBS_TechMap-Start 0 559 0.0 544.593583} {{PBS_TechMap-Premap HBO Optimizations} 1 560 1.0 545.593583} {second_condense 37 598 31 562} {reify 119 717 32 595} {global_incr_map 18 735 20 615} {{PBS_Techmap-Global Mapping} 183 743 179.51754600000015 725.1111290000001} {{PBS_TechMap-Datapath Postmap Operations} 5 748 4.604659999999967 729.7157890000001} {{PBS_TechMap-Postmap HBO Optimizations} 1 749 1.5853210000000217 731.3011100000001} {{PBS_TechMap-Postmap Clock Gating} 4 753 4.0 735.3011100000001} {{PBS_TechMap-Postmap Cleanup} 2 755 1.554967999999917 736.856078} {PBS_Techmap-Post_MBCI 0 755 0.0 736.856078} {incr_opt 61 818 69 701} }
+set_db -quiet runtime_by_stage {{PBS_Generic-Start 0 31 0.0 38.0} {to_generic 362 398 380 423} {first_condense 85 532 37 507} {PBS_Generic_Opt-Post 514 545 492.741132 530.741132} {{PBS_Generic-Postgen HBO Optimizations} 1 546 1.0 531.741132} {PBS_TechMap-Start 0 549 0.0 534.741132} {{PBS_TechMap-Premap HBO Optimizations} 2 551 1.0 535.741132} {second_condense 35 587 31 553} {reify 117 704 32 585} {global_incr_map 18 722 20 606} {{PBS_Techmap-Global Mapping} 179 730 177.51964699999996 713.260779} {{PBS_TechMap-Datapath Postmap Operations} 5 735 5.609722000000033 718.870501} {{PBS_TechMap-Postmap HBO Optimizations} 1 736 0.5590969999999515 719.4295979999999} {{PBS_TechMap-Postmap Clock Gating} 5 741 5.0 724.4295979999999} {{PBS_TechMap-Postmap Cleanup} 1 742 1.5563990000000558 725.985997} {PBS_Techmap-Post_MBCI 0 742 1.0 726.985997} {incr_opt 56 801 62 686} }
 set_db -quiet tinfo_tstamp_file .rs_mseminario2.tstamp
 set_db -quiet metric_enable true
 set_db -quiet auto_ungroup none
 set_db -quiet lp_clock_gating_register_aware true
 set_db -quiet use_tiehilo_for_const duplicate
-set_db -quiet flow_metrics_snapshot_uuid 41d218e3-66d0-4a72-89ef-aea1851cf203
-set_db -quiet pin:MCU/afe0/g4314__9945/AN .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g4315__2883/AN .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g4316__2346/AN .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g4317__1666/AN .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g5404__9945/B .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g5405__2883/B .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g5406__2346/B .break_timing_paths clock_gating
-set_db -quiet pin:MCU/afe0/g5410__5477/B .break_timing_paths clock_gating
+set_db -quiet flow_metrics_snapshot_uuid ca710475-2364-4637-aedc-a000ad25517a
+set_db -quiet pin:MCU/afe0/g4314__1666/AN .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g4315__7410/AN .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g4316__6417/AN .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g4317__5477/AN .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g5411__7410/B .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g5412__6417/B .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g5414__2398/B .break_timing_paths clock_gating
+set_db -quiet pin:MCU/afe0/g5418__8428/B .break_timing_paths clock_gating
 set_db -quiet hpin:MCU/core/clk_cpu .break_timing_paths true
 set_db -quiet pin:MCU/gpio3/g3374/B .break_timing_paths clock_gating
 set_db -quiet pin:MCU/gpio3/g3375/B .break_timing_paths clock_gating
@@ -43,7 +43,7 @@ set_db -quiet pin:MCU/gpio3/g3433/A .break_timing_paths clock_gating
 set_db -quiet hpin:MCU/i2c0/SCL_IN .break_timing_paths true
 set_db -quiet hpin:MCU/i2c1/SCL_IN .break_timing_paths true
 set_db -quiet pin:MCU/saradc0/g2837/B .break_timing_paths clock_gating
-set_db -quiet pin:MCU/saradc0/g3617/B .break_timing_paths clock_gating
+set_db -quiet pin:MCU/saradc0/g3559/B .break_timing_paths clock_gating
 set_db -quiet hpin:MCU/spi0/sck_in .break_timing_paths true
 set_db -quiet hpin:MCU/spi1/sck_in .break_timing_paths true
 set_db -quiet hpin:MCU/system0/mclk_out .break_timing_paths true
@@ -143,34 +143,34 @@ external_delay -accumulate -input {0.0 no_value 0.0 no_value} -clock clock:MCU/c
 set_db -quiet external_delay:MCU/create_clock_delay_clk_sck1_domain_clk_sck1_R_0 .clock_network_latency_included true
 external_delay -accumulate -input {no_value 0.0 no_value 0.0} -clock clock:MCU/clk_sck1 -edge_fall -name create_clock_delay_clk_sck1_domain_clk_sck1_F_0 hpin:MCU/spi1/sck_in
 set_db -quiet external_delay:MCU/create_clock_delay_clk_sck1_domain_clk_sck1_F_0 .clock_network_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_191 pin:MCU/saradc0/g3617/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_191 pin:MCU/saradc0/g3559/B
 set_db -quiet external_delay:MCU/clk_gating_check_191 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_191 .clock_source_latency_included true
 external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_192 pin:MCU/saradc0/g2837/B
 set_db -quiet external_delay:MCU/clk_gating_check_192 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_192 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_193 pin:MCU/afe0/g5410__5477/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_193 pin:MCU/afe0/g5412__6417/B
 set_db -quiet external_delay:MCU/clk_gating_check_193 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_193 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_194 pin:MCU/afe0/g5406__2346/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_194 pin:MCU/afe0/g5414__2398/B
 set_db -quiet external_delay:MCU/clk_gating_check_194 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_194 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_195 pin:MCU/afe0/g5405__2883/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_195 pin:MCU/afe0/g5411__7410/B
 set_db -quiet external_delay:MCU/clk_gating_check_195 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_195 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_196 pin:MCU/afe0/g5404__9945/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_196 pin:MCU/afe0/g5418__8428/B
 set_db -quiet external_delay:MCU/clk_gating_check_196 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_196 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_197 pin:MCU/afe0/g4316__2346/AN
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_197 pin:MCU/afe0/g4314__1666/AN
 set_db -quiet external_delay:MCU/clk_gating_check_197 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_197 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_198 pin:MCU/afe0/g4315__2883/AN
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_198 pin:MCU/afe0/g4315__7410/AN
 set_db -quiet external_delay:MCU/clk_gating_check_198 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_198 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_199 pin:MCU/afe0/g4317__1666/AN
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_199 pin:MCU/afe0/g4316__6417/AN
 set_db -quiet external_delay:MCU/clk_gating_check_199 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_199 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_200 pin:MCU/afe0/g4314__9945/AN
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_200 pin:MCU/afe0/g4317__5477/AN
 set_db -quiet external_delay:MCU/clk_gating_check_200 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_200 .clock_source_latency_included true
 external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/mclk -edge_fall -name clk_gating_check_201 pin:MCU/timer0/clk_mux/g83/A
@@ -179,7 +179,7 @@ set_db -quiet external_delay:MCU/clk_gating_check_201 .clock_source_latency_incl
 external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/mclk -edge_fall -name clk_gating_check_202 pin:MCU/timer1/clk_mux/g83/A
 set_db -quiet external_delay:MCU/clk_gating_check_202 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_202 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_203 pin:MCU/gpio3/g3432/A
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_203 pin:MCU/gpio3/g3430/A
 set_db -quiet external_delay:MCU/clk_gating_check_203 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_203 .clock_source_latency_included true
 external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_204 pin:MCU/gpio3/g3433/A
@@ -188,19 +188,19 @@ set_db -quiet external_delay:MCU/clk_gating_check_204 .clock_source_latency_incl
 external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_205 pin:MCU/gpio3/g3428/A
 set_db -quiet external_delay:MCU/clk_gating_check_205 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_205 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_206 pin:MCU/gpio3/g3430/A
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -name clk_gating_check_206 pin:MCU/gpio3/g3432/A
 set_db -quiet external_delay:MCU/clk_gating_check_206 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_206 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_207 pin:MCU/gpio3/g3374/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_207 pin:MCU/gpio3/g3375/B
 set_db -quiet external_delay:MCU/clk_gating_check_207 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_207 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_208 pin:MCU/gpio3/g3375/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_208 pin:MCU/gpio3/g3374/B
 set_db -quiet external_delay:MCU/clk_gating_check_208 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_208 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_209 pin:MCU/gpio3/g3377/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_209 pin:MCU/gpio3/g3376/B
 set_db -quiet external_delay:MCU/clk_gating_check_209 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_209 .clock_source_latency_included true
-external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_210 pin:MCU/gpio3/g3376/B
+external_delay -accumulate -output {no_value no_value 0.0 0.0} -clock clock:MCU/smclk -edge_fall -name clk_gating_check_210 pin:MCU/gpio3/g3377/B
 set_db -quiet external_delay:MCU/clk_gating_check_210 .clock_network_latency_included true
 set_db -quiet external_delay:MCU/clk_gating_check_210 .clock_source_latency_included true
 path_group -paths [specify_paths -to clock:MCU/mclk]  -name mclk -group cost_group:MCU/mclk -user_priority -1047552
@@ -234,7 +234,7 @@ set_db -quiet dft_scanbit_waveform_analysis false
 # END DFT SECTION
 set_db -quiet design:MCU .seq_reason_deleted_internal {{{i2c1/CGMaster/ClkStagesFF_reg[0]} unloaded {i2c1/CGMaster/ClkStagesFF[0]}} {{i2c0/CGMaster/ClkStagesFF_reg[0]} unloaded {i2c0/CGMaster/ClkStagesFF[0]}} {core/datapath_inst/mainalu/divider/N unloaded core/datapath_inst/mainalu/divider/N} {core/datapath_inst/mainalu/divider/D unloaded core/datapath_inst/mainalu/divider/D} {core/datapath_inst/mainalu/div_rq unloaded core/datapath_inst/mainalu/div_rq} {core/datapath_inst/amo_read_data_reg unloaded core/datapath_inst/amo_read_data_reg} {core/irq_handler_inst/prev_state unloaded core/irq_handler_inst/prev_state} {core/irq_handler_inst/nesting_count unloaded core/irq_handler_inst/nesting_count} {core/c_dec_inst/funct6 unloaded core/c_dec_inst/funct6} {core/amo_read_data unloaded core/amo_read_data} {core/data_addr_reg unloaded core/data_addr_reg} {core/irq_save_int unloaded core/irq_save_int} {spi1/SPIxFOS unloaded spi1/SPIxFOS} {timer1/timer_value_latched unloaded timer1/timer_value_latched} {timer0/timer_value_latched unloaded timer0/timer_value_latched} {afe0/adc_data_read unloaded afe0/adc_data_read} {afe0/clr_adc_ovf unloaded afe0/clr_adc_ovf} {{core/irq_handler_inst/pending_irqs_reg_reg[0]} unloaded {core/irq_handler_inst/pending_irqs_reg[0]}} {{core/irq_handler_inst/pending_irqs_reg_reg[1]} unloaded {core/irq_handler_inst/pending_irqs_reg[1]}} {{core/irq_handler_inst/pending_irqs_reg_reg[2]} unloaded {core/irq_handler_inst/pending_irqs_reg[2]}} {{core/irq_handler_inst/pending_irqs_reg_reg[3]} unloaded {core/irq_handler_inst/pending_irqs_reg[3]}} {{core/irq_handler_inst/pending_irqs_reg_reg[4]} unloaded {core/irq_handler_inst/pending_irqs_reg[4]}} {{core/irq_handler_inst/pending_irqs_reg_reg[5]} unloaded {core/irq_handler_inst/pending_irqs_reg[5]}} {{core/irq_handler_inst/pending_irqs_reg_reg[6]} unloaded {core/irq_handler_inst/pending_irqs_reg[6]}} {{core/irq_handler_inst/pending_irqs_reg_reg[7]} unloaded {core/irq_handler_inst/pending_irqs_reg[7]}} {{core/irq_handler_inst/pending_irqs_reg_reg[8]} unloaded {core/irq_handler_inst/pending_irqs_reg[8]}} {{core/irq_handler_inst/pending_irqs_reg_reg[9]} unloaded {core/irq_handler_inst/pending_irqs_reg[9]}} {{core/irq_handler_inst/pending_irqs_reg_reg[10]} unloaded {core/irq_handler_inst/pending_irqs_reg[10]}} {{core/irq_handler_inst/pending_irqs_reg_reg[11]} unloaded {core/irq_handler_inst/pending_irqs_reg[11]}} {{core/irq_handler_inst/pending_irqs_reg_reg[12]} unloaded {core/irq_handler_inst/pending_irqs_reg[12]}} {{core/irq_handler_inst/pending_irqs_reg_reg[13]} unloaded {core/irq_handler_inst/pending_irqs_reg[13]}} {{core/irq_handler_inst/pending_irqs_reg_reg[14]} unloaded {core/irq_handler_inst/pending_irqs_reg[14]}} {{core/irq_handler_inst/pending_irqs_reg_reg[15]} unloaded {core/irq_handler_inst/pending_irqs_reg[15]}} {{core/irq_handler_inst/pending_irqs_reg_reg[16]} unloaded {core/irq_handler_inst/pending_irqs_reg[16]}} {{core/irq_handler_inst/pending_irqs_reg_reg[17]} unloaded {core/irq_handler_inst/pending_irqs_reg[17]}} {{core/irq_handler_inst/pending_irqs_reg_reg[18]} unloaded {core/irq_handler_inst/pending_irqs_reg[18]}} {{core/irq_handler_inst/pending_irqs_reg_reg[19]} unloaded {core/irq_handler_inst/pending_irqs_reg[19]}} {{core/irq_handler_inst/pending_irqs_reg_reg[20]} unloaded {core/irq_handler_inst/pending_irqs_reg[20]}} {{core/irq_handler_inst/pending_irqs_reg_reg[21]} unloaded {core/irq_handler_inst/pending_irqs_reg[21]}} {{core/irq_handler_inst/pending_irqs_reg_reg[22]} unloaded {core/irq_handler_inst/pending_irqs_reg[22]}} {{core/irq_handler_inst/pending_irqs_reg_reg[23]} unloaded {core/irq_handler_inst/pending_irqs_reg[23]}} {{core/irq_handler_inst/pending_irqs_reg_reg[24]} unloaded {core/irq_handler_inst/pending_irqs_reg[24]}} {{core/irq_handler_inst/pending_irqs_reg_reg[25]} unloaded {core/irq_handler_inst/pending_irqs_reg[25]}} {{core/irq_handler_inst/pending_irqs_reg_reg[26]} unloaded {core/irq_handler_inst/pending_irqs_reg[26]}} {{core/irq_handler_inst/pending_irqs_reg_reg[27]} unloaded {core/irq_handler_inst/pending_irqs_reg[27]}} {{core/irq_handler_inst/pending_irqs_reg_reg[28]} unloaded {core/irq_handler_inst/pending_irqs_reg[28]}} {{core/irq_handler_inst/pending_irqs_reg_reg[29]} unloaded {core/irq_handler_inst/pending_irqs_reg[29]}} {{core/irq_handler_inst/pending_irqs_reg_reg[30]} unloaded {core/irq_handler_inst/pending_irqs_reg[30]}} {{core/irq_handler_inst/pending_irqs_reg_reg[31]} unloaded {core/irq_handler_inst/pending_irqs_reg[31]}} {{core/irq_handler_inst/pending_irqs_reg_reg[32]} unloaded {core/irq_handler_inst/pending_irqs_reg[32]}} {{core/irq_handler_inst/pending_irqs_reg_reg[33]} unloaded {core/irq_handler_inst/pending_irqs_reg[33]}} {{core/irq_handler_inst/pending_irqs_reg_reg[34]} unloaded {core/irq_handler_inst/pending_irqs_reg[34]}} {{core/irq_handler_inst/pending_irqs_reg_reg[35]} unloaded {core/irq_handler_inst/pending_irqs_reg[35]}} {{core/irq_handler_inst/pending_irqs_reg_reg[36]} unloaded {core/irq_handler_inst/pending_irqs_reg[36]}} {{core/irq_handler_inst/pending_irqs_reg_reg[37]} unloaded {core/irq_handler_inst/pending_irqs_reg[37]}} {{core/irq_handler_inst/pending_irqs_reg_reg[38]} unloaded {core/irq_handler_inst/pending_irqs_reg[38]}} {{core/irq_handler_inst/pending_irqs_reg_reg[39]} unloaded {core/irq_handler_inst/pending_irqs_reg[39]}} {{core/irq_handler_inst/pending_irqs_reg_reg[40]} unloaded {core/irq_handler_inst/pending_irqs_reg[40]}} {{core/irq_handler_inst/pending_irqs_reg_reg[41]} unloaded {core/irq_handler_inst/pending_irqs_reg[41]}} {{core/irq_handler_inst/pending_irqs_reg_reg[42]} unloaded {core/irq_handler_inst/pending_irqs_reg[42]}} {{core/irq_handler_inst/pending_irqs_reg_reg[43]} unloaded {core/irq_handler_inst/pending_irqs_reg[43]}} {{core/irq_handler_inst/pending_irqs_reg_reg[44]} unloaded {core/irq_handler_inst/pending_irqs_reg[44]}} {{core/irq_handler_inst/pending_irqs_reg_reg[45]} unloaded {core/irq_handler_inst/pending_irqs_reg[45]}} {{core/irq_handler_inst/pending_irqs_reg_reg[46]} unloaded {core/irq_handler_inst/pending_irqs_reg[46]}} {{core/irq_handler_inst/pending_irqs_reg_reg[47]} unloaded {core/irq_handler_inst/pending_irqs_reg[47]}} {{core/irq_handler_inst/pending_irqs_reg_reg[48]} unloaded {core/irq_handler_inst/pending_irqs_reg[48]}} {{core/irq_handler_inst/pending_irqs_reg_reg[49]} unloaded {core/irq_handler_inst/pending_irqs_reg[49]}} {{core/irq_handler_inst/pending_irqs_reg_reg[50]} unloaded {core/irq_handler_inst/pending_irqs_reg[50]}} {{core/irq_handler_inst/pending_irqs_reg_reg[51]} unloaded {core/irq_handler_inst/pending_irqs_reg[51]}} {{core/irq_handler_inst/pending_irqs_reg_reg[52]} unloaded {core/irq_handler_inst/pending_irqs_reg[52]}} {{core/irq_handler_inst/pending_irqs_reg_reg[53]} unloaded {core/irq_handler_inst/pending_irqs_reg[53]}} {{core/irq_handler_inst/pending_irqs_reg_reg[54]} unloaded {core/irq_handler_inst/pending_irqs_reg[54]}} {{core/irq_handler_inst/pending_irqs_reg_reg[55]} unloaded {core/irq_handler_inst/pending_irqs_reg[55]}} {{core/irq_handler_inst/pending_irqs_reg_reg[56]} unloaded {core/irq_handler_inst/pending_irqs_reg[56]}} {{core/irq_handler_inst/pending_irqs_reg_reg[57]} unloaded {core/irq_handler_inst/pending_irqs_reg[57]}} {{core/irq_handler_inst/pending_irqs_reg_reg[58]} unloaded {core/irq_handler_inst/pending_irqs_reg[58]}} {{core/irq_handler_inst/pending_irqs_reg_reg[59]} unloaded {core/irq_handler_inst/pending_irqs_reg[59]}} {{core/irq_handler_inst/pending_irqs_reg_reg[60]} unloaded {core/irq_handler_inst/pending_irqs_reg[60]}} {{core/irq_handler_inst/pending_irqs_reg_reg[61]} unloaded {core/irq_handler_inst/pending_irqs_reg[61]}} {{core/irq_handler_inst/pending_irqs_reg_reg[62]} unloaded {core/irq_handler_inst/pending_irqs_reg[62]}} {{core/irq_handler_inst/pending_irqs_reg_reg[63]} unloaded {core/irq_handler_inst/pending_irqs_reg[63]}} {{core/irq_handler_inst/pending_irqs_reg_reg[64]} unloaded {core/irq_handler_inst/pending_irqs_reg[64]}} {{core/irq_handler_inst/pending_irqs_reg_reg[65]} unloaded {core/irq_handler_inst/pending_irqs_reg[65]}} {{core/irq_handler_inst/pending_irqs_reg_reg[66]} unloaded {core/irq_handler_inst/pending_irqs_reg[66]}} {{core/irq_handler_inst/pending_irqs_reg_reg[67]} unloaded {core/irq_handler_inst/pending_irqs_reg[67]}} {{core/irq_handler_inst/pending_irqs_reg_reg[68]} unloaded {core/irq_handler_inst/pending_irqs_reg[68]}} {{core/irq_handler_inst/pending_irqs_reg_reg[69]} unloaded {core/irq_handler_inst/pending_irqs_reg[69]}} {{core/irq_handler_inst/pending_irqs_reg_reg[70]} unloaded {core/irq_handler_inst/pending_irqs_reg[70]}} {{core/irq_handler_inst/pending_irqs_reg_reg[71]} unloaded {core/irq_handler_inst/pending_irqs_reg[71]}} {{core/irq_handler_inst/pending_irqs_reg_reg[72]} unloaded {core/irq_handler_inst/pending_irqs_reg[72]}} {{core/irq_handler_inst/pending_irqs_reg_reg[73]} unloaded {core/irq_handler_inst/pending_irqs_reg[73]}} {{core/irq_handler_inst/pending_irqs_reg_reg[74]} unloaded {core/irq_handler_inst/pending_irqs_reg[74]}} {{core/irq_handler_inst/pending_irqs_reg_reg[75]} unloaded {core/irq_handler_inst/pending_irqs_reg[75]}} {{core/irq_handler_inst/pending_irqs_reg_reg[76]} unloaded {core/irq_handler_inst/pending_irqs_reg[76]}} {{core/irq_handler_inst/pending_irqs_reg_reg[77]} unloaded {core/irq_handler_inst/pending_irqs_reg[77]}} {{core/irq_handler_inst/pending_irqs_reg_reg[78]} unloaded {core/irq_handler_inst/pending_irqs_reg[78]}} {{core/irq_handler_inst/pending_irqs_reg_reg[79]} unloaded {core/irq_handler_inst/pending_irqs_reg[79]}} {{core/irq_handler_inst/pending_irqs_reg_reg[80]} unloaded {core/irq_handler_inst/pending_irqs_reg[80]}} {{core/irq_handler_inst/pending_irqs_reg_reg[81]} unloaded {core/irq_handler_inst/pending_irqs_reg[81]}} {{core/irq_handler_inst/pending_irqs_reg_reg[82]} unloaded {core/irq_handler_inst/pending_irqs_reg[82]}} {{adddec0/mab_out_reg[24]} unloaded {adddec0/mab_out[24]}} {{adddec0/mab_out_reg[25]} unloaded {adddec0/mab_out[25]}} {{adddec0/mab_out_reg[26]} unloaded {adddec0/mab_out[26]}} {{adddec0/mab_out_reg[27]} unloaded {adddec0/mab_out[27]}} {{adddec0/mab_out_reg[28]} unloaded {adddec0/mab_out[28]}} {{adddec0/mab_out_reg[29]} unloaded {adddec0/mab_out[29]}} {{adddec0/mab_out_reg[30]} unloaded {adddec0/mab_out[30]}} {{adddec0/mab_out_reg[31]} unloaded {adddec0/mab_out[31]}} {{gpio0/read_data_reg[8]} {{constant 0}} {gpio0/read_data[8]}} {{gpio0/read_data_reg[9]} {{constant 0}} {gpio0/read_data[9]}} {{gpio0/read_data_reg[10]} {{constant 0}} {gpio0/read_data[10]}} {{gpio0/read_data_reg[11]} {{constant 0}} {gpio0/read_data[11]}} {{gpio0/read_data_reg[12]} {{constant 0}} {gpio0/read_data[12]}} {{gpio0/read_data_reg[13]} {{constant 0}} {gpio0/read_data[13]}} {{gpio0/read_data_reg[14]} {{constant 0}} {gpio0/read_data[14]}} {{gpio0/read_data_reg[15]} {{constant 0}} {gpio0/read_data[15]}} {{gpio0/read_data_reg[16]} {{constant 0}} {gpio0/read_data[16]}} {{gpio0/read_data_reg[17]} {{constant 0}} {gpio0/read_data[17]}} {{gpio0/read_data_reg[18]} {{constant 0}} {gpio0/read_data[18]}} {{gpio0/read_data_reg[19]} {{constant 0}} {gpio0/read_data[19]}} {{gpio0/read_data_reg[20]} {{constant 0}} {gpio0/read_data[20]}} {{gpio0/read_data_reg[21]} {{constant 0}} {gpio0/read_data[21]}} {{gpio0/read_data_reg[22]} {{constant 0}} {gpio0/read_data[22]}} {{gpio0/read_data_reg[23]} {{constant 0}} {gpio0/read_data[23]}} {{gpio0/read_data_reg[24]} {{constant 0}} {gpio0/read_data[24]}} {{gpio0/read_data_reg[25]} {{constant 0}} {gpio0/read_data[25]}} {{gpio0/read_data_reg[26]} {{constant 0}} {gpio0/read_data[26]}} {{gpio0/read_data_reg[27]} {{constant 0}} {gpio0/read_data[27]}} {{gpio0/read_data_reg[28]} {{constant 0}} {gpio0/read_data[28]}} {{gpio0/read_data_reg[29]} {{constant 0}} {gpio0/read_data[29]}} {{gpio0/read_data_reg[30]} {{constant 0}} {gpio0/read_data[30]}} {{gpio0/read_data_reg[31]} {{constant 0}} {gpio0/read_data[31]}} {{gpio1/read_data_reg[8]} {{constant 0}} {gpio1/read_data[8]}} {{gpio1/read_data_reg[9]} {{constant 0}} {gpio1/read_data[9]}} {{gpio1/read_data_reg[10]} {{constant 0}} {gpio1/read_data[10]}} {{gpio1/read_data_reg[11]} {{constant 0}} {gpio1/read_data[11]}} {{gpio1/read_data_reg[12]} {{constant 0}} {gpio1/read_data[12]}} {{gpio1/read_data_reg[13]} {{constant 0}} {gpio1/read_data[13]}} {{gpio1/read_data_reg[14]} {{constant 0}} {gpio1/read_data[14]}} {{gpio1/read_data_reg[15]} {{constant 0}} {gpio1/read_data[15]}} {{gpio1/read_data_reg[16]} {{constant 0}} {gpio1/read_data[16]}} {{gpio1/read_data_reg[17]} {{constant 0}} {gpio1/read_data[17]}} {{gpio1/read_data_reg[18]} {{constant 0}} {gpio1/read_data[18]}} {{gpio1/read_data_reg[19]} {{constant 0}} {gpio1/read_data[19]}} {{gpio1/read_data_reg[20]} {{constant 0}} {gpio1/read_data[20]}} {{gpio1/read_data_reg[21]} {{constant 0}} {gpio1/read_data[21]}} {{gpio1/read_data_reg[22]} {{constant 0}} {gpio1/read_data[22]}} {{gpio1/read_data_reg[23]} {{constant 0}} {gpio1/read_data[23]}} {{gpio1/read_data_reg[24]} {{constant 0}} {gpio1/read_data[24]}} {{gpio1/read_data_reg[25]} {{constant 0}} {gpio1/read_data[25]}} {{gpio1/read_data_reg[26]} {{constant 0}} {gpio1/read_data[26]}} {{gpio1/read_data_reg[27]} {{constant 0}} {gpio1/read_data[27]}} {{gpio1/read_data_reg[28]} {{constant 0}} {gpio1/read_data[28]}} {{gpio1/read_data_reg[29]} {{constant 0}} {gpio1/read_data[29]}} {{gpio1/read_data_reg[30]} {{constant 0}} {gpio1/read_data[30]}} {{gpio1/read_data_reg[31]} {{constant 0}} {gpio1/read_data[31]}} {{npu0/NPUCR_reg[16]} {{constant 0}} {npu0/NPUCR[16]}} {{afe0/read_data_reg[24]} {{constant 0}} {afe0/read_data[24]}} {{afe0/read_data_reg[25]} {{constant 0}} {afe0/read_data[25]}} {{afe0/read_data_reg[26]} {{constant 0}} {afe0/read_data[26]}} {{afe0/read_data_reg[27]} {{constant 0}} {afe0/read_data[27]}} {{afe0/read_data_reg[28]} {{constant 0}} {afe0/read_data[28]}} {{afe0/read_data_reg[29]} {{constant 0}} {afe0/read_data[29]}} {{afe0/read_data_reg[30]} {{constant 0}} {afe0/read_data[30]}} {{afe0/read_data_reg[31]} {{constant 0}} {afe0/read_data[31]}} {{saradc0/read_data_reg[10]} {{constant 0}} {saradc0/read_data[10]}} {{saradc0/read_data_reg[11]} {{constant 0}} {saradc0/read_data[11]}} {{saradc0/read_data_reg[12]} {{constant 0}} {saradc0/read_data[12]}} {{saradc0/read_data_reg[13]} {{constant 0}} {saradc0/read_data[13]}} {{saradc0/read_data_reg[14]} {{constant 0}} {saradc0/read_data[14]}} {{saradc0/read_data_reg[15]} {{constant 0}} {saradc0/read_data[15]}} {{saradc0/read_data_reg[16]} {{constant 0}} {saradc0/read_data[16]}} {{saradc0/read_data_reg[17]} {{constant 0}} {saradc0/read_data[17]}} {{saradc0/read_data_reg[18]} {{constant 0}} {saradc0/read_data[18]}} {{saradc0/read_data_reg[19]} {{constant 0}} {saradc0/read_data[19]}} {{saradc0/read_data_reg[20]} {{constant 0}} {saradc0/read_data[20]}} {{saradc0/read_data_reg[21]} {{constant 0}} {saradc0/read_data[21]}} {{saradc0/read_data_reg[22]} {{constant 0}} {saradc0/read_data[22]}} {{saradc0/read_data_reg[23]} {{constant 0}} {saradc0/read_data[23]}} {{saradc0/read_data_reg[24]} {{constant 0}} {saradc0/read_data[24]}} {{saradc0/read_data_reg[25]} {{constant 0}} {saradc0/read_data[25]}} {{saradc0/read_data_reg[26]} {{constant 0}} {saradc0/read_data[26]}} {{saradc0/read_data_reg[27]} {{constant 0}} {saradc0/read_data[27]}} {{saradc0/read_data_reg[28]} {{constant 0}} {saradc0/read_data[28]}} {{saradc0/read_data_reg[29]} {{constant 0}} {saradc0/read_data[29]}} {{saradc0/read_data_reg[30]} {{constant 0}} {saradc0/read_data[30]}} {{saradc0/read_data_reg[31]} {{constant 0}} {saradc0/read_data[31]}} {{uart1/read_data_reg[12]} {{constant 0}} {uart1/read_data[12]}} {{uart0/read_data_reg[12]} {{constant 0}} {uart0/read_data[12]}} {{uart1/read_data_reg[13]} {{constant 0}} {uart1/read_data[13]}} {{uart0/read_data_reg[13]} {{constant 0}} {uart0/read_data[13]}} {{uart1/read_data_reg[14]} {{constant 0}} {uart1/read_data[14]}} {{uart0/read_data_reg[14]} {{constant 0}} {uart0/read_data[14]}} {{uart1/read_data_reg[15]} {{constant 0}} {uart1/read_data[15]}} {{uart0/read_data_reg[15]} {{constant 0}} {uart0/read_data[15]}} {{uart1/read_data_reg[16]} {{constant 0}} {uart1/read_data[16]}} {{uart0/read_data_reg[16]} {{constant 0}} {uart0/read_data[16]}} {{uart1/read_data_reg[17]} {{constant 0}} {uart1/read_data[17]}} {{uart0/read_data_reg[17]} {{constant 0}} {uart0/read_data[17]}} {{uart1/read_data_reg[18]} {{constant 0}} {uart1/read_data[18]}} {{uart0/read_data_reg[18]} {{constant 0}} {uart0/read_data[18]}} {{uart1/read_data_reg[19]} {{constant 0}} {uart1/read_data[19]}} {{uart0/read_data_reg[19]} {{constant 0}} {uart0/read_data[19]}} {{uart1/read_data_reg[20]} {{constant 0}} {uart1/read_data[20]}} {{uart0/read_data_reg[20]} {{constant 0}} {uart0/read_data[20]}} {{uart1/read_data_reg[21]} {{constant 0}} {uart1/read_data[21]}} {{uart0/read_data_reg[21]} {{constant 0}} {uart0/read_data[21]}} {{uart1/read_data_reg[22]} {{constant 0}} {uart1/read_data[22]}} {{uart0/read_data_reg[22]} {{constant 0}} {uart0/read_data[22]}} {{uart1/read_data_reg[23]} {{constant 0}} {uart1/read_data[23]}} {{uart0/read_data_reg[23]} {{constant 0}} {uart0/read_data[23]}} {{uart1/read_data_reg[24]} {{constant 0}} {uart1/read_data[24]}} {{uart0/read_data_reg[24]} {{constant 0}} {uart0/read_data[24]}} {{uart1/read_data_reg[25]} {{constant 0}} {uart1/read_data[25]}} {{uart0/read_data_reg[25]} {{constant 0}} {uart0/read_data[25]}} {{uart1/read_data_reg[26]} {{constant 0}} {uart1/read_data[26]}} {{uart0/read_data_reg[26]} {{constant 0}} {uart0/read_data[26]}} {{uart1/read_data_reg[27]} {{constant 0}} {uart1/read_data[27]}} {{uart0/read_data_reg[27]} {{constant 0}} {uart0/read_data[27]}} {{uart1/read_data_reg[28]} {{constant 0}} {uart1/read_data[28]}} {{uart0/read_data_reg[28]} {{constant 0}} {uart0/read_data[28]}} {{uart1/read_data_reg[29]} {{constant 0}} {uart1/read_data[29]}} {{uart0/read_data_reg[29]} {{constant 0}} {uart0/read_data[29]}} {{uart1/read_data_reg[30]} {{constant 0}} {uart1/read_data[30]}} {{uart0/read_data_reg[30]} {{constant 0}} {uart0/read_data[30]}} {{uart1/read_data_reg[31]} {{constant 0}} {uart1/read_data[31]}} {{uart0/read_data_reg[31]} {{constant 0}} {uart0/read_data[31]}} {i2c1/I2CSTR_reg {{constant 0}} i2c1/I2CSTR} {i2c0/I2CSTR_reg {{constant 0}} i2c0/I2CSTR} {i2c1/StartSlaveRX_reg {{constant 0}} i2c1/StartSlaveRX} {i2c0/StartSlaveRX_reg {{constant 0}} i2c0/StartSlaveRX} {i2c1/ClearStartSlaveRX_reg {{constant 0}} i2c1/ClearStartSlaveRX} {i2c0/ClearStartSlaveRX_reg {{constant 0}} i2c0/ClearStartSlaveRX} {i2c1/I2CSPR_reg {{constant 0}} i2c1/I2CSPR} {i2c0/I2CSPR_reg {{constant 0}} i2c0/I2CSPR} {i2c1/I2CMNR_reg {{constant 0}} i2c1/I2CMNR} {i2c0/I2CMNR_reg {{constant 0}} i2c0/I2CMNR} {i2c1/I2CMARB_reg {{constant 0}} i2c1/I2CMARB} {i2c0/I2CMARB_reg {{constant 0}} i2c0/I2CMARB} {i2c1/SDA_LAT_reg {{constant 0}} i2c1/SDA_LAT} {i2c0/SDA_LAT_reg {{constant 0}} i2c0/SDA_LAT} {{i2c1/I2CxSRX_reg[0]} {{constant 0}} {i2c1/I2CxSRX[0]}} {{i2c0/I2CxSRX_reg[0]} {{constant 0}} {i2c0/I2CxSRX[0]}} {{i2c1/I2CxSRX_reg[1]} {{constant 0}} {i2c1/I2CxSRX[1]}} {{i2c0/I2CxSRX_reg[1]} {{constant 0}} {i2c0/I2CxSRX[1]}} {{i2c1/I2CxSRX_reg[2]} {{constant 0}} {i2c1/I2CxSRX[2]}} {{i2c0/I2CxSRX_reg[2]} {{constant 0}} {i2c0/I2CxSRX[2]}} {{i2c1/I2CxSRX_reg[3]} {{constant 0}} {i2c1/I2CxSRX[3]}} {{i2c0/I2CxSRX_reg[3]} {{constant 0}} {i2c0/I2CxSRX[3]}} {{i2c1/I2CxSRX_reg[4]} {{constant 0}} {i2c1/I2CxSRX[4]}} {{i2c0/I2CxSRX_reg[4]} {{constant 0}} {i2c0/I2CxSRX[4]}} {{i2c1/I2CxSRX_reg[5]} {{constant 0}} {i2c1/I2CxSRX[5]}} {{i2c0/I2CxSRX_reg[5]} {{constant 0}} {i2c0/I2CxSRX[5]}} {{i2c1/I2CxSRX_reg[6]} {{constant 0}} {i2c1/I2CxSRX[6]}} {{i2c0/I2CxSRX_reg[6]} {{constant 0}} {i2c0/I2CxSRX[6]}} {{i2c1/I2CxSRX_reg[7]} {{constant 0}} {i2c1/I2CxSRX[7]}} {{i2c0/I2CxSRX_reg[7]} {{constant 0}} {i2c0/I2CxSRX[7]}} {i2c1/I2CSXC_reg {{constant 0}} i2c1/I2CSXC} {i2c0/I2CSXC_reg {{constant 0}} i2c0/I2CSXC} {i2c1/I2CSNR_reg {{constant 0}} i2c1/I2CSNR} {i2c0/I2CSNR_reg {{constant 0}} i2c0/I2CSNR} {i2c1/I2CSOVF_reg {{constant 0}} i2c1/I2CSOVF} {i2c0/I2CSOVF_reg {{constant 0}} i2c0/I2CSOVF} {i2c1/I2CSTXE_reg {{constant 0}} i2c1/I2CSTXE} {i2c0/I2CSTXE_reg {{constant 0}} i2c0/I2CSTXE} {i2c1/I2CSA_reg {{constant 0}} i2c1/I2CSA} {i2c0/I2CSA_reg {{constant 0}} i2c0/I2CSA} {i2c1/I2CSTM_reg {{constant 0}} i2c1/I2CSTM} {i2c0/I2CSTM_reg {{constant 0}} i2c0/I2CSTM} {i2c1/SlaveFsmSDA_reg {{constant 1}} i2c1/SlaveFsmSDA} {i2c0/SlaveFsmSDA_reg {{constant 1}} i2c0/SlaveFsmSDA} {{i2c1/SlaveState_reg[0]} {{constant 0}} {i2c1/SlaveState[0]}} {{i2c0/SlaveState_reg[0]} {{constant 0}} {i2c0/SlaveState[0]}} {{i2c1/SlaveState_reg[1]} {{constant 0}} {i2c1/SlaveState[1]}} {{i2c0/SlaveState_reg[1]} {{constant 0}} {i2c0/SlaveState[1]}} {{i2c1/SlaveState_reg[2]} {{constant 0}} {i2c1/SlaveState[2]}} {{i2c0/SlaveState_reg[2]} {{constant 0}} {i2c0/SlaveState[2]}} {{i2c1/SlaveBit_reg[0]} {{constant 1}} {i2c1/SlaveBit[0]}} {{i2c0/SlaveBit_reg[0]} {{constant 1}} {i2c0/SlaveBit[0]}} {{i2c1/SlaveBit_reg[1]} {{constant 1}} {i2c1/SlaveBit[1]}} {{i2c0/SlaveBit_reg[1]} {{constant 1}} {i2c0/SlaveBit[1]}} {{i2c1/SlaveBit_reg[2]} {{constant 1}} {i2c1/SlaveBit[2]}} {{i2c0/SlaveBit_reg[2]} {{constant 1}} {i2c0/SlaveBit[2]}} {{i2c1/SlaveData_reg[0]} {{constant 0}} {i2c1/SlaveData[0]}} {{i2c0/SlaveData_reg[0]} {{constant 0}} {i2c0/SlaveData[0]}} {{i2c1/SlaveData_reg[1]} {{constant 0}} {i2c1/SlaveData[1]}} {{i2c0/SlaveData_reg[1]} {{constant 0}} {i2c0/SlaveData[1]}} {{i2c1/SlaveData_reg[2]} {{constant 0}} {i2c1/SlaveData[2]}} {{i2c0/SlaveData_reg[2]} {{constant 0}} {i2c0/SlaveData[2]}} {{i2c1/SlaveData_reg[3]} {{constant 0}} {i2c1/SlaveData[3]}} {{i2c0/SlaveData_reg[3]} {{constant 0}} {i2c0/SlaveData[3]}} {{i2c1/SlaveData_reg[4]} {{constant 0}} {i2c1/SlaveData[4]}} {{i2c0/SlaveData_reg[4]} {{constant 0}} {i2c0/SlaveData[4]}} {{i2c1/SlaveData_reg[5]} {{constant 0}} {i2c1/SlaveData[5]}} {{i2c0/SlaveData_reg[5]} {{constant 0}} {i2c0/SlaveData[5]}} {{i2c1/SlaveData_reg[6]} {{constant 0}} {i2c1/SlaveData[6]}} {{i2c0/SlaveData_reg[6]} {{constant 0}} {i2c0/SlaveData[6]}} {{i2c1/SlaveData_reg[7]} {{constant 0}} {i2c1/SlaveData[7]}} {{i2c0/SlaveData_reg[7]} {{constant 0}} {i2c0/SlaveData[7]}} {i2c1/SlaveJustAddressed_reg {{constant 0}} i2c1/SlaveJustAddressed} {i2c0/SlaveJustAddressed_reg {{constant 0}} i2c0/SlaveJustAddressed} {i2c1/ClearI2CSC_reg {{constant 1}} i2c1/ClearI2CSC} {i2c0/ClearI2CSC_reg {{constant 1}} i2c0/ClearI2CSC} {i2c1/I2CBS_reg {{constant 0}} i2c1/I2CBS} {i2c0/I2CBS_reg {{constant 0}} i2c0/I2CBS} {i2c1/I2CSC_reg {{constant 0}} i2c1/I2CSC} {i2c0/I2CSC_reg {{constant 0}} i2c0/I2CSC} {{gpio3/read_data_reg[8]} {{constant 0}} {gpio3/read_data[8]}} {{gpio3/read_data_reg[9]} {{constant 0}} {gpio3/read_data[9]}} {{gpio3/read_data_reg[10]} {{constant 0}} {gpio3/read_data[10]}} {{gpio3/read_data_reg[11]} {{constant 0}} {gpio3/read_data[11]}} {{gpio3/read_data_reg[12]} {{constant 0}} {gpio3/read_data[12]}} {{gpio3/read_data_reg[13]} {{constant 0}} {gpio3/read_data[13]}} {{gpio3/read_data_reg[14]} {{constant 0}} {gpio3/read_data[14]}} {{gpio3/read_data_reg[15]} {{constant 0}} {gpio3/read_data[15]}} {{gpio3/read_data_reg[16]} {{constant 0}} {gpio3/read_data[16]}} {{gpio3/read_data_reg[17]} {{constant 0}} {gpio3/read_data[17]}} {{gpio3/read_data_reg[18]} {{constant 0}} {gpio3/read_data[18]}} {{gpio3/read_data_reg[19]} {{constant 0}} {gpio3/read_data[19]}} {{gpio3/read_data_reg[20]} {{constant 0}} {gpio3/read_data[20]}} {{gpio3/read_data_reg[21]} {{constant 0}} {gpio3/read_data[21]}} {{gpio3/read_data_reg[22]} {{constant 0}} {gpio3/read_data[22]}} {{gpio3/read_data_reg[23]} {{constant 0}} {gpio3/read_data[23]}} {{gpio3/read_data_reg[24]} {{constant 0}} {gpio3/read_data[24]}} {{gpio3/read_data_reg[25]} {{constant 0}} {gpio3/read_data[25]}} {{gpio3/read_data_reg[26]} {{constant 0}} {gpio3/read_data[26]}} {{gpio3/read_data_reg[27]} {{constant 0}} {gpio3/read_data[27]}} {{gpio3/read_data_reg[28]} {{constant 0}} {gpio3/read_data[28]}} {{gpio3/read_data_reg[29]} {{constant 0}} {gpio3/read_data[29]}} {{gpio3/read_data_reg[30]} {{constant 0}} {gpio3/read_data[30]}} {{gpio3/read_data_reg[31]} {{constant 0}} {gpio3/read_data[31]}} {{gpio2/read_data_reg[8]} {{constant 0}} {gpio2/read_data[8]}} {{gpio2/read_data_reg[9]} {{constant 0}} {gpio2/read_data[9]}} {{gpio2/read_data_reg[10]} {{constant 0}} {gpio2/read_data[10]}} {{gpio2/read_data_reg[11]} {{constant 0}} {gpio2/read_data[11]}} {{gpio2/read_data_reg[12]} {{constant 0}} {gpio2/read_data[12]}} {{gpio2/read_data_reg[13]} {{constant 0}} {gpio2/read_data[13]}} {{gpio2/read_data_reg[14]} {{constant 0}} {gpio2/read_data[14]}} {{gpio2/read_data_reg[15]} {{constant 0}} {gpio2/read_data[15]}} {{gpio2/read_data_reg[16]} {{constant 0}} {gpio2/read_data[16]}} {{gpio2/read_data_reg[17]} {{constant 0}} {gpio2/read_data[17]}} {{gpio2/read_data_reg[18]} {{constant 0}} {gpio2/read_data[18]}} {{gpio2/read_data_reg[19]} {{constant 0}} {gpio2/read_data[19]}} {{gpio2/read_data_reg[20]} {{constant 0}} {gpio2/read_data[20]}} {{gpio2/read_data_reg[21]} {{constant 0}} {gpio2/read_data[21]}} {{gpio2/read_data_reg[22]} {{constant 0}} {gpio2/read_data[22]}} {{gpio2/read_data_reg[23]} {{constant 0}} {gpio2/read_data[23]}} {{gpio2/read_data_reg[24]} {{constant 0}} {gpio2/read_data[24]}} {{gpio2/read_data_reg[25]} {{constant 0}} {gpio2/read_data[25]}} {{gpio2/read_data_reg[26]} {{constant 0}} {gpio2/read_data[26]}} {{gpio2/read_data_reg[27]} {{constant 0}} {gpio2/read_data[27]}} {{gpio2/read_data_reg[28]} {{constant 0}} {gpio2/read_data[28]}} {{gpio2/read_data_reg[29]} {{constant 0}} {gpio2/read_data[29]}} {{gpio2/read_data_reg[30]} {{constant 0}} {gpio2/read_data[30]}} {{gpio2/read_data_reg[31]} {{constant 0}} {gpio2/read_data[31]}} {{timer0/clk_mux/MuxGen[2].OtherSlice.SYNCDFF0} {{constant 0}} {timer0/clk_mux/MuxGen[2].OtherSlice.SYNCDFF0}} {{timer1/clk_mux/MuxGen[2].OtherSlice.SYNCDFF0} {{constant 0}} {timer1/clk_mux/MuxGen[2].OtherSlice.SYNCDFF0}} {{timer0/clk_mux/MuxGen[2].OtherSlice.SYNCDFF1} {{constant 0}} {timer0/clk_mux/MuxGen[2].OtherSlice.SYNCDFF1}} {{timer1/clk_mux/MuxGen[2].OtherSlice.SYNCDFF1} {{constant 0}} {timer1/clk_mux/MuxGen[2].OtherSlice.SYNCDFF1}} {{timer0/clk_mux/MuxGen[2].OtherSlice.DLYDFF0} {{constant 0}} {timer0/clk_mux/MuxGen[2].OtherSlice.DLYDFF0}} {{timer1/clk_mux/MuxGen[2].OtherSlice.DLYDFF0} {{constant 0}} {timer1/clk_mux/MuxGen[2].OtherSlice.DLYDFF0}} {{timer0/clk_mux/MuxGen[3].OtherSlice.SYNCDFF0} {{constant 0}} {timer0/clk_mux/MuxGen[3].OtherSlice.SYNCDFF0}} {{timer1/clk_mux/MuxGen[3].OtherSlice.SYNCDFF0} {{constant 0}} {timer1/clk_mux/MuxGen[3].OtherSlice.SYNCDFF0}} {{timer0/clk_mux/MuxGen[3].OtherSlice.SYNCDFF1} {{constant 0}} {timer0/clk_mux/MuxGen[3].OtherSlice.SYNCDFF1}} {{timer1/clk_mux/MuxGen[3].OtherSlice.SYNCDFF1} {{constant 0}} {timer1/clk_mux/MuxGen[3].OtherSlice.SYNCDFF1}} {{timer0/clk_mux/MuxGen[3].OtherSlice.DLYDFF0} {{constant 0}} {timer0/clk_mux/MuxGen[3].OtherSlice.DLYDFF0}} {{timer1/clk_mux/MuxGen[3].OtherSlice.DLYDFF0} {{constant 0}} {timer1/clk_mux/MuxGen[3].OtherSlice.DLYDFF0}} {i2c0/ClearI2CMARB_reg unloaded i2c0/ClearI2CMARB} {i2c0/ClearI2CMNR_reg unloaded i2c0/ClearI2CMNR} {i2c0/ClearI2CSA_reg unloaded i2c0/ClearI2CSA} {i2c0/ClearI2CSNR_reg unloaded i2c0/ClearI2CSNR} {i2c0/ClearI2CSOVF_reg unloaded i2c0/ClearI2CSOVF} {i2c0/ClearI2CSPR_reg unloaded i2c0/ClearI2CSPR} {i2c0/ClearI2CSTR_reg unloaded i2c0/ClearI2CSTR} {i2c0/ClearI2CSTXE_reg unloaded i2c0/ClearI2CSTXE} {i2c0/ClearI2CSXC_reg unloaded i2c0/ClearI2CSXC} {i2c1/ClearI2CMARB_reg unloaded i2c1/ClearI2CMARB} {i2c1/ClearI2CMNR_reg unloaded i2c1/ClearI2CMNR} {i2c1/ClearI2CSA_reg unloaded i2c1/ClearI2CSA} {i2c1/ClearI2CSNR_reg unloaded i2c1/ClearI2CSNR} {i2c1/ClearI2CSOVF_reg unloaded i2c1/ClearI2CSOVF} {i2c1/ClearI2CSPR_reg unloaded i2c1/ClearI2CSPR} {i2c1/ClearI2CSTR_reg unloaded i2c1/ClearI2CSTR} {i2c1/ClearI2CSTXE_reg unloaded i2c1/ClearI2CSTXE} {i2c1/ClearI2CSXC_reg unloaded i2c1/ClearI2CSXC} {{adddec0/mab_out_reg[2]} {{merged with adddec0/addr_periph_reg[2]}} {adddec0/mab_out[2]} {adddec0/addr_periph[2]}} {{adddec0/mab_out_reg[3]} {{merged with adddec0/addr_periph_reg[3]}} {adddec0/mab_out[3]} {adddec0/addr_periph[3]}} {{adddec0/mab_out_reg[4]} {{merged with adddec0/addr_periph_reg[4]}} {adddec0/mab_out[4]} {adddec0/addr_periph[4]}} {{adddec0/mab_out_reg[5]} {{merged with adddec0/addr_periph_reg[5]}} {adddec0/mab_out[5]} {adddec0/addr_periph[5]}} {{adddec0/mab_out_reg[6]} {{merged with adddec0/addr_periph_reg[6]}} {adddec0/mab_out[6]} {adddec0/addr_periph[6]}} {{adddec0/mab_out_reg[7]} {{merged with adddec0/addr_periph_reg[7]}} {adddec0/mab_out[7]} {adddec0/addr_periph[7]}} {{i2c0/I2CxSRLat_reg[1]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[1]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[3]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[3]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[5]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[5]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[8]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[8]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[9]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[9]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[10]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[10]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[11]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[11]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[12]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[12]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[13]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[13]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRLat_reg[15]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRLat[15]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[0]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[0]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[1]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[1]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[2]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[2]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[3]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[3]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[4]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[4]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[5]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[5]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[6]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[6]} {i2c0/I2CxSRLat[0]}} {{i2c0/I2CxSRXLat_reg[7]} {{merged with i2c0/I2CxSRLat_reg[0]}} {i2c0/I2CxSRXLat[7]} {i2c0/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[1]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[1]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[3]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[3]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[5]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[5]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[8]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[8]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[9]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[9]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[10]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[10]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[11]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[11]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[12]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[12]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[13]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[13]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[15]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRLat[15]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[0]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[0]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[1]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[1]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[2]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[2]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[3]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[3]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[4]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[4]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[5]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[5]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[6]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[6]} {i2c1/I2CxSRLat[0]}} {{i2c1/I2CxSRXLat_reg[7]} {{merged with i2c1/I2CxSRLat_reg[0]}} {i2c1/I2CxSRXLat[7]} {i2c1/I2CxSRLat[0]}} {{core/datapath_inst/rf/registers_reg[0][31]} {{constant 0}} {core/datapath_inst/rf/registers[0][31]}} {{core/datapath_inst/rf/registers_reg[0][30]} {{constant 0}} {core/datapath_inst/rf/registers[0][30]}} {{core/datapath_inst/rf/registers_reg[0][29]} {{constant 0}} {core/datapath_inst/rf/registers[0][29]}} {{core/datapath_inst/rf/registers_reg[0][28]} {{constant 0}} {core/datapath_inst/rf/registers[0][28]}} {{core/datapath_inst/rf/registers_reg[0][27]} {{constant 0}} {core/datapath_inst/rf/registers[0][27]}} {{core/datapath_inst/rf/registers_reg[0][26]} {{constant 0}} {core/datapath_inst/rf/registers[0][26]}} {{core/datapath_inst/rf/registers_reg[0][25]} {{constant 0}} {core/datapath_inst/rf/registers[0][25]}} {{core/datapath_inst/rf/registers_reg[0][24]} {{constant 0}} {core/datapath_inst/rf/registers[0][24]}} {{core/datapath_inst/rf/registers_reg[0][23]} {{constant 0}} {core/datapath_inst/rf/registers[0][23]}} {{core/datapath_inst/rf/registers_reg[0][22]} {{constant 0}} {core/datapath_inst/rf/registers[0][22]}} {{core/datapath_inst/rf/registers_reg[0][21]} {{constant 0}} {core/datapath_inst/rf/registers[0][21]}} {{core/datapath_inst/rf/registers_reg[0][20]} {{constant 0}} {core/datapath_inst/rf/registers[0][20]}} {{core/datapath_inst/rf/registers_reg[0][19]} {{constant 0}} {core/datapath_inst/rf/registers[0][19]}} {{core/datapath_inst/rf/registers_reg[0][18]} {{constant 0}} {core/datapath_inst/rf/registers[0][18]}} {{core/datapath_inst/rf/registers_reg[0][17]} {{constant 0}} {core/datapath_inst/rf/registers[0][17]}} {{core/datapath_inst/rf/registers_reg[0][16]} {{constant 0}} {core/datapath_inst/rf/registers[0][16]}} {{core/datapath_inst/rf/registers_reg[0][15]} {{constant 0}} {core/datapath_inst/rf/registers[0][15]}} {{core/datapath_inst/rf/registers_reg[0][14]} {{constant 0}} {core/datapath_inst/rf/registers[0][14]}} {{core/datapath_inst/rf/registers_reg[0][13]} {{constant 0}} {core/datapath_inst/rf/registers[0][13]}} {{core/datapath_inst/rf/registers_reg[0][12]} {{constant 0}} {core/datapath_inst/rf/registers[0][12]}} {{core/datapath_inst/rf/registers_reg[0][11]} {{constant 0}} {core/datapath_inst/rf/registers[0][11]}} {{core/datapath_inst/rf/registers_reg[0][10]} {{constant 0}} {core/datapath_inst/rf/registers[0][10]}} {{core/datapath_inst/rf/registers_reg[0][9]} {{constant 0}} {core/datapath_inst/rf/registers[0][9]}} {{core/datapath_inst/rf/registers_reg[0][8]} {{constant 0}} {core/datapath_inst/rf/registers[0][8]}} {{core/datapath_inst/rf/registers_reg[0][7]} {{constant 0}} {core/datapath_inst/rf/registers[0][7]}} {{core/datapath_inst/rf/registers_reg[0][6]} {{constant 0}} {core/datapath_inst/rf/registers[0][6]}} {{core/datapath_inst/rf/registers_reg[0][5]} {{constant 0}} {core/datapath_inst/rf/registers[0][5]}} {{core/datapath_inst/rf/registers_reg[0][4]} {{constant 0}} {core/datapath_inst/rf/registers[0][4]}} {{core/datapath_inst/rf/registers_reg[0][3]} {{constant 0}} {core/datapath_inst/rf/registers[0][3]}} {{core/datapath_inst/rf/registers_reg[0][2]} {{constant 0}} {core/datapath_inst/rf/registers[0][2]}} {{core/datapath_inst/rf/registers_reg[0][1]} {{constant 0}} {core/datapath_inst/rf/registers[0][1]}} {{core/datapath_inst/rf/registers_reg[0][0]} {{constant 0}} {core/datapath_inst/rf/registers[0][0]}} {system0/wdt_trigger_reg {{constant 0}} system0/wdt_trigger} {system0/wdt_if_reg {{constant 0}} system0/wdt_if} {system0/wdt_interrupt_ret_reg {{constant 0}} system0/wdt_interrupt_ret} {{i2c0/I2CxSRLat_reg[0]} {{constant 1}} {i2c0/I2CxSRLat[0]}} {{i2c1/I2CxSRLat_reg[0]} {{constant 1}} {i2c1/I2CxSRLat[0]}} {system0/wdt_rf_reg {{constant 0}} system0/wdt_rf} {system0/clr_wdt_if_reg unloaded system0/clr_wdt_if} {system0/clr_wdt_rf_reg unloaded system0/clr_wdt_rf} {{core/datapath_inst/mainalu/divider/cnt_reg[5]} {{constant 0}} {core/datapath_inst/mainalu/divider/cnt[5]}}}
 set_db -quiet design:MCU .max_transition 500.0
-set_db -quiet design:MCU .qos_by_stage {{to_generic {wns -11111111} {tns -111111111} {vep -111111111} {area 691781} {cell_count 60267} {utilization  0.00} {runtime 366 403 385 428} }{first_condense {wns -11111111} {tns -111111111} {vep -111111111} {area 658386} {cell_count 65229} {utilization  0.00} {runtime 88 542 38 516} }{second_condense {wns -11111111} {tns -111111111} {vep -111111111} {area 658066} {cell_count 65113} {utilization  0.00} {runtime 37 598 31 562} }{reify {wns 3299} {tns 0} {vep 0} {area 447009} {cell_count 28282} {utilization  0.00} {runtime 119 717 32 595} }{global_incr_map {wns 3140} {tns 0} {vep 0} {area 445411} {cell_count 27760} {utilization  0.00} {runtime 18 735 20 615} }{incr_opt {wns 214748365} {tns 0} {vep 0} {area 444516} {cell_count 27557} {utilization  0.00} {runtime 61 818 69 701} }}
+set_db -quiet design:MCU .qos_by_stage {{to_generic {wns -11111111} {tns -111111111} {vep -111111111} {area 691775} {cell_count 60266} {utilization  0.00} {runtime 362 398 380 423} }{first_condense {wns -11111111} {tns -111111111} {vep -111111111} {area 658486} {cell_count 65253} {utilization  0.00} {runtime 85 532 37 507} }{second_condense {wns -11111111} {tns -111111111} {vep -111111111} {area 658170} {cell_count 65139} {utilization  0.00} {runtime 35 587 31 553} }{reify {wns 3329} {tns 0} {vep 0} {area 447012} {cell_count 28318} {utilization  0.00} {runtime 117 704 32 585} }{global_incr_map {wns 3028} {tns 0} {vep 0} {area 445388} {cell_count 27811} {utilization  0.00} {runtime 18 722 20 606} }{incr_opt {wns 214748365} {tns 0} {vep 0} {area 444932} {cell_count 27770} {utilization  0.00} {runtime 56 801 62 686} }}
 set_db -quiet design:MCU .seq_mbci_coverage 0.0
 set_db -quiet design:MCU .hdl_user_name MCU
 set_db -quiet design:MCU .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/fixed_float_types_c.vhdl} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/fixed_pkg_c.vhdl} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/FPMac.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/FPSigmoid.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/TieLow.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/CRC16.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkDivPower2.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/GPIO.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/SPI.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/UART.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/I2C.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/TIMER.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/SYSTEM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/NPU.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/SARADC.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/AFE_FSM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/AFE.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/div.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/alu.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/extend.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/regfile_sbirq.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/irq_handler.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/loadext.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/store_ext.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/branch_valid.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/csr_unit.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/datapath.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/maindec.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/controller.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/c_dec.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/vesta.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/adddec.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MCU.vhd} {../hdl} {}}}
@@ -1939,186 +1939,186 @@ set_db -quiet module:MCU/RC_CG_MOD_2 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_2 .boundary_opto strict_no
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST2/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST2/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375 .boundary_opto strict_no
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST3/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST3/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380_1 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_1 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_1 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_1 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_1 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_1 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_1 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_1 .boundary_opto strict_no
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST4/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST4/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380_2 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_2 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_2 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_2 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_2 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_2 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_2 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_2 .boundary_opto strict_no
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST5/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST5/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380_3 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_3 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_3 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_3 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_3 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_3 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_3 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_3 .boundary_opto strict_no
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST6/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/adddec0/RC_CG_HIER_INST6/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8238 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8238 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8238 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8238 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1} .original_name {{adddec0/gen_cg_mem[0].cg_mem/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1} .single_bit_orig_name {adddec0/gen_cg_mem[0].cg_mem/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1/ECK} .original_name {adddec0/gen_cg_mem[0].cg_mem/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8237 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8237 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8237 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8237 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1} .original_name {{adddec0/gen_cg_mem[1].cg_mem/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1} .single_bit_orig_name {adddec0/gen_cg_mem[1].cg_mem/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1/ECK} .original_name {adddec0/gen_cg_mem[1].cg_mem/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8236 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8236 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8236 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8236 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1} .original_name {{adddec0/gen_cg_mem[2].cg_mem/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1} .single_bit_orig_name {adddec0/gen_cg_mem[2].cg_mem/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1/ECK} .original_name {adddec0/gen_cg_mem[2].cg_mem/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8235 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8235 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8235 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8235 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[0].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[0].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[0].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1} .original_name {{adddec0/gen_cg_mem[0].cg_mem/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1} .single_bit_orig_name {adddec0/gen_cg_mem[0].cg_mem/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_mem[0].cg_mem/CG1/ECK} .original_name {adddec0/gen_cg_mem[0].cg_mem/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8234 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8234 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8234 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8234 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[1].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[1].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[1].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1} .original_name {{adddec0/gen_cg_mem[1].cg_mem/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1} .single_bit_orig_name {adddec0/gen_cg_mem[1].cg_mem/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_mem[1].cg_mem/CG1/ECK} .original_name {adddec0/gen_cg_mem[1].cg_mem/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8233 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8233 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8233 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8233 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[2].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[2].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[2].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1} .original_name {{adddec0/gen_cg_mem[2].cg_mem/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1} .single_bit_orig_name {adddec0/gen_cg_mem[2].cg_mem/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_mem[2].cg_mem/CG1/ECK} .original_name {adddec0/gen_cg_mem[2].cg_mem/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8232 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8232 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8232 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8232 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[3].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[3].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[3].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[0].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[0].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[0].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[0].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8231 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8231 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8231 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8231 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[4].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[4].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[4].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[1].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[1].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[1].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[1].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8230 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8230 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8230 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8230 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[5].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[5].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[5].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[2].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[2].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[2].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[2].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8229 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8229 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8229 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8229 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[6].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[6].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[6].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[3].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[3].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[3].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[3].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8228 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8228 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8228 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8228 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[7].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[7].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[7].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[4].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[4].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[4].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[4].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8227 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8227 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8227 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8227 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[8].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[8].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[8].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[5].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[5].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[5].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[5].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8226 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8226 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8226 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8226 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[9].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[9].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[9].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[6].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[6].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[6].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[6].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8225 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8225 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8225 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8225 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[10].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[10].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[10].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[7].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[7].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[7].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[7].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8224 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8224 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8224 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8224 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[11].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[11].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[11].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[8].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[8].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[8].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[8].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8223 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8223 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8223 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8223 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[12].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[12].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[12].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[9].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[9].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[9].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[9].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8222 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8222 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8222 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8222 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[13].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[13].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[13].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[10].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[10].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[10].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[10].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8221 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8221 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8221 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8221 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[14].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[14].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[14].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[11].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[11].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[11].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[11].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8220 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8220 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8220 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8220 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[15].cg_periph/CG1}}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[15].cg_periph/CG1}
-set_db -quiet {inst:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[15].cg_periph/CG1/ECK}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[12].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[12].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[12].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[12].cg_periph/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8219 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8219 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8219 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8219 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[13].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[13].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[13].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[13].cg_periph/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8218 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8218 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8218 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8218 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[14].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[14].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[14].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[14].cg_periph/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8217 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8217 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8217 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8217 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1} .original_name {{adddec0/gen_cg_periph[15].cg_periph/CG1}}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1} .single_bit_orig_name {adddec0/gen_cg_periph[15].cg_periph/CG1}
+set_db -quiet {inst:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/gen_cg_periph[15].cg_periph/CG1/ECK} .original_name {adddec0/gen_cg_periph[15].cg_periph/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8216 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8216 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8216 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8216 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/adddec0/gen_flash_clk.cg_flash/CG1 .original_name adddec0/gen_flash_clk.cg_flash/CG1
 set_db -quiet inst:MCU/adddec0/gen_flash_clk.cg_flash/CG1 .single_bit_orig_name adddec0/gen_flash_clk.cg_flash/CG1
 set_db -quiet inst:MCU/adddec0/gen_flash_clk.cg_flash/CG1 .gint_phase_inversion false
@@ -2193,6 +2193,16 @@ set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[14]} .orig_hdl_instantiated f
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[14]} .single_bit_orig_name {adddec0/flash_dout_reg[14]}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[14]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[14]/Q} .original_name {adddec0/flash_dout_reg[14]/q}
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .original_name {{adddec0/flash_dout_reg[15]}}
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .single_bit_orig_name {adddec0/flash_dout_reg[15]}
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[15]/Q} .original_name {adddec0/flash_dout_reg[15]/q}
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .original_name {{adddec0/flash_dout_reg[16]}}
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .single_bit_orig_name {adddec0/flash_dout_reg[16]}
+set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[16]/Q} .original_name {adddec0/flash_dout_reg[16]/q}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[18]} .original_name {{adddec0/flash_dout_reg[18]}}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[18]} .single_bit_orig_name {adddec0/flash_dout_reg[18]}
@@ -2293,11 +2303,11 @@ set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[9]} .orig_hdl_instantiated fal
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[9]} .single_bit_orig_name {adddec0/mem_en_periph[9]}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[9]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[9]/Q} .original_name {adddec0/mem_en_periph[9]/q}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .original_name {{adddec0/mem_en_periph[7]}}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .single_bit_orig_name {adddec0/mem_en_periph[7]}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[7]/Q} .original_name {adddec0/mem_en_periph[7]/q}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .original_name {{adddec0/mem_en_periph[5]}}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .single_bit_orig_name {adddec0/mem_en_periph[5]}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[5]/Q} .original_name {adddec0/mem_en_periph[5]/q}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[1]} .original_name {{adddec0/mem_en_periph[1]}}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[1]} .single_bit_orig_name {adddec0/mem_en_periph[1]}
@@ -2323,21 +2333,21 @@ set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[9]} .orig_hdl_instantiate
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[9]} .single_bit_orig_name {adddec0/mem_sel_periph_int[9]}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[9]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_sel_periph_int_reg[9]/Q} .original_name {adddec0/mem_sel_periph_int[9]/q}
-set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .original_name {{adddec0/mem_sel_periph_int[3]}}
-set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .single_bit_orig_name {adddec0/mem_sel_periph_int[3]}
-set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_sel_periph_int_reg[3]/Q} .original_name {adddec0/mem_sel_periph_int[3]/q}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[5]} .original_name {{adddec0/mem_sel_periph_int[5]}}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[5]} .single_bit_orig_name {adddec0/mem_sel_periph_int[5]}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[5]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_sel_periph_int_reg[5]/Q} .original_name {adddec0/mem_sel_periph_int[5]/q}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .original_name {{adddec0/mem_en_periph[5]}}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .single_bit_orig_name {adddec0/mem_en_periph[5]}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[5]/Q} .original_name {adddec0/mem_en_periph[5]/q}
+set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .original_name {{adddec0/mem_sel_periph_int[3]}}
+set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .single_bit_orig_name {adddec0/mem_sel_periph_int[3]}
+set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_sel_periph_int_reg[3]/Q} .original_name {adddec0/mem_sel_periph_int[3]/q}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .original_name {{adddec0/mem_en_periph[7]}}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .single_bit_orig_name {adddec0/mem_en_periph[7]}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[7]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[7]/Q} .original_name {adddec0/mem_en_periph[7]/q}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[2]} .original_name {{adddec0/mem_en_periph[2]}}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[2]} .single_bit_orig_name {adddec0/mem_en_periph[2]}
@@ -2353,21 +2363,21 @@ set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[11]} .orig_hdl_instantiated fa
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[11]} .single_bit_orig_name {adddec0/mem_en_periph[11]}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[11]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[11]/Q} .original_name {adddec0/mem_en_periph[11]/q}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .original_name {{adddec0/mem_en_periph[14]}}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .single_bit_orig_name {adddec0/mem_en_periph[14]}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[14]/Q} .original_name {adddec0/mem_en_periph[14]/q}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .original_name {{adddec0/mem_en_periph[13]}}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .single_bit_orig_name {adddec0/mem_en_periph[13]}
-set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[13]/Q} .original_name {adddec0/mem_en_periph[13]/q}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[12]} .original_name {{adddec0/mem_en_periph[12]}}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[12]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[12]} .single_bit_orig_name {adddec0/mem_en_periph[12]}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[12]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[12]/Q} .original_name {adddec0/mem_en_periph[12]/q}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .original_name {{adddec0/mem_en_periph[13]}}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .single_bit_orig_name {adddec0/mem_en_periph[13]}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[13]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[13]/Q} .original_name {adddec0/mem_en_periph[13]/q}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .original_name {{adddec0/mem_en_periph[14]}}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .single_bit_orig_name {adddec0/mem_en_periph[14]}
+set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[14]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[14]/Q} .original_name {adddec0/mem_en_periph[14]/q}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[2]} .original_name {{adddec0/mem_sel_periph_int[2]}}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[2]} .single_bit_orig_name {adddec0/mem_sel_periph_int[2]}
@@ -2408,21 +2418,21 @@ set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[15]} .orig_hdl_instantiated fa
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[15]} .single_bit_orig_name {adddec0/mem_en_periph[15]}
 set_db -quiet {inst:MCU/adddec0/mem_en_periph_reg[15]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_en_periph_reg[15]/Q} .original_name {adddec0/mem_en_periph[15]/q}
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .original_name {{adddec0/mem_sel_int[0]}}
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .single_bit_orig_name {adddec0/mem_sel_int[0]}
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_sel_int_reg[0]/Q} .original_name {adddec0/mem_sel_int[0]/q}
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .original_name {{adddec0/mem_sel_int[1]}}
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .single_bit_orig_name {adddec0/mem_sel_int[1]}
-set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/mem_sel_int_reg[1]/Q} .original_name {adddec0/mem_sel_int[1]/q}
 set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[2]} .original_name {{adddec0/mem_sel_int[2]}}
 set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[2]} .single_bit_orig_name {adddec0/mem_sel_int[2]}
 set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_sel_int_reg[2]/Q} .original_name {adddec0/mem_sel_int[2]/q}
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .original_name {{adddec0/mem_sel_int[1]}}
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .single_bit_orig_name {adddec0/mem_sel_int[1]}
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_sel_int_reg[1]/Q} .original_name {adddec0/mem_sel_int[1]/q}
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .original_name {{adddec0/mem_sel_int[0]}}
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .single_bit_orig_name {adddec0/mem_sel_int[0]}
+set_db -quiet {inst:MCU/adddec0/mem_sel_int_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/mem_sel_int_reg[0]/Q} .original_name {adddec0/mem_sel_int[0]/q}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[4]} .original_name {{adddec0/mem_sel_periph_int[4]}}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[4]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[4]} .single_bit_orig_name {adddec0/mem_sel_periph_int[4]}
@@ -2438,36 +2448,36 @@ set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[15]} .orig_hdl_instantiat
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[15]} .single_bit_orig_name {adddec0/mem_sel_periph_int[15]}
 set_db -quiet {inst:MCU/adddec0/mem_sel_periph_int_reg[15]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/mem_sel_periph_int_reg[15]/Q} .original_name {adddec0/mem_sel_periph_int[15]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .original_name {{adddec0/write_data[4]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .single_bit_orig_name {adddec0/write_data[4]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[4]/Q} .original_name {adddec0/write_data[4]/q}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .original_name {{adddec0/addr_periph[3]}}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .single_bit_orig_name {adddec0/addr_periph[3]}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/addr_periph_reg[3]/Q} .original_name {adddec0/addr_periph[3]/q}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .original_name {{adddec0/addr_periph[4]}}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .single_bit_orig_name {adddec0/addr_periph[4]}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/addr_periph_reg[4]/Q} .original_name {adddec0/addr_periph[4]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .original_name {{adddec0/write_data[25]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .single_bit_orig_name {adddec0/write_data[25]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[25]/Q} .original_name {adddec0/write_data[25]/q}
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[7]} .original_name {{adddec0/addr_periph[7]}}
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[7]} .single_bit_orig_name {adddec0/addr_periph[7]}
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[7]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/addr_periph_reg[7]/Q} .original_name {adddec0/addr_periph[7]/q}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .original_name {{adddec0/addr_periph[4]}}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .single_bit_orig_name {adddec0/addr_periph[4]}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/addr_periph_reg[4]/Q} .original_name {adddec0/addr_periph[4]/q}
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[5]} .original_name {{adddec0/addr_periph[5]}}
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[5]} .single_bit_orig_name {adddec0/addr_periph[5]}
 set_db -quiet {inst:MCU/adddec0/addr_periph_reg[5]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/addr_periph_reg[5]/Q} .original_name {adddec0/addr_periph[5]/q}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .original_name {{adddec0/addr_periph[6]}}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .single_bit_orig_name {adddec0/addr_periph[6]}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/addr_periph_reg[6]/Q} .original_name {adddec0/addr_periph[6]/q}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .original_name {{adddec0/addr_periph[3]}}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .single_bit_orig_name {adddec0/addr_periph[3]}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/addr_periph_reg[3]/Q} .original_name {adddec0/addr_periph[3]/q}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .original_name {{adddec0/addr_periph[2]}}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .single_bit_orig_name {adddec0/addr_periph[2]}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/addr_periph_reg[2]/Q} .original_name {adddec0/addr_periph[2]/q}
 set_db -quiet {inst:MCU/adddec0/wen_periph_reg[0]} .original_name {{adddec0/wen_periph[0]}}
 set_db -quiet {inst:MCU/adddec0/wen_periph_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/wen_periph_reg[0]} .single_bit_orig_name {adddec0/wen_periph[0]}
@@ -2478,41 +2488,16 @@ set_db -quiet inst:MCU/adddec0/mem_sel_flash_int_reg .orig_hdl_instantiated fals
 set_db -quiet inst:MCU/adddec0/mem_sel_flash_int_reg .single_bit_orig_name adddec0/mem_sel_flash_int
 set_db -quiet inst:MCU/adddec0/mem_sel_flash_int_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/adddec0/mem_sel_flash_int_reg/Q .original_name adddec0/mem_sel_flash_int/q
-set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .original_name {{adddec0/write_data[13]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .single_bit_orig_name {adddec0/write_data[13]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[13]/Q} .original_name {adddec0/write_data[13]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .original_name {{adddec0/write_data[14]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .single_bit_orig_name {adddec0/write_data[14]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[14]/Q} .original_name {adddec0/write_data[14]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .original_name {{adddec0/write_data[15]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .single_bit_orig_name {adddec0/write_data[15]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[15]/Q} .original_name {adddec0/write_data[15]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .original_name {{adddec0/write_data[16]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .single_bit_orig_name {adddec0/write_data[16]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[16]/Q} .original_name {adddec0/write_data[16]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .original_name {{adddec0/write_data[17]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .single_bit_orig_name {adddec0/write_data[17]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[17]/Q} .original_name {adddec0/write_data[17]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .original_name {{adddec0/write_data[18]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .single_bit_orig_name {adddec0/write_data[18]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[18]/Q} .original_name {adddec0/write_data[18]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[19]} .original_name {{adddec0/write_data[19]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[19]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[19]} .single_bit_orig_name {adddec0/write_data[19]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[19]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[19]/Q} .original_name {adddec0/write_data[19]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .original_name {{adddec0/write_data[20]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .single_bit_orig_name {adddec0/write_data[20]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[20]/Q} .original_name {adddec0/write_data[20]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[21]} .original_name {{adddec0/write_data[21]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[21]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[21]} .single_bit_orig_name {adddec0/write_data[21]}
@@ -2528,31 +2513,31 @@ set_db -quiet {inst:MCU/adddec0/write_data_reg[23]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[23]} .single_bit_orig_name {adddec0/write_data[23]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[23]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[23]/Q} .original_name {adddec0/write_data[23]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .original_name {{adddec0/write_data[25]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .single_bit_orig_name {adddec0/write_data[25]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[25]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[25]/Q} .original_name {adddec0/write_data[25]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .original_name {{adddec0/write_data[26]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .single_bit_orig_name {adddec0/write_data[26]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[26]/Q} .original_name {adddec0/write_data[26]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .original_name {{adddec0/write_data[24]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .single_bit_orig_name {adddec0/write_data[24]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[24]/Q} .original_name {adddec0/write_data[24]/q}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .original_name {{adddec0/addr_periph[6]}}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .single_bit_orig_name {adddec0/addr_periph[6]}
+set_db -quiet {inst:MCU/adddec0/addr_periph_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/addr_periph_reg[6]/Q} .original_name {adddec0/addr_periph[6]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[27]} .original_name {{adddec0/write_data[27]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[27]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[27]} .single_bit_orig_name {adddec0/write_data[27]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[27]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[27]/Q} .original_name {adddec0/write_data[27]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .original_name {{adddec0/write_data[28]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .single_bit_orig_name {adddec0/write_data[28]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[28]/Q} .original_name {adddec0/write_data[28]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[29]} .original_name {{adddec0/write_data[29]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[29]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[29]} .single_bit_orig_name {adddec0/write_data[29]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[29]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[29]/Q} .original_name {adddec0/write_data[29]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .original_name {{adddec0/write_data[30]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .single_bit_orig_name {adddec0/write_data[30]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[30]/Q} .original_name {adddec0/write_data[30]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[31]} .original_name {{adddec0/write_data[31]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[31]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[31]} .single_bit_orig_name {adddec0/write_data[31]}
@@ -2563,46 +2548,41 @@ set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[0]} .orig_hdl_instantiated fa
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[0]} .single_bit_orig_name {adddec0/flash_dout_reg[0]}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[0]/Q} .original_name {adddec0/flash_dout_reg[0]/q}
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .original_name {{adddec0/flash_dout_reg[15]}}
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .single_bit_orig_name {adddec0/flash_dout_reg[15]}
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[15]/Q} .original_name {adddec0/flash_dout_reg[15]/q}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[17]} .original_name {{adddec0/flash_dout_reg[17]}}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[17]} .single_bit_orig_name {adddec0/flash_dout_reg[17]}
 set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[17]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[17]/Q} .original_name {adddec0/flash_dout_reg[17]/q}
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .original_name {{adddec0/flash_dout_reg[16]}}
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .single_bit_orig_name {adddec0/flash_dout_reg[16]}
-set_db -quiet {inst:MCU/adddec0/flash_dout_reg_reg[16]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/flash_dout_reg_reg[16]/Q} .original_name {adddec0/flash_dout_reg[16]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .original_name {{adddec0/write_data[20]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .single_bit_orig_name {adddec0/write_data[20]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[20]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[20]/Q} .original_name {adddec0/write_data[20]/q}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .original_name {{adddec0/addr_periph[2]}}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .single_bit_orig_name {adddec0/addr_periph[2]}
-set_db -quiet {inst:MCU/adddec0/addr_periph_reg[2]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/addr_periph_reg[2]/Q} .original_name {adddec0/addr_periph[2]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .original_name {{adddec0/write_data[12]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .single_bit_orig_name {adddec0/write_data[12]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[12]/Q} .original_name {adddec0/write_data[12]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .original_name {{adddec0/write_data[24]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .single_bit_orig_name {adddec0/write_data[24]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[24]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[24]/Q} .original_name {adddec0/write_data[24]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .original_name {{adddec0/write_data[8]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .single_bit_orig_name {adddec0/write_data[8]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[8]/Q} .original_name {adddec0/write_data[8]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .original_name {{adddec0/write_data[14]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .single_bit_orig_name {adddec0/write_data[14]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[14]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[14]/Q} .original_name {adddec0/write_data[14]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .original_name {{adddec0/write_data[26]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .single_bit_orig_name {adddec0/write_data[26]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[26]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[26]/Q} .original_name {adddec0/write_data[26]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .original_name {{adddec0/write_data[30]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .single_bit_orig_name {adddec0/write_data[30]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[30]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[30]/Q} .original_name {adddec0/write_data[30]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .original_name {{adddec0/write_data[18]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .single_bit_orig_name {adddec0/write_data[18]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[18]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[18]/Q} .original_name {adddec0/write_data[18]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .original_name {{adddec0/write_data[2]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .single_bit_orig_name {adddec0/write_data[2]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[2]/Q} .original_name {adddec0/write_data[2]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .original_name {{adddec0/write_data[10]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .single_bit_orig_name {adddec0/write_data[10]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[10]/Q} .original_name {adddec0/write_data[10]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[0]} .original_name {{adddec0/write_data[0]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[0]} .single_bit_orig_name {adddec0/write_data[0]}
@@ -2613,16 +2593,11 @@ set_db -quiet {inst:MCU/adddec0/write_data_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[1]} .single_bit_orig_name {adddec0/write_data[1]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[1]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[1]/Q} .original_name {adddec0/write_data[1]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .original_name {{adddec0/write_data[2]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .single_bit_orig_name {adddec0/write_data[2]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[2]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[2]/Q} .original_name {adddec0/write_data[2]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .original_name {{adddec0/write_data[3]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .single_bit_orig_name {adddec0/write_data[3]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[3]/Q} .original_name {adddec0/write_data[3]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .original_name {{adddec0/write_data[4]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .single_bit_orig_name {adddec0/write_data[4]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[4]/Q} .original_name {adddec0/write_data[4]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[5]} .original_name {{adddec0/write_data[5]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[5]} .single_bit_orig_name {adddec0/write_data[5]}
@@ -2638,26 +2613,51 @@ set_db -quiet {inst:MCU/adddec0/write_data_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[7]} .single_bit_orig_name {adddec0/write_data[7]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[7]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[7]/Q} .original_name {adddec0/write_data[7]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .original_name {{adddec0/write_data[8]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .single_bit_orig_name {adddec0/write_data[8]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[8]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[8]/Q} .original_name {adddec0/write_data[8]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[9]} .original_name {{adddec0/write_data[9]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[9]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[9]} .single_bit_orig_name {adddec0/write_data[9]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[9]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[9]/Q} .original_name {adddec0/write_data[9]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .original_name {{adddec0/write_data[10]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .single_bit_orig_name {adddec0/write_data[10]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[10]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[10]/Q} .original_name {adddec0/write_data[10]/q}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[11]} .original_name {{adddec0/write_data[11]}}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/write_data_reg[11]} .single_bit_orig_name {adddec0/write_data[11]}
 set_db -quiet {inst:MCU/adddec0/write_data_reg[11]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/adddec0/write_data_reg[11]/Q} .original_name {adddec0/write_data[11]/q}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .original_name {{adddec0/write_data[28]}}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .single_bit_orig_name {adddec0/write_data[28]}
-set_db -quiet {inst:MCU/adddec0/write_data_reg[28]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/adddec0/write_data_reg[28]/Q} .original_name {adddec0/write_data[28]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .original_name {{adddec0/write_data[12]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .single_bit_orig_name {adddec0/write_data[12]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[12]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[12]/Q} .original_name {adddec0/write_data[12]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .original_name {{adddec0/write_data[13]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .single_bit_orig_name {adddec0/write_data[13]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[13]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[13]/Q} .original_name {adddec0/write_data[13]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .original_name {{adddec0/write_data[15]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .single_bit_orig_name {adddec0/write_data[15]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[15]/Q} .original_name {adddec0/write_data[15]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .original_name {{adddec0/write_data[16]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .single_bit_orig_name {adddec0/write_data[16]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[16]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[16]/Q} .original_name {adddec0/write_data[16]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .original_name {{adddec0/write_data[17]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .single_bit_orig_name {adddec0/write_data[17]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[17]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[17]/Q} .original_name {adddec0/write_data[17]/q}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .original_name {{adddec0/write_data[3]}}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .single_bit_orig_name {adddec0/write_data[3]}
+set_db -quiet {inst:MCU/adddec0/write_data_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/adddec0/write_data_reg[3]/Q} .original_name {adddec0/write_data[3]/q}
 set_db -quiet {inst:MCU/adddec0/mem_en_reg[0]} .original_name {{adddec0/mem_en[0]}}
 set_db -quiet {inst:MCU/adddec0/mem_en_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/adddec0/mem_en_reg[0]} .single_bit_orig_name {adddec0/mem_en[0]}
@@ -3135,10 +3135,10 @@ set_db -quiet {inst:MCU/afe0/adc_fsm/fsm/state_reg[2]} .orig_hdl_instantiated fa
 set_db -quiet {inst:MCU/afe0/adc_fsm/fsm/state_reg[2]} .single_bit_orig_name {afe0/adc_fsm/fsm/state[2]}
 set_db -quiet {inst:MCU/afe0/adc_fsm/fsm/state_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/adc_fsm/fsm/state_reg[2]/Q} .original_name {afe0/adc_fsm/fsm/state[2]/q}
-set_db -quiet module:MCU/ClkGate_8179 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8179 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8179 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8179 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8176 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8176 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8176 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8176 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/afe0/cg_clk_afe/CG1 .original_name afe0/cg_clk_afe/CG1
 set_db -quiet inst:MCU/afe0/cg_clk_afe/CG1 .single_bit_orig_name afe0/cg_clk_afe/CG1
 set_db -quiet inst:MCU/afe0/cg_clk_afe/CG1 .gint_phase_inversion false
@@ -3168,11 +3168,6 @@ set_db -quiet {inst:MCU/afe0/AFE_CR_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[7]} .single_bit_orig_name {afe0/AFE_CR[7]}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[7]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/AFE_CR_reg[7]/Q} .original_name {afe0/AFE_CR[7]/q}
-set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .original_name {{afe0/AFE_SR_ltch[1]}}
-set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .single_bit_orig_name {afe0/AFE_SR_ltch[1]}
-set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/afe0/AFE_SR_ltch_reg[1]/Q} .original_name {afe0/AFE_SR_ltch[1]/q}
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[2]} .original_name {{afe0/AFE_SR_ltch[2]}}
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[2]} .single_bit_orig_name {afe0/AFE_SR_ltch[2]}
@@ -3183,11 +3178,6 @@ set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[3]} .single_bit_orig_name {afe0/AFE_SR_ltch[3]}
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[3]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/AFE_SR_ltch_reg[3]/Q} .original_name {afe0/AFE_SR_ltch[3]/q}
-set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .original_name {{afe0/AFE_TPR[1]}}
-set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .single_bit_orig_name {afe0/AFE_TPR[1]}
-set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/afe0/AFE_TPR_reg[1]/Q} .original_name {afe0/AFE_TPR[1]/q}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[2]} .original_name {{afe0/AFE_TPR[2]}}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[2]} .single_bit_orig_name {afe0/AFE_TPR[2]}
@@ -3283,16 +3273,21 @@ set_db -quiet {inst:MCU/afe0/read_data_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/read_data_reg[0]} .single_bit_orig_name {afe0/read_data[0]}
 set_db -quiet {inst:MCU/afe0/read_data_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/read_data_reg[0]/Q} .original_name {afe0/read_data[0]/q}
-set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .original_name afe0/clr_adc_ovf_if
-set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .orig_hdl_instantiated false
-set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .single_bit_orig_name afe0/clr_adc_ovf_if
-set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .gint_phase_inversion false
-set_db -quiet pin:MCU/afe0/clr_adc_ovf_if_reg/Q .original_name afe0/clr_adc_ovf_if/q
+set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .original_name {{afe0/read_data[1]}}
+set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .single_bit_orig_name {afe0/read_data[1]}
+set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/afe0/read_data_reg[1]/Q} .original_name {afe0/read_data[1]/q}
 set_db -quiet inst:MCU/afe0/clr_adc_data_rdy_if_reg .original_name afe0/clr_adc_data_rdy_if
 set_db -quiet inst:MCU/afe0/clr_adc_data_rdy_if_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/afe0/clr_adc_data_rdy_if_reg .single_bit_orig_name afe0/clr_adc_data_rdy_if
 set_db -quiet inst:MCU/afe0/clr_adc_data_rdy_if_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/afe0/clr_adc_data_rdy_if_reg/Q .original_name afe0/clr_adc_data_rdy_if/q
+set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .original_name afe0/clr_adc_ovf_if
+set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .orig_hdl_instantiated false
+set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .single_bit_orig_name afe0/clr_adc_ovf_if
+set_db -quiet inst:MCU/afe0/clr_adc_ovf_if_reg .gint_phase_inversion false
+set_db -quiet pin:MCU/afe0/clr_adc_ovf_if_reg/Q .original_name afe0/clr_adc_ovf_if/q
 set_db -quiet {inst:MCU/afe0/read_data_reg[17]} .original_name {{afe0/read_data[17]}}
 set_db -quiet {inst:MCU/afe0/read_data_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/read_data_reg[17]} .single_bit_orig_name {afe0/read_data[17]}
@@ -3313,6 +3308,11 @@ set_db -quiet {inst:MCU/afe0/AFE_CR_reg[23]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[23]} .single_bit_orig_name {afe0/AFE_CR[23]}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[23]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/AFE_CR_reg[23]/Q} .original_name {afe0/AFE_CR[23]/q}
+set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .original_name {{afe0/AFE_CR[12]}}
+set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .single_bit_orig_name {afe0/AFE_CR[12]}
+set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/afe0/AFE_CR_reg[12]/Q} .original_name {afe0/AFE_CR[12]/q}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[0]} .original_name {{afe0/AFE_CR[0]}}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[0]} .single_bit_orig_name {afe0/AFE_CR[0]}
@@ -3348,11 +3348,6 @@ set_db -quiet {inst:MCU/afe0/AFE_CR_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[11]} .single_bit_orig_name {afe0/AFE_CR[11]}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[11]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/AFE_CR_reg[11]/Q} .original_name {afe0/AFE_CR[11]/q}
-set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .original_name {{afe0/AFE_CR[12]}}
-set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .single_bit_orig_name {afe0/AFE_CR[12]}
-set_db -quiet {inst:MCU/afe0/AFE_CR_reg[12]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/afe0/AFE_CR_reg[12]/Q} .original_name {afe0/AFE_CR[12]/q}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[13]} .original_name {{afe0/AFE_CR[13]}}
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[13]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_CR_reg[13]} .single_bit_orig_name {afe0/AFE_CR[13]}
@@ -3408,11 +3403,21 @@ set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[0]} .single_bit_orig_name {afe0/AFE_SR_ltch[0]}
 set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/AFE_SR_ltch_reg[0]/Q} .original_name {afe0/AFE_SR_ltch[0]/q}
+set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .original_name {{afe0/AFE_SR_ltch[1]}}
+set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .single_bit_orig_name {afe0/AFE_SR_ltch[1]}
+set_db -quiet {inst:MCU/afe0/AFE_SR_ltch_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/afe0/AFE_SR_ltch_reg[1]/Q} .original_name {afe0/AFE_SR_ltch[1]/q}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[0]} .original_name {{afe0/AFE_TPR[0]}}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[0]} .single_bit_orig_name {afe0/AFE_TPR[0]}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/AFE_TPR_reg[0]/Q} .original_name {afe0/AFE_TPR[0]/q}
+set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .original_name {{afe0/AFE_TPR[1]}}
+set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .single_bit_orig_name {afe0/AFE_TPR[1]}
+set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/afe0/AFE_TPR_reg[1]/Q} .original_name {afe0/AFE_TPR[1]/q}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[17]} .original_name {{afe0/AFE_TPR[17]}}
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/AFE_TPR_reg[17]} .single_bit_orig_name {afe0/AFE_TPR[17]}
@@ -3453,6 +3458,11 @@ set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[0]} .single_bit_orig_name {afe0/BIAS_CR[0]}
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/BIAS_CR_reg[0]/Q} .original_name {afe0/BIAS_CR[0]/q}
+set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .original_name {{afe0/BIAS_CR[1]}}
+set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .single_bit_orig_name {afe0/BIAS_CR[1]}
+set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/afe0/BIAS_CR_reg[1]/Q} .original_name {afe0/BIAS_CR[1]/q}
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[3]} .original_name {{afe0/BIAS_CR[3]}}
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[3]} .single_bit_orig_name {afe0/BIAS_CR[3]}
@@ -3958,11 +3968,6 @@ set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[2]} .orig_hdl_instantiated f
 set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[2]} .single_bit_orig_name {afe0/BIAS_RFB_DSADC_int[2]}
 set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/BIAS_RFB_DSADC_int_reg[2]/Q} .original_name {afe0/BIAS_RFB_DSADC_int[2]/q}
-set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .original_name {{afe0/BIAS_RFB_DSADC_int[3]}}
-set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .single_bit_orig_name {afe0/BIAS_RFB_DSADC_int[3]}
-set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]/Q} .original_name {afe0/BIAS_RFB_DSADC_int[3]/q}
 set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[4]} .original_name {{afe0/BIAS_RFB_DSADC_int[4]}}
 set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[4]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[4]} .single_bit_orig_name {afe0/BIAS_RFB_DSADC_int[4]}
@@ -4148,11 +4153,6 @@ set_db -quiet {inst:MCU/afe0/BIAS_TIA_G_POT_int_reg[16]} .orig_hdl_instantiated 
 set_db -quiet {inst:MCU/afe0/BIAS_TIA_G_POT_int_reg[16]} .single_bit_orig_name {afe0/BIAS_TIA_G_POT_int[16]}
 set_db -quiet {inst:MCU/afe0/BIAS_TIA_G_POT_int_reg[16]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/BIAS_TIA_G_POT_int_reg[16]/Q} .original_name {afe0/BIAS_TIA_G_POT_int[16]/q}
-set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .original_name {{afe0/read_data[1]}}
-set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .single_bit_orig_name {afe0/read_data[1]}
-set_db -quiet {inst:MCU/afe0/read_data_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/afe0/read_data_reg[1]/Q} .original_name {afe0/read_data[1]/q}
 set_db -quiet {inst:MCU/afe0/read_data_reg[2]} .original_name {{afe0/read_data[2]}}
 set_db -quiet {inst:MCU/afe0/read_data_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/read_data_reg[2]} .single_bit_orig_name {afe0/read_data[2]}
@@ -4263,11 +4263,11 @@ set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[2]} .single_bit_orig_name {afe0/BIAS_CR[2]}
 set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/afe0/BIAS_CR_reg[2]/QN} .original_name {afe0/BIAS_CR[2]/q}
-set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .original_name {{afe0/BIAS_CR[1]}}
-set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .single_bit_orig_name {afe0/BIAS_CR[1]}
-set_db -quiet {inst:MCU/afe0/BIAS_CR_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/afe0/BIAS_CR_reg[1]/QN} .original_name {afe0/BIAS_CR[1]/q}
+set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .original_name {{afe0/BIAS_RFB_DSADC_int[3]}}
+set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .single_bit_orig_name {afe0/BIAS_RFB_DSADC_int[3]}
+set_db -quiet {inst:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/afe0/BIAS_RFB_DSADC_int_reg[3]/QN} .original_name {afe0/BIAS_RFB_DSADC_int[3]/q}
 set_db -quiet module:MCU/vesta_PC_RST_VAL0_NUM_IRQS83 .is_sop_cluster true
 set_db -quiet module:MCU/vesta_PC_RST_VAL0_NUM_IRQS83 .hdl_user_name vesta
 set_db -quiet module:MCU/vesta_PC_RST_VAL0_NUM_IRQS83 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/div.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/alu.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/extend.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/regfile_sbirq.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/irq_handler.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/loadext.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/store_ext.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/branch_valid.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/csr_unit.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/datapath.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/maindec.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/controller.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/c_dec.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/vesta/vesta.vhd} {../hdl} {}}}
@@ -4333,10 +4333,10 @@ set_db -quiet inst:MCU/core/cg_clk_cpu/CG1 .original_name core/cg_clk_cpu/CG1
 set_db -quiet inst:MCU/core/cg_clk_cpu/CG1 .single_bit_orig_name core/cg_clk_cpu/CG1
 set_db -quiet inst:MCU/core/cg_clk_cpu/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/core/cg_clk_cpu/CG1/ECK .original_name core/cg_clk_cpu/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8246 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8246 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8246 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8246 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8243 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8243 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8243 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8243 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/core/cg_insret/CG1 .original_name core/cg_insret/CG1
 set_db -quiet inst:MCU/core/cg_insret/CG1 .single_bit_orig_name core/cg_insret/CG1
 set_db -quiet inst:MCU/core/cg_insret/CG1 .gint_phase_inversion false
@@ -13937,12 +13937,12 @@ set_db -quiet {inst:MCU/core/reservation_addr_reg[1]} .original_name {{core/rese
 set_db -quiet {inst:MCU/core/reservation_addr_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[1]} .single_bit_orig_name {core/reservation_addr[1]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[1]/Q} .original_name {core/reservation_addr[1]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[1]/QN} .original_name {core/reservation_addr[1]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[2]} .original_name {{core/reservation_addr[2]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[2]} .single_bit_orig_name {core/reservation_addr[2]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[2]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[2]/QN} .original_name {core/reservation_addr[2]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[2]/Q} .original_name {core/reservation_addr[2]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[3]} .original_name {{core/reservation_addr[3]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[3]} .single_bit_orig_name {core/reservation_addr[3]}
@@ -13977,12 +13977,12 @@ set_db -quiet {inst:MCU/core/reservation_addr_reg[9]} .original_name {{core/rese
 set_db -quiet {inst:MCU/core/reservation_addr_reg[9]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[9]} .single_bit_orig_name {core/reservation_addr[9]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[9]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[9]/Q} .original_name {core/reservation_addr[9]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[9]/QN} .original_name {core/reservation_addr[9]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[10]} .original_name {{core/reservation_addr[10]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[10]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[10]} .single_bit_orig_name {core/reservation_addr[10]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[10]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[10]/QN} .original_name {core/reservation_addr[10]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[10]/Q} .original_name {core/reservation_addr[10]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[11]} .original_name {{core/reservation_addr[11]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[11]} .single_bit_orig_name {core/reservation_addr[11]}
@@ -13997,12 +13997,12 @@ set_db -quiet {inst:MCU/core/reservation_addr_reg[13]} .original_name {{core/res
 set_db -quiet {inst:MCU/core/reservation_addr_reg[13]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[13]} .single_bit_orig_name {core/reservation_addr[13]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[13]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[13]/Q} .original_name {core/reservation_addr[13]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[13]/QN} .original_name {core/reservation_addr[13]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[14]} .original_name {{core/reservation_addr[14]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[14]} .single_bit_orig_name {core/reservation_addr[14]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[14]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[14]/QN} .original_name {core/reservation_addr[14]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[14]/Q} .original_name {core/reservation_addr[14]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[15]} .original_name {{core/reservation_addr[15]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[15]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[15]} .single_bit_orig_name {core/reservation_addr[15]}
@@ -14057,12 +14057,12 @@ set_db -quiet {inst:MCU/core/reservation_addr_reg[25]} .original_name {{core/res
 set_db -quiet {inst:MCU/core/reservation_addr_reg[25]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[25]} .single_bit_orig_name {core/reservation_addr[25]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[25]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[25]/Q} .original_name {core/reservation_addr[25]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[25]/QN} .original_name {core/reservation_addr[25]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[26]} .original_name {{core/reservation_addr[26]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[26]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[26]} .single_bit_orig_name {core/reservation_addr[26]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[26]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[26]/QN} .original_name {core/reservation_addr[26]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[26]/Q} .original_name {core/reservation_addr[26]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[27]} .original_name {{core/reservation_addr[27]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[27]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[27]} .single_bit_orig_name {core/reservation_addr[27]}
@@ -14072,7 +14072,7 @@ set_db -quiet {inst:MCU/core/reservation_addr_reg[28]} .original_name {{core/res
 set_db -quiet {inst:MCU/core/reservation_addr_reg[28]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[28]} .single_bit_orig_name {core/reservation_addr[28]}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[28]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/core/reservation_addr_reg[28]/Q} .original_name {core/reservation_addr[28]/q}
+set_db -quiet {pin:MCU/core/reservation_addr_reg[28]/QN} .original_name {core/reservation_addr[28]/q}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[29]} .original_name {{core/reservation_addr[29]}}
 set_db -quiet {inst:MCU/core/reservation_addr_reg[29]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/core/reservation_addr_reg[29]} .single_bit_orig_name {core/reservation_addr[29]}
@@ -14204,66 +14204,66 @@ set_db -quiet module:MCU/RC_CG_MOD_99 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_99 .boundary_opto strict_no
 set_db -quiet inst:MCU/gpio0/RC_CG_HIER_INST103/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/gpio0/RC_CG_HIER_INST103/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8218 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8218 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8218 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8218 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[0].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[0].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[0].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8217 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8217 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8217 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8217 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[1].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[1].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[1].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8216 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8216 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8216 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8216 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[2].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[2].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8215 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8215 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8215 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8215 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[3].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[3].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[3].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[0].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[0].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[0].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8214 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8214 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8214 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8214 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[4].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[4].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[1].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[1].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[1].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8213 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8213 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8213 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8213 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[5].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[5].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[2].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[2].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8212 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8212 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8212 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8212 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[6].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[6].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[3].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[3].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[3].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8211 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8211 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8211 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8211 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[4].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[4].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8210 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8210 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8210 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8210 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[5].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[5].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8209 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8209 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8209 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8209 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[6].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[6].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio0/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio0/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8208 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8208 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8208 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8208 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/gpio0/gen_if_clks[7].CGClkIFG/CG1} .original_name {{gpio0/gen_if_clks[7].CGClkIFG/CG1}}
 set_db -quiet {inst:MCU/gpio0/gen_if_clks[7].CGClkIFG/CG1} .single_bit_orig_name {gpio0/gen_if_clks[7].CGClkIFG/CG1}
 set_db -quiet {inst:MCU/gpio0/gen_if_clks[7].CGClkIFG/CG1} .gint_phase_inversion false
@@ -14768,66 +14768,66 @@ set_db -quiet module:MCU/RC_CG_MOD_107 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_107 .boundary_opto strict_no
 set_db -quiet inst:MCU/gpio1/RC_CG_HIER_INST111/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/gpio1/RC_CG_HIER_INST111/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8210 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8210 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8210 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8210 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[0].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[0].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[0].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8209 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8209 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8209 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8209 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[1].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[1].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[1].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8208 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8208 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8208 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8208 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[2].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[2].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8207 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8207 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8207 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8207 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[3].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[3].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[3].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[0].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[0].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[0].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8206 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8206 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8206 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8206 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[4].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[4].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[1].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[1].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[1].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8205 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8205 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8205 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8205 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[5].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[5].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[2].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[2].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8204 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8204 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8204 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8204 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[6].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[6].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[3].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[3].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[3].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8203 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8203 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8203 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8203 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[4].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[4].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8202 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8202 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8202 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8202 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[5].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[5].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8201 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8201 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8201 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8201 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[6].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[6].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio1/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio1/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8200 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8200 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8200 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8200 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/gpio1/gen_if_clks[7].CGClkIFG/CG1} .original_name {{gpio1/gen_if_clks[7].CGClkIFG/CG1}}
 set_db -quiet {inst:MCU/gpio1/gen_if_clks[7].CGClkIFG/CG1} .single_bit_orig_name {gpio1/gen_if_clks[7].CGClkIFG/CG1}
 set_db -quiet {inst:MCU/gpio1/gen_if_clks[7].CGClkIFG/CG1} .gint_phase_inversion false
@@ -15332,66 +15332,66 @@ set_db -quiet module:MCU/RC_CG_MOD_115 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_115 .boundary_opto strict_no
 set_db -quiet inst:MCU/gpio2/RC_CG_HIER_INST119/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/gpio2/RC_CG_HIER_INST119/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8202 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8202 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8202 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8202 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[0].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[0].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[0].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8201 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8201 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8201 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8201 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[1].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[1].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[1].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8200 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8200 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8200 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8200 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[2].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[2].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8199 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8199 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8199 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8199 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[3].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[3].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[3].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[0].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[0].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[0].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8198 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8198 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8198 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8198 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[4].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[4].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[1].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[1].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[1].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8197 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8197 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8197 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8197 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[5].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[5].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[2].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[2].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8196 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8196 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8196 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8196 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[6].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[6].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[3].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[3].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[3].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8195 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8195 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8195 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8195 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[4].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[4].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8194 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8194 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8194 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8194 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[5].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[5].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8193 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8193 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8193 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8193 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[6].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[6].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio2/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio2/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8192 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8192 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8192 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8192 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/gpio2/gen_if_clks[7].CGClkIFG/CG1} .original_name {{gpio2/gen_if_clks[7].CGClkIFG/CG1}}
 set_db -quiet {inst:MCU/gpio2/gen_if_clks[7].CGClkIFG/CG1} .single_bit_orig_name {gpio2/gen_if_clks[7].CGClkIFG/CG1}
 set_db -quiet {inst:MCU/gpio2/gen_if_clks[7].CGClkIFG/CG1} .gint_phase_inversion false
@@ -15405,12 +15405,12 @@ set_db -quiet {inst:MCU/gpio2/PxDIR_reg[2]} .original_name {{gpio2/PxDIR[2]}}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[2]} .single_bit_orig_name {gpio2/PxDIR[2]}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[2]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/PxDIR_reg[2]/Q} .original_name {gpio2/PxDIR[2]/q}
+set_db -quiet {pin:MCU/gpio2/PxDIR_reg[2]/QN} .original_name {gpio2/PxDIR[2]/q}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[3]} .original_name {{gpio2/PxDIR[3]}}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[3]} .single_bit_orig_name {gpio2/PxDIR[3]}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/PxDIR_reg[3]/Q} .original_name {gpio2/PxDIR[3]/q}
+set_db -quiet {pin:MCU/gpio2/PxDIR_reg[3]/QN} .original_name {gpio2/PxDIR[3]/q}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[4]} .original_name {{gpio2/PxDIR[4]}}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[4]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[4]} .single_bit_orig_name {gpio2/PxDIR[4]}
@@ -15425,12 +15425,12 @@ set_db -quiet {inst:MCU/gpio2/PxDIR_reg[6]} .original_name {{gpio2/PxDIR[6]}}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[6]} .single_bit_orig_name {gpio2/PxDIR[6]}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/PxDIR_reg[6]/Q} .original_name {gpio2/PxDIR[6]/q}
+set_db -quiet {pin:MCU/gpio2/PxDIR_reg[6]/QN} .original_name {gpio2/PxDIR[6]/q}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[7]} .original_name {{gpio2/PxDIR[7]}}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[7]} .single_bit_orig_name {gpio2/PxDIR[7]}
 set_db -quiet {inst:MCU/gpio2/PxDIR_reg[7]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio2/PxDIR_reg[7]/Q} .original_name {gpio2/PxDIR[7]/q}
+set_db -quiet {pin:MCU/gpio2/PxDIR_reg[7]/QN} .original_name {gpio2/PxDIR[7]/q}
 set_db -quiet {inst:MCU/gpio2/PxIES_reg[0]} .original_name {{gpio2/PxIES[0]}}
 set_db -quiet {inst:MCU/gpio2/PxIES_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/gpio2/PxIES_reg[0]} .single_bit_orig_name {gpio2/PxIES[0]}
@@ -15896,66 +15896,66 @@ set_db -quiet module:MCU/RC_CG_MOD_123 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_123 .boundary_opto strict_no
 set_db -quiet inst:MCU/gpio3/RC_CG_HIER_INST127/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/gpio3/RC_CG_HIER_INST127/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8178 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8178 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8178 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8178 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[0].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[0].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[0].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8177 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8177 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8177 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8177 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[1].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[1].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[1].CGClkIFG/CG1/ECK}
-set_db -quiet module:MCU/ClkGate_8176 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8176 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8176 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8176 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[2].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[2].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8175 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8175 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8175 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8175 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[3].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[3].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[3].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[0].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[0].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[0].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[0].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8174 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8174 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8174 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8174 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[4].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[4].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[1].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[1].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[1].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[1].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8173 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8173 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8173 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8173 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[5].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[5].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[2].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[2].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[2].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[2].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8172 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8172 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8172 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8172 .lp_clock_gating_max_flops inf
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[6].CGClkIFG/CG1}}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[6].CGClkIFG/CG1}
-set_db -quiet {inst:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
-set_db -quiet {pin:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[3].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[3].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[3].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[3].CGClkIFG/CG1/ECK}
 set_db -quiet module:MCU/ClkGate_8171 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8171 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8171 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8171 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[4].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[4].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[4].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[4].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8170 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8170 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8170 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8170 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[5].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[5].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[5].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[5].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8169 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8169 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8169 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8169 .lp_clock_gating_max_flops inf
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[6].CGClkIFG/CG1}}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[6].CGClkIFG/CG1}
+set_db -quiet {inst:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1} .gint_phase_inversion false
+set_db -quiet {pin:MCU/gpio3/gen_if_clks[6].CGClkIFG/CG1/ECK} .original_name {gpio3/gen_if_clks[6].CGClkIFG/CG1/ECK}
+set_db -quiet module:MCU/ClkGate_8168 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8168 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8168 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8168 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/gpio3/gen_if_clks[7].CGClkIFG/CG1} .original_name {{gpio3/gen_if_clks[7].CGClkIFG/CG1}}
 set_db -quiet {inst:MCU/gpio3/gen_if_clks[7].CGClkIFG/CG1} .single_bit_orig_name {gpio3/gen_if_clks[7].CGClkIFG/CG1}
 set_db -quiet {inst:MCU/gpio3/gen_if_clks[7].CGClkIFG/CG1} .gint_phase_inversion false
@@ -16417,18 +16417,18 @@ set_db -quiet module:MCU/ClkDivPower2_nbits4 .hdl_user_name ClkDivPower2
 set_db -quiet module:MCU/ClkDivPower2_nbits4 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkDivPower2.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkDivPower2_nbits4 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkDivPower2_nbits4 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/ClkGate_8186 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8186 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8186 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8186 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8183 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8183 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8183 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8183 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/i2c0/CGMaster/CG0/CG1 .original_name i2c0/CGMaster/CG0/CG1
 set_db -quiet inst:MCU/i2c0/CGMaster/CG0/CG1 .single_bit_orig_name i2c0/CGMaster/CG0/CG1
 set_db -quiet inst:MCU/i2c0/CGMaster/CG0/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/i2c0/CGMaster/CG0/CG1/ECK .original_name i2c0/CGMaster/CG0/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8185 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8185 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8185 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8185 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8182 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8182 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8182 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8182 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/i2c0/CGMaster/CG1/CG1 .original_name i2c0/CGMaster/CG1/CG1
 set_db -quiet inst:MCU/i2c0/CGMaster/CG1/CG1 .single_bit_orig_name i2c0/CGMaster/CG1/CG1
 set_db -quiet inst:MCU/i2c0/CGMaster/CG1/CG1 .gint_phase_inversion false
@@ -16987,11 +16987,11 @@ set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[8]} .single_bit_orig_name {i2c0/I2CxCR[8]}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[8]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[8]/Q} .original_name {i2c0/I2CxCR[8]/q}
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .original_name {{i2c0/I2CxCR[13]}}
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .single_bit_orig_name {i2c0/I2CxCR[13]}
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[13]/Q} .original_name {i2c0/I2CxCR[13]/q}
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .original_name {{i2c0/I2CxCR[15]}}
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .single_bit_orig_name {i2c0/I2CxCR[15]}
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[15]/Q} .original_name {i2c0/I2CxCR[15]/q}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[17]} .original_name {{i2c0/I2CxCR[17]}}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[17]} .single_bit_orig_name {i2c0/I2CxCR[17]}
@@ -17082,42 +17082,42 @@ set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[16]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[16]} .single_bit_orig_name {i2c0/I2CxCR[16]}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[16]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[16]/Q} .original_name {i2c0/I2CxCR[16]/q}
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .original_name {{i2c0/I2CxCR[13]}}
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .single_bit_orig_name {i2c0/I2CxCR[13]}
+set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[13]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[13]/Q} .original_name {i2c0/I2CxCR[13]/q}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[14]} .original_name {{i2c0/I2CxCR[14]}}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[14]} .single_bit_orig_name {i2c0/I2CxCR[14]}
 set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[14]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[14]/Q} .original_name {i2c0/I2CxCR[14]/q}
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .original_name {{i2c0/I2CxCR[15]}}
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .single_bit_orig_name {i2c0/I2CxCR[15]}
-set_db -quiet {inst:MCU/i2c0/I2CxCR_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/i2c0/I2CxCR_reg[15]/Q} .original_name {i2c0/I2CxCR[15]/q}
 set_db -quiet inst:MCU/i2c0/ClearMasterWrite_reg .original_name i2c0/ClearMasterWrite
 set_db -quiet inst:MCU/i2c0/ClearMasterWrite_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/i2c0/ClearMasterWrite_reg .single_bit_orig_name i2c0/ClearMasterWrite
 set_db -quiet inst:MCU/i2c0/ClearMasterWrite_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/i2c0/ClearMasterWrite_reg/QN .original_name i2c0/ClearMasterWrite/q
-set_db -quiet module:MCU/I2C_2724 .is_sop_cluster true
-set_db -quiet module:MCU/I2C_2724 .hdl_user_name I2C
-set_db -quiet module:MCU/I2C_2724 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkDivPower2.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/I2C.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/I2C_2724 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/I2C_2724 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/ClkDivPower2_nbits4_2637 .hdl_user_name ClkDivPower2
-set_db -quiet module:MCU/ClkDivPower2_nbits4_2637 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkDivPower2.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkDivPower2_nbits4_2637 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkDivPower2_nbits4_2637 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/ClkGate_8167 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8167 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8167 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8167 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/I2C_2722 .is_sop_cluster true
+set_db -quiet module:MCU/I2C_2722 .hdl_user_name I2C
+set_db -quiet module:MCU/I2C_2722 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkDivPower2.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/I2C.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/I2C_2722 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/I2C_2722 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkDivPower2_nbits4_2635 .hdl_user_name ClkDivPower2
+set_db -quiet module:MCU/ClkDivPower2_nbits4_2635 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkDivPower2.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkDivPower2_nbits4_2635 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkDivPower2_nbits4_2635 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8164 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8164 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8164 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8164 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/i2c1/CGMaster/CG0/CG1 .original_name i2c1/CGMaster/CG0/CG1
 set_db -quiet inst:MCU/i2c1/CGMaster/CG0/CG1 .single_bit_orig_name i2c1/CGMaster/CG0/CG1
 set_db -quiet inst:MCU/i2c1/CGMaster/CG0/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/i2c1/CGMaster/CG0/CG1/ECK .original_name i2c1/CGMaster/CG0/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8166 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8166 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8166 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8166 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8163 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8163 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8163 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8163 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/i2c1/CGMaster/CG1/CG1 .original_name i2c1/CGMaster/CG1/CG1
 set_db -quiet inst:MCU/i2c1/CGMaster/CG1/CG1 .single_bit_orig_name i2c1/CGMaster/CG1/CG1
 set_db -quiet inst:MCU/i2c1/CGMaster/CG1/CG1 .gint_phase_inversion false
@@ -18182,18 +18182,18 @@ set_db -quiet module:MCU/NPU_X_M_BITS0_W_M_BITS7_Y_M_BITS7_N_BITS24_RHO2 .lp_clo
 set_db -quiet module:MCU/NPU_X_M_BITS0_W_M_BITS7_Y_M_BITS7_N_BITS24_RHO2 .lp_clock_gating_max_flops inf
 set_db -quiet {hnet:MCU/npu0/Decision[15]} .dont_touch true
 set_db -quiet {hnet:MCU/npu0/Decision[15]} .preserve true
-set_db -quiet module:MCU/ClkGate_8181 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8181 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8181 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8181 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8178 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8178 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8178 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8178 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/npu0/MAC_CLK_CG/CG1 .original_name npu0/MAC_CLK_CG/CG1
 set_db -quiet inst:MCU/npu0/MAC_CLK_CG/CG1 .single_bit_orig_name npu0/MAC_CLK_CG/CG1
 set_db -quiet inst:MCU/npu0/MAC_CLK_CG/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/npu0/MAC_CLK_CG/CG1/ECK .original_name npu0/MAC_CLK_CG/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8182 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8182 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8182 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8182 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8179 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8179 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8179 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8179 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/npu0/NPU_CLK_CG/CG1 .original_name npu0/NPU_CLK_CG/CG1
 set_db -quiet inst:MCU/npu0/NPU_CLK_CG/CG1 .single_bit_orig_name npu0/NPU_CLK_CG/CG1
 set_db -quiet inst:MCU/npu0/NPU_CLK_CG/CG1 .gint_phase_inversion false
@@ -18464,10 +18464,10 @@ set_db -quiet module:MCU/RC_CG_MOD_167 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_167 .boundary_opto strict_no
 set_db -quiet inst:MCU/npu0/RC_CG_HIER_INST171/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/npu0/RC_CG_HIER_INST171/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8180 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8180 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8180 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8180 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8177 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8177 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8177 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8177 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/npu0/SRAM_CLK_CG/CG1 .original_name npu0/SRAM_CLK_CG/CG1
 set_db -quiet inst:MCU/npu0/SRAM_CLK_CG/CG1 .single_bit_orig_name npu0/SRAM_CLK_CG/CG1
 set_db -quiet inst:MCU/npu0/SRAM_CLK_CG/CG1 .gint_phase_inversion false
@@ -19487,16 +19487,16 @@ set_db -quiet module:MCU/SARADC .hdl_user_name SARADC
 set_db -quiet module:MCU/SARADC .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/SARADC.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/SARADC .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/SARADC .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_4 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_4 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_4 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_4 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_4 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_4 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_4 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_4 .boundary_opto strict_no
 set_db -quiet inst:MCU/saradc0/RC_CG_HIER_INST172/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/saradc0/RC_CG_HIER_INST172/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380_5 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_5 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_5 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_5 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_5 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_5 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_5 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_5 .boundary_opto strict_no
 set_db -quiet inst:MCU/saradc0/RC_CG_HIER_INST173/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/saradc0/RC_CG_HIER_INST173/RC_CGIC_INST .is_genus_clock_gate true
 set_db -quiet module:MCU/RC_CG_MOD_168 .logical_hier false
@@ -19576,7 +19576,7 @@ set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[12]} .origina
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[12]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[12]} .single_bit_orig_name {saradc0/ADC_sync_clock_phase_shift_reg[12]}
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[12]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[12]/Q} .original_name {saradc0/ADC_sync_clock_phase_shift_reg[12]/q}
+set_db -quiet {pin:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[12]/QN} .original_name {saradc0/ADC_sync_clock_phase_shift_reg[12]/q}
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[13]} .original_name {{saradc0/ADC_sync_clock_phase_shift_reg[13]}}
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[13]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[13]} .single_bit_orig_name {saradc0/ADC_sync_clock_phase_shift_reg[13]}
@@ -19616,17 +19616,17 @@ set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[4]} .original_name {{saradc0/SARAD
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[4]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[4]} .single_bit_orig_name {saradc0/SARADC_CR[4]}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_CR_reg[4]/QN} .original_name {saradc0/SARADC_CR[4]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_CR_reg[4]/Q} .original_name {saradc0/SARADC_CR[4]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[5]} .original_name {{saradc0/SARADC_CR[5]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[5]} .single_bit_orig_name {saradc0/SARADC_CR[5]}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_CR_reg[5]/QN} .original_name {saradc0/SARADC_CR[5]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_CR_reg[5]/Q} .original_name {saradc0/SARADC_CR[5]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[6]} .original_name {{saradc0/SARADC_CR[6]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[6]} .single_bit_orig_name {saradc0/SARADC_CR[6]}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_CR_reg[6]/Q} .original_name {saradc0/SARADC_CR[6]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_CR_reg[6]/QN} .original_name {saradc0/SARADC_CR[6]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[7]} .original_name {{saradc0/SARADC_CR[7]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_CR_reg[7]} .single_bit_orig_name {saradc0/SARADC_CR[7]}
@@ -19671,22 +19671,22 @@ set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[3]} .original_name {{saradc0/SARA
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[3]} .single_bit_orig_name {saradc0/SARADC_TPR[3]}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[3]/QN} .original_name {saradc0/SARADC_TPR[3]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[3]/Q} .original_name {saradc0/SARADC_TPR[3]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[4]} .original_name {{saradc0/SARADC_TPR[4]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[4]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[4]} .single_bit_orig_name {saradc0/SARADC_TPR[4]}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[4]/QN} .original_name {saradc0/SARADC_TPR[4]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[4]/Q} .original_name {saradc0/SARADC_TPR[4]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[5]} .original_name {{saradc0/SARADC_TPR[5]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[5]} .single_bit_orig_name {saradc0/SARADC_TPR[5]}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[5]/QN} .original_name {saradc0/SARADC_TPR[5]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[5]/Q} .original_name {saradc0/SARADC_TPR[5]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[6]} .original_name {{saradc0/SARADC_TPR[6]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[6]} .single_bit_orig_name {saradc0/SARADC_TPR[6]}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[6]/Q} .original_name {saradc0/SARADC_TPR[6]/q}
+set_db -quiet {pin:MCU/saradc0/SARADC_TPR_reg[6]/QN} .original_name {saradc0/SARADC_TPR[6]/q}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[7]} .original_name {{saradc0/SARADC_TPR[7]}}
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/SARADC_TPR_reg[7]} .single_bit_orig_name {saradc0/SARADC_TPR[7]}
@@ -19712,16 +19712,11 @@ set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[3]} .orig_hdl_instantiated fals
 set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[3]} .single_bit_orig_name {saradc0/adc_data_out[3]}
 set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[3]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[3]/Q} .original_name {saradc0/adc_data_out[3]/q}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .original_name {{saradc0/adc_data_out[4]}}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .single_bit_orig_name {saradc0/adc_data_out[4]}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[4]/QN} .original_name {saradc0/adc_data_out[4]/q}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .original_name {{saradc0/adc_data_out[5]}}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .single_bit_orig_name {saradc0/adc_data_out[5]}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[5]/QN} .original_name {saradc0/adc_data_out[5]/q}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .original_name {{saradc0/adc_data_out[6]}}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .single_bit_orig_name {saradc0/adc_data_out[6]}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[6]/QN} .original_name {saradc0/adc_data_out[6]/q}
 set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[7]} .original_name {{saradc0/adc_data_out[7]}}
 set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[7]} .single_bit_orig_name {saradc0/adc_data_out[7]}
@@ -19752,21 +19747,11 @@ set_db -quiet {inst:MCU/saradc0/read_data_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/read_data_reg[2]} .single_bit_orig_name {saradc0/read_data[2]}
 set_db -quiet {inst:MCU/saradc0/read_data_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/saradc0/read_data_reg[2]/Q} .original_name {saradc0/read_data[2]/q}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .original_name {{saradc0/read_data[3]}}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .single_bit_orig_name {saradc0/read_data[3]}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/read_data_reg[3]/Q} .original_name {saradc0/read_data[3]/q}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .original_name {{saradc0/read_data[4]}}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .single_bit_orig_name {saradc0/read_data[4]}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/read_data_reg[4]/Q} .original_name {saradc0/read_data[4]/q}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .original_name {{saradc0/read_data[5]}}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .single_bit_orig_name {saradc0/read_data[5]}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/read_data_reg[5]/Q} .original_name {saradc0/read_data[5]/q}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .original_name {{saradc0/read_data[6]}}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .single_bit_orig_name {saradc0/read_data[6]}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/read_data_reg[6]/Q} .original_name {saradc0/read_data[6]/q}
 set_db -quiet {inst:MCU/saradc0/read_data_reg[7]} .original_name {{saradc0/read_data[7]}}
 set_db -quiet {inst:MCU/saradc0/read_data_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/saradc0/read_data_reg[7]} .single_bit_orig_name {saradc0/read_data[7]}
@@ -19812,36 +19797,46 @@ set_db -quiet inst:MCU/saradc0/clr_data_valid_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/saradc0/clr_data_valid_reg .single_bit_orig_name saradc0/clr_data_valid
 set_db -quiet inst:MCU/saradc0/clr_data_valid_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/saradc0/clr_data_valid_reg/Q .original_name saradc0/clr_data_valid/q
-set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .original_name {{saradc0/read_data[0]}}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .single_bit_orig_name {saradc0/read_data[0]}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/read_data_reg[0]/Q} .original_name {saradc0/read_data[0]/q}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .original_name {{saradc0/read_data[6]}}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .single_bit_orig_name {saradc0/read_data[6]}
-set_db -quiet {inst:MCU/saradc0/read_data_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/read_data_reg[6]/Q} .original_name {saradc0/read_data[6]/q}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .original_name {{saradc0/read_data[5]}}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .single_bit_orig_name {saradc0/read_data[5]}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/read_data_reg[5]/Q} .original_name {saradc0/read_data[5]/q}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .original_name {{saradc0/read_data[4]}}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .single_bit_orig_name {saradc0/read_data[4]}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/read_data_reg[4]/Q} .original_name {saradc0/read_data[4]/q}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .original_name {{saradc0/read_data[3]}}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .single_bit_orig_name {saradc0/read_data[3]}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/read_data_reg[3]/Q} .original_name {saradc0/read_data[3]/q}
 set_db -quiet inst:MCU/saradc0/ADC_sync_clock_conversion_phase_reg .original_name saradc0/ADC_sync_clock_conversion_phase
 set_db -quiet inst:MCU/saradc0/ADC_sync_clock_conversion_phase_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/saradc0/ADC_sync_clock_conversion_phase_reg .single_bit_orig_name saradc0/ADC_sync_clock_conversion_phase
 set_db -quiet inst:MCU/saradc0/ADC_sync_clock_conversion_phase_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/saradc0/ADC_sync_clock_conversion_phase_reg/Q .original_name saradc0/ADC_sync_clock_conversion_phase/q
+set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .original_name {{saradc0/read_data[0]}}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .single_bit_orig_name {saradc0/read_data[0]}
+set_db -quiet {inst:MCU/saradc0/read_data_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/read_data_reg[0]/Q} .original_name {saradc0/read_data[0]/q}
 set_db -quiet inst:MCU/saradc0/adc_ovf_if_reg .original_name saradc0/adc_ovf_if
 set_db -quiet inst:MCU/saradc0/adc_ovf_if_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/saradc0/adc_ovf_if_reg .single_bit_orig_name saradc0/adc_ovf_if
 set_db -quiet inst:MCU/saradc0/adc_ovf_if_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/saradc0/adc_ovf_if_reg/Q .original_name saradc0/adc_ovf_if/q
-set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .original_name {{saradc0/ADC_sync_sample_step_counter[0]}}
-set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .single_bit_orig_name {saradc0/ADC_sync_sample_step_counter[0]}
-set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]/Q} .original_name {saradc0/ADC_sync_sample_step_counter[0]/q}
 set_db -quiet inst:MCU/saradc0/conv_busy_reg .original_name saradc0/conv_busy
 set_db -quiet inst:MCU/saradc0/conv_busy_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/saradc0/conv_busy_reg .single_bit_orig_name saradc0/conv_busy
 set_db -quiet inst:MCU/saradc0/conv_busy_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/saradc0/conv_busy_reg/Q .original_name saradc0/conv_busy/q
+set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .original_name {{saradc0/ADC_sync_sample_step_counter[0]}}
+set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .single_bit_orig_name {saradc0/ADC_sync_sample_step_counter[0]}
+set_db -quiet {inst:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/ADC_sync_sample_step_counter_reg[0]/Q} .original_name {saradc0/ADC_sync_sample_step_counter[0]/q}
 set_db -quiet inst:MCU/saradc0/adc_data_valid_reg .original_name saradc0/adc_data_valid
 set_db -quiet inst:MCU/saradc0/adc_data_valid_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/saradc0/adc_data_valid_reg .single_bit_orig_name saradc0/adc_data_valid
@@ -19852,11 +19847,16 @@ set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[0]} .orig_hdl
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[0]} .single_bit_orig_name {saradc0/ADC_sync_clock_phase_shift_reg[0]}
 set_db -quiet {inst:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/saradc0/ADC_sync_clock_phase_shift_reg_reg[0]/QN} .original_name {saradc0/ADC_sync_clock_phase_shift_reg[0]/q}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .original_name {{saradc0/adc_data_out[6]}}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .single_bit_orig_name {saradc0/adc_data_out[6]}
-set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[6]/QN} .original_name {saradc0/adc_data_out[6]/q}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .original_name {{saradc0/adc_data_out[5]}}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .single_bit_orig_name {saradc0/adc_data_out[5]}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[5]/QN} .original_name {saradc0/adc_data_out[5]/q}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .original_name {{saradc0/adc_data_out[4]}}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .single_bit_orig_name {saradc0/adc_data_out[4]}
+set_db -quiet {inst:MCU/saradc0/adc_data_out_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/saradc0/adc_data_out_reg[4]/QN} .original_name {saradc0/adc_data_out[4]/q}
 set_db -quiet module:MCU/SPI_ENABLE_EXTENDED_MEM1 .hdl_user_name SPI
 set_db -quiet module:MCU/SPI_ENABLE_EXTENDED_MEM1 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/SPI.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/SPI_ENABLE_EXTENDED_MEM1 .lp_clock_gating_min_flops 3
@@ -19975,32 +19975,32 @@ set_db -quiet module:MCU/RC_CG_MOD_189 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_189 .boundary_opto strict_no
 set_db -quiet inst:MCU/spi0/RC_CG_HIER_INST195/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/spi0/RC_CG_HIER_INST195/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380_6 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_6 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_6 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_6 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_6 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_6 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_6 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_6 .boundary_opto strict_no
 set_db -quiet inst:MCU/spi0/RC_CG_HIER_INST196/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/spi0/RC_CG_HIER_INST196/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8193 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8193 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8193 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8193 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8190 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8190 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8190 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8190 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/spi0/cg_clk_baud/CG1 .original_name spi0/cg_clk_baud/CG1
 set_db -quiet inst:MCU/spi0/cg_clk_baud/CG1 .single_bit_orig_name spi0/cg_clk_baud/CG1
 set_db -quiet inst:MCU/spi0/cg_clk_baud/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/spi0/cg_clk_baud/CG1/ECK .original_name spi0/cg_clk_baud/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8194 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8194 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8194 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8194 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8191 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8191 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8191 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8191 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/spi0/cg_clk_baud_src/CG1 .original_name spi0/cg_clk_baud_src/CG1
 set_db -quiet inst:MCU/spi0/cg_clk_baud_src/CG1 .single_bit_orig_name spi0/cg_clk_baud_src/CG1
 set_db -quiet inst:MCU/spi0/cg_clk_baud_src/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/spi0/cg_clk_baud_src/CG1/ECK .original_name spi0/cg_clk_baud_src/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8192 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8192 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8192 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8192 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8189 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8189 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8189 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8189 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/spi0/gen_flash.CGFlash/CG1 .original_name spi0/gen_flash.CGFlash/CG1
 set_db -quiet inst:MCU/spi0/gen_flash.CGFlash/CG1 .single_bit_orig_name spi0/gen_flash.CGFlash/CG1
 set_db -quiet inst:MCU/spi0/gen_flash.CGFlash/CG1 .gint_phase_inversion false
@@ -20040,11 +20040,11 @@ set_db -quiet {inst:MCU/spi0/SPIxCR_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[7]} .single_bit_orig_name {spi0/SPIxCR[7]}
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[7]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/SPIxCR_reg[7]/Q} .original_name {spi0/SPIxCR[7]/q}
-set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .original_name {{spi0/SPIxRX_ltch[0]}}
-set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .single_bit_orig_name {spi0/SPIxRX_ltch[0]}
-set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/SPIxRX_ltch_reg[0]/Q} .original_name {spi0/SPIxRX_ltch[0]/q}
+set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .original_name {{spi0/SPIxCR[16]}}
+set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .single_bit_orig_name {spi0/SPIxCR[16]}
+set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/SPIxCR_reg[16]/Q} .original_name {spi0/SPIxCR[16]/q}
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[1]} .original_name {{spi0/SPIxRX_ltch[1]}}
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[1]} .single_bit_orig_name {spi0/SPIxRX_ltch[1]}
@@ -20185,11 +20185,6 @@ set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[30]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[30]} .single_bit_orig_name {spi0/SPIxRX_ltch[30]}
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[30]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/SPIxRX_ltch_reg[30]/Q} .original_name {spi0/SPIxRX_ltch[30]/q}
-set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .original_name {{spi0/SPIxSR_ltch[0]}}
-set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .single_bit_orig_name {spi0/SPIxSR_ltch[0]}
-set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/SPIxSR_ltch_reg[0]/Q} .original_name {spi0/SPIxSR_ltch[0]/q}
 set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[1]} .original_name {{spi0/SPIxSR_ltch[1]}}
 set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[1]} .single_bit_orig_name {spi0/SPIxSR_ltch[1]}
@@ -20200,11 +20195,6 @@ set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[2]} .single_bit_orig_name {spi0/SPIxSR_ltch[2]}
 set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/SPIxSR_ltch_reg[2]/Q} .original_name {spi0/SPIxSR_ltch[2]/q}
-set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .original_name {{spi0/SPIxTX[0]}}
-set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .single_bit_orig_name {spi0/SPIxTX[0]}
-set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/SPIxTX_reg[0]/Q} .original_name {spi0/SPIxTX[0]/q}
 set_db -quiet {inst:MCU/spi0/SPIxTX_reg[1]} .original_name {{spi0/SPIxTX[1]}}
 set_db -quiet {inst:MCU/spi0/SPIxTX_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxTX_reg[1]} .single_bit_orig_name {spi0/SPIxTX[1]}
@@ -20375,6 +20365,11 @@ set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[6]} .single_bit_orig_name {spi0/m_rx_sreg[6]}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[6]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[6]/Q} .original_name {spi0/m_rx_sreg[6]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .original_name {{spi0/m_rx_sreg[8]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .single_bit_orig_name {spi0/m_rx_sreg[8]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[8]/Q} .original_name {spi0/m_rx_sreg[8]/q}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[10]} .original_name {{spi0/m_rx_sreg[10]}}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[10]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[10]} .single_bit_orig_name {spi0/m_rx_sreg[10]}
@@ -20395,6 +20390,11 @@ set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[13]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[13]} .single_bit_orig_name {spi0/m_rx_sreg[13]}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[13]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[13]/Q} .original_name {spi0/m_rx_sreg[13]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .original_name {{spi0/m_rx_sreg[15]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .single_bit_orig_name {spi0/m_rx_sreg[15]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[15]/Q} .original_name {spi0/m_rx_sreg[15]/q}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[18]} .original_name {{spi0/m_rx_sreg[18]}}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[18]} .single_bit_orig_name {spi0/m_rx_sreg[18]}
@@ -20415,6 +20415,36 @@ set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[21]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[21]} .single_bit_orig_name {spi0/m_rx_sreg[21]}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[21]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[21]/Q} .original_name {spi0/m_rx_sreg[21]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .original_name {{spi0/m_rx_sreg[25]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .single_bit_orig_name {spi0/m_rx_sreg[25]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[25]/Q} .original_name {spi0/m_rx_sreg[25]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .original_name {{spi0/m_rx_sreg[26]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .single_bit_orig_name {spi0/m_rx_sreg[26]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[26]/Q} .original_name {spi0/m_rx_sreg[26]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .original_name {{spi0/m_rx_sreg[27]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .single_bit_orig_name {spi0/m_rx_sreg[27]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[27]/Q} .original_name {spi0/m_rx_sreg[27]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .original_name {{spi0/m_rx_sreg[28]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .single_bit_orig_name {spi0/m_rx_sreg[28]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[28]/Q} .original_name {spi0/m_rx_sreg[28]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .original_name {{spi0/m_rx_sreg[29]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .single_bit_orig_name {spi0/m_rx_sreg[29]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[29]/Q} .original_name {spi0/m_rx_sreg[29]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .original_name {{spi0/m_rx_sreg[30]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .single_bit_orig_name {spi0/m_rx_sreg[30]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[30]/Q} .original_name {spi0/m_rx_sreg[30]/q}
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[1]} .original_name {{spi0/m_tx_sreg[1]}}
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[1]} .single_bit_orig_name {spi0/m_tx_sreg[1]}
@@ -20875,11 +20905,6 @@ set_db -quiet {inst:MCU/spi0/SPIxCR_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[6]} .single_bit_orig_name {spi0/SPIxCR[6]}
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[6]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/SPIxCR_reg[6]/Q} .original_name {spi0/SPIxCR[6]/q}
-set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .original_name {{spi0/SPIxCR[16]}}
-set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .single_bit_orig_name {spi0/SPIxCR[16]}
-set_db -quiet {inst:MCU/spi0/SPIxCR_reg[16]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/SPIxCR_reg[16]/Q} .original_name {spi0/SPIxCR[16]/q}
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[18]} .original_name {{spi0/SPIxCR[18]}}
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxCR_reg[18]} .single_bit_orig_name {spi0/SPIxCR[18]}
@@ -20940,16 +20965,6 @@ set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[0]} .single_bit_orig_name {spi0/m_SPIxRX[0]}
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_SPIxRX_reg[0]/Q} .original_name {spi0/m_SPIxRX[0]/q}
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .original_name {{spi0/m_SPIxRX[15]}}
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .single_bit_orig_name {spi0/m_SPIxRX[15]}
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_SPIxRX_reg[15]/Q} .original_name {spi0/m_SPIxRX[15]/q}
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .original_name {{spi0/m_SPIxRX[16]}}
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .single_bit_orig_name {spi0/m_SPIxRX[16]}
-set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_SPIxRX_reg[16]/Q} .original_name {spi0/m_SPIxRX[16]/q}
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[17]} .original_name {{spi0/m_SPIxRX[17]}}
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[17]} .single_bit_orig_name {spi0/m_SPIxRX[17]}
@@ -20985,46 +21000,6 @@ set_db -quiet {inst:MCU/spi0/m_counter_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_counter_reg[5]} .single_bit_orig_name {spi0/m_counter[5]}
 set_db -quiet {inst:MCU/spi0/m_counter_reg[5]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_counter_reg[5]/Q} .original_name {spi0/m_counter[5]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .original_name {{spi0/m_rx_sreg[24]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .single_bit_orig_name {spi0/m_rx_sreg[24]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[24]/Q} .original_name {spi0/m_rx_sreg[24]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .original_name {{spi0/m_rx_sreg[25]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .single_bit_orig_name {spi0/m_rx_sreg[25]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[25]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[25]/Q} .original_name {spi0/m_rx_sreg[25]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .original_name {{spi0/m_rx_sreg[26]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .single_bit_orig_name {spi0/m_rx_sreg[26]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[26]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[26]/Q} .original_name {spi0/m_rx_sreg[26]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .original_name {{spi0/m_rx_sreg[27]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .single_bit_orig_name {spi0/m_rx_sreg[27]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[27]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[27]/Q} .original_name {spi0/m_rx_sreg[27]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .original_name {{spi0/m_rx_sreg[28]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .single_bit_orig_name {spi0/m_rx_sreg[28]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[28]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[28]/Q} .original_name {spi0/m_rx_sreg[28]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .original_name {{spi0/m_rx_sreg[29]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .single_bit_orig_name {spi0/m_rx_sreg[29]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[29]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[29]/Q} .original_name {spi0/m_rx_sreg[29]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .original_name {{spi0/m_rx_sreg[30]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .single_bit_orig_name {spi0/m_rx_sreg[30]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[30]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[30]/Q} .original_name {spi0/m_rx_sreg[30]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .original_name {{spi0/m_rx_sreg[31]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .single_bit_orig_name {spi0/m_rx_sreg[31]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[31]/Q} .original_name {spi0/m_rx_sreg[31]/q}
 set_db -quiet inst:MCU/spi0/m_spi_tcif_reg .original_name spi0/m_spi_tcif
 set_db -quiet inst:MCU/spi0/m_spi_tcif_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/spi0/m_spi_tcif_reg .single_bit_orig_name spi0/m_spi_tcif
@@ -21035,6 +21010,11 @@ set_db -quiet inst:MCU/spi0/m_spi_teif_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/spi0/m_spi_teif_reg .single_bit_orig_name spi0/m_spi_teif
 set_db -quiet inst:MCU/spi0/m_spi_teif_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/spi0/m_spi_teif_reg/Q .original_name spi0/m_spi_teif/q
+set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .original_name {{spi0/read_data[0]}}
+set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .single_bit_orig_name {spi0/read_data[0]}
+set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/read_data_reg[0]/Q} .original_name {spi0/read_data[0]/q}
 set_db -quiet {inst:MCU/spi0/read_data_reg[17]} .original_name {{spi0/read_data[17]}}
 set_db -quiet {inst:MCU/spi0/read_data_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/read_data_reg[17]} .single_bit_orig_name {spi0/read_data[17]}
@@ -21460,6 +21440,11 @@ set_db -quiet {inst:MCU/spi0/SPIxFOS_reg[23]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxFOS_reg[23]} .single_bit_orig_name {spi0/SPIxFOS[23]}
 set_db -quiet {inst:MCU/spi0/SPIxFOS_reg[23]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/SPIxFOS_reg[23]/Q} .original_name {spi0/SPIxFOS[23]/q}
+set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .original_name {{spi0/SPIxRX_ltch[0]}}
+set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .single_bit_orig_name {spi0/SPIxRX_ltch[0]}
+set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/SPIxRX_ltch_reg[0]/Q} .original_name {spi0/SPIxRX_ltch[0]/q}
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[17]} .original_name {{spi0/SPIxRX_ltch[17]}}
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[17]} .single_bit_orig_name {spi0/SPIxRX_ltch[17]}
@@ -21475,6 +21460,16 @@ set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[31]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[31]} .single_bit_orig_name {spi0/SPIxRX_ltch[31]}
 set_db -quiet {inst:MCU/spi0/SPIxRX_ltch_reg[31]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/SPIxRX_ltch_reg[31]/Q} .original_name {spi0/SPIxRX_ltch[31]/q}
+set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .original_name {{spi0/SPIxSR_ltch[0]}}
+set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .single_bit_orig_name {spi0/SPIxSR_ltch[0]}
+set_db -quiet {inst:MCU/spi0/SPIxSR_ltch_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/SPIxSR_ltch_reg[0]/Q} .original_name {spi0/SPIxSR_ltch[0]/q}
+set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .original_name {{spi0/SPIxTX[0]}}
+set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .single_bit_orig_name {spi0/SPIxTX[0]}
+set_db -quiet {inst:MCU/spi0/SPIxTX_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/SPIxTX_reg[0]/Q} .original_name {spi0/SPIxTX[0]/q}
 set_db -quiet {inst:MCU/spi0/SPIxTX_reg[17]} .original_name {{spi0/SPIxTX[17]}}
 set_db -quiet {inst:MCU/spi0/SPIxTX_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/SPIxTX_reg[17]} .single_bit_orig_name {spi0/SPIxTX[17]}
@@ -21565,6 +21560,16 @@ set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[14]} .single_bit_orig_name {spi0/m_SPIxRX[14]}
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[14]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_SPIxRX_reg[14]/Q} .original_name {spi0/m_SPIxRX[14]/q}
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .original_name {{spi0/m_SPIxRX[15]}}
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .single_bit_orig_name {spi0/m_SPIxRX[15]}
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_SPIxRX_reg[15]/Q} .original_name {spi0/m_SPIxRX[15]/q}
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .original_name {{spi0/m_SPIxRX[16]}}
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .single_bit_orig_name {spi0/m_SPIxRX[16]}
+set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[16]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_SPIxRX_reg[16]/Q} .original_name {spi0/m_SPIxRX[16]/q}
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[18]} .original_name {{spi0/m_SPIxRX[18]}}
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_SPIxRX_reg[18]} .single_bit_orig_name {spi0/m_SPIxRX[18]}
@@ -21645,11 +21650,6 @@ set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[7]} .single_bit_orig_name {spi0/m_rx_sreg[7]}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[7]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[7]/Q} .original_name {spi0/m_rx_sreg[7]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .original_name {{spi0/m_rx_sreg[8]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .single_bit_orig_name {spi0/m_rx_sreg[8]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[8]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[8]/Q} .original_name {spi0/m_rx_sreg[8]/q}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[9]} .original_name {{spi0/m_rx_sreg[9]}}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[9]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[9]} .single_bit_orig_name {spi0/m_rx_sreg[9]}
@@ -21660,11 +21660,6 @@ set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[14]} .single_bit_orig_name {spi0/m_rx_sreg[14]}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[14]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[14]/Q} .original_name {spi0/m_rx_sreg[14]/q}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .original_name {{spi0/m_rx_sreg[15]}}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .single_bit_orig_name {spi0/m_rx_sreg[15]}
-set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[15]/Q} .original_name {spi0/m_rx_sreg[15]/q}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[16]} .original_name {{spi0/m_rx_sreg[16]}}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[16]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[16]} .single_bit_orig_name {spi0/m_rx_sreg[16]}
@@ -21685,16 +21680,21 @@ set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[23]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[23]} .single_bit_orig_name {spi0/m_rx_sreg[23]}
 set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[23]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[23]/Q} .original_name {spi0/m_rx_sreg[23]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .original_name {{spi0/m_rx_sreg[24]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .single_bit_orig_name {spi0/m_rx_sreg[24]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[24]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[24]/Q} .original_name {spi0/m_rx_sreg[24]/q}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .original_name {{spi0/m_rx_sreg[31]}}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .single_bit_orig_name {spi0/m_rx_sreg[31]}
+set_db -quiet {inst:MCU/spi0/m_rx_sreg_reg[31]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi0/m_rx_sreg_reg[31]/Q} .original_name {spi0/m_rx_sreg[31]/q}
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[0]} .original_name {{spi0/m_tx_sreg[0]}}
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[0]} .single_bit_orig_name {spi0/m_tx_sreg[0]}
 set_db -quiet {inst:MCU/spi0/m_tx_sreg_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi0/m_tx_sreg_reg[0]/Q} .original_name {spi0/m_tx_sreg[0]/q}
-set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .original_name {{spi0/read_data[0]}}
-set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .single_bit_orig_name {spi0/read_data[0]}
-set_db -quiet {inst:MCU/spi0/read_data_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi0/read_data_reg[0]/Q} .original_name {spi0/read_data[0]/q}
 set_db -quiet {inst:MCU/spi0/read_data_reg[1]} .original_name {{spi0/read_data[1]}}
 set_db -quiet {inst:MCU/spi0/read_data_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi0/read_data_reg[1]} .single_bit_orig_name {spi0/read_data[1]}
@@ -22088,33 +22088,28 @@ set_db -quiet module:MCU/RC_CG_MOD_203 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_203 .boundary_opto strict_no
 set_db -quiet inst:MCU/spi1/RC_CG_HIER_INST210/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/spi1/RC_CG_HIER_INST210/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/RC_CG_MOD_11380_7 .logical_hier false
-set_db -quiet module:MCU/RC_CG_MOD_11380_7 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/RC_CG_MOD_11380_7 .lp_clock_gating_max_flops inf
-set_db -quiet module:MCU/RC_CG_MOD_11380_7 .boundary_opto strict_no
+set_db -quiet module:MCU/RC_CG_MOD_11375_7 .logical_hier false
+set_db -quiet module:MCU/RC_CG_MOD_11375_7 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/RC_CG_MOD_11375_7 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/RC_CG_MOD_11375_7 .boundary_opto strict_no
 set_db -quiet inst:MCU/spi1/RC_CG_HIER_INST211/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/spi1/RC_CG_HIER_INST211/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8190 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8190 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8190 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8190 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8187 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8187 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8187 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8187 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/spi1/cg_clk_baud/CG1 .original_name spi1/cg_clk_baud/CG1
 set_db -quiet inst:MCU/spi1/cg_clk_baud/CG1 .single_bit_orig_name spi1/cg_clk_baud/CG1
 set_db -quiet inst:MCU/spi1/cg_clk_baud/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/spi1/cg_clk_baud/CG1/ECK .original_name spi1/cg_clk_baud/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8191 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8191 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8191 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8191 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8188 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8188 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8188 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8188 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/spi1/cg_clk_baud_src/CG1 .original_name spi1/cg_clk_baud_src/CG1
 set_db -quiet inst:MCU/spi1/cg_clk_baud_src/CG1 .single_bit_orig_name spi1/cg_clk_baud_src/CG1
 set_db -quiet inst:MCU/spi1/cg_clk_baud_src/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/spi1/cg_clk_baud_src/CG1/ECK .original_name spi1/cg_clk_baud_src/CG1/ECK
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .original_name {{spi1/SPIxCR[0]}}
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .single_bit_orig_name {spi1/SPIxCR[0]}
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/SPIxCR_reg[0]/Q} .original_name {spi1/SPIxCR[0]/q}
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[1]} .original_name {{spi1/SPIxCR[1]}}
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[1]} .single_bit_orig_name {spi1/SPIxCR[1]}
@@ -22190,11 +22185,6 @@ set_db -quiet {inst:MCU/spi1/SPIxCR_reg[15]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[15]} .single_bit_orig_name {spi1/SPIxCR[15]}
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[15]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi1/SPIxCR_reg[15]/Q} .original_name {spi1/SPIxCR[15]/q}
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .original_name {{spi1/SPIxCR[16]}}
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .single_bit_orig_name {spi1/SPIxCR[16]}
-set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/SPIxCR_reg[16]/QN} .original_name {spi1/SPIxCR[16]/q}
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[17]} .original_name {{spi1/SPIxCR[17]}}
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxCR_reg[17]} .single_bit_orig_name {spi1/SPIxCR[17]}
@@ -22389,7 +22379,7 @@ set_db -quiet {inst:MCU/spi1/SPIxTX_reg[0]} .original_name {{spi1/SPIxTX[0]}}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[0]} .single_bit_orig_name {spi1/SPIxTX[0]}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/SPIxTX_reg[0]/QN} .original_name {spi1/SPIxTX[0]/q}
+set_db -quiet {pin:MCU/spi1/SPIxTX_reg[0]/Q} .original_name {spi1/SPIxTX[0]/q}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[1]} .original_name {{spi1/SPIxTX[1]}}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[1]} .single_bit_orig_name {spi1/SPIxTX[1]}
@@ -22444,7 +22434,7 @@ set_db -quiet {inst:MCU/spi1/SPIxTX_reg[11]} .original_name {{spi1/SPIxTX[11]}}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[11]} .single_bit_orig_name {spi1/SPIxTX[11]}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[11]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/SPIxTX_reg[11]/QN} .original_name {spi1/SPIxTX[11]/q}
+set_db -quiet {pin:MCU/spi1/SPIxTX_reg[11]/Q} .original_name {spi1/SPIxTX[11]/q}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[12]} .original_name {{spi1/SPIxTX[12]}}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[12]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[12]} .single_bit_orig_name {spi1/SPIxTX[12]}
@@ -22459,7 +22449,7 @@ set_db -quiet {inst:MCU/spi1/SPIxTX_reg[14]} .original_name {{spi1/SPIxTX[14]}}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[14]} .single_bit_orig_name {spi1/SPIxTX[14]}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[14]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/SPIxTX_reg[14]/QN} .original_name {spi1/SPIxTX[14]/q}
+set_db -quiet {pin:MCU/spi1/SPIxTX_reg[14]/Q} .original_name {spi1/SPIxTX[14]/q}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[15]} .original_name {{spi1/SPIxTX[15]}}
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[15]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/SPIxTX_reg[15]} .single_bit_orig_name {spi1/SPIxTX[15]}
@@ -22729,12 +22719,12 @@ set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[3]} .original_name {{spi1/m_rx_sreg[3
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[3]} .single_bit_orig_name {spi1/m_rx_sreg[3]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[3]/QN} .original_name {spi1/m_rx_sreg[3]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[3]/Q} .original_name {spi1/m_rx_sreg[3]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[4]} .original_name {{spi1/m_rx_sreg[4]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[4]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[4]} .single_bit_orig_name {spi1/m_rx_sreg[4]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[4]/Q} .original_name {spi1/m_rx_sreg[4]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[4]/QN} .original_name {spi1/m_rx_sreg[4]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[5]} .original_name {{spi1/m_rx_sreg[5]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[5]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[5]} .single_bit_orig_name {spi1/m_rx_sreg[5]}
@@ -22744,37 +22734,37 @@ set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[6]} .original_name {{spi1/m_rx_sreg[6
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[6]} .single_bit_orig_name {spi1/m_rx_sreg[6]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[6]/QN} .original_name {spi1/m_rx_sreg[6]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[6]/Q} .original_name {spi1/m_rx_sreg[6]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[7]} .original_name {{spi1/m_rx_sreg[7]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[7]} .single_bit_orig_name {spi1/m_rx_sreg[7]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[7]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[7]/QN} .original_name {spi1/m_rx_sreg[7]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[7]/Q} .original_name {spi1/m_rx_sreg[7]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[8]} .original_name {{spi1/m_rx_sreg[8]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[8]} .single_bit_orig_name {spi1/m_rx_sreg[8]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[8]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[8]/Q} .original_name {spi1/m_rx_sreg[8]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[8]/QN} .original_name {spi1/m_rx_sreg[8]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[9]} .original_name {{spi1/m_rx_sreg[9]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[9]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[9]} .single_bit_orig_name {spi1/m_rx_sreg[9]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[9]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[9]/Q} .original_name {spi1/m_rx_sreg[9]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[9]/QN} .original_name {spi1/m_rx_sreg[9]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[10]} .original_name {{spi1/m_rx_sreg[10]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[10]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[10]} .single_bit_orig_name {spi1/m_rx_sreg[10]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[10]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[10]/Q} .original_name {spi1/m_rx_sreg[10]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[10]/QN} .original_name {spi1/m_rx_sreg[10]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[11]} .original_name {{spi1/m_rx_sreg[11]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[11]} .single_bit_orig_name {spi1/m_rx_sreg[11]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[11]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[11]/QN} .original_name {spi1/m_rx_sreg[11]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[11]/Q} .original_name {spi1/m_rx_sreg[11]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[12]} .original_name {{spi1/m_rx_sreg[12]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[12]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[12]} .single_bit_orig_name {spi1/m_rx_sreg[12]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[12]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[12]/QN} .original_name {spi1/m_rx_sreg[12]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[12]/Q} .original_name {spi1/m_rx_sreg[12]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[13]} .original_name {{spi1/m_rx_sreg[13]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[13]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[13]} .single_bit_orig_name {spi1/m_rx_sreg[13]}
@@ -22784,12 +22774,12 @@ set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[14]} .original_name {{spi1/m_rx_sreg[
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[14]} .single_bit_orig_name {spi1/m_rx_sreg[14]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[14]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[14]/QN} .original_name {spi1/m_rx_sreg[14]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[14]/Q} .original_name {spi1/m_rx_sreg[14]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[15]} .original_name {{spi1/m_rx_sreg[15]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[15]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[15]} .single_bit_orig_name {spi1/m_rx_sreg[15]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[15]/Q} .original_name {spi1/m_rx_sreg[15]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[15]/QN} .original_name {spi1/m_rx_sreg[15]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[16]} .original_name {{spi1/m_rx_sreg[16]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[16]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[16]} .single_bit_orig_name {spi1/m_rx_sreg[16]}
@@ -22804,17 +22794,17 @@ set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[18]} .original_name {{spi1/m_rx_sreg[
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[18]} .single_bit_orig_name {spi1/m_rx_sreg[18]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[18]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[18]/QN} .original_name {spi1/m_rx_sreg[18]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[18]/Q} .original_name {spi1/m_rx_sreg[18]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[19]} .original_name {{spi1/m_rx_sreg[19]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[19]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[19]} .single_bit_orig_name {spi1/m_rx_sreg[19]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[19]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[19]/Q} .original_name {spi1/m_rx_sreg[19]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[19]/QN} .original_name {spi1/m_rx_sreg[19]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[20]} .original_name {{spi1/m_rx_sreg[20]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[20]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[20]} .single_bit_orig_name {spi1/m_rx_sreg[20]}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[20]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[20]/Q} .original_name {spi1/m_rx_sreg[20]/q}
+set_db -quiet {pin:MCU/spi1/m_rx_sreg_reg[20]/QN} .original_name {spi1/m_rx_sreg[20]/q}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[21]} .original_name {{spi1/m_rx_sreg[21]}}
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[21]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_rx_sreg_reg[21]} .single_bit_orig_name {spi1/m_rx_sreg[21]}
@@ -23030,11 +23020,6 @@ set_db -quiet {inst:MCU/spi1/m_tx_sreg_reg[31]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/m_tx_sreg_reg[31]} .single_bit_orig_name {spi1/m_tx_sreg[31]}
 set_db -quiet {inst:MCU/spi1/m_tx_sreg_reg[31]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi1/m_tx_sreg_reg[31]/Q} .original_name {spi1/m_tx_sreg[31]/q}
-set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .original_name {{spi1/read_data[0]}}
-set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .single_bit_orig_name {spi1/read_data[0]}
-set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/spi1/read_data_reg[0]/Q} .original_name {spi1/read_data[0]/q}
 set_db -quiet {inst:MCU/spi1/read_data_reg[1]} .original_name {{spi1/read_data[1]}}
 set_db -quiet {inst:MCU/spi1/read_data_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/read_data_reg[1]} .single_bit_orig_name {spi1/read_data[1]}
@@ -23505,6 +23490,11 @@ set_db -quiet {inst:MCU/spi1/s_tx_sreg_reg[31]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/s_tx_sreg_reg[31]} .single_bit_orig_name {spi1/s_tx_sreg[31]}
 set_db -quiet {inst:MCU/spi1/s_tx_sreg_reg[31]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/spi1/s_tx_sreg_reg[31]/Q} .original_name {spi1/s_tx_sreg[31]/q}
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .original_name {{spi1/SPIxCR[16]}}
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .single_bit_orig_name {spi1/SPIxCR[16]}
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[16]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi1/SPIxCR_reg[16]/Q} .original_name {spi1/SPIxCR[16]/q}
 set_db -quiet {inst:MCU/spi1/baud_counter_reg[0]} .original_name {{spi1/baud_counter[0]}}
 set_db -quiet {inst:MCU/spi1/baud_counter_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/baud_counter_reg[0]} .single_bit_orig_name {spi1/baud_counter[0]}
@@ -23590,6 +23580,11 @@ set_db -quiet inst:MCU/spi1/m_spi_teif_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/spi1/m_spi_teif_reg .single_bit_orig_name spi1/m_spi_teif
 set_db -quiet inst:MCU/spi1/m_spi_teif_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/spi1/m_spi_teif_reg/Q .original_name spi1/m_spi_teif/q
+set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .original_name {{spi1/read_data[0]}}
+set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .single_bit_orig_name {spi1/read_data[0]}
+set_db -quiet {inst:MCU/spi1/read_data_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi1/read_data_reg[0]/Q} .original_name {spi1/read_data[0]/q}
 set_db -quiet {inst:MCU/spi1/read_data_reg[17]} .original_name {{spi1/read_data[17]}}
 set_db -quiet {inst:MCU/spi1/read_data_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/spi1/read_data_reg[17]} .single_bit_orig_name {spi1/read_data[17]}
@@ -23815,6 +23810,11 @@ set_db -quiet inst:MCU/spi1/clr_spi_tcif_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/spi1/clr_spi_tcif_reg .single_bit_orig_name spi1/clr_spi_tcif
 set_db -quiet inst:MCU/spi1/clr_spi_tcif_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/spi1/clr_spi_tcif_reg/QN .original_name spi1/clr_spi_tcif/q
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .original_name {{spi1/SPIxCR[0]}}
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .single_bit_orig_name {spi1/SPIxCR[0]}
+set_db -quiet {inst:MCU/spi1/SPIxCR_reg[0]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/spi1/SPIxCR_reg[0]/QN} .original_name {spi1/SPIxCR[0]/q}
 set_db -quiet module:MCU/SYSTEM_NUM_IRQS83 .hdl_user_name SYSTEM
 set_db -quiet module:MCU/SYSTEM_NUM_IRQS83 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/CRC16.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/SYSTEM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/SYSTEM_NUM_IRQS83 .lp_clock_gating_min_flops 3
@@ -24021,66 +24021,66 @@ set_db -quiet module:MCU/RC_CG_MOD_236 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_236 .boundary_opto strict_no
 set_db -quiet inst:MCU/system0/RC_CG_HIER_INST244/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/system0/RC_CG_HIER_INST244/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8241 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8241 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8241 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8241 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8238 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8238 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8238 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8238 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/system0/cg_clk_dco0/CG1 .original_name system0/cg_clk_dco0/CG1
 set_db -quiet inst:MCU/system0/cg_clk_dco0/CG1 .single_bit_orig_name system0/cg_clk_dco0/CG1
 set_db -quiet inst:MCU/system0/cg_clk_dco0/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/cg_clk_dco0/CG1/ECK .original_name system0/cg_clk_dco0/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8240 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8240 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8240 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8240 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8237 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8237 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8237 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8237 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/system0/cg_clk_dco1/CG1 .original_name system0/cg_clk_dco1/CG1
 set_db -quiet inst:MCU/system0/cg_clk_dco1/CG1 .single_bit_orig_name system0/cg_clk_dco1/CG1
 set_db -quiet inst:MCU/system0/cg_clk_dco1/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/cg_clk_dco1/CG1/ECK .original_name system0/cg_clk_dco1/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8243 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8243 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8243 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8243 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8240 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8240 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8240 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8240 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/system0/cg_clk_hfxt/CG1 .original_name system0/cg_clk_hfxt/CG1
 set_db -quiet inst:MCU/system0/cg_clk_hfxt/CG1 .single_bit_orig_name system0/cg_clk_hfxt/CG1
 set_db -quiet inst:MCU/system0/cg_clk_hfxt/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/cg_clk_hfxt/CG1/ECK .original_name system0/cg_clk_hfxt/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8242 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8242 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8242 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8242 .lp_clock_gating_max_flops inf
-set_db -quiet inst:MCU/system0/cg_clk_lfxt/CG1 .original_name system0/cg_clk_lfxt/CG1
-set_db -quiet inst:MCU/system0/cg_clk_lfxt/CG1 .single_bit_orig_name system0/cg_clk_lfxt/CG1
-set_db -quiet inst:MCU/system0/cg_clk_lfxt/CG1 .gint_phase_inversion false
-set_db -quiet pin:MCU/system0/cg_clk_lfxt/CG1/ECK .original_name system0/cg_clk_lfxt/CG1/ECK
 set_db -quiet module:MCU/ClkGate_8239 .hdl_user_name ClkGate
 set_db -quiet module:MCU/ClkGate_8239 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
 set_db -quiet module:MCU/ClkGate_8239 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/ClkGate_8239 .lp_clock_gating_max_flops inf
+set_db -quiet inst:MCU/system0/cg_clk_lfxt/CG1 .original_name system0/cg_clk_lfxt/CG1
+set_db -quiet inst:MCU/system0/cg_clk_lfxt/CG1 .single_bit_orig_name system0/cg_clk_lfxt/CG1
+set_db -quiet inst:MCU/system0/cg_clk_lfxt/CG1 .gint_phase_inversion false
+set_db -quiet pin:MCU/system0/cg_clk_lfxt/CG1/ECK .original_name system0/cg_clk_lfxt/CG1/ECK
+set_db -quiet module:MCU/ClkGate_8236 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8236 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8236 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8236 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/system0/cg_smclk/CG1 .original_name system0/cg_smclk/CG1
 set_db -quiet inst:MCU/system0/cg_smclk/CG1 .single_bit_orig_name system0/cg_smclk/CG1
 set_db -quiet inst:MCU/system0/cg_smclk/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/cg_smclk/CG1/ECK .original_name system0/cg_smclk/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8244 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8244 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8244 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8244 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8241 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8241 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8241 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8241 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/system0/cg_unlock/CG1 .original_name system0/cg_unlock/CG1
 set_db -quiet inst:MCU/system0/cg_unlock/CG1 .single_bit_orig_name system0/cg_unlock/CG1
 set_db -quiet inst:MCU/system0/cg_unlock/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/cg_unlock/CG1/ECK .original_name system0/cg_unlock/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8245 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8245 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8245 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8245 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8242 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8242 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8242 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8242 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/system0/cg_wdt_clk/CG1 .original_name system0/cg_wdt_clk/CG1
 set_db -quiet inst:MCU/system0/cg_wdt_clk/CG1 .single_bit_orig_name system0/cg_wdt_clk/CG1
 set_db -quiet inst:MCU/system0/cg_wdt_clk/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/cg_wdt_clk/CG1/ECK .original_name system0/cg_wdt_clk/CG1/ECK
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2723 .hdl_user_name ClockMuxGlitchFree
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2723 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2723 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2723 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2721 .hdl_user_name ClockMuxGlitchFree
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2721 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2721 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT8_SEL_WIDTH3_CLK_DEFAULT0_2721 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/system0/mclk_div_mux/MuxGen[0].CG1} .original_name {{system0/mclk_div_mux/MuxGen[0].CG1}}
 set_db -quiet {inst:MCU/system0/mclk_div_mux/MuxGen[0].CG1} .single_bit_orig_name {system0/mclk_div_mux/MuxGen[0].CG1}
 set_db -quiet {inst:MCU/system0/mclk_div_mux/MuxGen[0].CG1} .gint_phase_inversion false
@@ -24209,10 +24209,10 @@ set_db -quiet {inst:MCU/system0/mclk_div_mux/MuxGen[0].DefaultSlice.DLYDFF0} .or
 set_db -quiet {inst:MCU/system0/mclk_div_mux/MuxGen[0].DefaultSlice.DLYDFF0} .single_bit_orig_name {system0/mclk_div_mux/MuxGen[0].DefaultSlice.DLYDFF0}
 set_db -quiet {inst:MCU/system0/mclk_div_mux/MuxGen[0].DefaultSlice.DLYDFF0} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/mclk_div_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q} .original_name {system0/mclk_div_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q}
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2721 .hdl_user_name ClockMuxGlitchFree
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2721 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2721 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2721 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2719 .hdl_user_name ClockMuxGlitchFree
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2719 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2719 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_2719 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/system0/mclk_mux/MuxGen[0].CG1} .original_name {{system0/mclk_mux/MuxGen[0].CG1}}
 set_db -quiet {inst:MCU/system0/mclk_mux/MuxGen[0].CG1} .single_bit_orig_name {system0/mclk_mux/MuxGen[0].CG1}
 set_db -quiet {inst:MCU/system0/mclk_mux/MuxGen[0].CG1} .gint_phase_inversion false
@@ -24477,21 +24477,26 @@ set_db -quiet {inst:MCU/system0/smclk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .origi
 set_db -quiet {inst:MCU/system0/smclk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .single_bit_orig_name {system0/smclk_mux/MuxGen[0].DefaultSlice.DLYDFF0}
 set_db -quiet {inst:MCU/system0/smclk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/smclk_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q} .original_name {system0/smclk_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q}
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .original_name {{system0/SYS_CLK_CR[6]}}
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .single_bit_orig_name {system0/SYS_CLK_CR[6]}
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_CLK_CR_reg[6]/Q} .original_name {system0/SYS_CLK_CR[6]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .original_name {{system0/SYS_IRQ_EN[1]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .single_bit_orig_name {system0/SYS_IRQ_EN[1]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[1]/Q} .original_name {system0/SYS_IRQ_EN[1]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .original_name {{system0/SYS_IRQ_EN[6]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .single_bit_orig_name {system0/SYS_IRQ_EN[6]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[6]/Q} .original_name {system0/SYS_IRQ_EN[6]/q}
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .original_name {{system0/SYS_CLK_CR[5]}}
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .single_bit_orig_name {system0/SYS_CLK_CR[5]}
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_CLK_CR_reg[5]/Q} .original_name {system0/SYS_CLK_CR[5]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .original_name {{system0/SYS_IRQ_EN[3]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .single_bit_orig_name {system0/SYS_IRQ_EN[3]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[3]/Q} .original_name {system0/SYS_IRQ_EN[3]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .original_name {{system0/SYS_IRQ_EN[4]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .single_bit_orig_name {system0/SYS_IRQ_EN[4]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[4]/Q} .original_name {system0/SYS_IRQ_EN[4]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .original_name {{system0/SYS_IRQ_EN[5]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .single_bit_orig_name {system0/SYS_IRQ_EN[5]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[5]/Q} .original_name {system0/SYS_IRQ_EN[5]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[8]} .original_name {{system0/SYS_IRQ_EN[8]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[8]} .single_bit_orig_name {system0/SYS_IRQ_EN[8]}
@@ -24532,6 +24537,11 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[15]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[15]} .single_bit_orig_name {system0/SYS_IRQ_EN[15]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[15]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[15]/Q} .original_name {system0/SYS_IRQ_EN[15]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .original_name {{system0/SYS_IRQ_EN[17]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .single_bit_orig_name {system0/SYS_IRQ_EN[17]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[17]/Q} .original_name {system0/SYS_IRQ_EN[17]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[18]} .original_name {{system0/SYS_IRQ_EN[18]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[18]} .single_bit_orig_name {system0/SYS_IRQ_EN[18]}
@@ -24592,16 +24602,21 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[31]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[31]} .single_bit_orig_name {system0/SYS_IRQ_EN[31]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[31]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[31]/Q} .original_name {system0/SYS_IRQ_EN[31]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .original_name {{system0/SYS_IRQ_EN[33]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .single_bit_orig_name {system0/SYS_IRQ_EN[33]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[33]/Q} .original_name {system0/SYS_IRQ_EN[33]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .original_name {{system0/SYS_IRQ_EN[38]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .single_bit_orig_name {system0/SYS_IRQ_EN[38]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[38]/Q} .original_name {system0/SYS_IRQ_EN[38]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .original_name {{system0/SYS_IRQ_EN[35]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .single_bit_orig_name {system0/SYS_IRQ_EN[35]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[35]/Q} .original_name {system0/SYS_IRQ_EN[35]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .original_name {{system0/SYS_IRQ_EN[36]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .single_bit_orig_name {system0/SYS_IRQ_EN[36]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[36]/Q} .original_name {system0/SYS_IRQ_EN[36]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .original_name {{system0/SYS_IRQ_EN[37]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .single_bit_orig_name {system0/SYS_IRQ_EN[37]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[37]/Q} .original_name {system0/SYS_IRQ_EN[37]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[40]} .original_name {{system0/SYS_IRQ_EN[40]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[40]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[40]} .single_bit_orig_name {system0/SYS_IRQ_EN[40]}
@@ -24642,6 +24657,11 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[47]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[47]} .single_bit_orig_name {system0/SYS_IRQ_EN[47]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[47]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[47]/Q} .original_name {system0/SYS_IRQ_EN[47]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .original_name {{system0/SYS_IRQ_EN[49]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .single_bit_orig_name {system0/SYS_IRQ_EN[49]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[49]/Q} .original_name {system0/SYS_IRQ_EN[49]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[50]} .original_name {{system0/SYS_IRQ_EN[50]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[50]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[50]} .single_bit_orig_name {system0/SYS_IRQ_EN[50]}
@@ -24712,16 +24732,21 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[63]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[63]} .single_bit_orig_name {system0/SYS_IRQ_EN[63]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[63]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[63]/Q} .original_name {system0/SYS_IRQ_EN[63]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .original_name {{system0/SYS_IRQ_EN[65]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .single_bit_orig_name {system0/SYS_IRQ_EN[65]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[65]/Q} .original_name {system0/SYS_IRQ_EN[65]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .original_name {{system0/SYS_IRQ_EN[70]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .single_bit_orig_name {system0/SYS_IRQ_EN[70]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[70]/Q} .original_name {system0/SYS_IRQ_EN[70]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .original_name {{system0/SYS_IRQ_EN[67]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .single_bit_orig_name {system0/SYS_IRQ_EN[67]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[67]/Q} .original_name {system0/SYS_IRQ_EN[67]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .original_name {{system0/SYS_IRQ_EN[68]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .single_bit_orig_name {system0/SYS_IRQ_EN[68]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[68]/Q} .original_name {system0/SYS_IRQ_EN[68]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .original_name {{system0/SYS_IRQ_EN[69]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .single_bit_orig_name {system0/SYS_IRQ_EN[69]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[69]/Q} .original_name {system0/SYS_IRQ_EN[69]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[72]} .original_name {{system0/SYS_IRQ_EN[72]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[72]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[72]} .single_bit_orig_name {system0/SYS_IRQ_EN[72]}
@@ -24762,21 +24787,31 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[79]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[79]} .single_bit_orig_name {system0/SYS_IRQ_EN[79]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[79]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[79]/Q} .original_name {system0/SYS_IRQ_EN[79]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .original_name {{system0/SYS_IRQ_EN[81]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .single_bit_orig_name {system0/SYS_IRQ_EN[81]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[81]/Q} .original_name {system0/SYS_IRQ_EN[81]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[82]} .original_name {{system0/SYS_IRQ_EN[82]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[82]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[82]} .single_bit_orig_name {system0/SYS_IRQ_EN[82]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[82]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[82]/Q} .original_name {system0/SYS_IRQ_EN[82]/q}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .original_name {{system0/SYS_WDT_CR[1]}}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .single_bit_orig_name {system0/SYS_WDT_CR[1]}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[1]/Q} .original_name {system0/SYS_WDT_CR[1]/q}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .original_name {{system0/SYS_WDT_CR[6]}}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .single_bit_orig_name {system0/SYS_WDT_CR[6]}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[6]/Q} .original_name {system0/SYS_WDT_CR[6]/q}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .original_name {{system0/SYS_WDT_CR[3]}}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .single_bit_orig_name {system0/SYS_WDT_CR[3]}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[3]/Q} .original_name {system0/SYS_WDT_CR[3]/q}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .original_name {{system0/SYS_WDT_CR[4]}}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .single_bit_orig_name {system0/SYS_WDT_CR[4]}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[4]/Q} .original_name {system0/SYS_WDT_CR[4]/q}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .original_name {{system0/SYS_WDT_CR[5]}}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .single_bit_orig_name {system0/SYS_WDT_CR[5]}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[5]/Q} .original_name {system0/SYS_WDT_CR[5]/q}
 set_db -quiet {inst:MCU/system0/DCO0_BIAS_reg[0]} .original_name {{system0/DCO0_BIAS[0]}}
 set_db -quiet {inst:MCU/system0/DCO0_BIAS_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/DCO0_BIAS_reg[0]} .single_bit_orig_name {system0/DCO0_BIAS[0]}
@@ -24956,16 +24991,6 @@ set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[2]} .orig_hdl_instantiated fals
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[2]} .single_bit_orig_name {system0/SYS_CRC_DATA[2]}
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_CRC_DATA_reg[2]/Q} .original_name {system0/SYS_CRC_DATA[2]/q}
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .original_name {{system0/SYS_CRC_DATA[4]}}
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .single_bit_orig_name {system0/SYS_CRC_DATA[4]}
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_CRC_DATA_reg[4]/Q} .original_name {system0/SYS_CRC_DATA[4]/q}
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .original_name {{system0/SYS_CRC_DATA[5]}}
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .single_bit_orig_name {system0/SYS_CRC_DATA[5]}
-set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_CRC_DATA_reg[5]/Q} .original_name {system0/SYS_CRC_DATA[5]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_CR_reg[0]} .original_name {{system0/SYS_IRQ_CR[0]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_CR_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_CR_reg[0]} .single_bit_orig_name {system0/SYS_IRQ_CR[0]}
@@ -25121,11 +25146,6 @@ set_db -quiet inst:MCU/system0/clr_wdt_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/system0/clr_wdt_reg .single_bit_orig_name system0/clr_wdt
 set_db -quiet inst:MCU/system0/clr_wdt_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/system0/clr_wdt_reg/Q .original_name system0/clr_wdt/q
-set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .original_name {{system0/crc_prev[2]}}
-set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .single_bit_orig_name {system0/crc_prev[2]}
-set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/crc_prev_reg[2]/Q} .original_name {system0/crc_prev[2]/q}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[8]} .original_name {{system0/crc_prev[8]}}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/crc_prev_reg[8]} .single_bit_orig_name {system0/crc_prev[8]}
@@ -25161,11 +25181,6 @@ set_db -quiet {inst:MCU/system0/crc_prev_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/crc_prev_reg[14]} .single_bit_orig_name {system0/crc_prev[14]}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[14]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/crc_prev_reg[14]/Q} .original_name {system0/crc_prev[14]/q}
-set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .original_name {{system0/crc_prev[15]}}
-set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .single_bit_orig_name {system0/crc_prev[15]}
-set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/crc_prev_reg[15]/Q} .original_name {system0/crc_prev[15]/q}
 set_db -quiet inst:MCU/system0/first_crc_flag_reg .original_name system0/first_crc_flag
 set_db -quiet inst:MCU/system0/first_crc_flag_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/system0/first_crc_flag_reg .single_bit_orig_name system0/first_crc_flag
@@ -25211,26 +25226,21 @@ set_db -quiet {inst:MCU/system0/read_data_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[0]} .single_bit_orig_name {system0/read_data[0]}
 set_db -quiet {inst:MCU/system0/read_data_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/read_data_reg[0]/Q} .original_name {system0/read_data[0]/q}
+set_db -quiet {inst:MCU/system0/read_data_reg[1]} .original_name {{system0/read_data[1]}}
+set_db -quiet {inst:MCU/system0/read_data_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/read_data_reg[1]} .single_bit_orig_name {system0/read_data[1]}
+set_db -quiet {inst:MCU/system0/read_data_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/read_data_reg[1]/Q} .original_name {system0/read_data[1]/q}
 set_db -quiet {inst:MCU/system0/read_data_reg[2]} .original_name {{system0/read_data[2]}}
 set_db -quiet {inst:MCU/system0/read_data_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[2]} .single_bit_orig_name {system0/read_data[2]}
 set_db -quiet {inst:MCU/system0/read_data_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/read_data_reg[2]/Q} .original_name {system0/read_data[2]/q}
-set_db -quiet {inst:MCU/system0/read_data_reg[3]} .original_name {{system0/read_data[3]}}
-set_db -quiet {inst:MCU/system0/read_data_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/read_data_reg[3]} .single_bit_orig_name {system0/read_data[3]}
-set_db -quiet {inst:MCU/system0/read_data_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/read_data_reg[3]/Q} .original_name {system0/read_data[3]/q}
-set_db -quiet {inst:MCU/system0/read_data_reg[4]} .original_name {{system0/read_data[4]}}
-set_db -quiet {inst:MCU/system0/read_data_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/read_data_reg[4]} .single_bit_orig_name {system0/read_data[4]}
-set_db -quiet {inst:MCU/system0/read_data_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/read_data_reg[4]/Q} .original_name {system0/read_data[4]/q}
-set_db -quiet {inst:MCU/system0/read_data_reg[5]} .original_name {{system0/read_data[5]}}
-set_db -quiet {inst:MCU/system0/read_data_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/read_data_reg[5]} .single_bit_orig_name {system0/read_data[5]}
-set_db -quiet {inst:MCU/system0/read_data_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/read_data_reg[5]/Q} .original_name {system0/read_data[5]/q}
+set_db -quiet {inst:MCU/system0/read_data_reg[6]} .original_name {{system0/read_data[6]}}
+set_db -quiet {inst:MCU/system0/read_data_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/read_data_reg[6]} .single_bit_orig_name {system0/read_data[6]}
+set_db -quiet {inst:MCU/system0/read_data_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/read_data_reg[6]/Q} .original_name {system0/read_data[6]/q}
 set_db -quiet {inst:MCU/system0/read_data_reg[7]} .original_name {{system0/read_data[7]}}
 set_db -quiet {inst:MCU/system0/read_data_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[7]} .single_bit_orig_name {system0/read_data[7]}
@@ -25241,11 +25251,6 @@ set_db -quiet {inst:MCU/system0/read_data_reg[16]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[16]} .single_bit_orig_name {system0/read_data[16]}
 set_db -quiet {inst:MCU/system0/read_data_reg[16]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/read_data_reg[16]/Q} .original_name {system0/read_data[16]/q}
-set_db -quiet {inst:MCU/system0/read_data_reg[17]} .original_name {{system0/read_data[17]}}
-set_db -quiet {inst:MCU/system0/read_data_reg[17]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/read_data_reg[17]} .single_bit_orig_name {system0/read_data[17]}
-set_db -quiet {inst:MCU/system0/read_data_reg[17]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/read_data_reg[17]/Q} .original_name {system0/read_data[17]/q}
 set_db -quiet inst:MCU/system0/resetn_sys_reg .original_name system0/resetn_sys
 set_db -quiet inst:MCU/system0/resetn_sys_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/system0/resetn_sys_reg .single_bit_orig_name system0/resetn_sys
@@ -25356,11 +25361,11 @@ set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[3]} .single_bit_orig_name {system0/SYS_CLK_CR[3]}
 set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[3]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_CLK_CR_reg[3]/Q} .original_name {system0/SYS_CLK_CR[3]/q}
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .original_name {{system0/SYS_CLK_CR[5]}}
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .single_bit_orig_name {system0/SYS_CLK_CR[5]}
-set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_CLK_CR_reg[5]/Q} .original_name {system0/SYS_CLK_CR[5]/q}
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .original_name {{system0/SYS_CLK_CR[6]}}
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .single_bit_orig_name {system0/SYS_CLK_CR[6]}
+set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_CLK_CR_reg[6]/Q} .original_name {system0/SYS_CLK_CR[6]/q}
 set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[7]} .original_name {{system0/SYS_CLK_CR[7]}}
 set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_CLK_CR_reg[7]} .single_bit_orig_name {system0/SYS_CLK_CR[7]}
@@ -25391,6 +25396,16 @@ set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[3]} .orig_hdl_instantiated fals
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[3]} .single_bit_orig_name {system0/SYS_CRC_DATA[3]}
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[3]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_CRC_DATA_reg[3]/Q} .original_name {system0/SYS_CRC_DATA[3]/q}
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .original_name {{system0/SYS_CRC_DATA[4]}}
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .single_bit_orig_name {system0/SYS_CRC_DATA[4]}
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_CRC_DATA_reg[4]/Q} .original_name {system0/SYS_CRC_DATA[4]/q}
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .original_name {{system0/SYS_CRC_DATA[5]}}
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .single_bit_orig_name {system0/SYS_CRC_DATA[5]}
+set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_CRC_DATA_reg[5]/Q} .original_name {system0/SYS_CRC_DATA[5]/q}
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[6]} .original_name {{system0/SYS_CRC_DATA[6]}}
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[6]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_CRC_DATA_reg[6]} .single_bit_orig_name {system0/SYS_CRC_DATA[6]}
@@ -25406,26 +25421,21 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[0]} .single_bit_orig_name {system0/SYS_IRQ_EN[0]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[0]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[0]/Q} .original_name {system0/SYS_IRQ_EN[0]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .original_name {{system0/SYS_IRQ_EN[1]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .single_bit_orig_name {system0/SYS_IRQ_EN[1]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[1]/Q} .original_name {system0/SYS_IRQ_EN[1]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[2]} .original_name {{system0/SYS_IRQ_EN[2]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[2]} .single_bit_orig_name {system0/SYS_IRQ_EN[2]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[2]/Q} .original_name {system0/SYS_IRQ_EN[2]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .original_name {{system0/SYS_IRQ_EN[3]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .single_bit_orig_name {system0/SYS_IRQ_EN[3]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[3]/Q} .original_name {system0/SYS_IRQ_EN[3]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .original_name {{system0/SYS_IRQ_EN[4]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .single_bit_orig_name {system0/SYS_IRQ_EN[4]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[4]/Q} .original_name {system0/SYS_IRQ_EN[4]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .original_name {{system0/SYS_IRQ_EN[5]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .single_bit_orig_name {system0/SYS_IRQ_EN[5]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[5]/Q} .original_name {system0/SYS_IRQ_EN[5]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .original_name {{system0/SYS_IRQ_EN[6]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .single_bit_orig_name {system0/SYS_IRQ_EN[6]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[6]/Q} .original_name {system0/SYS_IRQ_EN[6]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[7]} .original_name {{system0/SYS_IRQ_EN[7]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[7]} .single_bit_orig_name {system0/SYS_IRQ_EN[7]}
@@ -25436,36 +25446,26 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[16]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[16]} .single_bit_orig_name {system0/SYS_IRQ_EN[16]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[16]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[16]/Q} .original_name {system0/SYS_IRQ_EN[16]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .original_name {{system0/SYS_IRQ_EN[17]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .single_bit_orig_name {system0/SYS_IRQ_EN[17]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[17]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[17]/Q} .original_name {system0/SYS_IRQ_EN[17]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[32]} .original_name {{system0/SYS_IRQ_EN[32]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[32]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[32]} .single_bit_orig_name {system0/SYS_IRQ_EN[32]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[32]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[32]/Q} .original_name {system0/SYS_IRQ_EN[32]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .original_name {{system0/SYS_IRQ_EN[33]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .single_bit_orig_name {system0/SYS_IRQ_EN[33]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[33]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[33]/Q} .original_name {system0/SYS_IRQ_EN[33]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[34]} .original_name {{system0/SYS_IRQ_EN[34]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[34]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[34]} .single_bit_orig_name {system0/SYS_IRQ_EN[34]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[34]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[34]/Q} .original_name {system0/SYS_IRQ_EN[34]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .original_name {{system0/SYS_IRQ_EN[35]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .single_bit_orig_name {system0/SYS_IRQ_EN[35]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[35]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[35]/Q} .original_name {system0/SYS_IRQ_EN[35]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .original_name {{system0/SYS_IRQ_EN[36]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .single_bit_orig_name {system0/SYS_IRQ_EN[36]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[36]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[36]/Q} .original_name {system0/SYS_IRQ_EN[36]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .original_name {{system0/SYS_IRQ_EN[37]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .single_bit_orig_name {system0/SYS_IRQ_EN[37]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[37]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[37]/Q} .original_name {system0/SYS_IRQ_EN[37]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .original_name {{system0/SYS_IRQ_EN[38]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .single_bit_orig_name {system0/SYS_IRQ_EN[38]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[38]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[38]/Q} .original_name {system0/SYS_IRQ_EN[38]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[39]} .original_name {{system0/SYS_IRQ_EN[39]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[39]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[39]} .single_bit_orig_name {system0/SYS_IRQ_EN[39]}
@@ -25476,36 +25476,26 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[48]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[48]} .single_bit_orig_name {system0/SYS_IRQ_EN[48]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[48]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[48]/Q} .original_name {system0/SYS_IRQ_EN[48]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .original_name {{system0/SYS_IRQ_EN[49]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .single_bit_orig_name {system0/SYS_IRQ_EN[49]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[49]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[49]/Q} .original_name {system0/SYS_IRQ_EN[49]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[64]} .original_name {{system0/SYS_IRQ_EN[64]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[64]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[64]} .single_bit_orig_name {system0/SYS_IRQ_EN[64]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[64]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[64]/Q} .original_name {system0/SYS_IRQ_EN[64]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .original_name {{system0/SYS_IRQ_EN[65]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .single_bit_orig_name {system0/SYS_IRQ_EN[65]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[65]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[65]/Q} .original_name {system0/SYS_IRQ_EN[65]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[66]} .original_name {{system0/SYS_IRQ_EN[66]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[66]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[66]} .single_bit_orig_name {system0/SYS_IRQ_EN[66]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[66]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[66]/Q} .original_name {system0/SYS_IRQ_EN[66]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .original_name {{system0/SYS_IRQ_EN[67]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .single_bit_orig_name {system0/SYS_IRQ_EN[67]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[67]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[67]/Q} .original_name {system0/SYS_IRQ_EN[67]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .original_name {{system0/SYS_IRQ_EN[68]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .single_bit_orig_name {system0/SYS_IRQ_EN[68]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[68]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[68]/Q} .original_name {system0/SYS_IRQ_EN[68]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .original_name {{system0/SYS_IRQ_EN[69]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .single_bit_orig_name {system0/SYS_IRQ_EN[69]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[69]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[69]/Q} .original_name {system0/SYS_IRQ_EN[69]/q}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .original_name {{system0/SYS_IRQ_EN[70]}}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .single_bit_orig_name {system0/SYS_IRQ_EN[70]}
+set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[70]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[70]/Q} .original_name {system0/SYS_IRQ_EN[70]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[71]} .original_name {{system0/SYS_IRQ_EN[71]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[71]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[71]} .single_bit_orig_name {system0/SYS_IRQ_EN[71]}
@@ -25516,11 +25506,6 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[80]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[80]} .single_bit_orig_name {system0/SYS_IRQ_EN[80]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[80]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[80]/Q} .original_name {system0/SYS_IRQ_EN[80]/q}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .original_name {{system0/SYS_IRQ_EN[81]}}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .single_bit_orig_name {system0/SYS_IRQ_EN[81]}
-set_db -quiet {inst:MCU/system0/SYS_IRQ_EN_reg[81]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_IRQ_EN_reg[81]/Q} .original_name {system0/SYS_IRQ_EN[81]/q}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_PRI_reg[0]} .original_name {{system0/SYS_IRQ_PRI[0]}}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_PRI_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_IRQ_PRI_reg[0]} .single_bit_orig_name {system0/SYS_IRQ_PRI[0]}
@@ -25936,26 +25921,21 @@ set_db -quiet {inst:MCU/system0/SYS_IRQ_PRI_reg[82]} .orig_hdl_instantiated fals
 set_db -quiet {inst:MCU/system0/SYS_IRQ_PRI_reg[82]} .single_bit_orig_name {system0/SYS_IRQ_PRI[82]}
 set_db -quiet {inst:MCU/system0/SYS_IRQ_PRI_reg[82]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_IRQ_PRI_reg[82]/Q} .original_name {system0/SYS_IRQ_PRI[82]/q}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .original_name {{system0/SYS_WDT_CR[1]}}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .single_bit_orig_name {system0/SYS_WDT_CR[1]}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[1]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[1]/Q} .original_name {system0/SYS_WDT_CR[1]/q}
 set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[2]} .original_name {{system0/SYS_WDT_CR[2]}}
 set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[2]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[2]} .single_bit_orig_name {system0/SYS_WDT_CR[2]}
 set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[2]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[2]/Q} .original_name {system0/SYS_WDT_CR[2]/q}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .original_name {{system0/SYS_WDT_CR[3]}}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .single_bit_orig_name {system0/SYS_WDT_CR[3]}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[3]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[3]/Q} .original_name {system0/SYS_WDT_CR[3]/q}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .original_name {{system0/SYS_WDT_CR[4]}}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .single_bit_orig_name {system0/SYS_WDT_CR[4]}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[4]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[4]/Q} .original_name {system0/SYS_WDT_CR[4]/q}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .original_name {{system0/SYS_WDT_CR[5]}}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .single_bit_orig_name {system0/SYS_WDT_CR[5]}
-set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[5]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[5]/Q} .original_name {system0/SYS_WDT_CR[5]/q}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .original_name {{system0/SYS_WDT_CR[6]}}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .single_bit_orig_name {system0/SYS_WDT_CR[6]}
+set_db -quiet {inst:MCU/system0/SYS_WDT_CR_reg[6]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/SYS_WDT_CR_reg[6]/Q} .original_name {system0/SYS_WDT_CR[6]/q}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[0]} .original_name {{system0/crc_prev[0]}}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/crc_prev_reg[0]} .single_bit_orig_name {system0/crc_prev[0]}
@@ -25966,6 +25946,11 @@ set_db -quiet {inst:MCU/system0/crc_prev_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/crc_prev_reg[1]} .single_bit_orig_name {system0/crc_prev[1]}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[1]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/crc_prev_reg[1]/Q} .original_name {system0/crc_prev[1]/q}
+set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .original_name {{system0/crc_prev[2]}}
+set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .single_bit_orig_name {system0/crc_prev[2]}
+set_db -quiet {inst:MCU/system0/crc_prev_reg[2]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/crc_prev_reg[2]/Q} .original_name {system0/crc_prev[2]/q}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[3]} .original_name {{system0/crc_prev[3]}}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[3]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/crc_prev_reg[3]} .single_bit_orig_name {system0/crc_prev[3]}
@@ -25991,16 +25976,26 @@ set_db -quiet {inst:MCU/system0/crc_prev_reg[7]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/crc_prev_reg[7]} .single_bit_orig_name {system0/crc_prev[7]}
 set_db -quiet {inst:MCU/system0/crc_prev_reg[7]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/crc_prev_reg[7]/Q} .original_name {system0/crc_prev[7]/q}
-set_db -quiet {inst:MCU/system0/read_data_reg[1]} .original_name {{system0/read_data[1]}}
-set_db -quiet {inst:MCU/system0/read_data_reg[1]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/read_data_reg[1]} .single_bit_orig_name {system0/read_data[1]}
-set_db -quiet {inst:MCU/system0/read_data_reg[1]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/read_data_reg[1]/Q} .original_name {system0/read_data[1]/q}
-set_db -quiet {inst:MCU/system0/read_data_reg[6]} .original_name {{system0/read_data[6]}}
-set_db -quiet {inst:MCU/system0/read_data_reg[6]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/system0/read_data_reg[6]} .single_bit_orig_name {system0/read_data[6]}
-set_db -quiet {inst:MCU/system0/read_data_reg[6]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/system0/read_data_reg[6]/Q} .original_name {system0/read_data[6]/q}
+set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .original_name {{system0/crc_prev[15]}}
+set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .single_bit_orig_name {system0/crc_prev[15]}
+set_db -quiet {inst:MCU/system0/crc_prev_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/crc_prev_reg[15]/Q} .original_name {system0/crc_prev[15]/q}
+set_db -quiet {inst:MCU/system0/read_data_reg[3]} .original_name {{system0/read_data[3]}}
+set_db -quiet {inst:MCU/system0/read_data_reg[3]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/read_data_reg[3]} .single_bit_orig_name {system0/read_data[3]}
+set_db -quiet {inst:MCU/system0/read_data_reg[3]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/read_data_reg[3]/Q} .original_name {system0/read_data[3]/q}
+set_db -quiet {inst:MCU/system0/read_data_reg[4]} .original_name {{system0/read_data[4]}}
+set_db -quiet {inst:MCU/system0/read_data_reg[4]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/read_data_reg[4]} .single_bit_orig_name {system0/read_data[4]}
+set_db -quiet {inst:MCU/system0/read_data_reg[4]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/read_data_reg[4]/Q} .original_name {system0/read_data[4]/q}
+set_db -quiet {inst:MCU/system0/read_data_reg[5]} .original_name {{system0/read_data[5]}}
+set_db -quiet {inst:MCU/system0/read_data_reg[5]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/read_data_reg[5]} .single_bit_orig_name {system0/read_data[5]}
+set_db -quiet {inst:MCU/system0/read_data_reg[5]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/read_data_reg[5]/Q} .original_name {system0/read_data[5]/q}
 set_db -quiet {inst:MCU/system0/read_data_reg[8]} .original_name {{system0/read_data[8]}}
 set_db -quiet {inst:MCU/system0/read_data_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[8]} .single_bit_orig_name {system0/read_data[8]}
@@ -26041,6 +26036,11 @@ set_db -quiet {inst:MCU/system0/read_data_reg[15]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[15]} .single_bit_orig_name {system0/read_data[15]}
 set_db -quiet {inst:MCU/system0/read_data_reg[15]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/system0/read_data_reg[15]/Q} .original_name {system0/read_data[15]/q}
+set_db -quiet {inst:MCU/system0/read_data_reg[17]} .original_name {{system0/read_data[17]}}
+set_db -quiet {inst:MCU/system0/read_data_reg[17]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/system0/read_data_reg[17]} .single_bit_orig_name {system0/read_data[17]}
+set_db -quiet {inst:MCU/system0/read_data_reg[17]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/system0/read_data_reg[17]/Q} .original_name {system0/read_data[17]/q}
 set_db -quiet {inst:MCU/system0/read_data_reg[18]} .original_name {{system0/read_data[18]}}
 set_db -quiet {inst:MCU/system0/read_data_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/system0/read_data_reg[18]} .single_bit_orig_name {system0/read_data[18]}
@@ -26240,10 +26240,10 @@ set_db -quiet module:MCU/RC_CG_MOD_256 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_256 .boundary_opto strict_no
 set_db -quiet inst:MCU/timer0/RC_CG_HIER_INST264/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/timer0/RC_CG_HIER_INST264/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2722 .hdl_user_name ClockMuxGlitchFree
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2722 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2722 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2722 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2720 .hdl_user_name ClockMuxGlitchFree
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2720 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2720 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClockMuxGlitchFree_CLK_COUNT4_SEL_WIDTH2_CLK_DEFAULT0_3_2720 .lp_clock_gating_max_flops inf
 set_db -quiet {inst:MCU/timer0/clk_mux/MuxGen[0].CG1} .original_name {{timer0/clk_mux/MuxGen[0].CG1}}
 set_db -quiet {inst:MCU/timer0/clk_mux/MuxGen[0].CG1} .single_bit_orig_name {timer0/clk_mux/MuxGen[0].CG1}
 set_db -quiet {inst:MCU/timer0/clk_mux/MuxGen[0].CG1} .gint_phase_inversion false
@@ -26284,32 +26284,32 @@ set_db -quiet {inst:MCU/timer0/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .original
 set_db -quiet {inst:MCU/timer0/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .single_bit_orig_name {timer0/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0}
 set_db -quiet {inst:MCU/timer0/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q} .original_name {timer0/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q}
-set_db -quiet module:MCU/ClkGate_8183 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8183 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8183 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8183 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8180 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8180 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8180 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8180 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/timer0/clock_gate_divider/CG1 .original_name timer0/clock_gate_divider/CG1
 set_db -quiet inst:MCU/timer0/clock_gate_divider/CG1 .single_bit_orig_name timer0/clock_gate_divider/CG1
 set_db -quiet inst:MCU/timer0/clock_gate_divider/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/timer0/clock_gate_divider/CG1/ECK .original_name timer0/clock_gate_divider/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8184 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8184 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8184 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8184 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8181 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8181 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8181 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8181 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/timer0/clock_gate_timer/CG1 .original_name timer0/clock_gate_timer/CG1
 set_db -quiet inst:MCU/timer0/clock_gate_timer/CG1 .single_bit_orig_name timer0/clock_gate_timer/CG1
 set_db -quiet inst:MCU/timer0/clock_gate_timer/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/timer0/clock_gate_timer/CG1/ECK .original_name timer0/clock_gate_timer/CG1/ECK
+set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .original_name {{timer0/control_reg[10]}}
+set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .single_bit_orig_name {timer0/control_reg[10]}
+set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer0/control_reg_reg[10]/Q} .original_name {timer0/control_reg[10]/q}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[11]} .original_name {{timer0/control_reg[11]}}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/control_reg_reg[11]} .single_bit_orig_name {timer0/control_reg[11]}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[11]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/control_reg_reg[11]/Q} .original_name {timer0/control_reg[11]/q}
-set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .original_name {{timer0/control_reg[13]}}
-set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .single_bit_orig_name {timer0/control_reg[13]}
-set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/control_reg_reg[13]/Q} .original_name {timer0/control_reg[13]/q}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[12]} .original_name {{timer0/control_reg[12]}}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[12]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/control_reg_reg[12]} .single_bit_orig_name {timer0/control_reg[12]}
@@ -27330,16 +27330,16 @@ set_db -quiet {inst:MCU/timer0/compare2_reg_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[8]} .single_bit_orig_name {timer0/compare2_reg[8]}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[8]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/compare2_reg_reg[8]/Q} .original_name {timer0/compare2_reg[8]/q}
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .original_name {{timer0/compare2_reg[9]}}
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .single_bit_orig_name {timer0/compare2_reg[9]}
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/compare2_reg_reg[9]/Q} .original_name {timer0/compare2_reg[9]/q}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[10]} .original_name {{timer0/compare2_reg[10]}}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[10]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[10]} .single_bit_orig_name {timer0/compare2_reg[10]}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[10]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/compare2_reg_reg[10]/Q} .original_name {timer0/compare2_reg[10]/q}
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .original_name {{timer0/compare2_reg[11]}}
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .single_bit_orig_name {timer0/compare2_reg[11]}
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer0/compare2_reg_reg[11]/Q} .original_name {timer0/compare2_reg[11]/q}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[12]} .original_name {{timer0/compare2_reg[12]}}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[12]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[12]} .single_bit_orig_name {timer0/compare2_reg[12]}
@@ -27565,11 +27565,6 @@ set_db -quiet {inst:MCU/timer0/read_data_reg[14]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[14]} .single_bit_orig_name {timer0/read_data[14]}
 set_db -quiet {inst:MCU/timer0/read_data_reg[14]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/read_data_reg[14]/Q} .original_name {timer0/read_data[14]/q}
-set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .original_name {{timer0/read_data[15]}}
-set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .single_bit_orig_name {timer0/read_data[15]}
-set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/read_data_reg[15]/Q} .original_name {timer0/read_data[15]/q}
 set_db -quiet {inst:MCU/timer0/read_data_reg[18]} .original_name {{timer0/read_data[18]}}
 set_db -quiet {inst:MCU/timer0/read_data_reg[18]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[18]} .single_bit_orig_name {timer0/read_data[18]}
@@ -27595,6 +27590,11 @@ set_db -quiet {inst:MCU/timer0/read_data_reg[22]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[22]} .single_bit_orig_name {timer0/read_data[22]}
 set_db -quiet {inst:MCU/timer0/read_data_reg[22]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/read_data_reg[22]/Q} .original_name {timer0/read_data[22]/q}
+set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .original_name {{timer0/read_data[23]}}
+set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .single_bit_orig_name {timer0/read_data[23]}
+set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer0/read_data_reg[23]/Q} .original_name {timer0/read_data[23]/q}
 set_db -quiet {inst:MCU/timer0/read_data_reg[24]} .original_name {{timer0/read_data[24]}}
 set_db -quiet {inst:MCU/timer0/read_data_reg[24]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[24]} .single_bit_orig_name {timer0/read_data[24]}
@@ -27880,11 +27880,11 @@ set_db -quiet inst:MCU/timer0/compare2_int_flag_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/timer0/compare2_int_flag_reg .single_bit_orig_name timer0/compare2_int_flag
 set_db -quiet inst:MCU/timer0/compare2_int_flag_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/timer0/compare2_int_flag_reg/Q .original_name timer0/compare2_int_flag/q
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .original_name {{timer0/compare2_reg[11]}}
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .single_bit_orig_name {timer0/compare2_reg[11]}
-set_db -quiet {inst:MCU/timer0/compare2_reg_reg[11]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/compare2_reg_reg[11]/Q} .original_name {timer0/compare2_reg[11]/q}
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .original_name {{timer0/compare2_reg[9]}}
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .single_bit_orig_name {timer0/compare2_reg[9]}
+set_db -quiet {inst:MCU/timer0/compare2_reg_reg[9]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer0/compare2_reg_reg[9]/Q} .original_name {timer0/compare2_reg[9]/q}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[22]} .original_name {{timer0/compare2_reg[22]}}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[22]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[22]} .single_bit_orig_name {timer0/compare2_reg[22]}
@@ -27899,12 +27899,12 @@ set_db -quiet {inst:MCU/timer0/compare2_reg_reg[29]} .original_name {{timer0/com
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[29]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[29]} .single_bit_orig_name {timer0/compare2_reg[29]}
 set_db -quiet {inst:MCU/timer0/compare2_reg_reg[29]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/compare2_reg_reg[29]/Q} .original_name {timer0/compare2_reg[29]/q}
-set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .original_name {{timer0/control_reg[10]}}
-set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .single_bit_orig_name {timer0/control_reg[10]}
-set_db -quiet {inst:MCU/timer0/control_reg_reg[10]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/control_reg_reg[10]/Q} .original_name {timer0/control_reg[10]/q}
+set_db -quiet {pin:MCU/timer0/compare2_reg_reg[29]/QN} .original_name {timer0/compare2_reg[29]/q}
+set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .original_name {{timer0/control_reg[13]}}
+set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .single_bit_orig_name {timer0/control_reg[13]}
+set_db -quiet {inst:MCU/timer0/control_reg_reg[13]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer0/control_reg_reg[13]/Q} .original_name {timer0/control_reg[13]/q}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[19]} .original_name {{timer0/control_reg[19]}}
 set_db -quiet {inst:MCU/timer0/control_reg_reg[19]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/control_reg_reg[19]} .single_bit_orig_name {timer0/control_reg[19]}
@@ -28005,6 +28005,11 @@ set_db -quiet {inst:MCU/timer0/read_data_reg[1]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[1]} .single_bit_orig_name {timer0/read_data[1]}
 set_db -quiet {inst:MCU/timer0/read_data_reg[1]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/read_data_reg[1]/Q} .original_name {timer0/read_data[1]/q}
+set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .original_name {{timer0/read_data[15]}}
+set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .single_bit_orig_name {timer0/read_data[15]}
+set_db -quiet {inst:MCU/timer0/read_data_reg[15]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer0/read_data_reg[15]/Q} .original_name {timer0/read_data[15]/q}
 set_db -quiet {inst:MCU/timer0/read_data_reg[16]} .original_name {{timer0/read_data[16]}}
 set_db -quiet {inst:MCU/timer0/read_data_reg[16]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[16]} .single_bit_orig_name {timer0/read_data[16]}
@@ -28015,11 +28020,6 @@ set_db -quiet {inst:MCU/timer0/read_data_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[17]} .single_bit_orig_name {timer0/read_data[17]}
 set_db -quiet {inst:MCU/timer0/read_data_reg[17]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/read_data_reg[17]/Q} .original_name {timer0/read_data[17]/q}
-set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .original_name {{timer0/read_data[23]}}
-set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .single_bit_orig_name {timer0/read_data[23]}
-set_db -quiet {inst:MCU/timer0/read_data_reg[23]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer0/read_data_reg[23]/Q} .original_name {timer0/read_data[23]/q}
 set_db -quiet {inst:MCU/timer0/read_data_reg[27]} .original_name {{timer0/read_data[27]}}
 set_db -quiet {inst:MCU/timer0/read_data_reg[27]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/read_data_reg[27]} .single_bit_orig_name {timer0/read_data[27]}
@@ -28190,10 +28190,10 @@ set_db -quiet {inst:MCU/timer0/timer_value_reg[31]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer0/timer_value_reg[31]} .single_bit_orig_name {timer0/timer_value[31]}
 set_db -quiet {inst:MCU/timer0/timer_value_reg[31]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer0/timer_value_reg[31]/Q} .original_name {timer0/timer_value[31]/q}
-set_db -quiet module:MCU/TIMER_2725 .hdl_user_name TIMER
-set_db -quiet module:MCU/TIMER_2725 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/TIMER.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/TIMER_2725 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/TIMER_2725 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/TIMER_2723 .hdl_user_name TIMER
+set_db -quiet module:MCU/TIMER_2723 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClockMuxGlitchFree_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/TIMER.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/TIMER_2723 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/TIMER_2723 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_257 .logical_hier false
 set_db -quiet module:MCU/RC_CG_MOD_257 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/RC_CG_MOD_257 .lp_clock_gating_max_flops inf
@@ -28358,18 +28358,18 @@ set_db -quiet {inst:MCU/timer1/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .original
 set_db -quiet {inst:MCU/timer1/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .single_bit_orig_name {timer1/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0}
 set_db -quiet {inst:MCU/timer1/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer1/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q} .original_name {timer1/clk_mux/MuxGen[0].DefaultSlice.DLYDFF0/Q}
-set_db -quiet module:MCU/ClkGate_8164 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8164 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8164 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8164 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8161 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8161 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8161 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8161 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/timer1/clock_gate_divider/CG1 .original_name timer1/clock_gate_divider/CG1
 set_db -quiet inst:MCU/timer1/clock_gate_divider/CG1 .single_bit_orig_name timer1/clock_gate_divider/CG1
 set_db -quiet inst:MCU/timer1/clock_gate_divider/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/timer1/clock_gate_divider/CG1/ECK .original_name timer1/clock_gate_divider/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8165 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8165 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8165 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8165 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8162 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8162 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8162 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8162 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/timer1/clock_gate_timer/CG1 .original_name timer1/clock_gate_timer/CG1
 set_db -quiet inst:MCU/timer1/clock_gate_timer/CG1 .single_bit_orig_name timer1/clock_gate_timer/CG1
 set_db -quiet inst:MCU/timer1/clock_gate_timer/CG1 .gint_phase_inversion false
@@ -28384,6 +28384,11 @@ set_db -quiet {inst:MCU/timer1/control_reg_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/control_reg_reg[11]} .single_bit_orig_name {timer1/control_reg[11]}
 set_db -quiet {inst:MCU/timer1/control_reg_reg[11]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer1/control_reg_reg[11]/Q} .original_name {timer1/control_reg[11]/q}
+set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .original_name {{timer1/control_reg[12]}}
+set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .single_bit_orig_name {timer1/control_reg[12]}
+set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer1/control_reg_reg[12]/Q} .original_name {timer1/control_reg[12]/q}
 set_db -quiet {inst:MCU/timer1/control_reg_reg[13]} .original_name {{timer1/control_reg[13]}}
 set_db -quiet {inst:MCU/timer1/control_reg_reg[13]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/control_reg_reg[13]} .single_bit_orig_name {timer1/control_reg[13]}
@@ -29404,11 +29409,11 @@ set_db -quiet {inst:MCU/timer1/compare2_reg_reg[8]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[8]} .single_bit_orig_name {timer1/compare2_reg[8]}
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[8]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer1/compare2_reg_reg[8]/Q} .original_name {timer1/compare2_reg[8]/q}
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .original_name {{timer1/compare2_reg[10]}}
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .single_bit_orig_name {timer1/compare2_reg[10]}
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer1/compare2_reg_reg[10]/Q} .original_name {timer1/compare2_reg[10]/q}
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .original_name {{timer1/compare2_reg[9]}}
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .single_bit_orig_name {timer1/compare2_reg[9]}
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer1/compare2_reg_reg[9]/Q} .original_name {timer1/compare2_reg[9]/q}
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[11]} .original_name {{timer1/compare2_reg[11]}}
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[11]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[11]} .single_bit_orig_name {timer1/compare2_reg[11]}
@@ -29684,6 +29689,11 @@ set_db -quiet {inst:MCU/timer1/read_data_reg[22]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/read_data_reg[22]} .single_bit_orig_name {timer1/read_data[22]}
 set_db -quiet {inst:MCU/timer1/read_data_reg[22]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer1/read_data_reg[22]/Q} .original_name {timer1/read_data[22]/q}
+set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .original_name {{timer1/read_data[23]}}
+set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .single_bit_orig_name {timer1/read_data[23]}
+set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer1/read_data_reg[23]/Q} .original_name {timer1/read_data[23]/q}
 set_db -quiet {inst:MCU/timer1/read_data_reg[24]} .original_name {{timer1/read_data[24]}}
 set_db -quiet {inst:MCU/timer1/read_data_reg[24]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/read_data_reg[24]} .single_bit_orig_name {timer1/read_data[24]}
@@ -29974,11 +29984,11 @@ set_db -quiet inst:MCU/timer1/compare2_int_flag_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/timer1/compare2_int_flag_reg .single_bit_orig_name timer1/compare2_int_flag
 set_db -quiet inst:MCU/timer1/compare2_int_flag_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/timer1/compare2_int_flag_reg/Q .original_name timer1/compare2_int_flag/q
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .original_name {{timer1/compare2_reg[9]}}
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .single_bit_orig_name {timer1/compare2_reg[9]}
-set_db -quiet {inst:MCU/timer1/compare2_reg_reg[9]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer1/compare2_reg_reg[9]/Q} .original_name {timer1/compare2_reg[9]/q}
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .original_name {{timer1/compare2_reg[10]}}
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .orig_hdl_instantiated false
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .single_bit_orig_name {timer1/compare2_reg[10]}
+set_db -quiet {inst:MCU/timer1/compare2_reg_reg[10]} .gint_phase_inversion false
+set_db -quiet {pin:MCU/timer1/compare2_reg_reg[10]/Q} .original_name {timer1/compare2_reg[10]/q}
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[20]} .original_name {{timer1/compare2_reg[20]}}
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[20]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[20]} .single_bit_orig_name {timer1/compare2_reg[20]}
@@ -29989,11 +29999,6 @@ set_db -quiet {inst:MCU/timer1/compare2_reg_reg[30]} .orig_hdl_instantiated fals
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[30]} .single_bit_orig_name {timer1/compare2_reg[30]}
 set_db -quiet {inst:MCU/timer1/compare2_reg_reg[30]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer1/compare2_reg_reg[30]/Q} .original_name {timer1/compare2_reg[30]/q}
-set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .original_name {{timer1/control_reg[12]}}
-set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .single_bit_orig_name {timer1/control_reg[12]}
-set_db -quiet {inst:MCU/timer1/control_reg_reg[12]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer1/control_reg_reg[12]/Q} .original_name {timer1/control_reg[12]/q}
 set_db -quiet {inst:MCU/timer1/divider_counter_reg[0]} .original_name {{timer1/divider_counter[0]}}
 set_db -quiet {inst:MCU/timer1/divider_counter_reg[0]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/divider_counter_reg[0]} .single_bit_orig_name {timer1/divider_counter[0]}
@@ -30094,11 +30099,6 @@ set_db -quiet {inst:MCU/timer1/read_data_reg[17]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/read_data_reg[17]} .single_bit_orig_name {timer1/read_data[17]}
 set_db -quiet {inst:MCU/timer1/read_data_reg[17]} .gint_phase_inversion false
 set_db -quiet {pin:MCU/timer1/read_data_reg[17]/Q} .original_name {timer1/read_data[17]/q}
-set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .original_name {{timer1/read_data[23]}}
-set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .orig_hdl_instantiated false
-set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .single_bit_orig_name {timer1/read_data[23]}
-set_db -quiet {inst:MCU/timer1/read_data_reg[23]} .gint_phase_inversion false
-set_db -quiet {pin:MCU/timer1/read_data_reg[23]/Q} .original_name {timer1/read_data[23]/q}
 set_db -quiet {inst:MCU/timer1/read_data_reg[27]} .original_name {{timer1/read_data[27]}}
 set_db -quiet {inst:MCU/timer1/read_data_reg[27]} .orig_hdl_instantiated false
 set_db -quiet {inst:MCU/timer1/read_data_reg[27]} .single_bit_orig_name {timer1/read_data[27]}
@@ -30359,26 +30359,26 @@ set_db -quiet module:MCU/RC_CG_MOD_291 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_291 .boundary_opto strict_no
 set_db -quiet inst:MCU/uart0/RC_CG_HIER_INST299/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/uart0/RC_CG_HIER_INST299/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8188 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8188 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8188 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8188 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8185 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8185 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8185 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8185 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/uart0/cg_clk_baud/CG1 .original_name uart0/cg_clk_baud/CG1
 set_db -quiet inst:MCU/uart0/cg_clk_baud/CG1 .single_bit_orig_name uart0/cg_clk_baud/CG1
 set_db -quiet inst:MCU/uart0/cg_clk_baud/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/uart0/cg_clk_baud/CG1/ECK .original_name uart0/cg_clk_baud/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8187 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8187 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8187 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8187 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8184 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8184 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8184 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8184 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/uart0/cg_clk_tx/CG1 .original_name uart0/cg_clk_tx/CG1
 set_db -quiet inst:MCU/uart0/cg_clk_tx/CG1 .single_bit_orig_name uart0/cg_clk_tx/CG1
 set_db -quiet inst:MCU/uart0/cg_clk_tx/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/uart0/cg_clk_tx/CG1/ECK .original_name uart0/cg_clk_tx/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8189 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8189 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8189 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8189 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8186 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8186 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8186 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8186 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/uart0/cgu_baud_clk_src/CG1 .original_name uart0/cgu_baud_clk_src/CG1
 set_db -quiet inst:MCU/uart0/cgu_baud_clk_src/CG1 .single_bit_orig_name uart0/cgu_baud_clk_src/CG1
 set_db -quiet inst:MCU/uart0/cgu_baud_clk_src/CG1 .gint_phase_inversion false
@@ -31038,11 +31038,11 @@ set_db -quiet inst:MCU/uart0/USR_OVF_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/uart0/USR_OVF_reg .single_bit_orig_name uart0/USR_OVF
 set_db -quiet inst:MCU/uart0/USR_OVF_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/uart0/USR_OVF_reg/QN .original_name uart0/USR_OVF/q
-set_db -quiet module:MCU/UART_2726 .is_sop_cluster true
-set_db -quiet module:MCU/UART_2726 .hdl_user_name UART
-set_db -quiet module:MCU/UART_2726 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/UART.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/UART_2726 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/UART_2726 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/UART_2724 .is_sop_cluster true
+set_db -quiet module:MCU/UART_2724 .hdl_user_name UART
+set_db -quiet module:MCU/UART_2724 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/constants.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/MemoryMap.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}} {work -vhdl1993 {SYNTHESIS} {../hdl/MCU/periph/UART.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/UART_2724 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/UART_2724 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_292 .logical_hier false
 set_db -quiet module:MCU/RC_CG_MOD_292 .lp_clock_gating_min_flops 3
 set_db -quiet module:MCU/RC_CG_MOD_292 .lp_clock_gating_max_flops inf
@@ -31133,26 +31133,26 @@ set_db -quiet module:MCU/RC_CG_MOD_306 .lp_clock_gating_max_flops inf
 set_db -quiet module:MCU/RC_CG_MOD_306 .boundary_opto strict_no
 set_db -quiet inst:MCU/uart1/RC_CG_HIER_INST314/RC_CGIC_INST .gint_phase_inversion false
 set_db -quiet inst:MCU/uart1/RC_CG_HIER_INST314/RC_CGIC_INST .is_genus_clock_gate true
-set_db -quiet module:MCU/ClkGate_8169 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8169 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8169 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8169 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8166 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8166 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8166 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8166 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/uart1/cg_clk_baud/CG1 .original_name uart1/cg_clk_baud/CG1
 set_db -quiet inst:MCU/uart1/cg_clk_baud/CG1 .single_bit_orig_name uart1/cg_clk_baud/CG1
 set_db -quiet inst:MCU/uart1/cg_clk_baud/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/uart1/cg_clk_baud/CG1/ECK .original_name uart1/cg_clk_baud/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8168 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8168 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8168 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8168 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8165 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8165 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8165 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8165 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/uart1/cg_clk_tx/CG1 .original_name uart1/cg_clk_tx/CG1
 set_db -quiet inst:MCU/uart1/cg_clk_tx/CG1 .single_bit_orig_name uart1/cg_clk_tx/CG1
 set_db -quiet inst:MCU/uart1/cg_clk_tx/CG1 .gint_phase_inversion false
 set_db -quiet pin:MCU/uart1/cg_clk_tx/CG1/ECK .original_name uart1/cg_clk_tx/CG1/ECK
-set_db -quiet module:MCU/ClkGate_8170 .hdl_user_name ClkGate
-set_db -quiet module:MCU/ClkGate_8170 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
-set_db -quiet module:MCU/ClkGate_8170 .lp_clock_gating_min_flops 3
-set_db -quiet module:MCU/ClkGate_8170 .lp_clock_gating_max_flops inf
+set_db -quiet module:MCU/ClkGate_8167 .hdl_user_name ClkGate
+set_db -quiet module:MCU/ClkGate_8167 .hdl_filelist {{work -vhdl1993 {SYNTHESIS} {../hdl/MCU/commune/ClkGate_cmn65gp_ARM.vhd} {../hdl} {}}}
+set_db -quiet module:MCU/ClkGate_8167 .lp_clock_gating_min_flops 3
+set_db -quiet module:MCU/ClkGate_8167 .lp_clock_gating_max_flops inf
 set_db -quiet inst:MCU/uart1/cgu_baud_clk_src/CG1 .original_name uart1/cgu_baud_clk_src/CG1
 set_db -quiet inst:MCU/uart1/cgu_baud_clk_src/CG1 .single_bit_orig_name uart1/cgu_baud_clk_src/CG1
 set_db -quiet inst:MCU/uart1/cgu_baud_clk_src/CG1 .gint_phase_inversion false
@@ -31812,7 +31812,7 @@ set_db -quiet inst:MCU/uart1/USR_OVF_reg .orig_hdl_instantiated false
 set_db -quiet inst:MCU/uart1/USR_OVF_reg .single_bit_orig_name uart1/USR_OVF
 set_db -quiet inst:MCU/uart1/USR_OVF_reg .gint_phase_inversion false
 set_db -quiet pin:MCU/uart1/USR_OVF_reg/QN .original_name uart1/USR_OVF/q
-set_db -quiet pin:MCU/g17/Y .dont_touch false
+set_db -quiet pin:MCU/g9/Y .dont_touch false
 # BEGIN PMBIST SECTION
 # END PMBIST SECTION
 set_db -quiet source_verbose true
@@ -31821,7 +31821,7 @@ set_db -quiet source_verbose true
 ##
 ## Written by Genus(TM) Synthesis Solution version 19.15-s090_1
 ## flowkit v19.10-s018_1
-## Written on 18:15:14 08-Nov 2025
+## Written on 14:31:20 09-Nov 2025
 #############################################################
 #####   Flow Definitions   ##################################
 
@@ -31864,7 +31864,7 @@ if {[is_attribute flow_mail_on_error -obj_type root]} {set_db flow_mail_on_error
 if {[is_attribute flow_mail_to -obj_type root]} {set_db flow_mail_to {}}
 if {[is_attribute flow_metrics_file -obj_type root]} {set_db flow_metrics_file {}}
 if {[is_attribute flow_metrics_snapshot_parent_uuid -obj_type root]} {set_db flow_metrics_snapshot_parent_uuid {}}
-if {[is_attribute flow_metrics_snapshot_uuid -obj_type root]} {set_db flow_metrics_snapshot_uuid 41d218e3-66d0-4a72-89ef-aea1851cf203}
+if {[is_attribute flow_metrics_snapshot_uuid -obj_type root]} {set_db flow_metrics_snapshot_uuid ca710475-2364-4637-aedc-a000ad25517a}
 if {[is_attribute flow_overwrite_db -obj_type root]} {set_db flow_overwrite_db false}
 if {[is_attribute flow_report_directory -obj_type root]} {set_db flow_report_directory reports}
 if {[is_attribute flow_run_tag -obj_type root]} {set_db flow_run_tag {}}

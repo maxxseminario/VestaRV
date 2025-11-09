@@ -5,3 +5,4 @@
 # OS:   Unsupported OS as /etc does not have release info
 
 source tcl/MCU.genus.tcl
+exit
