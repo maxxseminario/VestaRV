@@ -41,7 +41,7 @@ set CORE_HEIGHT		[expr {$DESIGN_HEIGHT - ($CORE_SPACING * 2)}]
 set AFE_HEIGHT_SM  150
 set AFE_HEIGHT_LG  210
 set AFE_HEIGHT_TOT  [expr {$AFE_HEIGHT_SM + $AFE_HEIGHT_LG}]
-set AFE_WIDTH_LG    390
+set AFE_WIDTH_LG    400
 set AFE_WIDTH_SM    350
 set AFE_WIDTH_TOT   [expr {$AFE_WIDTH_LG + $AFE_WIDTH_SM}]
 set PAD_ROUTE_W     47  
@@ -61,7 +61,6 @@ tic
 # Specify inital design files.
 set init_verilog             "$GENUS_DIR/out/$DESIGN_NAME.genus.v"
 set init_top_cell            "$DESIGN_NAME"
-set init_mem_cell            "$DESIGN_NAME/mem_subsystem"
 set init_pwr_net             "VDD"
 set init_gnd_net             "VSS"
 set init_mmmc_file           "$SCRIPT_DIR/viewdefinition.tcl"
@@ -491,7 +490,7 @@ timeDesign -postCTS -expandedViews -outDir $REPORT_DIR/$DESIGN_NAME.timeDesign.p
 report_ccopt_clock_trees -file $REPORT_DIR/$DESIGN_NAME.report_ccopt_clock_trees.postcts
 report_ccopt_skew_groups -file $REPORT_DIR/$DESIGN_NAME.report_ccopt_skew_groups.postcts
 
-suspend
+# suspend
 
 
 
