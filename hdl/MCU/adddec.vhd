@@ -143,18 +143,19 @@ begin
         end if;
     end process;
 
-    -- Falling edge sensitive register for memory enables
+    -- Falling edge sensitive register for memory signals
     process(clk)
     begin
         if falling_edge(clk) then
             mem_en <= mem_en_sig;
             mem_en_periph <= mem_en_periph_sig;
             mab_out <= data_addr;
+            mem_addr    <= data_addr(13 downto 2); 
             addr_periph <= data_addr(7 downto 2);
+            mask        <= data_addr(1 downto 0);
             wen_fe <= wen;
         end if;
     end process;
-  
 
     
 
@@ -281,8 +282,7 @@ begin
     -- Output Assignments
     GWEN        <= '0' when (wen_fe /= "1111") else '1'; 
     read_data   <= out_buff;
-    mem_addr    <= data_addr(13 downto 2); 
-    mask        <= data_addr(1 downto 0);
+    
     
 
 end Behavioral;

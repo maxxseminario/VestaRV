@@ -412,7 +412,7 @@ architecture struct of vesta is
             current_state <= EXECUTE;
             repeat_if <= '0';
             pc <= PC_RST_VAL;
-            instr_curr_prev <= nop;
+            -- instr_curr_prev <= nop;
             instr_lower_half <= (others => '0');
             pc_next_reg <= PC_RST_VAL;
             pc_next_trad_reg <= PC_RST_VAL;
@@ -421,7 +421,7 @@ architecture struct of vesta is
         elsif rising_edge(clk_cpu) then
             -- Update state machine
             current_state <= next_state;
-            instr_curr_prev <= instr_curr;
+            -- instr_curr_prev <= instr_curr;
             pc_next_reg <= pc_next;
             pc_next_trad_reg <= pc_next_trad;
             data_addr_reg <= data_addr;
@@ -445,6 +445,16 @@ architecture struct of vesta is
             if ltch_lh_inst = '1' then
                 instr_lower_half <= instr(31 downto 16);
             end if;
+        end if;
+    end process;
+
+    -- Added - experienced some timing issues when instr_curr assigned to instr_curr_prev - advance by half cycle
+    state_reg_fe: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            instr_curr_prev <= nop;
+        elsif rising_edge(clk_cpu) then
+            instr_curr_prev <= instr_curr;
         end if;
     end process;
 
@@ -473,13 +483,11 @@ architecture struct of vesta is
     -- ==========================================
     -- Current Instruction Selection
     -- ==========================================
-    -- Complex multiplexer for selecting current instruction based on state and alignment
-    -- Keep instruction stable during atomic operations
+    -- Multiplexer for selecting current instruction based on state and alignment
     instr_curr <= nop when (resetn = '0' or current_state = INITIALIZE) else
                   instr when (current_state = IRQ_SV) else  -- IVT entries are never compressed
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and repeat_if = '1') else
                   instr_curr_prev when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0') else
-                  instr_curr_prev when (current_state = AMO_COMPLETE) else -- TODO: Added
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11") else
                   instr when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower = "11") else
                   instr_decomp when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11") else
@@ -492,6 +500,7 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = AMO_READ) else  -- Keep instruction during AMO
                   instr_curr_prev when (current_state = AMO_WRITEBACK) else
                   instr_curr_prev when (current_state = AMO_COMPUTE) else
+                  instr_curr_prev when (current_state = AMO_COMPLETE) else -- TODO: Added
                   instr_curr_prev when (current_state = AMO_WRITE) else
                   instr_curr_prev when (current_state = LR_READ) else
                   instr_curr_prev when (current_state = SC_CHECK) else

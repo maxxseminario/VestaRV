@@ -2,7 +2,7 @@
 *	Innovus 20.12-s088_1 (64bit) 11/06/2020 10:29 (Linux 2.6.32-431.11.2.el6.x86_64)
 *	
 *
-* 	Date & Time:	2025-Nov-13 16:15:53 (2025-Nov-13 22:15:53 GMT)
+* 	Date & Time:	2025-Nov-13 20:41:24 (2025-Nov-14 02:41:24 GMT)
 *
 *----------------------------------------------------------------------------------------
 *
@@ -47,42 +47,42 @@
 
 Total Power 
 -----------------------------------------------------------------------------------------
-Total Leakage Power:         1.24590658 
+Total Leakage Power:         1.24419706 
 -----------------------------------------------------------------------------------------
 
 
 Group                           Leakage       Percentage 
                                 Power         (%)        
 -----------------------------------------------------------------------------------------
-Sequential                        0.1117       8.967 
-Macro                             0.8624       69.22 
+Sequential                        0.1119       8.996 
+Macro                             0.8624       69.32 
 IO                                     0           0 
-Combinational                     0.2614       20.98 
-Clock (Combinational)            0.00263      0.2111 
-Clock (Sequential)              0.007683      0.6167 
+Combinational                     0.2603       20.92 
+Clock (Combinational)            0.00266      0.2138 
+Clock (Sequential)              0.006831       0.549 
 -----------------------------------------------------------------------------------------
-Total                              1.246         100 
+Total                              1.244         100 
 -----------------------------------------------------------------------------------------
 
 
 Rail                  Voltage   Leakage       Percentage 
                                 Power         (%)        
 -----------------------------------------------------------------------------------------
-VDD                       0.9      1.246         100 
+VDD                       0.9      1.244         100 
 
 
 Clock                           Leakage       Percentage 
                                 Power         (%)        
 -----------------------------------------------------------------------------------------
-clk_sck1                       0.0001888     0.01515 
-clk_sck0                       0.0001931      0.0155 
-clk_cpu                         0.003984      0.3198 
-clk_hfxt                       0.0007606     0.06105 
-mclk                            0.003013      0.2418 
-smclk                           0.003335      0.2677 
-clk_lfxt                       0.0007896     0.06337 
+clk_sck1                       0.0002041     0.01641 
+clk_sck0                       0.0001763     0.01417 
+clk_cpu                         0.002797      0.2248 
+clk_hfxt                       0.0007863     0.06319 
+mclk                            0.003287      0.2642 
+smclk                           0.003474      0.2792 
+clk_lfxt                       0.0008527     0.06854 
 -----------------------------------------------------------------------------------------
-Total (excluding duplicates)     0.01031      0.8278 
+Total (excluding duplicates)    0.009491      0.7628 
 -----------------------------------------------------------------------------------------
 Clock: clk_sck1
 Clock Period: 0.028571 usec 
@@ -125,14 +125,14 @@ Clock Static Probability:  0.5000
 *	Power Distribution Summary: 
 *                Highest Average Power:                      ram0 (sram1p16k_hvt_pg):           0.3719 
 *                Highest Leakage Power:                      ram0 (sram1p16k_hvt_pg):           0.3719 
-*          Total Cap:      4.83615e-10 F
-*          Total instances in design: 29893
+*          Total Cap:      4.82579e-10 F
+*          Total instances in design: 29931
 *          Total instances in design with no power:     6
 *          Total instances in design with no activity:     0
 *          Total Fillers and Decap:     6
 -----------------------------------------------------------------------------------------
 
-Total leakage power = 1.24591 mW
+Total leakage power = 1.2442 mW
 Cell usage statistics:  
-Library USERLIB_nldm_ss_0p90v_0p90v_125c , 3 cells ( 0.000000%) , 0.862443 mW ( 69.222127%  ) 
-Library scadv10_cln65gp_hvt_ss_0p9v_125c , 29884 cells ( 0.000000%) , 0.383464 mW ( 30.777873%  ) 
+Library USERLIB_nldm_ss_0p90v_0p90v_125c , 3 cells ( 0.000000%) , 0.862443 mW ( 69.317238%  ) 
+Library scadv10_cln65gp_hvt_ss_0p9v_125c , 29922 cells ( 0.000000%) , 0.381754 mW ( 30.682762%  ) 
