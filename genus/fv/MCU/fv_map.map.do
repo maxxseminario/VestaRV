@@ -413,7 +413,7 @@ add mapped point adddec0/addr_periph[2]/q adddec0/addr_periph_reg[2]/Q
 add mapped point adddec0/addr_periph[3]/q adddec0/addr_periph_reg[3]/Q 
 add mapped point adddec0/addr_periph[4]/q adddec0/addr_periph_reg[4]/Q 
 add mapped point adddec0/addr_periph[5]/q adddec0/addr_periph_reg[5]/Q 
-add mapped point adddec0/wen_periph[0]/q adddec0/wen_periph_reg[0]/Q 
+add mapped point adddec0/wen_fe[0]/q adddec0/wen_fe_reg[0]/Q 
 add mapped point adddec0/mem_sel_flash_int/q adddec0/mem_sel_flash_int_reg/Q 
 add mapped point adddec0/write_data[16]/q adddec0/write_data_reg[16]/Q 
 add mapped point adddec0/write_data[17]/q adddec0/write_data_reg[17]/Q 
@@ -460,9 +460,9 @@ add mapped point adddec0/mab_out[23]/q adddec0/mab_out_reg[23]/Q
 add mapped point adddec0/mab_out[22]/q adddec0/mab_out_reg[22]/Q 
 add mapped point adddec0/mab_out[0]/q adddec0/mab_out_reg[0]/Q 
 add mapped point adddec0/mab_out[19]/q adddec0/mab_out_reg[19]/Q 
-add mapped point adddec0/wen_periph[1]/q adddec0/wen_periph_reg[1]/Q 
-add mapped point adddec0/wen_periph[2]/q adddec0/wen_periph_reg[2]/Q 
-add mapped point adddec0/wen_periph[3]/q adddec0/wen_periph_reg[3]/Q 
+add mapped point adddec0/wen_fe[1]/q adddec0/wen_fe_reg[1]/Q 
+add mapped point adddec0/wen_fe[2]/q adddec0/wen_fe_reg[2]/Q 
+add mapped point adddec0/wen_fe[3]/q adddec0/wen_fe_reg[3]/Q 
 add mapped point adddec0/mab_out[1]/q adddec0/mab_out_reg[1]/Q 
 add mapped point adddec0/mab_out[8]/q adddec0/mab_out_reg[8]/Q 
 add mapped point adddec0/mab_out[14]/q adddec0/mab_out_reg[14]/Q 

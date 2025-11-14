@@ -23,6 +23,9 @@ RVTEST_CODE_BEGIN
 # get a unique core id
 la a0, coreid
 li a1, 1
+# Added by Maxx Seminario 11/13/25 to init memory location for post synthesis simulation
+li   a0, 0x83d0
+sw   zero, 0(a0)
 amoadd.w a2, a1, (a0)
 
 # for now, only run this on core 0
