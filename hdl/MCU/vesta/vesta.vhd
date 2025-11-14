@@ -479,6 +479,7 @@ architecture struct of vesta is
                   instr when (current_state = IRQ_SV) else  -- IVT entries are never compressed
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and repeat_if = '1') else
                   instr_curr_prev when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0') else
+                  instr_curr_prev when (current_state = AMO_COMPLETE) else -- TODO: Added
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11") else
                   instr when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower = "11") else
                   instr_decomp when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11") else
