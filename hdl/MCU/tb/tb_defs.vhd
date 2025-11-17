@@ -108,16 +108,16 @@ package tb_defs is
         -- "../rcf/xrv32uzbc-p-clmulr.rcf", -- Fail Genus 11/01/25
         -- "../rcf/xxrv32uzbc-p-clmul.rcf",
         -- -- "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
-        -- "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
-        -- "../rcf/xxxxperiph-p-SPIFM.rcf",
-        -- "../rcf/xxxxxxperiph-p-AFE.rcf",  
-        -- "../rcf/xxxperiph-p-SARADC.rcf",  
-        -- "../rcf/xxxxperiph-p-GPIO1.rcf",   
-        -- "../rcf/xxxxperiph-p-GPIO2.rcf",  
         "../rcf/xxxxxperiph-p-UART.rcf",  
         "../rcf/xxperiph-p-UARTIRQ.rcf", 
-        "../rcf/xxxperiph-p-SYSTEM.rcf", -- Innovus Pass 11/11
-        "../rcf/xxxxperiph-p-TIMER.rcf", -- Innovus fail 11/11
+        "../rcf/xxxperiph-p-SYSTEM.rcf", 
+        "../rcf/xxxxperiph-p-TIMER.rcf",
+        "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
+        "../rcf/xxxxperiph-p-SPIFM.rcf",
+        "../rcf/xxxxxxperiph-p-AFE.rcf",  
+        "../rcf/xxxperiph-p-SARADC.rcf",  
+        "../rcf/xxxxperiph-p-GPIO1.rcf",   
+        "../rcf/xxxxperiph-p-GPIO2.rcf",   
         "../rcf/xxxrv32ziscr-p-csr.rcf"     -- CSR Instructions (Custom)    
         -- "../rcf/xxxxxxperiph-p-SPI.rcf",  -- not tested here down
         -- "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb

@@ -343,45 +343,10 @@ tapeout:
 	pvs/lvs $(LIB_NAME)_tapeout $(TOP_CELL)_final $(LIB_NAME) $(TOP_CELL) -turbo
 
 
-# --------------------------------------------------------------------
-#  TODO: Better argument handling.
-# BEGIN positional arg swallow for strmout (perhaps cdl)
-# This consumes any extra words after 'strmout' or 'cdl' so Make
-# does not try to build them as independent targets.
-# Example: make strmout myLib myCell
-#          Goals parsed: strmout myLib myCell
-#          The two extras are turned into empty rules.
-# --------------------------------------------------------------------
-ifeq ($(filter strmout cdl,$(firstword $(MAKECMDGOALS))),strmout)
-EXTRA_GOALS := $(filter-out strmout,$(MAKECMDGOALS))
-$(EXTRA_GOALS): ;
-endif
-ifeq ($(filter strmout cdl,$(firstword $(MAKECMDGOALS))),cdl)
-EXTRA_GOALS := $(filter-out cdl,$(MAKECMDGOALS))
-$(EXTRA_GOALS): ;
-endif
-# --------------------------------------------------------------------
-# END positional arg swallow
-# --------------------------------------------------------------------
-
 # Maxx Seminario - Streamout of a gds file 
-# Usage:
-#   make strmout <library> <cell>
-#   make strmout                (defaults to LIB_NAME/TOP_CELL)
 .PHONY: strmout
 strmout:
-	@LIB="$(word 2,$(MAKECMDGOALS))"; \
-	CELL="$(word 3,$(MAKECMDGOALS))"; \
-	if [ -z "$$LIB" ] || [ -z "$$CELL" ]; then \
-		echo "No args provided, defaulting to LIB_NAME=$(LIB_NAME) TOP_CELL=$(TOP_CELL)"; \
-		LIB="$(LIB_NAME)"; \
-		CELL="$(TOP_CELL)"; \
-	fi; \
-	echo "Streaming out cell '$$CELL' from library '$$LIB'..."; \
-	cd $(IC_DIR) && strmout/strmout.sh $$LIB $$CELL
-
-
-
+	cd $(IC_DIR) && strmout/strmout.sh $(LIB_NAME) $(TOP_CELL)
 
 # Added abstracts to the ip target to ensure they are imported before MCU
 # Maxx Seminario 2024-09-21:

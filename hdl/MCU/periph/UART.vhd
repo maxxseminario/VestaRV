@@ -243,7 +243,7 @@ begin
     );
 
     -- TX Finite State Machine 
-    TX_FSM : process(resetn, clk_tx, clr_UTCIF, clr_UTEIF, UCR_EN)
+    TX_FSM : process(resetn, clk_tx, clr_UTCIF, clr_UTEIF)
     begin 
         if resetn = '0' or UCR_EN = '0' then
             tx_in_progress <= '0';
@@ -338,11 +338,11 @@ begin
 
     -- RX Start Bit Detection (Synchronous) - Keep this as is
     rx_start_detect_proc: process(clk, resetn)
-        variable rx_in_prev : std_logic := '0';
+        variable rx_in_prev : std_logic := '1';
     begin
         if resetn = '0' then
             rx_in_progress <= '0';
-            rx_in_prev := '0';
+            rx_in_prev := '1';
         elsif falling_edge(clk) then
             if UCR_EN = '0' or clr_rx_in_progress = '1' then
                 rx_in_progress <= '0';
@@ -359,7 +359,7 @@ begin
 
 
     -- RX Finite State Machine 
-    RX_FSM : process(resetn, clk_baud, en_clk_baud, UCR_EN, UCR_PEN, UCR_PSEL, clr_SR_RX, clr_URCIF, rx_in_progress)
+    RX_FSM : process(resetn, clk_baud, en_clk_baud, UCR_EN, UCR_PEN, UCR_PSEL, clr_SR_RX, clr_URCIF)
     begin 
         if resetn = '0' or rx_in_progress = '0' then
             rx_bit_cntr <= BIT_COUNTER_START; -- was "1010"
@@ -545,7 +545,7 @@ begin
     -- Separate process for start_tx with async clear
     start_tx_proc: process(resetn, clk_mem, clr_start_tx)
     begin
-        -- start_tx <= start_tx;
+        start_tx <= start_tx;
         if resetn = '0' or clr_start_tx = '1' then
             start_tx <= '0';
         elsif rising_edge(clk_mem) then

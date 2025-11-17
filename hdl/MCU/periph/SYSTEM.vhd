@@ -328,7 +328,7 @@ begin
     process(resetn_sys, clk_unlock, unlock)
     begin
         if resetn_sys = '0' then
-            unlock_timer <= (others => '0');
+            unlock_timer <= (others => '0'); -- locked
         elsif unlock = '1' then
             unlock_timer <= (others => '1'); -- start countdown
         elsif rising_edge(clk_unlock) then

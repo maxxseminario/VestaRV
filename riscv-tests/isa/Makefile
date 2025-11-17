@@ -241,7 +241,7 @@ $(eval $(call compile_template,boot,-march=rv32g -mabi=ilp32 -T$(src_dir)/../env
 $(eval $(call compile_template,spifem,-march=rv32g -mabi=ilp32 -T$(src_dir)/../env/p/link_fem.ld)) # rv32ui
 
 # Note -march=rv32g implies -march=rv32imafd
-$(eval $(call compile_template,periph,-march=rv32imc -mabi=ilp32))
+$(eval $(call compile_template,periph,-march=rv32im -mabi=ilp32))
 $(eval $(call compile_template,rv32ui,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32uc,-march=rv32imc -mabi=ilp32)) 
 $(eval $(call compile_template,rv32um,-march=rv32imc -mabi=ilp32))

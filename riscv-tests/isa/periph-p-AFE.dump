@@ -14,527 +14,528 @@ Disassembly of section .ivt:
     8018:	de8fe06f          	j	6600 <_start-0x1c00>
     801c:	fe4fe06f          	j	6800 <_start-0x1a00>
     8020:	9e1fe06f          	j	6a00 <_start-0x1800>
-    8024:	3dd0706f          	j	fc00 <fromhost+0x7540>
+    8024:	3dd0706f          	j	fc00 <fromhost+0x73c0>
     8028:	5d90706f          	j	fe00 <_end>
     802c:	fd5fe06f          	j	7000 <_start-0x1200>
     8030:	9d0ff06f          	j	7200 <_start-0x1000>
-    8034:	3cc0706f          	j	f400 <fromhost+0x6d40>
-    8038:	5c80706f          	j	f600 <fromhost+0x6f40>
-    803c:	7c40706f          	j	f800 <fromhost+0x7140>
+    8034:	3cc0706f          	j	f400 <fromhost+0x6bc0>
+    8038:	5c80706f          	j	f600 <fromhost+0x6dc0>
+    803c:	7c40706f          	j	f800 <fromhost+0x6fc0>
     8040:	9c1ff06f          	j	7a00 <_start-0x800>
     8044:	bbdff06f          	j	7c00 <_start-0x600>
     8048:	db9ff06f          	j	7e00 <_start-0x400>
     804c:	fb5ff06f          	j	8000 <_start-0x200>
     8050:	1b00006f          	j	8200 <_start>
-    8054:	3ac0006f          	j	8400 <test_bias_registers+0xac>
-    8058:	5a80006f          	j	8600 <test_test_port_register+0xa2>
-    805c:	7a40006f          	j	8800 <fromhost+0x140>
-    8060:	1a10006f          	j	8a00 <fromhost+0x340>
-    8064:	39d0006f          	j	8c00 <fromhost+0x540>
-    8068:	5990006f          	j	8e00 <fromhost+0x740>
-    806c:	7950006f          	j	9000 <fromhost+0x940>
-    8070:	1900106f          	j	9200 <fromhost+0xb40>
-    8074:	38c0106f          	j	9400 <fromhost+0xd40>
-    8078:	5880106f          	j	9600 <fromhost+0xf40>
-    807c:	7840106f          	j	9800 <fromhost+0x1140>
-    8080:	1810106f          	j	9a00 <fromhost+0x1340>
-    8084:	37d0106f          	j	9c00 <fromhost+0x1540>
-    8088:	5790106f          	j	9e00 <fromhost+0x1740>
-    808c:	7750106f          	j	a000 <fromhost+0x1940>
-    8090:	1700206f          	j	a200 <fromhost+0x1b40>
-    8094:	36c0206f          	j	a400 <fromhost+0x1d40>
-    8098:	5680206f          	j	a600 <fromhost+0x1f40>
-    809c:	7640206f          	j	a800 <fromhost+0x2140>
-    80a0:	1610206f          	j	aa00 <fromhost+0x2340>
-    80a4:	35d0206f          	j	ac00 <fromhost+0x2540>
-    80a8:	5590206f          	j	ae00 <fromhost+0x2740>
-    80ac:	7550206f          	j	b000 <fromhost+0x2940>
-    80b0:	1500306f          	j	b200 <fromhost+0x2b40>
-    80b4:	34c0306f          	j	b400 <fromhost+0x2d40>
-    80b8:	5480306f          	j	b600 <fromhost+0x2f40>
-    80bc:	7440306f          	j	b800 <fromhost+0x3140>
-    80c0:	1410306f          	j	ba00 <fromhost+0x3340>
-    80c4:	33d0306f          	j	bc00 <fromhost+0x3540>
-    80c8:	5390306f          	j	be00 <fromhost+0x3740>
-    80cc:	7350306f          	j	c000 <fromhost+0x3940>
-    80d0:	4310606f          	j	ed00 <fromhost+0x6640>
-    80d4:	72d0606f          	j	f000 <fromhost+0x6940>
-    80d8:	1280706f          	j	f200 <fromhost+0x6b40>
-    80dc:	7240406f          	j	c800 <fromhost+0x4140>
-    80e0:	1210406f          	j	ca00 <fromhost+0x4340>
-    80e4:	31d0406f          	j	cc00 <fromhost+0x4540>
-    80e8:	5190406f          	j	ce00 <fromhost+0x4740>
-    80ec:	7150406f          	j	d000 <fromhost+0x4940>
-    80f0:	1100506f          	j	d200 <fromhost+0x4b40>
-    80f4:	30c0506f          	j	d400 <fromhost+0x4d40>
-    80f8:	5080506f          	j	d600 <fromhost+0x4f40>
-    80fc:	7040506f          	j	d800 <fromhost+0x5140>
-    8100:	1010506f          	j	da00 <fromhost+0x5340>
-    8104:	2fd0506f          	j	dc00 <fromhost+0x5540>
-    8108:	4f90506f          	j	de00 <fromhost+0x5740>
-    810c:	6f50506f          	j	e000 <fromhost+0x5940>
-    8110:	0f00606f          	j	e200 <fromhost+0x5b40>
-    8114:	2ec0606f          	j	e400 <fromhost+0x5d40>
-    8118:	4e80606f          	j	e600 <fromhost+0x5f40>
-    811c:	6e40606f          	j	e800 <fromhost+0x6140>
-    8120:	0e10606f          	j	ea00 <fromhost+0x6340>
-    8124:	2dd0606f          	j	ec00 <fromhost+0x6540>
-    8128:	4d90606f          	j	ee00 <fromhost+0x6740>
-    812c:	6d50606f          	j	f000 <fromhost+0x6940>
-    8130:	0d00706f          	j	f200 <fromhost+0x6b40>
-    8134:	2cc0706f          	j	f400 <fromhost+0x6d40>
-    8138:	4c80706f          	j	f600 <fromhost+0x6f40>
-    813c:	6c40706f          	j	f800 <fromhost+0x7140>
-    8140:	0c10706f          	j	fa00 <fromhost+0x7340>
-    8144:	2bd0706f          	j	fc00 <fromhost+0x7540>
+    8054:	3ac0006f          	j	8400 <test_bias_registers+0x2c>
+    8058:	5a80006f          	j	8600 <test_bias_registers+0x22c>
+    805c:	7a40006f          	j	8800 <tohost>
+    8060:	1a10006f          	j	8a00 <fromhost+0x1c0>
+    8064:	39d0006f          	j	8c00 <fromhost+0x3c0>
+    8068:	5990006f          	j	8e00 <fromhost+0x5c0>
+    806c:	7950006f          	j	9000 <fromhost+0x7c0>
+    8070:	1900106f          	j	9200 <fromhost+0x9c0>
+    8074:	38c0106f          	j	9400 <fromhost+0xbc0>
+    8078:	5880106f          	j	9600 <fromhost+0xdc0>
+    807c:	7840106f          	j	9800 <fromhost+0xfc0>
+    8080:	1810106f          	j	9a00 <fromhost+0x11c0>
+    8084:	37d0106f          	j	9c00 <fromhost+0x13c0>
+    8088:	5790106f          	j	9e00 <fromhost+0x15c0>
+    808c:	7750106f          	j	a000 <fromhost+0x17c0>
+    8090:	1700206f          	j	a200 <fromhost+0x19c0>
+    8094:	36c0206f          	j	a400 <fromhost+0x1bc0>
+    8098:	5680206f          	j	a600 <fromhost+0x1dc0>
+    809c:	7640206f          	j	a800 <fromhost+0x1fc0>
+    80a0:	1610206f          	j	aa00 <fromhost+0x21c0>
+    80a4:	35d0206f          	j	ac00 <fromhost+0x23c0>
+    80a8:	5590206f          	j	ae00 <fromhost+0x25c0>
+    80ac:	7550206f          	j	b000 <fromhost+0x27c0>
+    80b0:	1500306f          	j	b200 <fromhost+0x29c0>
+    80b4:	34c0306f          	j	b400 <fromhost+0x2bc0>
+    80b8:	5480306f          	j	b600 <fromhost+0x2dc0>
+    80bc:	7440306f          	j	b800 <fromhost+0x2fc0>
+    80c0:	1410306f          	j	ba00 <fromhost+0x31c0>
+    80c4:	33d0306f          	j	bc00 <fromhost+0x33c0>
+    80c8:	5390306f          	j	be00 <fromhost+0x35c0>
+    80cc:	7350306f          	j	c000 <fromhost+0x37c0>
+    80d0:	4310606f          	j	ed00 <fromhost+0x64c0>
+    80d4:	72d0606f          	j	f000 <fromhost+0x67c0>
+    80d8:	1280706f          	j	f200 <fromhost+0x69c0>
+    80dc:	7240406f          	j	c800 <fromhost+0x3fc0>
+    80e0:	1210406f          	j	ca00 <fromhost+0x41c0>
+    80e4:	31d0406f          	j	cc00 <fromhost+0x43c0>
+    80e8:	5190406f          	j	ce00 <fromhost+0x45c0>
+    80ec:	7150406f          	j	d000 <fromhost+0x47c0>
+    80f0:	1100506f          	j	d200 <fromhost+0x49c0>
+    80f4:	30c0506f          	j	d400 <fromhost+0x4bc0>
+    80f8:	5080506f          	j	d600 <fromhost+0x4dc0>
+    80fc:	7040506f          	j	d800 <fromhost+0x4fc0>
+    8100:	1010506f          	j	da00 <fromhost+0x51c0>
+    8104:	2fd0506f          	j	dc00 <fromhost+0x53c0>
+    8108:	4f90506f          	j	de00 <fromhost+0x55c0>
+    810c:	6f50506f          	j	e000 <fromhost+0x57c0>
+    8110:	0f00606f          	j	e200 <fromhost+0x59c0>
+    8114:	2ec0606f          	j	e400 <fromhost+0x5bc0>
+    8118:	4e80606f          	j	e600 <fromhost+0x5dc0>
+    811c:	6e40606f          	j	e800 <fromhost+0x5fc0>
+    8120:	0e10606f          	j	ea00 <fromhost+0x61c0>
+    8124:	2dd0606f          	j	ec00 <fromhost+0x63c0>
+    8128:	4d90606f          	j	ee00 <fromhost+0x65c0>
+    812c:	6d50606f          	j	f000 <fromhost+0x67c0>
+    8130:	0d00706f          	j	f200 <fromhost+0x69c0>
+    8134:	2cc0706f          	j	f400 <fromhost+0x6bc0>
+    8138:	4c80706f          	j	f600 <fromhost+0x6dc0>
+    813c:	6c40706f          	j	f800 <fromhost+0x6fc0>
+    8140:	0c10706f          	j	fa00 <fromhost+0x71c0>
+    8144:	2bd0706f          	j	fc00 <fromhost+0x73c0>
     8148:	4b90706f          	j	fe00 <_end>
 
 Disassembly of section .text.init:
 
 00008200 <_start>:
-    8200:	a011                	j	8204 <reset_vector>
-    8202:	0001                	nop
+    8200:	0040006f          	j	8204 <reset_vector>
 
 00008204 <reset_vector>:
-    8204:	4081                	li	ra,0
-    8206:	4101                	li	sp,0
-    8208:	4181                	li	gp,0
-    820a:	4201                	li	tp,0
-    820c:	4281                	li	t0,0
-    820e:	4301                	li	t1,0
-    8210:	4381                	li	t2,0
-    8212:	4401                	li	s0,0
-    8214:	4481                	li	s1,0
-    8216:	4501                	li	a0,0
-    8218:	4581                	li	a1,0
-    821a:	4601                	li	a2,0
-    821c:	4681                	li	a3,0
-    821e:	4701                	li	a4,0
-    8220:	4781                	li	a5,0
-    8222:	4801                	li	a6,0
-    8224:	4881                	li	a7,0
-    8226:	4901                	li	s2,0
-    8228:	4981                	li	s3,0
-    822a:	4a01                	li	s4,0
-    822c:	4a81                	li	s5,0
-    822e:	4b01                	li	s6,0
-    8230:	4b81                	li	s7,0
-    8232:	4c01                	li	s8,0
-    8234:	4c81                	li	s9,0
-    8236:	4d01                	li	s10,0
-    8238:	4d81                	li	s11,0
-    823a:	4e01                	li	t3,0
-    823c:	4e81                	li	t4,0
-    823e:	4f01                	li	t5,0
-    8240:	4f81                	li	t6,0
-    8242:	4181                	li	gp,0
-    8244:	00000297          	auipc	t0,0x0
-    8248:	00a28293          	addi	t0,t0,10 # 824e <afe_testbench_start>
-    824c:	8282                	jr	t0
+    8204:	00000093          	li	ra,0
+    8208:	00000113          	li	sp,0
+    820c:	00000193          	li	gp,0
+    8210:	00000213          	li	tp,0
+    8214:	00000293          	li	t0,0
+    8218:	00000313          	li	t1,0
+    821c:	00000393          	li	t2,0
+    8220:	00000413          	li	s0,0
+    8224:	00000493          	li	s1,0
+    8228:	00000513          	li	a0,0
+    822c:	00000593          	li	a1,0
+    8230:	00000613          	li	a2,0
+    8234:	00000693          	li	a3,0
+    8238:	00000713          	li	a4,0
+    823c:	00000793          	li	a5,0
+    8240:	00000813          	li	a6,0
+    8244:	00000893          	li	a7,0
+    8248:	00000913          	li	s2,0
+    824c:	00000993          	li	s3,0
+    8250:	00000a13          	li	s4,0
+    8254:	00000a93          	li	s5,0
+    8258:	00000b13          	li	s6,0
+    825c:	00000b93          	li	s7,0
+    8260:	00000c13          	li	s8,0
+    8264:	00000c93          	li	s9,0
+    8268:	00000d13          	li	s10,0
+    826c:	00000d93          	li	s11,0
+    8270:	00000e13          	li	t3,0
+    8274:	00000e93          	li	t4,0
+    8278:	00000f13          	li	t5,0
+    827c:	00000f93          	li	t6,0
+    8280:	00000193          	li	gp,0
+    8284:	00000297          	auipc	t0,0x0
+    8288:	00c28293          	addi	t0,t0,12 # 8290 <afe_testbench_start>
+    828c:	00028067          	jr	t0
 
-0000824e <afe_testbench_start>:
-    824e:	6515                	lui	a0,0x5
-    8250:	c0050513          	addi	a0,a0,-1024 # 4c00 <_start-0x3600>
-    8254:	4181                	li	gp,0
-    8256:	030000ef          	jal	8286 <init_afe_peripheral>
-    825a:	052000ef          	jal	82ac <test_control_registers>
-    825e:	0f6000ef          	jal	8354 <test_bias_registers>
-    8262:	2fc000ef          	jal	855e <test_test_port_register>
-    8266:	0140006f          	j	827a <pass>
-    826a:	00301863          	bne	zero,gp,827a <pass>
+00008290 <afe_testbench_start>:
+    8290:	00005537          	lui	a0,0x5
+    8294:	c0050513          	addi	a0,a0,-1024 # 4c00 <_start-0x3600>
+    8298:	00000193          	li	gp,0
+    829c:	038000ef          	jal	82d4 <init_afe_peripheral>
+    82a0:	060000ef          	jal	8300 <test_control_registers>
+    82a4:	130000ef          	jal	83d4 <test_bias_registers>
+    82a8:	3dc000ef          	jal	8684 <test_test_port_register>
+    82ac:	0180006f          	j	82c4 <pass>
+    82b0:	00301a63          	bne	zero,gp,82c4 <pass>
 
-0000826e <fail>:
-    826e:	deadc537          	lui	a0,0xdeadc
-    8272:	eef50513          	addi	a0,a0,-273 # deadbeef <_end+0xdeacc0ef>
-    8276:	a009                	j	8278 <_fail_label>
+000082b4 <fail>:
+    82b4:	deadc537          	lui	a0,0xdeadc
+    82b8:	eef50513          	addi	a0,a0,-273 # deadbeef <_end+0xdeacc0ef>
+    82bc:	0040006f          	j	82c0 <_fail_label>
 
-00008278 <_fail_label>:
-    8278:	a001                	j	8278 <_fail_label>
+000082c0 <_fail_label>:
+    82c0:	0000006f          	j	82c0 <_fail_label>
 
-0000827a <pass>:
-    827a:	cafec537          	lui	a0,0xcafec
-    827e:	abe50513          	addi	a0,a0,-1346 # cafebabe <_end+0xcafdbcbe>
-    8282:	a009                	j	8284 <_pass_label>
+000082c4 <pass>:
+    82c4:	cafec537          	lui	a0,0xcafec
+    82c8:	abe50513          	addi	a0,a0,-1346 # cafebabe <_end+0xcafdbcbe>
+    82cc:	0040006f          	j	82d0 <_pass_label>
 
-00008284 <_pass_label>:
-    8284:	a001                	j	8284 <_pass_label>
+000082d0 <_pass_label>:
+    82d0:	0000006f          	j	82d0 <_pass_label>
 
-00008286 <init_afe_peripheral>:
-    8286:	00fff2b7          	lui	t0,0xfff
-    828a:	71728293          	addi	t0,t0,1815 # fff717 <_end+0xfef917>
-    828e:	00552023          	sw	t0,0(a0)
-    8292:	00052303          	lw	t1,0(a0)
-    8296:	010003b7          	lui	t2,0x1000
-    829a:	13fd                	addi	t2,t2,-1 # ffffff <_end+0xff01ff>
-    829c:	00737333          	and	t1,t1,t2
-    82a0:	fc6297e3          	bne	t0,t1,826e <fail>
-    82a4:	42bd                	li	t0,15
-    82a6:	00552423          	sw	t0,8(a0)
-    82aa:	8082                	ret
+000082d4 <init_afe_peripheral>:
+    82d4:	00fff2b7          	lui	t0,0xfff
+    82d8:	71728293          	addi	t0,t0,1815 # fff717 <_end+0xfef917>
+    82dc:	00552023          	sw	t0,0(a0)
+    82e0:	00052303          	lw	t1,0(a0)
+    82e4:	010003b7          	lui	t2,0x1000
+    82e8:	fff38393          	addi	t2,t2,-1 # ffffff <_end+0xff01ff>
+    82ec:	00737333          	and	t1,t1,t2
+    82f0:	fc6292e3          	bne	t0,t1,82b4 <fail>
+    82f4:	00f00293          	li	t0,15
+    82f8:	00552423          	sw	t0,8(a0)
+    82fc:	00008067          	ret
 
-000082ac <test_control_registers>:
-    82ac:	8906                	mv	s2,ra
-    82ae:	0185                	addi	gp,gp,1
-    82b0:	00555437          	lui	s0,0x555
-    82b4:	55540413          	addi	s0,s0,1365 # 555555 <_end+0x545755>
-    82b8:	010009b7          	lui	s3,0x1000
-    82bc:	19fd                	addi	s3,s3,-1 # ffffff <_end+0xff01ff>
-    82be:	01347433          	and	s0,s0,s3
-    82c2:	c100                	sw	s0,0(a0)
-    82c4:	00052a03          	lw	s4,0(a0)
-    82c8:	013a7a33          	and	s4,s4,s3
-    82cc:	fb4411e3          	bne	s0,s4,826e <fail>
-    82d0:	0185                	addi	gp,gp,1
-    82d2:	00aab437          	lui	s0,0xaab
-    82d6:	aaa40413          	addi	s0,s0,-1366 # aaaaaa <_end+0xa9acaa>
-    82da:	01347433          	and	s0,s0,s3
-    82de:	c100                	sw	s0,0(a0)
-    82e0:	00052a03          	lw	s4,0(a0)
-    82e4:	013a7a33          	and	s4,s4,s3
-    82e8:	f94413e3          	bne	s0,s4,826e <fail>
-    82ec:	0185                	addi	gp,gp,1
-    82ee:	4281                	li	t0,0
-    82f0:	4361                	li	t1,24
+00008300 <test_control_registers>:
+    8300:	00008913          	mv	s2,ra
+    8304:	00118193          	addi	gp,gp,1
+    8308:	00555437          	lui	s0,0x555
+    830c:	55540413          	addi	s0,s0,1365 # 555555 <_end+0x545755>
+    8310:	010009b7          	lui	s3,0x1000
+    8314:	fff98993          	addi	s3,s3,-1 # ffffff <_end+0xff01ff>
+    8318:	01347433          	and	s0,s0,s3
+    831c:	00852023          	sw	s0,0(a0)
+    8320:	00052a03          	lw	s4,0(a0)
+    8324:	013a7a33          	and	s4,s4,s3
+    8328:	f94416e3          	bne	s0,s4,82b4 <fail>
+    832c:	00118193          	addi	gp,gp,1
+    8330:	00aab437          	lui	s0,0xaab
+    8334:	aaa40413          	addi	s0,s0,-1366 # aaaaaa <_end+0xa9acaa>
+    8338:	01347433          	and	s0,s0,s3
+    833c:	00852023          	sw	s0,0(a0)
+    8340:	00052a03          	lw	s4,0(a0)
+    8344:	013a7a33          	and	s4,s4,s3
+    8348:	f74416e3          	bne	s0,s4,82b4 <fail>
+    834c:	00118193          	addi	gp,gp,1
+    8350:	00000293          	li	t0,0
+    8354:	01800313          	li	t1,24
 
-000082f2 <walk_1_afe_cr>:
-    82f2:	4405                	li	s0,1
-    82f4:	00541433          	sll	s0,s0,t0
-    82f8:	01347433          	and	s0,s0,s3
-    82fc:	c100                	sw	s0,0(a0)
-    82fe:	00052a03          	lw	s4,0(a0)
-    8302:	013a7a33          	and	s4,s4,s3
-    8306:	f74414e3          	bne	s0,s4,826e <fail>
-    830a:	0285                	addi	t0,t0,1
-    830c:	fe62c3e3          	blt	t0,t1,82f2 <walk_1_afe_cr>
-    8310:	0185                	addi	gp,gp,1
-    8312:	4281                	li	t0,0
-    8314:	4361                	li	t1,24
+00008358 <walk_1_afe_cr>:
+    8358:	00100413          	li	s0,1
+    835c:	00541433          	sll	s0,s0,t0
+    8360:	01347433          	and	s0,s0,s3
+    8364:	00852023          	sw	s0,0(a0)
+    8368:	00052a03          	lw	s4,0(a0)
+    836c:	013a7a33          	and	s4,s4,s3
+    8370:	f54412e3          	bne	s0,s4,82b4 <fail>
+    8374:	00128293          	addi	t0,t0,1
+    8378:	fe62c0e3          	blt	t0,t1,8358 <walk_1_afe_cr>
+    837c:	00118193          	addi	gp,gp,1
+    8380:	00000293          	li	t0,0
+    8384:	01800313          	li	t1,24
 
-00008316 <walk_0_afe_cr>:
-    8316:	4405                	li	s0,1
-    8318:	00541433          	sll	s0,s0,t0
-    831c:	fff44413          	not	s0,s0
-    8320:	01347433          	and	s0,s0,s3
-    8324:	c100                	sw	s0,0(a0)
-    8326:	00052a03          	lw	s4,0(a0)
-    832a:	013a7a33          	and	s4,s4,s3
-    832e:	f54410e3          	bne	s0,s4,826e <fail>
-    8332:	0285                	addi	t0,t0,1
-    8334:	fe62c1e3          	blt	t0,t1,8316 <walk_0_afe_cr>
-    8338:	0185                	addi	gp,gp,1
-    833a:	00aaa437          	lui	s0,0xaaa
-    833e:	01347433          	and	s0,s0,s3
-    8342:	c100                	sw	s0,0(a0)
-    8344:	00052a03          	lw	s4,0(a0)
-    8348:	013a7a33          	and	s4,s4,s3
-    834c:	f34411e3          	bne	s0,s4,826e <fail>
-    8350:	80ca                	mv	ra,s2
-    8352:	8082                	ret
+00008388 <walk_0_afe_cr>:
+    8388:	00100413          	li	s0,1
+    838c:	00541433          	sll	s0,s0,t0
+    8390:	fff44413          	not	s0,s0
+    8394:	01347433          	and	s0,s0,s3
+    8398:	00852023          	sw	s0,0(a0)
+    839c:	00052a03          	lw	s4,0(a0)
+    83a0:	013a7a33          	and	s4,s4,s3
+    83a4:	f14418e3          	bne	s0,s4,82b4 <fail>
+    83a8:	00128293          	addi	t0,t0,1
+    83ac:	fc62cee3          	blt	t0,t1,8388 <walk_0_afe_cr>
+    83b0:	00118193          	addi	gp,gp,1
+    83b4:	00aaa437          	lui	s0,0xaaa
+    83b8:	01347433          	and	s0,s0,s3
+    83bc:	00852023          	sw	s0,0(a0)
+    83c0:	00052a03          	lw	s4,0(a0)
+    83c4:	013a7a33          	and	s4,s4,s3
+    83c8:	ef4416e3          	bne	s0,s4,82b4 <fail>
+    83cc:	00090093          	mv	ra,s2
+    83d0:	00008067          	ret
 
-00008354 <test_bias_registers>:
-    8354:	8906                	mv	s2,ra
-    8356:	0185                	addi	gp,gp,1
-    8358:	49fd                	li	s3,31
-    835a:	4455                	li	s0,21
-    835c:	01347433          	and	s0,s0,s3
-    8360:	c900                	sw	s0,16(a0)
-    8362:	01052a03          	lw	s4,16(a0)
-    8366:	013a7a33          	and	s4,s4,s3
-    836a:	f14412e3          	bne	s0,s4,826e <fail>
-    836e:	0185                	addi	gp,gp,1
-    8370:	4429                	li	s0,10
-    8372:	01347433          	and	s0,s0,s3
-    8376:	c900                	sw	s0,16(a0)
-    8378:	01052a03          	lw	s4,16(a0)
-    837c:	013a7a33          	and	s4,s4,s3
-    8380:	ef4417e3          	bne	s0,s4,826e <fail>
-    8384:	0185                	addi	gp,gp,1
-    8386:	03f00993          	li	s3,63
-    838a:	02a00413          	li	s0,42
-    838e:	01347433          	and	s0,s0,s3
-    8392:	c940                	sw	s0,20(a0)
-    8394:	01452a03          	lw	s4,20(a0)
-    8398:	013a7a33          	and	s4,s4,s3
-    839c:	ed4419e3          	bne	s0,s4,826e <fail>
-    83a0:	0185                	addi	gp,gp,1
-    83a2:	4455                	li	s0,21
-    83a4:	01347433          	and	s0,s0,s3
-    83a8:	c940                	sw	s0,20(a0)
-    83aa:	01452a03          	lw	s4,20(a0)
-    83ae:	013a7a33          	and	s4,s4,s3
-    83b2:	eb441ee3          	bne	s0,s4,826e <fail>
-    83b6:	0185                	addi	gp,gp,1
-    83b8:	6991                	lui	s3,0x4
-    83ba:	19fd                	addi	s3,s3,-1 # 3fff <_start-0x4201>
-    83bc:	640d                	lui	s0,0x3
-    83be:	aaa40413          	addi	s0,s0,-1366 # 2aaa <_start-0x5756>
-    83c2:	01347433          	and	s0,s0,s3
-    83c6:	cd00                	sw	s0,24(a0)
-    83c8:	01852a03          	lw	s4,24(a0)
-    83cc:	013a7a33          	and	s4,s4,s3
-    83d0:	e9441fe3          	bne	s0,s4,826e <fail>
-    83d4:	0185                	addi	gp,gp,1
-    83d6:	6405                	lui	s0,0x1
-    83d8:	55540413          	addi	s0,s0,1365 # 1555 <_start-0x6cab>
-    83dc:	01347433          	and	s0,s0,s3
-    83e0:	cd00                	sw	s0,24(a0)
-    83e2:	01852a03          	lw	s4,24(a0)
-    83e6:	013a7a33          	and	s4,s4,s3
-    83ea:	e94412e3          	bne	s0,s4,826e <fail>
-    83ee:	0185                	addi	gp,gp,1
-    83f0:	6991                	lui	s3,0x4
-    83f2:	19fd                	addi	s3,s3,-1 # 3fff <_start-0x4201>
-    83f4:	6411                	lui	s0,0x4
-    83f6:	147d                	addi	s0,s0,-1 # 3fff <_start-0x4201>
-    83f8:	cd40                	sw	s0,28(a0)
-    83fa:	01c52a03          	lw	s4,28(a0)
-    83fe:	013a7a33          	and	s4,s4,s3
-    8402:	e74416e3          	bne	s0,s4,826e <fail>
-    8406:	0185                	addi	gp,gp,1
-    8408:	4401                	li	s0,0
-    840a:	cd40                	sw	s0,28(a0)
-    840c:	01c52a03          	lw	s4,28(a0)
-    8410:	e5441fe3          	bne	s0,s4,826e <fail>
-    8414:	0185                	addi	gp,gp,1
-    8416:	6991                	lui	s3,0x4
-    8418:	19fd                	addi	s3,s3,-1 # 3fff <_start-0x4201>
-    841a:	6405                	lui	s0,0x1
-    841c:	23440413          	addi	s0,s0,564 # 1234 <_start-0x6fcc>
-    8420:	d100                	sw	s0,32(a0)
-    8422:	02052a03          	lw	s4,32(a0)
-    8426:	013a7a33          	and	s4,s4,s3
-    842a:	e54412e3          	bne	s0,s4,826e <fail>
-    842e:	0185                	addi	gp,gp,1
-    8430:	6991                	lui	s3,0x4
-    8432:	19fd                	addi	s3,s3,-1 # 3fff <_start-0x4201>
-    8434:	6405                	lui	s0,0x1
-    8436:	f0f40413          	addi	s0,s0,-241 # f0f <_start-0x72f1>
-    843a:	d140                	sw	s0,36(a0)
-    843c:	02452a03          	lw	s4,36(a0)
-    8440:	013a7a33          	and	s4,s4,s3
-    8444:	e34415e3          	bne	s0,s4,826e <fail>
-    8448:	0185                	addi	gp,gp,1
-    844a:	03f00993          	li	s3,63
-    844e:	03f00413          	li	s0,63
-    8452:	d500                	sw	s0,40(a0)
-    8454:	02852a03          	lw	s4,40(a0)
-    8458:	013a7a33          	and	s4,s4,s3
-    845c:	e14419e3          	bne	s0,s4,826e <fail>
-    8460:	0185                	addi	gp,gp,1
-    8462:	02a00413          	li	s0,42
-    8466:	d540                	sw	s0,44(a0)
-    8468:	02c52a03          	lw	s4,44(a0)
-    846c:	013a7a33          	and	s4,s4,s3
-    8470:	df441fe3          	bne	s0,s4,826e <fail>
-    8474:	0185                	addi	gp,gp,1
-    8476:	4455                	li	s0,21
-    8478:	dd40                	sw	s0,60(a0)
-    847a:	03c52a03          	lw	s4,60(a0)
-    847e:	013a7a33          	and	s4,s4,s3
-    8482:	df4416e3          	bne	s0,s4,826e <fail>
-    8486:	0185                	addi	gp,gp,1
-    8488:	4429                	li	s0,10
-    848a:	c120                	sw	s0,64(a0)
-    848c:	04052a03          	lw	s4,64(a0)
+000083d4 <test_bias_registers>:
+    83d4:	00008913          	mv	s2,ra
+    83d8:	00118193          	addi	gp,gp,1
+    83dc:	01f00993          	li	s3,31
+    83e0:	01500413          	li	s0,21
+    83e4:	01347433          	and	s0,s0,s3
+    83e8:	00852823          	sw	s0,16(a0)
+    83ec:	01052a03          	lw	s4,16(a0)
+    83f0:	013a7a33          	and	s4,s4,s3
+    83f4:	ed4410e3          	bne	s0,s4,82b4 <fail>
+    83f8:	00118193          	addi	gp,gp,1
+    83fc:	00a00413          	li	s0,10
+    8400:	01347433          	and	s0,s0,s3
+    8404:	00852823          	sw	s0,16(a0)
+    8408:	01052a03          	lw	s4,16(a0)
+    840c:	013a7a33          	and	s4,s4,s3
+    8410:	eb4412e3          	bne	s0,s4,82b4 <fail>
+    8414:	00118193          	addi	gp,gp,1
+    8418:	03f00993          	li	s3,63
+    841c:	02a00413          	li	s0,42
+    8420:	01347433          	and	s0,s0,s3
+    8424:	00852a23          	sw	s0,20(a0)
+    8428:	01452a03          	lw	s4,20(a0)
+    842c:	013a7a33          	and	s4,s4,s3
+    8430:	e94412e3          	bne	s0,s4,82b4 <fail>
+    8434:	00118193          	addi	gp,gp,1
+    8438:	01500413          	li	s0,21
+    843c:	01347433          	and	s0,s0,s3
+    8440:	00852a23          	sw	s0,20(a0)
+    8444:	01452a03          	lw	s4,20(a0)
+    8448:	013a7a33          	and	s4,s4,s3
+    844c:	e74414e3          	bne	s0,s4,82b4 <fail>
+    8450:	00118193          	addi	gp,gp,1
+    8454:	000049b7          	lui	s3,0x4
+    8458:	fff98993          	addi	s3,s3,-1 # 3fff <_start-0x4201>
+    845c:	00003437          	lui	s0,0x3
+    8460:	aaa40413          	addi	s0,s0,-1366 # 2aaa <_start-0x5756>
+    8464:	01347433          	and	s0,s0,s3
+    8468:	00852c23          	sw	s0,24(a0)
+    846c:	01852a03          	lw	s4,24(a0)
+    8470:	013a7a33          	and	s4,s4,s3
+    8474:	e54410e3          	bne	s0,s4,82b4 <fail>
+    8478:	00118193          	addi	gp,gp,1
+    847c:	00001437          	lui	s0,0x1
+    8480:	55540413          	addi	s0,s0,1365 # 1555 <_start-0x6cab>
+    8484:	01347433          	and	s0,s0,s3
+    8488:	00852c23          	sw	s0,24(a0)
+    848c:	01852a03          	lw	s4,24(a0)
     8490:	013a7a33          	and	s4,s4,s3
-    8494:	dd441de3          	bne	s0,s4,826e <fail>
-    8498:	0185                	addi	gp,gp,1
-    849a:	03500413          	li	s0,53
-    849e:	c160                	sw	s0,68(a0)
-    84a0:	04452a03          	lw	s4,68(a0)
-    84a4:	013a7a33          	and	s4,s4,s3
-    84a8:	dd4413e3          	bne	s0,s4,826e <fail>
-    84ac:	0185                	addi	gp,gp,1
-    84ae:	4471                	li	s0,28
-    84b0:	c520                	sw	s0,72(a0)
-    84b2:	04852a03          	lw	s4,72(a0)
-    84b6:	013a7a33          	and	s4,s4,s3
-    84ba:	db441ae3          	bne	s0,s4,826e <fail>
-    84be:	0185                	addi	gp,gp,1
-    84c0:	000209b7          	lui	s3,0x20
-    84c4:	19fd                	addi	s3,s3,-1 # 1ffff <_end+0x101ff>
-    84c6:	00020437          	lui	s0,0x20
-    84ca:	147d                	addi	s0,s0,-1 # 1ffff <_end+0x101ff>
-    84cc:	d900                	sw	s0,48(a0)
-    84ce:	03052a03          	lw	s4,48(a0)
-    84d2:	013a7a33          	and	s4,s4,s3
-    84d6:	d9441ce3          	bne	s0,s4,826e <fail>
-    84da:	0185                	addi	gp,gp,1
-    84dc:	6455                	lui	s0,0x15
-    84de:	55540413          	addi	s0,s0,1365 # 15555 <_end+0x5755>
-    84e2:	d900                	sw	s0,48(a0)
-    84e4:	03052a03          	lw	s4,48(a0)
-    84e8:	013a7a33          	and	s4,s4,s3
-    84ec:	d94411e3          	bne	s0,s4,826e <fail>
-    84f0:	0185                	addi	gp,gp,1
-    84f2:	642d                	lui	s0,0xb
-    84f4:	aaa40413          	addi	s0,s0,-1366 # aaaa <fromhost+0x23ea>
-    84f8:	d900                	sw	s0,48(a0)
-    84fa:	03052a03          	lw	s4,48(a0)
-    84fe:	013a7a33          	and	s4,s4,s3
-    8502:	d74416e3          	bne	s0,s4,826e <fail>
-    8506:	0185                	addi	gp,gp,1
-    8508:	6441                	lui	s0,0x10
-    850a:	d900                	sw	s0,48(a0)
-    850c:	03052a03          	lw	s4,48(a0)
+    8494:	e34410e3          	bne	s0,s4,82b4 <fail>
+    8498:	00118193          	addi	gp,gp,1
+    849c:	000049b7          	lui	s3,0x4
+    84a0:	fff98993          	addi	s3,s3,-1 # 3fff <_start-0x4201>
+    84a4:	00004437          	lui	s0,0x4
+    84a8:	fff40413          	addi	s0,s0,-1 # 3fff <_start-0x4201>
+    84ac:	00852e23          	sw	s0,28(a0)
+    84b0:	01c52a03          	lw	s4,28(a0)
+    84b4:	013a7a33          	and	s4,s4,s3
+    84b8:	df441ee3          	bne	s0,s4,82b4 <fail>
+    84bc:	00118193          	addi	gp,gp,1
+    84c0:	00000413          	li	s0,0
+    84c4:	00852e23          	sw	s0,28(a0)
+    84c8:	01c52a03          	lw	s4,28(a0)
+    84cc:	df4414e3          	bne	s0,s4,82b4 <fail>
+    84d0:	00118193          	addi	gp,gp,1
+    84d4:	000049b7          	lui	s3,0x4
+    84d8:	fff98993          	addi	s3,s3,-1 # 3fff <_start-0x4201>
+    84dc:	00001437          	lui	s0,0x1
+    84e0:	23440413          	addi	s0,s0,564 # 1234 <_start-0x6fcc>
+    84e4:	02852023          	sw	s0,32(a0)
+    84e8:	02052a03          	lw	s4,32(a0)
+    84ec:	013a7a33          	and	s4,s4,s3
+    84f0:	dd4412e3          	bne	s0,s4,82b4 <fail>
+    84f4:	00118193          	addi	gp,gp,1
+    84f8:	000049b7          	lui	s3,0x4
+    84fc:	fff98993          	addi	s3,s3,-1 # 3fff <_start-0x4201>
+    8500:	00001437          	lui	s0,0x1
+    8504:	f0f40413          	addi	s0,s0,-241 # f0f <_start-0x72f1>
+    8508:	02852223          	sw	s0,36(a0)
+    850c:	02452a03          	lw	s4,36(a0)
     8510:	013a7a33          	and	s4,s4,s3
-    8514:	d5441de3          	bne	s0,s4,826e <fail>
-    8518:	0185                	addi	gp,gp,1
-    851a:	6441                	lui	s0,0x10
-    851c:	147d                	addi	s0,s0,-1 # ffff <_end+0x1ff>
-    851e:	d900                	sw	s0,48(a0)
-    8520:	03052a03          	lw	s4,48(a0)
-    8524:	013a7a33          	and	s4,s4,s3
-    8528:	d54413e3          	bne	s0,s4,826e <fail>
-    852c:	0185                	addi	gp,gp,1
-    852e:	6991                	lui	s3,0x4
-    8530:	19fd                	addi	s3,s3,-1 # 3fff <_start-0x4201>
-    8532:	6409                	lui	s0,0x2
-    8534:	147d                	addi	s0,s0,-1 # 1fff <_start-0x6201>
-    8536:	d940                	sw	s0,52(a0)
-    8538:	03452a03          	lw	s4,52(a0)
-    853c:	013a7a33          	and	s4,s4,s3
-    8540:	d34417e3          	bne	s0,s4,826e <fail>
-    8544:	0185                	addi	gp,gp,1
-    8546:	640d                	lui	s0,0x3
-    8548:	aaa40413          	addi	s0,s0,-1366 # 2aaa <_start-0x5756>
-    854c:	dd00                	sw	s0,56(a0)
-    854e:	03852a03          	lw	s4,56(a0)
-    8552:	013a7a33          	and	s4,s4,s3
-    8556:	d1441ce3          	bne	s0,s4,826e <fail>
-    855a:	80ca                	mv	ra,s2
-    855c:	8082                	ret
+    8514:	db4410e3          	bne	s0,s4,82b4 <fail>
+    8518:	00118193          	addi	gp,gp,1
+    851c:	03f00993          	li	s3,63
+    8520:	03f00413          	li	s0,63
+    8524:	02852423          	sw	s0,40(a0)
+    8528:	02852a03          	lw	s4,40(a0)
+    852c:	013a7a33          	and	s4,s4,s3
+    8530:	d94412e3          	bne	s0,s4,82b4 <fail>
+    8534:	00118193          	addi	gp,gp,1
+    8538:	02a00413          	li	s0,42
+    853c:	02852623          	sw	s0,44(a0)
+    8540:	02c52a03          	lw	s4,44(a0)
+    8544:	013a7a33          	and	s4,s4,s3
+    8548:	d74416e3          	bne	s0,s4,82b4 <fail>
+    854c:	00118193          	addi	gp,gp,1
+    8550:	01500413          	li	s0,21
+    8554:	02852e23          	sw	s0,60(a0)
+    8558:	03c52a03          	lw	s4,60(a0)
+    855c:	013a7a33          	and	s4,s4,s3
+    8560:	d5441ae3          	bne	s0,s4,82b4 <fail>
+    8564:	00118193          	addi	gp,gp,1
+    8568:	00a00413          	li	s0,10
+    856c:	04852023          	sw	s0,64(a0)
+    8570:	04052a03          	lw	s4,64(a0)
+    8574:	013a7a33          	and	s4,s4,s3
+    8578:	d3441ee3          	bne	s0,s4,82b4 <fail>
+    857c:	00118193          	addi	gp,gp,1
+    8580:	03500413          	li	s0,53
+    8584:	04852223          	sw	s0,68(a0)
+    8588:	04452a03          	lw	s4,68(a0)
+    858c:	013a7a33          	and	s4,s4,s3
+    8590:	d34412e3          	bne	s0,s4,82b4 <fail>
+    8594:	00118193          	addi	gp,gp,1
+    8598:	01c00413          	li	s0,28
+    859c:	04852423          	sw	s0,72(a0)
+    85a0:	04852a03          	lw	s4,72(a0)
+    85a4:	013a7a33          	and	s4,s4,s3
+    85a8:	d14416e3          	bne	s0,s4,82b4 <fail>
+    85ac:	00118193          	addi	gp,gp,1
+    85b0:	000209b7          	lui	s3,0x20
+    85b4:	fff98993          	addi	s3,s3,-1 # 1ffff <_end+0x101ff>
+    85b8:	00020437          	lui	s0,0x20
+    85bc:	fff40413          	addi	s0,s0,-1 # 1ffff <_end+0x101ff>
+    85c0:	02852823          	sw	s0,48(a0)
+    85c4:	03052a03          	lw	s4,48(a0)
+    85c8:	013a7a33          	and	s4,s4,s3
+    85cc:	cf4414e3          	bne	s0,s4,82b4 <fail>
+    85d0:	00118193          	addi	gp,gp,1
+    85d4:	00015437          	lui	s0,0x15
+    85d8:	55540413          	addi	s0,s0,1365 # 15555 <_end+0x5755>
+    85dc:	02852823          	sw	s0,48(a0)
+    85e0:	03052a03          	lw	s4,48(a0)
+    85e4:	013a7a33          	and	s4,s4,s3
+    85e8:	cd4416e3          	bne	s0,s4,82b4 <fail>
+    85ec:	00118193          	addi	gp,gp,1
+    85f0:	0000b437          	lui	s0,0xb
+    85f4:	aaa40413          	addi	s0,s0,-1366 # aaaa <fromhost+0x226a>
+    85f8:	02852823          	sw	s0,48(a0)
+    85fc:	03052a03          	lw	s4,48(a0)
+    8600:	013a7a33          	and	s4,s4,s3
+    8604:	cb4418e3          	bne	s0,s4,82b4 <fail>
+    8608:	00118193          	addi	gp,gp,1
+    860c:	00010437          	lui	s0,0x10
+    8610:	02852823          	sw	s0,48(a0)
+    8614:	03052a03          	lw	s4,48(a0)
+    8618:	013a7a33          	and	s4,s4,s3
+    861c:	c9441ce3          	bne	s0,s4,82b4 <fail>
+    8620:	00118193          	addi	gp,gp,1
+    8624:	00010437          	lui	s0,0x10
+    8628:	fff40413          	addi	s0,s0,-1 # ffff <_end+0x1ff>
+    862c:	02852823          	sw	s0,48(a0)
+    8630:	03052a03          	lw	s4,48(a0)
+    8634:	013a7a33          	and	s4,s4,s3
+    8638:	c7441ee3          	bne	s0,s4,82b4 <fail>
+    863c:	00118193          	addi	gp,gp,1
+    8640:	000049b7          	lui	s3,0x4
+    8644:	fff98993          	addi	s3,s3,-1 # 3fff <_start-0x4201>
+    8648:	00002437          	lui	s0,0x2
+    864c:	fff40413          	addi	s0,s0,-1 # 1fff <_start-0x6201>
+    8650:	02852a23          	sw	s0,52(a0)
+    8654:	03452a03          	lw	s4,52(a0)
+    8658:	013a7a33          	and	s4,s4,s3
+    865c:	c5441ce3          	bne	s0,s4,82b4 <fail>
+    8660:	00118193          	addi	gp,gp,1
+    8664:	00003437          	lui	s0,0x3
+    8668:	aaa40413          	addi	s0,s0,-1366 # 2aaa <_start-0x5756>
+    866c:	02852c23          	sw	s0,56(a0)
+    8670:	03852a03          	lw	s4,56(a0)
+    8674:	013a7a33          	and	s4,s4,s3
+    8678:	c3441ee3          	bne	s0,s4,82b4 <fail>
+    867c:	00090093          	mv	ra,s2
+    8680:	00008067          	ret
 
-0000855e <test_test_port_register>:
-    855e:	8906                	mv	s2,ra
-    8560:	0185                	addi	gp,gp,1
-    8562:	4401                	li	s0,0
-    8564:	001009b7          	lui	s3,0x100
-    8568:	19fd                	addi	s3,s3,-1 # fffff <_end+0xf01ff>
-    856a:	c140                	sw	s0,4(a0)
-    856c:	00452a03          	lw	s4,4(a0)
-    8570:	013a7a33          	and	s4,s4,s3
-    8574:	cf441de3          	bne	s0,s4,826e <fail>
-    8578:	0185                	addi	gp,gp,1
-    857a:	00100437          	lui	s0,0x100
-    857e:	147d                	addi	s0,s0,-1 # fffff <_end+0xf01ff>
-    8580:	01347433          	and	s0,s0,s3
-    8584:	c140                	sw	s0,4(a0)
-    8586:	00452a03          	lw	s4,4(a0)
-    858a:	013a7a33          	and	s4,s4,s3
-    858e:	cf4410e3          	bne	s0,s4,826e <fail>
-    8592:	0185                	addi	gp,gp,1
-    8594:	6421                	lui	s0,0x8
-    8596:	42140413          	addi	s0,s0,1057 # 8421 <test_bias_registers+0xcd>
-    859a:	c140                	sw	s0,4(a0)
-    859c:	00452a03          	lw	s4,4(a0)
-    85a0:	013a7a33          	and	s4,s4,s3
-    85a4:	cd4415e3          	bne	s0,s4,826e <fail>
-    85a8:	0185                	addi	gp,gp,1
-    85aa:	00055437          	lui	s0,0x55
-    85ae:	55540413          	addi	s0,s0,1365 # 55555 <_end+0x45755>
-    85b2:	01347433          	and	s0,s0,s3
-    85b6:	c140                	sw	s0,4(a0)
-    85b8:	00452a03          	lw	s4,4(a0)
-    85bc:	013a7a33          	and	s4,s4,s3
-    85c0:	cb4417e3          	bne	s0,s4,826e <fail>
-    85c4:	0185                	addi	gp,gp,1
-    85c6:	000ab437          	lui	s0,0xab
-    85ca:	aaa40413          	addi	s0,s0,-1366 # aaaaa <_end+0x9acaa>
-    85ce:	01347433          	and	s0,s0,s3
-    85d2:	c140                	sw	s0,4(a0)
-    85d4:	00452a03          	lw	s4,4(a0)
-    85d8:	013a7a33          	and	s4,s4,s3
-    85dc:	c94419e3          	bne	s0,s4,826e <fail>
-    85e0:	0185                	addi	gp,gp,1
-    85e2:	447d                	li	s0,31
-    85e4:	c140                	sw	s0,4(a0)
-    85e6:	00452a03          	lw	s4,4(a0)
-    85ea:	013a7a33          	and	s4,s4,s3
-    85ee:	c94410e3          	bne	s0,s4,826e <fail>
-    85f2:	0185                	addi	gp,gp,1
-    85f4:	3e000413          	li	s0,992
-    85f8:	c140                	sw	s0,4(a0)
-    85fa:	00452a03          	lw	s4,4(a0)
-    85fe:	013a7a33          	and	s4,s4,s3
-    8602:	c74416e3          	bne	s0,s4,826e <fail>
-    8606:	0185                	addi	gp,gp,1
-    8608:	6421                	lui	s0,0x8
-    860a:	c0040413          	addi	s0,s0,-1024 # 7c00 <_start-0x600>
-    860e:	c140                	sw	s0,4(a0)
-    8610:	00452a03          	lw	s4,4(a0)
-    8614:	013a7a33          	and	s4,s4,s3
-    8618:	c5441be3          	bne	s0,s4,826e <fail>
-    861c:	0185                	addi	gp,gp,1
-    861e:	000f8437          	lui	s0,0xf8
-    8622:	c140                	sw	s0,4(a0)
-    8624:	00452a03          	lw	s4,4(a0)
-    8628:	013a7a33          	and	s4,s4,s3
-    862c:	c54411e3          	bne	s0,s4,826e <fail>
-    8630:	0185                	addi	gp,gp,1
-    8632:	0006b437          	lui	s0,0x6b
-    8636:	5a440413          	addi	s0,s0,1444 # 6b5a4 <_end+0x5b7a4>
-    863a:	c140                	sw	s0,4(a0)
-    863c:	00452a03          	lw	s4,4(a0)
-    8640:	013a7a33          	and	s4,s4,s3
-    8644:	c34415e3          	bne	s0,s4,826e <fail>
-    8648:	80ca                	mv	ra,s2
-    864a:	8082                	ret
-    864c:	0000                	unimp
-    864e:	0001                	nop
+00008684 <test_test_port_register>:
+    8684:	00008913          	mv	s2,ra
+    8688:	00118193          	addi	gp,gp,1
+    868c:	00000413          	li	s0,0
+    8690:	001009b7          	lui	s3,0x100
+    8694:	fff98993          	addi	s3,s3,-1 # fffff <_end+0xf01ff>
+    8698:	00852223          	sw	s0,4(a0)
+    869c:	00452a03          	lw	s4,4(a0)
+    86a0:	013a7a33          	and	s4,s4,s3
+    86a4:	c14418e3          	bne	s0,s4,82b4 <fail>
+    86a8:	00118193          	addi	gp,gp,1
+    86ac:	00100437          	lui	s0,0x100
+    86b0:	fff40413          	addi	s0,s0,-1 # fffff <_end+0xf01ff>
+    86b4:	01347433          	and	s0,s0,s3
+    86b8:	00852223          	sw	s0,4(a0)
+    86bc:	00452a03          	lw	s4,4(a0)
+    86c0:	013a7a33          	and	s4,s4,s3
+    86c4:	bf4418e3          	bne	s0,s4,82b4 <fail>
+    86c8:	00118193          	addi	gp,gp,1
+    86cc:	00008437          	lui	s0,0x8
+    86d0:	42140413          	addi	s0,s0,1057 # 8421 <test_bias_registers+0x4d>
+    86d4:	00852223          	sw	s0,4(a0)
+    86d8:	00452a03          	lw	s4,4(a0)
+    86dc:	013a7a33          	and	s4,s4,s3
+    86e0:	bd441ae3          	bne	s0,s4,82b4 <fail>
+    86e4:	00118193          	addi	gp,gp,1
+    86e8:	00055437          	lui	s0,0x55
+    86ec:	55540413          	addi	s0,s0,1365 # 55555 <_end+0x45755>
+    86f0:	01347433          	and	s0,s0,s3
+    86f4:	00852223          	sw	s0,4(a0)
+    86f8:	00452a03          	lw	s4,4(a0)
+    86fc:	013a7a33          	and	s4,s4,s3
+    8700:	bb441ae3          	bne	s0,s4,82b4 <fail>
+    8704:	00118193          	addi	gp,gp,1
+    8708:	000ab437          	lui	s0,0xab
+    870c:	aaa40413          	addi	s0,s0,-1366 # aaaaa <_end+0x9acaa>
+    8710:	01347433          	and	s0,s0,s3
+    8714:	00852223          	sw	s0,4(a0)
+    8718:	00452a03          	lw	s4,4(a0)
+    871c:	013a7a33          	and	s4,s4,s3
+    8720:	b9441ae3          	bne	s0,s4,82b4 <fail>
+    8724:	00118193          	addi	gp,gp,1
+    8728:	01f00413          	li	s0,31
+    872c:	00852223          	sw	s0,4(a0)
+    8730:	00452a03          	lw	s4,4(a0)
+    8734:	013a7a33          	and	s4,s4,s3
+    8738:	b7441ee3          	bne	s0,s4,82b4 <fail>
+    873c:	00118193          	addi	gp,gp,1
+    8740:	3e000413          	li	s0,992
+    8744:	00852223          	sw	s0,4(a0)
+    8748:	00452a03          	lw	s4,4(a0)
+    874c:	013a7a33          	and	s4,s4,s3
+    8750:	b74412e3          	bne	s0,s4,82b4 <fail>
+    8754:	00118193          	addi	gp,gp,1
+    8758:	00008437          	lui	s0,0x8
+    875c:	c0040413          	addi	s0,s0,-1024 # 7c00 <_start-0x600>
+    8760:	00852223          	sw	s0,4(a0)
+    8764:	00452a03          	lw	s4,4(a0)
+    8768:	013a7a33          	and	s4,s4,s3
+    876c:	b54414e3          	bne	s0,s4,82b4 <fail>
+    8770:	00118193          	addi	gp,gp,1
+    8774:	000f8437          	lui	s0,0xf8
+    8778:	00852223          	sw	s0,4(a0)
+    877c:	00452a03          	lw	s4,4(a0)
+    8780:	013a7a33          	and	s4,s4,s3
+    8784:	b34418e3          	bne	s0,s4,82b4 <fail>
+    8788:	00118193          	addi	gp,gp,1
+    878c:	0006b437          	lui	s0,0x6b
+    8790:	5a440413          	addi	s0,s0,1444 # 6b5a4 <_end+0x5b7a4>
+    8794:	00852223          	sw	s0,4(a0)
+    8798:	00452a03          	lw	s4,4(a0)
+    879c:	013a7a33          	and	s4,s4,s3
+    87a0:	b1441ae3          	bne	s0,s4,82b4 <fail>
+    87a4:	00090093          	mv	ra,s2
+    87a8:	00008067          	ret
+    87ac:	c0001073          	unimp
 
-00008650 <begin_signature>:
-    8650:	deadbeef          	jal	t4,fffe3c3a <_end+0xfffd3e3a>
-    8654:	babe                	.insn	2, 0xbabe
-    8656:	cafe                	sw	t6,84(sp)
-    8658:	5678                	lw	a4,108(a2)
-    865a:	1234                	addi	a3,sp,296
-    865c:	def0                	sw	a2,124(a3)
-    865e:	9abc                	.insn	2, 0x9abc
+000087b0 <begin_signature>:
+    87b0:	deadbeef          	jal	t4,fffe3d9a <_end+0xfffd3f9a>
+    87b4:	babe                	.insn	2, 0xbabe
+    87b6:	cafe                	.insn	2, 0xcafe
+    87b8:	5678                	.insn	2, 0x5678
+    87ba:	1234                	.insn	2, 0x1234
+    87bc:	def0                	.insn	2, 0xdef0
+    87be:	9abc                	.insn	2, 0x9abc
 
-00008660 <end_signature>:
-    8660:	0000                	unimp
-    8662:	0000                	unimp
-    8664:	0000                	unimp
+000087c0 <end_signature>:
+    87c0:	0000                	.insn	2, 0x
+    87c2:	0000                	.insn	2, 0x
+    87c4:	0000                	.insn	2, 0x
+    87c6:	0000                	.insn	2, 0x
+    87c8:	0000                	.insn	2, 0x
+    87ca:	0000                	.insn	2, 0x
 
 Disassembly of section .tohost:
 
-00008680 <tohost>:
-    8680:	0000                	unimp
-    8682:	0000                	unimp
-    8684:	0000                	unimp
-    8686:	0000                	unimp
-    8688:	0000                	unimp
-    868a:	0000                	unimp
-    868c:	0000                	unimp
-    868e:	0000                	unimp
-    8690:	0000                	unimp
-    8692:	0000                	unimp
-    8694:	0000                	unimp
-    8696:	0000                	unimp
-    8698:	0000                	unimp
-    869a:	0000                	unimp
-    869c:	0000                	unimp
-    869e:	0000                	unimp
-    86a0:	0000                	unimp
-    86a2:	0000                	unimp
-    86a4:	0000                	unimp
-    86a6:	0000                	unimp
-    86a8:	0000                	unimp
-    86aa:	0000                	unimp
-    86ac:	0000                	unimp
-    86ae:	0000                	unimp
-    86b0:	0000                	unimp
-    86b2:	0000                	unimp
-    86b4:	0000                	unimp
-    86b6:	0000                	unimp
-    86b8:	0000                	unimp
-    86ba:	0000                	unimp
-    86bc:	0000                	unimp
-    86be:	0000                	unimp
+00008800 <tohost>:
+    8800:	0000                	.insn	2, 0x
+    8802:	0000                	.insn	2, 0x
+    8804:	0000                	.insn	2, 0x
+    8806:	0000                	.insn	2, 0x
+    8808:	0000                	.insn	2, 0x
+    880a:	0000                	.insn	2, 0x
+    880c:	0000                	.insn	2, 0x
+    880e:	0000                	.insn	2, 0x
+    8810:	0000                	.insn	2, 0x
+    8812:	0000                	.insn	2, 0x
+    8814:	0000                	.insn	2, 0x
+    8816:	0000                	.insn	2, 0x
+    8818:	0000                	.insn	2, 0x
+    881a:	0000                	.insn	2, 0x
+    881c:	0000                	.insn	2, 0x
+    881e:	0000                	.insn	2, 0x
+    8820:	0000                	.insn	2, 0x
+    8822:	0000                	.insn	2, 0x
+    8824:	0000                	.insn	2, 0x
+    8826:	0000                	.insn	2, 0x
+    8828:	0000                	.insn	2, 0x
+    882a:	0000                	.insn	2, 0x
+    882c:	0000                	.insn	2, 0x
+    882e:	0000                	.insn	2, 0x
+    8830:	0000                	.insn	2, 0x
+    8832:	0000                	.insn	2, 0x
+    8834:	0000                	.insn	2, 0x
+    8836:	0000                	.insn	2, 0x
+    8838:	0000                	.insn	2, 0x
+    883a:	0000                	.insn	2, 0x
+    883c:	0000                	.insn	2, 0x
+    883e:	0000                	.insn	2, 0x
 
-000086c0 <fromhost>:
-    86c0:	0000                	unimp
-    86c2:	0000                	unimp
-    86c4:	0000                	unimp
-    86c6:	0000                	unimp
+00008840 <fromhost>:
+    8840:	0000                	.insn	2, 0x
+    8842:	0000                	.insn	2, 0x
+    8844:	0000                	.insn	2, 0x
+    8846:	0000                	.insn	2, 0x
