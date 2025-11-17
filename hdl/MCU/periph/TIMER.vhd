@@ -285,7 +285,8 @@ begin
         if resetn = '0' then
             timer_value <= (others => '0');
         elsif latch_timer_value = '1' then
-            -- Load new value from register write
+            -- Load new value from register write 
+            -- timer_value_write is latched here - from memory write process
             timer_value <= timer_value_write;
         elsif rising_edge(timer_clock) then
             if clear_timer_value = '1' then
@@ -444,7 +445,7 @@ begin
     reg_address <= slv2uint(addr_periph) when en_mem = '0' else 0;
 
     -- Register write process
-    reg_write_proc: process(resetn, clk_mem)
+    reg_write_proc: process(resetn, clk_mem, en_mem)
     begin
         if resetn = '0' then
             control_reg <= (others => '0');

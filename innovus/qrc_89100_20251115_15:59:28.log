@@ -1,0 +1,592 @@
+
+
+  Cadence Quantus Extraction - 64-bit Parasitic Extractor - Version
+19.1.3-s062 Tue Jul 23 02:42:20 PDT 2019
+---------------------------------------------------------------------------------------------------------------
+                                  Copyright 2019 Cadence Design Systems,
+Inc.
+
+
+
+INFO (EXTQRCXLOG-103) : The Command File Options for the current Quantus run are as follows:
+
+distributed_processing \
+	 -multi_cpu 8
+extract \
+	 -selection "all" \
+	 -type "rc_decoupled"
+extraction_setup \
+	 -max_fracture_length 50 \
+	 -promote_pin_pad "LOGICAL"
+filter_coupling_cap \
+	 -cap_filtering_mode "absolute_and_relative" \
+	 -coupling_cap_threshold_absolute 0.1 \
+	 -coupling_cap_threshold_relative 1.0 \
+	 -total_cap_threshold 0.0
+input_db -type def \
+	 -lef_file_list_file "/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/qrc.leflist"
+log_file \
+	 -dump_options true \
+	 -file_name "qrc_89100_20251115_15:59:28.log"
+output_db -type spef \
+	 -short_incomplete_net_pins true \
+	 -subtype "EXTENDED"
+output_setup \
+	 -compressed true \
+	 -directory_name "/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD" \
+	 -file_name "MCU" \
+	 -temporary_directory_name "/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD"
+process_technology \
+	 -technology_corner \
+		"best_rc_corner" \
+	 -technology_library_file "/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/_qrc_techlib.defs" \
+	 -technology_name "_qrc_tech_" \
+	 -temperature \
+		25
+
+
+
+
+INFO (EXTGRMP-102) : Starting at 2025-Nov-15 15:59:29 (2025-Nov-15 21:59:29 GMT) on host atlas
+with pid 112887.
+Running binary as: 
+ /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc -cmd
+/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/__qrc.qrc.cmd
+-multi_cpu 8
+/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/qrc.def.gz 
+
+
+WARNING (EXTGRMP-414) : No GDSII/OASIS file is specified. Setting graybox type as LEF_OBSTRUCTION.
+
+INFO (EXTGRMP-142) : Command line arguments:
+"-cmd"
+"/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/__qrc.qrc.cmd"
+"-multi_cpu"
+"8"
+"/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/qrc.def.gz"
+
+INFO (EXTGRMP-143) : Option copy_port_to_obs = "true"
+
+INFO (EXTGRMP-143) : Option log_file = "qrc_89100_20251115_15:59:28.log"
+
+INFO (EXTGRMP-143) : Option max_error_messages = "100"
+
+INFO (EXTGRMP-143) : Option message_detail_level = "10"
+
+INFO (EXTGRMP-143) : Option tech_file = ""
+
+INFO (EXTGRMP-143) : Option library_name = ""
+
+INFO (EXTGRMP-143) : Option oa_default_rule_name = ""
+
+INFO (EXTGRMP-143) : Option gray_data = "obs"
+
+INFO (EXTGRMP-143) : Option use_macro_density = "false"
+
+INFO (EXTGRMP-143) : Option comp_prealloc = "0"
+
+INFO (EXTGRMP-143) : Option net_prealloc = "0"
+
+INFO (EXTGRMP-143) : Option output_directory_name =
+"/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD"
+
+INFO (EXTGRMP-143) : Option output_coordinate_units = "micron"
+
+INFO (EXTGRMP-143) : Option user_comment = ""
+
+INFO (EXTGRMP-143) : Option output_cache_directory_name =
+"/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/.qrctemp"
+
+INFO (EXTGRMP-143) : Option keep_temporary_files = "false"
+
+INFO (EXTGRMP-143) : Option output_density_tiles = "false"
+
+INFO (EXTGRMP-143) : Option output_file_name = "MCU"
+
+INFO (EXTGRMP-143) : Option spef_define_file = ""
+
+INFO (EXTGRMP-143) : Option reduce_output = "false"
+
+INFO (EXTGRMP-143) : Option debug_log = "false"
+
+INFO (EXTGRMP-143) : Option spef_output = "extended"
+
+INFO (EXTGRMP-143) : Option dspf_output = "none"
+
+INFO (EXTGRMP-143) : Option output_sstorm_db_name = ""
+
+INFO (EXTGRMP-143) : Option netlist_output = "none"
+
+INFO (EXTGRMP-143) : Option net_cc_output = "false"
+
+INFO (EXTGRMP-143) : Option rcdb_output = "false"
+
+INFO (EXTGRMP-143) : Option hierarchy_char = "/"
+
+INFO (EXTGRMP-143) : Option bus_chars = "[]"
+
+INFO (EXTGRMP-143) : Option pin_char = ":"
+
+INFO (EXTGRMP-143) : Option output_incomplete_nets_type = "no_pin one_pin disconnected_pin
+multiple_partitions floating_resistors"
+
+INFO (EXTGRMP-143) : Option truncate_regular_wires = "false"
+
+INFO (EXTGRMP-143) : Option layout_scale = "1.0"
+
+INFO (EXTGRMP-143) : Option output_file_max_size = "9223372036854775807"
+
+INFO (EXTGRMP-143) : Option dump_options = "true"
+
+INFO (EXTGRMP-143) : Option short_incomplete_net_pins = "true"
+
+INFO (EXTGRMP-143) : Option promote_incomplete_net_pins = "true"
+
+INFO (EXTGRMP-143) : Option output_incomplete_nets = "true"
+
+INFO (EXTGRMP-143) : Option output_unrouted_nets = "false"
+
+INFO (EXTGRMP-143) : Option treat_special_chars = "true"
+
+INFO (EXTGRMP-143) : Option lumped_cc_threshold = "0.0"
+
+INFO (EXTGRMP-143) : Option reduction_max_frequency = "1.0e+08"
+
+INFO (EXTGRMP-143) : Option compressed_output = "true"
+
+INFO (EXTGRMP-143) : Option max_resistor_length = "50"
+
+INFO (EXTGRMP-143) : Option promote_feedthru_ports = "none"
+
+INFO (EXTGRMP-143) : Option promote_instance_ports = "none"
+
+INFO (EXTGRMP-143) : Option output_promoted_feedthrus = "false"
+
+INFO (EXTGRMP-143) : Option output_unconnected_pins = "false"
+
+INFO (EXTGRMP-143) : Option remove_floating_metals = "false"
+
+INFO (EXTGRMP-143) : Option promote_pin_pad = "logical"
+
+INFO (EXTGRMP-143) : Option eco_compatible_mode = "false"
+
+INFO (EXTGRMP-143) : Option cap_mode_2915 = "true"
+
+INFO (EXTGRMP-143) : Option quickcap_file = "false"
+
+INFO (EXTGRMP-143) : Option ict_file = "process.ict"
+
+INFO (EXTGRMP-143) : Option quickcap_netfile = "qapi.net"
+
+INFO (EXTGRMP-143) : Option lefcap_output = "false"
+
+INFO (EXTGRMP-143) : Option lefcap_scale = "1.25"
+
+INFO (EXTGRMP-143) : Option lefres_output = "false"
+
+INFO (EXTGRMP-143) : Option kfactor_file = ""
+
+INFO (EXTGRMP-143) : Option total_c_threshold = "0"
+
+INFO (EXTGRMP-143) : Option relative_c_threshold = "1"
+
+INFO (EXTGRMP-143) : Option output_cap_filtering_mode = "relative_and_coupling"
+
+INFO (EXTGRMP-143) : Option cap_mode = "default"
+
+INFO (EXTGRMP-143) : Option parallel_options = ""
+
+INFO (EXTGRMP-143) : Option load_optimized_views = "true"
+
+INFO (EXTGRMP-143) : Option enable_metal_fill_effects = "true"
+
+INFO (EXTGRMP-143) : Option advanced_metal_fill = "false"
+
+INFO (EXTGRMP-143) : Option metal_fill_type = "floating"
+
+INFO (EXTGRMP-143) : Option vmf_metal_scheme_file = ""
+
+INFO (EXTGRMP-143) : Option vmf_rule_file = ""
+
+INFO (EXTGRMP-143) : Option ignore_conn_to_bump = "true"
+
+INFO (EXTGRMP-143) : Option lic_queue = "0"
+
+INFO (EXTGRMP-143) : Option metal_fill_gds_file = ""
+
+INFO (EXTGRMP-143) : Option density_check_method = "none"
+
+INFO (EXTGRMP-143) : Option temperature = "25"
+
+INFO (EXTGRMP-143) : Option promote_gray_data_pins = "false"
+
+INFO (EXTGRMP-143) : Option use_layer_bias_in_cmd_and_process_bias_in_tech = "false"
+
+INFO (EXTGRMP-143) : Option map_eeq_to_master_in_output = "false"
+
+INFO (EXTGRMP-143) : Option match_res_cap_in_output = "false"
+
+INFO (EXTGRMP-143) : Option merge_tile_boundary_data = "true"
+
+INFO (EXTGRMP-143) : Option coupling_c_threshold = "0.1"
+
+INFO (EXTGRMP-143) : Option use_icecaps_models_only = "false"
+
+INFO (EXTGRMP-143) : Option use_name_map_in_spef = "true"
+
+INFO (EXTGRMP-143) : Option name_map_start_index_in_spef = "0"
+
+INFO (EXTGRMP-143) : Option timeout = "300"
+
+INFO (EXTGRMP-143) : Option num_of_trials = "0"
+
+INFO (EXTGRMP-143) : Option separate_cc_prefix_in_dspf = "false"
+
+INFO (EXTGRMP-143) : Option output_oa = "false"
+
+INFO (EXTGRMP-143) : Option oa_analysis_point = "default"
+
+INFO (EXTGRMP-143) : Option enable_sensitivity_extraction = "false"
+
+INFO (EXTGRMP-143) : Option report_details = "false"
+
+INFO (EXTGRMP-143) : Option report_shorts = "false"
+
+INFO (EXTGRMP-143) : Option metal_fill_gds_offset_X = "0.0"
+
+INFO (EXTGRMP-143) : Option metal_fill_gds_offset_Y = "0.0"
+
+INFO (EXTGRMP-143) : Option ignore_pushdown_blockages = "false"
+
+INFO (EXTGRMP-143) : Option compress_cache_files = "true"
+
+INFO (EXTGRMP-143) : Option strong_gray_debug = "false"
+
+INFO (EXTGRMP-143) : Option disable_instances = "true"
+
+INFO (EXTGRMP-143) : Option disable_subnodes = "true"
+
+INFO (EXTGRMP-143) : Option dump_erosion_info = ""
+
+INFO (EXTGRMP-143) : Option silicon_width_printing = "true"
+
+INFO (EXTGRMP-143) : Option unscaled_res_params_printing = "false"
+
+INFO (EXTGRMP-143) : Option enable_active_fill_via_processing = "false"
+
+INFO (EXTGRMP-143) : Option add_explicit_vias = "false"
+
+INFO (EXTGRMP-143) : Option cap_ground_net = "0"
+
+INFO (EXTGRMP-143) : Option output_res_temp_coeff = "false"
+
+INFO (EXTGRMP-143) : Option write_coupled_decoupled_files = "false"
+
+INFO (EXTGRMP-143) : Option capacitance_coupling = "default"
+
+INFO (EXTGRMP-143) : Option top_cell = ""
+
+INFO (EXTGRMP-143) : Option input_directory_name = ""
+
+INFO (EXTGRMP-143) : Option binary_input = "false"
+
+INFO (EXTGRMP-143) : Option binary_output = "false"
+
+INFO (EXTGRMP-143) : Option enable_ieee_sensitivity = "false"
+
+INFO (EXTGRMP-143) : Option bump_map_file = ""
+
+INFO (EXTGRMP-143) : Option enable_bump_instance = "false"
+
+INFO (EXTGRMP-143) : Option enable_tsv_instance = "false"
+
+INFO (EXTGRMP-143) : Option enable_TSV_STA_Cc_model = "false"
+
+INFO (EXTGRMP-143) : Option stitch_bump_model = "false"
+
+INFO (EXTGRMP-143) : Option stitch_tsv_model = "none"
+
+INFO (EXTGRMP-143) : Option enable_eco_mode = "false"
+
+INFO (EXTGRMP-143) : Option eco_file = ""
+
+INFO (EXTGRMP-143) : Option override_eco_reference = "true"
+
+INFO (EXTGRMP-143) : Option analysis_mode = "timing"
+
+INFO (EXTGRMP-143) : Option use_lef_for_hierarchical_def = "false"
+
+INFO (EXTGRMP-143) : Option include_gate_forming_layers = "false"
+
+INFO (EXTGRMP-143) : Option strict_error_reporting = "false"
+
+INFO (EXTGRMP-143) : Option report_outside_diearea_object = "false"
+
+INFO (EXTGRMP-143) : Option report_outside_diearea_object_error_limit = "1"
+
+INFO (EXTGRMP-143) : Option change_overhang_direction = "false"
+
+INFO (EXTGRMP-143) : Option ubump_subckt_file = ""
+
+INFO (EXTGRMP-143) : Option tsv_subckt_file = ""
+
+INFO (EXTGRMP-143) : Option LEF files =
+"/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lef/tsmc_cln65_a10_6X1Z_tech.lef
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lef/tsmc65_hvt_sc_adv10_macro.lef
+../ip/rom_hvt_pg/rom_hvt_pg.lef
+../ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.vclef
+../ic/abstracts/myshkin_abs/GlitchFilter/GlitchFilter.lef
+../ic/abstracts/myshkin_abs/PowerOnResetCheng/PowerOnResetCheng.lef
+../ic/abstracts/myshkin_abs/OscillatorCurrentStarved/OscillatorCurrentStarved.lef"
+
+INFO (EXTGRMP-143) : Option DEF files =
+"/tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/qrc.def.gz"
+
+INFO (EXTGRMP-143) : Option GDSII files = ""
+
+INFO (EXTGRMP-143) : Option GDSII/RDL files = ""
+
+INFO (EXTGRMP-143) : Option SPICE files = ""
+
+INFO (EXTGRMP-143) : Option DENSITY cells = ""
+
+INFO (EXTGRMP-143) : Option stitch bump cells = ""
+
+INFO (EXTGRMP-143) : Option ignored macros = ""
+
+INFO (EXTGRMP-143) : Option black macros = ""
+
+INFO (EXTGRMP-155) : Layer mappings were not specified.
+
+INFO (EXTGRMP-276) : Gds/Oasis Layer Map settings were not specified.
+
+INFO (EXTGRMP-548) : Gds/Oasis Fill layer Map settings were not specified.
+
+INFO (EXTGRMP-550) : Gds/Oasis Active Fill layer Map settings were not specified.
+
+INFO (EXTGRMP-562) : HPB layer settings were not specified.
+
+INFO (EXTGRMP-623) : Background density layer mappings were not specified.
+
+INFO (EXTGRMP-144) : There were no layer bias commands for R values.
+
+INFO (EXTGRMP-147) : Layer bias settings for C values were not specified.
+
+INFO (EXTGRMP-149) : Lefcap area scale settings were not specified.
+
+INFO (EXTGRMP-153) : Lefcap edge scale settings were not specified.
+
+INFO (EXTGRMP-151) : Parameter name settings were not specified.
+
+INFO (EXTGRMP-260) : Layer cluster settings were not specified.
+
+INFO (EXTHPY-253) : Extraction started at Sat Nov 15 15:59:29 2025.
+
+INFO (EXTHPY-232) : Preprocessing stage started at Sat Nov 15 15:59:29 2025.
+
+INFO (EXTGRMP-205) : Reading DEF file: /tmp/innovus_temp_89100_atlas_mseminario2_L60O3d/tmp_qrc_r3m3XD/qrc.def.gz
+
+
+INFO (EXTGRMP-336) : Reading technology data and cell definitions from LEF file:
+
+INFO (EXTGRMP-338) : /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lef/tsmc_cln65_a10_6X1Z_tech.lef
+
+WARNING (EXTGRMP-330) : LEF layer "POLY1" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-605) : Layer "POLY1" will not be extracted and will be ignored. 
+
+
+WARNING (EXTGRMP-330) : LEF layer "M1" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA1" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M2" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA2" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M3" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA3" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M4" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA4" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M5" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA5" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M6" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA6" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M7" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "VIA7" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-330) : LEF layer "M8" is not mapped with any tech file layer. Ignoring its definition. 
+An error will be issued if its definition is required.
+
+WARNING (EXTGRMP-553) : Via VIA1_H contains a layer "M1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_H contains a layer "VIA1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_H contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_V contains a layer "M1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_V contains a layer "VIA1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_V contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_X contains a layer "M1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_X contains a layer "VIA1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_X contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_XR contains a layer "M1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_XR contains a layer "VIA1" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA1_XR contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_H contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_H contains a layer "VIA2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_H contains a layer "M3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_V contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_V contains a layer "VIA2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_V contains a layer "M3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_X contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_X contains a layer "VIA2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_X contains a layer "M3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_XR contains a layer "M2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_XR contains a layer "VIA2" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA2_XR contains a layer "M3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA3_H contains a layer "M3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA3_H contains a layer "VIA3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA3_H contains a layer "M4" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA3_V contains a layer "M3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA3_V contains a layer "VIA3" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+WARNING (EXTGRMP-553) : Via VIA3_V contains a layer "M4" that is not mapped in the technology file. Any instantiation of this via in the design will be ignored.
+
+INFO (EXTGRMP-338) : /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lef/tsmc65_hvt_sc_adv10_macro.lef
+
+WARNING (EXTGRMP-327) : The LEF parser reported the following warning :
+WARNING (LEFPARS-2007): NAMESCASESENSITIVE statement is obsolete in version 5.6 and later.
+The LEF parser will ignore this statement.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lef/tsmc65_hvt_sc_adv10_macro.lef at line 2.
+
+
+INFO (EXTGRMP-338) : ../ip/rom_hvt_pg/rom_hvt_pg.lef
+
+INFO (EXTGRMP-338) : ../ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.vclef
+
+INFO (EXTGRMP-338) : ../ic/abstracts/myshkin_abs/GlitchFilter/GlitchFilter.lef
+
+INFO (EXTGRMP-338) : ../ic/abstracts/myshkin_abs/PowerOnResetCheng/PowerOnResetCheng.lef
+
+INFO (EXTGRMP-338) : ../ic/abstracts/myshkin_abs/OscillatorCurrentStarved/OscillatorCurrentStarved.lef
+
+ERROR (EXTGRMP-341) : LEF layers are not properly mapped to tech file layers, or LEF technology data for the used layers may be missing or incorrect in the technology LEF file. Check if any warning on missing layer mapping is printed before in the log file.
+ Technology data must include layer definitions, including width of all routing layers and those layers need to be mapped with LEF layers.
+
+ERROR (EXTQRCXLOG-110) : Exiting due to an internal error.
+Received signal #11.
+Bellow is the program stack trace:
+#1 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : qrcxSignalHandler()+0x26
+#2 /lib64/libc.so.6 : ()+0x393e0
+#3 /lib64/libc.so.6 : fread()+0x1a
+#4 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_CompressorHandler::IsCompressFile(std::string const&, unsigned char const*)+0x2d
+#5 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_GzHandler::gzopen(char const*, char const*)+0x137
+#6 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_SimpleFile::openFile()+0x162
+#7 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_SimpleFile::Snz_SimpleFile(std::string const&, char const*, bool, bool, bool, bool, bool, bool, unsigned long, int)+0x101
+#8 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_InputDB::load_lef_header_data()+0x100
+#9 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Extraction::syncLefPass()+0xfc
+#10 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_DefDriver<Grmp_DefPass1Actions, Grmp_Extraction>::pass0_parallel()+0xb3
+#11 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_DefDriver<Grmp_DefPass1Actions, Grmp_Extraction>::process_pass0()+0x598
+#12 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Snz_DefDriver<Grmp_DefPass1Actions, Grmp_Extraction>::process(std::vector<std::string, std::allocator<std::string> > const&, std::vector<std::string, std::allocator<std::string> > const&)+0x762
+#13 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_DefPassDriver::DoNewDefParserFlow(Cpp_StringArray&, Cpp_StringArray&, std::string&, OA_ParserIntf&, Grmp_CellLib*, std::string&, std::string&)+0x3b6
+#14 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_DefPassDriver::DoDefRead(std::string&, std::string&, OA_ParserIntf&, Grmp_CellLib*, std::string&, std::string&)+0x136
+#15 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Extraction::RunInputStage(std::string&, std::string&, std::string&, std::string&, std::string const&, OA_ParserIntf&, Grmp_CellLib*)+0x6b
+#16 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Extraction::InitialSetup(std::string const&, std::string&, std::string&, std::string&, std::string&, std::string const&, OA_ParserIntf&)+0xad5
+#17 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Extraction::RunOutputProducingSession(std::string const&)+0x29e
+#18 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Extraction::Run(std::string const&, std::string const&, std::string const&, std::string const&, bool const&)+0xb78
+#19 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Main::DoGrmpSession(int, char**)+0x2a33
+#20 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Main::EstablishLogAndRun(Plx_ExitCode (*)(int, char**), int, char**)+0x149
+#21 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : Grmp_Main::Run(int, char**)+0x4b0
+#22 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : qxMain(int, char**, bool)+0x2c2
+#23 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : qrcxDispatchMgr::runQXC()+0x4c
+#24 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : qrcxMain::runCore(int, char**)+0x1670
+#25 /opt/cadence/EXT191/tools.lnx86/extraction/bin/64bit/qrc : qrcxBaseMain::signalRun(int, char**)+0x12f
+
+
+
+
+ERROR (EXTDPW-105) : Session cannot continue due to previously reported errors.
+
+ERROR (EXTGRMP-103) : Current job number 4 failed. Please check stdout and log files for more
+details. Exiting...
+
+INFO (EXTHPY-254) : Extraction completed successfully at Sat Nov 15 15:59:47 2025.
+
+
+Ending at 2025-Nov-15 15:59:47 (2025-Nov-15 21:59:47 GMT).
+
+ Tool:                    Cadence Quantus Extraction 64-bit
+ Version:                 19.1.3-s062 Tue Jul 23 02:42:20 PDT 2019
+ IR Build No:             062 
+ Techfile:                Unknown ; version: Unknown 
+ License(s) used:         0 of Unknown 
+ User Name:               mseminario2
+ Host Name:               atlas
+ Host OS Release:         Linux 5.3.18-lp152.106-default
+ Host OS Version:         #1 SMP Mon Nov 22 08:38:17 UTC 2021 (52078fe)
+ Run duration:            00:00:00 CPU time, 00:00:18 clock time
+ Max (Total) memory used: 0 MB
+ Max (CPU) memory used:   0 MB
+ Max Temp-Directory used: 0 MB
+ Nets/hour:               0K nets/CPU-hr, 0K nets/clock-hr
+ Design data:
+    Components:           0
+    Phy components:       0
+    Nets:                 0
+    Unconnected pins:     0
+ Warning messages:        49
+ Error messages:          4
+
+Exit code 2.
+Cadence Quantus Extraction completed unsuccessfully at 2025-Nov-15 15:59:47
+(2025-Nov-15 21:59:47 GMT).

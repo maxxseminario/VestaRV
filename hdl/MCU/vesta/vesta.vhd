@@ -571,7 +571,7 @@ architecture struct of vesta is
                              pc_plus_4, pc_plus_2, alu_done, irq_save_ack, isr_ret, 
                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
-                             reservation_valid, reservation_addr, ALU_result)
+                             reservation_valid, reservation_addr, ALU_result, fence_op)
     begin
         if resetn = '0' then
             -- Reset all control signals

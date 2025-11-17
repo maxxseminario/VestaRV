@@ -5398,10 +5398,10 @@ add mapped point uart0/UART_BR[10]/q uart0/UART_BR_reg[10]/Q
 add mapped point uart0/UART_BR[11]/q uart0/UART_BR_reg[11]/Q 
 add mapped point uart0/UART_CR[0]/q uart0/UART_CR_reg[0]/QN 
 add mapped point uart0/UART_CR[1]/q uart0/UART_CR_reg[1]/Q 
-add mapped point uart0/UART_CR[2]/q uart0/UART_CR_reg[2]/QN 
+add mapped point uart0/UART_CR[2]/q uart0/UART_CR_reg[2]/Q 
 add mapped point uart0/UART_CR[3]/q uart0/UART_CR_reg[3]/Q 
-add mapped point uart0/UART_CR[4]/q uart0/UART_CR_reg[4]/QN 
-add mapped point uart0/UART_CR[5]/q uart0/UART_CR_reg[5]/QN 
+add mapped point uart0/UART_CR[4]/q uart0/UART_CR_reg[4]/Q 
+add mapped point uart0/UART_CR[5]/q uart0/UART_CR_reg[5]/Q 
 add mapped point uart0/UART_RX_ltch[0]/q uart0/UART_RX_ltch_reg[0]/Q 
 add mapped point uart0/UART_RX_ltch[1]/q uart0/UART_RX_ltch_reg[1]/Q 
 add mapped point uart0/UART_RX_ltch[2]/q uart0/UART_RX_ltch_reg[2]/Q 
@@ -5432,7 +5432,7 @@ add mapped point uart0/UART_TX[2]/q uart0/UART_TX_reg[2]/Q
 add mapped point uart0/UART_TX[3]/q uart0/UART_TX_reg[3]/Q 
 add mapped point uart0/UART_TX[4]/q uart0/UART_TX_reg[4]/Q 
 add mapped point uart0/UART_TX[5]/q uart0/UART_TX_reg[5]/Q 
-add mapped point uart0/UART_TX[6]/q uart0/UART_TX_reg[6]/Q 
+add mapped point uart0/UART_TX[6]/q uart0/UART_TX_reg[6]/QN 
 add mapped point uart0/UART_TX[7]/q uart0/UART_TX_reg[7]/QN 
 add mapped point uart0/USR_FEF/q uart0/USR_FEF_reg/QN 
 add mapped point uart0/USR_PEF/q uart0/USR_PEF_reg/QN 
@@ -5444,10 +5444,10 @@ add mapped point uart0/clr_UTEIF/q uart0/clr_UTEIF_reg/Q
 add mapped point uart0/clr_rx_in_progress/q uart0/clr_rx_in_progress_reg/Q 
 add mapped point uart0/clr_start_tx/q uart0/clr_start_tx_reg/Q 
 add mapped point uart0/read_data[0]/q uart0/read_data_reg[0]/Q 
-add mapped point uart0/read_data[2]/q uart0/read_data_reg[2]/Q 
 add mapped point uart0/read_data[3]/q uart0/read_data_reg[3]/Q 
 add mapped point uart0/read_data[4]/q uart0/read_data_reg[4]/Q 
 add mapped point uart0/read_data[5]/q uart0/read_data_reg[5]/Q 
+add mapped point uart0/read_data[6]/q uart0/read_data_reg[6]/Q 
 add mapped point uart0/read_data[7]/q uart0/read_data_reg[7]/Q 
 add mapped point uart0/read_data[8]/q uart0/read_data_reg[8]/Q 
 add mapped point uart0/read_data[9]/q uart0/read_data_reg[9]/Q 
@@ -5471,7 +5471,7 @@ add mapped point uart0/tx_sr[4]/q uart0/tx_sr_reg[4]/Q
 add mapped point uart0/tx_sr[5]/q uart0/tx_sr_reg[5]/Q 
 add mapped point uart0/tx_sr[6]/q uart0/tx_sr_reg[6]/Q 
 add mapped point uart0/tx_sr[7]/q uart0/tx_sr_reg[7]/Q 
-add mapped point uart0/tx_sr[8]/q uart0/tx_sr_reg[8]/Q 
+add mapped point uart0/tx_sr[8]/q uart0/tx_sr_reg[8]/QN 
 add mapped point uart0/USR_OVF/q uart0/USR_OVF_reg/Q 
 add mapped point uart0/USR_UTCIF/q uart0/USR_UTCIF_reg/Q 
 add mapped point uart0/USR_UTEIF/q uart0/USR_UTEIF_reg/Q 
@@ -5488,7 +5488,7 @@ add mapped point uart0/baud_cntr[9]/q uart0/baud_cntr_reg[9]/Q
 add mapped point uart0/baud_cntr[10]/q uart0/baud_cntr_reg[10]/Q 
 add mapped point uart0/baud_cntr[11]/q uart0/baud_cntr_reg[11]/Q 
 add mapped point uart0/read_data[1]/q uart0/read_data_reg[1]/Q 
-add mapped point uart0/read_data[6]/q uart0/read_data_reg[6]/Q 
+add mapped point uart0/read_data[2]/q uart0/read_data_reg[2]/Q 
 add mapped point uart0/rx_bit_cntr[0]/q uart0/rx_bit_cntr_reg[0]/QN 
 add mapped point uart0/rx_bit_cntr[1]/q uart0/rx_bit_cntr_reg[1]/Q 
 add mapped point uart0/rx_bit_cntr[2]/q uart0/rx_bit_cntr_reg[2]/Q 
@@ -5507,7 +5507,7 @@ add mapped point uart0/tx_bit_cntr[3]/q uart0/tx_bit_cntr_reg[3]/Q
 add mapped point uart0/tx_clk_cntr[0]/q uart0/tx_clk_cntr_reg[0]/QN 
 add mapped point uart0/tx_clk_cntr[1]/q uart0/tx_clk_cntr_reg[1]/Q 
 add mapped point uart0/tx_clk_cntr[2]/q uart0/tx_clk_cntr_reg[2]/Q 
-add mapped point uart0/tx_clk_cntr[3]/q uart0/tx_clk_cntr_reg[3]/Q 
+add mapped point uart0/tx_clk_cntr[3]/q uart0/tx_clk_cntr_reg[3]/QN 
 add mapped point uart0/tx_in_progress/q uart0/tx_in_progress_reg/QN 
 add mapped point uart0/tx_parity/q uart0/tx_parity_reg/Q 
 add mapped point uart0/ud_cntr[0]/q uart0/ud_cntr_reg[0]/Q 
@@ -5530,9 +5530,9 @@ add mapped point uart1/UART_BR[10]/q uart1/UART_BR_reg[10]/Q
 add mapped point uart1/UART_BR[11]/q uart1/UART_BR_reg[11]/Q 
 add mapped point uart1/UART_CR[0]/q uart1/UART_CR_reg[0]/QN 
 add mapped point uart1/UART_CR[1]/q uart1/UART_CR_reg[1]/Q 
-add mapped point uart1/UART_CR[2]/q uart1/UART_CR_reg[2]/QN 
+add mapped point uart1/UART_CR[2]/q uart1/UART_CR_reg[2]/Q 
 add mapped point uart1/UART_CR[3]/q uart1/UART_CR_reg[3]/Q 
-add mapped point uart1/UART_CR[4]/q uart1/UART_CR_reg[4]/QN 
+add mapped point uart1/UART_CR[4]/q uart1/UART_CR_reg[4]/Q 
 add mapped point uart1/UART_CR[5]/q uart1/UART_CR_reg[5]/Q 
 add mapped point uart1/UART_RX_ltch[0]/q uart1/UART_RX_ltch_reg[0]/Q 
 add mapped point uart1/UART_RX_ltch[1]/q uart1/UART_RX_ltch_reg[1]/Q 
@@ -5639,7 +5639,7 @@ add mapped point uart1/tx_bit_cntr[3]/q uart1/tx_bit_cntr_reg[3]/Q
 add mapped point uart1/tx_clk_cntr[0]/q uart1/tx_clk_cntr_reg[0]/QN 
 add mapped point uart1/tx_clk_cntr[1]/q uart1/tx_clk_cntr_reg[1]/Q 
 add mapped point uart1/tx_clk_cntr[2]/q uart1/tx_clk_cntr_reg[2]/Q 
-add mapped point uart1/tx_clk_cntr[3]/q uart1/tx_clk_cntr_reg[3]/Q 
+add mapped point uart1/tx_clk_cntr[3]/q uart1/tx_clk_cntr_reg[3]/QN 
 add mapped point uart1/tx_in_progress/q uart1/tx_in_progress_reg/QN 
 add mapped point uart1/tx_parity/q uart1/tx_parity_reg/Q 
 add mapped point uart1/ud_cntr[0]/q uart1/ud_cntr_reg[0]/Q 

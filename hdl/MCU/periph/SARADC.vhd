@@ -258,7 +258,7 @@ begin
     en_addr_periph <= slv2uint(addr_periph) when en_mem = '0' else 0;
 
     -- Register Write Process 
-    write_proc: process(resetn, clk_mem)
+    write_proc: process(resetn, clk_mem, reset_i, en_mem)
     begin
 
         if reset_i = '1' then

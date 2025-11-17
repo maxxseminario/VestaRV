@@ -71,7 +71,7 @@ begin
 
 
     -- Combinational next state logic
-    process(state, start, count, cmp_out,rst)
+    process(state, start, count, cmp_out,rst, cycleSet)
     begin
 	if rst = '1' then
 	    result_latch <= (others => '0');
@@ -170,7 +170,7 @@ architecture behav of counter_upd is
     signal count_reg : STD_LOGIC_VECTOR(11 downto 0); 
 begin
 
-    process(clk, rst)
+    process(clk, rst, enable)
     begin
         if rst = '1' then
             count_reg <= (others => '0');

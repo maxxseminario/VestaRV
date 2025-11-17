@@ -241,11 +241,11 @@ $(eval $(call compile_template,boot,-march=rv32g -mabi=ilp32 -T$(src_dir)/../env
 $(eval $(call compile_template,spifem,-march=rv32g -mabi=ilp32 -T$(src_dir)/../env/p/link_fem.ld)) # rv32ui
 
 # Note -march=rv32g implies -march=rv32imafd
-$(eval $(call compile_template,periph,-march=rv32im -mabi=ilp32))
+$(eval $(call compile_template,periph,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32ui,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32uc,-march=rv32imc -mabi=ilp32)) 
 $(eval $(call compile_template,rv32um,-march=rv32imc -mabi=ilp32))
-$(eval $(call compile_template,rv32ua,-march=rv32ima -mabi=ilp32))
+$(eval $(call compile_template,rv32ua,-march=rv32imac -mabi=ilp32))
 $(eval $(call compile_template,rv32uf,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32ud,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32uzfh,-march=rv32g_zfh -mabi=ilp32))
@@ -254,7 +254,7 @@ $(eval $(call compile_template,rv32uzbb,-march=rv32gc_zbb -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbc,-march=rv32gc_zbc -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbs,-march=rv32gc_zbs -mabi=ilp32))
 $(eval $(call compile_template,rv32si,-march=rv32g -mabi=ilp32))
-$(eval $(call compile_template,rv32ziscr,-march=rv32g -mabi=ilp32)) # Added by Maxx Seminario 10/21/2025 
+$(eval $(call compile_template,rv32ziscr,-march=rv32gc -mabi=ilp32)) # Added by Maxx Seminario 10/21/2025 
 $(eval $(call compile_template,rv32mi,-march=rv32g -mabi=ilp32))
 ifeq ($(XLEN),64)
 $(eval $(call compile_template,rv64ui,-march=rv64g -mabi=lp64))
