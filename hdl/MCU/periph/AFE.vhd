@@ -73,7 +73,7 @@ entity AFE is
         adc_en          : out std_logic;
         adc_clk         : out std_logic;
         adc_switch      : out std_logic_vector(2 downto 0);
-        adc_ext_in      : out std_logic; -- '1' => adc's input is from external pad, '0' => internal signal
+        adc_ext_in      : out std_logic; -- '1' => adc's input is from potentiostat pad, '0' => external signal
         atp_en          : out std_logic; -- '1' => ATP enabled, '0' => ATP disabled
         atp_sel         : out std_logic; -- '1' => atp input is from DSADC, '0' => atp input is from Potentiostat
         adc_sel         : out std_logic;  -- '1' => adc to use is SARADC, '0' => adc input is from DSADC

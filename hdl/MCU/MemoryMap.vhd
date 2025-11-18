@@ -259,10 +259,17 @@ package MemoryMap is
 
 	---------- GPIO Register Reset Values ----------
 	-- GPIO0
+	-- constant RstValP1OUT	: std_logic_vector(31 downto 0) := X"00000001"; -- cs0 default to '1' to disable flash
+	-- constant RstValP1DIR	: std_logic_vector(31 downto 0) := X"00000041"; -- only cs0, and trap is an output
+	-- constant RstValP1SEL	: std_logic_vector(31 downto 0) := X"0000007E"; -- all alt fn except boot, cs0
+	-- constant RstValP1REN	: std_logic_vector(31 downto 0) := X"00000080"; -- only boot has pullup/pulldown - should default to '1' to load from flash
+
 	constant RstValP1OUT	: std_logic_vector(31 downto 0) := X"00000001"; -- cs0 default to '1' to disable flash
-	constant RstValP1DIR	: std_logic_vector(31 downto 0) := X"00000001"; -- only cs0 is an output
-	constant RstValP1SEL	: std_logic_vector(31 downto 0) := X"0000007E"; -- all alt fn except boot and cs0
+	constant RstValP1DIR	: std_logic_vector(31 downto 0) := X"00000041"; -- only cs0, and trap is an output
+	constant RstValP1SEL	: std_logic_vector(31 downto 0) := X"0000004E"; -- all alt fn except boot, cs0
 	constant RstValP1REN	: std_logic_vector(31 downto 0) := X"00000080"; -- only boot has pullup/pulldown - should default to '1' to load from flash
+
+
 
 	-- GPIO0 Pin Assignments (Serial Flash) ---------------------------------
 	constant pnum_gpio0_cs_flash	: natural := 00;		-- P1.0

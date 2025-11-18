@@ -90,6 +90,7 @@ architecture rtl of SARADC is
     signal adc_data_valid : std_logic;
 
     -- ADC control signals
+    signal ADC_ready_ltched : std_logic;
     signal ADC_ready : std_logic;
     signal ADC_data : std_logic_vector(9 downto 0);
 
@@ -141,7 +142,7 @@ begin
     -- SARADC_DATA
     SARADC_DATA(9 downto 0) <= adc_data_out;                                                         
 
-    ADC_ready <= ADC_ready_i;
+    -- ADC_ready <= ADC_ready_i;
     ADC_data <= ADC_data_i;
     
     -- Generate IRQ when ADC data is ready and valid
@@ -155,8 +156,12 @@ begin
             adc_data_out <= (others => '0');
             adc_data_valid <= '0';
             adc_ovf_if <= '0';
+            ADC_ready_ltched <= '0';
+            ADC_ready <= '0';
         elsif rising_edge(clk) then
             adc_ready_prev <= ADC_ready;
+            ADC_ready_ltched <= ADC_ready;
+            ADC_ready <= ADC_ready_i;
 
             -- Capture data on rising edge of ADC_ready
             if ADC_ready = '1' and adc_ready_prev = '0' then

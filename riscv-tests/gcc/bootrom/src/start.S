@@ -21,11 +21,11 @@
 #define FLASH_SLAVE_PD          0xB9 // Flash Slave Power Down Command
 
 # For dir, '1' means input on xcelium, write '1' in assembly for output 
-#define P1_SEL_BOOT             (GPIO0_MISO_MASK | GPIO0_MOSI_MASK | GPIO0_SCK_MASK) // Set GPIO Select Register for boot mode (MISO and BOOT to alt function, rest to GPIO)
+#define P1_SEL_BOOT             (GPIO0_MISO_MASK | GPIO0_MOSI_MASK | GPIO0_SCK_MASK | GPIO0_TRAP_MASK) // Set GPIO Select Register for boot mode (MISO and BOOT to alt function, rest to GPIO)
 #define SPI0_DIR_MASK           GPIO0_MISO_MASK  
 //#define P1_DIR_BOOT             (GPIO0_MISO_MASK | GPIO0_BOOT_MASK) // Inputs 
 //define P1_DIR_BOOT             (GPIO0_MOSI_MASK | GPIO0_CS_MASK | GPIO0_SCK_MASK) // Inputs 
-#define P1_DIR_BOOT             (GPIO0_CS_MASK) // CSFlash bit 1, Boot 0
+#define P1_DIR_BOOT             (GPIO0_CS_MASK | GPIO0_TRAP_MASK) // CSFlash bit 1, Boot 0
 
 // Globals 
 .global main
@@ -121,6 +121,10 @@ SPI_FlashSetup:
     // Send a 0x00000000 to the SPI flash, during which time the SPI flash will respond with the command word
     sw zero, SPI_TX(a0) // Send 0x00000000 to the SPI Flash
 
+    # Prepare for error checkin by loading upper and lower bounds of where SPI Flash may write in RAM
+    li s2, RAM0_BASE_ADDR // Load RAM base address
+    li s3, RAM0_BASE_ADDR + RAM_SIZE -4 // Load RAM end address
+
 
 getCommandWord:
 
@@ -134,7 +138,8 @@ getCommandWord:
     beq t0, a7, executeProgram // Check if command word is
     //Program should never get here, but if it does, just loop forever
     //TODO: Throw trap error here 
-    j getCommandWord
+    # j getCommandWord
+    j force_trap	
 
 loadSegmentToRAM:
     // Load segment to RAM
@@ -149,6 +154,11 @@ loadSegmentToRAM:
     addi a3, t0, 0 // Store the end address of RAM segment to a3
 
     //TODO: Do some input validation here to see if addresses are valid (RAM).
+    bgeu a2, a3, force_trap	// If start address >= stop address, make a trap condition
+    # s2 is RamStartAddress
+    bltu a2, s2, force_trap	// If start address < peripheral memory start address, make a trap condition
+	# s3 is RamStartAddress + RamSize -4 
+	bltu s3, a3, force_trap	// If RAM end address < end address, make a trap condition
 
 getNextProgramWord:
     jal ra, spi0_complete_read_init_read // Read next word from SPI Flash
@@ -172,6 +182,14 @@ eraseSegmentFromRAM:
     jal ra, spi0_complete_read_init_read
     addi a3, t0, 0 // Store the end address of RAM segment to a3
     //TODO: Do some input validation here to see if addresses are valid (RAM).
+
+    # s2 is RamStartAddress
+    # s3 is RamStartAddress + RamSize -4
+    bgeu a2, a3, force_trap	// If start address >= stop address, make a trap condition
+    bltu a2, s2, force_trap    // If start address < peripheral memory start address, make a trap condition
+    bltu s3, a3, force_trap    // If RAM end address < end address, make a trap condition   
+
+
     jal ra, spi0_complete_read_init_read // Read next word from SPI Flash
     
 eraseWord: 
@@ -265,13 +283,54 @@ executeProgram:
 #     bnez t2, wait_clk_settle
 
     //Jump to the start of the program in RAM
+
+    clear_regs:
+	li x1, 0
+	li sp, SP_INIT_VAL	
+	li x3, 0
+	li x4, 0
+	li x5, 0
+	li x6, 0
+	li x7, 0
+	li x8, 0
+	li x9, 0
+	li x10, 0
+	li x11, 0
+	li x12, 0
+	li x13, 0
+	li x14, 0
+	li x15, 0
+	li x16, 0
+	li x17, 0
+	li x18, 0
+	li x19, 0
+	li x20, 0
+	li x21, 0
+	li x22, 0
+	li x23, 0
+	li x24, 0
+	li x25, 0
+	li x26, 0
+	li x27, 0
+	li x28, 0
+	li x29, 0
+	li x30, 0
+	li x31, 0
+
     j PROG_BASE_ADDR // Jump to the start of the program in RAM
 
 
-    # TODO: Delay for clk sel to settle. 
+    # TODO: Perhaps Delay for clk sel to settle. 
+
+# Invalid intstruction that will induce trap state in the core. 
+force_trap:
+	.word 0xFFFFFFFF
 
 
-    
+# VestaRV Documentation
+.section .vestarv_doc, "ax"
+vestarv_id:
+    .asciz "Myshkin \November, 2025\nThe first instantiation of VestaRV.\nDesigned by Maxx Seminario featuring ECS by Seth McRobert.\nShe herself is my best apology for all her accusations. \n\nWhat beautiful things there are at every step, even the most hopeless man must feel so beautiful! \n"
 
 # for now, 4th code here 
 # main: 

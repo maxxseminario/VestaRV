@@ -551,7 +551,7 @@ architecture behav of MCU is
             adc_en          : out std_logic;
             adc_clk         : out std_logic;
             adc_switch      : out std_logic_vector(2 downto 0);
-            adc_ext_in      : out std_logic; -- '1' => adc's input is from external pad, '0' => internal signal
+            adc_ext_in      : out std_logic; -- '1' => adc's input is from potentiostat pad, '0' => external signal
             atp_en          : out std_logic; -- '1' => enable ATP, '0' => disable ATP
             atp_sel         : out std_logic; -- '1' => atp input is from DSADC, '0' => atp input is from Potentiostat
             adc_sel         : out std_logic; -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
@@ -1964,10 +1964,10 @@ begin
             BIAS_DBNC   => BIAS_DBNC,
 
             -- TIA Biases
-            BIAS_TC_POT    => BIAS_TC_POT,
-            BIAS_LC_POT => BIAS_LC_POT,
-            BIAS_TIA_G_POT => BIAS_TIA_G_POT,
-            BIAS_REV_POT => BIAS_REV_POT,
+            BIAS_TC_POT     => BIAS_TC_POT,
+            BIAS_LC_POT     => BIAS_LC_POT,
+            BIAS_TIA_G_POT  => BIAS_TIA_G_POT,
+            BIAS_REV_POT    => BIAS_REV_POT,
 
             -- DSADC Biases
             BIAS_TC_DSADC  => BIAS_TC_DSADC,
@@ -1981,7 +1981,7 @@ begin
             adc_en          => dsadc_en,
             adc_clk         => dsadc_clk,
             adc_switch      => dsadc_switch,
-            adc_ext_in      => adc_ext_in,  -- '1' => adc's input is from external pad, '0' => internal signal
+            adc_ext_in      => adc_ext_in,  -- '1' => adc's input is from potentiostat pad, '0' => external signal
             atp_en          => atp_en,      -- '1' => ATP is enabled, '0' => ATP is disabled
             atp_sel         => atp_sel,     -- '1' => ATP to use is DSADC, '0' => ATP is Potentiostat
             adc_sel         => adc_sel,     -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
@@ -2005,9 +2005,9 @@ begin
             dtp0         => t0_cap1_out, -- Alternate Function as DTP
             dtp1         => t1_cap1_out, -- Alternate Function as DTP
 
-            ADC_ready_i  => saradc_rdy,
-            ADC_data_i  => saradc_data,
-            ADC_reset   => saradc_rst,
+            ADC_ready_i     => saradc_rdy,
+            ADC_data_i      => saradc_data,
+            ADC_reset       => saradc_rst,
             ADC_trigger_clock_o =>saradc_clk
     );
 

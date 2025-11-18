@@ -1,9 +1,9 @@
 Archive member included to satisfy reference by file (symbol)
 
 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
-                              /tmp/ccQubXCS.ltrans0.ltrans.o (__mulsi3)
+                              /tmp/ccdmC6Zu.ltrans0.ltrans.o (__mulsi3)
 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
-                              /tmp/ccQubXCS.ltrans0.ltrans.o (__divsi3)
+                              /tmp/ccdmC6Zu.ltrans0.ltrans.o (__divsi3)
 
 There are no discarded input sections
 
@@ -534,46 +534,49 @@ __interrupt_vector_30
 __interrupt_vector_31
  *(__interrupt_vector_31)
 
-.text           0x00000000     0x2218
+.text           0x00000000     0x22c0
                 0x00000000                        PROVIDE (_start = .)
                 0x00000000                        . = ALIGN (0x4)
  *(.text)
- .text          0x00000000      0x1b0 ./obj/start.S.src.o
- .text          0x000001b0     0x19e4 /tmp/ccQubXCS.ltrans0.ltrans.o
- .text          0x00001b94       0x24 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
-                0x00001b94                __mulsi3
- .text          0x00001bb8       0xb4 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
-                0x00001bb8                __divsi3
-                0x00001bc0                __hidden___udivsi3
-                0x00001bc0                __udivsi3
-                0x00001c08                __umodsi3
-                0x00001c3c                __modsi3
+ .text          0x00000000      0x258 ./obj/start.S.src.o
+ .text          0x00000258     0x19e4 /tmp/ccdmC6Zu.ltrans0.ltrans.o
+ .text          0x00001c3c       0x24 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
+                0x00001c3c                __mulsi3
+ .text          0x00001c60       0xb4 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
+                0x00001c60                __divsi3
+                0x00001c68                __hidden___udivsi3
+                0x00001c68                __udivsi3
+                0x00001cb0                __umodsi3
+                0x00001ce4                __modsi3
  *(.text*)
- .text.startup  0x00001c6c      0x150 /tmp/ccQubXCS.ltrans0.ltrans.o
-                0x00001c6c                main
+ .text.startup  0x00001d14      0x150 /tmp/ccdmC6Zu.ltrans0.ltrans.o
+                0x00001d14                main
  *(.rodata)
- .rodata        0x00001dbc      0x436 /tmp/ccQubXCS.ltrans0.ltrans.o
+ .rodata        0x00001e64      0x436 /tmp/ccdmC6Zu.ltrans0.ltrans.o
  *(.rodata*)
- *fill*         0x000021f2        0x2 
+ *fill*         0x0000229a        0x2 
  .rodata.str1.4
-                0x000021f4       0x13 /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x0000229c       0x13 /tmp/ccdmC6Zu.ltrans0.ltrans.o
  *(.srodata)
- *fill*         0x00002207        0x1 
- .srodata       0x00002208        0xe /tmp/ccQubXCS.ltrans0.ltrans.o
+ *fill*         0x000022af        0x1 
+ .srodata       0x000022b0        0xe /tmp/ccdmC6Zu.ltrans0.ltrans.o
  *(.srodata*)
-                0x00002218                        . = ALIGN (0x4)
- *fill*         0x00002216        0x2 
-                0x00002218                        _etext = .
-                0x00002218                        _sidata = _etext
+                0x000022c0                        . = ALIGN (0x4)
+ *fill*         0x000022be        0x2 
+                0x000022c0                        _etext = .
+                0x000022c0                        _sidata = _etext
 
-.data           0x00008080        0x0 load address 0x00002218
+.vestarv_doc    0x000022c0      0x114
+ .vestarv_doc   0x000022c0      0x114 ./obj/start.S.src.o
+
+.data           0x00008080        0x0 load address 0x000022c0
                 0x00008080                        . = ALIGN (0x4)
                 0x00008080                        _sdata = .
                 0x00008080                        _ram_start = .
                 0x00008080                        . = ALIGN (0x4)
  *(.data)
  .data          0x00008080        0x0 ./obj/start.S.src.o
- .data          0x00008080        0x0 /tmp/ccQubXCS.ltrans0.ltrans.o
+ .data          0x00008080        0x0 /tmp/ccdmC6Zu.ltrans0.ltrans.o
  .data          0x00008080        0x0 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
  .data          0x00008080        0x0 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
  *(.data*)
@@ -582,12 +585,12 @@ __interrupt_vector_31
                 0x00008080                        . = ALIGN (0x4)
                 0x00008080                        _edata = .
 
-.bss            0x00008080        0x0 load address 0x00002218
+.bss            0x00008080        0x0 load address 0x000022c0
                 0x00008080                        . = ALIGN (0x4)
                 0x00008080                        _sbss = .
  *(.bss)
  .bss           0x00008080        0x0 ./obj/start.S.src.o
- .bss           0x00008080        0x0 /tmp/ccQubXCS.ltrans0.ltrans.o
+ .bss           0x00008080        0x0 /tmp/ccdmC6Zu.ltrans0.ltrans.o
  .bss           0x00008080        0x0 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
  .bss           0x00008080        0x0 /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
  *(.bss*)
@@ -597,20 +600,20 @@ __interrupt_vector_31
                 0x00008080                        . = ALIGN (0x4)
                 0x00008080                        _ebss = .
 
-.noinit         0x00008080     0x5d70 load address 0x00002218
- .noinit        0x00008080     0x5d70 /tmp/ccQubXCS.ltrans0.ltrans.o
+.noinit         0x00008080     0x5d70 load address 0x000022c0
+ .noinit        0x00008080     0x5d70 /tmp/ccdmC6Zu.ltrans0.ltrans.o
 
 .heap           0x0000ddf0        0x0
                 0x0000ddf0                        . = ALIGN (0x4)
                 0x0000ddf0                        _heap_start = .
 LOAD ./obj/start.S.src.o
 LOAD ./obj/main.c.src.o
-LOAD /tmp/ccQubXCS.ltrans0.ltrans.o
-LOAD /tmp/ccoqgKgU.debug.temp.o
-LOAD /tmp/ccGnqZZS.debug.temp.o
-LOAD /tmp/cclVkLjk.debug.temp.o
-LOAD /tmp/ccRrBEg0.debug.temp.o
-LOAD /tmp/cccp85pj.debug.temp.o
+LOAD /tmp/ccdmC6Zu.ltrans0.ltrans.o
+LOAD /tmp/ccDda2fs.debug.temp.o
+LOAD /tmp/ccd6vFKb.debug.temp.o
+LOAD /tmp/ccDBnTga.debug.temp.o
+LOAD /tmp/cceI9que.debug.temp.o
+LOAD /tmp/cc7XsuOT.debug.temp.o
 LOAD ./obj/rv4th.c.src.o
 LOAD ./obj/uart.c.src.o
 LOAD ./obj/spi.c.src.o
@@ -628,44 +631,44 @@ OUTPUT(bin/flashboot.elf elf32-littleriscv)
  .riscv.attributes
                 0x00000000       0x1a ./obj/start.S.src.o
  .riscv.attributes
-                0x0000001a       0x1c /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x0000001a       0x1c /tmp/ccdmC6Zu.ltrans0.ltrans.o
  .riscv.attributes
                 0x00000036       0x1a /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
  .riscv.attributes
                 0x00000050       0x1a /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
 
 .comment        0x00000000       0x33
- .comment       0x00000000       0x33 /tmp/ccQubXCS.ltrans0.ltrans.o
+ .comment       0x00000000       0x33 /tmp/ccdmC6Zu.ltrans0.ltrans.o
                                  0x34 (size before relaxing)
- .comment       0x00000033       0x34 /tmp/ccoqgKgU.debug.temp.o
- .comment       0x00000033       0x34 /tmp/ccGnqZZS.debug.temp.o
- .comment       0x00000033       0x34 /tmp/cclVkLjk.debug.temp.o
- .comment       0x00000033       0x34 /tmp/ccRrBEg0.debug.temp.o
- .comment       0x00000033       0x34 /tmp/cccp85pj.debug.temp.o
+ .comment       0x00000033       0x34 /tmp/ccDda2fs.debug.temp.o
+ .comment       0x00000033       0x34 /tmp/ccd6vFKb.debug.temp.o
+ .comment       0x00000033       0x34 /tmp/ccDBnTga.debug.temp.o
+ .comment       0x00000033       0x34 /tmp/cceI9que.debug.temp.o
+ .comment       0x00000033       0x34 /tmp/cc7XsuOT.debug.temp.o
 
 .note.GNU-stack
                 0x00000000        0x0
  .note.GNU-stack
-                0x00000000        0x0 /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x00000000        0x0 /tmp/ccdmC6Zu.ltrans0.ltrans.o
  .note.GNU-stack
-                0x00000000        0x0 /tmp/ccoqgKgU.debug.temp.o
+                0x00000000        0x0 /tmp/ccDda2fs.debug.temp.o
  .note.GNU-stack
-                0x00000000        0x0 /tmp/ccGnqZZS.debug.temp.o
+                0x00000000        0x0 /tmp/ccd6vFKb.debug.temp.o
  .note.GNU-stack
-                0x00000000        0x0 /tmp/cclVkLjk.debug.temp.o
+                0x00000000        0x0 /tmp/ccDBnTga.debug.temp.o
  .note.GNU-stack
-                0x00000000        0x0 /tmp/ccRrBEg0.debug.temp.o
+                0x00000000        0x0 /tmp/cceI9que.debug.temp.o
  .note.GNU-stack
-                0x00000000        0x0 /tmp/cccp85pj.debug.temp.o
+                0x00000000        0x0 /tmp/cc7XsuOT.debug.temp.o
 
-.debug_line     0x00000000     0x36a5
- .debug_line    0x00000000      0x284 ./obj/start.S.src.o
- .debug_line    0x00000284     0x3269 /tmp/ccQubXCS.ltrans0.ltrans.o
- .debug_line    0x000034ed       0x5a /tmp/ccoqgKgU.debug.temp.o
- .debug_line    0x00003547       0x5f /tmp/ccGnqZZS.debug.temp.o
- .debug_line    0x000035a6       0x5e /tmp/cclVkLjk.debug.temp.o
- .debug_line    0x00003604       0x4c /tmp/ccRrBEg0.debug.temp.o
- .debug_line    0x00003650       0x55 /tmp/cccp85pj.debug.temp.o
+.debug_line     0x00000000     0x378f
+ .debug_line    0x00000000      0x36e ./obj/start.S.src.o
+ .debug_line    0x0000036e     0x3269 /tmp/ccdmC6Zu.ltrans0.ltrans.o
+ .debug_line    0x000035d7       0x5a /tmp/ccDda2fs.debug.temp.o
+ .debug_line    0x00003631       0x5f /tmp/ccd6vFKb.debug.temp.o
+ .debug_line    0x00003690       0x5e /tmp/ccDBnTga.debug.temp.o
+ .debug_line    0x000036ee       0x4c /tmp/cceI9que.debug.temp.o
+ .debug_line    0x0000373a       0x55 /tmp/cc7XsuOT.debug.temp.o
 
 .debug_line_str
                 0x00000000      0x1a1
@@ -673,84 +676,84 @@ OUTPUT(bin/flashboot.elf elf32-littleriscv)
                 0x00000000      0x1a1 ./obj/start.S.src.o
                                  0x2e (size before relaxing)
  .debug_line_str
-                0x000001a1       0x8d /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x000001a1       0x8d /tmp/ccdmC6Zu.ltrans0.ltrans.o
  .debug_line_str
-                0x000001a1       0xf2 /tmp/ccoqgKgU.debug.temp.o
+                0x000001a1       0xf2 /tmp/ccDda2fs.debug.temp.o
  .debug_line_str
-                0x000001a1      0x101 /tmp/ccGnqZZS.debug.temp.o
+                0x000001a1      0x101 /tmp/ccd6vFKb.debug.temp.o
  .debug_line_str
-                0x000001a1      0x13b /tmp/cclVkLjk.debug.temp.o
+                0x000001a1      0x13b /tmp/ccDBnTga.debug.temp.o
  .debug_line_str
-                0x000001a1       0xd9 /tmp/ccRrBEg0.debug.temp.o
+                0x000001a1       0xd9 /tmp/cceI9que.debug.temp.o
  .debug_line_str
-                0x000001a1       0xf9 /tmp/cccp85pj.debug.temp.o
+                0x000001a1       0xf9 /tmp/cc7XsuOT.debug.temp.o
 
 .debug_info     0x00000000     0x31b2
  .debug_info    0x00000000       0x25 ./obj/start.S.src.o
- .debug_info    0x00000025     0x1754 /tmp/ccQubXCS.ltrans0.ltrans.o
- .debug_info    0x00001779      0x138 /tmp/ccoqgKgU.debug.temp.o
+ .debug_info    0x00000025     0x1754 /tmp/ccdmC6Zu.ltrans0.ltrans.o
+ .debug_info    0x00001779      0x138 /tmp/ccDda2fs.debug.temp.o
                 0x00001779                main.c.047c3d52
- .debug_info    0x000018b1      0x953 /tmp/ccGnqZZS.debug.temp.o
+ .debug_info    0x000018b1      0x953 /tmp/ccd6vFKb.debug.temp.o
                 0x000018b1                rv4th.c.4bdef3ab
- .debug_info    0x00002204      0xd42 /tmp/cclVkLjk.debug.temp.o
+ .debug_info    0x00002204      0xd42 /tmp/ccDBnTga.debug.temp.o
                 0x00002204                uart.c.d59239fe
- .debug_info    0x00002f46       0xe8 /tmp/ccRrBEg0.debug.temp.o
+ .debug_info    0x00002f46       0xe8 /tmp/cceI9que.debug.temp.o
                 0x00002f46                spi.c.fc9628cb
- .debug_info    0x0000302e      0x184 /tmp/cccp85pj.debug.temp.o
+ .debug_info    0x0000302e      0x184 /tmp/cc7XsuOT.debug.temp.o
                 0x0000302e                flash_memory.c.1c39a590
 
 .debug_abbrev   0x00000000      0x7db
  .debug_abbrev  0x00000000       0x14 ./obj/start.S.src.o
- .debug_abbrev  0x00000014      0x19f /tmp/ccQubXCS.ltrans0.ltrans.o
- .debug_abbrev  0x000001b3       0xd8 /tmp/ccoqgKgU.debug.temp.o
- .debug_abbrev  0x0000028b      0x1b4 /tmp/ccGnqZZS.debug.temp.o
- .debug_abbrev  0x0000043f      0x22d /tmp/cclVkLjk.debug.temp.o
- .debug_abbrev  0x0000066c       0x7e /tmp/ccRrBEg0.debug.temp.o
- .debug_abbrev  0x000006ea       0xf1 /tmp/cccp85pj.debug.temp.o
+ .debug_abbrev  0x00000014      0x19f /tmp/ccdmC6Zu.ltrans0.ltrans.o
+ .debug_abbrev  0x000001b3       0xd8 /tmp/ccDda2fs.debug.temp.o
+ .debug_abbrev  0x0000028b      0x1b4 /tmp/ccd6vFKb.debug.temp.o
+ .debug_abbrev  0x0000043f      0x22d /tmp/ccDBnTga.debug.temp.o
+ .debug_abbrev  0x0000066c       0x7e /tmp/cceI9que.debug.temp.o
+ .debug_abbrev  0x000006ea       0xf1 /tmp/cc7XsuOT.debug.temp.o
 
 .debug_aranges  0x00000000       0x48
  .debug_aranges
                 0x00000000       0x20 ./obj/start.S.src.o
  .debug_aranges
-                0x00000020       0x28 /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x00000020       0x28 /tmp/ccdmC6Zu.ltrans0.ltrans.o
 
 .debug_str      0x00000000      0xb75
  .debug_str     0x00000000      0xb75 ./obj/start.S.src.o
                                  0x3c (size before relaxing)
- .debug_str     0x00000b75      0x115 /tmp/ccQubXCS.ltrans0.ltrans.o
- .debug_str     0x00000b75      0x152 /tmp/ccoqgKgU.debug.temp.o
- .debug_str     0x00000b75      0x5ff /tmp/ccGnqZZS.debug.temp.o
- .debug_str     0x00000b75      0x63a /tmp/cclVkLjk.debug.temp.o
- .debug_str     0x00000b75      0x135 /tmp/ccRrBEg0.debug.temp.o
- .debug_str     0x00000b75      0x1f4 /tmp/cccp85pj.debug.temp.o
+ .debug_str     0x00000b75      0x115 /tmp/ccdmC6Zu.ltrans0.ltrans.o
+ .debug_str     0x00000b75      0x152 /tmp/ccDda2fs.debug.temp.o
+ .debug_str     0x00000b75      0x5ff /tmp/ccd6vFKb.debug.temp.o
+ .debug_str     0x00000b75      0x63a /tmp/ccDBnTga.debug.temp.o
+ .debug_str     0x00000b75      0x135 /tmp/cceI9que.debug.temp.o
+ .debug_str     0x00000b75      0x1f4 /tmp/cc7XsuOT.debug.temp.o
 
 .debug_loclists
                 0x00000000      0xc7e
  .debug_loclists
-                0x00000000      0xc7e /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x00000000      0xc7e /tmp/ccdmC6Zu.ltrans0.ltrans.o
 
 .debug_rnglists
                 0x00000000      0x1c2
  .debug_rnglists
-                0x00000000      0x1c2 /tmp/ccQubXCS.ltrans0.ltrans.o
+                0x00000000      0x1c2 /tmp/ccdmC6Zu.ltrans0.ltrans.o
 
 .debug_frame    0x00000000      0x424
- .debug_frame   0x00000000      0x424 /tmp/ccQubXCS.ltrans0.ltrans.o
+ .debug_frame   0x00000000      0x424 /tmp/ccdmC6Zu.ltrans0.ltrans.o
 
 Cross Reference Table
 
 Symbol                                            File
 __divsi3                                          /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 __hidden___udivsi3                                /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
 __modsi3                                          /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 __mulsi3                                          /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(muldi3.o)
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 __udivsi3                                         /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 __umodsi3                                         /opt/xpack-riscv-none-elf-gcc-14.2.0-2/bin/../lib/gcc/riscv-none-elf/14.2.0/rv32i/ilp32/libgcc.a(div.o)
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 _start                                            ./obj/start.S.src.o
 addrStackArray                                    ./obj/rv4th.c.src.o (symbol from plugin)
 addrStackPtr                                      ./obj/rv4th.c.src.o (symbol from plugin)
@@ -769,8 +772,8 @@ double_to_str                                     ./obj/uart.c.src.o (symbol fro
 double_to_str_exp                                 ./obj/uart.c.src.o (symbol from plugin)
 echo                                              ./obj/rv4th.c.src.o (symbol from plugin)
 flash_is_initialized                              ./obj/rv4th.c.src.o (symbol from plugin)
-flash_memory.c.1c39a590                           /tmp/cccp85pj.debug.temp.o
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+flash_memory.c.1c39a590                           /tmp/cc7XsuOT.debug.temp.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 flash_memory_beginRead                            ./obj/flash_memory.c.src.o (symbol from plugin)
                                                   ./obj/rv4th.c.src.o (symbol from plugin)
 flash_memory_busy                                 ./obj/flash_memory.c.src.o (symbol from plugin)
@@ -785,11 +788,11 @@ hex4_to_uint                                      ./obj/uart.c.src.o (symbol fro
 lineBuffer                                        ./obj/rv4th.c.src.o (symbol from plugin)
 lineBufferArray                                   ./obj/rv4th.c.src.o (symbol from plugin)
 lineBufferIdx                                     ./obj/rv4th.c.src.o (symbol from plugin)
-main                                              /tmp/ccQubXCS.ltrans0.ltrans.o
+main                                              /tmp/ccdmC6Zu.ltrans0.ltrans.o
                                                   ./obj/main.c.src.o (symbol from plugin)
                                                   ./obj/start.S.src.o
-main.c.047c3d52                                   /tmp/ccoqgKgU.debug.temp.o
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+main.c.047c3d52                                   /tmp/ccDda2fs.debug.temp.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 mathStackArray                                    ./obj/rv4th.c.src.o (symbol from plugin)
 mathStackPtr                                      ./obj/rv4th.c.src.o (symbol from plugin)
 mathStackStart                                    ./obj/rv4th.c.src.o (symbol from plugin)
@@ -803,14 +806,14 @@ progCounter                                       ./obj/rv4th.c.src.o (symbol fr
 progIdx                                           ./obj/rv4th.c.src.o (symbol from plugin)
 progOpcodes                                       ./obj/rv4th.c.src.o (symbol from plugin)
 progOpcodesArray                                  ./obj/rv4th.c.src.o (symbol from plugin)
-rv4th.c.4bdef3ab                                  /tmp/ccGnqZZS.debug.temp.o
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+rv4th.c.4bdef3ab                                  /tmp/ccd6vFKb.debug.temp.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 rv4th_init                                        ./obj/rv4th.c.src.o (symbol from plugin)
                                                   ./obj/main.c.src.o (symbol from plugin)
 rv4th_processLoop                                 ./obj/rv4th.c.src.o (symbol from plugin)
                                                   ./obj/main.c.src.o (symbol from plugin)
-spi.c.fc9628cb                                    /tmp/ccRrBEg0.debug.temp.o
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+spi.c.fc9628cb                                    /tmp/cceI9que.debug.temp.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 spi_init                                          ./obj/spi.c.src.o (symbol from plugin)
                                                   ./obj/flash_memory.c.src.o (symbol from plugin)
 spi_setDataLength                                 ./obj/spi.c.src.o (symbol from plugin)
@@ -819,8 +822,8 @@ spi_setDataLength                                 ./obj/spi.c.src.o (symbol from
 spi_transfer                                      ./obj/spi.c.src.o (symbol from plugin)
                                                   ./obj/flash_memory.c.src.o (symbol from plugin)
                                                   ./obj/rv4th.c.src.o (symbol from plugin)
-uart.c.d59239fe                                   /tmp/cclVkLjk.debug.temp.o
-                                                  /tmp/ccQubXCS.ltrans0.ltrans.o
+uart.c.d59239fe                                   /tmp/ccDBnTga.debug.temp.o
+                                                  /tmp/ccdmC6Zu.ltrans0.ltrans.o
 uart_available                                    ./obj/uart.c.src.o (symbol from plugin)
 uart_getb                                         ./obj/uart.c.src.o (symbol from plugin)
 uart_getb_immediate                               ./obj/uart.c.src.o (symbol from plugin)

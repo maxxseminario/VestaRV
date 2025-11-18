@@ -283,12 +283,12 @@ cutRow
 # Place current starved oscillators (DCOs)
 set DCO_WIDTH		058.410
 set DCO_HEIGHT		037.390
-set DCO_NOBLOCK_HEIGHT	4
+set DCO_NOBLOCK_HEIGHT	4 
 set DCO_RING_WIDTH	0
 
-set DCO_Y 403 
+set DCO_Y 410
 
-# TODO: Place these
+
 # WARNING: Make sure this is placed where the VDD and VSS pins will be connected by sroute!
 set DCO0_X		[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 3) - ($DCO_WIDTH * 0.5)}]
 set DCO0_Y		[expr {$DCO_Y}]
