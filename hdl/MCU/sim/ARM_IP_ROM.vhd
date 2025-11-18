@@ -28,7 +28,7 @@ architecture Behavioral of rom_hvt_pg is
 	signal AdrLat : STD_LOGIC_VECTOR (AddressBits - 1 downto 0);
 begin
 	read_file: process	-- read file (one time at start of simulation)
-		file ROM_File : TEXT open READ_MODE is "/home/mseminario2/chips/myshkin/riscv-tests/gcc/bootrom/bin/rom.rcf";	-- Expects a symlink in the simulation run directory
+		file ROM_File : TEXT open READ_MODE is "/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg_verilog.rcf";	-- Expects a symlink in the simulation run directory
 		variable ROM_File_line : LINE;
 		variable i : integer;
 		variable GOOD : boolean;
