@@ -21,9 +21,6 @@ entity vesta is
         read_data  : in  std_logic_vector(31 downto 0);
         mask       : in  std_logic_vector(1 downto 0);
 
-        -- mem_instr : out std_logic; -- Rising edge when instruction has completed
-        -- mem_access : out std_logic; -- rising edge when memory access
-
         -- IRQ Interface
         irq_vector   : in  std_logic_vector(NUM_IRQS-1 downto 0);
         irq_priority : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -381,6 +378,7 @@ architecture struct of vesta is
             reservation_valid <= '0';
             reservation_addr <= (others => '0');
             amo_read_data <= (others => '0');
+            amo_write_data <= (others => '0');
         elsif rising_edge(clk_cpu) then
             -- Set reservation on LR
             if current_state = LR_READ then
@@ -412,7 +410,7 @@ architecture struct of vesta is
             current_state <= EXECUTE;
             repeat_if <= '0';
             pc <= PC_RST_VAL;
-            instr_curr_prev <= nop;
+            -- instr_curr_prev <= nop;
             instr_lower_half <= (others => '0');
             pc_next_reg <= PC_RST_VAL;
             pc_next_trad_reg <= PC_RST_VAL;
@@ -421,7 +419,7 @@ architecture struct of vesta is
         elsif rising_edge(clk_cpu) then
             -- Update state machine
             current_state <= next_state;
-            instr_curr_prev <= instr_curr;
+            -- instr_curr_prev <= instr_curr;
             pc_next_reg <= pc_next;
             pc_next_trad_reg <= pc_next_trad;
             data_addr_reg <= data_addr;
@@ -445,6 +443,16 @@ architecture struct of vesta is
             if ltch_lh_inst = '1' then
                 instr_lower_half <= instr(31 downto 16);
             end if;
+        end if;
+    end process;
+
+    -- Added - experienced some timing issues when instr_curr assigned to instr_curr_prev - advance by half cycle
+    state_reg_fe: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            instr_curr_prev <= nop;
+        elsif rising_edge(clk_cpu) then
+            instr_curr_prev <= instr_curr;
         end if;
     end process;
 
@@ -473,8 +481,7 @@ architecture struct of vesta is
     -- ==========================================
     -- Current Instruction Selection
     -- ==========================================
-    -- Complex multiplexer for selecting current instruction based on state and alignment
-    -- Keep instruction stable during atomic operations
+    -- Multiplexer for selecting current instruction based on state and alignment
     instr_curr <= nop when (resetn = '0' or current_state = INITIALIZE) else
                   instr when (current_state = IRQ_SV) else  -- IVT entries are never compressed
                   instr_decomp when (current_state = EXECUTE and pc(1) = '1' and repeat_if = '1') else
@@ -491,6 +498,7 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = AMO_READ) else  -- Keep instruction during AMO
                   instr_curr_prev when (current_state = AMO_WRITEBACK) else
                   instr_curr_prev when (current_state = AMO_COMPUTE) else
+                  instr_curr_prev when (current_state = AMO_COMPLETE) else -- TODO: Added
                   instr_curr_prev when (current_state = AMO_WRITE) else
                   instr_curr_prev when (current_state = LR_READ) else
                   instr_curr_prev when (current_state = SC_CHECK) else
@@ -554,10 +562,8 @@ architecture struct of vesta is
                     "000";  -- Normal operation
 
 
-    
-
     -- ==========================================
-    -- FSM Next State Logic (Combinational)
+    -- FSM Next State Logic 
     -- ==========================================
     next_state_logic: process(resetn, current_state, pc, instr, quadrant_upper, quadrant_lower, 
                              repeat_if, instr_upper_half, instr_lower_half, instr_decomp, 
@@ -565,7 +571,7 @@ architecture struct of vesta is
                              pc_plus_4, pc_plus_2, alu_done, irq_save_ack, isr_ret, 
                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
-                             reservation_valid, reservation_addr, ALU_result)
+                             reservation_valid, reservation_addr, ALU_result, fence_op)
     begin
         if resetn = '0' then
             -- Reset all control signals

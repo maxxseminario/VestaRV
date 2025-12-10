@@ -1,7 +1,7 @@
 #######################################################
 #                                                     
 #  Innovus Command Logging File                     
-#  Created on Tue Oct  7 17:35:07 2025                
+#  Created on Tue Nov 18 20:02:46 2025                
 #                                                     
 #######################################################
 
@@ -17,4 +17,4 @@ set_global _enable_mmmc_by_default_flow      $CTE::mmmc_default
 suppressMessage ENCEXT-2799
 getVersion
 is_common_ui_mode
-restoreDesign /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat MCU
+restoreDesign /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat MCU

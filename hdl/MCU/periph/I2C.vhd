@@ -9,6 +9,9 @@ use work.MemoryMap.all;
 -- I2C specification: https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 
 entity I2C is
+	generic (
+		default_SAD	: std_logic_vector(6 downto 0) := (others => '0')	-- The default slave address for this I2C peripheral
+	);
 	port
 	(
 		-- System Signals
@@ -808,7 +811,8 @@ begin
 			I2CxCR <= (others => '0');
 			I2CxMTX <= (others => '0');
 			I2CxSTX <= (others => '0');
-			I2CxAR <= (others => '0');
+			-- I2CxAR <= (others => '0');
+			I2CxAR <= default_SAD; -- Default address for the I2C slave
 			I2CxAMR <= (others => '0');
 		elsif rising_edge(ClkMem) then
 			-- Initialize clear signal(s)

@@ -1,6 +1,6 @@
 # ####################################################################
 
-#  Created by Genus(TM) Synthesis Solution 19.15-s090_1 on Tue Nov 18 13:27:27 CST 2025
+#  Created by Genus(TM) Synthesis Solution 19.15-s090_1 on Sat Nov 22 14:01:29 CST 2025
 
 # ####################################################################
 
@@ -12,15 +12,15 @@ set_units -time 1000ps
 # Set the current design
 current_design MCU
 
-create_clock -name "mclk" -period 28.57143 -waveform {0.0 14.285715} [get_pins system0/mclk_out]
-create_clock -name "smclk" -period 28.57143 -waveform {0.0 14.285715} [get_pins system0/smclk_out]
-create_clock -name "clk_cpu" -period 28.57143 -waveform {0.0 14.285715} [get_pins core/clk_cpu]
+create_clock -name "mclk" -period 40.0 -waveform {0.0 20.0} [get_pins system0/mclk_out]
+create_clock -name "smclk" -period 40.0 -waveform {0.0 20.0} [get_pins system0/smclk_out]
+create_clock -name "clk_cpu" -period 40.0 -waveform {0.0 20.0} [get_pins core/clk_cpu]
 create_clock -name "clk_lfxt" -period 30517.578 -waveform {0.0 15258.789} [get_pins system0/clk_lfxt_out]
-create_clock -name "clk_hfxt" -period 28.57143 -waveform {0.0 14.285715} [get_pins system0/clk_hfxt_out]
+create_clock -name "clk_hfxt" -period 40.0 -waveform {0.0 20.0} [get_pins system0/clk_hfxt_out]
 create_clock -name "clk_scl0" -period 200.0 -waveform {0.0 100.0} [get_pins i2c0/SCL_IN]
 create_clock -name "clk_scl1" -period 200.0 -waveform {0.0 100.0} [get_pins i2c1/SCL_IN]
-create_clock -name "clk_sck0" -period 28.57143 -waveform {0.0 14.285715} [get_pins spi0/sck_in]
-create_clock -name "clk_sck1" -period 28.57143 -waveform {0.0 14.285715} [get_pins spi1/sck_in]
+create_clock -name "clk_sck0" -period 40.0 -waveform {0.0 20.0} [get_pins spi0/sck_in]
+create_clock -name "clk_sck1" -period 40.0 -waveform {0.0 20.0} [get_pins spi1/sck_in]
 set_false_path -from [get_clocks mclk] -to [get_clocks smclk]
 set_false_path -from [get_clocks mclk] -to [get_clocks clk_cpu]
 set_false_path -from [get_clocks mclk] -to [get_clocks clk_lfxt]
@@ -463,61 +463,51 @@ group_path -weight 1.000000 -name cg_enable_group_clk_cpu -through [list \
   [get_pins gpio3/RC_CG_HIER_INST124/enable]  \
   [get_pins gpio3/RC_CG_HIER_INST125/enable]  \
   [get_pins gpio3/RC_CG_HIER_INST126/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST128/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST129/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST130/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST127/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST131/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST132/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST133/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST134/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST135/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST136/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST142/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST143/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST144/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST145/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST137/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST139/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST146/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST147/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST149/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST150/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST162/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST163/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST164/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST165/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST166/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST167/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST168/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST169/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST173/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST174/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST178/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST179/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST180/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST181/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST182/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST183/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST184/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST185/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST186/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST187/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST151/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST152/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST153/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST154/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST156/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST158/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST172/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST173/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST174/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST175/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST176/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST177/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST178/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST179/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST183/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST184/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST188/enable]  \
   [get_pins spi0/RC_CG_HIER_INST189/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST196/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST197/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST198/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST199/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST200/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST201/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST202/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST204/enable]  \
-  [get_pins system0/RC_CG_HIER_INST211/enable]  \
-  [get_pins system0/RC_CG_HIER_INST212/enable]  \
-  [get_pins system0/RC_CG_HIER_INST213/enable]  \
-  [get_pins system0/RC_CG_HIER_INST214/enable]  \
-  [get_pins system0/RC_CG_HIER_INST215/enable]  \
-  [get_pins system0/RC_CG_HIER_INST216/enable]  \
-  [get_pins system0/RC_CG_HIER_INST217/enable]  \
-  [get_pins system0/RC_CG_HIER_INST218/enable]  \
-  [get_pins system0/RC_CG_HIER_INST219/enable]  \
-  [get_pins system0/RC_CG_HIER_INST220/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST190/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST191/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST192/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST193/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST194/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST195/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST196/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST197/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST199/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST206/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST207/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST208/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST209/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST210/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST211/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST212/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST214/enable]  \
   [get_pins system0/RC_CG_HIER_INST221/enable]  \
   [get_pins system0/RC_CG_HIER_INST222/enable]  \
   [get_pins system0/RC_CG_HIER_INST223/enable]  \
@@ -538,48 +528,58 @@ group_path -weight 1.000000 -name cg_enable_group_clk_cpu -through [list \
   [get_pins system0/RC_CG_HIER_INST238/enable]  \
   [get_pins system0/RC_CG_HIER_INST239/enable]  \
   [get_pins system0/RC_CG_HIER_INST240/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST246/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST247/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST248/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST249/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST250/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST251/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST252/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST253/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST254/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST255/enable]  \
+  [get_pins system0/RC_CG_HIER_INST241/enable]  \
+  [get_pins system0/RC_CG_HIER_INST242/enable]  \
+  [get_pins system0/RC_CG_HIER_INST243/enable]  \
+  [get_pins system0/RC_CG_HIER_INST244/enable]  \
+  [get_pins system0/RC_CG_HIER_INST245/enable]  \
+  [get_pins system0/RC_CG_HIER_INST246/enable]  \
+  [get_pins system0/RC_CG_HIER_INST247/enable]  \
+  [get_pins system0/RC_CG_HIER_INST248/enable]  \
+  [get_pins system0/RC_CG_HIER_INST249/enable]  \
+  [get_pins system0/RC_CG_HIER_INST250/enable]  \
   [get_pins timer0/RC_CG_HIER_INST256/enable]  \
   [get_pins timer0/RC_CG_HIER_INST257/enable]  \
   [get_pins timer0/RC_CG_HIER_INST258/enable]  \
   [get_pins timer0/RC_CG_HIER_INST259/enable]  \
   [get_pins timer0/RC_CG_HIER_INST260/enable]  \
   [get_pins timer0/RC_CG_HIER_INST261/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST262/enable]  \
   [get_pins timer0/RC_CG_HIER_INST263/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST266/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST267/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST268/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST269/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST270/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST271/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST272/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST273/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST274/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST275/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST264/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST265/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST266/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST267/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST268/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST269/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST270/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST271/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST273/enable]  \
   [get_pins timer1/RC_CG_HIER_INST276/enable]  \
   [get_pins timer1/RC_CG_HIER_INST277/enable]  \
   [get_pins timer1/RC_CG_HIER_INST278/enable]  \
   [get_pins timer1/RC_CG_HIER_INST279/enable]  \
   [get_pins timer1/RC_CG_HIER_INST280/enable]  \
   [get_pins timer1/RC_CG_HIER_INST281/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST282/enable]  \
   [get_pins timer1/RC_CG_HIER_INST283/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST284/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST285/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST286/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST288/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST299/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST300/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST301/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST303/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST284/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST285/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST286/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST287/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST288/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST289/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST290/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST291/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST293/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST294/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST295/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST296/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST298/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST309/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST310/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST311/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST313/enable]  \
   [get_pins adddec0/RC_CG_HIER_INST0/enable]  \
   [get_pins adddec0/RC_CG_HIER_INST1/enable]  \
   [get_pins adddec0/RC_CG_HIER_INST2/enable]  \
@@ -647,61 +647,51 @@ group_path -weight 1.000000 -name cg_enable_group_clk_cpu -through [list \
   [get_pins gpio3/RC_CG_HIER_INST124/enable]  \
   [get_pins gpio3/RC_CG_HIER_INST125/enable]  \
   [get_pins gpio3/RC_CG_HIER_INST126/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST128/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST129/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST130/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST127/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST131/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST132/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST133/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST134/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST135/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST136/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST142/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST143/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST144/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST145/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST137/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST139/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST146/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST147/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST149/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST150/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST162/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST163/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST164/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST165/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST166/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST167/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST168/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST169/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST173/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST174/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST178/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST179/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST180/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST181/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST182/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST183/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST184/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST185/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST186/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST187/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST151/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST152/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST153/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST154/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST156/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST158/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST172/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST173/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST174/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST175/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST176/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST177/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST178/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST179/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST183/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST184/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST188/enable]  \
   [get_pins spi0/RC_CG_HIER_INST189/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST196/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST197/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST198/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST199/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST200/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST201/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST202/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST204/enable]  \
-  [get_pins system0/RC_CG_HIER_INST211/enable]  \
-  [get_pins system0/RC_CG_HIER_INST212/enable]  \
-  [get_pins system0/RC_CG_HIER_INST213/enable]  \
-  [get_pins system0/RC_CG_HIER_INST214/enable]  \
-  [get_pins system0/RC_CG_HIER_INST215/enable]  \
-  [get_pins system0/RC_CG_HIER_INST216/enable]  \
-  [get_pins system0/RC_CG_HIER_INST217/enable]  \
-  [get_pins system0/RC_CG_HIER_INST218/enable]  \
-  [get_pins system0/RC_CG_HIER_INST219/enable]  \
-  [get_pins system0/RC_CG_HIER_INST220/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST190/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST191/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST192/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST193/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST194/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST195/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST196/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST197/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST199/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST206/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST207/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST208/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST209/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST210/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST211/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST212/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST214/enable]  \
   [get_pins system0/RC_CG_HIER_INST221/enable]  \
   [get_pins system0/RC_CG_HIER_INST222/enable]  \
   [get_pins system0/RC_CG_HIER_INST223/enable]  \
@@ -722,48 +712,58 @@ group_path -weight 1.000000 -name cg_enable_group_clk_cpu -through [list \
   [get_pins system0/RC_CG_HIER_INST238/enable]  \
   [get_pins system0/RC_CG_HIER_INST239/enable]  \
   [get_pins system0/RC_CG_HIER_INST240/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST246/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST247/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST248/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST249/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST250/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST251/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST252/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST253/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST254/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST255/enable]  \
+  [get_pins system0/RC_CG_HIER_INST241/enable]  \
+  [get_pins system0/RC_CG_HIER_INST242/enable]  \
+  [get_pins system0/RC_CG_HIER_INST243/enable]  \
+  [get_pins system0/RC_CG_HIER_INST244/enable]  \
+  [get_pins system0/RC_CG_HIER_INST245/enable]  \
+  [get_pins system0/RC_CG_HIER_INST246/enable]  \
+  [get_pins system0/RC_CG_HIER_INST247/enable]  \
+  [get_pins system0/RC_CG_HIER_INST248/enable]  \
+  [get_pins system0/RC_CG_HIER_INST249/enable]  \
+  [get_pins system0/RC_CG_HIER_INST250/enable]  \
   [get_pins timer0/RC_CG_HIER_INST256/enable]  \
   [get_pins timer0/RC_CG_HIER_INST257/enable]  \
   [get_pins timer0/RC_CG_HIER_INST258/enable]  \
   [get_pins timer0/RC_CG_HIER_INST259/enable]  \
   [get_pins timer0/RC_CG_HIER_INST260/enable]  \
   [get_pins timer0/RC_CG_HIER_INST261/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST262/enable]  \
   [get_pins timer0/RC_CG_HIER_INST263/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST266/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST267/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST268/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST269/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST270/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST271/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST272/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST273/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST274/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST275/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST264/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST265/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST266/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST267/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST268/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST269/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST270/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST271/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST273/enable]  \
   [get_pins timer1/RC_CG_HIER_INST276/enable]  \
   [get_pins timer1/RC_CG_HIER_INST277/enable]  \
   [get_pins timer1/RC_CG_HIER_INST278/enable]  \
   [get_pins timer1/RC_CG_HIER_INST279/enable]  \
   [get_pins timer1/RC_CG_HIER_INST280/enable]  \
   [get_pins timer1/RC_CG_HIER_INST281/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST282/enable]  \
   [get_pins timer1/RC_CG_HIER_INST283/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST284/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST285/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST286/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST288/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST299/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST300/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST301/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST303/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST284/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST285/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST286/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST287/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST288/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST289/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST290/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST291/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST293/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST294/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST295/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST296/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST298/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST309/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST310/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST311/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST313/enable]  \
   [get_pins adddec0/RC_CG_HIER_INST0/enable]  \
   [get_pins adddec0/RC_CG_HIER_INST1/enable]  \
   [get_pins adddec0/RC_CG_HIER_INST2/enable]  \
@@ -831,61 +831,51 @@ group_path -weight 1.000000 -name cg_enable_group_clk_cpu -through [list \
   [get_pins gpio3/RC_CG_HIER_INST124/enable]  \
   [get_pins gpio3/RC_CG_HIER_INST125/enable]  \
   [get_pins gpio3/RC_CG_HIER_INST126/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST128/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST129/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST130/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST127/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST131/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST132/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST133/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST134/enable]  \
   [get_pins i2c0/RC_CG_HIER_INST135/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST136/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST142/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST143/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST144/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST145/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST137/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST139/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST146/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST147/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST149/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST150/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST162/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST163/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST164/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST165/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST166/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST167/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST168/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST169/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST173/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST174/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST178/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST179/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST180/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST181/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST182/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST183/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST184/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST185/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST186/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST187/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST151/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST152/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST153/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST154/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST156/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST158/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST172/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST173/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST174/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST175/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST176/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST177/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST178/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST179/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST183/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST184/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST188/enable]  \
   [get_pins spi0/RC_CG_HIER_INST189/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST196/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST197/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST198/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST199/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST200/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST201/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST202/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST204/enable]  \
-  [get_pins system0/RC_CG_HIER_INST211/enable]  \
-  [get_pins system0/RC_CG_HIER_INST212/enable]  \
-  [get_pins system0/RC_CG_HIER_INST213/enable]  \
-  [get_pins system0/RC_CG_HIER_INST214/enable]  \
-  [get_pins system0/RC_CG_HIER_INST215/enable]  \
-  [get_pins system0/RC_CG_HIER_INST216/enable]  \
-  [get_pins system0/RC_CG_HIER_INST217/enable]  \
-  [get_pins system0/RC_CG_HIER_INST218/enable]  \
-  [get_pins system0/RC_CG_HIER_INST219/enable]  \
-  [get_pins system0/RC_CG_HIER_INST220/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST190/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST191/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST192/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST193/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST194/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST195/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST196/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST197/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST199/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST206/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST207/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST208/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST209/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST210/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST211/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST212/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST214/enable]  \
   [get_pins system0/RC_CG_HIER_INST221/enable]  \
   [get_pins system0/RC_CG_HIER_INST222/enable]  \
   [get_pins system0/RC_CG_HIER_INST223/enable]  \
@@ -906,208 +896,224 @@ group_path -weight 1.000000 -name cg_enable_group_clk_cpu -through [list \
   [get_pins system0/RC_CG_HIER_INST238/enable]  \
   [get_pins system0/RC_CG_HIER_INST239/enable]  \
   [get_pins system0/RC_CG_HIER_INST240/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST246/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST247/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST248/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST249/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST250/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST251/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST252/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST253/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST254/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST255/enable]  \
+  [get_pins system0/RC_CG_HIER_INST241/enable]  \
+  [get_pins system0/RC_CG_HIER_INST242/enable]  \
+  [get_pins system0/RC_CG_HIER_INST243/enable]  \
+  [get_pins system0/RC_CG_HIER_INST244/enable]  \
+  [get_pins system0/RC_CG_HIER_INST245/enable]  \
+  [get_pins system0/RC_CG_HIER_INST246/enable]  \
+  [get_pins system0/RC_CG_HIER_INST247/enable]  \
+  [get_pins system0/RC_CG_HIER_INST248/enable]  \
+  [get_pins system0/RC_CG_HIER_INST249/enable]  \
+  [get_pins system0/RC_CG_HIER_INST250/enable]  \
   [get_pins timer0/RC_CG_HIER_INST256/enable]  \
   [get_pins timer0/RC_CG_HIER_INST257/enable]  \
   [get_pins timer0/RC_CG_HIER_INST258/enable]  \
   [get_pins timer0/RC_CG_HIER_INST259/enable]  \
   [get_pins timer0/RC_CG_HIER_INST260/enable]  \
   [get_pins timer0/RC_CG_HIER_INST261/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST262/enable]  \
   [get_pins timer0/RC_CG_HIER_INST263/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST266/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST267/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST268/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST269/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST270/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST271/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST272/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST273/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST274/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST275/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST264/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST265/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST266/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST267/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST268/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST269/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST270/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST271/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST273/enable]  \
   [get_pins timer1/RC_CG_HIER_INST276/enable]  \
   [get_pins timer1/RC_CG_HIER_INST277/enable]  \
   [get_pins timer1/RC_CG_HIER_INST278/enable]  \
   [get_pins timer1/RC_CG_HIER_INST279/enable]  \
   [get_pins timer1/RC_CG_HIER_INST280/enable]  \
   [get_pins timer1/RC_CG_HIER_INST281/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST282/enable]  \
   [get_pins timer1/RC_CG_HIER_INST283/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST284/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST285/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST286/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST288/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST299/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST300/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST301/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST303/enable] ]
+  [get_pins timer1/RC_CG_HIER_INST284/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST285/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST286/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST287/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST288/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST289/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST290/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST291/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST293/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST294/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST295/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST296/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST298/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST309/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST310/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST311/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST313/enable] ]
 group_path -weight 1.000000 -name cg_enable_group_smclk -through [list \
   [get_pins afe0/adc_fsm/counter/RC_CG_HIER_INST35/enable]  \
   [get_pins afe0/adc_fsm/fsm/RC_CG_HIER_INST36/enable]  \
-  [get_pins i2c0/CGMaster/RC_CG_HIER_INST140/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST127/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST134/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST137/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST138/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST139/enable]  \
-  [get_pins i2c1/CGMaster/RC_CG_HIER_INST154/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST141/enable]  \
+  [get_pins i2c0/CGMaster/RC_CG_HIER_INST145/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST128/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST129/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST136/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST140/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST141/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST142/enable]  \
+  [get_pins i2c1/CGMaster/RC_CG_HIER_INST164/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST147/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST148/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST151/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST152/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST153/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST171/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST172/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST175/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST176/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST177/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST188/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST190/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST191/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST192/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST193/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST194/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST203/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST205/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST206/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST207/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST208/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST209/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST287/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST289/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST290/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST291/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST292/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST293/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST294/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST295/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST296/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST155/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST159/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST160/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST161/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST181/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST182/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST185/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST186/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST187/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST198/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST200/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST201/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST202/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST203/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST204/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST213/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST215/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST216/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST217/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST218/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST219/enable]  \
   [get_pins uart0/RC_CG_HIER_INST297/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST298/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST302/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST304/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST305/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST306/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST307/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST308/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST309/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST310/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST311/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST299/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST300/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST301/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST302/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST303/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST304/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST305/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST306/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST307/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST308/enable]  \
   [get_pins uart1/RC_CG_HIER_INST312/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST313/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST314/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST315/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST316/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST317/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST318/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST319/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST320/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST321/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST322/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST323/enable]  \
   [get_pins afe0/adc_fsm/counter/RC_CG_HIER_INST35/enable]  \
   [get_pins afe0/adc_fsm/fsm/RC_CG_HIER_INST36/enable]  \
-  [get_pins i2c0/CGMaster/RC_CG_HIER_INST140/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST127/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST134/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST137/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST138/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST139/enable]  \
-  [get_pins i2c1/CGMaster/RC_CG_HIER_INST154/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST141/enable]  \
+  [get_pins i2c0/CGMaster/RC_CG_HIER_INST145/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST128/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST129/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST136/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST140/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST141/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST142/enable]  \
+  [get_pins i2c1/CGMaster/RC_CG_HIER_INST164/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST147/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST148/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST151/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST152/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST153/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST171/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST172/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST175/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST176/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST177/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST188/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST190/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST191/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST192/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST193/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST194/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST203/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST205/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST206/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST207/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST208/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST209/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST287/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST289/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST290/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST291/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST292/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST293/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST294/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST295/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST296/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST155/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST159/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST160/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST161/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST181/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST182/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST185/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST186/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST187/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST198/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST200/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST201/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST202/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST203/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST204/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST213/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST215/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST216/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST217/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST218/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST219/enable]  \
   [get_pins uart0/RC_CG_HIER_INST297/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST298/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST302/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST304/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST305/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST306/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST307/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST308/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST309/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST310/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST311/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST299/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST300/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST301/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST302/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST303/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST304/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST305/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST306/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST307/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST308/enable]  \
   [get_pins uart1/RC_CG_HIER_INST312/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST313/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST314/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST315/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST316/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST317/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST318/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST319/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST320/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST321/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST322/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST323/enable]  \
   [get_pins afe0/adc_fsm/counter/RC_CG_HIER_INST35/enable]  \
   [get_pins afe0/adc_fsm/fsm/RC_CG_HIER_INST36/enable]  \
-  [get_pins i2c0/CGMaster/RC_CG_HIER_INST140/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST127/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST134/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST137/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST138/enable]  \
-  [get_pins i2c0/RC_CG_HIER_INST139/enable]  \
-  [get_pins i2c1/CGMaster/RC_CG_HIER_INST154/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST141/enable]  \
+  [get_pins i2c0/CGMaster/RC_CG_HIER_INST145/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST128/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST129/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST136/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST140/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST141/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST142/enable]  \
+  [get_pins i2c1/CGMaster/RC_CG_HIER_INST164/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST147/enable]  \
   [get_pins i2c1/RC_CG_HIER_INST148/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST151/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST152/enable]  \
-  [get_pins i2c1/RC_CG_HIER_INST153/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST171/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST172/enable]  \
-  [get_pins saradc0/RC_CG_HIER_INST175/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST176/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST177/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST188/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST190/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST191/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST192/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST193/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST194/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST203/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST205/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST206/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST207/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST208/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST209/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST287/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST289/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST290/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST291/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST292/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST293/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST294/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST295/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST296/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST155/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST159/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST160/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST161/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST181/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST182/enable]  \
+  [get_pins saradc0/RC_CG_HIER_INST185/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST186/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST187/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST198/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST200/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST201/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST202/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST203/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST204/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST213/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST215/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST216/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST217/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST218/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST219/enable]  \
   [get_pins uart0/RC_CG_HIER_INST297/enable]  \
-  [get_pins uart0/RC_CG_HIER_INST298/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST302/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST304/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST305/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST306/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST307/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST308/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST309/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST310/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST311/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST299/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST300/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST301/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST302/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST303/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST304/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST305/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST306/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST307/enable]  \
+  [get_pins uart0/RC_CG_HIER_INST308/enable]  \
   [get_pins uart1/RC_CG_HIER_INST312/enable]  \
-  [get_pins uart1/RC_CG_HIER_INST313/enable] ]
+  [get_pins uart1/RC_CG_HIER_INST314/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST315/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST316/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST317/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST318/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST319/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST320/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST321/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST322/enable]  \
+  [get_pins uart1/RC_CG_HIER_INST323/enable] ]
 group_path -weight 1.000000 -name cg_enable_group_mclk -through [list \
   [get_pins core/csr_unit_inst/RC_CG_HIER_INST44/enable]  \
   [get_pins core/csr_unit_inst/RC_CG_HIER_INST45/enable]  \
@@ -1167,14 +1173,14 @@ group_path -weight 1.000000 -name cg_enable_group_mclk -through [list \
   [get_pins core/RC_CG_HIER_INST41/enable]  \
   [get_pins core/RC_CG_HIER_INST42/enable]  \
   [get_pins core/RC_CG_HIER_INST43/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST155/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST156/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST157/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST158/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST159/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST160/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST161/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST165/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST166/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST167/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST168/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST169/enable]  \
   [get_pins npu0/RC_CG_HIER_INST170/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST171/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST180/enable]  \
   [get_pins core/RC_CG_HIER_INST37/enable]  \
   [get_pins core/RC_CG_HIER_INST38/enable]  \
   [get_pins core/RC_CG_HIER_INST39/enable]  \
@@ -1233,14 +1239,14 @@ group_path -weight 1.000000 -name cg_enable_group_mclk -through [list \
   [get_pins core/irq_handler_inst/RC_CG_HIER_INST92/enable]  \
   [get_pins core/irq_handler_inst/RC_CG_HIER_INST93/enable]  \
   [get_pins core/irq_handler_inst/RC_CG_HIER_INST94/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST155/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST156/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST157/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST158/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST159/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST160/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST161/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST165/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST166/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST167/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST168/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST169/enable]  \
   [get_pins npu0/RC_CG_HIER_INST170/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST171/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST180/enable]  \
   [get_pins core/RC_CG_HIER_INST37/enable]  \
   [get_pins core/RC_CG_HIER_INST38/enable]  \
   [get_pins core/RC_CG_HIER_INST39/enable]  \
@@ -1299,51 +1305,77 @@ group_path -weight 1.000000 -name cg_enable_group_mclk -through [list \
   [get_pins core/irq_handler_inst/RC_CG_HIER_INST92/enable]  \
   [get_pins core/irq_handler_inst/RC_CG_HIER_INST93/enable]  \
   [get_pins core/irq_handler_inst/RC_CG_HIER_INST94/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST155/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST156/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST157/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST158/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST159/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST160/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST161/enable]  \
-  [get_pins npu0/RC_CG_HIER_INST170/enable] ]
+  [get_pins npu0/RC_CG_HIER_INST165/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST166/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST167/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST168/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST169/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST170/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST171/enable]  \
+  [get_pins npu0/RC_CG_HIER_INST180/enable] ]
+group_path -weight 1.000000 -name cg_enable_group_clk_scl0 -through [list \
+  [get_pins i2c0/RC_CG_HIER_INST130/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST138/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST143/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST144/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST130/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST138/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST143/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST144/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST130/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST138/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST143/enable]  \
+  [get_pins i2c0/RC_CG_HIER_INST144/enable] ]
+group_path -weight 1.000000 -name cg_enable_group_clk_scl1 -through [list \
+  [get_pins i2c1/RC_CG_HIER_INST149/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST157/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST162/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST163/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST149/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST157/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST162/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST163/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST149/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST157/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST162/enable]  \
+  [get_pins i2c1/RC_CG_HIER_INST163/enable] ]
 group_path -weight 1.000000 -name cg_enable_group_clk_sck0 -through [list \
-  [get_pins spi0/RC_CG_HIER_INST195/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST195/enable]  \
-  [get_pins spi0/RC_CG_HIER_INST195/enable] ]
+  [get_pins spi0/RC_CG_HIER_INST205/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST205/enable]  \
+  [get_pins spi0/RC_CG_HIER_INST205/enable] ]
 group_path -weight 1.000000 -name cg_enable_group_clk_sck1 -through [list \
-  [get_pins spi1/RC_CG_HIER_INST210/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST210/enable]  \
-  [get_pins spi1/RC_CG_HIER_INST210/enable] ]
+  [get_pins spi1/RC_CG_HIER_INST220/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST220/enable]  \
+  [get_pins spi1/RC_CG_HIER_INST220/enable] ]
 group_path -weight 1.000000 -name cg_enable_group_default -through [list \
-  [get_pins system0/RC_CG_HIER_INST241/enable]  \
-  [get_pins system0/RC_CG_HIER_INST242/enable]  \
-  [get_pins system0/RC_CG_HIER_INST243/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST244/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST245/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST264/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST265/enable]  \
-  [get_pins system0/RC_CG_HIER_INST241/enable]  \
-  [get_pins system0/RC_CG_HIER_INST242/enable]  \
-  [get_pins system0/RC_CG_HIER_INST243/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST244/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST245/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST264/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST265/enable]  \
-  [get_pins system0/RC_CG_HIER_INST241/enable]  \
-  [get_pins system0/RC_CG_HIER_INST242/enable]  \
-  [get_pins system0/RC_CG_HIER_INST243/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST244/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST245/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST264/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST265/enable] ]
+  [get_pins system0/RC_CG_HIER_INST251/enable]  \
+  [get_pins system0/RC_CG_HIER_INST252/enable]  \
+  [get_pins system0/RC_CG_HIER_INST253/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST254/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST255/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST274/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST275/enable]  \
+  [get_pins system0/RC_CG_HIER_INST251/enable]  \
+  [get_pins system0/RC_CG_HIER_INST252/enable]  \
+  [get_pins system0/RC_CG_HIER_INST253/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST254/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST255/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST274/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST275/enable]  \
+  [get_pins system0/RC_CG_HIER_INST251/enable]  \
+  [get_pins system0/RC_CG_HIER_INST252/enable]  \
+  [get_pins system0/RC_CG_HIER_INST253/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST254/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST255/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST274/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST275/enable] ]
 group_path -weight 1.000000 -name cg_enable_group_clk_hfxt -through [list \
-  [get_pins timer0/RC_CG_HIER_INST262/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST282/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST262/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST282/enable]  \
-  [get_pins timer0/RC_CG_HIER_INST262/enable]  \
-  [get_pins timer1/RC_CG_HIER_INST282/enable] ]
+  [get_pins timer0/RC_CG_HIER_INST272/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST292/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST272/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST292/enable]  \
+  [get_pins timer0/RC_CG_HIER_INST272/enable]  \
+  [get_pins timer1/RC_CG_HIER_INST292/enable] ]
 set_clock_gating_check -setup 0.0 
 set_max_transition 0.5 [current_design]
 set_driving_cell -lib_cell INVX1MA10TH -library scadv10_cln65gp_hvt_tt_1p0v_25c -pin "Y" [get_ports resetn_in]

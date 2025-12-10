@@ -27,15 +27,23 @@ set BASENAME         ${TOP_MODULE}.genus
 # set CLKCPU_FREQ		100
 
 
+# # Target CPU frequency in MHz
+# set CLKHFXT_FREQ	35
+# set CLKLFXT_FREQ	0.032768
+# set I2CSCL_FREQ		5
+# set SPISCK_FREQ		35
+# set FASTEST_FREQ	35
+# set CLKCPU_FREQ		35
+
 # Target CPU frequency in MHz
-set CLKHFXT_FREQ	35
+set base_freq 		25
+set freq_mult 		1
+set CLKHFXT_FREQ	[expr $base_freq * $freq_mult]
 set CLKLFXT_FREQ	0.032768
 set I2CSCL_FREQ		5
-set SPISCK_FREQ		35
-set FASTEST_FREQ	35
-set CLKCPU_FREQ		35
-
-
+set SPISCK_FREQ		$CLKHFXT_FREQ
+set FASTEST_FREQ	$CLKHFXT_FREQ
+set CLKCPU_FREQ		$CLKHFXT_FREQ
 
 
 # puts "Target CLKDCO frequency in MHz: $CLKDCO_FREQ"

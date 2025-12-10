@@ -243,7 +243,7 @@ begin
     );
 
     -- TX Finite State Machine 
-    TX_FSM : process(resetn, clk_tx, clr_UTCIF, clr_UTEIF)
+    TX_FSM : process(resetn, clk_tx, clr_UTCIF, clr_UTEIF, UCR_EN)
     begin 
         if resetn = '0' or UCR_EN = '0' then
             tx_in_progress <= '0';
@@ -359,7 +359,7 @@ begin
 
 
     -- RX Finite State Machine 
-    RX_FSM : process(resetn, clk_baud, en_clk_baud, UCR_EN, UCR_PEN, UCR_PSEL, clr_SR_RX, clr_URCIF)
+    RX_FSM : process(resetn, clk_baud, en_clk_baud, UCR_EN, UCR_PEN, UCR_PSEL, clr_SR_RX, clr_URCIF,rx_in_progress)
     begin 
         if resetn = '0' or rx_in_progress = '0' then
             rx_bit_cntr <= BIT_COUNTER_START; -- was "1010"

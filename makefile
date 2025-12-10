@@ -86,6 +86,7 @@ cdl:
 	fi
 	cd $(IC_DIR) && si -batch -command "simulator auCdl; netlist -lib $(word 2,$(MAKECMDGOALS)) -cell $(word 3,$(MAKECMDGOALS))"
 
+# Updatd Maxx Seminario - new 2025 Muse decks - TSMC
 # Run all DRCs using Calibre on the *_tapeout cell
 .PHONY: tapeout.drc
 tapeout.drc:
@@ -94,16 +95,6 @@ tapeout.drc:
 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final mim25 -turbo && \
 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final ant25 -turbo && \
 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final main -turbo
-
-
-# # Run all DRCs using Calibre on the *_tapeout cell
-# .PHONY: tapeout.drc
-# tapeout.drc:
-# 	cd $(IC_DIR) && \
-# 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final wb -turbo && \
-# 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final mim -turbo && \
-# 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final ant -turbo && \
-# 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final chipdrc -turbo
 
 # Run LVS using PVS on the *_tapeout cell
 .PHONY: tapeout.lvs
@@ -180,33 +171,13 @@ tapeout.lvs:
 	cd $(IC_DIR) && \
 	lefin -lef ../$(INNOVUS_DIR)/out/$*.lef -lib $(LIB_NAME) -overwrite -log log/$*.lefin.log -view abstract -pnrLibDataOnly -techRefs tsmcN65
 
-# # Stream in GDSII files from EDI into IC.
-# .PHONY: MCU.import
-# #MCU.import: rom
-# MCU.import: rom
-# 	cd $(IC_DIR) && \
-# 	rm -rf MCU/MCU/abstract; \
-# 	lefin -lef ../$(INNOVUS_DIR)/out/MCU.lef -lib MCU -overwrite -log log/MCU.lefin.log -view abstract -pnrLibDataOnly -techRefs tsmcN65; \
-# 	rm -rf MCU/MCU_VIA*; \
-# 	rm -rf MCU/MCU/layout; \
-# 	echo "" && echo "Importing schematic from Verilog file..." && echo "" &&\
-# 	verilogin/verilogin MCU MCU && \
-# 	echo "Streaming in MCU layout..." && \
-# 	strmin/strmin.sh MCU MCU "../$(INNOVUS_DIR)/out/MCU.gds2" overwrite && \
-# 	echo "Adding VDD and VSS netsets to MCU schematic and extracting netlist..." && \
-# 	virtuoso -nograph -replay skill/addMCUNetSets.il && \
-# 	echo "Convert MCU layout label delimeters from square brackets to angular brackets and creating VDD and VSS pins..." && \
-# 	virtuoso -nograph -replay skill/fixMCULabels.il && \
-# 	cd .. && make MCU.createpins && \
-# 	echo "" && \
-# 	echo "-------------------- FRIENDLY REMINDER -------------------" && \
-# 	echo "Make sure that the VDD and VSS labels have been created in the proper positions in the MCU layout" && \
-# 	echo "Make sure that all needed libraries are in the strmin/reflib.list file"
-
+# Stream in GDSII files from EDI into IC.
+.PHONY: MCU.import
 MCU.import: rom
 	cd $(IC_DIR) && \
 	rm -rf MCU/MCU/abstract; \
 	lefin -lef ../$(INNOVUS_DIR)/out/MCU.lef -lib MCU -overwrite -log log/MCU.lefin.log -view abstract -pnrLibDataOnly -techRefs tsmcN65; \
+	rm -rf MCU/MCU_VIA*; \
 	rm -rf MCU/MCU/layout; \
 	echo "" && echo "Importing schematic from Verilog file..." && echo "" &&\
 	verilogin/verilogin MCU MCU && \
@@ -214,14 +185,33 @@ MCU.import: rom
 	strmin/strmin.sh MCU MCU "../$(INNOVUS_DIR)/out/MCU.gds2" overwrite && \
 	echo "Adding VDD and VSS netsets to MCU schematic and extracting netlist..." && \
 	virtuoso -nograph -replay skill/addMCUNetSets.il && \
-	echo "Convert MCU layout label delimeters from square brackets to angular brackets..." && \
-	virtuoso -nograph -replay skill/fixMCULabels.il 2>&1 | tee log/fixMCULabels.log && \
+	echo "Convert MCU layout label delimeters from square brackets to angular brackets and creating VDD and VSS pins..." && \
+	virtuoso -nograph -replay skill/fixMCULabels.il && \
 	cd .. && make MCU.createpins && \
 	echo "" && \
 	echo "-------------------- FRIENDLY REMINDER -------------------" && \
 	echo "Make sure that the VDD and VSS labels have been created in the proper positions in the MCU layout" && \
-	echo "Make sure that all needed libraries are in the strmin/reflib.list file" && \
-	echo "Check log/fixMCULabels.log for label conversion details"
+	echo "Make sure that all needed libraries are in the strmin/reflib.list file"
+
+# MCU.import: rom
+# 	cd $(IC_DIR) && \
+# 	rm -rf MCU/MCU/abstract; \
+# 	lefin -lef ../$(INNOVUS_DIR)/out/MCU.lef -lib MCU -overwrite -log log/MCU.lefin.log -view abstract -pnrLibDataOnly -techRefs tsmcN65; \
+# 	rm -rf MCU/MCU/layout; \
+# 	echo "" && echo "Importing schematic from Verilog file..." && echo "" &&\
+# 	verilogin/verilogin MCU MCU && \
+# 	echo "Streaming in MCU layout..." && \
+# 	strmin/strmin.sh MCU MCU "../$(INNOVUS_DIR)/out/MCU.gds2" overwrite && \
+# 	echo "Adding VDD and VSS netsets to MCU schematic and extracting netlist..." && \
+# 	virtuoso -nograph -replay skill/addMCUNetSets.il && \
+# 	echo "Convert MCU layout label delimeters from square brackets to angular brackets..." && \
+# 	virtuoso -nograph -replay skill/fixMCULabels.il 2>&1 | tee log/fixMCULabels.log && \
+# 	cd .. && make MCU.createpins && \
+# 	echo "" && \
+# 	echo "-------------------- FRIENDLY REMINDER -------------------" && \
+# 	echo "Make sure that the VDD and VSS labels have been created in the proper positions in the MCU layout" && \
+# 	echo "Make sure that all needed libraries are in the strmin/reflib.list file" && \
+# 	echo "Check log/fixMCULabels.log for label conversion details"
 
 	
 
@@ -328,16 +318,16 @@ tapeout:
 	echo "copyLayoutPinsToLayout(\"$(LIB_NAME)\" \"$(TOP_CELL)\" \"$(LIB_NAME)_tapeout\" \"$(TOP_CELL)_final\")" >> skill/tapeout_ASIC.il && \
 	echo "copyLayoutLabelsToLayout(\"$(LIB_NAME)\" \"$(TOP_CELL)\" \"$(LIB_NAME)_tapeout\" \"$(TOP_CELL)_final\")" >> skill/tapeout_ASIC.il && \
 	virtuoso -nograph -replay skill/tapeout_ASIC.il && \
-	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final chipdrc -turbo && \
-	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final mim -turbo && \
-	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final ant -turbo && \
+	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final main -turbo && \
+	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final mim25 -turbo && \
+	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final ant25 -turbo && \
 	calibre/drc $(LIB_NAME)_tapeout $(TOP_CELL)_final wb -turbo && \
-	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/chipdrc.rpt tapeout_upload/ && \
-	cp calibre/chipdrc.rul tapeout_upload/ && \
-	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/mim.rpt tapeout_upload/ && \
-	cp calibre/mim.rul tapeout_upload/ && \
-	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/ant.rpt tapeout_upload/ && \
-	cp calibre/ant.rul tapeout_upload/ && \
+	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/main.rpt tapeout_upload/ && \
+	cp calibre/main.rul tapeout_upload/ && \
+	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/mim25.rpt tapeout_upload/ && \
+	cp calibre/mim25.rul tapeout_upload/ && \
+	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/ant25.rpt tapeout_upload/ && \
+	cp calibre/ant25.rul tapeout_upload/ && \
 	cp calibre/$(LIB_NAME)_tapeout/$(TOP_CELL)_final/results/wb.rpt tapeout_upload/ && \
 	cp calibre/wb.rul tapeout_upload/ && \
 	pvs/lvs $(LIB_NAME)_tapeout $(TOP_CELL)_final $(LIB_NAME) $(TOP_CELL) -turbo

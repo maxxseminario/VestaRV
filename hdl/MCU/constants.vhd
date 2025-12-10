@@ -192,6 +192,9 @@ package constants is
 
 
 
+    -- I2C constants
+    constant i2c0_default_SAD : std_logic_vector(6 downto 0) := "1111001"; -- Default slave address for I2C0 (0x79)
+    constant i2c1_default_SAD : std_logic_vector(6 downto 0) := "0100011"; -- Default slave address for I2C1 (0x23)
 
 
 	constant mem_assert	: std_logic := '0'; -- Active low

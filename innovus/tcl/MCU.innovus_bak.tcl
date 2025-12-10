@@ -41,7 +41,7 @@ set CORE_HEIGHT		[expr {$DESIGN_HEIGHT - ($CORE_SPACING * 2)}]
 set AFE_HEIGHT_SM  150
 set AFE_HEIGHT_LG  210
 set AFE_HEIGHT_TOT  [expr {$AFE_HEIGHT_SM + $AFE_HEIGHT_LG}]
-set AFE_WIDTH_LG    390
+set AFE_WIDTH_LG    400
 set AFE_WIDTH_SM    350
 set AFE_WIDTH_TOT   [expr {$AFE_WIDTH_LG + $AFE_WIDTH_SM}]
 set PAD_ROUTE_W     47  
@@ -61,7 +61,6 @@ tic
 # Specify inital design files.
 set init_verilog             "$GENUS_DIR/out/$DESIGN_NAME.genus.v"
 set init_top_cell            "$DESIGN_NAME"
-set init_mem_cell            "$DESIGN_NAME/mem_subsystem"
 set init_pwr_net             "VDD"
 set init_gnd_net             "VSS"
 set init_mmmc_file           "$SCRIPT_DIR/viewdefinition.tcl"
@@ -124,8 +123,8 @@ globalNetConnect VSS -type pgpin -pin VSS -inst * -module {} -autoTie -verbose
 ################################################################################
 
 # Create the floorplan and specify outer dimensions. This overrides the .conf file.
-set BOTTOM_SPACING 18
-# set BOTTOM_SPACING 2
+# set BOTTOM_SPACING 18
+set BOTTOM_SPACING 2
 floorPlan \
     -site TSMC65ADV10TSITE \
     -s $CORE_WIDTH [expr {$CORE_HEIGHT - $BOTTOM_SPACING + $CORE_SPACING}] $CORE_SPACING $BOTTOM_SPACING $CORE_SPACING $CORE_SPACING
@@ -161,13 +160,13 @@ setObjFPlanPolygon cell {MCU} \
 # fit; redraw; update
 
 # Set IP sizes (find width and height in the spec PDFs, *_RING_WIDTH is the width around the IP that should not have cells placed inside on all sides)
-set MEM_EDGE_SPACING	[expr {2 * $BOTTOM_SPACING}]
-# set MEM_EDGE_SPACING	10
+# set MEM_EDGE_SPACING	[expr {2 * $BOTTOM_SPACING}]
+set MEM_EDGE_SPACING	10
 set MEM_TO_MEM_SPACING	4
 
 set ROM_WIDTH			156.525
 set ROM_HEIGHT			325.055
-set ROM_RING_WIDTH		0
+set ROM_RING_WIDTH		9
 
 
 
@@ -193,33 +192,50 @@ set SRAM1K_HEIGHT		96.37
 set SRAM1K_RING_WIDTH	0
 
 
-# Place memory blocks 
-set SRAM03_X	[expr {$DESIGN_WIDTH - $MEM_EDGE_SPACING - $SRAM16K_WIDTH}] 
-set SRAM03_Y	[expr {$BOTTOM_SPACING}]
-placeInstance ram1 $SRAM03_X $SRAM03_Y MX
-# addHaloToBlock [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] ram1
-# cutRow
-# Replace the existing addHaloToBlock for ram1 with:
+# Place memory blocks
+
+set BootROM_X	[expr {$MEM_EDGE_SPACING}] 
+set BootROM_Y	[expr {$DESIGN_HEIGHT - $ROM_WIDTH - $MEM_EDGE_SPACING}]
+placeInstance rom0 $BootROM_X $BootROM_Y R90
 addHaloToBlock \
+    [expr {$ROM_RING_WIDTH}] \
+    [expr {0 + ($STD_CELL_HEIGHT * 1)}] \
+    [expr {0 + ($STD_CELL_HEIGHT * 1)}] \
+    [expr {$ROM_RING_WIDTH}] \
+    rom0
+cutRow
+
+
+set SRAM01_X	[expr {$DESIGN_WIDTH/2 - $SRAM16K_WIDTH/2}] 
+set SRAM01_Y	[expr {$MEM_EDGE_SPACING}]
+placeInstance ram1 $SRAM01_X $SRAM01_Y MX
+addHaloToBlock \
+    [expr {$SRAM01_X + $CORE_SPACING}] \
     [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
     [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
-    [expr {$MEM_EDGE_SPACING}] \
     [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
     ram1
 cutRow
+# Replace the existing addHaloToBlock for ram1 with:
+# addHaloToBlock \
+#     [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
+#     [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
+#     [expr {$MEM_EDGE_SPACING}] \
+#     [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
+#     ram1
+# cutRow
 
-set SRAM02_X	[expr {$SRAM03_X - $SRAM16K_WIDTH - $MEM_TO_MEM_SPACING}]
-set SRAM02_Y	[expr {$BOTTOM_SPACING}]
-placeInstance ram0 $SRAM02_X $SRAM02_Y MX
-addHaloToBlock [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] ram0
+set SRAM00_X	[expr {$SRAM01_X + $CORE_SPACING}]
+set SRAM00_Y	[expr {$SRAM01_Y + $SRAM16K_HEIGHT + $MEM_TO_MEM_SPACING}]
+placeInstance ram0 $SRAM00_X $SRAM00_Y MX
+addHaloToBlock \
+    [expr {$SRAM01_X}] \
+    [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
+    [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
+    [expr {$SRAM16K_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] \
+    ram0
 cutRow
 
-
-set BootROM_X	[expr {$SRAM02_X - $ROM_WIDTH - $MEM_TO_MEM_SPACING}] 
-set BootROM_Y	[expr {$BOTTOM_SPACING}]
-placeInstance rom0 $BootROM_X $BootROM_Y MX
-addHaloToBlock [expr {$ROM_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$ROM_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$ROM_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$ROM_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] rom0
-cutRow
 
 # Place POR Circuit 
 
@@ -229,7 +245,7 @@ set POR_RING_WIDTH	0
 
 # WARNING: Make sure this is placed where the VDD and VSS pins will be connected by sroute!
 set POR_X	[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 1) - ($POR_WIDTH * 0.5)}]
-set POR_Y	[expr {100} - $POWER_STRIPE_SET_TO_SET]
+set POR_Y	[expr {400} - $POWER_STRIPE_SET_TO_SET]
 placeInstance por $POR_X $POR_Y MX 
 addHaloToBlock [expr {$POR_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$POR_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$POR_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$POR_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] por
 cutRow
@@ -240,24 +256,24 @@ set IRQ_WIDTH		031.200
 set IRQ_HEIGHT		018.870
 set IRQ_RING_WIDTH	0
 
-set IRQ_Y 400
+set IRQ_Y 300
 
 
 # WARNING: Make sure this is placed where the VDD and VSS pins will be connected by sroute!
-set IRQ0_X	[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 3) - ($IRQ_WIDTH * 0.5)}]
+set IRQ0_X	[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 9) - ($IRQ_WIDTH * 0.5)}]
 set IRQ0_Y	[expr {$IRQ_Y}]
 placeInstance irq_gf0 $IRQ0_X $IRQ0_Y R0
 addHaloToBlock [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] irq_gf0
 cutRow
 
 # TODO: Place these
-set IRQ1_X	[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 3) - ($IRQ_WIDTH * 0.5)}]
+set IRQ1_X	[expr {$IRQ0_X}]
 set IRQ1_Y	[expr {$IRQ_Y + $POWER_STRIPE_SET_TO_SET}]
 placeInstance irq_gf1 $IRQ1_X $IRQ1_Y R0
 addHaloToBlock [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] irq_gf1
 cutRow
 
-set IRQ2_X	[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 3) - ($IRQ_WIDTH * 0.5)}]
+set IRQ2_X	[expr {$IRQ0_X}]
 set IRQ2_Y	[expr {$IRQ_Y + $POWER_STRIPE_SET_TO_SET*2}]
 placeInstance irq_gf2 $IRQ2_X $IRQ2_Y R0
 addHaloToBlock [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] [expr {$IRQ_RING_WIDTH + ($STD_CELL_HEIGHT * 1)}] irq_gf2
@@ -267,12 +283,12 @@ cutRow
 # Place current starved oscillators (DCOs)
 set DCO_WIDTH		058.410
 set DCO_HEIGHT		037.390
-set DCO_NOBLOCK_HEIGHT	4
+set DCO_NOBLOCK_HEIGHT	4 
 set DCO_RING_WIDTH	0
 
-set DCO_Y 103 
+set DCO_Y 410
 
-# TODO: Place these
+
 # WARNING: Make sure this is placed where the VDD and VSS pins will be connected by sroute!
 set DCO0_X		[expr {$CORE_SPACING + ($POWER_STRIPE_SET_TO_SET * 3) - ($DCO_WIDTH * 0.5)}]
 set DCO0_Y		[expr {$DCO_Y}]
@@ -360,7 +376,6 @@ addStripe \
 		[list [expr $DCO0_X] [expr {$DCO0_Y + $DCO_NOBLOCK_HEIGHT}] [expr {$DCO0_X + $DCO_WIDTH}] [expr {$DCO0_Y + $DCO_HEIGHT}]] \
 		[list [expr $DCO1_X] [expr {$DCO1_Y + $DCO_NOBLOCK_HEIGHT}] [expr {$DCO1_X + $DCO_WIDTH}] [expr {$DCO1_Y + $DCO_HEIGHT}]] \
 		]
-		#[list 0 0 [expr {$CORE_SPACING + $SRAM_HEIGHT}] [expr {$CORE_SPACING + ($SRAM_WIDTH * 2) + ($STD_CELL_HEIGHT * 2)}]] \
 
 # Fix the antenna violations created by creating blockages in the power stripes
 editTrim -all
@@ -369,13 +384,11 @@ setCheckMode -globalNet true -io true -route true -tapeOut true
 
 
 
-
-
 # Route power signals to the standard cells.
 printStatus "Routing power rings"
 # The corePinMaxViaScale parameter can help fix Innovus DRC errors generated by the vias on the power nets
-#setSrouteMode \
-#	-corePinMaxViaScale "50 10"
+setSrouteMode \
+	-corePinMaxViaScale "50 10"
 sroute \
 	-nets { VSS VDD } \
 	-allowLayerChange 0 \
@@ -394,13 +407,13 @@ fixVia -minCut
 fixVia -minStep
 
 fit; redraw; update
-suspend
+# suspend
 
 # This is a good place to #suspend and check for violations.
 # Violations from power rails terminating ("open" violations) seem to be benign
 # Other geometry violations need to be resolved. Options: modify the placement of the ROM, RAM, and other instances; change the spacing of the power stripes
-printStatus "Routed power rings. Please check that VDD and VSS connections are good on the ROM and the RAMs"
-##suspend
+printStatus "Routed power rings. Please check that VDD and VSS connections are good on ROMs, RAMs, and other abstract instances."
+suspend
 
 ################################################################################
 # Routing blockages
@@ -476,6 +489,8 @@ fit; redraw; update
 timeDesign -postCTS -expandedViews -outDir $REPORT_DIR/$DESIGN_NAME.timeDesign.postcts
 report_ccopt_clock_trees -file $REPORT_DIR/$DESIGN_NAME.report_ccopt_clock_trees.postcts
 report_ccopt_skew_groups -file $REPORT_DIR/$DESIGN_NAME.report_ccopt_skew_groups.postcts
+
+# suspend
 
 
 

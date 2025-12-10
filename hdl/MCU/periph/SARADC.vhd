@@ -101,6 +101,8 @@ architecture rtl of SARADC is
     -- Clear Signals
    signal clr_data_valid, clr_adc_ovf_if : std_logic;
 
+    -- Added by Maxx Seminario to fix the hold time violation on ADC_sync_clock_phase_shift_reg(14)    
+    signal adc_sync_clock_reg : std_logic;
 
 begin
 
@@ -229,17 +231,16 @@ begin
                 -- shift right until the 1 reaches end and then wait to be reset
                 ADC_sync_clock_phase_shift_reg(14 downto 0) <= ADC_sync_clock_phase_shift_reg(15 downto 1);
                 ADC_sync_clock_phase_shift_reg(15) <= '0';
-		conv_busy <= '1';
-	    elsif (ADC_sync_clock_phase_shift_reg(0) = '1') then
-		-- End of conversion
-		conv_busy <= '0';
-		if adc_cont_meas = '1' then
-		    --reload for cont operation
-		    ADC_sync_clock_phase_shift_reg <= "1000000000000000";
-		    ADC_sync_sample_step_counter <= adc_sync_init_sample_step;
-		end if;
+            conv_busy <= '1';
+            elsif (ADC_sync_clock_phase_shift_reg(0) = '1') then
+            -- End of conversion
+            conv_busy <= '0';
+                if adc_cont_meas = '1' then
+                    --reload for cont operation
+                    ADC_sync_clock_phase_shift_reg <= "1000000000000000";
+                    ADC_sync_sample_step_counter <= adc_sync_init_sample_step;
+                end if;
             end if;
-
             -- Generate conversion flag
             if (ADC_sync_clock_phase_shift_reg(11) = '1') then
                 ADC_sync_clock_conversion_phase <= '1';
@@ -249,13 +250,27 @@ begin
         end if;
     end process;
 
+
+
     -- Phase Flags
     ADC_sync_clock_clear_phase <= ADC_sync_clock_phase_shift_reg(14);
     ADC_sync_clock_sample_phase <= ADC_sync_clock_phase_shift_reg(12);
 
     -- Clock waveform generation
-    ADC_sync_clock <= ADC_sync_clock_clear_phase or ADC_sync_clock_sample_phase or (ADC_sync_clock_conversion_phase and clk);
+    -- ADC_sync_clock <= ADC_sync_clock_clear_phase or ADC_sync_clock_sample_phase or (ADC_sync_clock_conversion_phase and clk);
     ADC_trigger_clock_o <= ADC_sync_clock;
+
+    -- Added by Maxx Seminario to fix the hold time violation on ADC_sync_clock_phase_shift_reg(14)  
+    -- ADC_sync_clock_phase_shift_reg(14) is being used combinationally to generate ADC_sync_clock_clear_phase and ultimately ADC_sync_clock, which is then output as ADC_trigger_clock_o. This creates a long combinational path from a register bit to an output. To fix this we register the output of the combinational logic.
+    Clock_Output_Register: process(clk, reset_i)
+    begin
+        if reset_i = '1' then
+            ADC_sync_clock_reg <= '0';
+        elsif rising_edge(clk) then
+            ADC_sync_clock_reg <= ADC_sync_clock_clear_phase or ADC_sync_clock_sample_phase or (ADC_sync_clock_conversion_phase and clk);
+        end if;
+    end process;
+    ADC_sync_clock <= ADC_sync_clock_reg;
 
     -- =============================================================================
     -- Memory-Mapped Register Interface

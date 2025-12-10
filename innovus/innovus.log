@@ -1,0 +1,36 @@
+
+Cadence Innovus(TM) Implementation System.
+Copyright 2020 Cadence Design Systems, Inc. All rights reserved worldwide.
+
+Version:	v20.12-s088_1, built Fri Nov 6 10:29:19 PST 2020
+Options:	
+Date:		Tue Nov 18 19:55:07 2025
+Host:		atlas (x86_64 w/Linux 5.3.18-lp152.106-default) (64cores*128cpus*AMD Ryzen Threadripper 3990X 64-Core Processor 512KB)
+OS:		Unsupported OS as /etc does not have release info
+
+License:
+		invs	Innovus Implementation System	20.1	checkout succeeded
+		8 CPU jobs allowed with the current license(s). Use setMultiCpuUsage to set your required CPU count.
+Change the soft stacksize limit to 0.2%RAM (515 mbytes). Set global soft_stack_size_limit to change the value.
+
+**INFO:  MMMC transition support version v31-84 
+
+<CMD> set_global _enable_mmmc_by_default_flow      $CTE::mmmc_default
+<CMD> suppressMessage ENCEXT-2799
+<CMD> getVersion
+[INFO] Loading Pegasus 22.14 fill procedures
+<CMD> win
+<CMD> zoomBox -0.02300 -0.02000 0.13200 0.11900
+<CMD> zoomBox 0.00000 0.00600 0.09600 0.09200
+
+--------------------------------------------------------------------------------
+Exiting Innovus on Tue Nov 18 19:55:26 2025
+  Total CPU time:     0:00:11
+  Total real time:    0:00:20
+  Peak memory (main): 862.91MB
+
+
+*** Memory Usage v#1 (Current mem = 1010.090M, initial mem = 283.547M) ***
+*** Message Summary: 0 warning(s), 0 error(s)
+
+--- Ending "Innovus" (totcpu=0:00:11.2, real=0:00:19.0, mem=1010.1M) ---

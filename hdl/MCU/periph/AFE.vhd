@@ -102,7 +102,6 @@ architecture Behavioral of AFE is
 
     -- Clear Signals 
     signal clr_adc_data_rdy_if : std_logic;
-    signal clr_adc_ovf_if : std_logic;
 
     -- ADC signals 
     signal adc_start : std_logic; 
@@ -117,7 +116,7 @@ architecture Behavioral of AFE is
     
     -- ADC_SR_CLR Signals
     signal clr_adc_data_rdy : std_logic;
-    signal clr_adc_ovf : std_logic;
+    signal clr_adc_ovf_if : std_logic;
     signal adc_data_read : std_logic;
 
     -- NOTE: Digital Values from SR can be outputted digitally via dtp
@@ -321,17 +320,17 @@ begin
         if resetn = '0' then 
             adc_data_rdy_if <= '0';
             adc_ovf_if <= '0';
-	elsif rising_edge(clk) then
-            if adc_done = '1' then
-                if adc_data_rdy_if = '1' then
-                    -- Overwriting previous unread data
-                    adc_ovf_if <= '1';
-                end if;
-                adc_data_rdy_if <= '1';
-            end if; 
-	end if;
-	-- Clear Interrupt Flags
-	if clr_adc_data_rdy_if = '1' then
+        elsif rising_edge(clk) then
+                if adc_done = '1' then
+                    if adc_data_rdy_if = '1' then
+                        -- Overwriting previous unread data
+                        adc_ovf_if <= '1';
+                    end if;
+                    adc_data_rdy_if <= '1';
+                end if; 
+        end if;
+        -- Clear Interrupt Flags
+        if clr_adc_data_rdy_if = '1' then
             adc_data_rdy_if <= '0';
         end if;
         if clr_adc_ovf_if = '1' then
@@ -351,12 +350,14 @@ begin
 
 
     -- Register Write Process 
-    reg_write_proc: process(resetn, clk_mem)
+    reg_write_proc: process(resetn, clk_mem, en_mem)
     begin
 
         clr_adc_data_rdy <= '0'; -- default value
 
         if resetn = '0' then
+            -- TODO: Make these reset values generics 
+            -- TODO: For future instantiates of AFEs, global bias should be handled in antoher periheral, only local afe signals in afe peripheral. 
 	        --Register Resets 
             -- AFE_CR              <= x"0FF71F";
             AFE_CR              <= x"000000";
@@ -511,10 +512,8 @@ begin
             end if;
         end if;
 
-
         --Handle clear signals 
         if resetn = '0' or en_mem = '1' then
-            clr_adc_ovf <='0';
             clr_adc_data_rdy_if <= '0';
             clr_adc_ovf_if <= '0';
         end if;

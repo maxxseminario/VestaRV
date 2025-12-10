@@ -33,7 +33,7 @@ entity MCU is
 		prt3_dir		: out	std_logic_vector(7 downto 0);
 		prt3_ren		: out	std_logic_vector(7 downto 0);
 
-        --GPIO3 Connections (TBD)
+        --GPIO3 Connections (I2C0, I2C1, DTPs)
         prt4_in		    : in	std_logic_vector(7 downto 0);
 		prt4_out		: out	std_logic_vector(7 downto 0);
 		prt4_dir		: out	std_logic_vector(7 downto 0);
@@ -343,6 +343,9 @@ architecture behav of MCU is
 
     -- I2Cx
     component I2C is
+        generic (
+            default_SAD	: std_logic_vector(6 downto 0) := (others => '0')	-- The default slave address for this I2C peripheral
+        );
         port
         (
             -- System Signals
@@ -1139,6 +1142,7 @@ begin
 
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
+        -- Resistor Enables
         dtp0_ren_in <= p4_ren(pnum_gpio3_dtp0);
         dtp1_ren_in <= p4_ren(pnum_gpio3_dtp1);
         dtp2_ren_in <= p4_ren(pnum_gpio3_dtp2);
@@ -1147,6 +1151,12 @@ begin
         scl0_ren_in <= p4_ren(pnum_gpio3_scl0);
         sda1_ren_in <= p4_ren(pnum_gpio3_sda1);
         scl1_ren_in <= p4_ren(pnum_gpio3_scl1);
+
+        -- Inputs
+        sda0_in <= prt4_in(pnum_gpio3_sda0);
+        scl0_in <= prt4_in(pnum_gpio3_scl0);
+        sda1_in <= prt4_in(pnum_gpio3_sda1);
+        scl1_in <= prt4_in(pnum_gpio3_scl1);
 
         afunc4_out <= (
             pnum_gpio3_dtp3     => dtp3_out,  -- GPIO3 pin 7
@@ -1698,6 +1708,9 @@ begin
     );
 
     i2c0: I2C
+        generic map (
+            default_SAD => i2c0_default_SAD
+        )
         port map
         (
             -- System Signals
@@ -1741,6 +1754,9 @@ begin
 	);
 
     i2c1: I2C
+        generic map (
+            default_SAD => i2c1_default_SAD
+        )
         port map
         (
             -- System Signals

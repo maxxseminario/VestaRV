@@ -1,438 +1,438 @@
-[10/07 17:34:58      0s] 
-[10/07 17:34:58      0s] Cadence Innovus(TM) Implementation System.
-[10/07 17:34:58      0s] Copyright 2020 Cadence Design Systems, Inc. All rights reserved worldwide.
-[10/07 17:34:58      0s] 
-[10/07 17:34:58      0s] Version:	v20.12-s088_1, built Fri Nov 6 10:29:19 PST 2020
-[10/07 17:34:58      0s] Options:	-overwrite -log log/innovus.log -cmd log/innovus.cmd -win -init dbs/MCU.final.innovus 
-[10/07 17:34:58      0s] Date:		Tue Oct  7 17:34:58 2025
-[10/07 17:34:58      0s] Host:		atlas (x86_64 w/Linux 5.3.18-lp152.106-default) (64cores*128cpus*AMD Ryzen Threadripper 3990X 64-Core Processor 512KB)
-[10/07 17:34:58      0s] OS:		Unsupported OS as /etc does not have release info
-[10/07 17:34:58      0s] 
-[10/07 17:34:58      0s] License:
-[10/07 17:34:58      0s] 		invs	Innovus Implementation System	20.1	checkout succeeded
-[10/07 17:34:58      0s] 		8 CPU jobs allowed with the current license(s). Use setMultiCpuUsage to set your required CPU count.
-[10/07 17:35:07      8s] @(#)CDS: Innovus v20.12-s088_1 (64bit) 11/06/2020 10:29 (Linux 2.6.32-431.11.2.el6.x86_64)
-[10/07 17:35:07      8s] @(#)CDS: NanoRoute 20.12-s088_1 NR201104-1900/20_12-UB (database version 18.20.530) {superthreading v2.11}
-[10/07 17:35:07      8s] @(#)CDS: AAE 20.12-s034 (64bit) 11/06/2020 (Linux 2.6.32-431.11.2.el6.x86_64)
-[10/07 17:35:07      8s] @(#)CDS: CTE 20.12-s038_1 () Nov  5 2020 21:44:51 ( )
-[10/07 17:35:07      8s] @(#)CDS: SYNTECH 20.12-s015_1 () Oct  9 2020 06:18:19 ( )
-[10/07 17:35:07      8s] @(#)CDS: CPE v20.12-s080
-[10/07 17:35:07      8s] @(#)CDS: IQuantus/TQuantus 20.1.1-s391 (64bit) Tue Sep 8 11:07:25 PDT 2020 (Linux 2.6.32-431.11.2.el6.x86_64)
-[10/07 17:35:07      8s] @(#)CDS: OA 22.60-s011 Tue Jun 16 12:27:00 2020
-[10/07 17:35:07      8s] @(#)CDS: SGN 20.10-d001 (01-Jun-2020) (64 bit executable, Qt5.9.0)
-[10/07 17:35:07      8s] @(#)CDS: RCDB 11.15.0
-[10/07 17:35:07      8s] @(#)CDS: STYLUS 20.10-p020_1 (09/24/2020 03:15 PDT)
-[10/07 17:35:07      8s] Create and set the environment variable TMPDIR to /tmp/innovus_temp_52972_atlas_mseminario2_o8K7x4.
+[11/18 20:02:36      0s] 
+[11/18 20:02:36      0s] Cadence Innovus(TM) Implementation System.
+[11/18 20:02:36      0s] Copyright 2020 Cadence Design Systems, Inc. All rights reserved worldwide.
+[11/18 20:02:36      0s] 
+[11/18 20:02:36      0s] Version:	v20.12-s088_1, built Fri Nov 6 10:29:19 PST 2020
+[11/18 20:02:36      0s] Options:	-overwrite -log log/innovus.log -cmd log/innovus.cmd -win -init dbs/MCU.final.innovus 
+[11/18 20:02:36      0s] Date:		Tue Nov 18 20:02:36 2025
+[11/18 20:02:36      0s] Host:		atlas (x86_64 w/Linux 5.3.18-lp152.106-default) (64cores*128cpus*AMD Ryzen Threadripper 3990X 64-Core Processor 512KB)
+[11/18 20:02:36      0s] OS:		Unsupported OS as /etc does not have release info
+[11/18 20:02:36      0s] 
+[11/18 20:02:36      0s] License:
+[11/18 20:02:36      0s] 		invs	Innovus Implementation System	20.1	checkout succeeded
+[11/18 20:02:36      0s] 		8 CPU jobs allowed with the current license(s). Use setMultiCpuUsage to set your required CPU count.
+[11/18 20:02:45      9s] @(#)CDS: Innovus v20.12-s088_1 (64bit) 11/06/2020 10:29 (Linux 2.6.32-431.11.2.el6.x86_64)
+[11/18 20:02:45      9s] @(#)CDS: NanoRoute 20.12-s088_1 NR201104-1900/20_12-UB (database version 18.20.530) {superthreading v2.11}
+[11/18 20:02:45      9s] @(#)CDS: AAE 20.12-s034 (64bit) 11/06/2020 (Linux 2.6.32-431.11.2.el6.x86_64)
+[11/18 20:02:45      9s] @(#)CDS: CTE 20.12-s038_1 () Nov  5 2020 21:44:51 ( )
+[11/18 20:02:45      9s] @(#)CDS: SYNTECH 20.12-s015_1 () Oct  9 2020 06:18:19 ( )
+[11/18 20:02:45      9s] @(#)CDS: CPE v20.12-s080
+[11/18 20:02:45      9s] @(#)CDS: IQuantus/TQuantus 20.1.1-s391 (64bit) Tue Sep 8 11:07:25 PDT 2020 (Linux 2.6.32-431.11.2.el6.x86_64)
+[11/18 20:02:45      9s] @(#)CDS: OA 22.60-s011 Tue Jun 16 12:27:00 2020
+[11/18 20:02:45      9s] @(#)CDS: SGN 20.10-d001 (01-Jun-2020) (64 bit executable, Qt5.9.0)
+[11/18 20:02:45      9s] @(#)CDS: RCDB 11.15.0
+[11/18 20:02:45      9s] @(#)CDS: STYLUS 20.10-p020_1 (09/24/2020 03:15 PDT)
+[11/18 20:02:45      9s] Create and set the environment variable TMPDIR to /tmp/innovus_temp_28016_atlas_mseminario2_Vi2u4O.
 
-[10/07 17:35:07      8s] Change the soft stacksize limit to 0.2%RAM (515 mbytes). Set global soft_stack_size_limit to change the value.
-[10/07 17:35:07      9s] 
-[10/07 17:35:07      9s] **INFO:  MMMC transition support version v31-84 
-[10/07 17:35:07      9s] 
-[10/07 17:35:07      9s] <CMD> set_global _enable_mmmc_by_default_flow      $CTE::mmmc_default
-[10/07 17:35:07      9s] <CMD> suppressMessage ENCEXT-2799
-[10/07 17:35:07      9s] <CMD> getVersion
-[10/07 17:35:07      9s] [INFO] Loading Pegasus 22.14 fill procedures
-[10/07 17:35:08      9s] Sourcing file "dbs/MCU.final.innovus" ...
-[10/07 17:35:08      9s] <CMD> is_common_ui_mode
-[10/07 17:35:08      9s] <CMD> restoreDesign /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat MCU
-[10/07 17:35:08      9s] #% Begin load design ... (date=10/07 17:35:08, mem=828.9M)
-[10/07 17:35:08      9s] Set Default Input Pin Transition as 0.1 ps.
-[10/07 17:35:08      9s] Loading design 'MCU' saved by 'Innovus' '20.12-s088_1' on 'Tue Oct 7 17:27:32 2025'.
-[10/07 17:35:09     10s] % Begin Load MMMC data ... (date=10/07 17:35:09, mem=830.8M)
-[10/07 17:35:09     10s] % End Load MMMC data ... (date=10/07 17:35:09, total cpu=0:00:00.0, real=0:00:00.0, peak res=830.8M, current mem=830.8M)
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef ...
-[10/07 17:35:09     10s] WARNING (LEFPARS-2009): USEMINSPACING PIN statement is obsolete in version 5.6 or later.
-[10/07 17:35:09     10s]  The USEMINSPACING PIN statement will be ignored. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 57.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1231.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1234.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1235.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1239.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1242.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1243.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1247.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1250.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1251.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1255.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1258.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1259.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1263.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1266.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1267.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1271.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1274.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1275.
-[10/07 17:35:09     10s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1279.
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef ...
-[10/07 17:35:09     10s] WARNING (LEFPARS-2007): NAMESCASESENSITIVE statement is obsolete in version 5.6 and later.
-[10/07 17:35:09     10s] The LEF parser will ignore this statement.
-[10/07 17:35:09     10s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef at line 2.
-[10/07 17:35:09     10s] Set DBUPerIGU to M2 pitch 400.
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/rom_hvt_pg.lef ...
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/sram1p16k_hvt_pg.vclef ...
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/GlitchFilter.lef ...
-[10/07 17:35:09     10s] **ERROR: (IMPLF-40):	Macro 'GlitchFilter' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
+[11/18 20:02:45      9s] Change the soft stacksize limit to 0.2%RAM (515 mbytes). Set global soft_stack_size_limit to change the value.
+[11/18 20:02:46      9s] 
+[11/18 20:02:46      9s] **INFO:  MMMC transition support version v31-84 
+[11/18 20:02:46      9s] 
+[11/18 20:02:46      9s] <CMD> set_global _enable_mmmc_by_default_flow      $CTE::mmmc_default
+[11/18 20:02:46      9s] <CMD> suppressMessage ENCEXT-2799
+[11/18 20:02:46      9s] <CMD> getVersion
+[11/18 20:02:46     10s] [INFO] Loading Pegasus 22.14 fill procedures
+[11/18 20:02:46     10s] Sourcing file "dbs/MCU.final.innovus" ...
+[11/18 20:02:46     10s] <CMD> is_common_ui_mode
+[11/18 20:02:46     10s] <CMD> restoreDesign /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat MCU
+[11/18 20:02:46     10s] #% Begin load design ... (date=11/18 20:02:46, mem=843.2M)
+[11/18 20:02:46     10s] Set Default Input Pin Transition as 0.1 ps.
+[11/18 20:02:47     10s] Loading design 'MCU' saved by 'Innovus' '20.12-s088_1' on 'Tue Nov 18 13:52:48 2025'.
+[11/18 20:02:47     11s] % Begin Load MMMC data ... (date=11/18 20:02:47, mem=844.8M)
+[11/18 20:02:47     11s] % End Load MMMC data ... (date=11/18 20:02:47, total cpu=0:00:00.0, real=0:00:00.0, peak res=844.8M, current mem=844.8M)
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef ...
+[11/18 20:02:47     11s] WARNING (LEFPARS-2009): USEMINSPACING PIN statement is obsolete in version 5.6 or later.
+[11/18 20:02:47     11s]  The USEMINSPACING PIN statement will be ignored. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 57.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1231.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1234.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1235.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1239.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1242.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1243.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1247.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1250.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1251.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1255.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1258.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1259.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1263.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1266.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1267.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1271.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1274.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1275.
+[11/18 20:02:47     11s] WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1279.
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef ...
+[11/18 20:02:47     11s] WARNING (LEFPARS-2007): NAMESCASESENSITIVE statement is obsolete in version 5.6 and later.
+[11/18 20:02:47     11s] The LEF parser will ignore this statement.
+[11/18 20:02:47     11s] To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef at line 2.
+[11/18 20:02:47     11s] Set DBUPerIGU to M2 pitch 400.
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/rom_hvt_pg.lef ...
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/sram1p16k_hvt_pg.vclef ...
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/GlitchFilter.lef ...
+[11/18 20:02:47     11s] **ERROR: (IMPLF-40):	Macro 'GlitchFilter' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
 Type 'man IMPLF-40' for more detail.
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/PowerOnResetCheng.lef ...
-[10/07 17:35:09     10s] **ERROR: (IMPLF-40):	Macro 'PowerOnResetCheng' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/PowerOnResetCheng.lef ...
+[11/18 20:02:47     11s] **ERROR: (IMPLF-40):	Macro 'PowerOnResetCheng' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
 Type 'man IMPLF-40' for more detail.
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/OscillatorCurrentStarved.lef ...
-[10/07 17:35:09     10s] **ERROR: (IMPLF-40):	Macro 'OscillatorCurrentStarved' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/OscillatorCurrentStarved.lef ...
+[11/18 20:02:47     11s] **ERROR: (IMPLF-40):	Macro 'OscillatorCurrentStarved' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
 Type 'man IMPLF-40' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[0]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[1]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[2]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[3]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[4]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[5]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[6]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[7]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[8]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[9]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[10]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Freq[11]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'En' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'Reset' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'ClkOut' in macro 'OscillatorCurrentStarved' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'resetn_in' in macro 'PowerOnResetCheng' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'resetn_out' in macro 'PowerOnResetCheng' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[0]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[1]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[2]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[3]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[4]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-200' for more detail.
-[10/07 17:35:09     10s] **WARN: (EMS-27):	Message (IMPLF-200) has exceeded the current message display limit of 20.
-[10/07 17:35:09     10s] To increase the message display limit, refer to the product command reference manual.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[0]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[1]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[2]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[3]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[4]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[5]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[6]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[7]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[8]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[9]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[10]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[11]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[12]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[13]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[14]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[15]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[16]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[17]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
-[10/07 17:35:09     10s] Type 'man IMPLF-201' for more detail.
-[10/07 17:35:09     10s] **WARN: (EMS-27):	Message (IMPLF-201) has exceeded the current message display limit of 20.
-[10/07 17:35:09     10s] To increase the message display limit, refer to the product command reference manual.
-[10/07 17:35:09     10s] 
-[10/07 17:35:09     10s] viaInitial starts at Tue Oct  7 17:35:09 2025
-viaInitial ends at Tue Oct  7 17:35:09 2025
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[0]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[1]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[2]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[3]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[4]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[5]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[6]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[7]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[8]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[9]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[10]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Freq[11]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'En' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'Reset' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'ClkOut' in macro 'OscillatorCurrentStarved' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'resetn_in' in macro 'PowerOnResetCheng' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'resetn_out' in macro 'PowerOnResetCheng' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[0]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[1]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[2]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[3]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-200):	Pin 'IrqGlitchy[4]' in macro 'GlitchFilter' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-200' for more detail.
+[11/18 20:02:47     11s] **WARN: (EMS-27):	Message (IMPLF-200) has exceeded the current message display limit of 20.
+[11/18 20:02:47     11s] To increase the message display limit, refer to the product command reference manual.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[0]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[1]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[2]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[3]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[4]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[5]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[6]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[7]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[8]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[9]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[10]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[11]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[12]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[13]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[14]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[15]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[16]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (IMPLF-201):	Pin 'IrqDeglitched[17]' in macro 'GlitchFilter' has no ANTENNADIFFAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
+[11/18 20:02:47     11s] Type 'man IMPLF-201' for more detail.
+[11/18 20:02:47     11s] **WARN: (EMS-27):	Message (IMPLF-201) has exceeded the current message display limit of 20.
+[11/18 20:02:47     11s] To increase the message display limit, refer to the product command reference manual.
+[11/18 20:02:47     11s] 
+[11/18 20:02:47     11s] viaInitial starts at Tue Nov 18 20:02:47 2025
+viaInitial ends at Tue Nov 18 20:02:47 2025
 
 ##  Check design process and node:  
 ##  Both design process and tech node are not set.
 
-[10/07 17:35:09     10s] Loading view definition file from /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/viewDefinition.tcl
-[10/07 17:35:09     10s] Reading max_library_set timing library '/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib' ...
-[10/07 17:35:11     12s] Both ff/latch and statetable are present in cell 'RF1R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] Both ff/latch and statetable are present in cell 'RF1R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] Both ff/latch and statetable are present in cell 'RF1R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] Both ff/latch and statetable are present in cell 'RF2R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] Both ff/latch and statetable are present in cell 'RF2R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] Both ff/latch and statetable are present in cell 'RF2R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE8A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE6A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE16A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE128A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP8A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP4A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP3A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP16A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP128A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE16A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE12A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE128A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAP64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAP32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
-[10/07 17:35:11     12s] Message <TECHLIB-302> has exceeded the message display limit of '20'. Use 'set_message -no_limit -id list_of_msgIDs' to reset the message limit.
-[10/07 17:35:11     13s] Read 890 cells in library 'scadv10_cln65gp_hvt_ss_0p9v_125c' 
-[10/07 17:35:11     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/rom_hvt_pg/rom_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-[10/07 17:35:11     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-[10/07 17:35:11     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-[10/07 17:35:11     13s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
-[10/07 17:35:11     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-[10/07 17:35:11     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-[10/07 17:35:11     13s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
-[10/07 17:35:11     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-[10/07 17:35:11     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-[10/07 17:35:11     13s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
-[10/07 17:35:11     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-[10/07 17:35:11     13s] Reading min_library_set timing library '/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib' ...
-[10/07 17:35:13     14s] Both ff/latch and statetable are present in cell 'RF1R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
-[10/07 17:35:13     14s] Both ff/latch and statetable are present in cell 'RF1R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
-[10/07 17:35:13     14s] Both ff/latch and statetable are present in cell 'RF1R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
-[10/07 17:35:13     14s] Both ff/latch and statetable are present in cell 'RF2R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
-[10/07 17:35:13     14s] Both ff/latch and statetable are present in cell 'RF2R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
-[10/07 17:35:13     14s] Both ff/latch and statetable are present in cell 'RF2R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
-[10/07 17:35:13     15s] Read 890 cells in library 'scadv10_cln65gp_hvt_ff_1p1v_m40c' 
-[10/07 17:35:13     15s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/rom_hvt_pg/rom_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-[10/07 17:35:13     15s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-[10/07 17:35:13     15s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-[10/07 17:35:13     15s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
-[10/07 17:35:13     15s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-[10/07 17:35:13     15s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-[10/07 17:35:13     15s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
-[10/07 17:35:13     15s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-[10/07 17:35:13     15s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-[10/07 17:35:13     15s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
-[10/07 17:35:13     15s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-[10/07 17:35:13     15s] Ending "PreSetAnalysisView" (total cpu=0:00:04.6, real=0:00:04.0, peak res=1010.2M, current mem=865.3M)
-[10/07 17:35:13     15s] *** End library_loading (cpu=0.08min, real=0.07min, mem=109.3M, fe_cpu=0.26min, fe_real=0.25min, fe_mem=1115.7M) ***
-[10/07 17:35:13     15s] % Begin Load netlist data ... (date=10/07 17:35:13, mem=865.3M)
-[10/07 17:35:13     15s] *** Begin netlist parsing (mem=1115.7M) ***
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X4MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X4MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X3MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X3MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X2MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X2MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X1P4MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X1P4MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X1MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X1MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X0P7MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X0P7MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X0P5MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X0P5MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR2X4MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR2X4MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR2X3MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR2X3MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR2X2MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR2X2MA10TH' is defined in LEF but not in the timing library.
-[10/07 17:35:13     15s] Type 'man IMPVL-159' for more detail.
-[10/07 17:35:13     15s] **WARN: (EMS-27):	Message (IMPVL-159) has exceeded the current message display limit of 20.
-[10/07 17:35:13     15s] To increase the message display limit, refer to the product command reference manual.
-[10/07 17:35:13     15s] Created 894 new cells from 4 timing libraries.
-[10/07 17:35:13     15s] Reading netlist ...
-[10/07 17:35:13     15s] Backslashed names will retain backslash and a trailing blank character.
-[10/07 17:35:13     15s] Reading verilogBinary netlist '/home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/vbin/MCU.v.bin'
-[10/07 17:35:13     15s] Reading binary database version 2 in 1-threaded mode
-[10/07 17:35:13     15s] 
-[10/07 17:35:13     15s] *** Memory Usage v#1 (Current mem = 1127.734M, initial mem = 283.547M) ***
-[10/07 17:35:13     15s] *** End netlist parsing (cpu=0:00:00.1, real=0:00:00.0, mem=1127.7M) ***
-[10/07 17:35:13     15s] % End Load netlist data ... (date=10/07 17:35:13, total cpu=0:00:00.1, real=0:00:00.0, peak res=904.3M, current mem=904.3M)
-[10/07 17:35:13     15s] Set top cell to MCU.
-[10/07 17:35:13     15s] Hooked 1788 DB cells to tlib cells.
-[10/07 17:35:13     15s] ** Removed 2 unused lib cells.
-[10/07 17:35:14     15s] Ending "BindLib:" (total cpu=0:00:00.2, real=0:00:01.0, peak res=931.8M, current mem=931.8M)
-[10/07 17:35:14     15s] Starting recursive module instantiation check.
-[10/07 17:35:14     15s] No recursion found.
-[10/07 17:35:14     15s] Building hierarchical netlist for Cell MCU ...
-[10/07 17:35:14     15s] *** Netlist is unique.
-[10/07 17:35:14     15s] Setting Std. cell height to 4000 DBU (smallest netlist inst).
-[10/07 17:35:14     15s] ** info: there are 2249 modules.
-[10/07 17:35:14     15s] ** info: there are 25486 stdCell insts.
-[10/07 17:35:14     15s] ** info: there are 9 macros.
-[10/07 17:35:14     15s] 
-[10/07 17:35:14     15s] *** Memory Usage v#1 (Current mem = 1188.648M, initial mem = 283.547M) ***
-[10/07 17:35:14     15s] *info: set bottom ioPad orient R0
-[10/07 17:35:14     15s] Set Default Net Delay as 1000 ps.
-[10/07 17:35:14     15s] Set Default Net Load as 0.5 pF. 
-[10/07 17:35:14     15s] Set Default Input Pin Transition as 0.1 ps.
-[10/07 17:35:14     15s] Loading preference file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/gui.pref.tcl ...
-[10/07 17:35:14     15s] ##  Process: 65            (User Set)               
-[10/07 17:35:14     15s] ##     Node: (not set)                           
-[10/07 17:35:14     15s] 
+[11/18 20:02:47     11s] Loading view definition file from /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/viewDefinition.tcl
+[11/18 20:02:47     11s] Reading max_library_set timing library '/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib' ...
+[11/18 20:02:49     13s] Both ff/latch and statetable are present in cell 'RF1R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:49     13s] Both ff/latch and statetable are present in cell 'RF1R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:49     13s] Both ff/latch and statetable are present in cell 'RF1R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:49     13s] Both ff/latch and statetable are present in cell 'RF2R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:49     13s] Both ff/latch and statetable are present in cell 'RF2R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:49     13s] Both ff/latch and statetable are present in cell 'RF2R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE8A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE6A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE16A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAPTIE128A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP8A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP4A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP3A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP16A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILLCAP128A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE16A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE12A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAPTIE128A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAP64A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAP32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
+[11/18 20:02:50     13s] Message <TECHLIB-302> has exceeded the message display limit of '20'. Use 'set_message -no_limit -id list_of_msgIDs' to reset the message limit.
+[11/18 20:02:50     13s] Read 890 cells in library 'scadv10_cln65gp_hvt_ss_0p9v_125c' 
+[11/18 20:02:50     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+[11/18 20:02:50     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
+[11/18 20:02:50     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+[11/18 20:02:50     13s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
+[11/18 20:02:50     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
+[11/18 20:02:50     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+[11/18 20:02:50     13s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
+[11/18 20:02:50     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
+[11/18 20:02:50     13s] Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+[11/18 20:02:50     13s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
+[11/18 20:02:50     13s] Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
+[11/18 20:02:50     13s] Reading min_library_set timing library '/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib' ...
+[11/18 20:02:52     15s] Both ff/latch and statetable are present in cell 'RF1R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
+[11/18 20:02:52     15s] Both ff/latch and statetable are present in cell 'RF1R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
+[11/18 20:02:52     15s] Both ff/latch and statetable are present in cell 'RF1R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
+[11/18 20:02:52     15s] Both ff/latch and statetable are present in cell 'RF2R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
+[11/18 20:02:52     15s] Both ff/latch and statetable are present in cell 'RF2R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
+[11/18 20:02:52     15s] Both ff/latch and statetable are present in cell 'RF2R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
+[11/18 20:02:52     16s] Read 890 cells in library 'scadv10_cln65gp_hvt_ff_1p1v_m40c' 
+[11/18 20:02:52     16s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+[11/18 20:02:52     16s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
+[11/18 20:02:52     16s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+[11/18 20:02:52     16s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
+[11/18 20:02:52     16s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
+[11/18 20:02:52     16s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+[11/18 20:02:52     16s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
+[11/18 20:02:52     16s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
+[11/18 20:02:52     16s] Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+[11/18 20:02:52     16s] **WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
+[11/18 20:02:52     16s] Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
+[11/18 20:02:52     16s] Ending "PreSetAnalysisView" (total cpu=0:00:04.7, real=0:00:05.0, peak res=1022.8M, current mem=879.6M)
+[11/18 20:02:52     16s] *** End library_loading (cpu=0.08min, real=0.08min, mem=105.9M, fe_cpu=0.27min, fe_real=0.27min, fe_mem=1113.1M) ***
+[11/18 20:02:52     16s] % Begin Load netlist data ... (date=11/18 20:02:52, mem=879.6M)
+[11/18 20:02:52     16s] *** Begin netlist parsing (mem=1113.1M) ***
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X4MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X4MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X3MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X3MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X2MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X2MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X1P4MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X1P4MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X1MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X1MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X0P7MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X0P7MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X0P5MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X0P5MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR2X4MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR2X4MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR2X3MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR2X3MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR2X2MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR2X2MA10TH' is defined in LEF but not in the timing library.
+[11/18 20:02:52     16s] Type 'man IMPVL-159' for more detail.
+[11/18 20:02:52     16s] **WARN: (EMS-27):	Message (IMPVL-159) has exceeded the current message display limit of 20.
+[11/18 20:02:52     16s] To increase the message display limit, refer to the product command reference manual.
+[11/18 20:02:52     16s] Created 894 new cells from 4 timing libraries.
+[11/18 20:02:52     16s] Reading netlist ...
+[11/18 20:02:52     16s] Backslashed names will retain backslash and a trailing blank character.
+[11/18 20:02:52     16s] Reading verilogBinary netlist '/home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/vbin/MCU.v.bin'
+[11/18 20:02:52     16s] Reading binary database version 2 in 1-threaded mode
+[11/18 20:02:52     16s] 
+[11/18 20:02:52     16s] *** Memory Usage v#1 (Current mem = 1129.156M, initial mem = 283.547M) ***
+[11/18 20:02:52     16s] *** End netlist parsing (cpu=0:00:00.1, real=0:00:00.0, mem=1129.2M) ***
+[11/18 20:02:52     16s] % End Load netlist data ... (date=11/18 20:02:52, total cpu=0:00:00.1, real=0:00:00.0, peak res=919.9M, current mem=919.9M)
+[11/18 20:02:52     16s] Set top cell to MCU.
+[11/18 20:02:52     16s] Hooked 1788 DB cells to tlib cells.
+[11/18 20:02:52     16s] ** Removed 2 unused lib cells.
+[11/18 20:02:52     16s] Ending "BindLib:" (total cpu=0:00:00.2, real=0:00:00.0, peak res=947.2M, current mem=947.2M)
+[11/18 20:02:52     16s] Starting recursive module instantiation check.
+[11/18 20:02:52     16s] No recursion found.
+[11/18 20:02:52     16s] Building hierarchical netlist for Cell MCU ...
+[11/18 20:02:52     16s] *** Netlist is unique.
+[11/18 20:02:52     16s] Setting Std. cell height to 4000 DBU (smallest netlist inst).
+[11/18 20:02:52     16s] ** info: there are 2259 modules.
+[11/18 20:02:52     16s] ** info: there are 29815 stdCell insts.
+[11/18 20:02:52     16s] ** info: there are 9 macros.
+[11/18 20:02:52     16s] 
+[11/18 20:02:52     16s] *** Memory Usage v#1 (Current mem = 1192.570M, initial mem = 283.547M) ***
+[11/18 20:02:52     16s] *info: set bottom ioPad orient R0
+[11/18 20:02:52     16s] Set Default Net Delay as 1000 ps.
+[11/18 20:02:52     16s] Set Default Net Load as 0.5 pF. 
+[11/18 20:02:52     16s] Set Default Input Pin Transition as 0.1 ps.
+[11/18 20:02:52     16s] Loading preference file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/gui.pref.tcl ...
+[11/18 20:02:53     16s] ##  Process: 65            (User Set)               
+[11/18 20:02:53     16s] ##     Node: (not set)                           
+[11/18 20:02:53     16s] 
 ##  Check design process and node:  
 ##  Design tech node is not set.
 
-[10/07 17:35:14     15s] Applying the recommended capacitance filtering threshold values for 65nm process node: total_c_th=0, relative_c_th=1 and coupling_c_th=0.1.
-[10/07 17:35:14     15s] 	These values will be used by all post-route extraction engines, including TQuantus, IQuantus and Quantus QRC extraction.
-[10/07 17:35:14     15s] 	Capacitance filtering mode(-capFilterMode option of the setExtractRCMode) is 'relAndCoup' for all engines.
-[10/07 17:35:14     15s] 	The accuracy mode for postRoute effortLevel low extraction will be set to 'high'.
-[10/07 17:35:14     15s] 	Default value for EffortLevel(-effortLevel option of the setExtractRCMode) in postRoute extraction mode will be 'medium' if Quantus QRC technology file is specified else 'low'.
-[10/07 17:35:14     15s] #WARNING (NRIF-80) When droutePostRouteSwapVia is set to 'multiCut', the post route via swapping step will be performed on all nets, and to double cut vias. To swap to DFM vias based on via weight, please set the option to 'true'.
-[10/07 17:35:14     15s] **WARN: (IMPTCM-77):	Option "-drouteStartIteration" for command setNanoRouteMode is obsolete and will be removed in a future release. The obsolete option still works in this release but to avoid this warning and to ensure compatibility with future releases, remove the obsolete option from your script.
-[10/07 17:35:14     15s] **WARN: (IMPTCM-77):	Option "-routeAllowPowerGroundPin" for command setNanoRouteMode is obsolete and will be removed in a future release. The obsolete option still works in this release but to avoid this warning and to ensure compatibility with future releases, remove the obsolete option from your script.
-[10/07 17:35:14     15s] #WARNING (NRIF-91) Option setNanoRouteMode -routeTopRoutingLayer is obsolete. It will continue to work for the current release. To ensure compatibility with future releases, use option setDesignMode -topRoutingLayer instead.
-[10/07 17:35:14     15s] Setting stripe extending to closest ring.
-[10/07 17:35:14     15s] The power planner will be remove floating stripes over blocks.
-[10/07 17:35:14     15s] The power planner will set stripe antenna targets to core ring.
-[10/07 17:35:14     16s] Change floorplan default-technical-site to 'TSMC65ADV10TSITE'.
-[10/07 17:35:14     16s] Extraction setup Delayed 
-[10/07 17:35:14     16s] *Info: initialize multi-corner CTS.
-[10/07 17:35:14     16s] Ending "SetAnalysisView" (total cpu=0:00:00.0, real=0:00:00.0, peak res=1173.5M, current mem=950.7M)
-[10/07 17:35:14     16s] Tech dependent Parameter, Build TLibAnalyzer for: cellAreaConsiderPadding
-[10/07 17:35:14     16s] Creating Cell Server ...(0, 1, 1, 1)
-[10/07 17:35:14     16s] Summary for sequential cells identification: 
-[10/07 17:35:14     16s]   Identified SBFF number: 148
-[10/07 17:35:14     16s]   Identified MBFF number: 0
-[10/07 17:35:14     16s]   Identified SB Latch number: 0
-[10/07 17:35:14     16s]   Identified MB Latch number: 0
-[10/07 17:35:14     16s]   Not identified SBFF number: 0
-[10/07 17:35:14     16s]   Not identified MBFF number: 0
-[10/07 17:35:14     16s]   Not identified SB Latch number: 0
-[10/07 17:35:14     16s]   Not identified MB Latch number: 0
-[10/07 17:35:14     16s]   Number of sequential cells which are not FFs: 106
-[10/07 17:35:14     16s] Total number of combinational cells: 627
-[10/07 17:35:14     16s] Total number of sequential cells: 254
-[10/07 17:35:14     16s] Total number of tristate cells: 9
-[10/07 17:35:14     16s] Total number of level shifter cells: 0
-[10/07 17:35:14     16s] Total number of power gating cells: 0
-[10/07 17:35:14     16s] Total number of isolation cells: 0
-[10/07 17:35:14     16s] Total number of power switch cells: 0
-[10/07 17:35:14     16s] Total number of pulse generator cells: 0
-[10/07 17:35:14     16s] Total number of always on buffers: 0
-[10/07 17:35:14     16s] Total number of retention cells: 0
-[10/07 17:35:14     16s] List of usable buffers: FRICGX0P5BA10TH FRICGX0P6BA10TH FRICGX0P8BA10TH FRICGX0P7BA10TH FRICGX11BA10TH FRICGX13BA10TH FRICGX16BA10TH FRICGX1BA10TH FRICGX1P2BA10TH FRICGX1P4BA10TH FRICGX2BA10TH FRICGX1P7BA10TH FRICGX3BA10TH FRICGX2P5BA10TH FRICGX4BA10TH FRICGX3P5BA10TH FRICGX5BA10TH FRICGX6BA10TH FRICGX7P5BA10TH FRICGX9BA10TH BUFHX0P8MA10TH BUFHX0P7MA10TH BUFHX11MA10TH BUFHX13MA10TH BUFHX16MA10TH BUFHX1MA10TH BUFHX1P2MA10TH BUFHX1P7MA10TH BUFHX1P4MA10TH BUFHX2MA10TH BUFHX3MA10TH BUFHX2P5MA10TH BUFHX4MA10TH BUFHX3P5MA10TH BUFHX5MA10TH BUFHX6MA10TH BUFHX7P5MA10TH BUFHX9MA10TH BUFX0P7BA10TH BUFX0P7MA10TH BUFX0P8MA10TH BUFX0P8BA10TH BUFX11MA10TH BUFX11BA10TH BUFX13MA10TH BUFX13BA10TH BUFX16BA10TH BUFX16MA10TH BUFX1MA10TH BUFX1BA10TH BUFX1P2BA10TH BUFX1P2MA10TH BUFX1P4BA10TH BUFX1P4MA10TH BUFX1P7BA10TH BUFX1P7MA10TH BUFX2MA10TH BUFX2BA10TH BUFX2P5BA10TH BUFX2P5MA10TH BUFX3MA10TH BUFX3BA10TH BUFX3P5BA10TH BUFX3P5MA10TH BUFX4MA10TH BUFX4BA10TH BUFX5MA10TH BUFX5BA10TH BUFX6MA10TH BUFX6BA10TH BUFX7P5MA10TH BUFX7P5BA10TH BUFX9BA10TH BUFX9MA10TH
-[10/07 17:35:14     16s] Total number of usable buffers: 74
-[10/07 17:35:14     16s] List of unusable buffers:
-[10/07 17:35:14     16s] Total number of unusable buffers: 0
-[10/07 17:35:14     16s] List of usable inverters: INVX0P5BA10TH INVX0P5MA10TH INVX0P6BA10TH INVX0P6MA10TH INVX0P7BA10TH INVX0P7MA10TH INVX0P8MA10TH INVX0P8BA10TH INVX11MA10TH INVX11BA10TH INVX13MA10TH INVX13BA10TH INVX16BA10TH INVX16MA10TH INVX1MA10TH INVX1BA10TH INVX1P2BA10TH INVX1P2MA10TH INVX1P4BA10TH INVX1P4MA10TH INVX1P7BA10TH INVX1P7MA10TH INVX2MA10TH INVX2BA10TH INVX2P5BA10TH INVX2P5MA10TH INVX3MA10TH INVX3BA10TH INVX3P5BA10TH INVX3P5MA10TH INVX4MA10TH INVX4BA10TH INVX5MA10TH INVX5BA10TH INVX6MA10TH INVX6BA10TH INVX7P5MA10TH INVX7P5BA10TH INVX9MA10TH INVX9BA10TH
-[10/07 17:35:14     16s] Total number of usable inverters: 40
-[10/07 17:35:14     16s] List of unusable inverters:
-[10/07 17:35:14     16s] Total number of unusable inverters: 0
-[10/07 17:35:14     16s] List of identified usable delay cells: DLY2X0P5MA10TH DLY4X0P5MA10TH
-[10/07 17:35:14     16s] Total number of identified usable delay cells: 2
-[10/07 17:35:14     16s] List of identified unusable delay cells:
-[10/07 17:35:14     16s] Total number of identified unusable delay cells: 0
-[10/07 17:35:14     16s] Creating Cell Server, finished. 
-[10/07 17:35:14     16s] 
-[10/07 17:35:14     16s] Deleting Cell Server ...
-[10/07 17:35:14     16s] Ending "Cell type marking" (total cpu=0:00:00.0, real=0:00:00.0, peak res=1183.5M, current mem=1183.5M)
-[10/07 17:35:14     16s] Creating Cell Server ...(0, 0, 0, 0)
-[10/07 17:35:14     16s] Summary for sequential cells identification: 
-[10/07 17:35:14     16s]   Identified SBFF number: 148
-[10/07 17:35:14     16s]   Identified MBFF number: 0
-[10/07 17:35:14     16s]   Identified SB Latch number: 0
-[10/07 17:35:14     16s]   Identified MB Latch number: 0
-[10/07 17:35:14     16s]   Not identified SBFF number: 0
-[10/07 17:35:14     16s]   Not identified MBFF number: 0
-[10/07 17:35:14     16s]   Not identified SB Latch number: 0
-[10/07 17:35:14     16s]   Not identified MB Latch number: 0
-[10/07 17:35:14     16s]   Number of sequential cells which are not FFs: 106
-[10/07 17:35:14     16s]  Visiting view : setup_analysis_view
-[10/07 17:35:14     16s]    : PowerDomain = none : Weighted F : unweighted  = 20.80 (1.000) with rcCorner = 0
-[10/07 17:35:14     16s]    : PowerDomain = none : Weighted F : unweighted  = 19.20 (1.000) with rcCorner = -1
-[10/07 17:35:14     16s]  Visiting view : hold_analysis_view
-[10/07 17:35:14     16s]    : PowerDomain = none : Weighted F : unweighted  = 8.60 (1.000) with rcCorner = 1
-[10/07 17:35:14     16s]    : PowerDomain = none : Weighted F : unweighted  = 7.20 (1.000) with rcCorner = -1
-[10/07 17:35:14     16s]  Setting StdDelay to 20.80
-[10/07 17:35:14     16s] Creating Cell Server, finished. 
-[10/07 17:35:14     16s] 
-[10/07 17:35:14     16s] **WARN: (IMPSYC-2):	Timing information is not defined for cell OscillatorCurrentStarved; Check the timing library (.lib) file and make sure the timing information exists for the cell and you can run the checkTimingLibrary command to verify if the timing library has complete information after the design is loaded.
-[10/07 17:35:14     16s] Type 'man IMPSYC-2' for more detail.
-[10/07 17:35:14     16s] **WARN: (IMPSYC-2):	Timing information is not defined for cell PowerOnResetCheng; Check the timing library (.lib) file and make sure the timing information exists for the cell and you can run the checkTimingLibrary command to verify if the timing library has complete information after the design is loaded.
-[10/07 17:35:14     16s] Type 'man IMPSYC-2' for more detail.
-[10/07 17:35:14     16s] **WARN: (IMPSYC-2):	Timing information is not defined for cell GlitchFilter; Check the timing library (.lib) file and make sure the timing information exists for the cell and you can run the checkTimingLibrary command to verify if the timing library has complete information after the design is loaded.
-[10/07 17:35:14     16s] Type 'man IMPSYC-2' for more detail.
-[10/07 17:35:14     16s] **FATAL ERROR: [/icd/cm_t1nb_001/INNOVUS201/Rel/20.12/main/lnx86_64_opt/20.12-s088_1/fe/src/ri/riCheck.c:319:riCheckTimingLibrary]: There are 3 cells for which timing has not been defined. Timing should be defined for all non-physical cells in tape out mode
-[10/07 17:35:14     16s] Exiting due to previous fatal error.
+[11/18 20:02:53     16s] Applying the recommended capacitance filtering threshold values for 65nm process node: total_c_th=0, relative_c_th=1 and coupling_c_th=0.1.
+[11/18 20:02:53     16s] 	These values will be used by all post-route extraction engines, including TQuantus, IQuantus and Quantus QRC extraction.
+[11/18 20:02:53     16s] 	Capacitance filtering mode(-capFilterMode option of the setExtractRCMode) is 'relAndCoup' for all engines.
+[11/18 20:02:53     16s] 	The accuracy mode for postRoute effortLevel low extraction will be set to 'high'.
+[11/18 20:02:53     16s] 	Default value for EffortLevel(-effortLevel option of the setExtractRCMode) in postRoute extraction mode will be 'medium' if Quantus QRC technology file is specified else 'low'.
+[11/18 20:02:53     16s] #WARNING (NRIF-80) When droutePostRouteSwapVia is set to 'multiCut', the post route via swapping step will be performed on all nets, and to double cut vias. To swap to DFM vias based on via weight, please set the option to 'true'.
+[11/18 20:02:53     16s] **WARN: (IMPTCM-77):	Option "-drouteStartIteration" for command setNanoRouteMode is obsolete and will be removed in a future release. The obsolete option still works in this release but to avoid this warning and to ensure compatibility with future releases, remove the obsolete option from your script.
+[11/18 20:02:53     16s] **WARN: (IMPTCM-77):	Option "-routeAllowPowerGroundPin" for command setNanoRouteMode is obsolete and will be removed in a future release. The obsolete option still works in this release but to avoid this warning and to ensure compatibility with future releases, remove the obsolete option from your script.
+[11/18 20:02:53     16s] #WARNING (NRIF-91) Option setNanoRouteMode -routeTopRoutingLayer is obsolete. It will continue to work for the current release. To ensure compatibility with future releases, use option setDesignMode -topRoutingLayer instead.
+[11/18 20:02:53     16s] Setting stripe extending to closest ring.
+[11/18 20:02:53     16s] The power planner will be remove floating stripes over blocks.
+[11/18 20:02:53     16s] The power planner will set stripe antenna targets to core ring.
+[11/18 20:02:53     16s] Change floorplan default-technical-site to 'TSMC65ADV10TSITE'.
+[11/18 20:02:53     16s] Extraction setup Delayed 
+[11/18 20:02:53     16s] *Info: initialize multi-corner CTS.
+[11/18 20:02:53     16s] Ending "SetAnalysisView" (total cpu=0:00:00.1, real=0:00:00.0, peak res=1189.0M, current mem=964.4M)
+[11/18 20:02:53     16s] Tech dependent Parameter, Build TLibAnalyzer for: cellAreaConsiderPadding
+[11/18 20:02:53     16s] Creating Cell Server ...(0, 1, 1, 1)
+[11/18 20:02:53     16s] Summary for sequential cells identification: 
+[11/18 20:02:53     16s]   Identified SBFF number: 148
+[11/18 20:02:53     16s]   Identified MBFF number: 0
+[11/18 20:02:53     16s]   Identified SB Latch number: 0
+[11/18 20:02:53     16s]   Identified MB Latch number: 0
+[11/18 20:02:53     16s]   Not identified SBFF number: 0
+[11/18 20:02:53     16s]   Not identified MBFF number: 0
+[11/18 20:02:53     16s]   Not identified SB Latch number: 0
+[11/18 20:02:53     16s]   Not identified MB Latch number: 0
+[11/18 20:02:53     16s]   Number of sequential cells which are not FFs: 106
+[11/18 20:02:53     16s] Total number of combinational cells: 627
+[11/18 20:02:53     16s] Total number of sequential cells: 254
+[11/18 20:02:53     16s] Total number of tristate cells: 9
+[11/18 20:02:53     16s] Total number of level shifter cells: 0
+[11/18 20:02:53     16s] Total number of power gating cells: 0
+[11/18 20:02:53     16s] Total number of isolation cells: 0
+[11/18 20:02:53     16s] Total number of power switch cells: 0
+[11/18 20:02:53     16s] Total number of pulse generator cells: 0
+[11/18 20:02:53     16s] Total number of always on buffers: 0
+[11/18 20:02:53     16s] Total number of retention cells: 0
+[11/18 20:02:53     16s] List of usable buffers: FRICGX0P5BA10TH FRICGX0P6BA10TH FRICGX0P8BA10TH FRICGX0P7BA10TH FRICGX11BA10TH FRICGX13BA10TH FRICGX16BA10TH FRICGX1BA10TH FRICGX1P2BA10TH FRICGX1P4BA10TH FRICGX2BA10TH FRICGX1P7BA10TH FRICGX3BA10TH FRICGX2P5BA10TH FRICGX4BA10TH FRICGX3P5BA10TH FRICGX5BA10TH FRICGX6BA10TH FRICGX7P5BA10TH FRICGX9BA10TH BUFHX0P8MA10TH BUFHX0P7MA10TH BUFHX11MA10TH BUFHX13MA10TH BUFHX16MA10TH BUFHX1MA10TH BUFHX1P2MA10TH BUFHX1P7MA10TH BUFHX1P4MA10TH BUFHX2MA10TH BUFHX3MA10TH BUFHX2P5MA10TH BUFHX4MA10TH BUFHX3P5MA10TH BUFHX5MA10TH BUFHX6MA10TH BUFHX7P5MA10TH BUFHX9MA10TH BUFX0P7BA10TH BUFX0P7MA10TH BUFX0P8MA10TH BUFX0P8BA10TH BUFX11MA10TH BUFX11BA10TH BUFX13MA10TH BUFX13BA10TH BUFX16BA10TH BUFX16MA10TH BUFX1MA10TH BUFX1BA10TH BUFX1P2BA10TH BUFX1P2MA10TH BUFX1P4BA10TH BUFX1P4MA10TH BUFX1P7BA10TH BUFX1P7MA10TH BUFX2MA10TH BUFX2BA10TH BUFX2P5BA10TH BUFX2P5MA10TH BUFX3MA10TH BUFX3BA10TH BUFX3P5BA10TH BUFX3P5MA10TH BUFX4MA10TH BUFX4BA10TH BUFX5MA10TH BUFX5BA10TH BUFX6MA10TH BUFX6BA10TH BUFX7P5MA10TH BUFX7P5BA10TH BUFX9BA10TH BUFX9MA10TH
+[11/18 20:02:53     16s] Total number of usable buffers: 74
+[11/18 20:02:53     16s] List of unusable buffers:
+[11/18 20:02:53     16s] Total number of unusable buffers: 0
+[11/18 20:02:53     16s] List of usable inverters: INVX0P5BA10TH INVX0P5MA10TH INVX0P6BA10TH INVX0P6MA10TH INVX0P7BA10TH INVX0P7MA10TH INVX0P8MA10TH INVX0P8BA10TH INVX11MA10TH INVX11BA10TH INVX13MA10TH INVX13BA10TH INVX16BA10TH INVX16MA10TH INVX1MA10TH INVX1BA10TH INVX1P2BA10TH INVX1P2MA10TH INVX1P4BA10TH INVX1P4MA10TH INVX1P7BA10TH INVX1P7MA10TH INVX2MA10TH INVX2BA10TH INVX2P5BA10TH INVX2P5MA10TH INVX3MA10TH INVX3BA10TH INVX3P5BA10TH INVX3P5MA10TH INVX4MA10TH INVX4BA10TH INVX5MA10TH INVX5BA10TH INVX6MA10TH INVX6BA10TH INVX7P5MA10TH INVX7P5BA10TH INVX9MA10TH INVX9BA10TH
+[11/18 20:02:53     16s] Total number of usable inverters: 40
+[11/18 20:02:53     16s] List of unusable inverters:
+[11/18 20:02:53     16s] Total number of unusable inverters: 0
+[11/18 20:02:53     16s] List of identified usable delay cells: DLY2X0P5MA10TH DLY4X0P5MA10TH
+[11/18 20:02:53     16s] Total number of identified usable delay cells: 2
+[11/18 20:02:53     16s] List of identified unusable delay cells:
+[11/18 20:02:53     16s] Total number of identified unusable delay cells: 0
+[11/18 20:02:53     16s] Creating Cell Server, finished. 
+[11/18 20:02:53     16s] 
+[11/18 20:02:53     16s] Deleting Cell Server ...
+[11/18 20:02:53     17s] Ending "Cell type marking" (total cpu=0:00:00.0, real=0:00:00.0, peak res=1197.1M, current mem=1197.1M)
+[11/18 20:02:53     17s] Creating Cell Server ...(0, 0, 0, 0)
+[11/18 20:02:53     17s] Summary for sequential cells identification: 
+[11/18 20:02:53     17s]   Identified SBFF number: 148
+[11/18 20:02:53     17s]   Identified MBFF number: 0
+[11/18 20:02:53     17s]   Identified SB Latch number: 0
+[11/18 20:02:53     17s]   Identified MB Latch number: 0
+[11/18 20:02:53     17s]   Not identified SBFF number: 0
+[11/18 20:02:53     17s]   Not identified MBFF number: 0
+[11/18 20:02:53     17s]   Not identified SB Latch number: 0
+[11/18 20:02:53     17s]   Not identified MB Latch number: 0
+[11/18 20:02:53     17s]   Number of sequential cells which are not FFs: 106
+[11/18 20:02:53     17s]  Visiting view : setup_analysis_view
+[11/18 20:02:53     17s]    : PowerDomain = none : Weighted F : unweighted  = 20.80 (1.000) with rcCorner = 0
+[11/18 20:02:53     17s]    : PowerDomain = none : Weighted F : unweighted  = 19.20 (1.000) with rcCorner = -1
+[11/18 20:02:53     17s]  Visiting view : hold_analysis_view
+[11/18 20:02:53     17s]    : PowerDomain = none : Weighted F : unweighted  = 8.60 (1.000) with rcCorner = 1
+[11/18 20:02:53     17s]    : PowerDomain = none : Weighted F : unweighted  = 7.20 (1.000) with rcCorner = -1
+[11/18 20:02:53     17s]  Setting StdDelay to 20.80
+[11/18 20:02:53     17s] Creating Cell Server, finished. 
+[11/18 20:02:53     17s] 
+[11/18 20:02:53     17s] **WARN: (IMPSYC-2):	Timing information is not defined for cell OscillatorCurrentStarved; Check the timing library (.lib) file and make sure the timing information exists for the cell and you can run the checkTimingLibrary command to verify if the timing library has complete information after the design is loaded.
+[11/18 20:02:53     17s] Type 'man IMPSYC-2' for more detail.
+[11/18 20:02:53     17s] **WARN: (IMPSYC-2):	Timing information is not defined for cell PowerOnResetCheng; Check the timing library (.lib) file and make sure the timing information exists for the cell and you can run the checkTimingLibrary command to verify if the timing library has complete information after the design is loaded.
+[11/18 20:02:53     17s] Type 'man IMPSYC-2' for more detail.
+[11/18 20:02:53     17s] **WARN: (IMPSYC-2):	Timing information is not defined for cell GlitchFilter; Check the timing library (.lib) file and make sure the timing information exists for the cell and you can run the checkTimingLibrary command to verify if the timing library has complete information after the design is loaded.
+[11/18 20:02:53     17s] Type 'man IMPSYC-2' for more detail.
+[11/18 20:02:53     17s] **FATAL ERROR: [/icd/cm_t1nb_001/INNOVUS201/Rel/20.12/main/lnx86_64_opt/20.12-s088_1/fe/src/ri/riCheck.c:319:riCheckTimingLibrary]: There are 3 cells for which timing has not been defined. Timing should be defined for all non-physical cells in tape out mode
+[11/18 20:02:53     17s] Exiting due to previous fatal error.

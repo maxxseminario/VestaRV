@@ -4,7 +4,7 @@ Copyright 2020 Cadence Design Systems, Inc. All rights reserved worldwide.
 
 Version:	v20.12-s088_1, built Fri Nov 6 10:29:19 PST 2020
 Options:	-overwrite -log log/innovus.log -cmd log/innovus.cmd -win -init dbs/MCU.final.innovus 
-Date:		Tue Oct  7 17:34:58 2025
+Date:		Tue Nov 18 20:02:36 2025
 Host:		atlas (x86_64 w/Linux 5.3.18-lp152.106-default) (64cores*128cpus*AMD Ryzen Threadripper 3990X 64-Core Processor 512KB)
 OS:		Unsupported OS as /etc does not have release info
 
@@ -21,94 +21,94 @@ Change the soft stacksize limit to 0.2%RAM (515 mbytes). Set global soft_stack_s
 [INFO] Loading Pegasus 22.14 fill procedures
 Sourcing file "dbs/MCU.final.innovus" ...
 <CMD> is_common_ui_mode
-<CMD> restoreDesign /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat MCU
-#% Begin load design ... (date=10/07 17:35:08, mem=828.9M)
+<CMD> restoreDesign /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat MCU
+#% Begin load design ... (date=11/18 20:02:46, mem=843.2M)
 Set Default Input Pin Transition as 0.1 ps.
-Loading design 'MCU' saved by 'Innovus' '20.12-s088_1' on 'Tue Oct 7 17:27:32 2025'.
-% Begin Load MMMC data ... (date=10/07 17:35:09, mem=830.8M)
-% End Load MMMC data ... (date=10/07 17:35:09, total cpu=0:00:00.0, real=0:00:00.0, peak res=830.8M, current mem=830.8M)
+Loading design 'MCU' saved by 'Innovus' '20.12-s088_1' on 'Tue Nov 18 13:52:48 2025'.
+% Begin Load MMMC data ... (date=11/18 20:02:47, mem=844.8M)
+% End Load MMMC data ... (date=11/18 20:02:47, total cpu=0:00:00.0, real=0:00:00.0, peak res=844.8M, current mem=844.8M)
 best_rc_corner worst_rc_corner
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef ...
 WARNING (LEFPARS-2009): USEMINSPACING PIN statement is obsolete in version 5.6 or later.
- The USEMINSPACING PIN statement will be ignored. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 57.
+ The USEMINSPACING PIN statement will be ignored. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 57.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1231.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1231.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1234.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1234.
 WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1235.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1235.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1239.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1239.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1242.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1242.
 WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1243.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1243.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1247.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1247.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1250.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1250.
 WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1251.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1251.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1255.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1255.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1258.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1258.
 WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1259.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1259.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1263.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1263.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1266.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1266.
 WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1267.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1267.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1271.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1271.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1274.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1274.
 WARNING (LEFPARS-2021): turn-via is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1275.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1275.
 WARNING (LEFPARS-2022): DIRECTION statement in VIARULE is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1279.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc_cln65_a10_6X1Z_tech.lef at line 1279.
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef ...
 WARNING (LEFPARS-2007): NAMESCASESENSITIVE statement is obsolete in version 5.6 and later.
 The LEF parser will ignore this statement.
-To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef at line 2.
+To avoid this warning in the future, remove this statement from the LEF file with version 5.6 or later. See file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/tsmc65_hvt_sc_adv10_macro.lef at line 2.
 Set DBUPerIGU to M2 pitch 400.
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/rom_hvt_pg.lef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/rom_hvt_pg.lef ...
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/sram1p16k_hvt_pg.vclef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/sram1p16k_hvt_pg.vclef ...
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/GlitchFilter.lef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/GlitchFilter.lef ...
 **ERROR: (IMPLF-40):	Macro 'GlitchFilter' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
 Type 'man IMPLF-40' for more detail.
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/PowerOnResetCheng.lef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/PowerOnResetCheng.lef ...
 **ERROR: (IMPLF-40):	Macro 'PowerOnResetCheng' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
 Type 'man IMPLF-40' for more detail.
 
-Loading LEF file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/libs/lef/OscillatorCurrentStarved.lef ...
+Loading LEF file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/libs/lef/OscillatorCurrentStarved.lef ...
 **ERROR: (IMPLF-40):	Macro 'OscillatorCurrentStarved' references a site 'CoreSite' that has not been defined. The sites must be defined before they can be referenced from a macro. Review the LEF files specified in the init_lef_file variable to see if the site does not exist or is specified after the one that defines the macro.
 Type 'man IMPLF-40' for more detail.
 **WARN: (IMPLF-200):	Pin 'Freq[0]' in macro 'OscillatorCurrentStarved' has no ANTENNAGATEAREA value defined. The library data is incomplete and some process antenna rules will not be checked correctly.
@@ -196,13 +196,13 @@ Type 'man IMPLF-201' for more detail.
 **WARN: (EMS-27):	Message (IMPLF-201) has exceeded the current message display limit of 20.
 To increase the message display limit, refer to the product command reference manual.
 
-viaInitial starts at Tue Oct  7 17:35:09 2025
-viaInitial ends at Tue Oct  7 17:35:09 2025
+viaInitial starts at Tue Nov 18 20:02:47 2025
+viaInitial ends at Tue Nov 18 20:02:47 2025
 
 ##  Check design process and node:  
 ##  Both design process and tech node are not set.
 
-Loading view definition file from /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/viewDefinition.tcl
+Loading view definition file from /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/viewDefinition.tcl
 Reading max_library_set timing library '/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib' ...
 Both ff/latch and statetable are present in cell 'RF1R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
 Both ff/latch and statetable are present in cell 'RF1R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
@@ -232,16 +232,16 @@ Both ff/latch and statetable are present in cell 'RF2R2WSX2MA10TH'. Only ff/latc
 **WARN: (TECHLIB-302):	No function defined for cell 'FILL18CAP32A10TH'. The cell will only be used for analysis. (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ss_0p9v_125c.lib)
 Message <TECHLIB-302> has exceeded the message display limit of '20'. Use 'set_message -no_limit -id list_of_msgIDs' to reset the message limit.
 Read 890 cells in library 'scadv10_cln65gp_hvt_ss_0p9v_125c' 
-Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/rom_hvt_pg/rom_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
 Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
+Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
 Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
+Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
 Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
-Reading max_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
-**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
+Reading max_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib' ...
+**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ss_0p90v_0p90v_125c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ss_0p90v_0p90v_125c_syn.lib)
 Read 1 cells in library 'USERLIB_nldm_ss_0p90v_0p90v_125c' 
 Reading min_library_set timing library '/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib' ...
 Both ff/latch and statetable are present in cell 'RF1R2WSX1MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
@@ -251,20 +251,20 @@ Both ff/latch and statetable are present in cell 'RF2R2WSX1MA10TH'. Only ff/latc
 Both ff/latch and statetable are present in cell 'RF2R2WSX1P4MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
 Both ff/latch and statetable are present in cell 'RF2R2WSX2MA10TH'. Only ff/latch will be used to model sequential cell behavior and statetable will be ignored (File /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/scadv10_cln65gp_hvt_ff_1p1v_m40c.lib)
 Read 890 cells in library 'scadv10_cln65gp_hvt_ff_1p1v_m40c' 
-Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/rom_hvt_pg/rom_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
 Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
+Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
 Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
+Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
 Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-Reading min_library_set timing library '/home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
-**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin2/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
+Reading min_library_set timing library '/home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib' ...
+**WARN: (TECHLIB-459):	Appending library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' to the previously read library of the same name and nominal PVT. Cell definitions from the previously read library will not be overridden. (File /home/mseminario2/chips/myshkin/ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg_nldm_ff_1p10v_1p10v_m40c_syn.lib)
 Read 1 cells in library 'USERLIB_nldm_ff_1p10v_1p10v_m40c' 
-*** End library_loading (cpu=0.08min, real=0.07min, mem=109.3M, fe_cpu=0.26min, fe_real=0.25min, fe_mem=1115.7M) ***
-% Begin Load netlist data ... (date=10/07 17:35:13, mem=865.3M)
-*** Begin netlist parsing (mem=1115.7M) ***
+*** End library_loading (cpu=0.08min, real=0.08min, mem=105.9M, fe_cpu=0.27min, fe_real=0.27min, fe_mem=1113.1M) ***
+% Begin Load netlist data ... (date=11/18 20:02:52, mem=879.6M)
+*** Begin netlist parsing (mem=1113.1M) ***
 **WARN: (IMPVL-159):	Pin 'VSS' of cell 'XOR3X4MA10TH' is defined in LEF but not in the timing library.
 Type 'man IMPVL-159' for more detail.
 **WARN: (IMPVL-159):	Pin 'VDD' of cell 'XOR3X4MA10TH' is defined in LEF but not in the timing library.
@@ -310,12 +310,12 @@ To increase the message display limit, refer to the product command reference ma
 Created 894 new cells from 4 timing libraries.
 Reading netlist ...
 Backslashed names will retain backslash and a trailing blank character.
-Reading verilogBinary netlist '/home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/vbin/MCU.v.bin'
+Reading verilogBinary netlist '/home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/vbin/MCU.v.bin'
 Reading binary database version 2 in 1-threaded mode
 
-*** Memory Usage v#1 (Current mem = 1127.734M, initial mem = 283.547M) ***
-*** End netlist parsing (cpu=0:00:00.1, real=0:00:00.0, mem=1127.7M) ***
-% End Load netlist data ... (date=10/07 17:35:13, total cpu=0:00:00.1, real=0:00:00.0, peak res=904.3M, current mem=904.3M)
+*** Memory Usage v#1 (Current mem = 1129.156M, initial mem = 283.547M) ***
+*** End netlist parsing (cpu=0:00:00.1, real=0:00:00.0, mem=1129.2M) ***
+% End Load netlist data ... (date=11/18 20:02:52, total cpu=0:00:00.1, real=0:00:00.0, peak res=919.9M, current mem=919.9M)
 Set top cell to MCU.
 Hooked 1788 DB cells to tlib cells.
 ** Removed 2 unused lib cells.
@@ -323,16 +323,16 @@ Starting recursive module instantiation check.
 No recursion found.
 Building hierarchical netlist for Cell MCU ...
 *** Netlist is unique.
-** info: there are 2249 modules.
-** info: there are 25486 stdCell insts.
+** info: there are 2259 modules.
+** info: there are 29815 stdCell insts.
 ** info: there are 9 macros.
 
-*** Memory Usage v#1 (Current mem = 1188.648M, initial mem = 283.547M) ***
+*** Memory Usage v#1 (Current mem = 1192.570M, initial mem = 283.547M) ***
 *info: set bottom ioPad orient R0
 Set Default Net Delay as 1000 ps.
 Set Default Net Load as 0.5 pF. 
 Set Default Input Pin Transition as 0.1 ps.
-Loading preference file /home/mseminario2/chips/myshkin2/innovus/dbs/MCU.final.innovus.dat/gui.pref.tcl ...
+Loading preference file /home/mseminario2/chips/myshkin/innovus/dbs/MCU.final.innovus.dat/gui.pref.tcl ...
 ##  Process: 65            (User Set)               
 ##     Node: (not set)                           
 
