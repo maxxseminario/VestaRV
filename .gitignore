@@ -5,9 +5,8 @@ latex/
 python/
 xcelium/
 xcelium_bak/
-DrcWaiver.pptx
+*.pptx
 cdspaths.sh
-libManager.log
 *.gds
 *.gds2
 *ARM*
