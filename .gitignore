@@ -18,3 +18,4 @@ libManager.log
 innovus/dbs/
 *.sdf
 *.lef
+*.old
