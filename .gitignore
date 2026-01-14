@@ -13,3 +13,4 @@ libManager.log
 *ARM*
 *.log
 *.tstamp
+*.gz
