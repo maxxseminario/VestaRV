@@ -435,3 +435,27 @@ rom.verilogin:
 .PHONY: clean.ic
 clean.ic:
 	find $(IC_DIR) -name "*cdslck*" -delete
+
+
+
+# Administrative targets
+.PHONY: push
+push: clean.ic
+	@set -e; \
+	git add .; \
+	printf "Enter commit message: "; \
+	read -r message; \
+	if [ -n "$$message" ]; then \
+		git commit -m "$$message"; \
+		printf "Force push? (y/n): "; \
+		read -r force; \
+		if [ "$$force" = "y" ]; then \
+			git push origin main --force; \
+			printf "\nForce pushed to GitHub!\n"; \
+		else \
+			git push origin main; \
+			printf "\nPushed to GitHub!\n"; \
+		fi; \
+	else \
+		printf "\nCommit cancelled - no message provided\n"; \
+	fi
