@@ -1,6 +1,6 @@
-# VestaRV - A Custom RISC-V Core & SoC
+# VestaRV32 - A Custom RISC-V Core & SoC
 
-VestaRV is a custom RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. This repository not only provides the VestaRV core but also a full MCU System on Chip (SoC) that surrounds the core, enabling rapid integration into embedded and SoC designs.
+VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. This repository not only provides the VestaRV core but also a full MCU System on Chip (SoC) that surrounds the core, enabling rapid integration into embedded and SoC designs. 
 
 **Namesake:**  
 VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the eternal flame. As Vesta’s fire symbolized the heart of the household, VestaRV is designed to be the heart of your embedded system—providing reliability and a strong foundation for your MCU and SoC projects.
