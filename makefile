@@ -439,6 +439,8 @@ clean.ic:
 
 
 # Administrative targets
+
+# Admin Task of pushing to GitHub.  This will add all changes, prompt for a commit message, and then push to the main branch.  It also has an option to force push if needed.
 .PHONY: push
 push: clean.ic
 	@set -e; \
