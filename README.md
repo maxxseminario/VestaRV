@@ -1,11 +1,11 @@
 <table border="0" cellspacing="0" cellpadding="0">
   <tr>
-    <td>
+    <td style="border: none;">
       <img src="assets/vesta_logo_light.png#gh-light-mode-only" alt="VestaRV32 logo" height="80" />
       <img src="assets/vesta_logo_dark.png#gh-dark-mode-only" alt="VestaRV32 logo" height="80" />
     </td>
-    <td style="padding-left:12px;">
-      <h1 style="margin:0;">VestaRV32 - A Custom RISC-V Core &amp; SoC</h1>
+    <td style="border: none; padding-left: 12px;">
+      <h1 style="margin: 0;">VestaRV32 - A Custom RISC-V Core &amp; SoC</h1>
     </td>
   </tr>
 </table>
