@@ -1,7 +1,7 @@
 <img src="assets/vesta_logo_light.png#gh-light-mode-only" alt="VestaRV32 logo" height="80" align="left" />
-<img src="assets/vesta_logo_dark.png#gh-dark-mode-only" alt="VestaRV32 logo" height="80" align="left"  />
+<img src="assets/vesta_logo_dark.png#gh-dark-mode-only" alt="VestaRV32 logo" height="70" align="left"  />
 
-VestaRV32 - A Custom RISC-V Core & SoC
+## VestaRV32 - A Custom RISC-V Core & SoC
 
 <br clear="left"/>
 
