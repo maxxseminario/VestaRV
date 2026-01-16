@@ -1,7 +1,7 @@
 <p>
   <img src="assets/vesta_logo_light.png#gh-light-mode-only" alt="VestaRV32 logo" height="80" />
   <img src="assets/vesta_logo_dark.png#gh-dark-mode-only" alt="VestaRV32 logo" height="80" />
-  <strong style="font-size:32px; vertical-align:middle; margin-left:12px;">
+  <strong style="font-size:128px; vertical-align:middle; margin-left:12px;">
     VestaRV32 - A Custom RISC-V Core &amp; SoC
   </strong>
 </p>
