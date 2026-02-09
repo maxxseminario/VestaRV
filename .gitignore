@@ -21,3 +21,5 @@ innovus/dbs/
 innovus/rpt/*.txt*
 */rpt
 */log
+genus/
+innovus/
