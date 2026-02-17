@@ -109,9 +109,7 @@ The following peripherals are included in the example configuration shown above.
    ```
 
 2. **Install RISC-V toolchain and dependencies:**
-   ```bash
-   pip install intelhex
-   ```
+
    See [`build-system/README.md`](build-system/README.md) for complete toolchain setup.
 
 3. **Build firmware:**
