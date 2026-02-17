@@ -1,3 +1,7 @@
+# Genererator dir
+generator/
+firmware/common/
+
 # Build artifacts
 verification/isa/build/
 verification/isa/rcf/
@@ -43,3 +47,6 @@ Thumbs.db
 
 # Syncthing
 .stfolder/
+
+# ARM IP
+ARM*
