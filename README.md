@@ -100,78 +100,7 @@ The following peripherals are included in the example configuration shown above.
 
 ---
 
-## Memory Architecture (Example)
-
-The example configuration includes:
-- **16 KiB ROM** — Boot code and firmware
-- **32 KiB SRAM** (2 × 16 KiB blocks) — Main system memory
-
-*Memory sizes and organization are fully configurable to meet your design requirements.*
-
----
-
-## Interrupt Handling
-
-- **Stack-based mechanism** enables recursive interrupt handling
-- **Caution:** Recursive interrupts may lead to stack overflow if not managed
-
----
-
-## Building and Toolchain
-
-### Toolchain Requirements
-
-VestaRV requires a RISC-V GCC cross-compiler:
-- **Toolchain**: `riscv-none-elf-gcc` (version 13.2.0 or later recommended)
-- **Architecture**: RV32I with M, C extensions
-
-### Installation
-
-Detailed toolchain setup instructions are available in [`build-system/README.md`](build-system/README.md).
-
-**Quick Start:**
-```bash
-# Linux (using xPack)
-wget https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v13.2.0-2/xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz
-tar -xf xpack-riscv-none-elf-gcc-13.2.0-2-linux-x64.tar.gz -C ~/riscv-toolchain/
-
-# Set environment variable
-export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
-```
-
-### Building Firmware
-
-```bash
-# Build bootrom
-cd firmware/bootrom
-make all
-
-# Build Forth interpreter
-cd ../rv4th
-make all
-```
-
-### Running Verification Tests
-
-```bash
-# Build and run ISA tests
-cd verification/isa
-make rv32ui        # Build RV32I user-level tests
-make rv32um        # Build multiply/divide tests
-make periph        # Build peripheral tests
-
-# All RCF files for VHDL simulation are collected in rcf/
-ls rcf/*.rcf
-```
-
-For more details, see:
-- [`firmware/bootrom/makefile`](firmware/bootrom/makefile) - Bootrom build configuration
-- [`verification/isa/README.md`](verification/isa/README.md) - ISA test documentation
-- [`build-system/README.md`](build-system/README.md) - Complete toolchain guide
-
----
-
-## Getting Started
+## Quick Start
 
 1. **Clone the repository:**
    ```bash
@@ -179,28 +108,28 @@ For more details, see:
    cd VestaRV
    ```
 
-2. **Install the RISC-V toolchain** (see [Building and Toolchain](#building-and-toolchain))
-
-3. **Install Python dependencies:**
+2. **Install RISC-V toolchain and dependencies:**
    ```bash
    pip install intelhex
    ```
+   See [`build-system/README.md`](build-system/README.md) for complete toolchain setup.
 
-4. **Build a firmware project:**
+3. **Build firmware:**
    ```bash
    cd firmware/bootrom
    make all
    ```
 
-5. **Run verification tests:**
+4. **Run verification tests:**
    ```bash
    cd verification/isa
    make rv32ui
    ```
+   See [`verification/isa/README.md`](verification/isa/README.md) for test details.
 
-6. **Simulate with VHDL** (requires simulator like Xcelium, ModelSim, or GHDL):
-   - Point your testbench to `verification/isa/rcf/` for test programs
-   - See `hdl/MCU/tb/` for example testbenches
+5. **VHDL Simulation:**
+   - Test programs (RCF format): `verification/isa/rcf/`
+   - Example testbenches: `hdl/MCU/tb/`
 
 ---
 
