@@ -5,7 +5,7 @@
       <img src="assets/vesta_logo_dark.png#gh-dark-mode-only" alt="VestaRV32 logo" height="80" />
     </td>
     <td style="padding-left:12px;">
-      <h1 style="margin:0;">VestaRV32 - A Custom RISC-V Core &amp; SoC</h1>
+      <h1 style="margin:0;">VestaRV - A Custom RISC-V Core &amp; SoC</h1>
     </td>
   </tr>
 </table>
