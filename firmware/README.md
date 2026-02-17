@@ -15,8 +15,8 @@ System boot code and Forth interpreter embedded in ROM. This firmware runs on re
 **Memory Location**: ROM (typically at address 0x0000)  
 **Purpose**: System initialization and interactive programming environment
 
-### **`common/`** — Shared Libraries and Headers
-Common code shared across firmware projects:
+### **`commune/`** — Shared Libraries and Headers
+Communal code shared across firmware projects:
 - **`include/`** — Header files for peripherals, register definitions, system macros
 - **`src/`** — Reusable library code
 
@@ -47,38 +47,6 @@ make list          # List all firmware projects
 make build-all     # Build all projects
 make clean-all     # Clean all projects
 ```
-
-### Manual Setup (Advanced)
-
-If you prefer manual setup:
-
-1. **Create project directory**:
-   ```bash
-   mkdir firmware/my-project
-   cd firmware/my-project
-   ```
-
-2. **Set up standard structure**:
-   ```
-   my-project/
-   ├── makefile          # Build configuration
-   ├── src/              # Source files (.c, .S)
-   ├── include/          # Project-specific headers
-   ├── obj/              # Build artifacts (auto-generated)
-   └── bin/              # Output binaries (auto-generated)
-   ```
-
-3. **Configure makefile**:
-   - Set `TARGET` name
-   - List source files in `SRC_SOURCES` and `LIB_SOURCES`
-   - Specify RISC-V extensions in `EXTENSIONS` (e.g., `i`, `im`, `imac`)
-   - Choose linker script: `MCU-bootrom.ld` (ROM) or `MCU.ld` (RAM)
-   - Reference common libraries: `LIB_DIR = ../common`
-
-4. **Build**:
-   ```bash
-   make all
-   ```
 
 ## Build System
 
@@ -144,7 +112,7 @@ Firmware accesses peripherals through memory-mapped registers. Common peripheral
 - **NPU** — Neural processing unit (if available)
 - **ADC/DAC** — Analog interfaces (if available)
 
-Peripheral base addresses and register definitions are in `common/include/` (generated per chip configuration).
+Peripheral base addresses and register definitions are in `commune/include/` (generated per chip configuration).
 
 ## Programming Languages
 
@@ -205,17 +173,17 @@ Used for:
 - **Python 3**: For build utilities and RCF generation
 - **Make**: GNU Make for build automation
 
-## Quick Example: Creating a Blink Project
+## Example: Creating a Blink Project
 
 ```bash
 # Create new project
 cd firmware/
-make new PROJECT=blink
+make new PROJECT=blinky
 
 # Navigate to project
-cd blink/
+cd blinky/
 
-# Edit main.c with blink code
+# Edit main.c with blinky code
 cat > src/main.c << 'EOF'
 #include <stdint.h>
 
@@ -245,17 +213,8 @@ make all
 
 # Output files created in bin/
 ls bin/
-# blink.elf  blink.bin  blink.hex  blink.dump  blink.rcf  blink.map
+# blinky.elf  blinky.bin  blinky.hex  blinky.dump  blinky.rcf  blinky.map
 ```
-
-## Typical Applications
-
-- **System bootloader** — Initialize hardware, load applications
-- **Sensor interface** — Read sensors, process data
-- **Communication gateway** — UART, SPI, I2C bridging
-- **Control systems** — Motor control, PWM generation
-- **Data logging** — Collect and store sensor data
-- **ML inference** — Edge computing with NPU acceleration
 
 ## Related Documentation
 
