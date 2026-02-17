@@ -1,6 +1,5 @@
 # Genererator dir
 generator/
-firmware/common/
 
 # Build artifacts
 verification/isa/build/
