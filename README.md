@@ -10,54 +10,28 @@
   </tr>
 </table>
 
-VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. This repository not only provides the VestaRV core but also a full MCU System on Chip (SoC) that surrounds the core, enabling rapid integration into embedded and SoC designs. 
+VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. The core supports **RV32I base ISA** with **M** (multiply/divide), **C** (compressed), **A** (atomic), and **Zb*** (bit manipulation) extensions, features **stack-based recursive interrupt handling**, and has been **post-Innovus verified**. This repository provides both the VestaRV core and a configurable MCU System on Chip (SoC) implementation, enabling rapid integration into embedded systems and ASIC designs.
 
 **Namesake:**  
-VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the eternal flame. As Vesta’s fire symbolized the heart of the household, VestaRV is designed to be the heart of your embedded system—providing reliability and a strong foundation for your MCU and SoC projects.
+VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the eternal flame. As Vesta's fire symbolized the heart of the household, VestaRV is designed to be the heart of your embedded system—providing reliability and a strong foundation for your MCU and SoC projects.
 
+**Typical Applications:**
+- Custom embedded MCU development
+- Mixed-signal and sensor interfacing
+- Low-power IoT devices
+- ASIC/SoC integration
 
-## MCU Block Diagram
+---
 
-Below is the MCU-level block diagram showing VestaRV instantiated within the MCU and the major peripherals highlighted:
+## Example MCU Configuration
+
+Below is an example MCU-level block diagram showing one possible instantiation of VestaRV with various peripherals:
 
 ![MCU Block Diagram](assets/ASIC_block_diagram.png)
 
-
-## Table of Contents
-
-- [Features and Typical Applications](#features-and-typical-applications)
-- [Repository Structure](#repository-structure)
-- [Core Specifications](#core-specifications)
-- [MCU Peripherals](#mcu-peripherals-configurable)
-- [Memory Architecture](#mcu-memory-architecture-configurable)
-- [Interrupt Handling](#interrupt-handling)
-- [Building and Toolchain](#building-and-toolchain)
-- [Getting Started](#getting-started)
-- [Author and Support](#author-and-support)
+*Note: VestaRV is designed to be highly configurable. The peripheral set, memory architecture, and system features can be customized to match your specific application requirements.*
 
 ---
-
-## Features and Typical Applications
-
-- **Custom RISC-V Core** supporting:
-  - RV32I Base ISA
-  - 'M' Extension (Integer multiplication & division)
-  - 'C' Extension (Compressed instructions)
-  - 'A' Extension (Atomic Memory Operations)
-  - 'ZBA', 'ZBB', 'ZBC', 'ZBS' (Advanced Bit Manipulation)
-  - 'ZICNTR' (Partial, e.g., RDCYCLE and RDINSTRET)
-- **Stack-based interrupt handling** 
-- **Post Innovus verification**
-- **Full MCU System on Chip Implementation** 
-- Designed for easy integration into ASICs
-
-Typical applications include:
-- Custom embedded MCU development
-- Mixed signal and sensor interfacing
-
----
-
-## Repository Structure
 
 This repository is organized into the following directories:
 
@@ -105,29 +79,34 @@ This repository is organized into the following directories:
 
 ---
 
-## MCU Peripherals - Configurable
+## Example Peripheral Configuration
 
-- **System**
-  - Clock Multiplexing/Dividing
-  - 2 × Digitally Controlled Oscillator (DCO)
+The following peripherals are included in the example configuration shown above. VestaRV's modular design allows you to select and configure peripherals based on your application needs:
+
+- **System Control**
+  - Clock multiplexing and dividing
+  - Digitally Controlled Oscillators (DCO)
   - Watchdog Timer (WDT)
-  - CRC engine
-  - ROM/RAM power gating
-- **Compute**  
-  - 1 × HW-NN 
-- **I/O**
-  - 4 × GPIO
-  - 1 × SPI
-  - 1 × SPI Flash Extended Memory 
-  - 2 × UART
-  - 2 × Timer
+  - CRC calculation engine
+  - Power gating for ROM/RAM blocks
+- **Compute Accelerators**  
+  - Hardware Neural Network (HW-NN) accelerator
+- **Communication & I/O**
+  - GPIO ports (configurable count)
+  - SPI interfaces
+  - SPI Flash extended memory interface
+  - UART modules
+  - Timer/Counter modules
 
 ---
 
-## MCU Memory Architecture - Configurable
+## Memory Architecture (Example)
 
-- **16 KiB ROM**
-- **2 × 16 KiB SRAM**
+The example configuration includes:
+- **16 KiB ROM** — Boot code and firmware
+- **32 KiB SRAM** (2 × 16 KiB blocks) — Main system memory
+
+*Memory sizes and organization are fully configurable to meet your design requirements.*
 
 ---
 
