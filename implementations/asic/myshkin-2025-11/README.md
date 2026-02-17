@@ -7,7 +7,7 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 - **Chip Name**: Myshkin
 - **Tape-out Date**: November 2025
 - **Process Node**: TSMC 65nm
-- **Target Application**: Mixed-signal sensor interfacing and edge computing
+- **Target Application**: Mixed-Signal Electrochemical Sensing SoC for Autonomous Wound Monitoring
 - **Die Size**: 1.0 mm × 1.5 mm
 - **Package**: QFN-44
 
