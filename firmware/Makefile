@@ -113,6 +113,9 @@ define create_makefile
 		'ROM_SIZE = `cat $$(LD_DIR)/ROM_SIZE.txt`' \
 		'' \
 		'# Toolchain' \
+		'ifndef RISCV_TOOLCHAIN_DIR' \
+		'$$(error RISCV_TOOLCHAIN_DIR is not set. Please set it to your RISC-V toolchain path, e.g.: export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2)' \
+		'endif' \
 		'TOOLCHAIN_DIR = $$(RISCV_TOOLCHAIN_DIR)' \
 		'PREFIX = $$(TOOLCHAIN_DIR)/bin/riscv-none-elf-' \
 		'CC = $$(PREFIX)gcc' \
@@ -126,13 +129,12 @@ define create_makefile
 		'' \
 		'# Flags' \
 		'CFLAGS = -march=$$(ARCH) -mabi=$$(ABI) -Wall -O2 -g -I$$(INC_DIR) -I$$(LIB_INC_DIR) -ffreestanding -nostdlib' \
-		'LDFLAGS = -march=$$(ARCH) -mabi=$$(ABI) -T$$(LD_SCRIPT) -nostartfiles -nostdlib -Wl,-Map=$$(BIN_DIR)/$$(TARGET).map' \
+		'LDFLAGS = -march=$$(ARCH) -mabi=$$(ABI) -T$$(LD_SCRIPT) -nostartfiles -nostdlib -Wl,-Map=$$(BIN_DIR)/$$(TARGET).map -L$$(LD_DIR)' \
 		'' \
 		'# Source files' \
 		'SRC_FILES = $$(addprefix $$(SRC_DIR)/,$$(SRC_SOURCES))' \
 		'LIB_FILES = $$(addprefix $$(LIB_SRC_DIR)/,$$(LIB_SOURCES))' \
-		'SRC_OBJS = $$(patsubst $$(SRC_DIR)/%.c,$$(OBJ_DIR)/%.o,$$(filter %.c,$$(SRC_FILES)))' \
-		'SRC_OBJS += $$(patsubst $$(SRC_DIR)/%.S,$$(OBJ_DIR)/%.o,$$(filter %.S,$$(SRC_FILES)))' \
+		'SRC_OBJS = $$(patsubst $$(SRC_DIR)/%.S,$$(OBJ_DIR)/%.o,$$(patsubst $$(SRC_DIR)/%.c,$$(OBJ_DIR)/%.o,$$(SRC_FILES)))' \
 		'LIB_OBJS = $$(patsubst $$(LIB_SRC_DIR)/%.c,$$(OBJ_DIR)/%.o,$$(filter %.c,$$(LIB_FILES)))' \
 		'ALL_OBJS = $$(SRC_OBJS) $$(LIB_OBJS)' \
 		'' \
@@ -167,7 +169,7 @@ define create_makefile
 		'	$$(OBJDUMP) -D $$< > $$@' \
 		'' \
 		'$$(BIN_DIR)/$$(TARGET).rcf: $$(BIN_DIR)/$$(TARGET).hex' \
-		'	python3 $$(PYTHON_DIR)/IntelHex_to_RomConfigFile.py $$< $$@ $$(ROM_START) $$(ROM_SIZE)' \
+		'	python3 $$(PYTHON_DIR)/ihex2rcf.py $$< $$@ $$(ROM_START) $$(ROM_SIZE) 32' \
 		'' \
 		'$$(OBJ_DIR):' \
 		'	mkdir -p $$@' \
@@ -215,16 +217,26 @@ define create_start_s
 		' * VestaRV Firmware Boot Code' \
 		' */' \
 		'' \
-		'.section .text.init' \
-		'.global _start' \
+		'.section .program_start, "ax"' \
+		'.global __start_RAM_program__' \
+		'.type __start_RAM_program__, @function' \
 		'' \
-		'_start:' \
-		'    # Initialize stack pointer' \
-		'    la sp, _stack_top' \
+		'__start_RAM_program__:' \
+		'    # Jump to actual initialization (entry must be <=16 bytes)' \
+		'    j _init' \
+		'    nop' \
+		'    nop' \
+		'' \
+		'.section .text.init' \
+		'_init:' \
+		'    # Initialize stack pointer to end of RAM' \
+		'    # Stack grows downward from top of RAM' \
+		'    # Adjust 0x10000 based on your RAM size' \
+		'    li sp, 0x10000' \
 		'    ' \
 		'    # Clear BSS section' \
-		'    la a0, _bss_start' \
-		'    la a1, _bss_end' \
+		'    la a0, __bss_start' \
+		'    la a1, _end' \
 		'bss_clear:' \
 		'    beq a0, a1, bss_done' \
 		'    sw zero, 0(a0)' \
