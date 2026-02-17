@@ -21,8 +21,16 @@ Each FPGA implementation directory contains:
 ## Naming Convention
 
 Use descriptive names that include key identifiers:
-- **ASIC**: `<chip-name>-<year>-<month>` (e.g., `washakie-2022-03`, `myshkin-2024-11`)
+- **ASIC**: `<chip-name>-<year>-<month>` (e.g. `myshkin-2025-11`)
 - **FPGA**: `<board-name>-<variant>` (e.g., `arty-a7-100t`, `nexys-a7`)
+
+## Current Implementations
+
+### ASIC
+- **[myshkin-2025-11](asic/myshkin-2025-11/)** — TSMC 65nm tape-out with NPU accelerator and analog front-end (November 2025)
+
+### FPGA
+- (No FPGA implementations yet — see example template in `fpga/example-board/`)
 
 ## Adding a New Implementation
 
@@ -40,7 +48,7 @@ Use descriptive names that include key identifiers:
 ```
 implementations/
 ├── asic/
-│   ├── washakie-2022-03/
+│   ├── myshkin-2022-03/
 │   │   ├── README.md
 │   │   ├── docs/
 │   │   │   ├── user-guide.pdf
