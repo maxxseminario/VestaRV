@@ -24,7 +24,33 @@ Common code shared across firmware projects:
 
 ## Adding New Firmware Projects
 
-To create a new firmware project:
+### Quick Start with Project Generator
+
+The easiest way to create a new firmware project is using the provided Makefile:
+
+```bash
+cd firmware/
+make new PROJECT=my-app          # Create RAM-based application
+make new PROJECT=my-boot TYPE=rom # Create ROM-based bootloader
+```
+
+This automatically creates:
+- Complete directory structure (src/, include/, obj/, bin/)
+- Configured makefile with all build targets
+- Template source files (main.c, start.S)
+
+**Available Commands:**
+```bash
+make help          # Show all available commands
+make new PROJECT=<name> [TYPE=ram|rom]  # Create new project
+make list          # List all firmware projects
+make build-all     # Build all projects
+make clean-all     # Clean all projects
+```
+
+### Manual Setup (Advanced)
+
+If you prefer manual setup:
 
 1. **Create project directory**:
    ```bash
@@ -56,7 +82,22 @@ To create a new firmware project:
 
 ## Build System
 
-### Makefile Variables
+### Top-Level Makefile Commands
+
+The `firmware/Makefile` provides project management:
+
+| Command | Description |
+|---------|-------------|
+| `make help` | Show all available commands |
+| `make new PROJECT=<name>` | Create new project (default: RAM-based) |
+| `make new PROJECT=<name> TYPE=rom` | Create ROM-based project |
+| `make list` | List all firmware projects |
+| `make build-all` | Build all projects |
+| `make clean-all` | Clean all projects |
+
+### Project Makefile Variables
+
+Each project has its own makefile with these key variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -68,10 +109,11 @@ To create a new firmware project:
 
 ### Build Targets
 
+Within each project directory:
+
 ```bash
 make all          # Build all outputs (.elf, .bin, .hex, .dump, .rcf)
 make clean        # Remove build artifacts
-make <target>.elf # Build specific target
 ```
 
 ### Output Files
@@ -122,19 +164,37 @@ Used for:
 
 ## Development Workflow
 
-1. **Write code** in `src/` directory
-2. **Build firmware**:
+1. **Create project** (if new):
    ```bash
-   cd firmware/<project>/
+   cd firmware/
+   make new PROJECT=my-app
+   cd my-app/
+   ```
+
+2. **Write code** in `src/` directory:
+   - Edit `src/main.c` with your application logic
+   - Add peripheral headers as needed
+   - Modify `src/start.S` if custom startup required
+
+3. **Update makefile** (if needed):
+   - Add source files to `SRC_SOURCES`
+   - Add library dependencies to `LIB_SOURCES`
+   - Adjust `EXTENSIONS` for required ISA features
+
+4. **Build firmware**:
+   ```bash
    make all
    ```
-3. **Test in simulation**:
+
+5. **Test in simulation**:
    - Use `.rcf` file with VHDL testbench
    - See `hdl/MCU/tb/` for testbench examples
-4. **Program hardware**:
+
+6. **Program hardware**:
    - Use `.bin` or `.hex` file
    - Flash via SPI programmer or JTAG
-5. **Debug**:
+
+7. **Debug**:
    - Use `.elf` file with GDB
    - UART console output for printf-style debugging
    - See [`debug/`](../debug/) for debugging tools
@@ -144,6 +204,49 @@ Used for:
 - **RISC-V Toolchain**: `riscv-none-elf-gcc` (see [`build-system/README.md`](../build-system/README.md))
 - **Python 3**: For build utilities and RCF generation
 - **Make**: GNU Make for build automation
+
+## Quick Example: Creating a Blink Project
+
+```bash
+# Create new project
+cd firmware/
+make new PROJECT=blink
+
+# Navigate to project
+cd blink/
+
+# Edit main.c with blink code
+cat > src/main.c << 'EOF'
+#include <stdint.h>
+
+// Simple GPIO register definitions
+#define GPIO_BASE 0x4000
+#define GPIO_OUT  (*(volatile uint32_t*)(GPIO_BASE + 0x00))
+#define GPIO_DIR  (*(volatile uint32_t*)(GPIO_BASE + 0x04))
+
+int main(void) {
+    // Set GPIO pin 0 as output
+    GPIO_DIR = 0x01;
+    
+    // Blink loop
+    while(1) {
+        GPIO_OUT = 0x01;  // LED on
+        for(volatile int i=0; i<500000; i++);
+        GPIO_OUT = 0x00;  // LED off
+        for(volatile int i=0; i<500000; i++);
+    }
+    
+    return 0;
+}
+EOF
+
+# Build
+make all
+
+# Output files created in bin/
+ls bin/
+# blink.elf  blink.bin  blink.hex  blink.dump  blink.rcf  blink.map
+```
 
 ## Typical Applications
 
