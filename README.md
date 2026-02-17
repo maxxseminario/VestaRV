@@ -18,8 +18,9 @@ VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the ete
 **Typical Applications:**
 - Custom embedded MCU development
 - Mixed-signal and sensor interfacing
-- Low-power IoT devices
 - ASIC/SoC integration
+- Low-power IoT devices
+
 
 ---
 
