@@ -64,6 +64,12 @@ This repository is organized into the following directories:
 ### Debug Tools
 - **`debug/`** — GDB server and debugging utilities
 
+### Implementations
+- **`implementations/`** — ASIC and FPGA instantiations of VestaRV
+  - `asic/` — ASIC tape-out documentation and configurations
+  - `fpga/` — FPGA board implementations
+  - See [`implementations/README.md`](implementations/README.md) for structure details
+
 ### Assets
 - **`assets/`** — Logos, diagrams, and documentation images
 
