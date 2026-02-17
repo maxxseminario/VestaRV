@@ -1,0 +1,246 @@
+# See LICENSE for license details.
+
+#*****************************************************************************
+# gpio.S
+#-----------------------------------------------------------------------------
+#
+# Test GPIO peripheral(s) instruction.
+#
+
+#include "riscv_test.h"
+#include "test_macros.h"
+
+#define GPIO0_BASE_ADDR 0x4000
+
+#define GPIO_INPUT_REG      0x00  // RegSlotPxIN  
+#define GPIO_OUT_REG        0x04  // RegSlotPxOUT
+#define GPIO_OUT_SET_REG    0x08  // RegSlotPxOUTS
+#define GPIO_OUT_CLR_REG    0x0C  // RegSlotPxOUTC
+#define GPIO_OUT_TOG_REG    0x10  // RegSlotPxOUTT
+#define GPIO_DIR_REG        0x14  // RegSlotPxDIR
+#define GPIO_IFG_REG        0x18  // RegSlotPxIFG x
+#define GPIO_IES_REG        0x1C  // RegSlotPxIES x
+#define GPIO_IE_REG         0x20  // RegSlotPxIE x
+#define GPIO_SEL_REG        0x24  // RegSlotPxSEL
+#define GPIO_REN_REG        0x28  // RegSlotPxREN
+#define GPIO_JUNK_REG       0x2C  // Junk Reg for Testing
+
+#define GPIO_8BN1 0x000000FF
+#define EN 0xFF
+#define NEN 0x00
+
+# GPIO Register Reset Values
+#define RST_VAL_P1OUT   0x00000001
+#define RST_VAL_P1DIR   0x0000000D
+#define RST_VAL_P1SEL   0x0000000F
+#define RST_VAL_P1REN   0x000000F0
+
+
+
+
+RVTEST_RV64U
+RVTEST_CODE_BEGIN
+
+
+  #-------------------------------------------------------------
+  # Initialize GPIO and Registers 
+  #-------------------------------------------------------------
+  
+
+  #-------------------------------------------------------------
+  # Basic GPIO Functionality
+  #-------------------------------------------------------------
+
+
+  # Test if GPIO is reset correctly 
+  # TEST_GPIO_REG_READ(2, GPIO0_BASE_ADDR, GPIO_OUT_REG, RST_VAL_P1OUT)
+  #TEST_GPIO_REG_READ(3, GPIO0_BASE_ADDR, GPIO_OUT_SET_REG, RST_VAL_P1OUT)
+  #TEST_GPIO_REG_READ(4, GPIO0_BASE_ADDR, GPIO_OUT_CLR_REG, (RST_VAL_P1OUT ^ 0xFF))
+  #TEST_GPIO_REG_READ(5, GPIO0_BASE_ADDR, GPIO_OUT_TOG_REG, RST_VAL_P1OUT)
+  #TEST_GPIO_REG_READ(6, GPIO0_BASE_ADDR, GPIO_DIR_REG, RST_VAL_P1DIR)    
+  #TEST_GPIO_REG_READ(7, GPIO0_BASE_ADDR, GPIO_REN_REG, RST_VAL_P1REN)       
+  #TEST_GPIO_REG_READ(8, GPIO0_BASE_ADDR, GPIO_JUNK_REG, 0)  
+
+  # Initialize GPIO0 and Registers
+  INIT_GPIO GPIO0_BASE_ADDR
+  INIT_XREG
+
+  # Run GPIO Register Read Tests upon Initialization
+  TEST_GPIO_REG_READ(9, GPIO0_BASE_ADDR, GPIO_OUT_REG, 0)
+  TEST_GPIO_REG_READ(10, GPIO0_BASE_ADDR, GPIO_OUT_SET_REG, 0)
+  TEST_GPIO_REG_READ(11, GPIO0_BASE_ADDR, GPIO_OUT_CLR_REG, GPIO_8BN1)
+  TEST_GPIO_REG_READ(12, GPIO0_BASE_ADDR, GPIO_OUT_TOG_REG, 0)
+  TEST_GPIO_REG_READ(13, GPIO0_BASE_ADDR, GPIO_DIR_REG, GPIO_8BN1)     # All pins set as output
+  TEST_GPIO_REG_READ(14, GPIO0_BASE_ADDR, GPIO_REN_REG, 0)       
+  TEST_GPIO_REG_READ(15, GPIO0_BASE_ADDR, GPIO_JUNK_REG, 0)      
+
+  # Run GPIO Register Write/Read Tests 
+  TEST_GPIO_REG_RW(16, GPIO0_BASE_ADDR, GPIO_OUT_REG, 2, 2)    # RW to Output Reg
+  TEST_GPIO_REG_RW(17, GPIO0_BASE_ADDR, GPIO_DIR_REG, 3, 3)       # RW to DIR Reg
+  TEST_GPIO_REG_RW(18, GPIO0_BASE_ADDR, GPIO_REN_REG, 4, 4)    # RW to REN Reg
+  TEST_GPIO_REG_RW(19, GPIO0_BASE_ADDR, GPIO_JUNK_REG, 5, 0)    # When reading from junk reg output should be 0
+
+  #  
+  TEST_GPIO_OUT(20, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_REG, 0x13, 0x13) 
+  TEST_GPIO_OUT(21, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_REG, 0x00, 0x00) 
+
+  #-------------------------------------------------------------
+  # GPIO Set/Clear Functionality Tests
+  #-------------------------------------------------------------
+
+  # Test GPIO Set Register, by setting each bit high one at a time
+  TEST_GPIO_OUT(22, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00) 
+  TEST_GPIO_OUT(23, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x01, 0x01) 
+  TEST_GPIO_OUT(24, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x02, 0x03) 
+  TEST_GPIO_OUT(25, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x04, 0x07) 
+  TEST_GPIO_OUT(26, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x08, 0x0F) 
+  TEST_GPIO_OUT(27, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x10, 0x1F) 
+  TEST_GPIO_OUT(28, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x20, 0x3F) 
+  TEST_GPIO_OUT(29, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x40, 0x7F) 
+  TEST_GPIO_OUT(30, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x80, 0xFF) 
+
+  # Test GPIO Clear Register, by clearing each bit high one at a time
+  TEST_GPIO_OUT(31, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x00, 0xFF) 
+  TEST_GPIO_OUT(32, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x01, 0xFE) 
+  TEST_GPIO_OUT(33, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x02, 0xFC) 
+  TEST_GPIO_OUT(34, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x04, 0xF8) 
+  TEST_GPIO_OUT(35, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x08, 0xF0) 
+  TEST_GPIO_OUT(36, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x10, 0xE0) 
+  TEST_GPIO_OUT(37, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x20, 0xC0) 
+  TEST_GPIO_OUT(38, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x40, 0x80) 
+  TEST_GPIO_OUT(39, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x80, 0x00) 
+
+  # Test GPIO Set Register, by settin each bit high two at a time 
+  TEST_GPIO_OUT(40, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(41, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x11, 0x11)
+  TEST_GPIO_OUT(42, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x22, 0x33)
+  TEST_GPIO_OUT(43, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x44, 0x77)
+  TEST_GPIO_OUT(44, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x88, 0xFF)
+  TEST_GPIO_OUT(45, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0xFF) 
+
+  # Test GPIO Clear Register, by clearing each bit two at a time
+  TEST_GPIO_OUT(46, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x00, 0xFF)
+  TEST_GPIO_OUT(47, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x11, 0xEE)
+  TEST_GPIO_OUT(48, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x22, 0xCC)
+  TEST_GPIO_OUT(49, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x44, 0x88)
+  TEST_GPIO_OUT(50, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x88, 0x00)
+  TEST_GPIO_OUT(51, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x00, 0x00)
+
+  # Test GPIO Set Register, by setting each bit high four at a time
+  TEST_GPIO_OUT(52, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(53, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x33, 0x33)
+  TEST_GPIO_OUT(54, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0xCC, 0xFF)
+  TEST_GPIO_OUT(55, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0xFF)
+
+  # Test GPIO Clear Register, by clearing each bit four at a time
+  TEST_GPIO_OUT(56, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x00, 0xFF)
+  TEST_GPIO_OUT(57, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x33, 0xCC)
+  TEST_GPIO_OUT(58, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0xCC, 0x00)
+  TEST_GPIO_OUT(59, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_CLR_REG, 0x00, 0x00)
+
+  #-------------------------------------------------------------
+  # GPIO Toggle Toggle Functionality Tests
+  #-------------------------------------------------------------
+
+  # Test GPIO Toggle Register, by toggling each bit high one at a time
+  TEST_GPIO_OUT(60, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(61, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(62, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x01, 0x01)
+  TEST_GPIO_OUT(63, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x02, 0x03)
+  TEST_GPIO_OUT(64, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x04, 0x07)
+  TEST_GPIO_OUT(65, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x08, 0x0F)
+  TEST_GPIO_OUT(66, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x10, 0x1F)
+  TEST_GPIO_OUT(67, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x20, 0x3F)
+  TEST_GPIO_OUT(68, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x40, 0x7F)
+  TEST_GPIO_OUT(69, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x80, 0xFF)
+
+  # Test GPIO Toggle Register, by toggling each bit low one at a time
+  TEST_GPIO_OUT(70, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0xFF, 0xFF)
+  TEST_GPIO_OUT(71, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0xFF)
+  TEST_GPIO_OUT(72, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x01, 0xFE)
+  TEST_GPIO_OUT(73, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x02, 0xFC)
+  TEST_GPIO_OUT(74, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x04, 0xF8)
+  TEST_GPIO_OUT(75, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x08, 0xF0)
+  TEST_GPIO_OUT(76, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x10, 0xE0)
+  TEST_GPIO_OUT(77, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x20, 0xC0)
+  TEST_GPIO_OUT(78, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x40, 0x80)
+  TEST_GPIO_OUT(79, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x80, 0x00)
+
+  # Test GPIO Toggle Register, by toggling each bit high two at a time
+  TEST_GPIO_OUT(80, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(81, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(82, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x11, 0x11)
+  TEST_GPIO_OUT(83, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x22, 0x33)
+  TEST_GPIO_OUT(84, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x44, 0x77)
+  TEST_GPIO_OUT(85, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x88, 0xFF)
+  TEST_GPIO_OUT(86, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0xFF)
+
+  # Test GPIO Toggle Register, by toggling each bit low two at a time
+  TEST_GPIO_OUT(87, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0xFF, 0xFF)
+  TEST_GPIO_OUT(88, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0xFF)
+  TEST_GPIO_OUT(89, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x11, 0xEE)
+  TEST_GPIO_OUT(90, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x22, 0xCC)
+  TEST_GPIO_OUT(91, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x44, 0x88)
+  TEST_GPIO_OUT(92, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x88, 0x00)
+  TEST_GPIO_OUT(93, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0x00)
+
+  # Test GPIO Toggle Register, by toggling each bit high four at a time
+  TEST_GPIO_OUT(94, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(95, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(96, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x33, 0x33)
+  TEST_GPIO_OUT(97, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0xCC, 0xFF)
+  TEST_GPIO_OUT(98, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0xFF)
+
+  # Test GPIO Toggle Register, by toggling each bit low four at a time
+  TEST_GPIO_OUT(99, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_SET_REG, 0xFF, 0xFF)
+  TEST_GPIO_OUT(100, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0xFF)
+  TEST_GPIO_OUT(101, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x33, 0xCC)
+  TEST_GPIO_OUT(102, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0xCC, 0x00)
+  TEST_GPIO_OUT(103, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_TOG_REG, 0x00, 0x00)
+
+  # -----------------------------------------------------------------
+  # GPIO Direction Register Functionality Tests
+  # --------------------------------------------------------------
+  TEST_GPIO_OUT(104, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(105, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(106, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_REG, 0xff, 0x00)
+  TEST_GPIO_OUT(107, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_REG, 0x0f, 0x00)
+  TEST_GPIO_OUT(108, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_REG, 0xf0, 0x00)
+  TEST_GPIO_OUT(109, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_REG, 0x16, 0x16)
+  TEST_GPIO_OUT(110, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_SET_REG, 0x00, 0x00)
+  TEST_GPIO_OUT(111, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_SET_REG, 0x03, 0x00)
+  TEST_GPIO_OUT(112, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_SET_REG, 0x1A, 0x00)
+  TEST_GPIO_OUT(113, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_CLR_REG, 0x1A, 0x00)
+  TEST_GPIO_OUT(114, GPIO0_BASE_ADDR, NEN, NEN, GPIO_OUT_TOG_REG, 0x1A, 0x00)
+  TEST_GPIO_OUT(115, GPIO0_BASE_ADDR, EN, NEN, GPIO_OUT_REG, 0x00, 0x00)
+
+  # --------------------------------------------------------------
+  # GPIO REN Register Functionality Tests
+  # TODO: Check if it is possible to test REN register functionality
+  # --------------------------------------------------------------
+
+
+  #--------------------------------------------------------------
+  # GPIO Peripheral Select Register Functionality Tests
+  # TODO: spi_flash already tests this functionality
+  #--------------------------------------------------------------
+
+
+
+
+  TEST_PASSFAIL
+
+RVTEST_CODE_END
+
+  .data
+RVTEST_DATA_BEGIN
+
+  TEST_DATA
+
+# tdat:
+# tdat1:  .byte 0xff
+# tdat2:  .byte 0x00
+# tdat3:  .byte 0xf0
+# tdat4:  .byte 0x0f
+
+RVTEST_DATA_END

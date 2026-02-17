@@ -1,0 +1,581 @@
+\documentclass[11pt,pdftex,portrait,letterpaper]{article}
+\usepackage[hdivide={1in,*,1in},
+            vdivide={1in,*,1in},
+%            showframe
+            ]{geometry}
+
+% Include the packages and commands
+\input{packages-commands.tex}
+
+
+
+
+% Default margins are too wide all the way around. Reset them here
+\setlength{\topmargin}{-.5in}
+\setlength{\textheight}{9in}
+\setlength{\oddsidemargin}{0in}
+\setlength{\textwidth}{6.5in}
+
+% Add the headers and footers
+\lhead{MCU User Guide for \AsicNameForUserGuide}
+\chead{}
+\rhead{\thepage\ of \pageref{LastPage}}
+\lfoot{\small{University of Nebraska--Lincoln}}
+\cfoot{}
+\rfoot{\small{Department of Electrical \& Computer Engineering}}
+\renewcommand{\footrulewidth}{0.5pt}
+
+
+
+
+
+% Begin the document
+\begin{document}
+	
+% The title page
+\vspace*{30ex}
+\begin{center}
+	\textbf{MCU User Guide for \AsicNameForUserGuide} \\
+	\vspace{2ex}
+	Revised \RevisionDateFull \\
+	\vspace{8ex}
+	University of Nebraska--Lincoln \\
+	Department of Electrical \& Computer Engineering \\
+	\vspace{4ex}
+\end{center}
+
+\newpage
+
+% Table of contents
+\tableofcontents
+\newpage
+
+
+
+% System configuration
+\section{System Configuration} \label{s:config}
+The microcontroller (MCU) described in this document utilizes the picorv32 CPU core, a 32-bit RISC-V processor. The microcontroller is composed of the RISC-V CPU, a ROM that contains boot software and a forth interpreter, RAM memory cell(s), and several peripherals. The MCU hardware is configurable using a custom automatic code generation tool, which also automatically generates this user guide document to reflect its configuration. %Figure~\ref{fig:chip-die-photo} shows the silicon die microphotograph of the fabricated MCU chip.
+
+%\begin{figure}[h]
+%	\centering
+%	\includegraphics[width=0.5\linewidth]{figures/pingora2-die-photo.jpg}
+%	\caption{Pingora 2 MCU Chip Die Photograph (1.1~mm $\times$ 1.1~mm)}
+%	\label{fig:chip-die-photo}
+%\end{figure}
+
+%The following list details the MCU configuration:
+%\begin{itemize}
+%	\input{include/SystemConfigurationList.tex}
+%	\item 30$\times$ GPIO pins with edge-triggered interrupts and multiplexed peripheral functions
+%	\item 2$\times$ SPI interfaces (one master-only, one with master and slave mode)
+%	\item 2$\times$ UART interfaces
+%	\item 3$\times$ 32-bit timers with pulse-width modulation outputs and input capture units
+%	\item An I$^2$C interface (both master and slave mode)
+%	\item A neural processing unit (NPU) co-processor for hardware acceleration of machine learning tasks
+%	\item A CRC calculation engine
+%	\item An internal digitally controllable oscillator
+%	\item 2$\times$ external clock pins for clock generation and accurate timing
+%	\item A 10-bit, 100~kSPS ADC with DMA
+%	\item 2$\times$ 14-bit, 700~kSPS DACs with DMA
+%	\item 2$\times$ digitally adjustable gain and adjustable drive strength opamps
+%\end{itemize}
+
+\newpage
+
+
+
+% Pin configuration
+\section{Packaging and Pins Configuration} \label{s:pinsConfig}
+
+\begin{figure}[h]
+	\begin{tikzpicture}[x=12mm, y=12mm]
+		% This is for a square, symmetrical QFN package (e.g. all sides have the same number of pins)
+		% User-edited dimensions.  All dimensions are in mm.
+		%\def\PackageSize{7}     % For QFN, the outer dimension of the package
+		%\def\PackagePinCount{48}       % The number of package pins
+		%\def\PackagePinPitch{0.5}
+		%\def\PackagePinWidth{0.25}
+		%\def\PackagePinDepth{0.4}
+		\def\fontScale{0.5}     % Controls size of pin number fonts--adjust if too large/small
+	
+		% Locate the southwest and northeast corners of the whole package.
+		\pgfmathsetmacro\packageSW{-\PackageSize/2}
+		\pgfmathsetmacro\packageNE{\PackageSize/2}
+	
+		% Other dimensions
+		\pgfmathsetmacro\pinCountPerSide{\PackagePinCount/4}
+	
+		% Draw the QFN Plastic Package Outline
+		\draw (\packageSW,\packageSW) rectangle (\packageNE,\packageNE);
+
+		\foreach \side in {0, 1, 2, 3}
+		{
+			\pgfmathsetmacro\pinsOnThisSide{\pinCountPerSide}
+			\foreach \pinSideNum in {1,2,...,\pinCountPerSide}
+			{
+				\pgfmathsetmacro\yTranslate{-(\pinSideNum - 1 - ((\pinsOnThisSide - 1)/2)) * \PackagePinPitch)}
+				\pgfmathsetmacro\pinNum{int(\pinsOnThisSide*\side + \pinSideNum)}
+
+				% Draw the pin shape
+				\draw[rotate={90 * \side}, shift={(\packageSW, \yTranslate)}] (0, \PackagePinWidth/2) -- (\PackagePinDepth, \PackagePinWidth/2) -- (\PackagePinDepth, -\PackagePinWidth/2) -- (0, -\PackagePinWidth/2);
+				
+				% Add the pin number
+				\draw[rotate={90 * \side}, shift={(\packageSW, \yTranslate)}]   (\PackagePinDepth/2,0) node[scale=\fontScale] {\textbf{\pinNum}};
+			}
+		}
+
+		% Add the "pin 1" dot
+		\draw[] (\packageSW + \PackagePinDepth/2, \packageNE - \PackagePinDepth/2) circle (\PackagePinDepth/4);
+
+	\end{tikzpicture}
+	\caption{QFN-{\PackagePinCount} ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch)}
+	\label{fig:package}
+\end{figure}
+
+The chip package is a QFN-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint (as seen from the top down) is shown in Figure \ref{fig:package}. The pins on the package are listed in Table \ref{t:package-pins}.
+
+\input{include/PackagePinsConfigurationTable.tex}
+
+Many of the digital I/O pins are GPIO pins. These pins can be in either primary/GPIO mode, or secondary/peripheral mode (see Section \ref{peripheralGPIOx} on the GPIO peripherals for more details). A list of all the GPIO pins, along with their primary and secondary functions and reset values, is shown in Table \ref{t:gpio-pins}.
+
+\input{include/GpioPinsConfigurationTable.tex}
+
+\newpage
+
+
+
+% Address space
+\section{Address Space} \label{s:addressSpace}
+\resizebox{!}{0.75\height}{\input{include/AddressSpaceDiagram.tex}}
+
+The 32-bit memory bus on the MCU is in the von Neumann architecture. All addressable memory elements (i.e. the ROM, RAM, and memory mapped registers) are all located on a single bus. A pointer can access any of these locations in memory.
+
+The ROM cell contains boot code, which is read-only. Each SRAM cell can be read or written to, and may contain both program and variable information. The chip does not contain programmable non-volatile memory (e.g. flash memory), so the program must be entirely stored in RAM along with all runtime memory. Each SRAM and ROM cell can be individually powered off or on using the \peripheral{SYSTEM} peripheral. When powered off, the cells use less power and cannot be read or written to. SRAM cells that are powered off do not retain their previous data, and the data becomes undefined.
+
+
+The master interrupt handler begins at address \texttt{\ProgaddrIrq}, which is called when any interrupt occurs. The master interrupt handler then determines which interrupt service routine (ISR) it needs to call and looks up the particular ISR address in the interrupt vector table (IVT), which begins at address \texttt{\VectorsStartAddress} and contains thirty-two 4-byte pointers to the ISRs.
+
+\newpage
+
+
+
+% Startup and reset behavior
+\section{Startup and Reset Behavior} \label{s:startup}
+To place the MCU in reset mode, drive the \pin{resetn} pin LOW (asserted). To take the MCU out of reset mode, let the \pin{resetn} pin go high (deasserted). The \pin{resetn} pin has an internal 47~\si{\kilo\ohm} pullup resistor which constantly attempts to pull the \pin{resetn} pin HIGH. If the user does not wish to use the \pin{resetn} pin, it is safe to leave it unconnected.
+
+When the MCU is first powered up, a power-on reset (POR) circuit resets the MCU. As the core voltage, beginning at 0~V, begins to climb, the POR circuit does not assert the internal reset. Once the core voltage reaches a particular value (which is temperature and process dependent, but typically around 0.7~V), the POR circuit asserts the internal reset signal for about 20 ns and then deasserts it. If either the \pin{resetn} pin or the POR reset signal is asserted, the MCU will be in reset mode. In reset, the memory mapped registers and CPU state variables are all reset to their powerup values.
+
+When the MCU comes out of reset, it immediately begins to execute the bootloader stored in the ROM, setting the program counter to address \texttt{0x0000}. If the \pin{BOOT} pin is LOW, the bootloader launches a Forth interpreter which communicates over \peripheral{UART0} at 115,200 baud (see Section \ref{s:forth} for details concerning the Forth interpreter). If the \pin{BOOT} pin is HIGH, the bootloader reads and executes the program stored on an external SPI flash on \peripheral{SPI0} (see Section \ref{s:programming} for details on how to program the MCU). When the bootloader reads the program stored in the SPI flash, it dumps the contents of the SPI flash directly into RAM, completely filling the RAM from beginning to end using an address-to-address copy. After the bootloader has copied the program stored in the SPI flash into RAM, it jumps (moves the program counter) to address \texttt{\RamProgramStartAddress} and begins executing the code.
+
+\newpage
+
+
+
+% Interrupts
+\section{Interrupts} \label{s:interrupts}
+
+\input{include/InterruptsTable.tex}
+
+The CPU has 32 available interrupt slots, which may or may not be populated with an actual interrupt signal. Each interrupt slot can be individually masked to disable it using the custom \asminline{maskirq} assembly instruction (any bit that is set to 1 masks, or disables, the interrupt). Furthermore, the CPU can be instructed to wait until an interrupt occurs using the custom \asminline{waitirq} assembly instruction (note that the \asminline{waitirq} instruction does not cause the CPU to go to sleep; it merely causes the CPU to jump back to the \asminline{retirq} instruction repeatedly until an interrupt occurs).
+
+
+In general, a peripheral will get into a state that asserts its interrupt signal, which immediately causes the CPU to jump (move the program counter) to address \ProgaddrIrq, which must be the start address of the master interrupt handler. The master interrupt handler is responsible for determining which interrupt has occurred, choosing the correct interrupt service routine (ISR) to call, and calling the ISR by looking up its address in the interrupt vector table (IVT). The user is responsible for placing the master interrupt handler at the correct address (\ProgaddrIrq), and must program the master interrupt handler to do the following: save the 32 CPU registers to RAM, determine which interrupts are pending, call the appropriate ISR(s), load the CPU registers back from RAM, and return execution to its prior place by moving the program counter back to where it was before the interrupt occurred. Furthermore, the user is also responsible for placing the peripherals into a state such that their interrupt signals are no longer asserted while executing the ISRs. If the user fails to do so and the peripheral continues to assert its interrupt signal, then the CPU will jump back to the master interrupt handler immediately after the prior call to the master interrupt handler returns. This will most likely cause the MCU to get stuck executing the master interrupt handler endlessly without executing any of the main code.
+
+If an interrupt occurs while the CPU is off (in sleep mode), then the CPU will turn on (exit sleep mode) until the custom \asminline{retirq} assembly instruction is executed, whereupon the CPU will turn back off (re-enter sleep mode) unless instructed otherwise. The CPU clock is disabled while the CPU is off (in sleep mode), and the CPU registers and program counter retain their values. If the clock that sources MCLK (and by extension, the CPU clock) is powered down or disabled while the CPU is in sleep mode, then any interrupt will automatically power up and enable the source clock for the duration of the interrupt. The clocks and CPU on/off states can be controlled in the \peripheral{SYSTEM} peripheral. Note that if the clock that sources SMCLK is disabled, peripherals may not be able to change the state of their interrupt signals.
+
+Note that all interrupts are masked (disabled) when the MCU boots. In order to use/enable interrupts, you must unmask them with the custom \asminline{maskirq} assembly instruction. Furthermore, the peripherals that generate the interrupts must also be configured to enable interrupts in order for their interrupts to occur.
+
+Though it is not strictly required, it is recommended to create an interrupt vector table (IVT) that stores the 32-bit pointer (or memory address) to each ISR in order of priority. As there are 32 available interrupt slots, the IVT occupies 128 bytes of RAM. The automatic code generation tool generates the IVT by default at the very beginning the the RAM, though the user is not required to use it or populate it. If the IVT is used, the master interrupt handler should use it to call the appropriate ISR(s). The auto-generated linker script defines the locations for each element of the IVT, and the memory map C/C++ header file provides a macro to place a pointer to the ISR in the appropriate IVT element.
+
+\newpage
+
+
+
+% Assembly
+\section{CPU Instructions and Assembly} \label{s:cpu-instructions}
+
+The MCU has an on-chip 32-bit RISC-V CPU with the Integer, Multiplication, and Compressed [IMC] extensions. The RISC-V instruction set architecture (ISA) determines how the CPU deciphers binary machine code into instructions and what to do with each instruction. It also determines which CPU registers are used for what purpose.
+
+\subsection{CPU Registers}
+
+There are 32 CPU registers defined in the RISC-V ISA. Though the user can technically use any register for any purpose (except for \asminline{x0}/\asminline{zero}, which is read-only and is always equal to 0x00000000), it is generally advisable to use each register for its intended purpose and follow the convention that the RISC-V ISA describes. The convention was created to create a standard use for each register so that assembly functions can be written that will be compatible with any RISC-V assembly program. The RISC-V compiler always follows this convention. Therefore, if the user also follows the convention, then the user's assembly code will be drop-in compatible with other compiled code (such as C code). If the user does not follow the convention, then it may cause many runtime errors.
+
+Each register has a specific purpose and a designated ``saver'' that is allowed to write to it. The saver is either the caller (the code that calls a function) or the callee (the function that was called). This allows for communication between caller and callee such that arguments can be passed from caller to callee and returned data can be sent back from callee to caller. For example, the registers \asminline{a0-a7} are intended for function arguments and are written to by the caller. Registers \asminline{s0-s11} are preserved across function calls and are written to by the callee. Furthermore, registers \asminline{t0-t6} are temporary register that can be used for any purpose and are written to by the caller.
+
+In assembly, registers can be referred to interchangibly by their register number or name (e.g. you can either type \asminline{x1} or \asminline{ra} to refer to the same register). Generally, one should only use the register names since they give hints as to the purpose of the register.
+
+A CPU instruction can have up to two source register \asminline{rs1} and \asminline{rs2}, and up to one destination register \asminline{rd}. \asminline{rs1}, \asminline{rs2}, and \asminline{rd} can be any of the 32 CPU registers (e.g. \asminline{sp}, \asminline{t6}, \asminline{zero}, etc.). The source registers are used as ``arguments'' to the instruction and are not modified by the instruction, and the destination register is modified by the instruction as its output. 
+
+A list of all 32 CPU registers is provided in Table~\ref{t:cpu-registers}.
+
+\begin{longtable}[c]{ l l l l }
+\caption{CPU Registers} \label{t:cpu-registers} \\ 
+\hline \textbf{Register} & \textbf{Name} & \textbf{Description} & \textbf{Saver} \\ \hline \endhead
+                               \asminline{x0} & \asminline{zero} & Hard-wired zero (read-only) & N/A \\
+\rowcolor{tablehighlightcolor} \asminline{x1} & \asminline{ra} & Return Address & Caller \\
+                               \asminline{x2} & \asminline{sp} & Stack Pointer & Callee \\
+\rowcolor{tablehighlightcolor} \asminline{x3} & \asminline{gp} & Global Pointer & -- \\
+                               \asminline{x4} & \asminline{tp} & Thread Pointer & -- \\
+\rowcolor{tablehighlightcolor} \asminline{x5} & \asminline{t0} & Temporary/Alternate Link Register & Caller \\
+                               \asminline{x6-x7} & \asminline{t1-t2} & Temporary Registers & Caller \\
+\rowcolor{tablehighlightcolor} \asminline{x8} & \asminline{s0/fp} & Saved Register/Frame Pointer & Callee \\
+                               \asminline{x9} & \asminline{s1} & Saved Register & Callee \\
+\rowcolor{tablehighlightcolor} \asminline{x10-x11} & \asminline{a0-a1} & Function Arguments/Return Values & Caller \\
+                               \asminline{x12-x17} & \asminline{a2-a7} & Function Arguments & Caller \\
+\rowcolor{tablehighlightcolor} \asminline{x18-x27} & \asminline{s2-s11} & Saved Registers & Callee \\
+                               \asminline{x28-x31} & \asminline{t3-t6} & Temporary Registers & Caller \\
+\hline
+\end{longtable}
+
+
+\subsection{Load/Store Memory Instructions}
+
+These instructions interface between the memory bus (containing RAM, ROM, and memory-mapped registers) and the CPU registers. They are used to load data from memory into a CPU register or store data from a CPU register into memory. The immediate parameter (\asminline{i}) refers to a hard-coded 12-bit constant that is stored inside the CPU instruction itself and is added to the value of one of the registers. All load/store instructions take 5 MCLK cycles to execute.
+
+\begin{itemize}
+	\item Load Signed Byte: \asminlinehl{lb rd, I(rs1)}: loads the signed byte (8 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
+	\item Load Unsigned Byte: \asminlinehl{lbu rd, I(rs1)}: loads the unsigned byte (8 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
+	\item Load Signed Half Word: \asminlinehl{lh rd, I(rs1)}: loads the signed half word (16 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
+	\item Load Unsigned Half Word: \asminlinehl{lhu rd, I(rs1)}: loads the unsigned half word (16 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
+	\item Load Word: \asminlinehl{lw rd, I(rs1)}: loads the signed or unsigned word (32 bits) stored at memory location pointed to by (\asminline{rs1} + \asminline{I}) into the destination CPU register \asminline{rd}
+	\item Store byte: \asminlinehl{sb rs1, I(rs2)}: stores the signed or unsigned byte (8 bits) from source CPU regsiter 1 \asminline{rs1} into the memory location pointed to by (\asminline{rs2} + \asminline{I})
+	\item Store half word: \asminlinehl{sh rs1, I(rs2)}: stores the signed or unsigned half word (16 bits) from source CPU regsiter 1 \asminline{rs1} into the memory location pointed to by (\asminline{rs2} + \asminline{I})
+	\item Store word: \asminlinehl{sh rs1, I(rs2)}: stores the signed or unsigned word (32 bits) from source CPU regsiter 1 \asminline{rs1} into the memory location pointed to by (\asminline{rs2} + \asminline{I})
+\end{itemize}
+
+\subsection{Shift Instructions}
+
+These instructions perform bit shift operations (e.g. \cinline{<<}). The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit constant that is stored inside the CPU instruction itself and is used as the number of bits to shift. Each shift instruction takes 3 MCLK cycles to execute.
+
+\begin{itemize}
+	\item Shift Left: \asminlinehl{sll rd, rs1, rs2}: Logical shifts the value in \asminline{rs1} left by \asminline{rs2} bits and stores the result in \asminline{rd}.
+	\item Shift Left Immediate: \asminlinehl{slli rd, rs1, I}: Logical shifts the value in \asminline{rs1} left by \asminline{I} bits and stores the result in \asminline{rd}.
+	\item Shift Right: \asminlinehl{sll rd, rs1, rs2}: Logical shifts the value in \asminline{rs1} right by \asminline{rs2} bits and stores the result in \asminline{rd}.
+	\item Shift Right Immediate: \asminlinehl{slli rd, rs1, I}: Logical shifts the value in \asminline{rs1} right by \asminline{I} bits and stores the result in \asminline{rd}.
+	\item Shift Right Arithmetic: \asminlinehl{sll rd, rs1, rs2}: Arithmetic shifts the value in \asminline{rs1} right by \asminline{rs2} bits and stores the result in \asminline{rd}.
+	\item Shift Right Arithmetic Immediate: \asminlinehl{slli rd, rs1, I}: Arithmetic shifts the value in \asminline{rs1} right by \asminline{I} bits and stores the result in \asminline{rd}.
+\end{itemize}
+
+\subsection{Arithmetic Instructions}
+
+These instructions perform arithmetic operations. The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed integer that is stored inside the CPU instruction itself and is added to the operation (except for in the \asminline{auipc} instruction). These instructions take 3 MCLK cycles.
+
+\begin{itemize}
+	\item Addition: \asminlinehl{add rd, rs1, rs2}: Adds the signed/unsigned integer values in \asminline{rs1} and \asminline{rs2} together and stores the sum in \asminline{rd}
+	\item Addition Immediate: \asminlinehl{addi rd, rs1, I}: Adds the signed/unsigned integer value in \asminline{rs1} with the immediate 12-bit signed integer \asminline{I} together and stores the sum in \asminline{rd}
+	\item Subtraction: \asminlinehl{sub rd, rs1, rs2}: Subtracts the signed/unsigned integer values in \asminline{rs1} from \asminline{rs2} and stores the result in \asminline{rd} (i.e. \asminline{rd} $\leftarrow$ \asminline{rs1} $-$ \asminline{rs2})
+	\item Load Upper Immediate: \asminlinehl{lui rd, I}: Loads the 20-bit immediate value \asminline{I} into the upper 20 bits of the destination CPU register \asminline{rd} (the lower 12 bits are all cleared to 0s)
+	\item Add Upper Immediate to PC: \asminlinehl{auipc rd, I}: Adds the 12-bit signed integer immediate \asminline{I} to the program counter to jump the program's execution to a location \asminline{I} away from the current program counter. Note that \asminline{I} can be negative.
+\end{itemize}
+
+\subsection{Bitwise Instructions}
+
+These instructions perform bitwise operations. The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed integer that is stored inside the CPU instruction itself and is used as one of the operands of the bitwise operations. These instructions take 3 MCLK cycles.
+
+\begin{itemize}
+	\item Bitwise exclusive OR: \asminlinehl{xor rd, rs1, rs2}: Performs the bitwise XOR of \asminline{rs1} and \asminline{rs2} and stores the result in \asminline{rd}. 
+	\item Bitwise exclusive OR Immediate: \asminlinehl{xori rd, rs1, I}: Performs the bitwise XOR of \asminline{rs1} and the immediate \asminline{I} and stores the result in \asminline{rd}.
+	\item Bitwise OR: \asminlinehl{or rd, rs1, rs2}: Performs the bitwise OR of \asminline{rs1} and \asminline{rs2} and stores the result in \asminline{rd}. 
+	\item Bitwise OR Immediate: \asminlinehl{ori rd, rs1, I}: Performs the bitwise OR of \asminline{rs1} and the immediate \asminline{I} and stores the result in \asminline{rd}.
+	\item Bitwise AND: \asminlinehl{and rd, rs1, rs2}: Performs the bitwise AND of \asminline{rs1} and \asminline{rs2} and stores the result in \asminline{rd}. 
+	\item Bitwise AND Immediate: \asminlinehl{andi rd, rs1, I}: Performs the bitwise AND of \asminline{rs1} and the immediate \asminline{I} and stores the result in \asminline{rd}.
+\end{itemize}
+
+\subsection{Comparison Instructions}
+
+These instructions perform comparison operations. The results of these instructions are either true (0x00000001) or false (0x00000000). The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed or unsigned integer that is stored inside the CPU instruction itself and is used as one of the operands of the bitwise operations. These instructions take 3 MCLK cycles.
+
+\begin{itemize}
+	\item Set when Less Than: \asminlinehl{slt rd, rs1, rs2}: If \asminline{rs1 < rs2} (using signed integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
+	\item Set when Less Than Immediate: \asminlinehl{slti rd, rs1, I}: If \asminline{rs1 < I} (using signed integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
+	\item Set when Less Than Unsigned: \asminlinehl{sltu rd, rs1, rs2}: If \asminline{rs1 < rs2} (using unsigned integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
+	\item Set when Less Than Immediate Unsigned: \asminlinehl{sltiu rd, rs1, I}: If \asminline{rs1 < I} (using unsigned integers), the destination register \asminline{rd} is set to 0x00000001, otherwise it is set to 0x00000000.
+\end{itemize}
+
+\subsection{Branch Instructions}
+
+These instructions are conditional instructions that branch (jump) the program execution to a new location if the condition is met, or proceed on to the next instruction like normal if the condition is not met. The immediate parameter (\asminline{I}) refers to a hard-coded 12-bit signed integer that is stored inside the CPU instruction itself and is added to the program counter if the condition is met. Usually, in assembly, the program writer can simply provide the \textit{label} to the desired branch location/function in the program (e.g. \asminline{labelToFunction:}) rather than its actual memory location, which is usually not known before being built. The number of MCLK cycles it takes to execute these instructions is dependent on if the condition is met and the branch is taken or if it is not. If the condition is met and the branch is taken, they take 5 MCLK cycles. If not, they take 3 MCLK cycles.
+
+\begin{itemize}
+	\item Branch if Equal: \asminlinehl{beq rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $=$ \asminline{rs2}, proceeds to the next instruction like normal otherwise.
+	\item Branch if Not Equal: \asminlinehl{bne rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $\neq$ \asminline{rs2}, proceeds to the next instruction like normal otherwise.
+	\item Branch if Less Than: \asminlinehl{blt rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $<$ \asminline{rs2} (signed integers), proceeds to the next instruction like normal otherwise.
+	\item Branch if Greater Than or Equal: \asminlinehl{bge rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $\geq$ \asminline{rs2} (signed integers), proceeds to the next instruction like normal otherwise.
+	\item Branch if Less Than Unsigned: \asminlinehl{bltu rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $<$ \asminline{rs2} (unsigned integers), proceeds to the next instruction like normal otherwise.
+	\item Branch if Greater Than or Equal Unsigned: \asminlinehl{bgeu rs1, rs2, I}: Branches to PC + \asminline{I} if \asminline{rs1} $\geq$ \asminline{rs2} (unsigned integers), proceeds to the next instruction like normal otherwise.
+\end{itemize}
+
+\subsection{Jump and Link Instructions}
+
+The jump and link instructions write the address of the next consecutive instruction in the program to the destination register, but then jump the program counter to another location in memory. These instructions are used to call new functions while preserving the ``return address'', or the memory location of the instruction to go back to after the function returns. The immediate parameter (\asminline{I}) refers to a hard-coded 20-bit signed integer that is stored inside the CPU instruction itself and is used to modify the program counter. Usually, in assembly, the program writer can simply provide the \textit{label} to the desired location/function in the program (e.g. \asminline{labelToFunction:}) rather than its actual memory location, which is usually not known before being built.
+
+\begin{itemize}
+	\item Jump and Link: \asminlinehl{jal rd, I} Stores the return address to \asminline{rd} (which is usually the return address register \asminline{ra}) and then adds \asminline{I} to the program counter, effectively jumping to PC + \asminline{I}. This takes 3 MCLK cycles to execute.
+	\item Jump and Link Register: \asminlinehl{jalr rd, rs1, I} Stores the return address to \asminline{rd} (which is usually the return address register \asminline{ra}) and then sets the program counter to \asminline{rs1} + \asminline{I}, effectively jumping to \asminline{rd1} + \asminline{I}. This takes 6 MCLK cycles to execute.
+\end{itemize}
+
+\subsection{Pseudo-Instructions}
+
+The RISC-V assembler also includes several pseudo-instructions for convenience. These pseudo-instructions are actually special cases of regular instructions, and can all be expressed as regular instructions.
+
+\begin{itemize}
+	\item No operation: \asminlinehl{nop} $\rightarrow$ \asminlinehl{addi zero, zero, 0}
+	\item Move: \asminlinehl{mv rd, rs1} $\rightarrow$ \asminlinehl{addi rd, rs1, 0}
+	\item Bitwise Complement/Inversion: \asminlinehl{not rd, rs1} $\rightarrow$ \asminlinehl{xor rd, rs1, -1}
+	\item Set if Equal to Zero: \asminlinehl{seqz rd, rs1} $\rightarrow$ \asminlinehl{sltiu rd, rs1, 1}
+	\item Set if Not Equal to Zero: \asminlinehl{snez rd, rs1} $\rightarrow$ \asminlinehl{sltu rd, zero, rs1}
+	\item Set if Less Than Zero: \asminlinehl{sltz rd, rs1} $\rightarrow$ \asminlinehl{slt rd, rs1, zero}
+	\item Set if Greater Than Zero: \asminlinehl{sgtz rd, rs1} $\rightarrow$ \asminlinehl{slt rd, zero, rs1}
+	\item Jump (without linking): \asminlinehl{j I} $\rightarrow$ \asminlinehl{jal zero, I}
+	\item Return: \asminlinehl{ret} $\rightarrow$ \asminlinehl{jalr zero, ra, 0}
+	\item Call function: \asminlinehl{call I} $\rightarrow$ \asminlinehl{auipc t1 I; jalr ra t1 I}
+	\item Load immediate: \asminlinehl{li rd, I} \textit{(this could compile to several instructions)}
+	\item Branch if Greater Than: \asminlinehl{bgt rs1, rs2, I} $\rightarrow$ \asminlinehl{blt rs2, rs1, I}
+	\item Branch if Less Than or Equal To: \asminlinehl{ble rs1, rs2, I} $\rightarrow$ \asminlinehl{bge rs2, rs1, I}
+	\item Branch if Greater Than Unsigned: \asminlinehl{bgtu rs1, rs2, I} $\rightarrow$ \asminlinehl{bltu rs2, rs1, I}
+	\item Branch if Less Than or Equal To Unsigned: \asminlinehl{bleu rs1, rs2, I} $\rightarrow$ \asminlinehl{bgeu rs2, rs1, I}
+	\item Branch if Equal to Zero: \asminlinehl{beqz rs1, I} $\rightarrow$ \asminlinehl{beq rs1, zero, I}
+	\item Branch if Not Equal to Zero: \asminlinehl{bnez rs1, I} $\rightarrow$ \asminlinehl{bne rs1, zero, I}
+	\item Branch if Less Than or Equal To Zero: \asminlinehl{blez rs1, I} $\rightarrow$ \asminlinehl{bge zero, rs1, I}
+	\item Branch if Greater Than or Equal To Zero: \asminlinehl{bgez, rs1, I} $\rightarrow$ \asminlinehl{bge rs1, zero, I}
+	\item Branch if Less Than Zero: \asminlinehl{bltz rs1, I} $\rightarrow$ \asminlinehl{blt rs1, zero, I}
+	\item Branch if Greater Than Zero: \asminlinehl{bgtz rs1, I}  $\rightarrow$ \asminlinehl{blt zero, rs1, I}
+\end{itemize}
+
+\newpage
+	
+
+
+
+% Forth
+\section{Forth Interpreter} \label{s:forth}
+When the MCU comes out of reset and the \pin{BOOT} pin is LOW, the MCU boots to an interactive Forth interpreter based on the Forth language. Forth is a stack-based language where variables are pushed to a stack in LIFO (last in, first out) order. When a variable is set, it is pushed to the top of the stack (TOS). When a variable is used, it is popped (or consumed) from the TOS. Functions that take arguments pop them from the TOS. Functions that have return values push them to the TOS (after first popping its arguments). Variables are not assigned names, and the only way of distinguishing them from one another is by their order on the stack. All variables are treated as 32-bit signed integers. Variables may be pushed to the stack through the command line by simply typing the variable value into the interpreter as a plain text integer value or as a plain text hexadecimal value. Hexadecimal values must be preceded by the string \forthinlinehl{0x} without spaces in between (e.g. \forthinlinehl{0xA4}), but the value may be upper or lower case and does not need leading zeros. Variables are not pushed or popped and functions are not executed until a newline (or line feed) \forthinlinehl{\\n} character is received, at which point the entire received line will be executed in order. New functions may be declared, and may use the stack and any already defined functions to perform their procedures. If the Forth interpreter does not recognize an input as a variable or a function, it prints the \forthinlinehl{?} char over the UART.
+
+The Forth interpreter contained in the ROM of the MCU communicates over \peripheral{UART0} at 2,048 baud. The baud may be changed by reconfiguring SMCLK and the \peripheral{UART0} peripheral. When the Forth interpreter first starts up, it prints the string \forthinlinehl{rv4th!\\n>}, and is then ready to receive characters over the UART. The Forth interpreter does not perform error handling on stack underflows. In the case of a stack underflow, it simply uses the value 0 as the TOS. By default, the echo is enabled, which repeates all characters received by the Forth interpreter back to the host. This is useful for typing into a terminal emulator manually, but may be switched off with the command \forthinlinehl{0 echo}
+
+Several useful built-in Forth functions are listed below. The syntax is read as follows: The Forth function keyword is surrounded by quotations (though you do not actually type the quotes into the Forth interpreter), and is followed by the list of arguments and return values in parentheses. Left of the double dash is the list of arguments in the order that they would be typed into the Forth interpreter (reverse stack order), and right of the double dash is the list of return values in reverse stack order. Reverse stack order means that the rightmost item is at the TOS, and items to the left of it are below it on the stack. Arguments are always popped from the stack before the function executes, and return values are always pushed to the stack after the function finishes.
+
+\input{include/ForthCommandsItemized.tex}
+
+
+\subsection{Creating New Forth Functions}
+To create a new Forth function on-the-fly, simply use the syntax \forthinlinehl{: funcname definition ;} where \forthinline{funcname} is the name of the new function and \forthinline{definition} is the body of the function. The new function may be called at any time after the semicolon (even before a new line, though it will not actually be executed until a new line) by typing the function name, just like all other Forth functions. New Forth functions can only add or remove variables from the stack and call other defined Forth functions. The arguments to custom Forth functions are the initial values on the stack that the custom function pops off the TOS. Likewise, the return values are any new values the custom function pushes to the TOS.
+
+Listed below is an example program that increments the TOS by one when it is called:
+
+\noindent\forthinlinehl{: inc 1 + ;}
+
+
+\subsection{Conditionals}
+The \forthinlinehl{if then} functions implement a conditional statement which may only be used inside a user defined function. The conditional is used with the syntax:
+
+\noindent\forthinlinehl{if procedureIfTrue then}
+
+\noindent inside a function (do not forget the space and semicolon which must come after forthinline{then}). The \forthinlinehl{if} function pops the TOS and then executes whatever is defined within \forthinline{procedureIfTrue} if and only if the TOS is true (nonzero). The \forthinlinehl{then} function makrks the end of the conditional procedure. For example, a function to print the text \forthinline{cool} if the TOS is equal to 5 might look like this:
+
+\noindent\forthinlinehl{: cool? 5 == if 108 111 111 99 emit emit emit emit then ;}
+
+The \forthinlinehl{else} keyword may be inserted after \forthinlinehl{procedureIfTrue} if you want to execute something if the conditional is false. The syntax then becomes:
+
+\noindent\forthinlinehl{if procedureIfTrue else procedureIfFalse then}
+
+
+\subsection{Loops}
+Forth has the equivalent of C-like \forthinline{while} loops (or, more accurately, \forthinline{do while} loops) with its \forthinlinehl{begin until} loops, which may only be executed inside a user defined function. The syntax is:
+
+\noindent\forthinlinehl{begin loopProcedure until}
+
+\noindent which first executes the loop procedure. When it gets to the \forthinlinehl{until} statement, it then checks if the TOS is true (nonzero) or false (zero). If the TOS is false, it loops back to the beginning of the loop. If true, it exits the loop and continues on.
+
+Forth also has the equivalent of C-like \forthinline{for} loops with its \forthinlinehl{do loop} functions. Again, this may only be used inside a user defined function. It uses the syntax:
+
+\noindent\forthinlinehl{stop start do loopProcedure loop}
+
+\noindent where \forthinline{stop} is the index the loop stops on (it does NOT execute the loop procedure when the index is equal to \forthinline{stop}), \forthinline{start} is the first loop index, and \forthinline{loopProcedure} is any functions or variables that you want to execute inside the loop. There is a special function \forthinlinehl{i} that may only be called from within a loop which pushes the loop index to the TOS. The functions \forthinlinehl{j} and \forthinlinehl{k} behave similarly, except they return the indices of the second and third nested loops respectively when using nested loops. The \forthinlinehl{i} function always returns the index of the deepest (or most frequent) loop.
+
+Below is an example Forth program that prints the numbers from 0 to 9 using a \forthinlinehl{do loop} procedure:
+
+\noindent\forthinlinehl{: looptest 10 0 do i . loop ;}
+
+
+
+% Software development
+\section{Software Development and Build Process} \label{s:software}
+
+\subsection{The RISC-V Toolchain and its Extensions}
+To compile software for the picorv32 RISC-V CPU, you will need the RISC-V GNU toolchain, which is an open source compiler suite that supports a variety of languages. The base toolchain, called RV32I, contains the fewest instructions and is in general the simplest. The ``I" suffix stands for ``integer", meaning that the toolchain supports instructions that deal with basic integer arithmetic, excluding multiplication, division, and modulo instructions. All instructions in RV32I are 32 bits long, without exception. Two extensions for the compiler exist that may be supported by this picorv32 implementation: integer multiplication extension [M], and the the compressed instruction set extension [C] (see Section \ref{s:config} to see if this MCU supports the extensions). The integer multiplication extension adds multiply, divide, and modulo instructions to the instruction set, provided that the CPU includes hardware to perform such operations (again, see Section \ref{s:config}). If the CPU does not contain such hardware, then the [M] extension cannot be used. In that case, the compiler would infer software emulation of the instructions whenever multiplication, division, or modulo is needed, at the cost of computation time. The compressed instruction set extension adds duplicates of many of the instructions in RV32I, except the duplicates use only 16 bits rather than 32. According to the RISC-V ISA documentation, using the [C] extension will likely reduce program sizes by about 20\% to 30\%. Not all instructions can be compressed, however, and if those that are not compressed do not fall on a 4-byte aligned memory address, they will take an additional two clock cycles to execute.
+
+\subsection{Getting the RISC-V Toolchain on Linux} \label{ss:linuxinstall}
+You can find the source code for the RISC-V toolchain at \href{https://github.com/riscv/riscv-gnu-toolchain}{https://github.com/riscv/riscv-gnu-toolchain}, which also contains instructions for building the toolchain. However, the website instructions do not give directions for including the compressed instruction set extension [C]. Therefore, it is suggested to follow the procedure below to download and build the RV32IMC toolchain. Once you have the toolchain with both extensions, you can switch off the [M] and/or [C] extensions with the \bashinline{-march} compiler flag (more on that later). It is suggested that you use Ubuntu or Linux Mint, for which the software dependencies needed to build the toolchain can be fulfilled with:
+
+\begin{lstlisting}[language=bash]
+sudo apt install autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
+\end{lstlisting}
+
+The instructions are as follows:
+\begin{enumerate}
+\item Switch to your home directory with
+
+\bashinlinehl{cd \~}
+\item Make a new directory with
+
+\bashinlinehl{mkdir riscv-download}
+
+and go into it with
+
+\bashinlinehl{cd riscv-download}
+\item Download the RV32IMC toolchain with
+
+\bashinline{git clone --recursive https://github.com/riscv/riscv-gnu-toolchain riscv-gnu-toolchain-rv32imc}
+\item Enter into the new directory with
+
+\bashinlinehl{cd riscv-gnu-toolchain-rv32imc}
+\item Create a build directory with
+
+\bashinlinehl{mkdir build}
+
+Enter into the new build directory with \bashinlinehl{cd build}
+\item Configure the build with
+
+\bashinlinehl{../configure --with-arch=rv32imc --prefix=/opt/riscv/rv32imc}
+\item Begin the build process with
+
+\bashinlinehl{sudo make}
+
+This will take quite a while. If you wish to speed up the process, you can allocate more CPU cores to the build process by using \bashinlinehl{make -jn} instead of \bashinlinehl{make} where \bashinline{n} can be replaced by the number of CPU cores you want to use to build the toolchain.). Once the build process has finished successfully, the toolchan will be located at \bashinline{/opt/riscv/rv32imc}
+
+\item Add a permanent environment variable to your system that defines the location of the \bashinlinehl{riscv} directory (perhaps in your \bashinline{.bashrc} script) with something like
+
+\bashinlinehl{export RISCV=/opt/riscv}
+
+You may also wish to add the \bashinline{/opt/riscv/rv32imc/bin} directory to your PATH, though this is optional.
+\item You may now safely delete the \bashinline{riscv-download} directory with
+
+\bashinlinehl{sudo rm -rf \~/riscv-download}
+\end{enumerate}
+
+
+
+\subsection{Getting the RISC-V Toolchain on Windows}
+The RISC-V toolchain has no official support for Windows, but several options exist to get it working. For Windows 10 users, it is recommended to install the Windows Subsystem for Linux (WSL) in Ubuntu mode, which can be found in the Microsoft Store app. Then, in WSL, follow the installation instructions in Section \ref{ss:linuxinstall}. You must then use WSL to compile all software for the RISC-V MCU.
+If you have an older version of Windows, it is suggested that you use an Ubuntu or Linux Mint virtual machine to build the RISC-V toolchain and compile your MCU software.
+
+\subsection{Compilation}
+The RISC-V toolchain includes a GCC compiler. Thus, the compilation process is similar to other toolchains that use GCC. To compile a source file into an object file, use:
+
+\noindent\bashinlinehl{riscv32-unknown-elf-gcc -c \$CFLAGS srcFile -o objectFile.o}
+\noindent where \bashinline{\$CFLAGS} should be replaced by any compilation flags, \bashinline{srcFile} is the source code file (C, C++, assembly, or other GCC-supported languages), and \bashinline{objectFile.o} is the output object file. The compiler determines which launguage is used in a source file by the file extension (\bashinline{.c} is for C, \bashinline{.cpp} is for C++, \bashinline{.S} is for assembly code which must be preprocessed, and \bashinline{.s} is for assembly code which is not preprocessed).
+
+There are several compilation flags that are suggested:
+\begin{itemize}
+\item \bashinlinehl{-march=rv32imc} Architecture flag. This specifies which extensions are enabled in the compilation process. You may only include ``m" and/or ``c" if your MCU implementation supports it.
+\item \bashinlinehl{-Os} Optimize for program size flag. Attempts to shrink the program size.
+\item \bashinlinehl{-O<number>} Optimization level. Lower numbers perform less optimization, higher include more.
+\item \bashinlinehl{-I <include_directory>} Include directory flag. Adds the specified directory to the list of directories that have header files in them. Any files in the include directory may be included with the \forthinline{\#include <filename.h>} preprocessor directive.
+\item \bashinlinehl{-g} GDB debugger enable flag. While the picorv32 core does not support hardware debugging, adding the \bashinline{-g} flag to both the compiler and linker commands will allow the \bashinline{.lst} file to show the assembly commands your code compiles into.
+\end{itemize}
+
+You must compile every source file that you wish to use in your project. If your project is in C or C++, it is suggested that you use the provided \bashinline{start.S} assembly file to call your main function. This assembly file needs to have its first instruction at address \texttt{\RamProgramStartAddress}, so it must be the first file to be given to the linker. You must have one and only one \bashinline{int main()} function throughout all of your source files in a single project. For C++ projects, you need to start the main function with \bashinline{extern "C" int main()} to prevent the C++ compiler from name-mangling the main function.
+
+\subsection{Linking}
+Once all source files have been compiled, they must be linked to produce the output program binary file, the \bashinline{.elf} file. The linker assigns memory addresses to every variable and function. The MCU contains no writable non-volatile memory, so the program and the variables all share the RAM (with a notable exception for the bootloader and Forth interpreter stored on the ROM). The linker must be aware of the RAM and ROM start address and size, the interrupt vector table (IVT) start address and size (along with the address of each ISR pointer within the IVT), the first program instruction address that the bootloader jumps to after loading the program into RAM, and the address of the master interrupt handler. 
+
+Defining the aforementioned memory segments and addresses is done using a linker script. It is highly suggested to use the provided linker script \bashinline{MCU.ld} and its include files and tweak it to suit your need.
+
+To execute the linker, use:
+
+\noindent\bashinlinehl{riscv32-unknown-elf-gcc $LFLAGS $OBJECTS -o program.elf}
+
+\noindent where \bashinline{$LFLAGS} is a list of linker flags, \bashinline{$OBJECTS} is a list of all the compiled object files needed for the project, and \bashinline{program.elf} is the output ELF binary containing the program.
+
+There are several linker flags that are suggested:
+\begin{itemize}
+\item \bashinlinehl{-march=rv32imc} Architecture flag. This specifies which extensions are enabled in the compilation process. You may only include \texttt{m} and/or \texttt{c} if your MCU implementation supports it.
+\item \bashinlinehl{-flto} Link-time optimization flag. This instructs the linker to perform optimizations to the final binary.
+\item \bashinlinehl{-nostdlib} Disables the use of the standard library for linking, decreasing software bloat. However, using the flag precludes using standard library functions such as software emulation of integer multiplication and division, floating point numbers, initialization routines, memory allocation, etc. It is suggested that you only use this flag if you have a specific need to reduce the software size.
+\item \bashinlinehl{-T linker_script.ld} Path to the linker script
+\item \bashinlinehl{-Map mapfile.map} Path to the output map file, which contains the symbol table for your project with their addresses
+\item \bashinlinehl{-L linkerfiles_dir} Path to the linker scripts directory that contains any files that are included in the main linker script
+\item \bashinlinehl{-g} GDB debugger enable flag. While the picorv32 core does not support hardware debugging, adding the \bashinline{-g} flag to both the compiler and linker commands will allow the \bashinline{.lst} file to show the assembly commands your code compiles into.
+\end{itemize}
+
+
+\subsection{Intel Hex File Generation}
+Once the final ELF file has been created from the linker, an Intel hex file can be created, which converts the binary program data into an easy-to-read ASCII file. Furthermore, the Python package \texttt{IntelHex} can read the file, allowing you to use Python to upload a new program to the SPI flash. A Python program that utilizes \texttt{IntelHex} to upload new programs, called \bashinline{forthprog.py}, is provided.
+
+
+\subsection{A Note on Using C++}
+C++ generates some extra data sections that C and assembly do not use. In particular, it generates the \texttt{.eh\_frame} section, which is used for exception handling. You may not need exception handling, in which case you can pass in the compiler flags:
+
+\noindent\bashinlinehl{-fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables}
+
+\noindent which will significantly reduce the size of \texttt{.eh\_frame}. If you wish to eliminate it entirely, you can create a phony section in the linker script at an unused memory address and point the \texttt{.eh\_frame} section to it.
+
+\newpage
+
+
+
+% Programming
+\section{Uploading Program to SPI Flash} \label{s:programming}
+
+\subsection{SPI Flash Boot Process}
+In order to boot in SPI flash mode, there must first be a vaild program stored in the SPI flash memory in the proper location. In SPI flash mode, the bootloader reads the data in the SPI flash memory starting at address \texttt{\SpiFlashProgramAddress} and copies every 32-bit word into RAM, also starting at address \texttt{\RamStartAddress}. This particular address is the beginning of the RAM on the MCU. The bootloader stops copying from the SPI flash once completely fills the RAM.
+
+Note the distinction between copying 32-bit words as opposed to 8-bit bytes. Though bytes and words are both MSB-first, they are also transmitted starting with the lowest address to the greatest address from the SPI flash. If the bootloader copied every 8-bit byte, the transmission sequence it would expect would be:
+
+\noindent\texttt{byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7 ...}
+
+\noindent However, because the bootloader expects MSB-first 32-bit words, the sequence must be:
+
+\noindent\texttt{byte3, byte2, byte1, byte0, byte7, byte6, byte5, byte4 ...}
+
+\noindent Therefore, the program data on the SPI flash must follow the 32-bit word sequence.
+
+\subsection{Upload Process}
+The Forth boot mode has a mechanism for writing data to the SPI flash, which may be used to upload a new program for use in the SPI flash boot mode. When in Forth boot mode, the flash write \forthinlinehl{fw} function writes a page of data (which is exactly 256 bytes long and begins on an address that is a multiple of 256) to the SPI flash. The Forth function is used with the syntax:
+
+\noindent\forthinlinehl{bin addr fw}
+
+If \forthinline{bin} is true (nonzero), the command expects 256 bytes of binary data to be transmitted over the UART. If false, it expects a 512-character long ASCII hex string representing the data to be transmitted over the UART. The \forthinline{addr} argument must be the address of the beginning of the 256-byte page, and must be aligned to a 256-byte boundary.
+
+To execute the command, a newline (or line feed) character must be transmitted to the MCU over the UART. Once the command begins executing, it initiates some handshaking to ensure a proper transaction. The MCU prints a \forthinline{\$} character to indicate it is ready for the page data to be transmitted. After that, you must transmit the page data in the format specified by the \forthinline{bin} argument. Remember to transmit the data in the proper order (byte3, byte2, byte1, byte0, byte7, byte6, byte5, byte4 ...). Once the page data has been transmitted, the MCU will compute a CRC value upon the data using the CRC16\_CDMA2000 algorithm (polynomial = 0xC857, initial CRC value = 0xFFFF, no final XOR, no data reflection, no output reflection) and then transmit the CRC value as a 4-character long hex string. If this value matches your own CRC computation (or if you do not care and simply want it to write the data), transmit a single \forthinline{Y} character without anything else to tell the MCU to write the data to the SPI flash. Any other character will abort the process, leaving the SPI flash memory unchanged. You are technically supposed to wait an average of 10 ms (25 ms at the greatest) before writing more data to the SPI flash. However, the substantial handshaking and transmission times likely fulfill this requirement, and it is likely that no delay is needed.
+
+If the entire page is blank, you may instead use the flash erase \forthinlinehl{fe} function to erase the page, making every byte in the page equal to 0xFF. This is much quicker than writing data to the SPI flash, and can speed up programming times substantially for smaller programs. The syntax to use it is:
+
+\noindent\forthinlinehl{conf addr fe}
+
+If the \forthinline{conf} parameter is equal to 123, the function will erase the 256-byte page at address \forthinline{addr} (which must be 256-byte aligned) and then return 1. If not equal to 123, it will not erase the page and will return 0. You are technically supposed to wait an average of 6~ms (25~ms at the greatest) before another erase or write operation. Because the erase function is much quicker than the write function, it may become necessary to delay between erases at higher bauds.
+
+You may read back the data stored on the SPI flash with the \forthinlinehl{fr} function. See Section \ref{ss:forthflash} for details.
+
+In order to write an entire program to the SPI flash, you must write/erase a total of \RamNumPages\ pages (each with a length of 256 bytes) beginning with page address \RamStartAddress. After the data is written, you may execute the newly uploaded program by putting the MCU in reset, setting the \pin{BOOT} pin to SPI flash mode, and taking the chip out of reset. Or, you can simply set the \pin{BOOT} pin and move the program counter to address 0x0000, which may be done with the \forthinlinehl{rst} Forth function.
+
+It is highly suggested to use the provided Python program \bashinline{forthprog.py} to upload new programs to the SPI flash, which takes an Intel hex file containing the new program and sends it to the MCU and the SPI flash using the process described above.
+
+\newpage
+
+
+
+% Peripheral sections
+\input{include/PeripheralSections.tex}
+
+
+
+% Register and peripheral memory map
+\section{Register and Peripheral Memory Map} \label{s:regMemMap}
+\input{include/PeripheralAndRegistersList.tex}
+
+\newpage
+
+% Errata
+\section{Errata} \label{s:errata}
+Listed are the known issues with the {\AsicNameForUserGuide} MCU:
+
+\begin{itemize}
+	\item 
+\end{itemize}
+
+
+\end{document}
+
+

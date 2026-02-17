@@ -1,0 +1,198 @@
+The \peripheral{ADCx} peripheral consists of a 10-bit SAR ADC with a DMA interface for interrupt-driven periodic data sampling. Its main features are listed below:
+
+\begin{itemize}
+	\item 10~\si{\micro\second} conversion time, up to 100 kSPS periodic sampling
+	\item 10-bit resolution
+	\item Single conversion mode
+	\item Periodic sampling mode, sampling frequencies range from Nyquist rate down to 65,536 times smaller than Nyquist
+	\item DMA to automatically place new samples directly into memory, with configurable buffer size
+	\item Interrupts for conversion completion and for indicating the DMA buffer is full
+	\item ADC conversions can be auto-triggered by an external GPIO pin, or by either of the two comparator signals from the \peripheral{OPA} peripheral
+	\item Adjustable ADC input voltage range
+	\item ADC reference voltage can be set either by bandgap generator or by AVDD pin
+	\item Most recent ADC value can always be read in a memory mapped register
+	\item ADC value can left-aligned or right-aligned
+\end{itemize}
+
+
+
+\subsection{ADC Pins}
+
+The \peripheral{ADCx} peripheral has only a single pin, the high impedance analog input to the ADC \pin{ADCIN}. WARNING: Do NOT apply a voltage outside the bounds of 0.0 V to 2.5 V to any analog pin! Doing so can permanently damage the internal circuits.
+
+
+
+\subsection{SAR ADC Architecture and Process}
+
+The \peripheral{ADCx} peripheral uses an ADC architecture known as the successive approximation register (SAR). At its core lies a sample and hold circuit, a comparator, a 10-bit DAC, and some digital logic, shown in Figure \ref{fig:sar-adc-diagram}. The SAR logic attempts to guess the input voltage by guessing the ADC output value and setting the DAC to that voltage. The comparator then tells the SAR logic if its guess was too high or too low, and the logic uses that information to make more guesses until the guess is within 1 LSB of the actual ADC input voltage.
+
+\begin{figure}[htpb]
+	\centering
+	\includesvg{figures/sar-adc-diagram}
+	\caption{SAR ADC Architecture}
+	\label{fig:sar-adc-diagram}
+\end{figure}
+
+The successive approximation algorithm makes use of a binary search, which is the most efficient way to converge on the ADC output value using the fewest number of guesses. In an $N$-bit ADC, there are $2^N$ possible output values (in this case, the 10-bit ADC has 1,024 possible output values). Testing every possible output value and choosing the best one results in $2^N$ guesses, which is very inefficent and decreases the maximum sampling rate. This problem is optimized using the binary search algorithm, which determines each bit in the output code successively, starting with the MSB and ending with the LSB, using only $N$ guesses.
+
+An example of the SAR operation for a 10-bit ADC is shown in Figure \ref{fig:sar-adc-procedure-plot} with an ADC input voltage $V_{in}$ of 0.687~\si{\volt}, a $V_\mathrm{min}$ of 0 V, and a $V_\mathrm{max}$ of 2.5 V. First, an initial guess of \texttt{0b0111111111} is loaded into the DAC, and the bit index $i$ points to bit 9 (the MSB). Then, the comparator indicats the guess is too high, so the value of bit $i$ (bit 9) is confirmed to be a \texttt{0}. The index $i$ is decreased by 1, and the binary search algorithm makes a guess that the new value of bit $i$ (bit 8) is a \texttt{0}. This time, however, the the comparator indicates the guess is too low, so the value of bit $i$ (bit 8) is confirmed to be a \texttt{1} and is adjusted accordingly. The index $i$ is decremented again, and the algorithm continues until all bits have been correctly guessed. In this case, a $V_{in}$ of 0.687~\si{\volt} correlates to a final ADC output value of \texttt{0b0100011010}, or 282.
+
+\begin{figure}[htpb]
+	\input{figures/sar-adc-procedure-plot.pgf}
+	\caption{SAR ADC Binary Search Procedure}
+	\label{fig:sar-adc-procedure-plot}
+\end{figure}
+
+
+
+\subsection{ADC Analog Bias Setup}
+
+The global bias generator must be enabled and calibrated to an appropriate bias level before the ADC can be used. The \bitfield{BIASEN} bit enables the global bias generator, and the \bitfield{BIASADJ} bit field controls the bias level. To determine the appropriate value of \bitfield{BIASADJ}, the user should systematically characterize the ADC for all possible calibration vectors and pick the vector that best suits the application. (A nominal value of \bitfield{BIASADJ} = 37 is suggested from simulation data.) Then, the bandgap generator must be enabled with the \bitfield{BGEN} bit if the ADC is using the gandgap generator as its reference. All three of these bitfields are contained in the \register{BIASCR} register.
+
+
+
+\subsection{ADC Clock Configuration}
+
+The ADC clock determines the ADC conversion time, and must fall in a very specific range to maximize ADC performance. The ADC clock must be between 0.75 and 1.5~\si{\mega\hertz} to yield the best DNL performance. First, the ADC clock source must be selected using the \bitfield{ADCCS} bitfield from among the following options: MCLK, SMCLK, HFXT, or DCO0. Next, the ADC clock source frequency must be divided down to produce an ADC clock frequency within the specified range from 0.75 and 1.5~\si{\mega\hertz} using the \bitfield{ADCCDIV} bitfield, which can divide the ADC clock source by powers of two from 1/1 to 1/128. The ADC clock is thus $f_{ADC} = f_{src}/2^\bitfield{ADCCDIV}$, and the following inequality governs the values of $f_{src}$ and \bitfield{ADCCDIV}:
+
+\begin{equation*}
+	0.75 MHz \leq \frac{f_{src}}{2^\bitfield{ADCCDIV}} \leq 1.5 MHz
+\end{equation*}
+
+The ADC takes 16 ADC clock cycles to produce an output value, yielding a conversion time of:
+
+\begin{equation*}
+	T_{ADC conv} = \frac{16 \times 2^\bitfield{ADCCDIV}}{f_{src}}
+\end{equation*}
+
+The maximum sampling rate is thus $F_{s,max} = 1/T_{ADC conv}$.
+
+
+
+\subsection{ADC Input Voltage Range Configuration}
+
+The ADC input voltages that correspond to output values of 0 and 1,023 are adjustable. First, the ``center'' ADC voltage (or the one that corresponds to an output value of 512), can be selected either as AVDD/2 (1.25~\si{\volt}), or the bandgap generator voltage (1.196~\si{\volt}) using the \bitfield{ADCREF} bit. Second, the range of the ADC input voltage can be increased or decreased using the \bitfield{ADCRG} bit field. Smaller values of \bitfield{ADCRG} yield the widest ADC input range, whereas larger values shrink the input range. However, even when \bitfield{ADCRG} is 0 (yielding the maximum range), the ADC input range will not quite reach a range of 0 to 2.5~\si{\volt}.
+
+Note: A smaller input range will increase the DNL and decrease the SNR of the ADC.
+
+Note: Though the voltages that correspond to output vlaues of 0 and 1,023 can be adjusted, the user should never apply a voltage outside the range of 0 to 2.5~\si{\volt} to the \pin{ADCIN} pin.
+
+
+
+\subsection{Note on Antialiasing Filter}
+
+No antialiasing filter is present on-chip to prevent ADC aliasing. The user is therefore responsible for adding an antialiasing filter tuned to the desired sampling frequency between the source signal and the \pin{ADCIN} pin.
+
+
+
+\subsection{Single Conversion Mode}
+
+The simplest ADC mode of operation is single conversion mode, where the ADC converts just one sample. To use this mode, ensure the bias generator, ADC clock, and ADC input voltage range have been configured, and that the ADC has been enabled with the \bitfield{ADCEN} bit. Then, set the ADC start conversion bit \bitfield{ADCSC} to 1. When the ADC finishes the conversion, it will set the \bitfield{ADCCIF} interrupt flag in the status register \register{ADCxSR}. At this point, the ADC output value will be ready to read in the \register{ADCxVAL} register, and the value will remain valid until it is replaced by the next output value at the end of the next conversion. Once the user has read the value contained in \register{ADCxVAL}, the \bitfield{ADCCIF} flag will be cleared by hardware.
+
+
+
+\subsection{Auto Trigger}
+
+The ADC can also be set up in auto trigger mode, which will trigger an ADC conversion whenever the desired trigger source occurs. The \bitfield{ADCTS} bit field can select several different sources: no auto trigger souce, the \pin{ATRG} GPIO pin, the OPA0 comparator, or the OPA1 comparator. The \bitfield{ADCTE} bit determines if the auto trigger initiates a conversion on the rising edge or falling edge of the trigger source. If the trigger source occurs while the ADC is not converting, the conversion will immediately begin. If any number of auto triggers occur while the ADC is peforming a single conversion, then the ADC will perform one conversion directly after the current conversion. The \bitfield{ADCCIF} flag is set at the end of the conversion when the new data is ready, like normal.
+
+
+
+\subsection{ADC Output Value Alignment}
+
+The 10-bit ADC output value may be aligned either to the right (LSB) side or left (MSB) side of the 16-bit \register{ADCxVAL} register and the DMA double buffer sample with the \bitfield{ADCDAL} bit. When right-aligned, the ADC value will occupy the 10 least significant bits, and the 6 most significant bits will be \texttt{0}s. Likewise, when left-aligned, the ADC value will occupy the 10 most significant bits, and the 6 least significant bits will be \texttt{0}s. This is shown in Figure \ref{fig:adc-data-alignment}.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{subfigure}[b]{\linewidth}
+		\begin{bytefield}[endianness=big, bitwidth=0.0625\linewidth]{16}
+			\bitheader[lsb=0]{0-15} \\
+			\bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{10}{10-bit ADC output value} \\
+		\end{bytefield}
+		\caption{Right-aligned (ADC value in LSB)}
+		\label{fig:adc-data-alignment-right}
+	\end{subfigure}
+	\vspace*{0.25in}
+
+	\begin{subfigure}[b]{\linewidth}
+		\begin{bytefield}[endianness=big, bitwidth=0.0625\linewidth]{16}
+			\bitheader[lsb=0]{0-15} \\
+			\bitbox{10}{10-bit ADC output value} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} & \bitbox{1}{\texttt{0}} \\
+		\end{bytefield}
+		\caption{Left-aligned (ADC value in MSB)}
+		\label{fig:adc-data-alignment-left}
+	\end{subfigure}
+	\caption{ADC Data Alignment}
+	\label{fig:adc-data-alignment}
+\end{figure}
+
+Data alignment is desirable when the user wishes to place the ADC value directly into the DAC value. As the DAC value is 14 bits wide, placing a right-aligned ADC value into a right-aligned DAC value will cause the 4 most significant bits of the DAC to be \texttt{0}s, which may be undesireable. However, if both are left-aligned, then the MSB of the ADC value will align with the MSB of the DAC value, and only the 4 least significant bits of the DAC will be 0s.
+
+
+
+\subsection{Periodic Sampling Mode with DMA}
+
+The ADC has an inbuilt timer that allows it to take periodic samples and place them directly in RAM memory using a direct memory access (DMA) unit. The sampling frequency/period can be configured using the \register{ADCxFS} register, which sets the sampling frequency as the ADC clock frequency divided by the sum of 1 and \register{ADCxFS}, or:
+
+\begin{equation*}
+	F_{s} = \frac{f_{src}}{16 \times 2^\bitfield{ADCCDIV} \times (1 + \register{ADCxFS})}
+\end{equation*}
+
+The DMA places each new ADC sample into RAM using a double buffer (or ping pong buffer), a configuration which allows both the ADC and CPU to access the samples in memory without memory collisions or errors. The double buffer is split into two halves: the first half, and the second half. At any given time while the DMA is activated, the ADC will be filling one half of the buffer with new samples, and the CPU will be allowed to read the samples in the other half. The CPU is not allowed to access the data in the half that the ADC is currently placing samples into. When the ADC fills its half of the buffer, the DMA sets the ADC buffer half full interrupt flag \bitfield{ADCBFIF} and then seizes control of the other half of the double buffer, allowing the CPU to read the samples it just finished placing in the former. The DMA continues alternating buffers indefinitely unless the DMA is disabled. The user is responsible reading and processing all of the samples in the other half of the buffer before the ADC begins overwriting that half.
+
+The first half of the ADC double buffer begins at address \texttt{0x11000}, and the second half begins at address \texttt{11400}. Both buffers can store a maximum of 512 samples, as each 10-bit ADC sample will fill exactly two bytes of memory in RAM (the 6 unused bits will all be zeros padded on the MSB or LSB of the ADC output value, depending on the \bitfield{ADCDAL} bit). However, the user can configure the number of samples the ADC will place in each half of the buffer using the \register{ADCxHBS} register:
+
+\begin{equation*}
+	N_{s,half} = 2 \times (1 + \register{ADCxHBS})
+\end{equation*}
+
+To illustrate this in an example, shown in Figure \ref{fig:adc-dma-example}, assume that the half buffer size is 4 samples (\register{ADCxHBS} = 1). When the DMA is enabled by setting \bitfield{ADCDEN} to 1, the ADC will immediately begin converting and placing samples into the first half of the double buffer, starting with the first sample, $a_0$. At this time, the data in the second half of the buffer is uninitialized and can therefore be ignored. Furthermore, the user cannot access any of the data in the first half of the buffer while the DMA is still placing samples into it.
+
+When the DMA finishes placing the fourth sample, $a_3$ into the first half of the buffer, it detects that the first half is full (because of the value of \register{ADCxHBS}). It then switches over to placing samples in the second half, simultaneously allowing the CPU access to the first half and setting the \bitfield{ADCBFIF} interrupt flag. When this interrupt flag is asserted, the user must read and process all four samples in the first half before the ADC finishes filling the second half, else the data in the first half will be overwritten and lost. The \bitfield{ADCBH} bit indicates to the user which half of the buffer the ADC is currently placing data into, and which half is free to be read. While the user is processing the data in the first half of the buffer, the DMA continues to place new samples into the second half, which is now unable to be read by the CPU. The DMA places samples $a_4$, $a_5$, $a_6$, and $a_7$ into the second half before switching back to the first half and overwriting the samples there. This process continues indefinitely until the DMA is disabled.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{subfigure}[b]{\linewidth}
+		\begin{bytefield}[endianness=little, bitwidth=0.1\linewidth]{10}
+			\bitheader[lsb=0]{0-9} \\
+			\bitbox{2}{$a_0$} & \bitbox{2}{$a_1$} & \bitbox{2}{$a_2$} & \bitbox{2}{$a_3$} & \bitbox{2}{Not used...} \\
+			\bitbox[t]{1}{\tiny \texttt{0x11000}} & \bitbox[t]{1}{\tiny \texttt{0x11001}} & \bitbox[t]{1}{\tiny \texttt{0x11002}} & \bitbox[t]{1}{\tiny \texttt{0x11003}} & \bitbox[t]{1}{\tiny \texttt{0x11004}} & \bitbox[t]{1}{\tiny \texttt{0x11005}} & \bitbox[t]{1}{\tiny \texttt{0x11006}} & \bitbox[t]{1}{\tiny \texttt{0x11007}} & \bitbox[t]{1}{\tiny \texttt{0x11008}} & \bitbox[t]{1}{\tiny \texttt{0x11009}} \\
+		\end{bytefield}
+		\caption{First Half Buffer (Ping Buffer)}
+		\label{fig:adc-dma-example-first-half-buffer}
+	\end{subfigure}
+	\vspace*{0.25in}
+
+	\begin{subfigure}[b]{\linewidth}
+		\begin{bytefield}[endianness=little, bitwidth=0.1\linewidth]{10}
+			\bitheader[lsb=0]{0-9} \\
+			\bitbox{2}{$a_4$} & \bitbox{2}{$a_5$} & \bitbox{2}{$a_6$} & \bitbox{2}{$a_7$} & \bitbox{2}{Not used...} \\
+			\bitbox[t]{1}{\tiny \texttt{0x11400}} & \bitbox[t]{1}{\tiny \texttt{0x11401}} & \bitbox[t]{1}{\tiny \texttt{0x11402}} & \bitbox[t]{1}{\tiny \texttt{0x11403}} & \bitbox[t]{1}{\tiny \texttt{0x11404}} & \bitbox[t]{1}{\tiny \texttt{0x11405}} & \bitbox[t]{1}{\tiny \texttt{0x11406}} & \bitbox[t]{1}{\tiny \texttt{0x11407}} & \bitbox[t]{1}{\tiny \texttt{0x11408}} & \bitbox[t]{1}{\tiny \texttt{0x11409}} \\
+		\end{bytefield}
+		\caption{Second Half Buffer (Pong Buffer)}
+		\label{fig:adc-dma-example-second-half-buffer}
+	\end{subfigure}
+	\caption{ADC DMA Example}
+	\label{fig:adc-dma-example}
+\end{figure}
+
+Note that the end of first half of the buffer is not necessarily adjacent in memory to the second half. In the above example, $a_0$ to $a_3$ are in consecutive memory locations, but then the address of $a_4$ jumps up by 512 bytes. The only case where the last sample of the first half is adjacent to the first sample of the second half is when the half buffer size is at its maximum value of 512.
+
+
+
+\subsection{A Note on Shared DMA Memory}
+
+The RAM memory containing the ADC and DAC DMA double buffers can and will be changed by hardware and, at times, become inaccessible to the CPU when the ADC DMA is activated. In this case, the stack pointer should be initialized to a memory address lower than the beginning of these DMA buffers, else the stack will be corrupted by the ADC or DAC data. However, if the ADC and DAC DMAs are never used, then the user is permitted and encouraged to take advantage of the extra RAM space would otherwise have been taken by the double buffers. This can be achieved by modifying the initial stack pointer location to the end of the memory segment of the double buffers.
+
+
+
+\subsection{Flags and Interrupts}
+
+The \peripheral{ADCx} peripheral includes two indicator bits and two interrupt flags in the ADC status register \register{ADCxSR}.
+
+The \bitfield{ADCACT} indicator bit denotes if the ADC is currently active. ADC activity is defined as when the ADC is currently converting a sample \textit{or} the ADC DMA is currently active. Note that if the \register{ADCxFS} is not 0, then the ADC will not always be converting even while the DMA is activated. Regardless of if the ADC is converting, \bitfield{ADCACT} will always show that the ADC is active if the DMA is enabled.
+
+The \bitfield{ADCBH} indicator bit shows which half of the double buffer the ADC DMA is currently placing samples into. By extension, it also shows that the other buffer half is available for the CPU to read. This bit should be used to determine which half to read new samples from when the ADC buffer half full interrupt flag \bitfield{ADCBFIF} triggers.
+
+The ADC conversion complete interrupt flag \bitfield{ADCCIF} is set any time the ADC finishes converting a sample. It also indicates that the new ADC output value is ready to be read in the \register{ADCxVAL} register. If the ADC conversion complete interrupt is enabled with \bitfield{ADCCIE}, then the \peripheral{ADCx} interrupt will be triggered when \bitfield{ADCCIF} is set. To clear \bitfield{ADCCIF}, either read the ADC output value stored in \register{ADCxVAL} or write any value to the status register \register{ADCxSR}.
+
+The ADC buffer half full interrupt flag \bitfield{ADCBFIF} is set as soon as the DMA finishes placing samples in the current half of the double buffer and goes on to begin placing samples in the next. \bitfield{ADCBH} is updated simultaneously. When the ADC ISR executes, \bitfield{ADCBH} indicates which half of the double buffer contains new samples ready to be read. Write any value to the ADC status register \register{ADCxSR} to clear this interrupt flag.

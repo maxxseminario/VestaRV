@@ -1,0 +1,10 @@
+#=======================================================================
+# Makefrag for periph tests
+#-----------------------------------------------------------------------
+
+spifem_sc_tests = \
+    simple \
+    lw \
+
+
+spifem_p_tests = $(addprefix spifem-p-, $(spifem_sc_tests))

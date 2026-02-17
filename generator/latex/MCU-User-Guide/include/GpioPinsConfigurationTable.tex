@@ -1,0 +1,42 @@
+\begin{longtable}[c]{ l l l l l l l }
+\caption{GPIO Pins} \label{t:gpio-pins} \\ 
+\hline & \textbf{Primary} & \textbf{Secondary} & \multicolumn{4}{c}{\textbf{\textit{Reset Values}}}\\ \cline{4-7}
+\textbf{Pin} & \textbf{Function} & \textbf{Function} & \textbf{SEL} & \textbf{OUT} & \textbf{DIR} & \textbf{REN} \\  \hline \endfirsthead
+\multicolumn{7}{c}{\textit{\tablename\ \thetable\ continued from previous page}} \\ \hline
+ & \textbf{Primary} & \textbf{Secondary} & \multicolumn{4}{c}{\textbf{\textit{Reset Values}}}\\ \cline{4-7}
+\textbf{Pin} & \textbf{Function} & \textbf{Function} & \textbf{SEL} & \textbf{OUT} & \textbf{DIR} & \textbf{REN} \\ \hline \endhead
+\hline \multicolumn{7}{c}{\textit{\tablename\ \thetable\ continued on next page}} \\ \endfoot \hline \endlastfoot
+P0.0 & -- & \pin{CS\_FLASH} & 0 \textit{(Primary)} & 1 \textit{(High)} & 1 \textit{(Output)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P0.1 & -- & \pin{MISO0} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P0.2 & -- & \pin{MOSI0} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P0.3 & -- & \pin{SCK0} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P0.4 & -- & \pin{LFXT} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P0.5 & -- & \pin{HFXT} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P0.6 & -- & \pin{TRAP} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P0.7 & \pin{BOOT} & -- & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 1 \textit{(Enabled)} \\ \hline
+P1.0 & -- & \pin{CS1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P1.1 & -- & \pin{MISO1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P1.2 & -- & \pin{MOSI1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P1.3 & -- & \pin{SCK1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P1.4 & -- & \pin{TX0} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P1.5 & -- & \pin{RX0} & 1 \textit{(Secondary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P1.6 & -- & \pin{TX1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P1.7 & -- & \pin{RX1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\ \hline
+P2.0 & -- & \pin{T0CMP0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P2.1 & -- & \pin{T0CMP1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P2.2 & -- & \pin{T0CAP0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P2.3 & -- & \pin{T0CAP1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P2.4 & -- & \pin{T1CMP0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P2.5 & -- & \pin{T1CMP1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P2.6 & -- & \pin{T1CAP0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P2.7 & -- & \pin{T1CAP1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\ \hline
+P3.0 & -- & \pin{SDA0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P3.1 & -- & \pin{SCL0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P3.2 & -- & \pin{SDA1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P3.3 & -- & \pin{SCL1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P3.4 & -- & \pin{DTP0} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P3.5 & -- & \pin{DTP1} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+P3.6 & -- & \pin{DTP2} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\rowcolor{tablehighlightcolor} P3.7 & -- & \pin{DTP3} & 0 \textit{(Primary)} & 0 \textit{(Low)} & 0 \textit{(Input)} & 0 \textit{(Disabled)} \\
+\hline
+\end{longtable}

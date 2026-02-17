@@ -1,0 +1,281 @@
+\subsection{\peripheral{GPIO0} Peripheral}
+\noindent Base address: \texttt{0x4000}, peripheral memory slot: 0
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:PxIN]{\texttt{P0IN}} & \texttt{0x4000} & 0 & 0 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUT]{\texttt{P0OUT}} & \texttt{0x4004} & 1 & 4 & 1 \\
+\hyperref[ss:PxOUTS]{\texttt{P0OUTS}} & \texttt{0x4008} & 2 & 8 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUTC]{\texttt{P0OUTC}} & \texttt{0x400C} & 3 & 12 & 1 \\
+\hyperref[ss:PxOUTT]{\texttt{P0OUTT}} & \texttt{0x4010} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxDIR]{\texttt{P0DIR}} & \texttt{0x4014} & 5 & 20 & 1 \\
+\hyperref[ss:PxIFG]{\texttt{P0IFG}} & \texttt{0x4018} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxIES]{\texttt{P0IES}} & \texttt{0x401C} & 7 & 28 & 1 \\
+\hyperref[ss:PxIE]{\texttt{P0IE}} & \texttt{0x4020} & 8 & 32 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxSEL]{\texttt{P0SEL}} & \texttt{0x4024} & 9 & 36 & 1 \\
+\hyperref[ss:PxREN]{\texttt{P0REN}} & \texttt{0x4028} & 10 & 40 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{GPIO1} Peripheral}
+\noindent Base address: \texttt{0x4100}, peripheral memory slot: 1
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:PxIN]{\texttt{P1IN}} & \texttt{0x4100} & 0 & 0 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUT]{\texttt{P1OUT}} & \texttt{0x4104} & 1 & 4 & 1 \\
+\hyperref[ss:PxOUTS]{\texttt{P1OUTS}} & \texttt{0x4108} & 2 & 8 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUTC]{\texttt{P1OUTC}} & \texttt{0x410C} & 3 & 12 & 1 \\
+\hyperref[ss:PxOUTT]{\texttt{P1OUTT}} & \texttt{0x4110} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxDIR]{\texttt{P1DIR}} & \texttt{0x4114} & 5 & 20 & 1 \\
+\hyperref[ss:PxIFG]{\texttt{P1IFG}} & \texttt{0x4118} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxIES]{\texttt{P1IES}} & \texttt{0x411C} & 7 & 28 & 1 \\
+\hyperref[ss:PxIE]{\texttt{P1IE}} & \texttt{0x4120} & 8 & 32 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxSEL]{\texttt{P1SEL}} & \texttt{0x4124} & 9 & 36 & 1 \\
+\hyperref[ss:PxREN]{\texttt{P1REN}} & \texttt{0x4128} & 10 & 40 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{SPI0} Peripheral}
+\noindent Base address: \texttt{0x4200}, peripheral memory slot: 2
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:SPIxCR]{\texttt{SPI0CR}} & \texttt{0x4200} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:SPIxSR]{\texttt{SPI0SR}} & \texttt{0x4204} & 1 & 4 & 1 \\
+\hyperref[ss:SPIxTX]{\texttt{SPI0TX}} & \texttt{0x4208} & 2 & 8 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:SPIxRX]{\texttt{SPI0RX}} & \texttt{0x420C} & 3 & 12 & 4 \\
+\hyperref[ss:SPIxFOS]{\texttt{SPI0FOS}} & \texttt{0x4210} & 4 & 16 & 4 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{SPI1} Peripheral}
+\noindent Base address: \texttt{0x4300}, peripheral memory slot: 3
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:SPIxCR]{\texttt{SPI1CR}} & \texttt{0x4300} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:SPIxSR]{\texttt{SPI1SR}} & \texttt{0x4304} & 1 & 4 & 1 \\
+\hyperref[ss:SPIxTX]{\texttt{SPI1TX}} & \texttt{0x4308} & 2 & 8 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:SPIxRX]{\texttt{SPI1RX}} & \texttt{0x430C} & 3 & 12 & 4 \\
+\hyperref[ss:SPIxFOS]{\texttt{SPI1FOS}} & \texttt{0x4310} & 4 & 16 & 4 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{UART0} Peripheral}
+\noindent Base address: \texttt{0x4400}, peripheral memory slot: 4
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:UARTxCR]{\texttt{UART0CR}} & \texttt{0x4400} & 0 & 0 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:UARTxSR]{\texttt{UART0SR}} & \texttt{0x4404} & 1 & 4 & 1 \\
+\hyperref[ss:UARTxBR]{\texttt{UART0BR}} & \texttt{0x4408} & 2 & 8 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:UARTxRX]{\texttt{UART0RX}} & \texttt{0x440C} & 3 & 12 & 1 \\
+\hyperref[ss:UARTxTX]{\texttt{UART0TX}} & \texttt{0x4410} & 4 & 16 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{UART1} Peripheral}
+\noindent Base address: \texttt{0x4500}, peripheral memory slot: 5
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:UARTxCR]{\texttt{UART1CR}} & \texttt{0x4500} & 0 & 0 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:UARTxSR]{\texttt{UART1SR}} & \texttt{0x4504} & 1 & 4 & 1 \\
+\hyperref[ss:UARTxBR]{\texttt{UART1BR}} & \texttt{0x4508} & 2 & 8 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:UARTxRX]{\texttt{UART1RX}} & \texttt{0x450C} & 3 & 12 & 1 \\
+\hyperref[ss:UARTxTX]{\texttt{UART1TX}} & \texttt{0x4510} & 4 & 16 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{TIMER0} Peripheral}
+\noindent Base address: \texttt{0x4600}, peripheral memory slot: 6
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:TIMxCR]{\texttt{TIM0CR}} & \texttt{0x4600} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxSR]{\texttt{TIM0SR}} & \texttt{0x4604} & 1 & 4 & 1 \\
+\hyperref[ss:TIMxVAL]{\texttt{TIM0VAL}} & \texttt{0x4608} & 2 & 8 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxCMP0]{\texttt{TIM0CMP0}} & \texttt{0x460C} & 3 & 12 & 4 \\
+\hyperref[ss:TIMxCMP1]{\texttt{TIM0CMP1}} & \texttt{0x4610} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxCMP2]{\texttt{TIM0CMP2}} & \texttt{0x4614} & 5 & 20 & 4 \\
+\hyperref[ss:TIMxCAP0]{\texttt{TIM0CAP0}} & \texttt{0x4618} & 6 & 24 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxCAP1]{\texttt{TIM0CAP1}} & \texttt{0x461C} & 7 & 28 & 4 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{TIMER1} Peripheral}
+\noindent Base address: \texttt{0x4700}, peripheral memory slot: 7
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:TIMxCR]{\texttt{TIM1CR}} & \texttt{0x4700} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxSR]{\texttt{TIM1SR}} & \texttt{0x4704} & 1 & 4 & 1 \\
+\hyperref[ss:TIMxVAL]{\texttt{TIM1VAL}} & \texttt{0x4708} & 2 & 8 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxCMP0]{\texttt{TIM1CMP0}} & \texttt{0x470C} & 3 & 12 & 4 \\
+\hyperref[ss:TIMxCMP1]{\texttt{TIM1CMP1}} & \texttt{0x4710} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxCMP2]{\texttt{TIM1CMP2}} & \texttt{0x4714} & 5 & 20 & 4 \\
+\hyperref[ss:TIMxCAP0]{\texttt{TIM1CAP0}} & \texttt{0x4718} & 6 & 24 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TIMxCAP1]{\texttt{TIM1CAP1}} & \texttt{0x471C} & 7 & 28 & 4 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{GPIO2} Peripheral}
+\noindent Base address: \texttt{0x4800}, peripheral memory slot: 8
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:PxIN]{\texttt{P2IN}} & \texttt{0x4800} & 0 & 0 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUT]{\texttt{P2OUT}} & \texttt{0x4804} & 1 & 4 & 1 \\
+\hyperref[ss:PxOUTS]{\texttt{P2OUTS}} & \texttt{0x4808} & 2 & 8 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUTC]{\texttt{P2OUTC}} & \texttt{0x480C} & 3 & 12 & 1 \\
+\hyperref[ss:PxOUTT]{\texttt{P2OUTT}} & \texttt{0x4810} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxDIR]{\texttt{P2DIR}} & \texttt{0x4814} & 5 & 20 & 1 \\
+\hyperref[ss:PxIFG]{\texttt{P2IFG}} & \texttt{0x4818} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxIES]{\texttt{P2IES}} & \texttt{0x481C} & 7 & 28 & 1 \\
+\hyperref[ss:PxIE]{\texttt{P2IE}} & \texttt{0x4820} & 8 & 32 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxSEL]{\texttt{P2SEL}} & \texttt{0x4824} & 9 & 36 & 1 \\
+\hyperref[ss:PxREN]{\texttt{P2REN}} & \texttt{0x4828} & 10 & 40 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{SYSTEM} Peripheral}
+\noindent Base address: \texttt{0x4900}, peripheral memory slot: 9
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:SYSCLKCR]{\texttt{SYSCLKCR}} & \texttt{0x4900} & 0 & 0 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:CLKDIVCR]{\texttt{CLKDIVCR}} & \texttt{0x4904} & 1 & 4 & 1 \\
+\hyperref[ss:MEMPWRCR]{\texttt{MEMPWRCR}} & \texttt{0x4908} & 2 & 8 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:CRCDATA]{\texttt{CRCDATA}} & \texttt{0x490C} & 3 & 12 & 1 \\
+\hyperref[ss:CRCSTATE]{\texttt{CRCSTATE}} & \texttt{0x4910} & 4 & 16 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:IRQEN]{\texttt{IRQEN}} & \texttt{0x4914} & 5 & 20 & 4 \\
+\hyperref[ss:IRQPRI]{\texttt{IRQPRI}} & \texttt{0x4918} & 6 & 24 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:WDTPASS]{\texttt{WDTPASS}} & \texttt{0x491C} & 7 & 28 & 4 \\
+\hyperref[ss:WDTCR]{\texttt{WDTCR}} & \texttt{0x4920} & 8 & 32 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:WDTSR]{\texttt{WDTSR}} & \texttt{0x4924} & 9 & 36 & 1 \\
+\hyperref[ss:WDTVAL]{\texttt{WDTVAL}} & \texttt{0x4928} & 10 & 40 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:DCO0FREQ]{\texttt{DCO0FREQ}} & \texttt{0x492C} & 11 & 44 & 2 \\
+\hyperref[ss:DCO1FREQ]{\texttt{DCO1FREQ}} & \texttt{0x4930} & 12 & 48 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:TPMR]{\texttt{TPMR}} & \texttt{0x4934} & 13 & 52 & 1 \\
+\hyperref[ss:BIASCR]{\texttt{BIASCR}} & \texttt{0x4938} & 14 & 56 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:BIASDBP]{\texttt{BIASDBP}} & \texttt{0x493C} & 15 & 60 & 2 \\
+\hyperref[ss:BIASDBPC]{\texttt{BIASDBPC}} & \texttt{0x4940} & 16 & 64 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:BIASDBNC]{\texttt{BIASDBNC}} & \texttt{0x4944} & 17 & 68 & 2 \\
+\hyperref[ss:BIASDBN]{\texttt{BIASDBN}} & \texttt{0x4948} & 18 & 72 & 2 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{NN0} Peripheral}
+\noindent Base address: \texttt{0x4A00}, peripheral memory slot: 10
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:NNxCR]{\texttt{NN0CR}} & \texttt{0x4A00} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:NNxIVA]{\texttt{NN0IVA}} & \texttt{0x4A04} & 1 & 4 & 4 \\
+\hyperref[ss:NNxOVA]{\texttt{NN0OVA}} & \texttt{0x4A08} & 2 & 8 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:NNxWMA]{\texttt{NN0WMA}} & \texttt{0x4A0C} & 3 & 12 & 4 \\
+\hyperref[ss:NNxLSI]{\texttt{NN0LSI}} & \texttt{0x4A10} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:NNxLSO]{\texttt{NN0LSO}} & \texttt{0x4A14} & 5 & 20 & 2 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{SARADC0} Peripheral}
+\noindent Base address: \texttt{0x4B00}, peripheral memory slot: 11
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:SARADCxCR]{\texttt{SARADC0CR}} & \texttt{0x4B00} & 0 & 0 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:SARADCxCDIV]{\texttt{SARADC0CDIV}} & \texttt{0x4B04} & 1 & 4 & 1 \\
+\hyperref[ss:SARADCxSR]{\texttt{SARADC0SR}} & \texttt{0x4B08} & 2 & 8 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:SARADCxDATA]{\texttt{SARADC0DATA}} & \texttt{0x4B0C} & 3 & 12 & 2 \\
+\hyperref[ss:SARADCxTPR]{\texttt{SARADC0TPR}} & \texttt{0x4B10} & 4 & 16 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{AFE0} Peripheral}
+\noindent Base address: \texttt{0x4C00}, peripheral memory slot: 12
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:AFExCR0]{\texttt{AFE0CR0}} & \texttt{0x4C00} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExCR1]{\texttt{AFE0CR1}} & \texttt{0x4C04} & 1 & 4 & 4 \\
+\hyperref[ss:AFExCFB]{\texttt{AFE0CFB}} & \texttt{0x4C08} & 2 & 8 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExRFB]{\texttt{AFE0RFB}} & \texttt{0x4C0C} & 3 & 12 & 2 \\
+\hyperref[ss:AFExTHR]{\texttt{AFE0THR}} & \texttt{0x4C10} & 4 & 16 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExTPR]{\texttt{AFE0TPR}} & \texttt{0x4C14} & 5 & 20 & 4 \\
+\hyperref[ss:AFExSPT]{\texttt{AFE0SPT}} & \texttt{0x4C18} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExPIT]{\texttt{AFE0PIT}} & \texttt{0x4C1C} & 7 & 28 & 2 \\
+\hyperref[ss:AFExEIT]{\texttt{AFE0EIT}} & \texttt{0x4C20} & 8 & 32 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExLIT]{\texttt{AFE0LIT}} & \texttt{0x4C24} & 9 & 36 & 2 \\
+\hyperref[ss:AFExRJT]{\texttt{AFE0RJT}} & \texttt{0x4C28} & 10 & 40 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExRST]{\texttt{AFE0RST}} & \texttt{0x4C2C} & 11 & 44 & 1 \\
+\hyperref[ss:AFExAOFST]{\texttt{AFE0AOFST}} & \texttt{0x4C30} & 12 & 48 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExBLLT]{\texttt{AFE0BLLT}} & \texttt{0x4C34} & 13 & 52 & 2 \\
+\hyperref[ss:AFExCSAREF]{\texttt{AFE0CSAREF}} & \texttt{0x4C38} & 14 & 56 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExCSABP]{\texttt{AFE0CSABP}} & \texttt{0x4C3C} & 15 & 60 & 2 \\
+\hyperref[ss:AFExCSABPC]{\texttt{AFE0CSABPC}} & \texttt{0x4C40} & 16 & 64 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExCSABNC]{\texttt{AFE0CSABNC}} & \texttt{0x4C44} & 17 & 68 & 2 \\
+\hyperref[ss:AFExCSABN]{\texttt{AFE0CSABN}} & \texttt{0x4C48} & 18 & 72 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExCMSHR]{\texttt{AFE0CMSHR}} & \texttt{0x4C4C} & 19 & 76 & 2 \\
+\hyperref[ss:AFExCLPF]{\texttt{AFE0CLPF}} & \texttt{0x4C50} & 20 & 80 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExSR]{\texttt{AFE0SR}} & \texttt{0x4C54} & 21 & 84 & 1 \\
+\hyperref[ss:AFExADCVAL]{\texttt{AFE0ADCVAL}} & \texttt{0x4C58} & 22 & 88 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:AFExVPC]{\texttt{AFE0VPC}} & \texttt{0x4C5C} & 23 & 92 & 4 \\
+\hyperref[ss:AFExTPC]{\texttt{AFE0TPC}} & \texttt{0x4C60} & 24 & 96 & 4 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{GPIO3} Peripheral}
+\noindent Base address: \texttt{0x4D00}, peripheral memory slot: 13
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:PxIN]{\texttt{P3IN}} & \texttt{0x4D00} & 0 & 0 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUT]{\texttt{P3OUT}} & \texttt{0x4D04} & 1 & 4 & 1 \\
+\hyperref[ss:PxOUTS]{\texttt{P3OUTS}} & \texttt{0x4D08} & 2 & 8 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxOUTC]{\texttt{P3OUTC}} & \texttt{0x4D0C} & 3 & 12 & 1 \\
+\hyperref[ss:PxOUTT]{\texttt{P3OUTT}} & \texttt{0x4D10} & 4 & 16 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxDIR]{\texttt{P3DIR}} & \texttt{0x4D14} & 5 & 20 & 1 \\
+\hyperref[ss:PxIFG]{\texttt{P3IFG}} & \texttt{0x4D18} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxIES]{\texttt{P3IES}} & \texttt{0x4D1C} & 7 & 28 & 1 \\
+\hyperref[ss:PxIE]{\texttt{P3IE}} & \texttt{0x4D20} & 8 & 32 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:PxSEL]{\texttt{P3SEL}} & \texttt{0x4D24} & 9 & 36 & 1 \\
+\hyperref[ss:PxREN]{\texttt{P3REN}} & \texttt{0x4D28} & 10 & 40 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{I2C0} Peripheral}
+\noindent Base address: \texttt{0x4E00}, peripheral memory slot: 14
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:I2CxCR]{\texttt{I2C0CR}} & \texttt{0x4E00} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxFCR]{\texttt{I2C0FCR}} & \texttt{0x4E04} & 1 & 4 & 1 \\
+\hyperref[ss:I2CxSR]{\texttt{I2C0SR}} & \texttt{0x4E08} & 2 & 8 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxMTX]{\texttt{I2C0MTX}} & \texttt{0x4E0C} & 3 & 12 & 1 \\
+\hyperref[ss:I2CxMRX]{\texttt{I2C0MRX}} & \texttt{0x4E10} & 4 & 16 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxSTX]{\texttt{I2C0STX}} & \texttt{0x4E14} & 5 & 20 & 1 \\
+\hyperref[ss:I2CxSRX]{\texttt{I2C0SRX}} & \texttt{0x4E18} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxAR]{\texttt{I2C0AR}} & \texttt{0x4E1C} & 7 & 28 & 1 \\
+\hyperref[ss:I2CxAMR]{\texttt{I2C0AMR}} & \texttt{0x4E20} & 8 & 32 & 1 \\
+\hline
+\end{tabularx}
+
+\subsection{\peripheral{I2C1} Peripheral}
+\noindent Base address: \texttt{0x4F00}, peripheral memory slot: 15
+
+\begin{tabularx}{\textwidth}{ l l l l X }
+\textbf{Register} & \textbf{Address} & \textbf{Slot} & \textbf{Offset (bytes)} & \textbf{Size (bytes)} \\ \hline
+\hyperref[ss:I2CxCR]{\texttt{I2C1CR}} & \texttt{0x4F00} & 0 & 0 & 4 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxFCR]{\texttt{I2C1FCR}} & \texttt{0x4F04} & 1 & 4 & 1 \\
+\hyperref[ss:I2CxSR]{\texttt{I2C1SR}} & \texttt{0x4F08} & 2 & 8 & 2 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxMTX]{\texttt{I2C1MTX}} & \texttt{0x4F0C} & 3 & 12 & 1 \\
+\hyperref[ss:I2CxMRX]{\texttt{I2C1MRX}} & \texttt{0x4F10} & 4 & 16 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxSTX]{\texttt{I2C1STX}} & \texttt{0x4F14} & 5 & 20 & 1 \\
+\hyperref[ss:I2CxSRX]{\texttt{I2C1SRX}} & \texttt{0x4F18} & 6 & 24 & 1 \\
+\rowcolor{tablehighlightcolor} \hyperref[ss:I2CxAR]{\texttt{I2C1AR}} & \texttt{0x4F1C} & 7 & 28 & 1 \\
+\hyperref[ss:I2CxAMR]{\texttt{I2C1AMR}} & \texttt{0x4F20} & 8 & 32 & 1 \\
+\hline
+\end{tabularx}
+

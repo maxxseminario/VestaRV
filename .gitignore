@@ -1,0 +1,45 @@
+# Build artifacts
+verification/isa/build/
+verification/isa/rcf/
+verification/benchmarks/build/
+firmware/*/obj/
+firmware/*/bin/
+
+# Compiled binaries
+*.o
+*.elf
+*.bin
+*.hex
+*.dump
+*.rcf
+*.map
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# LaTeX intermediate files
+*.aux
+*.log
+*.out
+*.toc
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Syncthing
+.stfolder/

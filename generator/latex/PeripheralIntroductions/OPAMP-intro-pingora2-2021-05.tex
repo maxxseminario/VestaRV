@@ -1,0 +1,136 @@
+The \peripheral{OPA} peripheral contains two independent opamps which can be configured in various modes depending on the application. Each opamp can be configured as an unbuffered OTA, a buffered opamp, or simply a buffer. The opamps can also be used in comparator mode that generate an interrupt when the comparator state changes.
+
+\subsection{Opamp Pins}
+
+The \peripheral{OPA} peripheral contains two independent opamps (\bitfield{OPA0} and \bitfield{OPA1}). Each opamp uses three pins: \pin{OPxINP}, \pin{OPxINM}, and \pin{OPxOUT}. All three pins use the 2.5 V analog power domain. WARNING: Do NOT apply a voltage outside the bounds of 0.0 V to 2.5 V to any analog pin! Doing so can permanently damage the internal circuits.
+
+The \pin{OPxINP} pin is the ``plus'' input to the opamp (also known as the positive, or non-inverting, input). The \pin{OPxINM} pin is the ``minus'' input to the opamp (also known as the negative, or inverting, input). Both of the input pins are high impedance inputs.
+
+The \pin{OPxOUT} pin is the output of the opamp.
+
+
+
+\subsection{Opamp Modes}
+
+Each opamp has four modes controlled by the \bitfield{OPAxMODE} bitfiled in the \register{OPACR} register: disabled, buffer, unbuffered OTA, and buffered opamp. The opamp contains two amplifiers, an operational transconductance amplifier (OTA) and a buffer, each of which may or may not be used depending on the mode. Figure \ref{fig:opamp-schematic} depicts the schematic of the opamp, and shows how the mode bits determine the functionality of the opamp.
+
+\begin{figure}[htpb]
+	\centering
+	\includesvg{figures/opamp-schematic-pingora2}
+	\caption{Opamp Schematic}
+	\label{fig:opamp-schematic}
+\end{figure}
+
+The four opamp modes are as follows:
+
+\underline{Mode 0: disabled}. In this mode, both the OTA and the buffer are switched off and do not consume power. The opamp output pin \pin{OPxOUT} can be left floating as a high impedance node or pulled to analog ground (0 V) using the \bitfield{OPAxPDWD} bit.
+
+\underline{Mode 1: buffer only} (see Figure \ref{fig:opamp-mode-buffer}). In this mode, the internal buffer is on and the OTA is off and not used. The buffer has a lower gain and a much lower output resistance compared to the OTA. As such, this mode is intended for buffering weak external voltage signals by placing the opamp in unity gain feedback.
+
+\underline{Mode 2: unbuffered OTA} (see Figure \ref{fig:opamp-mode-unbuffered-ota}). In this mode, the OTA is on and the internal buffer is off and not used. The OTA has a large voltage gain and a large output resistance. This mode is intended for use in an OTA-C (also known as a gm-C) filter. The gain $g_m$ of the OTA may be set using one of the internal DACs or may be derived from the global bias generator with the \bitfield{OPAxBS} bit.
+
+\underline{Mode 3: buffered opamp} (see Figure \ref{fig:opamp-mode-buffered-ota}). In this mode, both the OTA and internal buffer are on and used. The output of the OTA is buffered by the buffer, which is configured in unity gain feedback. This mode is intended for use as an ordinary opamp with a low output resistance. The gain $A_v$ of the opamp may be set using one of the internal DACs or may be derived from the global bias generator with the \bitfield{OPAxBS} bit.
+
+\begin{figure}[htpb]
+	\centering
+	\begin{subfigure}[b]{.45\linewidth}
+		\includesvg{figures/opamp-buffer-mode-pingora2}
+		\caption{Mode 1: buffer only}
+		\label{fig:opamp-mode-buffer}
+	\end{subfigure}
+	\begin{subfigure}[b]{.45\linewidth}
+		\includesvg{figures/opamp-ota-mode-pingora2}
+		\caption{Mode 2: unbuffered OTA}
+		\label{fig:opamp-mode-unbuffered-ota}
+	\end{subfigure}
+	\begin{subfigure}[b]{.45\linewidth}
+		\includesvg{figures/opamp-buffered-ota-mode-pingora2}
+		\caption{Mode 3: buffered opamp}
+		\label{fig:opamp-mode-buffered-ota}
+	\end{subfigure}
+	\caption{Opamp Modes}
+	\label{fig:opamp-modes}
+\end{figure}
+
+
+
+\subsection{Analog Specifications}
+
+The specifications for the opamp OTA are listed below in Table \ref{t:opamp-ota-specs}. All specifications are using simulation data from a typical process corner.
+
+\begin{longtable}[c]{ r l }
+	\caption{Opamp OTA Specifications} \label{t:opamp-ota-specs} \\ \hline
+	\textbf{Parameter} & \textbf{Specification} \\ \hline \endfirsthead
+
+	\multicolumn{2}{c}{\textit{\tablename\ \thetable\ continued from previous page}} \\ \hline
+	\textbf{Parameter} & \textbf{Specification} \\ \hline \endhead
+
+	Open Loop Gain ($A_v$) & 74~dB (5,000~$\si{\volt}/\si{\volt}$) \\
+	\rowcolor{tablehighlightcolor}
+	Open Loop Bandwidth & 1~\si{\kilo\hertz} \\
+	Unity Gain Frequency & 1.76~\si{\mega\hertz} \\
+	\rowcolor{tablehighlightcolor}
+	Phase Margin & 83$^\circ$ \\
+	Gain Margin & 21~dB \\
+	\rowcolor{tablehighlightcolor}
+	Output-Referred Noise & 100~\si{\micro\volt}rms \\
+	Quiescent Power & 17~\si{\micro\watt} \\
+	\rowcolor{tablehighlightcolor}
+	Swing Range & 0.200~\si{\volt} to 2.215~\si{\volt} \\
+	\hline
+\end{longtable}
+
+The specifications for the opamp buffer are listed below in Table \ref{t:opamp-buffer-specs}. All specifications are using simulation data from a typical process corner.
+
+\begin{longtable}[c]{ r l }
+	\caption{Opamp Buffer Specifications} \label{t:opamp-buffer-specs} \\ \hline
+	\textbf{Parameter} & \textbf{Specification} \\ \hline \endfirsthead
+
+	\multicolumn{2}{c}{\textit{\tablename\ \thetable\ continued from previous page}} \\ \hline
+	\textbf{Parameter} & \textbf{Specification} \\ \hline \endhead
+
+	Open Loop Gain ($A_v$) & 38~dB (80~$\si{\volt}/\si{\volt}$) \\
+	\rowcolor{tablehighlightcolor}
+	Open Loop Bandwidth & 78~\si{\kilo\hertz} \\
+	Unity Gain Bandwidth & 20~\si{\mega\hertz} \\
+	\rowcolor{tablehighlightcolor}
+	Open Loop Phase Margin & 27$^\circ$ \\
+	Open Loop Gain Margin & 3.4~dB \\
+	\rowcolor{tablehighlightcolor}
+	Output-Referred Noise & 200~\si{\micro\volt}rms \\
+	Quiescent Power & 27~\si{\micro\watt} \\
+	\rowcolor{tablehighlightcolor}
+	Swing Range & 0~\si{\volt} to 2.5~\si{\volt} \\
+	\hline
+\end{longtable}
+
+
+
+
+\subsection{OTA Gain Tuning}
+
+The OTA amplifier in the opamp has a built-in mechanism to tune its gain using one of the on-chip DACs. For \peripheral{OPA0}, the associated DAC is \peripheral{DAC0}. Likewise, \peripheral{DAC1} can control the gain of \peripheral{OPA1}. The \bitfield{OPAxBS} bit determines whether the associated DAC or the global bias generator determines the gain of the OTA.
+
+When using the opamp in unbuffered OTA mode, the gain is referred to as the OTA transconductance parameter $g_m$, the small signal $i/v$ relation. Adjusting the DAC voltage modifies the $g_m$ of the OTA, albeit in a somewhat nonlinear fashion. As an example, this could be used for gain tuning in an OTA-C ($g_m$-C) filter.
+
+When using the opamp in buffered opamp mode, the opamp gain is referred to as $A_v$, the small signal $v/v$ relation. Again, adjusting the DAC voltage nonlinearly modifies the $A_v$ of the opamp. As an example, this feature could be used to make an analog mixer.
+
+
+
+\subsection{Comparator}
+
+Each opamp can also be used as a comparator when in unbuffered OTA or buffered opamp mode. The comparator function must be enabled with the \bitfield{OPAxCMPEN} bit to use. An internal Schmitt trigger attached to the output of the opamp senses when the output toggles between ground and AVDD, which is then used by the internal digital circuitry to determine when the comparator level changes. The current comparator value can be read from the \bitfield{OPAxCMPVAL} bit in the opamp status register \register{OPAxSR}.
+
+The comparator can also be used to generate interrupts whenever the comparator state experiences either a rising edge or a falling edge, selectable by the \bitfield{OPAxCMPIES} bit. When the selected edge occurs, the interrupt flag \bitfield{OPAxCMPIF} is set to 1 if the interrupt is enabled with the \bitfield{OPAxCMPIE} bit. To clear \bitfield{OPAxCMPIF}, write any data to the opamp status register \register{OPAxSR}.
+
+Note: the opamp should not be in feedback when used as a comparator.
+
+
+
+\subsection{Flags and Interrupts}
+
+The \peripheral{OPA} peripheral has two indicator bits and two interrupt flags in the opamp status register \register{OPAxSR} which deal with the state of the comparators.
+
+One indicator bit \bitfield{OPAxCMPVAL} for each comparator shows the current value of the comparator. A value of 1 is returned when the opamp positive input is greater than the negative input, and a value of 0 is returned otherwise.
+
+One interrupt flag \bitfield{OPAxCMPIF} for each comparator indicates if the comparator has experienced the selected edge direction. This flag will only be set if the interrupt is enabled with \bitfield{OPAxCMPIE}, and can be cleared by writing any data to the opamp status register \register{OPAxSR}.
