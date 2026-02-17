@@ -14,9 +14,9 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 ## Configuration
 
 - **Core**: VestaRV32 (RV32IMAC + Zb*)
-- **ROM Size**: [TBD from config files]
+- **ROM Size**: 16 KiB
 - **RAM Size**: 32 KiB
-- **Clock Frequency**: 24 MHz (maximum)
+- **Clock Frequency**: 24 MHz 
 
 ### Peripherals
 
@@ -37,12 +37,10 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 - **`docs/`** — MCU user guide and documentation
   - `MCU-User-Guide.pdf` — Complete peripheral and system documentation
 - **`config/`** — Configuration files used for code generation
-  - `ChipConfig.json` — Chip-level configuration
   - `MemoryMap.json` — Memory and peripheral address mapping
-  - `BoardConfig.json` — Board-level configuration
 - **`images/`** — Block diagrams, layout screenshots, die photos
-  - `ASIC_block_diagram.png` — System-level block diagram
-  - (Layout images to be added)
+  - `myshkin_block_diagram.png` — System-level block diagram
+  - `myshkin_layout.png` - ASIC Physcal Layout 
 - **`specifications/`** — Electrical and timing specifications
   - (Post-silicon characterization data to be added)
 
@@ -55,17 +53,15 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 - [ ] Silicon Received
 - [ ] Silicon Validated
 
-**Current Status**: Fabrication in progress at TSMC Taiwan facility.
-
 ## Key Features
 
 This implementation demonstrates VestaRV's capabilities in a mixed-signal application, combining digital processing with analog front-end circuitry for sensor interfacing. The NPU accelerator enables edge ML inference for sensor data processing.
 
 ## Publications
 
-- Conference paper in submission/review
+- IEEE ISCAS Conference paper in submission/review
 - Citation and link to be added upon publication
 
 ## Contact
 
-For detailed specifications or collaboration opportunities, contact the VestaRV team.
+For detailed specifications or collaboration opportunities, contact the Maxx Seminario (mseminario2@huskers.unl.edu).
