@@ -8,7 +8,7 @@ LIB_SOURCES	=
 EXTENSIONS	= i
 
 # Chip Global Libraries and Linker Script
-LIB_DIR		= ../common
+LIB_DIR		= ../commune
 LD_DIR		= ../../build-system/linker-scripts
 LD_SCRIPT	= $(LD_DIR)/MCU-bootrom.ld
 
