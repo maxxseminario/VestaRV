@@ -1,0 +1,45 @@
+The SYSTEM peripheral manages the MCU clocks, power state, CRC data verification, and analog bias levels for the global bias generator.
+
+\subsection{System Clocks and Clock Management} \label{ss:clocks}
+The MCU has four clock sources: HFXT, LFXT, DCO0, and DCO1. HFXT and LFXT are external clock sources, which must be provided to the MCU via the \pin{ClkHFXT} and \pin{ClkLFXT} pins, respectively. DCO0 and DCO1 are internal, programmable frequency clock sources.
+
+HFXT must not exceed a maximum clock rate of about 100~\si{\mega\hertz}. LFXT is required to be exactly 32.768~\si{\kilo\hertz} during boot (this produces a baudrate of 2,048 in the bootloader Forth interpreter). The frequency of DCO0 is configured with the \register{DCO0FREQ} register, and can be up to 112~\si{\mega\hertz}. The frequency of DCO1 is configured with the \register{DCO1FREQ} register, and can be up to 112~\si{\mega\hertz}.
+
+Two clocks, the main clock (MCLK) and the submain clock (SMCLK), form the roots of the MCU clock tree, shown in Figure \ref{fig:mcu-clock-system}. MCLK and SMCLK can each select one of the source clocks as their base and divide the frequency further with \register{CLKDIVCR}. MCLK drives the CPU clock, while SMCLK drives most of the peripherals. MCLK cannot be turned off, but all other clocks and source clocks (including the CPU clock) can be turned off with the \register{SYSCLKCR} register. If a source clock is being used by MCLK, that source clock will be forced to be on (even if it is turned off in \register{SYSCLKCR}) unless the CPU clock is also turned off and an interrupt service routine is not executing. If a source clock is being used by SMCLK, it cannot be turned off  with the \register{SYSCLKCR} register.
+
+\begin{figure}[htpb]
+	\includesvg{figures/clocks-teewinot-2020-05}
+	\caption{MCU Clock System}
+	\label{fig:mcu-clock-system}
+\end{figure}
+
+\subsection{Sleep Mode and Power Saving} \label{ss:sleep}
+The MCU has several power-saving features.
+
+The CPU is the most power-hungry part of the MCU, and its dynamic power consumption is proportional to the CPU clock frequency. As MCLK is the source for the CPU clock, reducing the frequency of MCLK also reduces the total dynamic power consumption. This can be done in one of two ways: either using the MCLK clock divider, or directly reducing the frequency of the clock source. Reducing the clock source frequency is not always possible (such as when MCLK is sourced by an external clock on the \pin{ClkHFXT} pin), but it is always possible to switch the clock source to one of the internal DCOs, which have a wide range of programmable frequencies to choose from.
+
+Another method to save power is to turn off unused clocks, such as the internal DCOs, when they are not being used. Remember, however, that both the \pin{ClkHFXT} and \pin{ClkLFXT} pins are required to be valid clock signals while the MCU boots. Failure to provide both clocks may cause the chip to boot improperly, or not at all. For this reason, the start HIGH pin(s) (\pin{SHx}) have been provided. On the PCB level, the start HIGH pins should connect to the enable pin of the clock generator chips for \pin{ClkHFXT} and \pin{ClkLFXT} so that they will always be driven HIGH when the MCU is reset. After the chip has booted, the user can switch the source clock for MCLK and then safely disable \pin{ClkHFXT}.
+
+Sleep mode is activated by switching off the CPU clock with \bitfield{CPUOFF}, which reduces the dynamic power of the CPU to zero. Once it has entered sleep mode, the MCU can only awaken if an interrupt is triggered or if the MCU is reset. If an interrupt is triggered, the CPU clock is reactivated for the duration of the interrupt. Once all pending interrupts have been serviced, the MCU re-enters sleep mode. However, if one of the serviced ISRs clears the \bitfield{CPUOFF} bit, then the CPU will remain awake at the end of the master interrupt handler and jump back to the main part of the program where it left off when the CPU was put to sleep.
+
+The static power (or leakage power) can be reduced by switching off unused internal memories when they are not being used. Static power consumption, caused by the accumulated reverse bias currents of the many thousands of parasitic diodes in the digital circuits on the chip, is ever present as long as the chip is receiving power from the \pin{VDD}, \pin{VDDPST}, and \pin{AVDD} pins. The on-chip memory units, however, include a power gating feature that opens the circuit delivering them power. The ROM and each 16~KiB SRAM block can be powered down by setting \bitfield{ROMOFF} and \bitfield{SRAMxOFF}, respectively. Every additional memory that is powered down will reduce the staic power consumption. Any read or write operations to a powered down will fail, producing undefined results. Furthermore, the entire contents of an SRAM block is lost when it is powered down, and is initially undefined when it is powered back on until it is filled again by the user. It is therefore important to keep track of which memories are or have been powered down to prevent undefined behavior.
+
+When switching off SRAM blocks, it is recommended to power down the blocks at higher memory addresses first before powering down the lower blocks. The program occupies the lower memory addresses, which must not be corrupted by a negligent power down, but the stack, which is easily initialized in a custom location, starts at a high address and builds downward. To initialize the stack out of a powered down SRAM block and into a powered up block, add \bashinlinehl{-D RedefinedStackPointerInit=0x??} to the \bashinline{USER_DEFINES} variable in the project makefile, replacing \bashinline{0x??} with the desired memory address. The SRAM02 block should never be switched off because it contains the interrupt vector table.
+
+The analog circuits on the chip can be powered down by disabling them in their control registers and disabling the global bias generator.
+
+\subsection{CRC Module}
+The CRC module enables the computation of a CRC16 checksum on an array of data. The checksum can be used to ensure the data in a transmission or reception is free of any corruption in the communication channel.
+
+The specifications of the CRC module uses the CRC16 CDMA2000 standard, which has the following specifications:
+\begin{itemize}
+\item CRC size: 16 bits
+\item Polynomial: 0xC857
+\item Initial CRC value: 0xFFFF
+\item No XOR operation on the output CRC value
+\item No input data reflection
+\item No output CRC value reflection
+\end{itemize}
+
+To use the CRC module on a byte array, first initialze the CRC value by writing 0xFFFF to \register{CRCSTATE}. Then, write each byte in the array to \register{CRCDATA}. Finally, read \register{CRCSTATE} to get the computed CRC16 value of the array.
+

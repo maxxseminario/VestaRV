@@ -1,0 +1,10 @@
+{
+	"ChipName": "smrv32_fpga",
+	"IDChipPrefix": "A0",
+	"ForthInitStringRom": "smrv32_fpga rv4th-rom!",
+	"ForthInitStringFlash": "smrv32_fpga rv4th-flash!",
+	"BootForthFlashWriteCompressionAllowed": false,
+	"SwapProgramBytes": false,
+	"BootForthHasMultiPageFlashEraseCommand": true,
+	"BootloaderUsesSpiFlashCommands": true
+}

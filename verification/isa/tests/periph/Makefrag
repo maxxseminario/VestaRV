@@ -1,0 +1,22 @@
+#=======================================================================
+# Makefrag for periph tests
+#-----------------------------------------------------------------------
+
+periph_sc_tests = \
+    UARTIRQ \
+    SPISR \
+    GPIO1 \
+    GPIO2 \
+    SYSTEM \
+    SARADC \
+    SPIEM \
+    NPU \
+    SPI \
+    UART \
+    TIMER \
+    AFE \
+    
+
+    
+
+periph_p_tests = $(addprefix periph-p-, $(periph_sc_tests))

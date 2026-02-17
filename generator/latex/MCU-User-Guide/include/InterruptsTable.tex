@@ -1,0 +1,25 @@
+\begin{longtable}[c]{ l l }
+\caption{Interrupt Vectors} \label{t:interrupt-vectors} \\ 
+\hline \textbf{Priority} & \textbf{Interrupt Source} \\ \hline \endfirsthead
+\multicolumn{2}{c}{\textit{Continued from previous page}} \\ \hline
+\hline \textbf{Priority} & \textbf{Interrupt Source} \\ \hline \endhead
+0 & CPU Internal Timer \\
+\rowcolor{tablehighlightcolor} 1 & EBREAK, ECALL, or Illegal Instruction \\
+2 & Bus Error (unaligned memory access) \\
+\rowcolor{tablehighlightcolor} 0 & \peripheral{SYSTEM}\\
+1 & \peripheral{GPIO0}\\
+\rowcolor{tablehighlightcolor} 9 & \peripheral{SPI0}\\
+11 & \peripheral{SPI1}\\
+\rowcolor{tablehighlightcolor} 13 & \peripheral{UART0}\\
+16 & \peripheral{TIMER0}\\
+\rowcolor{tablehighlightcolor} 22 & \peripheral{TIMER1}\\
+28 & \peripheral{GPIO1}\\
+\rowcolor{tablehighlightcolor} 36 & \peripheral{GPIO2}\\
+44 & \peripheral{GPIO3}\\
+\rowcolor{tablehighlightcolor} 52 & \peripheral{UART1}\\
+55 & \peripheral{AFE0}\\
+\rowcolor{tablehighlightcolor} 56 & \peripheral{SARADC0}\\
+57 & \peripheral{I2C0}\\
+\rowcolor{tablehighlightcolor} 70 & \peripheral{I2C1}\\
+\hline
+\end{longtable}
