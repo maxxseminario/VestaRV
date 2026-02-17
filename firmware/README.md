@@ -15,15 +15,6 @@ System boot code and Forth interpreter embedded in ROM. This firmware runs on re
 **Memory Location**: ROM (typically at address 0x0000)  
 **Purpose**: System initialization and interactive programming environment
 
-### **`rv4th/`** — Standalone Forth Interpreter
-Standalone version of the Forth interpreter that can be loaded into RAM. Useful for:
-- Application development
-- Testing without reflashing ROM
-- Custom Forth applications
-
-**Memory Location**: RAM (typically loaded at 0x8000+)  
-**Purpose**: Flexible Forth environment for user applications
-
 ### **`common/`** — Shared Libraries and Headers
 Common code shared across firmware projects:
 - **`include/`** — Header files for peripherals, register definitions, system macros
@@ -97,18 +88,6 @@ make <target>.elf # Build specific target
 
 Firmware uses linker scripts to define memory organization:
 
-### ROM-based (bootrom)
-```
-ROM:  0x0000 - 0x3FFF  (16 KiB) — Code and constants
-RAM:  0x8000 - 0xFFFF  (32 KiB) — Stack, heap, data
-```
-
-### RAM-based (applications)
-```
-ROM:  0x0000 - 0x3FFF  (16 KiB) — Bootloader (read-only)
-RAM:  0x8000 - 0xFFFF  (32 KiB) — Application code, data, stack
-```
-
 Memory sizes are configurable per implementation. See linker scripts in [`build-system/linker-scripts/`](../build-system/linker-scripts/).
 
 ## Peripheral Access
@@ -141,13 +120,6 @@ Used for:
 - Critical timing sections
 - Direct CSR (Control and Status Register) access
 
-### Forth
-High-level interpreted language:
-- Interactive development
-- Rapid prototyping
-- Hardware testing
-- Extensible with custom words
-
 ## Development Workflow
 
 1. **Write code** in `src/` directory
@@ -173,37 +145,6 @@ High-level interpreted language:
 - **Python 3**: For build utilities and RCF generation
 - **Make**: GNU Make for build automation
 
-## Example: Simple Blink Program
-
-```c
-// src/main.c
-#include <stdint.h>
-#include "gpio.h"
-
-int main(void) {
-    // Initialize GPIO
-    gpio_set_direction(0, GPIO_OUTPUT);
-    
-    while(1) {
-        gpio_set(0, 1);        // Turn on LED
-        for(volatile int i=0; i<1000000; i++);  // Delay
-        gpio_set(0, 0);        // Turn off LED
-        for(volatile int i=0; i<1000000; i++);  // Delay
-    }
-    
-    return 0;
-}
-```
-
-## Best Practices
-
-1. **Start.S first**: Ensure `start.S` is first in `SRC_SOURCES` for proper boot sequence
-2. **Use common libraries**: Leverage shared code from `common/` for peripheral access
-3. **Match linker script**: Use `MCU-bootrom.ld` for ROM, `MCU.ld` for RAM
-4. **Check memory usage**: Use `.dump` file to verify code fits in target memory
-5. **Test incrementally**: Build and test small features before integrating
-6. **Document peripherals**: Comment register accesses for clarity
-
 ## Typical Applications
 
 - **System bootloader** — Initialize hardware, load applications
@@ -221,20 +162,4 @@ int main(void) {
 - [`implementations/`](../implementations/) — Chip-specific configurations and memory maps
 - [`hdl/MCU/tb/`](../hdl/MCU/tb/) — VHDL testbench examples for simulation
 
-## Troubleshooting
 
-**Build errors**:
-- Check toolchain installation and `RISCV_TOOLCHAIN_DIR` environment variable
-- Verify source files exist in `SRC_SOURCES` and `LIB_SOURCES`
-- Ensure `start.S` is listed first in sources
-
-**Linker errors**:
-- Check memory sizes in linker script match your configuration
-- Reduce code size if exceeding ROM/RAM limits
-- Verify peripheral addresses match your chip configuration
-
-**Runtime issues**:
-- Use `.dump` file to verify correct code generation
-- Check stack pointer initialization in `start.S`
-- Verify peripheral register addresses
-- Use UART printf for debugging output
