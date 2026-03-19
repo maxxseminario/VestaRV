@@ -50,8 +50,8 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 - [x] Synthesis Complete
 - [x] Place & Route Complete
 - [x] Tape-out Submitted (November 2025)
-- [x] Silicon Received
-- [x] Silicon Validated
+- [x] Silicon Received (March 2026)
+- [x] Silicon Validated (March 2026)
 
 ## Key Features
 
