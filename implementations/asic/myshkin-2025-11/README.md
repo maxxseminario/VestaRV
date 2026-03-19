@@ -59,8 +59,8 @@ This implementation demonstrates VestaRV's capabilities in a mixed-signal applic
 
 ## Publications
 
-- IEEE ISCAS Conference paper in submission/review
-- Citation and link to be added upon publication
+- IEEE ISCAS 2026 Conference paper in lecture acceptance
+
 
 ## Contact
 
