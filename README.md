@@ -12,6 +12,9 @@
 
 VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. The core supports **RV32I base ISA** with **M** (multiply/divide), **C** (compressed), **A** (atomic), and **Zb*** (bit manipulation) extensions, and features **stack-based recursive interrupt handling**. This repository provides both the VestaRV core and a configurable MCU System on Chip (SoC) implementation, enabling rapid integration into embedded systems and ASIC designs.
 
+> 📄 **[MCU User Guide — v1.0.0 (Myshkin)](implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf)**  
+> Complete peripheral register reference, system architecture, and programming guide for the Myshkin SoC — the first VestaRV tape-out (TSMC 65nm, November 2025).
+
 **Namesake:**  
 VestaRV is named after **Vesta**, the Roman goddess of hearth, home, and the eternal flame. As Vesta's fire symbolized the heart of the household, VestaRV is designed to be the heart of your embedded system—providing reliability and a strong foundation for your MCU and SoC projects.
 
