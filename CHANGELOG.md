@@ -14,7 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.0.0] — 2025-11-01 — Myshkin Tape-out
+## [1.0.0] — Nov. 2025 — Myshkin Tape-out
 
 First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November 2025.
 
@@ -46,7 +46,7 @@ First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November
   - Peripheral verification primarily through assembly-level tests simulated at the full chip level; select peripherals additionally verified with dedicated VHDL-level testbenches (located in `hdl/MCU/tb/`)
   - Standard benchmark suite (dhrystone, coremark-style benchmarks)
 - **Documentation**
-  - [MCU User Guide](implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf) (LaTeX → PDF, 130+ pages)
+  - [MCU User Guide](implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf)
   - Implementation READMEs for Myshkin ASIC
   - Build system and verification READMEs
 
