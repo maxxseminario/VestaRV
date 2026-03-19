@@ -33,8 +33,8 @@ Any **VHDL-2008-compatible** simulator works. Recommended free options:
 
 | Simulator | Install |
 |-----------|---------|
-| [GHDL](https://github.com/ghdl/ghdl) | `sudo apt install ghdl` (Ubuntu/Debian) or build from source |
-| [NVC](https://github.com/nickg/nvc) | `sudo apt install nvc` |
+| [GHDL](https://github.com/ghdl/ghdl) | Clone and build from source: `git clone https://github.com/ghdl/ghdl` — see repo for build instructions |
+| [NVC](https://github.com/nickg/nvc) | Clone and build from source: `git clone https://github.com/nickg/nvc` — see repo for build instructions |
 | ModelSim / Questa | Available free via Intel FPGA Lite edition |
 | Xcelium | Commercial (Cadence) |
 
