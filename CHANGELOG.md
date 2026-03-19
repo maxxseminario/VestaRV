@@ -37,19 +37,16 @@ First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November
 - **Memory configuration**
   - 16 KiB ROM (ARM Artisan)
   - 32 KiB RAM (2× 16 KiB ARM Artisan SRAM)
-  - Native SPI flash read window at `0x8200`
+  - Native SPI flash read window 
 - **Firmware**
   - Bootrom with Forth interpreter (`rv4th`)
   - SPI flash boot support
 - **Verification**
-  - Full RV32UI / RV32UM / RV32UA / RV32UC ISA test suite (adapted from riscv-tests)
-  - Peripheral testbenches: NPU, SARADC, Forth interpreter
+  - Full RV32UI / RV32UM / RV32UA / RV32UC ISA test suite (adapted from riscv-tests) — implemented as RISC-V assembly programs simulated on the full chip in VHDL testbench
+  - Peripheral verification primarily through assembly-level tests simulated at the full chip level; select peripherals additionally verified with dedicated VHDL-level testbenches (located in `hdl/MCU/tb/`)
   - Standard benchmark suite (dhrystone, coremark-style benchmarks)
-- **Chip generator**
-  - Single-script generation of VHDL memory map, C headers, linker scripts, and LaTeX user guide
-  - Peripheral intro LaTeX files for all peripherals
 - **Documentation**
-  - MCU User Guide (LaTeX → PDF, 130+ pages)
+  - [MCU User Guide](implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf) (LaTeX → PDF, 130+ pages)
   - Implementation READMEs for Myshkin ASIC
   - Build system and verification READMEs
 
@@ -57,7 +54,7 @@ First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November
 - **Die size**: 1.0 mm × 1.5 mm
 - **Package**: QFN-44
 - **Process**: TSMC 65nm GP CMOS
-- **Target supply**: 1.2 V digital core / 2.5 V I/O and analog
+- **Target supply**: 1.0 V digital core / 2.5 V analog / 3.3 V I/0
 - **Clock**: Up to 24 MHz
 - **Analog front-end power**: < 325 µW at 2.5 V
 
@@ -65,4 +62,4 @@ First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November
 
 ## Repository History
 
-Prior to the 1.0.0 release, VestaRV was developed as a private research project at the University of Nebraska-Lincoln (Analog, Mixed-Signal, and System-on-Chip group). The initial public release coincides with the Myshkin tape-out submission.
+Prior to the 1.0.0 release, VestaRV was developed as a private personal project. The initial public release coincides with the Myshkin tape-out submission via the University of Nebraska-Lincoln (IC Design Group).
