@@ -136,8 +136,7 @@ The following peripherals are included in the example configuration shown above.
    See [`verification/isa/README.md`](verification/isa/README.md) for test details.
 
 5. **VHDL Simulation:**
-   - Test programs (RCF format): `verification/isa/rcf/`
-   - Example testbenches: `hdl/MCU/tb/`
+   See [`hdl/README.md`](hdl/README.md) for complete GHDL/ModelSim setup, compile order, and step-by-step instructions to run a simulation against the ISA test suite.
 
 ---
 
@@ -156,4 +155,4 @@ If you need access, support, or have questions about VestaRV or its MCU subsyste
 
 ## License
 
-VestaRV is released as open hardware under a permissive license (similar to MIT/ISC/BSD). See `LICENSE` for full details.
+VestaRV is released under the **MIT License**. See [`LICENSE`](LICENSE) for full details.
