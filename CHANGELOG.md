@@ -5,15 +5,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
-
-### Planned
-- FPGA reference implementation (Arty A7 or Nexys A7)
-- Post-silicon characterization data for Myshkin (pending silicon return)
-- CITATION.cff for academic referencing
-
----
-
 ## [1.0.0] — Nov. 2025 — Myshkin Tape-out
 
 First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November 2025.
