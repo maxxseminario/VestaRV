@@ -80,9 +80,7 @@ All peripherals share a common memory-mapped register interface: 32-bit word-add
 | **TIMER** | `TIMER.vhd` | 32-bit timer/counter with capture, compare, and PWM |
 | **SYSTEM** | `SYSTEM.vhd` | System control: clock mux/divider, DCO trim, watchdog, CRC engine, power gating |
 | **NPU** | `NPU.vhd` | Hardware neural network accelerator (fixed-point MAC array) |
-| **SARADC** | `SARADC.vhd` | Successive-approximation ADC peripheral interface |
-| **AFE** | `AFE.vhd` | Analog front-end interface — potentiostat control + dual-slope ADC (DSADC) |
-| **AFE_FSM** | `AFE_FSM.vhd` | DSADC dual-slope conversion finite-state machine |
+
 
 For full register-level documentation of each peripheral, see the **MCU User Guide** PDF at [`implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf`](../../implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf).
 
