@@ -54,3 +54,6 @@ rpi/
 
 # HDL blocks
 hdl/MCU/peripherals/NPU.vhd
+hdl/MCU/periph/SARADC.vhd
+hdl/MCU/periph/AFE.vhd
+hdl/MCU/periph/AFE_FSM.vhd
