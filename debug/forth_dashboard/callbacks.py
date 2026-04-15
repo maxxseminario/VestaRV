@@ -110,12 +110,15 @@ def read_register_and_update_bitfields(n_clicks, dropdown_ids, numeric_ids):
     State({'type': 'bitfield-dropdown', 'name': ALL}, 'id'),
     State({'type': 'bitfield-numeric', 'name': ALL}, 'value'),
     State({'type': 'bitfield-numeric', 'name': ALL}, 'id'),
+    State({'type': 'reg-input', 'name': ALL}, 'value'),
+    State({'type': 'reg-input', 'name': ALL}, 'id'),
     State({'type': 'reg-write-btn', 'name': MATCH}, 'id'),
     prevent_initial_call=True
 )
-def write_register_from_bitfields(n_clicks, dropdown_values, dropdown_ids, numeric_values, numeric_ids, button_id):
+def write_register_from_bitfields(n_clicks, dropdown_values, dropdown_ids, numeric_values, numeric_ids, reg_input_values, reg_input_ids, button_id):
     """
-    Collect bitfield values and write to register
+    Collect bitfield values and write to register (for CONTROL registers with bitfields)
+    OR write from reg-input (for CONFIG/DATA registers without bitfields)
     """
     if n_clicks is None:
         raise PreventUpdate
@@ -137,10 +140,19 @@ def write_register_from_bitfields(n_clicks, dropdown_values, dropdown_ids, numer
     
     # Get bitfield definitions
     bitfields = get_bitfields(periph_name, reg_name)
+    
     if not bitfields:
+        # No bitfields - this is a simple register (CONFIG/DATA type)
+        # Get value from reg-input control
+        for i, input_id in enumerate(reg_input_ids):
+            if input_id['name'] == full_reg_name:
+                value = reg_input_values[i]
+                if value is not None:
+                    chip.write(addr, int(value))
+                    raise PreventUpdate
         raise PreventUpdate
     
-    # Build register value from bitfields
+    # Has bitfields - build register value from bitfields
     reg_value = 0
     
     # Process dropdown values
