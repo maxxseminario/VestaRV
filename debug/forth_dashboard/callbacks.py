@@ -70,14 +70,16 @@ def read_register_and_update_bitfields(n_clicks_list, dropdown_ids, dropdown_val
     
     for i, dropdown_id in enumerate(dropdown_ids):
         if dropdown_id['name'].startswith(full_reg_name + '_'):
-            field_name = dropdown_id['name'].split('_')[-1]
+            # Extract field name by removing the register prefix
+            field_name = dropdown_id['name'][len(full_reg_name) + 1:]
             if field_name in bitfields:
                 field_val = extract_bitfield(reg_value, bitfields[field_name])
                 dropdown_values[i] = field_val
     
     for i, numeric_id in enumerate(numeric_ids):
         if numeric_id['name'].startswith(full_reg_name + '_'):
-            field_name = numeric_id['name'].split('_')[-1]
+            # Extract field name by removing the register prefix
+            field_name = numeric_id['name'][len(full_reg_name) + 1:]
             if field_name in bitfields:
                 field_val = extract_bitfield(reg_value, bitfields[field_name])
                 numeric_values[i] = field_val
@@ -139,15 +141,17 @@ def write_register_from_bitfields(n_clicks, dropdown_values, dropdown_ids, numer
     
     # Process dropdown values
     for i, dropdown_id in enumerate(dropdown_ids):
-        if dropdown_id['name'].startswith(full_reg_name):
-            field_name = dropdown_id['name'].split('_')[-1]
+        if dropdown_id['name'].startswith(full_reg_name + '_'):
+            # Extract field name by removing the register prefix
+            field_name = dropdown_id['name'][len(full_reg_name) + 1:]
             if field_name in bitfields:
                 reg_value = insert_bitfield(reg_value, bitfields[field_name], dropdown_values[i])
     
     # Process numeric values
     for i, numeric_id in enumerate(numeric_ids):
-        if numeric_id['name'].startswith(full_reg_name):
-            field_name = numeric_id['name'].split('_')[-1]
+        if numeric_id['name'].startswith(full_reg_name + '_'):
+            # Extract field name by removing the register prefix
+            field_name = numeric_id['name'][len(full_reg_name) + 1:]
             if field_name in bitfields:
                 reg_value = insert_bitfield(reg_value, bitfields[field_name], numeric_values[i])
     
