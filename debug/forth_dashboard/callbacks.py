@@ -676,6 +676,7 @@ def update_saradc_plot(stop_clicks, store_data):
     Update histogram plot of SARADC data after acquisition stops
     """
     import plotly.graph_objs as go
+    import os
     
     if not store_data:
         # Return empty plot
