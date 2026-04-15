@@ -18,20 +18,18 @@ from myshkin import get_command_history
 ################################################################################
 
 @app.callback(
-    Output({'type': 'bitfield-dropdown', 'name': MATCH}, 'value'),
-    Output({'type': 'bitfield-numeric', 'name': MATCH}, 'value'),
-    Input({'type': 'reg-read-btn', 'name': MATCH}, 'n_clicks'),
+    Output({'type': 'bitfield-dropdown', 'name': ALL}, 'value'),
+    Output({'type': 'bitfield-numeric', 'name': ALL}, 'value'),
+    Input({'type': 'reg-read-btn', 'name': ALL}, 'n_clicks'),
     State({'type': 'bitfield-dropdown', 'name': ALL}, 'id'),
     State({'type': 'bitfield-numeric', 'name': ALL}, 'id'),
+    State({'type': 'reg-read-btn', 'name': ALL}, 'id'),
     prevent_initial_call=True
 )
-def read_register_and_update_bitfields(n_clicks, dropdown_ids, numeric_ids):
+def read_register_and_update_bitfields(n_clicks_list, dropdown_ids, numeric_ids, button_ids):
     """
     Read register and update all bitfield controls
     """
-    if n_clicks is None:
-        raise PreventUpdate
-    
     # Get the register name from the callback context
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -63,7 +61,7 @@ def read_register_and_update_bitfields(n_clicks, dropdown_ids, numeric_ids):
     if not bitfields:
         raise PreventUpdate
     
-    # Extract bitfield values
+    # Extract bitfield values and update ALL controls
     dropdown_values = []
     numeric_values = []
     
@@ -89,18 +87,7 @@ def read_register_and_update_bitfields(n_clicks, dropdown_ids, numeric_ids):
         else:
             numeric_values.append(dash.no_update)
     
-    # Return proper structure for multi-output
-    if len(dropdown_values) == 1:
-        dropdown_out = dropdown_values[0]
-    else:
-        dropdown_out = dropdown_values
-    
-    if len(numeric_values) == 1:
-        numeric_out = numeric_values[0]
-    else:
-        numeric_out = numeric_values
-    
-    return dropdown_out, numeric_out
+    return dropdown_values, numeric_values
 
 
 @app.callback(
