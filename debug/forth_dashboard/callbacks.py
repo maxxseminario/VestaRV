@@ -579,14 +579,31 @@ def acquire_saradc_data(n_intervals, store_data):
     Output('saradc-plot', 'figure'),
     Output('saradc-sample-count', 'children'),
     Output('saradc-log-file', 'children'),
-    Input('saradc-data-store', 'data'),
+    Input('saradc-acquisition-interval', 'n_intervals'),
+    Input('saradc-start-btn', 'n_clicks'),
+    Input('saradc-stop-btn', 'n_clicks'),
+    State('saradc-data-store', 'data'),
+    prevent_initial_call=True
 )
-def update_saradc_plot(store_data):
+def update_saradc_plot(n_intervals, start_clicks, stop_clicks, store_data):
     """
     Update real-time plot of SARADC data
     """
     if not store_data:
-        raise PreventUpdate
+        # Return empty plot
+        import plotly.graph_objs as go
+        figure = {
+            'data': [],
+            'layout': go.Layout(
+                xaxis={'title': 'Time (s)', 'gridcolor': '#ecf0f1'},
+                yaxis={'title': 'ADC Value (10-bit)', 'range': [0, 1023], 'gridcolor': '#ecf0f1'},
+                margin={'l': 60, 'r': 20, 't': 40, 'b': 50},
+                plot_bgcolor='#ffffff',
+                paper_bgcolor='#ffffff',
+                font={'size': 11}
+            )
+        }
+        return figure, '0', '--'
     
     samples = store_data.get('samples', [])
     timestamps = store_data.get('timestamps', [])
