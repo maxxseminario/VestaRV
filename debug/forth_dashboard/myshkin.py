@@ -148,8 +148,10 @@ class Myshkin:
                 self.register_cache[addr] = value
                 return value
             except (ValueError, IndexError) as e:
-                print(f"Error parsing read response from {addr_to_forth(addr)}: {response} (Error: {e})")
+                print(f"Error parsing read response from {addr_to_forth(addr)}: '{response}' (Tokens: {response.split()}) (Error: {e})")
                 return 0
+        
+        print(f"Warning: Empty response for read from {addr_to_forth(addr)}")
         return 0
 
     def write(self, addr, value):
