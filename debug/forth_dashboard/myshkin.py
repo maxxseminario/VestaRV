@@ -131,12 +131,24 @@ class Myshkin:
         
         if response:
             try:
-                # Parse the numeric response (handles hex and decimal)
-                value = int(response.split()[-1], 0)
+                # Parse the numeric response
+                # Expected format: "0xADDR @ . VALUE >" or similar
+                # We want the token before the final '>' prompt
+                tokens = response.split()
+                
+                # Find the numeric value (skip address, @, ., and >)
+                # Typical response: "0x04B00 @ . 8 >"
+                # We want the value before the '>' prompt
+                if len(tokens) >= 2 and tokens[-1] == '>':
+                    value = int(tokens[-2], 0)
+                else:
+                    # Fallback: try last token
+                    value = int(tokens[-1], 0)
+                
                 self.register_cache[addr] = value
                 return value
-            except (ValueError, IndexError):
-                print(f"Error parsing read response from {addr_to_forth(addr)}: {response}")
+            except (ValueError, IndexError) as e:
+                print(f"Error parsing read response from {addr_to_forth(addr)}: {response} (Error: {e})")
                 return 0
         return 0
 
