@@ -241,10 +241,9 @@ PERIPHERALS = {
         'description': '10-bit Successive Approximation ADC',
         'base_addr': 0x4B00,
         'registers': {
-            'CR': {'addr': 0x4B00, 'size': 2, 'type': 'CONTROL', 'description': 'SARADC control register'},
-            'CDIV': {'addr': 0x4B04, 'size': 1, 'type': 'CONFIG', 'description': 'SARADC clock divider register'},
-            'SR': {'addr': 0x4B08, 'size': 1, 'type': 'STATUS', 'description': 'SARADC status register'},
-            'DATA': {'addr': 0x4B0C, 'size': 2, 'type': 'DATA', 'description': 'SARADC data register'},
+            'CR': {'addr': 0x4B00, 'size': 2, 'type': 'CONTROL', 'description': 'SARADC control register (9 bits)'},
+            'SR': {'addr': 0x4B08, 'size': 1, 'type': 'STATUS', 'description': 'SARADC status register (read-only)'},
+            'DATA': {'addr': 0x4B0C, 'size': 2, 'type': 'DATA', 'description': 'SARADC 10-bit data register (read-only)'},
             'TPR': {'addr': 0x4B10, 'size': 1, 'type': 'CONFIG', 'description': 'SARADC test port register'},
         }
     },

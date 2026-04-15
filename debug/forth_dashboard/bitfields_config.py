@@ -612,9 +612,37 @@ BITFIELDS = {
     },
     
     # SARADC Control Register
+    # Based on SARADC.vhd - 9 bits total (bits 0-8)
     'SARADC_CR': {
+        'CONTMEAS': {
+            'bits': 8,
+            'width': 1,
+            'desc': 'Continuous measurement mode',
+            'values': {
+                0: 'Single conversion',
+                1: 'Continuous conversion'
+            }
+        },
+        'DATAIE': {
+            'bits': 7,
+            'width': 1,
+            'desc': 'ADC data valid interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'DEBUG': {
+            'bits': 6,
+            'width': 1,
+            'desc': 'Debug mode enable',
+            'values': {
+                0: 'Normal mode',
+                1: 'Debug mode'
+            }
+        },
         'EN': {
-            'bits': 15,
+            'bits': 5,
             'width': 1,
             'desc': 'SARADC enable',
             'values': {
@@ -622,40 +650,20 @@ BITFIELDS = {
                 1: 'Enabled'
             }
         },
-        'START': {
-            'bits': 14,
-            'width': 1,
-            'desc': 'Start conversion',
-            'values': {
-                0: 'No action',
-                1: 'Start conversion'
-            }
-        },
-        'CONTCONV': {
-            'bits': 13,
-            'width': 1,
-            'desc': 'Continuous conversion mode',
-            'values': {
-                0: 'Single conversion',
-                1: 'Continuous'
-            }
-        },
-        'RES': {
-            'bits': [11, 12],
-            'width': 2,
-            'desc': 'ADC resolution',
-            'values': {
-                0: '10-bit',
-                1: '8-bit',
-                2: '6-bit',
-                3: 'Reserved'
-            }
-        },
-        'CHSEL': {
-            'bits': [0, 4],
-            'width': 5,
-            'desc': 'Channel select (0-31)',
+        'SAMPLESTEP': {
+            'bits': [1, 4],
+            'width': 4,
+            'desc': 'Sample step counter initial value (0-15)',
             'values': None
+        },
+        'RESET': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'ADC reset',
+            'values': {
+                0: 'Normal operation',
+                1: 'Reset ADC'
+            }
         },
     },
 }
