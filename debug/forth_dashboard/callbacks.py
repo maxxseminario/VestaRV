@@ -493,11 +493,15 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
         import time
         import os
         
+        print("SARADC acquisition starting...")
+        
         # Create log file with timestamp
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         log_dir = os.path.expanduser("~/vestarv/debug/forth_dashboard/saradc_logs")
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, f"saradc_data_{timestamp}.txt")
+        
+        print(f"Log file created: {log_file}")
         
         # Write header to log file
         with open(log_file, 'w') as f:
@@ -509,6 +513,7 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
     
     elif trigger_id == 'saradc-stop-btn':
         # Stop acquisition
+        print("SARADC acquisition stopping...")
         if store_data and store_data.get('acquiring'):
             # Write summary to log file
             log_file = store_data.get('log_file')
@@ -517,6 +522,7 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
                 with open(log_file, 'a') as f:
                     f.write(f"\n# Acquisition stopped: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                     f.write(f"# Total samples: {len(store_data.get('samples', []))}\n")
+                print(f"Total samples collected: {len(store_data.get('samples', []))}")
         
         return True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': None}, 'Stopped'
     
@@ -547,8 +553,8 @@ def acquire_saradc_data(n_intervals, store_data):
         timestamp = current_time - start_time
         
         # Append to data
-        samples = store_data.get('samples', [])
-        timestamps = store_data.get('timestamps', [])
+        samples = store_data.get('samples', []).copy()
+        timestamps = store_data.get('timestamps', []).copy()
         
         samples.append(adc_value)
         timestamps.append(timestamp)
@@ -561,17 +567,27 @@ def acquire_saradc_data(n_intervals, store_data):
         # Log to file
         log_file = store_data.get('log_file')
         if log_file:
-            with open(log_file, 'a') as f:
-                f.write(f"{timestamp:.6f}, {adc_value}, 0x{adc_value:03X}\n")
+            try:
+                with open(log_file, 'a') as f:
+                    f.write(f"{timestamp:.6f}, {adc_value}, 0x{adc_value:03X}\n")
+            except Exception as e:
+                print(f"Error writing to log file {log_file}: {e}")
         
-        # Update store
-        store_data['samples'] = samples
-        store_data['timestamps'] = timestamps
+        # Create new dict to trigger update (Dash requires new object)
+        new_store = {
+            'samples': samples,
+            'timestamps': timestamps,
+            'acquiring': True,
+            'log_file': log_file,
+            'start_time': start_time
+        }
         
-        return store_data
+        return new_store
     
     except Exception as e:
-        print(f"Error reading SARADC: {e}")
+        import traceback
+        print(f"Error in acquire_saradc_data: {e}")
+        traceback.print_exc()
         raise PreventUpdate
 
 
