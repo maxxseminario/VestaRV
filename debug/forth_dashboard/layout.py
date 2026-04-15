@@ -341,11 +341,75 @@ layout = html.Div(
             
             # SARADC Tab
             dcc.Tab(label='SARADC', value='tab-saradc', children=[
-                create_peripheral_tab(
-                    'SARADC',
-                    figure_path='figures/CDAC_layout.png',
-                    figure_caption='Capacitive DAC (CDAC) layout used in the SAR ADC architecture'
-                )
+                html.Div(className='peripheral-tab-content', children=[
+                    *create_peripheral_tab(
+                        'SARADC',
+                        figure_path='figures/CDAC_layout.png',
+                        figure_caption='Capacitive DAC (CDAC) layout used in the SAR ADC architecture'
+                    ).children,
+                    
+                    # Data Acquisition Section
+                    html.H4("Fast Data Acquisition", style={'margin-top': '30px', 'color': '#2c3e50'}),
+                    html.Hr(),
+                    
+                    html.Div(className='register-control', children=[
+                        html.Div(className='register-controls-row', children=[
+                            html.Button(
+                                'Start Acquisition',
+                                id='saradc-start-btn',
+                                className='reg-button',
+                                style={'background-color': '#27ae60'}
+                            ),
+                            html.Button(
+                                'Stop Acquisition',
+                                id='saradc-stop-btn',
+                                className='reg-button',
+                                style={'background-color': '#e74c3c'}
+                            ),
+                            html.Div(
+                                id='saradc-status-display',
+                                className='register-display',
+                                children='Ready',
+                                style={'margin-left': '15px'}
+                            ),
+                        ]),
+                        html.Div(className='register-controls-row', style={'margin-top': '10px'}, children=[
+                            html.Label("Samples: ", style={'margin-right': '5px'}),
+                            html.Div(
+                                id='saradc-sample-count',
+                                children='0',
+                                style={'font-weight': 'bold', 'margin-right': '20px'}
+                            ),
+                            html.Label("Log file: ", style={'margin-right': '5px'}),
+                            html.Div(
+                                id='saradc-log-file',
+                                children='--',
+                                style={'font-style': 'italic'}
+                            ),
+                        ]),
+                    ]),
+                    
+                    # Real-time plot
+                    html.Div(className='register-control', style={'margin-top': '20px'}, children=[
+                        html.Label("Real-time ADC Data"),
+                        dcc.Graph(
+                            id='saradc-plot',
+                            config={'displayModeBar': False},
+                            style={'height': '400px'}
+                        ),
+                    ]),
+                    
+                    # Hidden interval component for data acquisition
+                    dcc.Interval(
+                        id='saradc-acquisition-interval',
+                        interval=50,  # 50ms = 20 Hz acquisition rate
+                        disabled=True,
+                        n_intervals=0
+                    ),
+                    
+                    # Store for acquisition data
+                    dcc.Store(id='saradc-data-store', data={'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': None}),
+                ])
             ]),
             
             # DSADC Tab
