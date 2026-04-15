@@ -568,13 +568,14 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
             
             print("SARADC acquisition starting...")
             
-            # Create log file with timestamp
+            # Create log file with timestamp (relative path)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            log_dir = os.path.expanduser("~/vestarv/debug/forth_dashboard/saradc_logs")
+            log_dir = "saradc_logs"
             os.makedirs(log_dir, exist_ok=True)
-            log_file = os.path.join(log_dir, f"saradc_data_{timestamp}.txt")
+            log_file_relative = os.path.join(log_dir, f"saradc_data_{timestamp}.txt")
+            log_file_absolute = os.path.abspath(log_file_relative)
             
-            print(f"Log file created: {log_file}")
+            print(f"Log file created: {log_file_absolute}")
             
             # Write header to log file
             with open(log_file, 'w') as f:
@@ -582,12 +583,12 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
                 f.write(f"# Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write("# Timestamp(s), ADC_Value(decimal), ADC_Value(hex)\n")
             
-            # Start background acquisition thread
+            # Start background acquisition thread (pass absolute path for file operations)
             acquisition_active = True
-            acquisition_thread = threading.Thread(target=continuous_acquisition_loop, args=(log_file,), daemon=True)
+            acquisition_thread = threading.Thread(target=continuous_acquisition_loop, args=(log_file_absolute,), daemon=True)
             acquisition_thread.start()
         
-        return True, False, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file, 'start_time': time.time()}, 'Acquiring...'
+        return True, False, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file_absolute, 'log_file_display': log_file_relative, 'start_time': time.time()}, 'Acquiring...'
     
     elif trigger_id == 'saradc-stop-btn':
         # Stop acquisition thread
@@ -735,10 +736,9 @@ def update_saradc_plot(stop_clicks, store_data):
         )
     }
     
-    # Format log file path for display
+    # Format log file path for display (use relative path if available)
     if log_file and log_file != '--':
-        import os
-        log_file_display = os.path.basename(log_file)
+        log_file_display = store_data.get('log_file_display', os.path.basename(log_file))
     else:
         log_file_display = '--'
     
