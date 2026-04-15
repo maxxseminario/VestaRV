@@ -92,17 +92,28 @@ class Myshkin:
             # Send command with newline
             self.uart.write((command + '\n').encode('utf-8'))
             self.uart.flush()
-            time.sleep(0.08)  # Increased delay for processing
+            time.sleep(0.1)  # Wait for chip to process
             
-            # Read response with timeout
+            # Read response with timeout - wait for complete response
             response = b''
             start_time = time.time()
-            while time.time() - start_time < 0.2:  # 200ms timeout
+            last_data_time = time.time()
+            
+            while time.time() - start_time < 0.5:  # 500ms total timeout
                 if self.uart.in_waiting > 0:
-                    response += self.uart.read(self.uart.in_waiting)
-                    time.sleep(0.02)
-                else:
+                    chunk = self.uart.read(self.uart.in_waiting)
+                    response += chunk
+                    last_data_time = time.time()
+                    
+                    # If we see the prompt '>', we're done
+                    if b'>' in chunk:
+                        break
+                    time.sleep(0.01)
+                elif response and time.time() - last_data_time > 0.05:
+                    # No new data for 50ms after getting some data - assume done
                     break
+                else:
+                    time.sleep(0.01)
             
             response_str = response.decode('utf-8', errors='replace').strip()
             

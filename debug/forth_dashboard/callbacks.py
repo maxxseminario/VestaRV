@@ -546,6 +546,10 @@ def acquire_saradc_data(n_intervals, store_data):
     try:
         adc_value = chip.read(0x4B0C)
         
+        if adc_value == 0:
+            # Skip logging zeros from failed reads
+            raise PreventUpdate
+        
         # Calculate timestamp
         import time
         current_time = time.time()
@@ -558,6 +562,8 @@ def acquire_saradc_data(n_intervals, store_data):
         
         samples.append(adc_value)
         timestamps.append(timestamp)
+        
+        print(f"Acquired sample {len(samples)}: {adc_value}")  # Debug logging
         
         # Keep only last 1000 samples for plotting
         if len(samples) > 1000:
@@ -595,13 +601,12 @@ def acquire_saradc_data(n_intervals, store_data):
     Output('saradc-plot', 'figure'),
     Output('saradc-sample-count', 'children'),
     Output('saradc-log-file', 'children'),
-    Input('saradc-acquisition-interval', 'n_intervals'),
+    Input('saradc-data-store', 'data'),
     Input('saradc-start-btn', 'n_clicks'),
     Input('saradc-stop-btn', 'n_clicks'),
-    State('saradc-data-store', 'data'),
     prevent_initial_call=True
 )
-def update_saradc_plot(n_intervals, start_clicks, stop_clicks, store_data):
+def update_saradc_plot(store_data, start_clicks, stop_clicks):
     """
     Update real-time plot of SARADC data
     """
@@ -624,6 +629,8 @@ def update_saradc_plot(n_intervals, start_clicks, stop_clicks, store_data):
     samples = store_data.get('samples', [])
     timestamps = store_data.get('timestamps', [])
     log_file = store_data.get('log_file', '--')
+    
+    print(f"Plot update: {len(samples)} samples")  # Debug logging
     
     # Create figure
     import plotly.graph_objs as go
