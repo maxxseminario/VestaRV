@@ -79,6 +79,11 @@ class Myshkin:
             return "0"
             
         try:
+            # Clear any stale data from the buffer first
+            if self.uart.in_waiting > 0:
+                self.uart.reset_input_buffer()
+                time.sleep(0.01)
+            
             # Log command being sent
             log_msg = f"TX: {command}"
             logger.info(log_msg)
@@ -86,15 +91,20 @@ class Myshkin:
             
             # Send command with newline
             self.uart.write((command + '\n').encode('utf-8'))
-            time.sleep(0.05)  # Small delay for processing
+            self.uart.flush()
+            time.sleep(0.08)  # Increased delay for processing
             
-            # Read response
+            # Read response with timeout
             response = b''
-            while self.uart.in_waiting > 0:
-                response += self.uart.read(self.uart.in_waiting)
-                time.sleep(0.01)
+            start_time = time.time()
+            while time.time() - start_time < 0.2:  # 200ms timeout
+                if self.uart.in_waiting > 0:
+                    response += self.uart.read(self.uart.in_waiting)
+                    time.sleep(0.02)
+                else:
+                    break
             
-            response_str = response.decode('utf-8', errors='ignore').strip()
+            response_str = response.decode('utf-8', errors='replace').strip()
             
             # Log response
             if response_str:
@@ -133,22 +143,46 @@ class Myshkin:
             try:
                 # Parse the numeric response
                 # Expected format: "0xADDR @ . VALUE >" or similar
-                # We want the token before the final '>' prompt
-                tokens = response.split()
+                # Clean the response first - remove control chars and '?'
+                cleaned_response = response.replace('\x1a', '').replace('?', '')
+                tokens = cleaned_response.split()
                 
                 # Find the numeric value (skip address, @, ., and >)
                 # Typical response: "0x04B00 @ . 8 >"
                 # We want the value before the '>' prompt
-                if len(tokens) >= 2 and tokens[-1] == '>':
-                    value = int(tokens[-2], 0)
-                else:
-                    # Fallback: try last token
-                    value = int(tokens[-1], 0)
+                value = None
                 
-                self.register_cache[addr] = value
-                return value
+                # Look for the pattern: number followed by '>'
+                for i in range(len(tokens) - 1, -1, -1):
+                    if tokens[i] == '>' and i > 0:
+                        # Try to parse the token before '>'
+                        try:
+                            value = int(tokens[i-1], 0)
+                            break
+                        except ValueError:
+                            continue
+                
+                # If that didn't work, search for any valid number token
+                if value is None:
+                    for token in reversed(tokens):
+                        if token in ['@', '.', '>']:
+                            continue
+                        if token.startswith('0x'):
+                            continue  # Skip addresses
+                        try:
+                            value = int(token, 0)
+                            break
+                        except ValueError:
+                            continue
+                
+                if value is not None:
+                    self.register_cache[addr] = value
+                    return value
+                else:
+                    raise ValueError(f"No valid numeric value found in tokens: {tokens}")
+                    
             except (ValueError, IndexError) as e:
-                print(f"Error parsing read response from {addr_to_forth(addr)}: '{response}' (Tokens: {response.split()}) (Error: {e})")
+                print(f"Error parsing read response from {addr_to_forth(addr)}: '{response}' (Tokens: {cleaned_response.split() if 'cleaned_response' in locals() else response.split()}) (Error: {e})")
                 return 0
         
         print(f"Warning: Empty response for read from {addr_to_forth(addr)}")
