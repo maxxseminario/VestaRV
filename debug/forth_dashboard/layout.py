@@ -402,7 +402,7 @@ layout = html.Div(
                     # Hidden interval component for data acquisition
                     dcc.Interval(
                         id='saradc-acquisition-interval',
-                        interval=50,  # 50ms = 20 Hz acquisition rate
+                        interval=150,  # 150ms = ~6.7 Hz acquisition rate (slower for UART stability)
                         disabled=True,
                         n_intervals=0
                     ),
