@@ -237,6 +237,11 @@ def read_register_control(n_clicks, input_id):
     
     # Read from chip
     value = chip.read(addr)
+    
+    # Fix MSB inversion bug in SARADC DATA register (hardware issue)
+    if addr == 0x4B0C:  # SARADC_DATA
+        value = value ^ 512  # Invert bit 9 (MSB of 10-bit value)
+    
     return value
 
 
