@@ -463,3 +463,166 @@ def measure_smclk_frequency(n_clicks):
             return f"Error: {response}"
     
     return "No response"
+
+
+################################################################################
+# SARADC Fast Data Acquisition
+################################################################################
+
+@app.callback(
+    Output('saradc-acquisition-interval', 'disabled'),
+    Output('saradc-data-store', 'data'),
+    Output('saradc-status-display', 'children'),
+    Input('saradc-start-btn', 'n_clicks'),
+    Input('saradc-stop-btn', 'n_clicks'),
+    State('saradc-data-store', 'data'),
+    prevent_initial_call=True
+)
+def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
+    """
+    Start or stop SARADC data acquisition
+    """
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if trigger_id == 'saradc-start-btn':
+        # Start acquisition
+        import time
+        import os
+        
+        # Create log file with timestamp
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        log_dir = os.path.expanduser("~/vestarv/debug/forth_dashboard/saradc_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, f"saradc_data_{timestamp}.txt")
+        
+        # Write header to log file
+        with open(log_file, 'w') as f:
+            f.write("# SARADC Data Acquisition Log\n")
+            f.write(f"# Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("# Timestamp(s), ADC_Value(decimal), ADC_Value(hex)\n")
+        
+        return False, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file, 'start_time': time.time()}, 'Acquiring...'
+    
+    elif trigger_id == 'saradc-stop-btn':
+        # Stop acquisition
+        if store_data and store_data.get('acquiring'):
+            # Write summary to log file
+            log_file = store_data.get('log_file')
+            if log_file:
+                import time
+                with open(log_file, 'a') as f:
+                    f.write(f"\n# Acquisition stopped: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"# Total samples: {len(store_data.get('samples', []))}\n")
+        
+        return True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': None}, 'Stopped'
+    
+    raise PreventUpdate
+
+
+@app.callback(
+    Output('saradc-data-store', 'data', allow_duplicate=True),
+    Input('saradc-acquisition-interval', 'n_intervals'),
+    State('saradc-data-store', 'data'),
+    prevent_initial_call=True
+)
+def acquire_saradc_data(n_intervals, store_data):
+    """
+    Read SARADC data register at interval and log to file
+    """
+    if not store_data or not store_data.get('acquiring'):
+        raise PreventUpdate
+    
+    # Read SARADC DATA register (address 0x4B0C)
+    try:
+        adc_value = chip.read(0x4B0C)
+        
+        # Calculate timestamp
+        import time
+        current_time = time.time()
+        start_time = store_data.get('start_time', current_time)
+        timestamp = current_time - start_time
+        
+        # Append to data
+        samples = store_data.get('samples', [])
+        timestamps = store_data.get('timestamps', [])
+        
+        samples.append(adc_value)
+        timestamps.append(timestamp)
+        
+        # Keep only last 1000 samples for plotting
+        if len(samples) > 1000:
+            samples = samples[-1000:]
+            timestamps = timestamps[-1000:]
+        
+        # Log to file
+        log_file = store_data.get('log_file')
+        if log_file:
+            with open(log_file, 'a') as f:
+                f.write(f"{timestamp:.6f}, {adc_value}, 0x{adc_value:03X}\n")
+        
+        # Update store
+        store_data['samples'] = samples
+        store_data['timestamps'] = timestamps
+        
+        return store_data
+    
+    except Exception as e:
+        print(f"Error reading SARADC: {e}")
+        raise PreventUpdate
+
+
+@app.callback(
+    Output('saradc-plot', 'figure'),
+    Output('saradc-sample-count', 'children'),
+    Output('saradc-log-file', 'children'),
+    Input('saradc-data-store', 'data'),
+)
+def update_saradc_plot(store_data):
+    """
+    Update real-time plot of SARADC data
+    """
+    if not store_data:
+        raise PreventUpdate
+    
+    samples = store_data.get('samples', [])
+    timestamps = store_data.get('timestamps', [])
+    log_file = store_data.get('log_file', '--')
+    
+    # Create figure
+    import plotly.graph_objs as go
+    
+    figure = {
+        'data': [
+            go.Scatter(
+                x=timestamps,
+                y=samples,
+                mode='lines+markers',
+                marker={'size': 4, 'color': '#3498db'},
+                line={'width': 1, 'color': '#2980b9'},
+                name='ADC Value'
+            )
+        ],
+        'layout': go.Layout(
+            xaxis={'title': 'Time (s)', 'gridcolor': '#ecf0f1'},
+            yaxis={'title': 'ADC Value (10-bit)', 'range': [0, 1023], 'gridcolor': '#ecf0f1'},
+            margin={'l': 60, 'r': 20, 't': 40, 'b': 50},
+            hovermode='closest',
+            plot_bgcolor='#ffffff',
+            paper_bgcolor='#ffffff',
+            font={'size': 11}
+        )
+    }
+    
+    # Format log file path for display
+    if log_file and log_file != '--':
+        import os
+        log_file_display = os.path.basename(log_file)
+    else:
+        log_file_display = '--'
+    
+    return figure, str(len(samples)), log_file_display
+
