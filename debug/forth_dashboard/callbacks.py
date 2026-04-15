@@ -538,6 +538,7 @@ def continuous_acquisition_loop(log_file):
 
 @app.callback(
     Output('saradc-acquisition-interval', 'disabled'),
+    Output('saradc-sample-count-interval', 'disabled'),
     Output('saradc-data-store', 'data'),
     Output('saradc-status-display', 'children'),
     Input('saradc-start-btn', 'n_clicks'),
@@ -586,7 +587,7 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
             acquisition_thread = threading.Thread(target=continuous_acquisition_loop, args=(log_file,), daemon=True)
             acquisition_thread.start()
         
-        return True, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file, 'start_time': time.time()}, 'Acquiring...'
+        return True, False, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file, 'start_time': time.time()}, 'Acquiring...'
     
     elif trigger_id == 'saradc-stop-btn':
         # Stop acquisition thread
@@ -621,14 +622,45 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
                     f.write(f"# Total samples: {sample_count}\n")
                 print(f"Total samples collected: {sample_count}")
         
-        return True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': log_file if store_data else None}, 'Stopped'
+        return True, True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': log_file if store_data else None}, 'Stopped'
     
     raise PreventUpdate
 
 
 @app.callback(
-    Output('saradc-plot', 'figure'),
     Output('saradc-sample-count', 'children'),
+    Input('saradc-sample-count-interval', 'n_intervals'),
+    State('saradc-data-store', 'data'),
+    prevent_initial_call=True
+)
+def update_sample_count_realtime(n_intervals, store_data):
+    """
+    Update sample count display in real-time during acquisition
+    """
+    if not store_data or not store_data.get('acquiring'):
+        raise PreventUpdate
+    
+    log_file = store_data.get('log_file')
+    if not log_file:
+        raise PreventUpdate
+    
+    # Count samples in log file
+    sample_count = 0
+    try:
+        with open(log_file, 'r') as f:
+            for line in f:
+                if not line.startswith('#') and line.strip() and ',' in line:
+                    sample_count += 1
+    except Exception as e:
+        # File might be being written, just return last known count
+        raise PreventUpdate
+    
+    return str(sample_count)
+
+
+@app.callback(
+    Output('saradc-plot', 'figure'),
+    Output('saradc-sample-count', 'children', allow_duplicate=True),
     Output('saradc-log-file', 'children'),
     Input('saradc-stop-btn', 'n_clicks'),
     State('saradc-data-store', 'data'),
