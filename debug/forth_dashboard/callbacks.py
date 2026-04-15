@@ -675,8 +675,8 @@ def update_saradc_plot(stop_clicks, store_data):
         'data': [
             go.Histogram(
                 x=samples,
-                nbinsx=50,  # Number of bins
-                marker={'color': '#3498db', 'line': {'color': '#2980b9', 'width': 1}},
+                xbins=dict(start=0, end=1023, size=1),  # One bin per ADC value (0-1023)
+                marker={'color': '#3498db', 'line': {'color': '#2980b9', 'width': 0.5}},
                 name='ADC Distribution'
             )
         ],
@@ -689,7 +689,7 @@ def update_saradc_plot(stop_clicks, store_data):
             plot_bgcolor='#ffffff',
             paper_bgcolor='#ffffff',
             font={'size': 11},
-            bargap=0.05
+            bargap=0.01
         )
     }
     
