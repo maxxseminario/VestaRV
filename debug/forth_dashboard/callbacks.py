@@ -515,14 +515,27 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
         # Stop acquisition
         print("SARADC acquisition stopping...")
         if store_data and store_data.get('acquiring'):
-            # Write summary to log file
+            # Count actual samples from log file
             log_file = store_data.get('log_file')
+            sample_count = 0
             if log_file:
                 import time
+                import os
+                try:
+                    # Count data lines in log file (skip comment lines)
+                    with open(log_file, 'r') as f:
+                        for line in f:
+                            if not line.startswith('#') and line.strip() and ',' in line:
+                                sample_count += 1
+                except Exception as e:
+                    print(f"Error counting samples in log: {e}")
+                    sample_count = len(store_data.get('samples', []))
+                
+                # Write summary to log file
                 with open(log_file, 'a') as f:
                     f.write(f"\n# Acquisition stopped: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write(f"# Total samples: {len(store_data.get('samples', []))}\n")
-                print(f"Total samples collected: {len(store_data.get('samples', []))}")
+                    f.write(f"# Total samples: {sample_count}\n")
+                print(f"Total samples collected: {sample_count}")
         
         return True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': None}, 'Stopped'
     
@@ -546,8 +559,14 @@ def acquire_saradc_data(n_intervals, store_data):
     try:
         adc_value = chip.read(0x4B0C)
         
+        # Validate ADC value (10-bit ADC: 0-1023)
+        if adc_value < 0 or adc_value > 1023:
+            print(f"Invalid ADC value: {adc_value}, skipping")
+            raise PreventUpdate
+        
         if adc_value == 0:
-            # Skip logging zeros from failed reads
+            # Skip logging zeros from failed reads (likely UART timeout)
+            raise PreventUpdate
             raise PreventUpdate
         
         # Calculate timestamp
@@ -627,10 +646,29 @@ def update_saradc_plot(stop_clicks, store_data):
         }
         return figure, '0', '--'
     
-    samples = store_data.get('samples', [])
     log_file = store_data.get('log_file', '--')
     
-    print(f"Generating histogram with {len(samples)} samples")  # Debug logging
+    # Read samples from log file
+    samples = []
+    if log_file and log_file != '--':
+        try:
+            with open(log_file, 'r') as f:
+                for line in f:
+                    if not line.startswith('#') and line.strip() and ',' in line:
+                        try:
+                            # Parse: "timestamp, value, hex_value"
+                            parts = line.strip().split(',')
+                            if len(parts) >= 2:
+                                value = int(parts[1].strip())
+                                # Validate (10-bit ADC: 0-1023)
+                                if 0 <= value <= 1023:
+                                    samples.append(value)
+                        except (ValueError, IndexError):
+                            continue
+        except Exception as e:
+            print(f"Error reading log file for histogram: {e}")
+    
+    print(f"Generating histogram with {len(samples)} samples from log file")  # Debug logging
     
     # Create histogram
     figure = {
