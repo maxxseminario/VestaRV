@@ -11,6 +11,13 @@ from app import chip
 from peripherals_config import PERIPHERALS
 from bitfields_config import get_bitfields, extract_bitfield, insert_bitfield
 from myshkin import get_command_history
+import threading
+import time
+
+# Global acquisition thread control
+acquisition_thread = None
+acquisition_active = False
+acquisition_lock = threading.Lock()
 
 
 ################################################################################
@@ -474,6 +481,61 @@ def measure_smclk_frequency(n_clicks):
 # SARADC Fast Data Acquisition
 ################################################################################
 
+def continuous_acquisition_loop(log_file):
+    """
+    Continuous acquisition loop that runs in background thread.
+    Reads SARADC as fast as possible and writes to log file.
+    """
+    global acquisition_active
+    
+    print(f"Acquisition thread started, logging to: {log_file}")
+    sample_count = 0
+    start_time = time.time()
+    
+    while True:
+        with acquisition_lock:
+            if not acquisition_active:
+                break
+        
+        try:
+            # Read SARADC DATA register (address 0x4B0C)
+            adc_value = chip.read(0x4B0C)
+            
+            # Validate ADC value (10-bit ADC: 0-1023)
+            if adc_value < 0 or adc_value > 1023:
+                continue
+            
+            # Fix hardware bug: Invert MSB (bit 9) of 10-bit ADC value
+            adc_value = adc_value ^ 512
+            
+            # Skip zeros from failed reads
+            if adc_value == 0:
+                continue
+            
+            # Calculate timestamp
+            timestamp = time.time() - start_time
+            
+            # Write to log file immediately
+            with open(log_file, 'a') as f:
+                f.write(f"{timestamp:.6f}, {adc_value}, 0x{adc_value:03X}\n")
+            
+            sample_count += 1
+            
+            # Print progress every 100 samples
+            if sample_count % 100 == 0:
+                elapsed = time.time() - start_time
+                rate = sample_count / elapsed if elapsed > 0 else 0
+                print(f"Acquired {sample_count} samples, rate: {rate:.1f} Hz")
+                
+        except Exception as e:
+            print(f"Acquisition error: {e}")
+            continue
+    
+    elapsed = time.time() - start_time
+    rate = sample_count / elapsed if elapsed > 0 else 0
+    print(f"Acquisition thread stopped. Total: {sample_count} samples in {elapsed:.2f}s ({rate:.1f} Hz)")
+
+
 @app.callback(
     Output('saradc-acquisition-interval', 'disabled'),
     Output('saradc-data-store', 'data'),
@@ -485,8 +547,10 @@ def measure_smclk_frequency(n_clicks):
 )
 def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
     """
-    Start or stop SARADC data acquisition
+    Start or stop SARADC data acquisition using background thread
     """
+    global acquisition_thread, acquisition_active
+    
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -494,37 +558,52 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
     if trigger_id == 'saradc-start-btn':
-        # Start acquisition
-        import time
+        # Start acquisition in background thread
         import os
         
-        print("SARADC acquisition starting...")
+        with acquisition_lock:
+            if acquisition_active:
+                raise PreventUpdate  # Already running
+            
+            print("SARADC acquisition starting...")
+            
+            # Create log file with timestamp
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            log_dir = os.path.expanduser("~/vestarv/debug/forth_dashboard/saradc_logs")
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, f"saradc_data_{timestamp}.txt")
+            
+            print(f"Log file created: {log_file}")
+            
+            # Write header to log file
+            with open(log_file, 'w') as f:
+                f.write("# SARADC Data Acquisition Log\n")
+                f.write(f"# Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write("# Timestamp(s), ADC_Value(decimal), ADC_Value(hex)\n")
+            
+            # Start background acquisition thread
+            acquisition_active = True
+            acquisition_thread = threading.Thread(target=continuous_acquisition_loop, args=(log_file,), daemon=True)
+            acquisition_thread.start()
         
-        # Create log file with timestamp
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        log_dir = os.path.expanduser("~/vestarv/debug/forth_dashboard/saradc_logs")
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, f"saradc_data_{timestamp}.txt")
-        
-        print(f"Log file created: {log_file}")
-        
-        # Write header to log file
-        with open(log_file, 'w') as f:
-            f.write("# SARADC Data Acquisition Log\n")
-            f.write(f"# Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write("# Timestamp(s), ADC_Value(decimal), ADC_Value(hex)\n")
-        
-        return False, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file, 'start_time': time.time()}, 'Acquiring...'
+        return True, {'samples': [], 'timestamps': [], 'acquiring': True, 'log_file': log_file, 'start_time': time.time()}, 'Acquiring...'
     
     elif trigger_id == 'saradc-stop-btn':
-        # Stop acquisition
+        # Stop acquisition thread
         print("SARADC acquisition stopping...")
+        
+        with acquisition_lock:
+            acquisition_active = False
+        
+        # Wait for thread to finish (with timeout)
+        if acquisition_thread and acquisition_thread.is_alive():
+            acquisition_thread.join(timeout=2.0)
+        
         if store_data and store_data.get('acquiring'):
             # Count actual samples from log file
             log_file = store_data.get('log_file')
             sample_count = 0
             if log_file:
-                import time
                 import os
                 try:
                     # Count data lines in log file (skip comment lines)
@@ -534,7 +613,7 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
                                 sample_count += 1
                 except Exception as e:
                     print(f"Error counting samples in log: {e}")
-                    sample_count = len(store_data.get('samples', []))
+                    sample_count = 0
                 
                 # Write summary to log file
                 with open(log_file, 'a') as f:
@@ -542,87 +621,9 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
                     f.write(f"# Total samples: {sample_count}\n")
                 print(f"Total samples collected: {sample_count}")
         
-        return True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': None}, 'Stopped'
+        return True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': log_file if store_data else None}, 'Stopped'
     
     raise PreventUpdate
-
-
-@app.callback(
-    Output('saradc-data-store', 'data', allow_duplicate=True),
-    Input('saradc-acquisition-interval', 'n_intervals'),
-    State('saradc-data-store', 'data'),
-    prevent_initial_call=True
-)
-def acquire_saradc_data(n_intervals, store_data):
-    """
-    Read SARADC data register at interval and log to file
-    """
-    if not store_data or not store_data.get('acquiring'):
-        raise PreventUpdate
-    
-    # Read SARADC DATA register (address 0x4B0C)
-    try:
-        adc_value = chip.read(0x4B0C)
-        
-        # Validate ADC value (10-bit ADC: 0-1023)
-        if adc_value < 0 or adc_value > 1023:
-            print(f"Invalid ADC value: {adc_value}, skipping")
-            raise PreventUpdate
-        
-        # Fix hardware bug: Invert MSB (bit 9) of 10-bit ADC value
-        # XOR with 512 (0b1000000000) flips bit 9
-        adc_value = adc_value ^ 512
-        
-        if adc_value == 0:
-            # Skip logging zeros from failed reads (likely UART timeout)
-            raise PreventUpdate
-            raise PreventUpdate
-        
-        # Calculate timestamp
-        import time
-        current_time = time.time()
-        start_time = store_data.get('start_time', current_time)
-        timestamp = current_time - start_time
-        
-        # Append to data
-        samples = store_data.get('samples', []).copy()
-        timestamps = store_data.get('timestamps', []).copy()
-        
-        samples.append(adc_value)
-        timestamps.append(timestamp)
-        
-        print(f"Acquired sample {len(samples)}: {adc_value}")  # Debug logging
-        
-        # Keep only last 1000 samples for plotting
-        if len(samples) > 1000:
-            samples = samples[-1000:]
-            timestamps = timestamps[-1000:]
-        
-        # Log to file
-        log_file = store_data.get('log_file')
-        if log_file:
-            try:
-                with open(log_file, 'a') as f:
-                    f.write(f"{timestamp:.6f}, {adc_value}, 0x{adc_value:03X}\n")
-            except Exception as e:
-                print(f"Error writing to log file {log_file}: {e}")
-        
-        # Create new dict to trigger update (Dash requires new object)
-        new_store = {
-            'samples': samples,
-            'timestamps': timestamps,
-            'acquiring': True,
-            'log_file': log_file,
-            'start_time': start_time
-        }
-        
-        return new_store
-    
-    except Exception as e:
-        import traceback
-        print(f"Error in acquire_saradc_data: {e}")
-        traceback.print_exc()
-        raise PreventUpdate
 
 
 @app.callback(
