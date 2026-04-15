@@ -564,6 +564,10 @@ def acquire_saradc_data(n_intervals, store_data):
             print(f"Invalid ADC value: {adc_value}, skipping")
             raise PreventUpdate
         
+        # Fix hardware bug: Invert MSB (bit 9) of 10-bit ADC value
+        # XOR with 512 (0b1000000000) flips bit 9
+        adc_value = adc_value ^ 512
+        
         if adc_value == 0:
             # Skip logging zeros from failed reads (likely UART timeout)
             raise PreventUpdate
