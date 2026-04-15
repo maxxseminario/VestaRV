@@ -601,23 +601,24 @@ def acquire_saradc_data(n_intervals, store_data):
     Output('saradc-plot', 'figure'),
     Output('saradc-sample-count', 'children'),
     Output('saradc-log-file', 'children'),
-    Input('saradc-data-store', 'data'),
-    Input('saradc-start-btn', 'n_clicks'),
     Input('saradc-stop-btn', 'n_clicks'),
+    State('saradc-data-store', 'data'),
     prevent_initial_call=True
 )
-def update_saradc_plot(store_data, start_clicks, stop_clicks):
+def update_saradc_plot(stop_clicks, store_data):
     """
-    Update real-time plot of SARADC data
+    Update histogram plot of SARADC data after acquisition stops
     """
+    import plotly.graph_objs as go
+    
     if not store_data:
         # Return empty plot
-        import plotly.graph_objs as go
         figure = {
             'data': [],
             'layout': go.Layout(
-                xaxis={'title': 'Time (s)', 'gridcolor': '#ecf0f1'},
-                yaxis={'title': 'ADC Value (10-bit)', 'range': [0, 1023], 'gridcolor': '#ecf0f1'},
+                title='ADC Value Histogram',
+                xaxis={'title': 'ADC Value (Bin)', 'gridcolor': '#ecf0f1'},
+                yaxis={'title': 'Count', 'gridcolor': '#ecf0f1'},
                 margin={'l': 60, 'r': 20, 't': 40, 'b': 50},
                 plot_bgcolor='#ffffff',
                 paper_bgcolor='#ffffff',
@@ -627,33 +628,30 @@ def update_saradc_plot(store_data, start_clicks, stop_clicks):
         return figure, '0', '--'
     
     samples = store_data.get('samples', [])
-    timestamps = store_data.get('timestamps', [])
     log_file = store_data.get('log_file', '--')
     
-    print(f"Plot update: {len(samples)} samples")  # Debug logging
+    print(f"Generating histogram with {len(samples)} samples")  # Debug logging
     
-    # Create figure
-    import plotly.graph_objs as go
-    
+    # Create histogram
     figure = {
         'data': [
-            go.Scatter(
-                x=timestamps,
-                y=samples,
-                mode='lines+markers',
-                marker={'size': 4, 'color': '#3498db'},
-                line={'width': 1, 'color': '#2980b9'},
-                name='ADC Value'
+            go.Histogram(
+                x=samples,
+                nbinsx=50,  # Number of bins
+                marker={'color': '#3498db', 'line': {'color': '#2980b9', 'width': 1}},
+                name='ADC Distribution'
             )
         ],
         'layout': go.Layout(
-            xaxis={'title': 'Time (s)', 'gridcolor': '#ecf0f1'},
-            yaxis={'title': 'ADC Value (10-bit)', 'range': [0, 1023], 'gridcolor': '#ecf0f1'},
-            margin={'l': 60, 'r': 20, 't': 40, 'b': 50},
+            title=f'ADC Value Distribution ({len(samples)} samples)',
+            xaxis={'title': 'ADC Value (Bin)', 'gridcolor': '#ecf0f1', 'range': [0, 1023]},
+            yaxis={'title': 'Count', 'gridcolor': '#ecf0f1'},
+            margin={'l': 60, 'r': 20, 't': 60, 'b': 50},
             hovermode='closest',
             plot_bgcolor='#ffffff',
             paper_bgcolor='#ffffff',
-            font={'size': 11}
+            font={'size': 11},
+            bargap=0.05
         )
     }
     

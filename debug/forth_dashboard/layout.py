@@ -389,9 +389,9 @@ layout = html.Div(
                         ]),
                     ]),
                     
-                    # Real-time plot
+                    # Histogram plot (generated after acquisition stops)
                     html.Div(className='register-control', style={'margin-top': '20px'}, children=[
-                        html.Label("Real-time ADC Data"),
+                        html.Label("ADC Value Distribution (generated after stopping)"),
                         dcc.Graph(
                             id='saradc-plot',
                             config={'displayModeBar': False},
