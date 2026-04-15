@@ -242,7 +242,7 @@ PERIPHERALS = {
         'base_addr': 0x4B00,
         'registers': {
             'CR': {'addr': 0x4B00, 'size': 2, 'type': 'CONTROL', 'description': 'SARADC control register (9 bits)'},
-            'SR': {'addr': 0x4B08, 'size': 1, 'type': 'STATUS', 'description': 'SARADC status register (read-only)'},
+            'SR': {'addr': 0x4B08, 'size': 1, 'type': 'CONTROL', 'description': 'SARADC status register (read status, write 1 to clear flags)'},
             'DATA': {'addr': 0x4B0C, 'size': 2, 'type': 'DATA', 'description': 'SARADC 10-bit data register (read-only)'},
             'TPR': {'addr': 0x4B10, 'size': 1, 'type': 'CONFIG', 'description': 'SARADC test port register'},
         }
