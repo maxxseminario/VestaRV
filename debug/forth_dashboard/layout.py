@@ -311,7 +311,7 @@ layout = html.Div(
         # Interval component for live updates
         dcc.Interval(
             id='terminal_update_interval',
-            interval=2000,  # Update every 2 seconds
+            interval=1000,  # Update every 1 second
             n_intervals=0
         ),
 
@@ -468,7 +468,7 @@ layout = html.Div(
                             className="terminal-header",
                             children=[
                                 html.H5("Live Forth Monitor", style={'margin': '0'}),
-                                html.Span("Updates every 2s", className="terminal-subtitle")
+                                html.Span("Updates every 1s", className="terminal-subtitle")
                             ]
                         ),
                         html.Div(
