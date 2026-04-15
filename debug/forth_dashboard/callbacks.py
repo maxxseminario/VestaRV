@@ -578,7 +578,7 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
             print(f"Log file created: {log_file_absolute}")
             
             # Write header to log file
-            with open(log_file, 'w') as f:
+            with open(log_file_absolute, 'w') as f:
                 f.write("# SARADC Data Acquisition Log\n")
                 f.write(f"# Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write("# Timestamp(s), ADC_Value(decimal), ADC_Value(hex)\n")
@@ -601,9 +601,13 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
         if acquisition_thread and acquisition_thread.is_alive():
             acquisition_thread.join(timeout=2.0)
         
+        log_file = None
+        log_file_display = None
+        
         if store_data and store_data.get('acquiring'):
             # Count actual samples from log file
             log_file = store_data.get('log_file')
+            log_file_display = store_data.get('log_file_display')
             sample_count = 0
             if log_file:
                 import os
@@ -623,7 +627,7 @@ def control_saradc_acquisition(start_clicks, stop_clicks, store_data):
                     f.write(f"# Total samples: {sample_count}\n")
                 print(f"Total samples collected: {sample_count}")
         
-        return True, True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': log_file if store_data else None}, 'Stopped'
+        return True, True, {'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': log_file, 'log_file_display': log_file_display}, 'Stopped'
     
     raise PreventUpdate
 
