@@ -22,11 +22,13 @@ from myshkin import get_command_history
     Output({'type': 'bitfield-numeric', 'name': ALL}, 'value'),
     Input({'type': 'reg-read-btn', 'name': ALL}, 'n_clicks'),
     State({'type': 'bitfield-dropdown', 'name': ALL}, 'id'),
+    State({'type': 'bitfield-dropdown', 'name': ALL}, 'value'),
     State({'type': 'bitfield-numeric', 'name': ALL}, 'id'),
+    State({'type': 'bitfield-numeric', 'name': ALL}, 'value'),
     State({'type': 'reg-read-btn', 'name': ALL}, 'id'),
     prevent_initial_call=True
 )
-def read_register_and_update_bitfields(n_clicks_list, dropdown_ids, numeric_ids, button_ids):
+def read_register_and_update_bitfields(n_clicks_list, dropdown_ids, dropdown_values_current, numeric_ids, numeric_values_current, button_ids):
     """
     Read register and update all bitfield controls
     """
@@ -61,31 +63,24 @@ def read_register_and_update_bitfields(n_clicks_list, dropdown_ids, numeric_ids,
     if not bitfields:
         raise PreventUpdate
     
-    # Extract bitfield values and update ALL controls
-    dropdown_values = []
-    numeric_values = []
+    # Extract bitfield values and update only the matching controls
+    # Start with current values to preserve other controls
+    dropdown_values = list(dropdown_values_current) if dropdown_values_current else [dash.no_update] * len(dropdown_ids)
+    numeric_values = list(numeric_values_current) if numeric_values_current else [dash.no_update] * len(numeric_ids)
     
-    for dropdown_id in dropdown_ids:
-        if dropdown_id['name'].startswith(full_reg_name):
+    for i, dropdown_id in enumerate(dropdown_ids):
+        if dropdown_id['name'].startswith(full_reg_name + '_'):
             field_name = dropdown_id['name'].split('_')[-1]
             if field_name in bitfields:
                 field_val = extract_bitfield(reg_value, bitfields[field_name])
-                dropdown_values.append(field_val)
-            else:
-                dropdown_values.append(dash.no_update)
-        else:
-            dropdown_values.append(dash.no_update)
+                dropdown_values[i] = field_val
     
-    for numeric_id in numeric_ids:
-        if numeric_id['name'].startswith(full_reg_name):
+    for i, numeric_id in enumerate(numeric_ids):
+        if numeric_id['name'].startswith(full_reg_name + '_'):
             field_name = numeric_id['name'].split('_')[-1]
             if field_name in bitfields:
                 field_val = extract_bitfield(reg_value, bitfields[field_name])
-                numeric_values.append(field_val)
-            else:
-                numeric_values.append(dash.no_update)
-        else:
-            numeric_values.append(dash.no_update)
+                numeric_values[i] = field_val
     
     return dropdown_values, numeric_values
 
