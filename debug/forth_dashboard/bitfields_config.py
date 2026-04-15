@@ -611,6 +611,48 @@ BITFIELDS = {
         },
     },
     
+    # SARADC Status Register
+    # Based on SARADC.vhd - 4 bits total (bits 0-3)
+    # Bits 1-2 are write-1-to-clear
+    'SARADC_SR': {
+        'ADC_READY': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'ADC ready status (read-only)',
+            'values': {
+                0: 'Not ready',
+                1: 'Ready'
+            }
+        },
+        'OVF_IF': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'ADC overflow interrupt flag (write 1 to clear)',
+            'values': {
+                0: 'No overflow',
+                1: 'Overflow occurred'
+            }
+        },
+        'DATA_VALID': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'ADC data valid flag (write 1 to clear)',
+            'values': {
+                0: 'No new data',
+                1: 'New data available'
+            }
+        },
+        'CONV_BUSY': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'Conversion busy status (read-only)',
+            'values': {
+                0: 'Idle',
+                1: 'Conversion in progress'
+            }
+        },
+    },
+
     # SARADC Control Register
     # Based on SARADC.vhd - 9 bits total (bits 0-8)
     'SARADC_CR': {
