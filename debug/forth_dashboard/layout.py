@@ -407,6 +407,14 @@ layout = html.Div(
                         n_intervals=0
                     ),
                     
+                    # Interval for updating sample count display
+                    dcc.Interval(
+                        id='saradc-sample-count-interval',
+                        interval=500,  # Update sample count every 500ms
+                        disabled=True,
+                        n_intervals=0
+                    ),
+                    
                     # Store for acquisition data
                     dcc.Store(id='saradc-data-store', data={'samples': [], 'timestamps': [], 'acquiring': False, 'log_file': None}),
                 ])
