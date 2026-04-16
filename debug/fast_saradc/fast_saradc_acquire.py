@@ -40,6 +40,10 @@ class FastSARADCAcquire:
         self.uart = None
         self.running = False
         self.sample_count = 0
+        self.uart_combined_log = None
+        self.uart_rx_log = None
+        self.uart_tx_log = None
+        self.acquisition_start_time = None
         
         try:
             self.uart = serial.Serial(
@@ -73,8 +77,15 @@ class FastSARADCAcquire:
         
         # Send Forth read command: "0x4B0C @ ."
         command = f"0x{SARADC_DATA_ADDR:X} @ .\n"
+        tx_time = time.time() - self.acquisition_start_time
         self.uart.write(command.encode('utf-8'))
         self.uart.flush()
+        
+        # Log TX
+        if self.uart_tx_log:
+            self.uart_tx_log.write(f"{tx_time:.6f}, TX, {repr(command)}\n")
+        if self.uart_combined_log:
+            self.uart_combined_log.write(f"{tx_time:.6f}, TX, {repr(command)}\n")
         
         # Read response quickly
         response = b''
@@ -83,6 +94,14 @@ class FastSARADCAcquire:
         while time.time() - start_time < 0.1:  # 100ms timeout
             if self.uart.in_waiting > 0:
                 chunk = self.uart.read(self.uart.in_waiting)
+                rx_time = time.time() - self.acquisition_start_time
+                
+                # Log RX chunk
+                if self.uart_rx_log:
+                    self.uart_rx_log.write(f"{rx_time:.6f}, RX, {repr(chunk.decode('utf-8', errors='replace'))}\n")
+                if self.uart_combined_log:
+                    self.uart_combined_log.write(f"{rx_time:.6f}, RX, {repr(chunk.decode('utf-8', errors='replace'))}\n")
+                
                 response += chunk
                 if b'>' in chunk:  # Prompt indicates complete response
                     break
@@ -143,17 +162,26 @@ class FastSARADCAcquire:
             # If relative path given, put it in logs directory
             log_file = os.path.join(log_dir, log_file)
         
+        # Create UART log files
+        base_name = os.path.splitext(os.path.basename(log_file))[0]
+        uart_combined_file = os.path.join(log_dir, f"{base_name}_uart_combined.txt")
+        uart_rx_file = os.path.join(log_dir, f"{base_name}_uart_rx.txt")
+        uart_tx_file = os.path.join(log_dir, f"{base_name}_uart_tx.txt")
+        
         print(f"\n{'='*60}")
         print(f"Fast SARADC Acquisition")
         print(f"{'='*60}")
-        print(f"Log file: {log_file}")
+        print(f"Data log:        {log_file}")
+        print(f"UART combined:   {uart_combined_file}")
+        print(f"UART RX only:    {uart_rx_file}")
+        print(f"UART TX only:    {uart_tx_file}")
         if duration:
-            print(f"Duration: {duration} seconds")
+            print(f"Duration:        {duration} seconds")
         else:
-            print(f"Duration: Until Ctrl+C")
+            print(f"Duration:        Until Ctrl+C")
         print(f"{'='*60}\n")
         
-        # Write header
+        # Write header to data log
         with open(log_file, 'w') as f:
             f.write("# Fast SARADC Data Acquisition Log\n")
             f.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -161,9 +189,21 @@ class FastSARADCAcquire:
             f.write("# MSB inversion applied (XOR 512)\n")
             f.write("# Timestamp(s), ADC_Value(decimal), ADC_Value(hex)\n")
         
+        # Open UART log files
+        self.uart_combined_log = open(uart_combined_file, 'w')
+        self.uart_rx_log = open(uart_rx_file, 'w')
+        self.uart_tx_log = open(uart_tx_file, 'w')
+        
+        # Write headers to UART logs
+        header = f"# UART Communication Log\n# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n# Timestamp(s), Direction, Data\n"
+        self.uart_combined_log.write(header)
+        self.uart_rx_log.write(f"# UART RX Log\n# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n# Timestamp(s), Direction, Data\n")
+        self.uart_tx_log.write(f"# UART TX Log\n# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n# Timestamp(s), Direction, Data\n")
+        
         self.running = True
         self.sample_count = 0
         start_time = time.time()
+        self.acquisition_start_time = start_time
         last_print_time = start_time
         
         print("Acquiring... (Press Ctrl+C to stop)\n")
@@ -206,6 +246,17 @@ class FastSARADCAcquire:
         finally:
             self.running = False
             
+            # Close UART log files
+            if self.uart_combined_log:
+                self.uart_combined_log.close()
+                self.uart_combined_log = None
+            if self.uart_rx_log:
+                self.uart_rx_log.close()
+                self.uart_rx_log = None
+            if self.uart_tx_log:
+                self.uart_tx_log.close()
+                self.uart_tx_log = None
+            
             # Final statistics
             elapsed = time.time() - start_time
             rate = self.sample_count / elapsed if elapsed > 0 else 0
@@ -216,7 +267,10 @@ class FastSARADCAcquire:
             print(f"Total samples:   {self.sample_count}")
             print(f"Duration:        {elapsed:.2f} seconds")
             print(f"Average rate:    {rate:.1f} Hz")
-            print(f"Log file:        {log_file}")
+            print(f"Data log:        {log_file}")
+            print(f"UART combined:   {uart_combined_file}")
+            print(f"UART RX only:    {uart_rx_file}")
+            print(f"UART TX only:    {uart_tx_file}")
             print(f"{'='*60}\n")
             
             # Write summary to log file
