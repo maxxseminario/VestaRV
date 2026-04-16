@@ -24,6 +24,13 @@ __pycache__/
 *.pyd
 .Python
 
+# SARADC acquisition logs
+debug/forth_dashboard/saradc_logs/
+debug/fast_saradc/logs/
+**/saradc_logs/*.txt
+**/fast_saradc_data_*.txt
+myshkin_commands.log
+
 # LaTeX intermediate files
 *.aux
 *.log

@@ -131,10 +131,17 @@ class FastSARADCAcquire:
             duration: Acquisition duration in seconds (None = run until Ctrl+C)
             log_file: Output log file path
         """
+        # Create logs directory
+        log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        
         # Create log file
         if log_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file = f"fast_saradc_data_{timestamp}.txt"
+            log_file = os.path.join(log_dir, f"fast_saradc_data_{timestamp}.txt")
+        elif not os.path.isabs(log_file):
+            # If relative path given, put it in logs directory
+            log_file = os.path.join(log_dir, log_file)
         
         print(f"\n{'='*60}")
         print(f"Fast SARADC Acquisition")
