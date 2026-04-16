@@ -151,16 +151,42 @@ class SingleShotSARADC:
         """
         print("Setting up SARADC for single-shot mode...")
         
-        # CR = 0x001E (sample time = 15, single-shot, disabled initially)
-        # Bits: [8:0] = 000011110 = 0x1E
-        cr_value = 0x1E  # Sample time = 15, single-shot, disabled
-        self.write_register(self.SARADC_CR, cr_value)
+        # ROBUST RESET SEQUENCE
+        # If ADC was running in continuous mode, we need to properly stop it
         
-        # Clear any pending flags
+        # Step 1: Force disable (clear CR[5] and CR[8])
+        print("  1. Disabling ADC...")
+        cr_disabled = 0x1E  # Sample time = 15, single-shot, disabled
+        self.write_register(self.SARADC_CR, cr_disabled)
+        time.sleep(0.1)  # Wait for any ongoing conversion to abort
+        
+        # Step 2: Read and discard any stale data
+        print("  2. Clearing stale data...")
+        stale_data = self.read_register(self.SARADC_DATA)
+        if stale_data is not None:
+            print(f"     Discarded stale value: {stale_data}")
+        
+        # Step 3: Clear all status flags
+        print("  3. Clearing status flags...")
         self.write_register(self.SARADC_SR, 0x06)  # Clear data_valid and ovf flags
-        
         time.sleep(0.05)
-        print("✓ SARADC configured for single-shot measurements")
+        
+        # Step 4: Verify status register is cleared
+        sr = self.read_register(self.SARADC_SR)
+        print(f"     Status register: 0x{sr:02X}" if sr is not None else "     Status register: ???")
+        
+        # Step 5: Perform a dummy conversion cycle to flush pipeline
+        print("  4. Flushing ADC pipeline with dummy conversion...")
+        self.write_register(self.SARADC_CR, 0x3E)  # Enable
+        time.sleep(0.1)  # Wait for conversion
+        dummy = self.read_register(self.SARADC_DATA)
+        if dummy is not None:
+            print(f"     Dummy read: {dummy} (discarded)")
+        self.write_register(self.SARADC_SR, 0x06)  # Clear flags
+        self.write_register(self.SARADC_CR, 0x1E)  # Disable again
+        time.sleep(0.05)
+        
+        print("✓ SARADC configured and flushed - ready for single-shot measurements")
     
     def trigger_and_read_single(self):
         """
