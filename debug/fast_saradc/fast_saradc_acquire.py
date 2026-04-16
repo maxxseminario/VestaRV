@@ -178,10 +178,6 @@ class FastSARADCAcquire:
                 adc_value = self.read_saradc_fast()
                 
                 if adc_value is not None:
-                    # Skip zeros from failed reads (BEFORE MSB inversion)
-                    if adc_value == 0:
-                        continue
-                    
                     # Validate 10-bit range
                     if 0 <= adc_value <= 1023:
                         # Apply MSB inversion (hardware bug fix)

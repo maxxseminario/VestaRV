@@ -501,10 +501,6 @@ def continuous_acquisition_loop(log_file):
             # Read SARADC DATA register (address 0x4B0C)
             adc_value = chip.read(0x4B0C)
             
-            # Skip zeros from failed reads (BEFORE MSB inversion)
-            if adc_value == 0:
-                continue
-            
             # Validate ADC value (10-bit ADC: 0-1023)
             if adc_value < 0 or adc_value > 1023:
                 continue
