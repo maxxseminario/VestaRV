@@ -20,6 +20,12 @@ python3 fast_saradc_acquire.py
 
 **Performance:** 20-30 Hz or higher (UART limited)
 
+**Output Files:**
+- `*_data.txt` - ADC values with timestamps
+- `*_uart_combined.txt` - All UART TX/RX events in chronological order
+- `*_uart_rx.txt` - Only RX data with timestamps
+- `*_uart_tx.txt` - Only TX commands with timestamps
+
 ### single_shot_saradc.py - Single-Shot Mode
 Triggers individual ADC conversions, one at a time.
 
