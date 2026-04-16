@@ -40,6 +40,7 @@ class FastSARADCAcquire:
         self.uart = None
         self.running = False
         self.sample_count = 0
+        self.corrupted_count = 0
         self.uart_combined_log = None
         self.uart_rx_log = None
         self.uart_tx_log = None
@@ -109,35 +110,62 @@ class FastSARADCAcquire:
             else:
                 time.sleep(0.005)
         
-        # Parse response
+        # Parse response with strict validation
         try:
             response_str = response.decode('utf-8', errors='replace').strip()
-            # Clean control characters
-            cleaned = response_str.replace('\x1a', '').replace('?', '')
-            tokens = cleaned.split()
             
-            # Find numeric value before '>' prompt
+            # Check for corruption markers in the entire response
+            # If the VALUE itself is corrupted, we must reject it
+            if '?' in response_str or '\x1a' in response_str:
+                # Split to check if corruption is in the value or just the address echo
+                tokens = response_str.split()
+                
+                # Expected format: "0x4B0C @ . \n <VALUE> \n >"
+                # Find the value token (should be before '>')
+                value_token = None
+                for i in range(len(tokens) - 1, -1, -1):
+                    if tokens[i] == '>' and i > 0:
+                        value_token = tokens[i-1]
+                        break
+                
+                # If value token contains corruption markers, reject this sample
+                if value_token and ('?' in value_token or '\x1a' in value_token):
+                    return None  # Corrupted value - reject
+            
+            # Validate address echo (optional - allows corrupted echo if value is clean)
+            # Split on newlines to separate: echo, value, prompt
+            lines = response_str.split('\n')
+            
+            # Find numeric value (should be on its own line or before '>')
             value = None
+            for line in lines:
+                line = line.strip()
+                # Skip the command echo and prompt
+                if '@' in line or '>' in line or not line:
+                    continue
+                # Try to parse as integer
+                try:
+                    value = int(line, 0)
+                    # Additional validation: ensure it's in valid 10-bit range
+                    if 0 <= value <= 1023:
+                        return value
+                    else:
+                        return None  # Out of range
+                except ValueError:
+                    continue
+            
+            # Fallback: traditional token parsing
+            tokens = response_str.replace('\x1a', '').replace('?', '').split()
             for i in range(len(tokens) - 1, -1, -1):
                 if tokens[i] == '>' and i > 0:
                     try:
                         value = int(tokens[i-1], 0)
-                        break
+                        if 0 <= value <= 1023:
+                            return value
                     except ValueError:
                         continue
             
-            if value is None:
-                # Fallback: search for any valid number
-                for token in reversed(tokens):
-                    if token in ['@', '.', '>', '0x4B0C']:
-                        continue
-                    try:
-                        value = int(token, 0)
-                        break
-                    except ValueError:
-                        continue
-            
-            return value
+            return None
             
         except Exception as e:
             return None
@@ -202,6 +230,7 @@ class FastSARADCAcquire:
         
         self.running = True
         self.sample_count = 0
+        self.corrupted_count = 0
         start_time = time.time()
         self.acquisition_start_time = start_time
         last_print_time = start_time
@@ -218,7 +247,7 @@ class FastSARADCAcquire:
                 adc_value = self.read_saradc_fast()
                 
                 if adc_value is not None:
-                    # Validate 10-bit range
+                    # Validate 10-bit range (redundant check, but safe)
                     if 0 <= adc_value <= 1023:
                         # Apply MSB inversion (hardware bug fix)
                         adc_value = adc_value ^ 512
@@ -236,9 +265,13 @@ class FastSARADCAcquire:
                         if time.time() - last_print_time >= 1.0:
                             elapsed = time.time() - start_time
                             rate = self.sample_count / elapsed if elapsed > 0 else 0
-                            print(f"Samples: {self.sample_count:6d} | Rate: {rate:6.1f} Hz | "
-                                  f"Elapsed: {elapsed:6.1f}s | Last value: {adc_value:4d}")
+                            corruption_pct = 100.0 * self.corrupted_count / (self.sample_count + self.corrupted_count) if (self.sample_count + self.corrupted_count) > 0 else 0
+                            print(f"Samples: {self.sample_count:6d} | Corrupted: {self.corrupted_count:4d} ({corruption_pct:4.1f}%) | "
+                                  f"Rate: {rate:6.1f} Hz | Elapsed: {elapsed:6.1f}s | Last: {adc_value:4d}")
                             last_print_time = time.time()
+                else:
+                    # Track corrupted/failed reads
+                    self.corrupted_count += 1
         
         except KeyboardInterrupt:
             print("\n\nCtrl+C detected - stopping acquisition...")
@@ -260,13 +293,17 @@ class FastSARADCAcquire:
             # Final statistics
             elapsed = time.time() - start_time
             rate = self.sample_count / elapsed if elapsed > 0 else 0
+            total_reads = self.sample_count + self.corrupted_count
+            corruption_pct = 100.0 * self.corrupted_count / total_reads if total_reads > 0 else 0
             
             print(f"\n{'='*60}")
             print(f"Acquisition Complete")
             print(f"{'='*60}")
-            print(f"Total samples:   {self.sample_count}")
+            print(f"Valid samples:   {self.sample_count}")
+            print(f"Corrupted:       {self.corrupted_count} ({corruption_pct:.1f}%)")
+            print(f"Total attempts:  {total_reads}")
             print(f"Duration:        {elapsed:.2f} seconds")
-            print(f"Average rate:    {rate:.1f} Hz")
+            print(f"Valid rate:      {rate:.1f} Hz")
             print(f"Data log:        {log_file}")
             print(f"UART combined:   {uart_combined_file}")
             print(f"UART RX only:    {uart_rx_file}")
@@ -276,7 +313,8 @@ class FastSARADCAcquire:
             # Write summary to log file
             with open(log_file, 'a') as f:
                 f.write(f"\n# Acquisition stopped: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Total samples: {self.sample_count}\n")
+                f.write(f"# Valid samples: {self.sample_count}\n")
+                f.write(f"# Corrupted samples: {self.corrupted_count} ({corruption_pct:.1f}%)\n")
                 f.write(f"# Duration: {elapsed:.2f} seconds\n")
                 f.write(f"# Average rate: {rate:.1f} Hz\n")
     
