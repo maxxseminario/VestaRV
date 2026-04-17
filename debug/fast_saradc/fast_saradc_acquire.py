@@ -114,56 +114,36 @@ class FastSARADCAcquire:
         try:
             response_str = response.decode('utf-8', errors='replace').strip()
             
-            # Check for corruption markers in the entire response
-            # If the VALUE itself is corrupted, we must reject it
-            if '?' in response_str or '\x1a' in response_str:
-                # Split to check if corruption is in the value or just the address echo
-                tokens = response_str.split()
-                
-                # Expected format: "0x4B0C @ . \n <VALUE> \n >"
-                # Find the value token (should be before '>')
-                value_token = None
-                for i in range(len(tokens) - 1, -1, -1):
-                    if tokens[i] == '>' and i > 0:
-                        value_token = tokens[i-1]
-                        break
-                
-                # If value token contains corruption markers, reject this sample
-                if value_token and ('?' in value_token or '\x1a' in value_token):
-                    return None  # Corrupted value - reject
+            # STRICT VALIDATION: Must have correct address echo
+            # Expected format: "0x4B0C @ .\n<VALUE>\n>"
+            if '0x4B0C @ .' not in response_str:
+                # Address echo is corrupted or missing - reject entire transaction
+                return None
             
-            # Validate address echo (optional - allows corrupted echo if value is clean)
+            # Additional check: reject if corruption markers present anywhere
+            if '?' in response_str or '\x1a' in response_str:
+                return None
+            
             # Split on newlines to separate: echo, value, prompt
             lines = response_str.split('\n')
             
-            # Find numeric value (should be on its own line or before '>')
+            # Find the value line (should be between command echo and prompt)
             value = None
             for line in lines:
                 line = line.strip()
-                # Skip the command echo and prompt
+                # Skip the command echo line and prompt
                 if '@' in line or '>' in line or not line:
                     continue
                 # Try to parse as integer
                 try:
                     value = int(line, 0)
-                    # Additional validation: ensure it's in valid 10-bit range
+                    # Validate 10-bit range
                     if 0 <= value <= 1023:
                         return value
                     else:
                         return None  # Out of range
                 except ValueError:
                     continue
-            
-            # Fallback: traditional token parsing
-            tokens = response_str.replace('\x1a', '').replace('?', '').split()
-            for i in range(len(tokens) - 1, -1, -1):
-                if tokens[i] == '>' and i > 0:
-                    try:
-                        value = int(tokens[i-1], 0)
-                        if 0 <= value <= 1023:
-                            return value
-                    except ValueError:
-                        continue
             
             return None
             
