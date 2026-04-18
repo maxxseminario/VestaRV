@@ -174,22 +174,25 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
              fontsize=8)
     
     # Plot 2: Histogram - Top Right
+    # Note: Use bar() instead of hist() for proper control over y-axis
+    hist_counts, hist_bins = np.histogram(adc_values, bins=range(1025))
     ax2.bar(codes, histogram, width=1.0, color='#3498db', alpha=0.7, edgecolor='#2980b9', linewidth=0.3)
     ax2.set_xlabel('ADC Code')
     ax2.set_ylabel('Count')
-    ax2.set_title('Code Distribution (Histogram)')
+    ax2.set_title('Histogram')
     ax2.grid(True, alpha=0.3, axis='y')
     ax2.set_xlim(0, 1023)
-    # Auto-scale y-axis to fit data
+    # Force y-axis to fit data with 10% headroom
     max_count = np.max(histogram)
     if max_count > 0:
-        ax2.set_ylim(0, max_count * 1.1)  # 10% headroom
+        ax2.set_ylim([0, max_count * 1.1])
+        ax2.autoscale(enable=False, axis='y')  # Disable autoscaling after setting limit
     
     # Plot 3: DNL - Bottom Left
     ax3.plot(codes[actual_min:actual_max+1], dnl[actual_min:actual_max+1], linewidth=0.8, color='#e74c3c', alpha=0.8)
     ax3.set_xlabel('ADC Code')
     ax3.set_ylabel('DNL (LSB)')
-    ax3.set_title(f'Differential Nonlinearity (DNL) [Codes {actual_min}-{actual_max}]')
+    ax3.set_title('Differential Nonlinearity (DNL)')
     ax3.grid(True, alpha=0.3)
     ax3.axhline(y=0, color='k', linestyle='-', linewidth=0.8)
     ax3.axhline(y=1, color='r', linestyle='--', linewidth=0.8, alpha=0.5, label='±1 LSB')
@@ -207,7 +210,7 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     ax4.plot(codes[actual_min:actual_max+1], inl[actual_min:actual_max+1], linewidth=0.8, color='#9b59b6', alpha=0.8)
     ax4.set_xlabel('ADC Code')
     ax4.set_ylabel('INL (LSB)')
-    ax4.set_title(f'Integral Nonlinearity (INL) [Codes {actual_min}-{actual_max}]')
+    ax4.set_title('Integral Nonlinearity (INL)')
     ax4.grid(True, alpha=0.3)
     ax4.axhline(y=0, color='k', linestyle='-', linewidth=0.8)
     ax4.axhline(y=1, color='r', linestyle='--', linewidth=0.8, alpha=0.5, label='±1 LSB')
