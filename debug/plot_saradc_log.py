@@ -154,36 +154,38 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     dnl_rms = np.sqrt(np.mean(dnl_range**2))
     inl_rms = np.sqrt(np.mean(inl_range**2))
     
-    # Create figure with 4 subplots (2x2 grid)
-    fig = plt.figure(figsize=(16, 10))
-    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+    # Create figure with 2x2 grid
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
+    fig.suptitle(f'SARADC Analysis: {os.path.basename(log_file)}', fontsize=14, fontweight='bold')
     
-    # Plot 1: ADC value vs sample number (time series)
-    ax1 = fig.add_subplot(gs[0, :])  # Top row, span both columns
+    # Plot 1: ADC value vs sample number (time series) - Top Left
     ax1.plot(sample_numbers, adc_values, linewidth=0.8, color='#3498db', alpha=0.7)
     ax1.set_xlabel('Sample Number')
     ax1.set_ylabel('ADC Value')
-    ax1.set_title(f'SARADC Data: {os.path.basename(log_file)}')
+    ax1.set_title('Time Series')
     ax1.grid(True, alpha=0.3)
     ax1.axhline(y=mean_value, color='r', linestyle='--', linewidth=1, label=f'Mean: {mean_value:.1f}')
     ax1.legend()
     
     # Add statistics text
-    stats_text = f'Samples: {len(adc_values)} | Min: {min_value} | Max: {max_value} | Mean: {mean_value:.1f} | Std: {std_value:.2f} | Rate: {rate:.1f} Hz'
+    stats_text = f'Samples: {len(adc_values)} | Min: {min_value} | Max: {max_value} | Std: {std_value:.2f} | Rate: {rate:.1f} Hz'
     ax1.text(0.02, 0.98, stats_text, transform=ax1.transAxes, 
-             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
+             fontsize=8)
     
-    # Plot 2: Histogram
-    ax2 = fig.add_subplot(gs[1, 0])  # Bottom left
+    # Plot 2: Histogram - Top Right
     ax2.bar(codes, histogram, width=1.0, color='#3498db', alpha=0.7, edgecolor='#2980b9', linewidth=0.3)
     ax2.set_xlabel('ADC Code')
     ax2.set_ylabel('Count')
     ax2.set_title('Code Distribution (Histogram)')
     ax2.grid(True, alpha=0.3, axis='y')
     ax2.set_xlim(0, 1023)
+    # Auto-scale y-axis to fit data
+    max_count = np.max(histogram)
+    if max_count > 0:
+        ax2.set_ylim(0, max_count * 1.1)  # 10% headroom
     
-    # Plot 3: DNL
-    ax3 = fig.add_subplot(gs[1, 1])  # Bottom right upper
+    # Plot 3: DNL - Bottom Left
     ax3.plot(codes[actual_min:actual_max+1], dnl[actual_min:actual_max+1], linewidth=0.8, color='#e74c3c', alpha=0.8)
     ax3.set_xlabel('ADC Code')
     ax3.set_ylabel('DNL (LSB)')
@@ -197,15 +199,15 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     # Add DNL statistics text
     dnl_stats = f'Max: {dnl_max:.3f} LSB | RMS: {dnl_rms:.3f} LSB'
     ax3.text(0.02, 0.98, dnl_stats, transform=ax3.transAxes,
-             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.5))
-    ax3.legend()
+             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.5),
+             fontsize=8)
+    ax3.legend(fontsize=8)
     
-    # Create second figure for INL (larger view)
-    fig2, ax4 = plt.subplots(1, 1, figsize=(16, 6))
+    # Plot 4: INL - Bottom Right
     ax4.plot(codes[actual_min:actual_max+1], inl[actual_min:actual_max+1], linewidth=0.8, color='#9b59b6', alpha=0.8)
     ax4.set_xlabel('ADC Code')
     ax4.set_ylabel('INL (LSB)')
-    ax4.set_title(f'Integral Nonlinearity (INL) [Codes {actual_min}-{actual_max}] - {os.path.basename(log_file)}')
+    ax4.set_title(f'Integral Nonlinearity (INL) [Codes {actual_min}-{actual_max}]')
     ax4.grid(True, alpha=0.3)
     ax4.axhline(y=0, color='k', linestyle='-', linewidth=0.8)
     ax4.axhline(y=1, color='r', linestyle='--', linewidth=0.8, alpha=0.5, label='±1 LSB')
@@ -215,8 +217,11 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     # Add INL statistics text
     inl_stats = f'Max: {inl_max:.3f} LSB | RMS: {inl_rms:.3f} LSB'
     ax4.text(0.02, 0.98, inl_stats, transform=ax4.transAxes,
-             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='plum', alpha=0.5))
-    ax4.legend()
+             verticalalignment='top', bbox=dict(boxstyle='round', facecolor='plum', alpha=0.5),
+             fontsize=8)
+    ax4.legend(fontsize=8)
+    
+    plt.tight_layout()
     
     # Print summary statistics
     print("\n" + "="*60)
