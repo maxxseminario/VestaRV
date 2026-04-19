@@ -158,7 +158,7 @@ end component;
     --RAM Memory Load Signals 
     signal load_ram : boolean := false;
     signal load_ram_sig : std_logic;
-    signal ram_file_name : string(1 to 44) := "../../../verification/isa/rcf/rv32ui-p-simple.rcf";
+    signal ram_file_name : string(1 to 50) := "../../../verification/isa/rcf/rv32ui-p-simple.rcf";
     signal current_test : integer := 0;
 
     -- SPI Flash Signals 
@@ -637,7 +637,7 @@ end component;
 
     -- Main test sequence
     test_sequence: process
-        variable current_file : string(1 to 44);
+        variable current_file : string(1 to 50);
         variable file_exists : boolean;
     begin
         -- Reset MCU at begining of test 
