@@ -223,7 +223,7 @@ $$(shell mkdir -p $$(build_dir)/$(1))
 $(1)_p_tests_build = $$(patsubst %,$$(build_dir)/$(1)/%,$$(notdir $$($(1)_p_tests)))
 
 $$($(1)_p_tests_build): $$(build_dir)/$(1)/$(1)-p-%: $$(src_dir)/$(1)/%.S
-	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) -I../env/p -I./macros/scalar -T../env/p/link.ld $$< -o $$@
+	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) -I../env/p -I./macros/scalar -I../../platform/gcc/lib/include -T../env/p/link.ld $$< -o $$@
 	$$(MAKE) $$@.rcf  
 $(1)_tests += $$($(1)_p_tests_build)
 
