@@ -659,9 +659,9 @@ class ChipGenerator():
 		memoryXPath =  self.ChipRootDirectory + '/../tools/build/linker-scripts/memory.x'
 		periphXPath =  self.ChipRootDirectory + '/../tools/build/linker-scripts/periph.x'
 		periphSPath =  self.ChipRootDirectory + '/../software/commune/include/periph.S'
-		memoryMapVHDPath =  self.ChipRootDirectory + '/../hardware/MCU/MemoryMap.vhd'
+		memoryMapVHDPath =  self.ChipRootDirectory + '/../hdl/MCU/MemoryMap.vhd'
 		latexUserGuidePath =  self.ChipRootDirectory + '/latex/TRM'
-		signalRoutingVHDPath =  self.ChipRootDirectory + '/../hardware/MCU/MCU.vhd'
+		signalRoutingVHDPath =  self.ChipRootDirectory + '/../hdl/MCU/MCU.vhd'
 		ramRomSizeDir =  self.ChipRootDirectory + '/../tools/build/linker-scripts'
 		chipConfigJsonPath =  self.ChipRootDirectory + '/config/MemoryMap.json'
 		
