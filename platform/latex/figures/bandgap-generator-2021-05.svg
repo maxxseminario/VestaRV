@@ -1,0 +1,733 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 816 1056"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="bandgap-generator-2021-05.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="px"
+     showgrid="true"
+     units="in"
+     inkscape:snap-object-midpoints="true"
+     inkscape:snap-center="true"
+     inkscape:snap-text-baseline="true"
+     inkscape:zoom="16.134891"
+     inkscape:cx="84.041471"
+     inkscape:cy="151.99979"
+     inkscape:window-width="2560"
+     inkscape:window-height="1361"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid16"
+       units="in"
+       spacingx="3"
+       spacingy="3"
+       empspacing="8" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <symbol
+       id="mosfet-pmos">
+      <title
+         id="title113">MOSFET PMOS Transistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 177,198 v 24"
+         id="path1945-4" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 174,201 v 18"
+         id="path2397-8" />
+      <path
+         sodipodi:type="star"
+         style="fill:#000000;stroke:#000000"
+         id="path2725-4"
+         inkscape:flatsided="false"
+         sodipodi:sides="3"
+         sodipodi:cx="135"
+         sodipodi:cy="219"
+         sodipodi:r1="3"
+         sodipodi:r2="1.5"
+         sodipodi:arg1="0"
+         sodipodi:arg2="1.0471976"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         inkscape:transform-center-x="0.75"
+         d="m 138,219 -2.25,1.29904 -2.25,1.29904 V 219 216.40192 l 2.25,1.29904 z"
+         transform="matrix(-1,0,0,1,321,-18)" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 192,192 v 9 h -15"
+         id="path7670-5" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 192,228 v -9 h -15"
+         id="path8425-1" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 174,210 h -6"
+         id="path13161" />
+    </symbol>
+    <symbol
+       id="mosfet-nmos">
+      <title
+         id="title104">MOSFET NMOS Transistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 129,198 v 24"
+         id="path1945" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 126,201 v 18"
+         id="path2397" />
+      <path
+         sodipodi:type="star"
+         style="fill:#000000;stroke:#000000"
+         id="path2725"
+         inkscape:flatsided="false"
+         sodipodi:sides="3"
+         sodipodi:cx="137"
+         sodipodi:cy="219"
+         sodipodi:r1="3"
+         sodipodi:r2="1.5"
+         sodipodi:arg1="0"
+         sodipodi:arg2="1.0471976"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         d="m 140,219 -2.25,1.29904 -2.25,1.29904 V 219 216.40192 l 2.25,1.29904 z"
+         inkscape:transform-center-x="-0.75" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 144,192 v 9 h -15"
+         id="path7670" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 144,228 v -9 h -15"
+         id="path8425" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 126,210 h -6"
+         id="path13387" />
+    </symbol>
+    <symbol
+       id="resistor">
+      <title
+         id="title27">Resistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 216,24 h 6 l 3,-6 6,12 6,-12 6,12 6,-12 6,12 3,-6 h 6"
+         id="path4591" />
+    </symbol>
+    <symbol
+       id="vdd-labeled">
+      <title
+         id="title73">VDD Labeled</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 456,24 V 18"
+         id="path29585" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 447,18 h 18"
+         id="path29737" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none"
+         x="455.95767"
+         y="12.854156"
+         id="text31454"><tspan
+           sodipodi:role="line"
+           id="tspan31452"
+           x="455.95767"
+           y="12.854156">$V_{DD}$</tspan></text>
+    </symbol>
+    <symbol
+       id="bipolar-pnp">
+      <title
+         id="title180">Bipolar PNP Transistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 273,174 v 24"
+         id="path5305" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 288,168 v 6 l -15,6"
+         id="path5657" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 288,204 v -6 l -15,-6"
+         id="path6009" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 273,186 h -9"
+         id="path6361" />
+      <path
+         sodipodi:type="star"
+         style="fill:#000000;stroke:#000000"
+         id="path9120"
+         inkscape:flatsided="false"
+         sodipodi:sides="3"
+         sodipodi:cx="279"
+         sodipodi:cy="171"
+         sodipodi:r1="3"
+         sodipodi:r2="1.5"
+         sodipodi:arg1="-1.5707963"
+         sodipodi:arg2="-0.52359878"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         d="m 279,168 1.29904,2.25 1.29904,2.25 -2.59808,0 -2.59808,0 1.29904,-2.25 z"
+         inkscape:transform-center-y="-0.55708602"
+         transform="rotate(-111.80141,281.7811,173.49223)"
+         inkscape:transform-center-x="0.21390686" />
+    </symbol>
+    <symbol
+       id="ground">
+      <title
+         id="title51">Ground</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 303,24 h 18"
+         id="path3823" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 306,27 h 12"
+         id="path3913" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 309,30 h 6"
+         id="path4003" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 312,24 V 18"
+         id="path4093" />
+    </symbol>
+    <symbol
+       id="solder-dot">
+      <title
+         id="title4">Solder Dot</title>
+      <circle
+         style="fill:#000000;fill-rule:evenodd;fill-opacity:1"
+         id="path36"
+         cx="12"
+         cy="15"
+         r="3" />
+    </symbol>
+    <symbol
+       id="open-node">
+      <title
+         id="title8">Open Node</title>
+      <circle
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1327"
+         cx="48"
+         cy="24"
+         r="3" />
+    </symbol>
+    <symbol
+       id="plus-sign">
+      <title
+         id="title79">Plus Sign</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 360,21 v 6"
+         id="path1102" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 357,24 h 6"
+         id="path1252" />
+    </symbol>
+    <symbol
+       id="minus-sign">
+      <title
+         id="title84">Minus Sign</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 381,24 h 6"
+         id="path1402" />
+    </symbol>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <use
+       xlink:href="#mosfet-pmos"
+       id="use1241"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-72,-168)" />
+    <use
+       xlink:href="#mosfet-nmos"
+       id="use1290"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-24,-132)" />
+    <use
+       xlink:href="#resistor"
+       id="use1334"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="rotate(90,132,12)" />
+    <use
+       xlink:href="#vdd-labeled"
+       id="use1492"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-336)" />
+    <use
+       xlink:href="#bipolar-pnp"
+       id="use1568"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-168)" />
+    <use
+       xlink:href="#ground"
+       id="use1612"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-192,186)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 120,204 H 96 v -18 h 3"
+       id="path1674" />
+    <use
+       xlink:href="#solder-dot"
+       id="use1765"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(108,189)" />
+    <use
+       xlink:href="#mosfet-pmos"
+       id="use1241-6"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(0,-168)" />
+    <use
+       xlink:href="#resistor"
+       id="use1334-0"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="rotate(90,168,48)" />
+    <use
+       xlink:href="#vdd-labeled"
+       id="use1492-1"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-264)" />
+    <use
+       xlink:href="#bipolar-pnp"
+       id="use1568-9"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-96)" />
+    <use
+       xlink:href="#ground"
+       id="use1612-2"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-120,186)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 192,204 h -24 v -18 h 3"
+       id="path1674-4" />
+    <use
+       xlink:href="#solder-dot"
+       id="use1765-1"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(180,189)" />
+    <use
+       xlink:href="#mosfet-pmos"
+       id="use1241-8"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(-1,0,0,1,240,-168)" />
+    <use
+       xlink:href="#mosfet-nmos"
+       id="use1290-9"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(-1,0,0,1,192,-132)" />
+    <use
+       xlink:href="#vdd-labeled"
+       id="use1492-2"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-408)" />
+    <use
+       xlink:href="#bipolar-pnp"
+       id="use1568-0"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(-1,0,0,1,336,0)" />
+    <use
+       xlink:href="#ground"
+       id="use1612-4"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(-1,0,0,1,360,186)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 48,204 H 72 V 186 H 69"
+       id="path1674-7" />
+    <use
+       xlink:href="#solder-dot"
+       id="use1765-2"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="matrix(-1,0,0,1,60,189)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 192,60 V 96"
+       id="path2076" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 72,42 h 96"
+       id="path2191" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 72,78 H 96"
+       id="path2193" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 48,60 H 78 V 78"
+       id="path2472" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 120,60 H 90 V 42"
+       id="path2474" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2485"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(108,45)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2511"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(78,27)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2537"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(66,63)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2563"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(36,45)" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="45"
+       y="45"
+       id="text4214"><tspan
+         sodipodi:role="line"
+         id="tspan4212"
+         x="45"
+         y="45">$M_1$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="45"
+       y="84"
+       id="text4214-0"><tspan
+         sodipodi:role="line"
+         id="tspan4212-7"
+         x="45"
+         y="84">$M_2$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="45"
+       y="195"
+       id="text4214-0-8"><tspan
+         sodipodi:role="line"
+         id="tspan4212-7-3"
+         x="45.000004"
+         y="195">$Q_1$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="44.999996"
+       y="180"
+       id="text4214-0-8-6"><tspan
+         sodipodi:role="line"
+         id="tspan4212-7-3-9"
+         x="44.999996"
+         y="180">$A$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="123"
+       y="84"
+       id="text11133"><tspan
+         sodipodi:role="line"
+         id="tspan11131"
+         x="123"
+         y="84">$M_4$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="123"
+       y="195"
+       id="text11133-0"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1"
+         x="123"
+         y="195">$Q_2$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="123"
+       y="180"
+       id="text11133-0-7"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1-7"
+         x="123"
+         y="180">$nA$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="129"
+       y="123"
+       id="text11133-0-7-6"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1-7-2"
+         x="129"
+         y="123">$R_1$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="201"
+       y="123"
+       id="text11133-0-7-6-9"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1-7-2-7"
+         x="201"
+         y="123">$R_2$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="220.36137"
+       y="75.95507"
+       id="text11133-0-7-6-9-3"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1-7-2-7-8"
+         x="220.36137"
+         y="75.95507">$V_{bg}$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="195"
+       y="195"
+       id="text11133-0-0"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1-0"
+         x="195"
+         y="195">$Q_3$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="195"
+       y="180"
+       id="text11133-0-7-2"><tspan
+         sodipodi:role="line"
+         id="tspan11131-1-7-6"
+         x="195"
+         y="180">$A$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="123"
+       y="36"
+       id="text11133-1"><tspan
+         sodipodi:role="line"
+         id="tspan11131-8"
+         x="123"
+         y="36">$M_3$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="195"
+       y="48"
+       id="text11133-7"><tspan
+         sodipodi:role="line"
+         id="tspan11131-0"
+         x="195"
+         y="48">$M_5$</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 48,96 v 48"
+       id="path15976" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 192,72 h 21"
+       id="path3057" />
+    <use
+       xlink:href="#open-node"
+       id="use3862"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(168,48)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use3891"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(180,57)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 48,144 v 24"
+       id="path3138" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 120,144 v 24"
+       id="path3228" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 192,144 v 24"
+       id="path3318" />
+    <use
+       xlink:href="#open-node"
+       id="use3951"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(60,132)" />
+    <use
+       xlink:href="#open-node"
+       id="use3951-3"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(12,132)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use5548"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(108,141)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use5548-6"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(36,141)" />
+    <use
+       xlink:href="#plus-sign"
+       id="use9058"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-300,120)" />
+    <use
+       xlink:href="#minus-sign"
+       id="use9090"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-276,120)" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="83.95768"
+       y="159.85416"
+       id="text5300"><tspan
+         sodipodi:role="line"
+         id="tspan5298"
+         x="83.95768"
+         y="159.85416">$\Delta V_{BE}$</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 48,156 h 9"
+       id="path2706" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 111,156 h 9"
+       id="path2810" />
+  </g>
+</svg>
