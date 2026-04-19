@@ -1048,5 +1048,5 @@ m.CheckPackagePins()
 ''' Generate all output files '''
 # TODO: Enable saveHardware=True once MCU.vhd has the required "Begin Automatically Generated" headers
 # For now, only generating software files and documentation
-m.Generate(test=False, force=True, saveHardware=False, saveSoftware=True)
+m.Generate(test=False, force=True, saveHardware=True, saveSoftware=True)
 
