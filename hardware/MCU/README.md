@@ -82,7 +82,7 @@ All peripherals share a common memory-mapped register interface: 32-bit word-add
 | **NPU** | `NPU.vhd` | Hardware neural network accelerator (fixed-point MAC array) |
 
 
-For full register-level documentation of each peripheral, see the **MCU User Guide** PDF at [`implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf`](../../implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf).
+For full register-level documentation of each peripheral, see the **Technical Reference Manual (TRM)** PDF at [`implementations/asic/myshkin-2025-11/docs/TRM.pdf`](../../implementations/asic/myshkin-2025-11/docs/TRM.pdf).
 
 ---
 
