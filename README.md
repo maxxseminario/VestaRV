@@ -40,7 +40,7 @@ Below is an example MCU-level block diagram showing one possible instantiation o
 This repository is organized into the following directories:
 
 ### Core Hardware
-- **`hardware/`** — VestaRV core and MCU peripheral VHDL sources
+- **`hdl/`** — VestaRV core and MCU peripheral VHDL sources
   - `MCU/vesta/` — RISC-V processor core implementation
   - `MCU/periph/` — Peripheral modules (GPIO, UART, SPI, Timer, etc.)
   - `MCU/tb/` — Testbenches for simulation
@@ -145,7 +145,7 @@ The following peripherals are included in the example configuration shown above.
    See [`verification/isa/README.md`](verification/isa/README.md) for test details.
 
 6. **VHDL Simulation:**
-   See [`hardware/README.md`](hardware/README.md) for complete GHDL/ModelSim setup, compile order, and step-by-step instructions to run a simulation against the ISA test suite.
+   See [`hdl/README.md`](hdl/README.md) for complete GHDL/ModelSim setup, compile order, and step-by-step instructions to run a simulation against the ISA test suite.
 
 ---
 
