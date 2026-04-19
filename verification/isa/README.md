@@ -126,7 +126,7 @@ The consistent filename length and centralized location make it easy to iterate 
 ## Requirements
 
 - RISC-V GCC toolchain (`riscv-none-elf-gcc`)
-- See `../../build-system/README.md` for toolchain setup instructions
+- See `../../tools/build/README.md` for toolchain setup instructions
 
 ## Test Format
 
