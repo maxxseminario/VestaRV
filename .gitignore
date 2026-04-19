@@ -1,12 +1,22 @@
-# Genererator dir
-generator/
+# Platform generator outputs (auto-generated)
+platform/latex/TRM/
+platform/config/MemoryMap.json
 
 # Build artifacts
 verification/isa/build/
 verification/isa/rcf/
 verification/benchmarks/build/
-firmware/*/obj/
-firmware/*/bin/
+software/*/obj/
+software/*/bin/
+tools/build/linker-scripts/*.x
+tools/build/linker-scripts/*.txt
+
+# Software headers (auto-generated)
+software/commune/include/MemoryMap.h
+software/commune/include/periph.S
+
+# Hardware VHDL (auto-generated)
+hardware/Myshkin.vhd
 
 # Compiled binaries
 *.o
@@ -25,8 +35,8 @@ __pycache__/
 .Python
 
 # SARADC acquisition logs
-debug/forth_dashboard/saradc_logs/
-debug/fast_saradc/logs/
+tools/debug/forth_dashboard/saradc_logs/
+tools/debug/fast_saradc/logs/
 **/saradc_logs/*.txt
 **/fast_saradc_data_*.txt
 myshkin_commands.log
@@ -57,10 +67,8 @@ Thumbs.db
 # ARM IP
 *ARM*
 
-rpi/
-
-# HDL blocks
-hdl/MCU/peripherals/NPU.vhd
-hdl/MCU/periph/SARADC.vhd
-hdl/MCU/periph/AFE.vhd
-hdl/MCU/periph/AFE_FSM.vhd
+# HDL peripheral blocks (custom IP)
+hardware/MCU/peripherals/NPU.vhd
+hardware/MCU/periph/SARADC.vhd
+hardware/MCU/periph/AFE.vhd
+hardware/MCU/periph/AFE_FSM.vhd

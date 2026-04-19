@@ -40,15 +40,21 @@ Below is an example MCU-level block diagram showing one possible instantiation o
 This repository is organized into the following directories:
 
 ### Core Hardware
-- **`hdl/`** — VestaRV core and MCU peripheral VHDL sources
+- **`hardware/`** — VestaRV core and MCU peripheral VHDL sources
   - `MCU/vesta/` — RISC-V processor core implementation
   - `MCU/periph/` — Peripheral modules (GPIO, UART, SPI, Timer, etc.)
   - `MCU/tb/` — Testbenches for simulation
 
 ### Firmware & Software
-- **`firmware/`** — Embedded firmware projects
+- **`software/`** — Embedded firmware projects
   - `bootrom/` — Boot ROM code and Forth interpreter
   - `rv4th/` — Standalone Forth interpreter
+
+### Platform Definition
+- **`platform/`** — Automated toolchain generation system
+  - Generates C headers, linker scripts, documentation from single source
+  - Run `cd platform && make` or see [`platform/README.md`](platform/README.md)
+  - Single Python script defines entire memory map and peripherals
   
 ### Verification
 - **`verification/`** — Test suites and verification infrastructure
@@ -58,15 +64,11 @@ This repository is organized into the following directories:
   - `benchmarks/` — Performance benchmarking tests
   - `env/` — Test environment and linker scripts
 
-### Build System
-- **`build-system/`** — Build infrastructure for all projects
-  - `linker-scripts/` — Memory layout configurations
-  - `scripts/` — Build and conversion utilities (Python, shell)
-  - `templates/` — Project templates for C/C++ development
-  - See [`build-system/README.md`](build-system/README.md) for toolchain setup
-
-### Debug Tools
-- **`debug/`** — GDB server and debugging utilities
+### Tools & Build System
+- **`tools/`** — Development tools and build infrastructure
+  - `build/` — Build system and linker scripts
+  - `debug/` — GDB server and debugging utilities
+  - See [`tools/build/README.md`](tools/build/README.md) for toolchain setup
 
 ### Implementations
 - **`implementations/`** — ASIC and FPGA instantiations of VestaRV
@@ -83,7 +85,7 @@ This repository is organized into the following directories:
 ## Core Specifications
 
 - **ISA:** RV32I Base + M, C, A, ZBA, ZBB, ZBC, ZBS, ZICNTR (partial)
-- **Interrupts:** Stack-based - recursive
+- **Interrupts:** Stack-based recursive interrupt handling
 - **Verification:** Post-physical verified
 - **Extensions:** Bit manipulation, atomic ops, compressed, and multiply/divide instructions
 
@@ -118,25 +120,32 @@ The following peripherals are included in the example configuration shown above.
    cd VestaRV
    ```
 
-2. **Install RISC-V toolchain and dependencies:**
-
-   See [`build-system/README.md`](build-system/README.md) for complete toolchain setup.
-
-3. **Build firmware:**
+2. **Generate toolchain files:**
    ```bash
-   cd firmware/bootrom
+   cd platform
+   make
+   ```
+   This creates headers, linker scripts, and documentation. See [`platform/README.md`](platform/README.md) for details.
+
+3. **Install RISC-V toolchain and dependencies:**
+
+   See [`tools/build/README.md`](tools/build/README.md) for complete toolchain setup.
+
+4. **Build firmware:**
+   ```bash
+   cd software/bootrom
    make all
    ```
 
-4. **Run verification tests:**
+5. **Run verification tests:**
    ```bash
    cd verification/isa
    make rv32ui
    ```
    See [`verification/isa/README.md`](verification/isa/README.md) for test details.
 
-5. **VHDL Simulation:**
-   See [`hdl/README.md`](hdl/README.md) for complete GHDL/ModelSim setup, compile order, and step-by-step instructions to run a simulation against the ISA test suite.
+6. **VHDL Simulation:**
+   See [`hardware/README.md`](hardware/README.md) for complete GHDL/ModelSim setup, compile order, and step-by-step instructions to run a simulation against the ISA test suite.
 
 ---
 

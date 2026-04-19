@@ -1,0 +1,14 @@
+# rv4th_terminal.py dependencies
+#
+# Install on Raspberry Pi 4:
+#   pip3 install -r requirements.txt
+#
+# gpiozero is usually pre-installed on Raspberry Pi OS; if not:
+#   sudo apt install python3-gpiozero
+#
+# pyserial provides the serial.Serial class for UART communication.
+pyserial>=3.5
+
+# gpiozero is optional — only needed when using --reset-pin.
+# Uncomment the line below if you want pip to manage it too.
+# gpiozero>=1.6

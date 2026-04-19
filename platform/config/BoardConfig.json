@@ -1,0 +1,19 @@
+{
+	"ChipName": "smrv32_fpga",
+	"Boards": [
+		{
+			"BoardName": "Mimas V2",
+			"RomBootBaudrate": 19200,
+			"SpiFlashBootBaudrate": 19200,
+			"NormalBaudrate": 19200,
+			"ProgrammingBaudrate": 19200,
+			"LfxtFrequency": 32768,
+			"HfxtFrequency": 12000000,
+			"FtdiAssertReset": null,
+			"FtdiDeassertReset": null,
+			"FtdiBootRom": null,
+			"FtdiBootSpiFlash": null,
+			"FtdiSenseBootState": null
+		}
+	]
+}
