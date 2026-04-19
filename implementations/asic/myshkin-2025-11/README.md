@@ -34,8 +34,8 @@ VestaRV32 implementation taped out to TSMC 65nm process in November 2025.
 
 ## Directory Contents
 
-- **`docs/`** — MCU user guide and documentation
-  - `MCU-User-Guide.pdf` — Complete peripheral and system documentation
+- **`docs/`** — Technical documentation
+  - `TRM.pdf` — Technical Reference Manual with complete peripheral and system documentation
 - **`config/`** — Configuration files used for code generation
   - `MemoryMap.json` — Memory and peripheral address mapping
 - **`images/`** — Block diagrams, layout screenshots, die photos
