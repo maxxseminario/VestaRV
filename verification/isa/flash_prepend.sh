@@ -32,11 +32,14 @@ filter="$1"
 
 # Define the binary strings for each hex value
 line1="00010000101011011011111011101111"  # Command word (0x10adbeef)
-line2="00000000000000001000000000000000"  # Start address (program) (0x00008000)
+line2="00000000000000001000000000000000"  # Start address for vectors (0x00008000)
+line3="00000000000000001000001000000000"  # End address for vectors (0x00008200) - fill with zeros
 line4="11001010111111101011101010111110"  # Execute (0xcafebabe)
 
-# Convert line2 (start address) to decimal for calculation
-start_dec=$((2#${line2}))
+# Start address where actual program code begins in memory
+program_start_address=0x8200
+# Convert to decimal
+program_start_dec=$((program_start_address))
 
 shopt -s nullglob
 for file in $filter; do
@@ -74,12 +77,23 @@ for file in $filter; do
     mapfile -t file_lines < "$file"
     total_lines=${#file_lines[@]}
 
+    tmpfile=$(mktemp)
+    
+    # First, write the interrupt vector area (0x8000 to 0x8200) filled with zeros
+    # This is 512 bytes = 128 words
+    echo "$line1" >> "$tmpfile"
+    echo "$line2" >> "$tmpfile"
+    echo "$line3" >> "$tmpfile"
+    # Write 128 zero words (512 bytes from 0x8000 to 0x81FF)
+    for ((z = 0; z < 128; z++)); do
+        echo "00000000000000000000000000000000" >> "$tmpfile"
+    done
+
+    # Now process the actual program data starting at 0x8200
     # We'll find all contiguous nonzero regions
     in_region=0
     region_start=0
     region_end=0
-
-    tmpfile=$(mktemp)
 
     for ((i = 0; i <= total_lines; i++)); do
         line="${file_lines[i]}"
@@ -124,8 +138,9 @@ for file in $filter; do
             # Separator or EOF: if we were in a region, end it
             if [ $in_region -eq 1 ]; then
                 # region_start ... region_end is a region to be written
-                seg_start_dec=$((start_dec + 4 * region_start))
-                seg_end_dec=$((start_dec + 4 * (region_end + 1))) # not inclusive
+                # Calculate addresses based on program starting at 0x8200
+                seg_start_dec=$((program_start_dec + 4 * region_start))
+                seg_end_dec=$((program_start_dec + 4 * (region_end + 1))) # not inclusive
                 seg_start_bin=$(python3 -c "print(format($seg_start_dec, '032b'))")
                 seg_end_bin=$(python3 -c "print(format($seg_end_dec, '032b'))")
 

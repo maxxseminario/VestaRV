@@ -7,7 +7,7 @@ TARGET = blinky
 # WARNING: start.S must be first
 SRC_SOURCES = start.S main.c
 LIB_SOURCES =
-EXTENSIONS = imac
+EXTENSIONS = ima
 
 # Directories
 LIB_DIR = ../commune
@@ -66,22 +66,18 @@ SRC_OBJS = $(patsubst $(SRC_DIR)/%.S,$(OBJ_DIR)/%.o,$(patsubst $(SRC_DIR)/%.c,$(
 LIB_OBJS = $(patsubst $(LIB_SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(filter %.c,$(LIB_FILES)))
 ALL_OBJS = $(SRC_OBJS) $(LIB_OBJS)
 
-.PHONY: all clean flash sim help
+.PHONY: all clean help
 
 help:
 	@echo "$(TARGET) Build Targets:"
-	@echo "  make all      - Build ELF, binary, hex, dump, and RCF files"
-	@echo "  make flash    - Add SPI flash headers to RCF file (required for Xcelium)"
-	@echo "  make sim      - Run simulation in Xcelium (requires flash target first)"
+	@echo "  make all      - Build ELF, binary, hex, dump, and RCF with flash headers"
 	@echo "  make clean    - Remove all build artifacts"
 
-all: $(BIN_DIR)/$(TARGET).elf $(BIN_DIR)/$(TARGET).bin $(BIN_DIR)/$(TARGET).hex $(BIN_DIR)/$(TARGET).dump $(RCF_DIR)/$(TARGET).rcf
+all: $(BIN_DIR)/$(TARGET).dump $(RCF_DIR)/*$(TARGET).rcf
+	@echo ""
 	@echo "Build complete: $(TARGET)"
 	@$(SIZE) $(BIN_DIR)/$(TARGET).elf
-	@echo ""
-	@echo "Next steps:"
-	@echo "  make flash    - Add SPI flash headers for simulation"
-	@echo "  make sim      - Run in Xcelium testbench"
+	@echo "RCF file with flash headers ready for simulation"
 
 $(BIN_DIR)/$(TARGET).elf: $(ALL_OBJS) | $(BIN_DIR)
 	$(CC) $(LDFLAGS) -o $@ $(ALL_OBJS)
@@ -145,21 +141,11 @@ $(RCF_DIR)/$(TARGET).rcf: $(BIN_DIR)/$(TARGET)_padded.bin | $(RCF_DIR)
 	fi
 	@echo "RCF file created: $@"
 
-# Add SPI flash protocol headers
-flash: $(RCF_DIR)/$(TARGET).rcf
+# Add SPI flash protocol headers (now part of all target)
+$(RCF_DIR)/*$(TARGET).rcf: $(RCF_DIR)/$(TARGET).rcf
 	@echo "Adding SPI flash headers to RCF file..."
 	@$(FLASH_SCRIPT) "$(RCF_DIR)/$(TARGET).rcf" 22
 	@echo "Flash headers added successfully"
-	@echo "RCF file ready for Xcelium simulation"
-
-# Run simulation in Xcelium
-sim: flash
-	@echo "Starting Xcelium simulation..."
-	@echo "Copying RCF to verification test directory..."
-	@cp $(RCF_DIR)/*$(TARGET).rcf ../../verification/isa/rcf/
-	@echo "Launch Xcelium and load: ../../../verification/isa/rcf/*$(TARGET).rcf"
-	@echo ""
-	@echo "Note: Update your testbench to load the $(TARGET) RCF file"
 
 $(OBJ_DIR):
 	mkdir -p $@
