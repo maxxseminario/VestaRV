@@ -379,56 +379,56 @@ all-rcf: $(tests_rcf)
 .PHONY: rv32ui-flash
 rv32ui-flash: riscv32-clean rv32ui
 	@echo "Flashing: Prepending binary header lines to rv32ui .rcf files ..."
-	@echo "Files to flash: " *rv32ui*.rcf
-	@./flash_prepend.sh "*rv32ui*.rcf"
+	@echo "Files to flash: " rcf/*rv32ui*.rcf
+	@./flash_prepend.sh "rcf/*rv32ui*.rcf"
 
 .PHONY: rv32um-flash
 rv32um-flash: riscv32um-clean rv32um
 	@echo "Flashing: Prepending binary header lines to rv32um .rcf files ..."
-	@echo "Files to flash: " *rv32um*.rcf
-	@./flash_prepend.sh "*rv32um*.rcf"
+	@echo "Files to flash: " rcf/*rv32um*.rcf
+	@./flash_prepend.sh "rcf/*rv32um*.rcf"
 
 .PHONY: rv32uc-flash
 rv32uc-flash: riscv32uc-clean rv32uc
 	@echo "Flashing: Prepending binary header lines to rv32uc .rcf files ..."
-	@echo "Files to flash: " *rv32uc*.rcf
-	@./flash_prepend.sh "*rv32uc*.rcf"
+	@echo "Files to flash: " rcf/*rv32uc*.rcf
+	@./flash_prepend.sh "rcf/*rv32uc*.rcf"
 
 .PHONY: rv32ua-flash
 rv32ua-flash: riscv32ua-clean rv32ua
 	@echo "Flashing: Prepending binary header lines to rv32ua .rcf files ..."
-	@echo "Files to flash: " *rv32ua*.rcf
-	@./flash_prepend.sh "*rv32ua*.rcf"
+	@echo "Files to flash: " rcf/*rv32ua*.rcf
+	@./flash_prepend.sh "rcf/*rv32ua*.rcf"
 
 .PHONY: rv32uzba-flash
 rv32uzba-flash: riscv32uzba-clean rv32uzba
 	@echo "Flashing: Prepending binary header lines to rv32uzba .rcf files ..."
-	@echo "Files to flash: " *rv32uzba*.rcf
-	@./flash_prepend.sh "*rv32uzba*.rcf"
+	@echo "Files to flash: " rcf/*rv32uzba*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzba*.rcf"
 
 .PHONY: rv32uzbb-flash
 rv32uzbb-flash: riscv32uzbb-clean rv32uzbb
 	@echo "Flashing: Prepending binary header lines to rv32uzbb .rcf files ..."
-	@echo "Files to flash: " *rv32uzbb*.rcf
-	@./flash_prepend.sh "*rv32uzbb*.rcf"
+	@echo "Files to flash: " rcf/*rv32uzbb*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzbb*.rcf"
 
 .PHONY: rv32uzbs-flash
 rv32uzbs-flash: riscv32uzbs-clean rv32uzbs
 	@echo "Flashing: Prepending binary header lines to rv32uzbs .rcf files ..."
-	@echo "Files to flash: " *rv32uzbs*.rcf
-	@./flash_prepend.sh "*rv32uzbs*.rcf"
+	@echo "Files to flash: " rcf/*rv32uzbs*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzbs*.rcf"
 
 .PHONY: rv32uzbc-flash
 rv32uzbc-flash: riscv32uzbc-clean rv32uzbc
 	@echo "Flashing: Prepending binary header lines to rv32uzbc .rcf files ..."
-	@echo "Files to flash: " *rv32uzbc*.rcf
-	@./flash_prepend.sh "*rv32uzbc*.rcf"
+	@echo "Files to flash: " rcf/*rv32uzbc*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzbc*.rcf"
 
 .PHONY: rv32ziscr-flash
 rv32ziscr-flash: riscv32ziscr-clean rv32ziscr
 	@echo "Flashing: Prepending binary header lines to rv32ziscr .rcf files ..."
-	@echo "Files to flash: " *rv32ziscr*.rcf
-	@./flash_prepend.sh "*rv32ziscr*.rcf"
+	@echo "Files to flash: " rcf/*rv32ziscr*.rcf
+	@./flash_prepend.sh "rcf/*rv32ziscr*.rcf"
 
 .PHONY: spifem-flash
 spifem-flash: spifem
@@ -438,10 +438,10 @@ spifem-flash: spifem
 .PHONY: periph-flash
 periph-flash: periph-clean periph
 	@echo "Flashing: Prepending binary header lines to periph .rcf files ..."
-	@echo "Files to flash: " *periph*.rcf
-	@./flash_prepend.sh "*periph*.rcf"
+	@echo "Files to flash: " rcf/*periph*.rcf
+	@./flash_prepend.sh "rcf/*periph*.rcf"
 	@echo "Inserting test code into flash image at offset 0x2000..."
-	@python3 ../python/rcf_insert.py xxxxperiph-p-SPIEM.rcf xxxxxxxspifem-p-lw.rcf xxxxperiph-p-SPIFM.rcf --index 0x800
+	@python3 ../python/rcf_insert.py rcf/xxxxperiph-p-SPIEM.rcf rcf/xxxxxxxspifem-p-lw.rcf rcf/xxxxperiph-p-SPIFM.rcf --index 0x800
 
 
 # Target basename length for all RCF files (must match flash_prepend.sh TARGET_BASENAME_LEN).

@@ -938,7 +938,8 @@ class ChipGenerator():
 					if bf.Size == 1:
 						if bf.SameNameAsRegister:
 							continue
-						t.AddRow(['#define ' + bf.Name, '(' + self.fmthex(bf.BitMask, minDigits=hexDigits) + ')', '// bit ' + str(bf.MSB)])
+						# Changed: Add _BIT suffix to avoid conflicts with struct bitfield names
+						t.AddRow(['#define ' + bf.Name + '_BIT', '(' + self.fmthex(bf.BitMask, minDigits=hexDigits) + ')', '// bit ' + str(bf.MSB)])
 						t.AddRow(['#define ' + bf.Name + '_LSB', '(' + self.fmtint(bf.LSB, minDigits=1) + ')'])
 						bfDefines += 1
 					else:
@@ -973,14 +974,16 @@ class ChipGenerator():
 			
 			for r in p.Registers:
 				t.AddRow(['#define ' + r.Name + '_ADDRESS', '(' + self.fmthex(r.Address) + ')'])
-				macroStr = None
-				if r.Size == 8:
-					macroStr = 'MMR_08_BIT_MACRO'
-				elif r.Size == 16:
-					macroStr = 'MMR_16_BIT_MACRO'
-				else:
-					macroStr = 'MMR_32_BIT_MACRO'
-				t.AddRow(['#define ' + r.Name, macroStr + '(' + r.Name + '_ADDRESS)'])
+				# NOTE: Register access macros disabled to avoid conflicts with struct field names
+				# Users should use peripheral structs instead: PERIPHERAL->REGISTER.value
+				# macroStr = None
+				# if r.Size == 8:
+				# 	macroStr = 'MMR_08_BIT_MACRO'
+				# elif r.Size == 16:
+				# 	macroStr = 'MMR_16_BIT_MACRO'
+				# else:
+				# 	macroStr = 'MMR_32_BIT_MACRO'
+				# t.AddRow(['#define ' + r.Name, macroStr + '(' + r.Name + '_ADDRESS)'])
 			t.AddBlankLines(3)
 		
 		s += t.ToString()
@@ -1544,7 +1547,8 @@ class ChipGenerator():
 					if bf.Size == 1:
 						if bf.SameNameAsRegister:
 							continue
-						t.AddRow(['#define ' + bf.Name, self.fmthex(bf.BitMask, minDigits=hexDigits), '// bit ' + str(bf.MSB)])
+						# Changed: Add _BIT suffix to avoid conflicts with struct bitfield names
+						t.AddRow(['#define ' + bf.Name + '_BIT', self.fmthex(bf.BitMask, minDigits=hexDigits), '// bit ' + str(bf.MSB)])
 						t.AddRow(['#define ' + bf.Name + '_LSB', self.fmtint(bf.LSB, minDigits=1)])
 						bfDefines += 1
 					else:
