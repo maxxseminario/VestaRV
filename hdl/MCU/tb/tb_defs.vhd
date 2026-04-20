@@ -15,117 +15,117 @@ package tb_defs is
 
     
     -- Type definitions
-    type file_array is array (natural range <>) of string(1 to 44);
+    type file_array is array (natural range <>) of string(1 to 29);
 
         -- List of RCF test files
     constant test_files : file_array := (
-        -- "../../../verification/isa/rcf/rv32ui-p-simple.rcf", -- Simplest Test
-        -- "../../../verification/isa/rcf/invalid.rcf", -- Invalid SPI Flash Command Tests
-        -- "../../../verification/isa/rcf/load_stpgtram.rcf", -- Start address greater than RAM end
-        -- "../../../verification/isa/rcf/load_strtgtstp.rcf", -- Start address greater than stop address
-        -- "../../../verification/isa/rcf/load_strtltram.rcf", -- Start address less than RAM lower bound
-        "../../../verification/isa/rcf/rv32ua-p-lrsc.rcf", -- Currently only working if ran on its own - signature section overwritten by previous tests. Also - need to zero foo section of memory to work post genus. Fail innovus
-        "../../../verification/isa/rcf/rv32ui-p-lb.rcf", -- Load Instructions - Start innovus pass 11/11
-        "../../../verification/isa/rcf/rv32ui-p-lh.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-lw.rcf", 
-        "../../../verification/isa/rcf/rv32ui-p-lbu.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-lhu.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-addi.rcf",  -- Immediete Instructions
-        "../../../verification/isa/rcf/rv32ui-p-slli.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-slti.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-sltiu.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-srli.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-srai.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-ori.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-andi.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-auipc.rcf", -- AUIPC
-        "../../../verification/isa/rcf/rv32ui-p-sb.rcf", -- Store Instructions
-        "../../../verification/isa/rcf/rv32ui-p-sh.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-sw.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-add.rcf", -- Arithmetic Instructions
-        "../../../verification/isa/rcf/rv32ui-p-sub.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-sll.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-slt.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-sltu.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-xor.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-srl.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-sra.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-or.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-and.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-lui.rcf", 
-        "../../../verification/isa/rcf/rv32ui-p-beq.rcf", --Branch Instructions
-        "../../../verification/isa/rcf/rv32ui-p-bne.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-blt.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-bge.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-bltu.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-bgeu.rcf",
-        "../../../verification/isa/rcf/rv32ui-p-jalr.rcf", --Jump Instructions
-        "../../../verification/isa/rcf/rv32ui-p-jal.rcf", 
-        "../../../verification/isa/rcf/rv32uc-p-rvc.rcf", -- NO longer needed - all tests are compiled compressed
-        "../../../verification/isa/rcf/rv32um-p-div.rcf", -- Division Instructions
-        "../../../verification/isa/rcf/rv32um-p-divu.rcf",
-        "../../../verification/isa/rcf/rv32um-p-mul.rcf", -- Multiplication Instructions
-        "../../../verification/isa/rcf/rv32um-p-mulh.rcf",
-        "../../../verification/isa/rcf/rv32um-p-mulhsu.rcf",
-        "../../../verification/isa/rcf/rv32um-p-mulhu.rcf", 
-        "../../../verification/isa/rcf/rv32um-p-rem.rcf", -- Remainder Instructions 
-        "../../../verification/isa/rcf/rv32um-p-remu.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amoadd_w.rcf", -- Atomic Instructions
-        "../../../verification/isa/rcf/rv32ua-p-amoand_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amomax_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amomaxu_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amomin_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amominu_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amoor_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amoxor_w.rcf",
-        "../../../verification/isa/rcf/rv32ua-p-amoswap_w.rcf",
-        "../../../verification/isa/rcf/rv32uzba-p-sh1add.rcf", -- Bit Manipulation - Address Generation Instructions - pass start innovus
-        "../../../verification/isa/rcf/rv32uzba-p-sh2add.rcf",
-        "../../../verification/isa/rcf/rv32uzba-p-sh3add.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-ror.rcf", -- Bit Manipulation - Basic Instructions
-        "../../../verification/isa/rcf/rv32uzbb-p-sext_b.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-sext_h.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-zext_h.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-orc_b.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-andn.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-cpop.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-maxu.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-minu.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-rev8.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-rori.rcf", 
-        "../../../verification/isa/rcf/rv32uzbb-p-xnor.rcf", -- pass end innovus
-        "../../../verification/isa/rcf/rv32uzbb-p-clz.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-ctz.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-max.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-min.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-orn.rcf",
-        "../../../verification/isa/rcf/rv32uzbb-p-rol.rcf", 
-        "../../../verification/isa/rcf/rv32uzbs-p-bclri.rcf", -- Bit Manipulation - Single Bit Instructions
-        "../../../verification/isa/rcf/rv32uzbs-p-bexti.rcf",
-        "../../../verification/isa/rcf/rv32uzbs-p-binvi.rcf",
-        "../../../verification/isa/rcf/rv32uzbs-p-bseti.rcf",
-        "../../../verification/isa/rcf/rv32uzbs-p-bclr.rcf",
-        "../../../verification/isa/rcf/rv32uzbs-p-bext.rcf",
-        "../../../verification/isa/rcf/rv32uzbs-p-binv.rcf",
-        "../../../verification/isa/rcf/rv32uzbs-p-bset.rcf", -- inn
-        "../../../verification/isa/rcf/rv32uzbc-p-clmulh.rcf", -- Bit Manipulation - Carryless Mult Instructions
-        "../../../verification/isa/rcf/rv32uzbc-p-clmulr.rcf", -- Fail Genus 11/01/25
-        "../../../verification/isa/rcf/rv32uzbc-p-clmul.rcf",
-        "../../../verification/isa/rcf/rv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
-        "../../../verification/isa/rcf/periph-p-UART.rcf",  
-        "../../../verification/isa/rcf/periph-p-UARTIRQ.rcf", 
-        "../../../verification/isa/rcf/periph-p-SYSTEM.rcf", 
-        "../../../verification/isa/rcf/periph-p-TIMER.rcf",
-        "../../../verification/isa/rcf/periph-p-NPU.rcf", -- Peripheral Tests
-        "../../../verification/isa/rcf/periph-p-SPIFM.rcf",
-        "../../../verification/isa/rcf/periph-p-AFE.rcf",  
-        "../../../verification/isa/rcf/periph-p-SARADC.rcf",  
-        "../../../verification/isa/rcf/periph-p-GPIO1.rcf",   
-        "../../../verification/isa/rcf/periph-p-GPIO2.rcf",   
-        "../../../verification/isa/rcf/rv32ziscr-p-csr.rcf"     -- CSR Instructions (Custom)    
-        -- "../../../verification/isa/rcf/periph-p-SPI.rcf",  -- not tested here down
-        -- "../../../verification/isa/rcf/periph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
-        -- "../../../verification/isa/rcf/periph-p-SPI.rcf" 
+        -- "../rcf/xxxrv32ui-p-simple.rcf", -- Simplest Test
+        -- "../rcf/xxxxxxxxxxxinvalid.rcf", -- Invalid SPI Flash Command Tests
+        -- "../rcf/xxxxxload_stpgtram.rcf", -- Start address greater than RAM end
+        -- "../rcf/xxxxload_strtgtstp.rcf", -- Start address greater than stop address
+        -- "../rcf/xxxxload_strtltram.rcf", -- Start address less than RAM lower bound
+        -- "../rcf/xxxxxrv32ua-p-lrsc.rcf", -- Currently only working if ran on its own - signature section overwritten by previous tests. Also - need to zero foo section of memory to work post genus. Fail innovus
+        -- "../rcf/xxxxxxxrv32ui-p-lb.rcf", -- Load Instructions - Start innovus pass 11/11
+        -- "../rcf/xxxxxxxrv32ui-p-lh.rcf",
+        -- "../rcf/xxxxxxxrv32ui-p-lw.rcf", 
+        -- "../rcf/xxxxxxrv32ui-p-lbu.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-lhu.rcf",
+        -- "../rcf/xxxxxrv32ui-p-addi.rcf",  -- Immediete Instructions
+        -- "../rcf/xxxxxrv32ui-p-slli.rcf",
+        -- "../rcf/xxxxxrv32ui-p-slti.rcf",
+        -- "../rcf/xxxxrv32ui-p-sltiu.rcf",
+        -- "../rcf/xxxxxrv32ui-p-srli.rcf",
+        -- "../rcf/xxxxxrv32ui-p-srai.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-ori.rcf",
+        -- "../rcf/xxxxxrv32ui-p-andi.rcf",
+        -- "../rcf/xxxxrv32ui-p-auipc.rcf", -- AUIPC
+        -- "../rcf/xxxxxxxrv32ui-p-sb.rcf", -- Store Instructions
+        -- "../rcf/xxxxxxxrv32ui-p-sh.rcf",
+        -- "../rcf/xxxxxxxrv32ui-p-sw.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-add.rcf", -- Arithmetic Instructions
+        -- "../rcf/xxxxxxrv32ui-p-sub.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-sll.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-slt.rcf",
+        -- "../rcf/xxxxxrv32ui-p-sltu.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-xor.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-srl.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-sra.rcf",
+        -- "../rcf/xxxxxxxrv32ui-p-or.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-and.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-lui.rcf", 
+        -- "../rcf/xxxxxxrv32ui-p-beq.rcf", --Branch Instructions
+        -- "../rcf/xxxxxxrv32ui-p-bne.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-blt.rcf",
+        -- "../rcf/xxxxxxrv32ui-p-bge.rcf",
+        -- "../rcf/xxxxxrv32ui-p-bltu.rcf",
+        -- "../rcf/xxxxxrv32ui-p-bgeu.rcf",
+        -- "../rcf/xxxxxrv32ui-p-jalr.rcf", --Jump Instructions
+        -- "../rcf/xxxxxxrv32ui-p-jal.rcf", 
+        -- "../rcf/xxxxxxrv32uc-p-rvc.rcf", -- NO longer needed - all tests are compiled compressed
+        -- "../rcf/xxxxxxrv32um-p-div.rcf", -- Division Instructions
+        -- "../rcf/xxxxxrv32um-p-divu.rcf",
+        -- "../rcf/xxxxxxrv32um-p-mul.rcf", -- Multiplication Instructions
+        -- "../rcf/xxxxxrv32um-p-mulh.rcf",
+        -- "../rcf/xxxrv32um-p-mulhsu.rcf",
+        -- "../rcf/xxxxrv32um-p-mulhu.rcf", 
+        -- "../rcf/xxxxxxrv32um-p-rem.rcf", -- Remainder Instructions 
+        -- "../rcf/xxxxxrv32um-p-remu.rcf",
+        -- "../rcf/xrv32ua-p-amoadd_w.rcf", -- Atomic Instructions
+        -- "../rcf/xrv32ua-p-amoand_w.rcf",
+        -- "../rcf/xrv32ua-p-amomax_w.rcf",
+        -- "../rcf/rv32ua-p-amomaxu_w.rcf",
+        -- "../rcf/xrv32ua-p-amomin_w.rcf",
+        -- "../rcf/rv32ua-p-amominu_w.rcf",
+        -- "../rcf/xxrv32ua-p-amoor_w.rcf",
+        -- "../rcf/xrv32ua-p-amoxor_w.rcf",
+        -- "../rcf/rv32ua-p-amoswap_w.rcf",
+        -- "../rcf/xrv32uzba-p-sh1add.rcf", -- Bit Manipulation - Address Generation Instructions - pass start innovus
+        -- "../rcf/xrv32uzba-p-sh2add.rcf",
+        -- "../rcf/xrv32uzba-p-sh3add.rcf",
+        -- "../rcf/xxxxrv32uzbb-p-ror.rcf", -- Bit Manipulation - Basic Instructions
+        -- "../rcf/xrv32uzbb-p-sext_b.rcf",
+        -- "../rcf/xrv32uzbb-p-sext_h.rcf",
+        -- "../rcf/xrv32uzbb-p-zext_h.rcf",
+        -- "../rcf/xxrv32uzbb-p-orc_b.rcf",
+        -- "../rcf/xxxrv32uzbb-p-andn.rcf",
+        -- "../rcf/xxxrv32uzbb-p-cpop.rcf",
+        -- "../rcf/xxxrv32uzbb-p-maxu.rcf",
+        -- "../rcf/xxxrv32uzbb-p-minu.rcf",
+        -- "../rcf/xxxrv32uzbb-p-rev8.rcf",
+        -- "../rcf/xxxrv32uzbb-p-rori.rcf", 
+        -- "../rcf/xxxrv32uzbb-p-xnor.rcf", -- pass end innovus
+        -- "../rcf/xxxxrv32uzbb-p-clz.rcf",
+        -- "../rcf/xxxxrv32uzbb-p-ctz.rcf",
+        -- "../rcf/xxxxrv32uzbb-p-max.rcf",
+        -- "../rcf/xxxxrv32uzbb-p-min.rcf",
+        -- "../rcf/xxxxrv32uzbb-p-orn.rcf",
+        -- "../rcf/xxxxrv32uzbb-p-rol.rcf", 
+        -- "../rcf/xxrv32uzbs-p-bclri.rcf", -- Bit Manipulation - Single Bit Instructions
+        -- "../rcf/xxrv32uzbs-p-bexti.rcf",
+        -- "../rcf/xxrv32uzbs-p-binvi.rcf",
+        -- "../rcf/xxrv32uzbs-p-bseti.rcf",
+        -- "../rcf/xxxrv32uzbs-p-bclr.rcf",
+        -- "../rcf/xxxrv32uzbs-p-bext.rcf",
+        -- "../rcf/xxxrv32uzbs-p-binv.rcf",
+        -- "../rcf/xxxrv32uzbs-p-bset.rcf", -- inn
+        -- "../rcf/xrv32uzbc-p-clmulh.rcf", -- Bit Manipulation - Carryless Mult Instructions
+        -- "../rcf/xrv32uzbc-p-clmulr.rcf", -- Fail Genus 11/01/25
+        -- "../rcf/xxrv32uzbc-p-clmul.rcf",
+        -- "../rcf/xxxrv32ziscr-p-csr.rcf", -- CSR Instructions (Custom)
+        -- "../rcf/xxxxxperiph-p-UART.rcf",  
+        -- "../rcf/xxperiph-p-UARTIRQ.rcf", 
+        -- "../rcf/xxxperiph-p-SYSTEM.rcf", 
+        -- "../rcf/xxxxperiph-p-TIMER.rcf",
+        "../rcf/xxxxxxperiph-p-NPU.rcf", -- Peripheral Tests
+        "../rcf/xxxxperiph-p-SPIFM.rcf",
+        "../rcf/xxxxxxperiph-p-AFE.rcf",  
+        "../rcf/xxxperiph-p-SARADC.rcf",  
+        "../rcf/xxxxperiph-p-GPIO1.rcf",   
+        "../rcf/xxxxperiph-p-GPIO2.rcf",   
+        "../rcf/xxxrv32ziscr-p-csr.rcf"     -- CSR Instructions (Custom)    
+        -- "../rcf/xxxxxxperiph-p-SPI.rcf",  -- not tested here down
+        -- "../rcf/xxxxperiph-p-SPISR.rcf", -- New SPI Slave test - SCK hf glitch in tb
+        -- "../rcf/xxxxxxperiph-p-SPI.rcf" 
        
     );
 

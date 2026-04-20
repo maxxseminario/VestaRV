@@ -1,7 +1,18 @@
 #!/bin/bash
 
-# Usage: ./flash_insert_line.sh <file-filter>
+# Usage: ./flash_insert_line.sh <file-filter> [target-basename-len]
 # Example: ./flash_insert_line.sh "*periph*.rcf"
+#          ./flash_insert_line.sh "*periph*.rcf" 22
+#
+# All matched .rcf files will be:
+#   1. Renamed so their basename is exactly TARGET_BASENAME_LEN characters,
+#      padded with leading 'x' characters (any existing leading x's are stripped
+#      first so re-running is idempotent).
+#   2. Modified in-place to prepend the SPI flash load/execute header words.
+#
+# TARGET_BASENAME_LEN is the basename length to pad to.
+# Reference: "xxxxxxperiph-p-NPU.rcf" has length 22.
+TARGET_BASENAME_LEN="${2:-22}"
 
 # Function to convert decimal to binary with padding
 dec_to_bin() {
@@ -10,9 +21,10 @@ dec_to_bin() {
     echo "obase=2; $num" | bc | xargs printf "%0${padding}s"
 }
 
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <file-filter>"
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    echo "Usage: $0 <file-filter> [target-basename-len]"
     echo "Example: $0 \"*rv32*.rcf\""
+    echo "         $0 \"*rv32*.rcf\" 22"
     exit 1
 fi
 
@@ -30,7 +42,33 @@ shopt -s nullglob
 for file in $filter; do
     [ -e "$file" ] || continue
 
+    # ---- Rename file to have exactly TARGET_BASENAME_LEN chars in basename ----
+    file_dir="$(dirname "$file")"
+    file_base="$(basename "$file")"
+
+    # Strip any existing leading x's so re-running is idempotent
+    stripped_base="${file_base#"${file_base%%[!x]*}"}"
+
+    base_len=${#stripped_base}
+    pad_count=$(( TARGET_BASENAME_LEN - base_len ))
+    if [ $pad_count -lt 0 ]; then
+        echo "WARNING: '${stripped_base}' (${base_len} chars) exceeds TARGET_BASENAME_LEN=${TARGET_BASENAME_LEN}, skipping rename."
+        pad_count=0
+    fi
+
+    x_prefix=$(printf '%0.s x' $(seq 1 "$pad_count") | tr -d ' ')
+    new_base="${x_prefix}${stripped_base}"
+    new_file="${file_dir}/${new_base}"
+
+    if [ "$file_base" != "$new_base" ]; then
+        mv -- "$file" "$new_file"
+        echo "Renamed: ${file_base} -> ${new_base}"
+        file="$new_file"
+    fi
+    # -------------------------------------------------------------------------
+
     echo "Formatting: $file ..."
+
 
     # Read file into array for processing
     mapfile -t file_lines < "$file"
