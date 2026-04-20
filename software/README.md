@@ -2,6 +2,19 @@
 
 This directory contains firmware projects for the VestaRV processor. These are embedded software applications designed to run directly on the VestaRV core, either in ROM (bootloader/system firmware) or loaded into RAM (user applications).
 
+## Quick Start
+
+**New to VestaRV?** Start here:
+- **[QUICK_START.md](QUICK_START.md)** - 5-minute getting started guide
+- **[WORKFLOW.md](WORKFLOW.md)** - Complete development workflow with examples  
+- **[BUILD_SYSTEM_SUMMARY.md](BUILD_SYSTEM_SUMMARY.md)** - Build system technical details
+
+**Try the blinky example:**
+```bash
+cd blinky
+make all && make sim
+```
+
 ## Directory Structure
 
 ### **`bootrom/`** — Boot ROM Firmware

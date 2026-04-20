@@ -2,7 +2,7 @@
  **	MemoryMap.h
  **	Memory map definition header file
  **	Defines the microcontroller peripheral and register addresses, as well as the bit field bit masks
- **	Generated on 2026/03/18 at 17:29:58 with the MemoryMap.py memory map generator
+ **	Generated on 2026/04/20 at 16:30:37 with the MemoryMap.py memory map generator
  **	WARNING: Do not edit or modify this file!
  **		If you need to change it, use the MemoryMap.py memory map generator tool
  **/
@@ -143,23 +143,23 @@ extern "C" {
 #define SPIxCR_OFFSET			(0)
 #define SPIxCR_PTR(_SPIx_BASE)	MMR_32_PTR(_SPIx_BASE, SPIxCR_OFFSET)
 
-#define SPIFEN		(0x00080000)	// bit 19
+#define SPIFEN_BIT	(0x00080000)	// bit 19
 #define SPIFEN_LSB	(19)
-#define SPISM		(0x00040000)	// bit 18
+#define SPISM_BIT	(0x00040000)	// bit 18
 #define SPISM_LSB	(18)
-#define SPITXSB		(0x00020000)	// bit 17
+#define SPITXSB_BIT	(0x00020000)	// bit 17
 #define SPITXSB_LSB	(17)
-#define SPIRXSB		(0x00010000)	// bit 16
+#define SPIRXSB_BIT	(0x00010000)	// bit 16
 #define SPIRXSB_LSB	(16)
 #define SPIBR_MASK	(0x0000FF00)	// bits 15 downto 8
 #define SPIBR_LSB	(8)
-#define SPIEN		(0x00000080)	// bit 7
+#define SPIEN_BIT	(0x00000080)	// bit 7
 #define SPIEN_LSB	(7)
-#define SPIMSB		(0x00000040)	// bit 6
+#define SPIMSB_BIT	(0x00000040)	// bit 6
 #define SPIMSB_LSB	(6)
-#define SPITCIE		(0x00000020)	// bit 5
+#define SPITCIE_BIT	(0x00000020)	// bit 5
 #define SPITCIE_LSB	(5)
-#define SPITEIE		(0x00000010)	// bit 4
+#define SPITEIE_BIT	(0x00000010)	// bit 4
 #define SPITEIE_LSB	(4)
 #define SPIDL_MASK	(0x0000000C)	// bits 3 downto 2
 #define SPIDL_LSB	(2)
@@ -167,20 +167,20 @@ extern "C" {
 #define SPIDL_16	(0x00000004)
 #define SPIDL_32	(0x00000008)
 #define SPIDL_RES	(0x0000000C)
-#define SPICPOL		(0x00000002)	// bit 1
+#define SPICPOL_BIT	(0x00000002)	// bit 1
 #define SPICPOL_LSB	(1)
-#define SPICPHA		(0x00000001)	// bit 0
+#define SPICPHA_BIT	(0x00000001)	// bit 0
 #define SPICPHA_LSB	(0)
 
 // SPIxSR
 #define SPIxSR_OFFSET			(4)
 #define SPIxSR_PTR(_SPIx_BASE)	MMR_08_PTR(_SPIx_BASE, SPIxSR_OFFSET)
 
-#define SPIBUSY		(0x04)	// bit 2
+#define SPIBUSY_BIT	(0x04)	// bit 2
 #define SPIBUSY_LSB	(2)
-#define SPITCIF		(0x02)	// bit 1
+#define SPITCIF_BIT	(0x02)	// bit 1
 #define SPITCIF_LSB	(1)
-#define SPITEIF		(0x01)	// bit 0
+#define SPITEIF_BIT	(0x01)	// bit 0
 #define SPITEIF_LSB	(0)
 
 // SPIxTX
@@ -211,38 +211,38 @@ extern "C" {
 #define UARTxCR_OFFSET				(0)
 #define UARTxCR_PTR(_UARTx_BASE)	MMR_08_PTR(_UARTx_BASE, UARTxCR_OFFSET)
 
-#define UEN			(0x20)	// bit 5
+#define UEN_BIT		(0x20)	// bit 5
 #define UEN_LSB		(5)
-#define UPEN		(0x10)	// bit 4
+#define UPEN_BIT	(0x10)	// bit 4
 #define UPEN_LSB	(4)
-#define PSEL		(0x08)	// bit 3
+#define PSEL_BIT	(0x08)	// bit 3
 #define PSEL_LSB	(3)
-#define CIE			(0x04)	// bit 2
+#define CIE_BIT		(0x04)	// bit 2
 #define CIE_LSB		(2)
-#define TEIE		(0x02)	// bit 1
+#define TEIE_BIT	(0x02)	// bit 1
 #define TEIE_LSB	(1)
-#define TCIE		(0x01)	// bit 0
+#define TCIE_BIT	(0x01)	// bit 0
 #define TCIE_LSB	(0)
 
 // UARTxSR
 #define UARTxSR_OFFSET				(4)
 #define UARTxSR_PTR(_UARTx_BASE)	MMR_08_PTR(_UARTx_BASE, UARTxSR_OFFSET)
 
-#define RXBF		(0x80)	// bit 7
+#define RXBF_BIT	(0x80)	// bit 7
 #define RXBF_LSB	(7)
-#define TXBF		(0x40)	// bit 6
+#define TXBF_BIT	(0x40)	// bit 6
 #define TXBF_LSB	(6)
-#define FEF			(0x20)	// bit 5
+#define FEF_BIT		(0x20)	// bit 5
 #define FEF_LSB		(5)
-#define PEF			(0x10)	// bit 4
+#define PEF_BIT		(0x10)	// bit 4
 #define PEF_LSB		(4)
-#define OVF			(0x08)	// bit 3
+#define OVF_BIT		(0x08)	// bit 3
 #define OVF_LSB		(3)
-#define RCIF		(0x04)	// bit 2
+#define RCIF_BIT	(0x04)	// bit 2
 #define RCIF_LSB	(2)
-#define TEIF		(0x02)	// bit 1
+#define TEIF_BIT	(0x02)	// bit 1
 #define TEIF_LSB	(1)
-#define TCIF		(0x01)	// bit 0
+#define TCIF_BIT	(0x01)	// bit 0
 #define TCIF_LSB	(0)
 
 // UARTxBR
@@ -291,17 +291,17 @@ extern "C" {
 #define DIV_8192	(0x000D0000)
 #define DIV_16384	(0x000E0000)
 #define DIV_32768	(0x000F0000)
-#define CMP1IH		(0x00008000)	// bit 15
+#define CMP1IH_BIT	(0x00008000)	// bit 15
 #define CMP1IH_LSB	(15)
-#define CMP0IH		(0x00004000)	// bit 14
+#define CMP0IH_BIT	(0x00004000)	// bit 14
 #define CMP0IH_LSB	(14)
-#define CAP1FE		(0x00002000)	// bit 13
+#define CAP1FE_BIT	(0x00002000)	// bit 13
 #define CAP1FE_LSB	(13)
-#define CAP0FE		(0x00001000)	// bit 12
+#define CAP0FE_BIT	(0x00001000)	// bit 12
 #define CAP0FE_LSB	(12)
-#define CAP1EN		(0x00000800)	// bit 11
+#define CAP1EN_BIT	(0x00000800)	// bit 11
 #define CAP1EN_LSB	(11)
-#define CAP0EN		(0x00000400)	// bit 10
+#define CAP0EN_BIT	(0x00000400)	// bit 10
 #define CAP0EN_LSB	(10)
 #define SSEL_MASK	(0x00000300)	// bits 9 downto 8
 #define SSEL_LSB	(8)
@@ -309,42 +309,42 @@ extern "C" {
 #define SSEL_MCLK	(0x00000100)
 #define SSEL_LFXT	(0x00000200)
 #define SSEL_HFXT	(0x00000300)
-#define CMP2RST		(0x00000080)	// bit 7
+#define CMP2RST_BIT	(0x00000080)	// bit 7
 #define CMP2RST_LSB	(7)
-#define TEN			(0x00000040)	// bit 6
+#define TEN_BIT		(0x00000040)	// bit 6
 #define TEN_LSB		(6)
-#define CAP1IE		(0x00000020)	// bit 5
+#define CAP1IE_BIT	(0x00000020)	// bit 5
 #define CAP1IE_LSB	(5)
-#define CAP0IE		(0x00000010)	// bit 4
+#define CAP0IE_BIT	(0x00000010)	// bit 4
 #define CAP0IE_LSB	(4)
-#define OVIE		(0x00000008)	// bit 3
+#define OVIE_BIT	(0x00000008)	// bit 3
 #define OVIE_LSB	(3)
-#define CMP2IE		(0x00000004)	// bit 2
+#define CMP2IE_BIT	(0x00000004)	// bit 2
 #define CMP2IE_LSB	(2)
-#define CMP1IE		(0x00000002)	// bit 1
+#define CMP1IE_BIT	(0x00000002)	// bit 1
 #define CMP1IE_LSB	(1)
-#define CMP0IE		(0x00000001)	// bit 0
+#define CMP0IE_BIT	(0x00000001)	// bit 0
 #define CMP0IE_LSB	(0)
 
 // TIMxSR
 #define TIMxSR_OFFSET				(4)
 #define TIMxSR_PTR(_TIMERx_BASE)	MMR_08_PTR(_TIMERx_BASE, TIMxSR_OFFSET)
 
-#define CMP1OUT		(0x80)	// bit 7
+#define CMP1OUT_BIT	(0x80)	// bit 7
 #define CMP1OUT_LSB	(7)
-#define CMP0OUT		(0x40)	// bit 6
+#define CMP0OUT_BIT	(0x40)	// bit 6
 #define CMP0OUT_LSB	(6)
-#define CAP1IF		(0x20)	// bit 5
+#define CAP1IF_BIT	(0x20)	// bit 5
 #define CAP1IF_LSB	(5)
-#define CAP0IF		(0x10)	// bit 4
+#define CAP0IF_BIT	(0x10)	// bit 4
 #define CAP0IF_LSB	(4)
-#define OVIF		(0x08)	// bit 3
+#define OVIF_BIT	(0x08)	// bit 3
 #define OVIF_LSB	(3)
-#define CMP2IF		(0x04)	// bit 2
+#define CMP2IF_BIT	(0x04)	// bit 2
 #define CMP2IF_LSB	(2)
-#define CMP1IF		(0x02)	// bit 1
+#define CMP1IF_BIT	(0x02)	// bit 1
 #define CMP1IF_LSB	(1)
-#define CMP0IF		(0x01)	// bit 0
+#define CMP0IF_BIT	(0x01)	// bit 0
 #define CMP0IF_LSB	(0)
 
 // TIMxVAL
@@ -396,15 +396,15 @@ extern "C" {
 #define SYSCLKCR_OFFSET				(0)
 #define SYSCLKCR_PTR(_SYSTEM_BASE)	MMR_16_PTR(_SYSTEM_BASE, SYSCLKCR_OFFSET)
 
-#define DCO1ON			(0x0100)	// bit 8
+#define DCO1ON_BIT		(0x0100)	// bit 8
 #define DCO1ON_LSB		(8)
-#define DCO0ON			(0x0080)	// bit 7
+#define DCO0ON_BIT		(0x0080)	// bit 7
 #define DCO0ON_LSB		(7)
-#define HFXTOFF			(0x0040)	// bit 6
+#define HFXTOFF_BIT		(0x0040)	// bit 6
 #define HFXTOFF_LSB		(6)
-#define LFXTOFF			(0x0020)	// bit 5
+#define LFXTOFF_BIT		(0x0020)	// bit 5
 #define LFXTOFF_LSB		(5)
-#define SMCLKOFF		(0x0010)	// bit 4
+#define SMCLKOFF_BIT	(0x0010)	// bit 4
 #define SMCLKOFF_LSB	(4)
 #define SMCLKSEL_MASK	(0x000C)	// bits 3 downto 2
 #define SMCLKSEL_LSB	(2)
@@ -448,11 +448,11 @@ extern "C" {
 #define BLOCKPWR_OFFSET				(8)
 #define BLOCKPWR_PTR(_SYSTEM_BASE)	MMR_08_PTR(_SYSTEM_BASE, BLOCKPWR_OFFSET)
 
-#define SYSRAM1OFF		(0x04)	// bit 2
+#define SYSRAM1OFF_BIT	(0x04)	// bit 2
 #define SYSRAM1OFF_LSB	(2)
-#define SYSRAM0OFF		(0x02)	// bit 1
+#define SYSRAM0OFF_BIT	(0x02)	// bit 1
 #define SYSRAM0OFF_LSB	(1)
-#define SYSROMOFF		(0x01)	// bit 0
+#define SYSROMOFF_BIT	(0x01)	// bit 0
 #define SYSROMOFF_LSB	(0)
 
 // CRCDATA
@@ -515,16 +515,16 @@ extern "C" {
 #define IRQCR_OFFSET			(44)
 #define IRQCR_PTR(_SYSTEM_BASE)	MMR_08_PTR(_SYSTEM_BASE, IRQCR_OFFSET)
 
-#define SYSIRQRECEN		(0x02)	// bit 1
+#define SYSIRQRECEN_BIT	(0x02)	// bit 1
 #define SYSIRQRECEN_LSB	(1)
-#define SYSIRQGEN		(0x01)	// bit 0
+#define SYSIRQGEN_BIT	(0x01)	// bit 0
 #define SYSIRQGEN_LSB	(0)
 
 // WDTCR
 #define WDTCR_OFFSET			(48)
 #define WDTCR_PTR(_SYSTEM_BASE)	MMR_08_PTR(_SYSTEM_BASE, WDTCR_OFFSET)
 
-#define SYSWDTEN				(0x80)	// bit 7
+#define SYSWDTEN_BIT			(0x80)	// bit 7
 #define SYSWDTEN_LSB			(7)
 #define SYSWDTCDIV_MASK			(0x3C)	// bits 5 downto 2
 #define SYSWDTCDIV_LSB			(2)
@@ -544,18 +544,18 @@ extern "C" {
 #define SYSWDTCDIV_536870912	(0x34)
 #define SYSWDTCDIV_1073741824	(0x38)
 #define SYSWDTCDIV_2147483648	(0x3C)
-#define SYSWDTIE				(0x02)	// bit 1
+#define SYSWDTIE_BIT			(0x02)	// bit 1
 #define SYSWDTIE_LSB			(1)
-#define SYSWDTHWRST				(0x01)	// bit 0
+#define SYSWDTHWRST_BIT			(0x01)	// bit 0
 #define SYSWDTHWRST_LSB			(0)
 
 // WDTSR
 #define WDTSR_OFFSET			(52)
 #define WDTSR_PTR(_SYSTEM_BASE)	MMR_08_PTR(_SYSTEM_BASE, WDTSR_OFFSET)
 
-#define SYSWDTIF		(0x02)	// bit 1
+#define SYSWDTIF_BIT	(0x02)	// bit 1
 #define SYSWDTIF_LSB	(1)
-#define SYSWDTRF		(0x01)	// bit 0
+#define SYSWDTRF_BIT	(0x01)	// bit 0
 #define SYSWDTRF_LSB	(0)
 
 // WDTPASS
@@ -593,11 +593,11 @@ extern "C" {
 #define NPUCR_OFFSET			(0)
 #define NPUCR_PTR(_NPU_BASE)	MMR_32_PTR(_NPU_BASE, NPUCR_OFFSET)
 
-#define NPUBEN			(0x00040000)	// bit 18
+#define NPUBEN_BIT		(0x00040000)	// bit 18
 #define NPUBEN_LSB		(18)
-#define NPUAEN			(0x00020000)	// bit 17
+#define NPUAEN_BIT		(0x00020000)	// bit 17
 #define NPUAEN_LSB		(17)
-#define NPUTHINK		(0x00010000)	// bit 16
+#define NPUTHINK_BIT	(0x00010000)	// bit 16
 #define NPUTHINK_LSB	(16)
 #define NPUNI_MASK		(0x0000FF00)	// bits 15 downto 8
 #define NPUNI_LSB		(8)
@@ -623,17 +623,17 @@ extern "C" {
 #define SARADC_CR_OFFSET			(0)
 #define SARADC_CR_PTR(_SARADC_BASE)	MMR_16_PTR(_SARADC_BASE, SARADC_CR_OFFSET)
 
-#define SARADCCONTMEAS			(0x0100)	// bit 8
+#define SARADCCONTMEAS_BIT		(0x0100)	// bit 8
 #define SARADCCONTMEAS_LSB		(8)
-#define SARADCDATAIE			(0x0080)	// bit 7
+#define SARADCDATAIE_BIT		(0x0080)	// bit 7
 #define SARADCDATAIE_LSB		(7)
-#define SARADCDEBUG				(0x0040)	// bit 6
+#define SARADCDEBUG_BIT			(0x0040)	// bit 6
 #define SARADCDEBUG_LSB			(6)
-#define SARADCEN				(0x0020)	// bit 5
+#define SARADCEN_BIT			(0x0020)	// bit 5
 #define SARADCEN_LSB			(5)
 #define SARADCSAMPLESTEP_MASK	(0x001E)	// bits 4 downto 1
 #define SARADCSAMPLESTEP_LSB	(1)
-#define SARADCRESET				(0x0001)	// bit 0
+#define SARADCRESET_BIT			(0x0001)	// bit 0
 #define SARADCRESET_LSB			(0)
 
 // SARADC_CDIV
@@ -647,13 +647,13 @@ extern "C" {
 #define SARADC_SR_OFFSET			(8)
 #define SARADC_SR_PTR(_SARADC_BASE)	MMR_08_PTR(_SARADC_BASE, SARADC_SR_OFFSET)
 
-#define SARADCRDY			(0x08)	// bit 3
+#define SARADCRDY_BIT		(0x08)	// bit 3
 #define SARADCRDY_LSB		(3)
-#define SARADCOVF			(0x04)	// bit 2
+#define SARADCOVF_BIT		(0x04)	// bit 2
 #define SARADCOVF_LSB		(2)
-#define SARADCDATAVALID		(0x02)	// bit 1
+#define SARADCDATAVALID_BIT	(0x02)	// bit 1
 #define SARADCDATAVALID_LSB	(1)
-#define SARADCBUSY			(0x01)	// bit 0
+#define SARADCBUSY_BIT		(0x01)	// bit 0
 #define SARADCBUSY_LSB		(0)
 
 // SARADC_DATA
@@ -681,23 +681,23 @@ extern "C" {
 
 #define AFE_RAMPNUM_MASK	(0x00FFF000)	// bits 23 downto 12
 #define AFE_RAMPNUM_LSB		(12)
-#define AFE_ADCSEL			(0x00000800)	// bit 11
+#define AFE_ADCSEL_BIT		(0x00000800)	// bit 11
 #define AFE_ADCSEL_LSB		(11)
-#define AFE_ATPSEL			(0x00000400)	// bit 10
+#define AFE_ATPSEL_BIT		(0x00000400)	// bit 10
 #define AFE_ATPSEL_LSB		(10)
-#define AFE_ATPEN			(0x00000200)	// bit 9
+#define AFE_ATPEN_BIT		(0x00000200)	// bit 9
 #define AFE_ATPEN_LSB		(9)
-#define AFE_ADCEXTIN		(0x00000100)	// bit 8
+#define AFE_ADCEXTIN_BIT	(0x00000100)	// bit 8
 #define AFE_ADCEXTIN_LSB	(8)
-#define AFE_CONTMEAS		(0x00000010)	// bit 4
+#define AFE_CONTMEAS_BIT	(0x00000010)	// bit 4
 #define AFE_CONTMEAS_LSB	(4)
-#define AFE_DACEN			(0x00000008)	// bit 3
+#define AFE_DACEN_BIT		(0x00000008)	// bit 3
 #define AFE_DACEN_LSB		(3)
-#define AFE_DATARDYIE		(0x00000004)	// bit 2
+#define AFE_DATARDYIE_BIT	(0x00000004)	// bit 2
 #define AFE_DATARDYIE_LSB	(2)
-#define AFE_EN				(0x00000002)	// bit 1
+#define AFE_EN_BIT			(0x00000002)	// bit 1
 #define AFE_EN_LSB			(1)
-#define AFE_ADCEN			(0x00000001)	// bit 0
+#define AFE_ADCEN_BIT		(0x00000001)	// bit 0
 #define AFE_ADCEN_LSB		(0)
 
 // AFE_TPR
@@ -717,11 +717,11 @@ extern "C" {
 #define AFE_SR_OFFSET			(8)
 #define AFE_SR_PTR(_AFE_BASE)	MMR_08_PTR(_AFE_BASE, AFE_SR_OFFSET)
 
-#define AFE_OVFIF			(0x04)	// bit 2
+#define AFE_OVFIF_BIT		(0x04)	// bit 2
 #define AFE_OVFIF_LSB		(2)
-#define AFE_DATARDYIF		(0x02)	// bit 1
+#define AFE_DATARDYIF_BIT	(0x02)	// bit 1
 #define AFE_DATARDYIF_LSB	(1)
-#define AFE_ADCACTIVE		(0x01)	// bit 0
+#define AFE_ADCACTIVE_BIT	(0x01)	// bit 0
 #define AFE_ADCACTIVE_LSB	(0)
 
 // AFE_ADC_VAL
@@ -735,11 +735,11 @@ extern "C" {
 #define BIAS_CR_OFFSET			(16)
 #define BIAS_CR_PTR(_AFE_BASE)	MMR_08_PTR(_AFE_BASE, BIAS_CR_OFFSET)
 
-#define USEDAC		(0x10)	// bit 4
+#define USEDAC_BIT	(0x10)	// bit 4
 #define USEDAC_LSB	(4)
-#define BUFEN		(0x08)	// bit 3
+#define BUFEN_BIT	(0x08)	// bit 3
 #define BUFEN_LSB	(3)
-#define EN			(0x04)	// bit 2
+#define EN_BIT		(0x04)	// bit 2
 #define EN_LSB		(2)
 
 // BIAS_ADJ
@@ -847,15 +847,15 @@ extern "C" {
 #define I2CxCR_OFFSET			(0)
 #define I2CxCR_PTR(_I2Cx_BASE)	MMR_32_PTR(_I2Cx_BASE, I2CxCR_OFFSET)
 
-#define I2CMEN			(0x00200000)	// bit 21
+#define I2CMEN_BIT		(0x00200000)	// bit 21
 #define I2CMEN_LSB		(21)
-#define I2CSEN			(0x00100000)	// bit 20
+#define I2CSEN_BIT		(0x00100000)	// bit 20
 #define I2CSEN_LSB		(20)
-#define I2CSN			(0x00080000)	// bit 19
+#define I2CSN_BIT		(0x00080000)	// bit 19
 #define I2CSN_LSB		(19)
-#define I2CSCS			(0x00040000)	// bit 18
+#define I2CSCS_BIT		(0x00040000)	// bit 18
 #define I2CSCS_LSB		(18)
-#define I2CGCE			(0x00020000)	// bit 17
+#define I2CGCE_BIT		(0x00020000)	// bit 17
 #define I2CGCE_LSB		(17)
 #define I2CMDIV_MASK	(0x0001E000)	// bits 16 downto 13
 #define I2CMDIV_LSB		(13)
@@ -875,81 +875,81 @@ extern "C" {
 #define I2CMDIV_8192	(0x0001A000)
 #define I2CMDIV_16384	(0x0001C000)
 #define I2CMDIV_32768	(0x0001E000)
-#define I2CSAIE			(0x00001000)	// bit 12
+#define I2CSAIE_BIT		(0x00001000)	// bit 12
 #define I2CSAIE_LSB		(12)
-#define I2CSTXEIE		(0x00000800)	// bit 11
+#define I2CSTXEIE_BIT	(0x00000800)	// bit 11
 #define I2CSTXEIE_LSB	(11)
-#define I2CSOVFIE		(0x00000400)	// bit 10
+#define I2CSOVFIE_BIT	(0x00000400)	// bit 10
 #define I2CSOVFIE_LSB	(10)
-#define I2CSNRIE		(0x00000200)	// bit 9
+#define I2CSNRIE_BIT	(0x00000200)	// bit 9
 #define I2CSNRIE_LSB	(9)
-#define I2CSXCIE		(0x00000100)	// bit 8
+#define I2CSXCIE_BIT	(0x00000100)	// bit 8
 #define I2CSXCIE_LSB	(8)
-#define I2CMSTSIE		(0x00000080)	// bit 7
+#define I2CMSTSIE_BIT	(0x00000080)	// bit 7
 #define I2CMSTSIE_LSB	(7)
-#define I2CMSPSIE		(0x00000040)	// bit 6
+#define I2CMSPSIE_BIT	(0x00000040)	// bit 6
 #define I2CMSPSIE_LSB	(6)
-#define I2CMARBIE		(0x00000020)	// bit 5
+#define I2CMARBIE_BIT	(0x00000020)	// bit 5
 #define I2CMARBIE_LSB	(5)
-#define I2CMTXEIE		(0x00000010)	// bit 4
+#define I2CMTXEIE_BIT	(0x00000010)	// bit 4
 #define I2CMTXEIE_LSB	(4)
-#define I2CMNRIE		(0x00000008)	// bit 3
+#define I2CMNRIE_BIT	(0x00000008)	// bit 3
 #define I2CMNRIE_LSB	(3)
-#define I2CMXCIE		(0x00000004)	// bit 2
+#define I2CMXCIE_BIT	(0x00000004)	// bit 2
 #define I2CMXCIE_LSB	(2)
-#define I2CSTRIE		(0x00000002)	// bit 1
+#define I2CSTRIE_BIT	(0x00000002)	// bit 1
 #define I2CSTRIE_LSB	(1)
-#define I2CSPRIE		(0x00000001)	// bit 0
+#define I2CSPRIE_BIT	(0x00000001)	// bit 0
 #define I2CSPRIE_LSB	(0)
 
 // I2CxFCR
 #define I2CxFCR_OFFSET			(4)
 #define I2CxFCR_PTR(_I2Cx_BASE)	MMR_08_PTR(_I2Cx_BASE, I2CxFCR_OFFSET)
 
-#define I2CSC		(0x08)	// bit 3
+#define I2CSC_BIT	(0x08)	// bit 3
 #define I2CSC_LSB	(3)
-#define I2CMST		(0x04)	// bit 2
+#define I2CMST_BIT	(0x04)	// bit 2
 #define I2CMST_LSB	(2)
-#define I2CMSP		(0x02)	// bit 1
+#define I2CMSP_BIT	(0x02)	// bit 1
 #define I2CMSP_LSB	(1)
-#define I2CMRB		(0x01)	// bit 0
+#define I2CMRB_BIT	(0x01)	// bit 0
 #define I2CMRB_LSB	(0)
 
 // I2CxSR
 #define I2CxSR_OFFSET			(8)
 #define I2CxSR_PTR(_I2Cx_BASE)	MMR_16_PTR(_I2Cx_BASE, I2CxSR_OFFSET)
 
-#define I2CBS		(0x8000)	// bit 15
+#define I2CBS_BIT	(0x8000)	// bit 15
 #define I2CBS_LSB	(15)
-#define I2CMCB		(0x4000)	// bit 14
+#define I2CMCB_BIT	(0x4000)	// bit 14
 #define I2CMCB_LSB	(14)
-#define I2CSTM		(0x2000)	// bit 13
+#define I2CSTM_BIT	(0x2000)	// bit 13
 #define I2CSTM_LSB	(13)
-#define I2CSA		(0x1000)	// bit 12
+#define I2CSA_BIT	(0x1000)	// bit 12
 #define I2CSA_LSB	(12)
-#define I2CSTXE		(0x0800)	// bit 11
+#define I2CSTXE_BIT	(0x0800)	// bit 11
 #define I2CSTXE_LSB	(11)
-#define I2CSOVF		(0x0400)	// bit 10
+#define I2CSOVF_BIT	(0x0400)	// bit 10
 #define I2CSOVF_LSB	(10)
-#define I2CSNR		(0x0200)	// bit 9
+#define I2CSNR_BIT	(0x0200)	// bit 9
 #define I2CSNR_LSB	(9)
-#define I2CSXC		(0x0100)	// bit 8
+#define I2CSXC_BIT	(0x0100)	// bit 8
 #define I2CSXC_LSB	(8)
-#define I2CMSTS		(0x0080)	// bit 7
+#define I2CMSTS_BIT	(0x0080)	// bit 7
 #define I2CMSTS_LSB	(7)
-#define I2CMSPS		(0x0040)	// bit 6
+#define I2CMSPS_BIT	(0x0040)	// bit 6
 #define I2CMSPS_LSB	(6)
-#define I2CMARB		(0x0020)	// bit 5
+#define I2CMARB_BIT	(0x0020)	// bit 5
 #define I2CMARB_LSB	(5)
-#define I2CMTXE		(0x0010)	// bit 4
+#define I2CMTXE_BIT	(0x0010)	// bit 4
 #define I2CMTXE_LSB	(4)
-#define I2CMNR		(0x0008)	// bit 3
+#define I2CMNR_BIT	(0x0008)	// bit 3
 #define I2CMNR_LSB	(3)
-#define I2CMXC		(0x0004)	// bit 2
+#define I2CMXC_BIT	(0x0004)	// bit 2
 #define I2CMXC_LSB	(2)
-#define I2CSTR		(0x0002)	// bit 1
+#define I2CSTR_BIT	(0x0002)	// bit 1
 #define I2CSTR_LSB	(1)
-#define I2CSPR		(0x0001)	// bit 0
+#define I2CSPR_BIT	(0x0001)	// bit 0
 #define I2CSPR_LSB	(0)
 
 // I2CxMTX
@@ -984,27 +984,16 @@ extern "C" {
 #define GPIO0_BASE				(0x4000)
 
 #define P0IN_ADDRESS			(0x4000)
-#define P0IN					MMR_08_BIT_MACRO(P0IN_ADDRESS)
 #define P0OUT_ADDRESS			(0x4004)
-#define P0OUT					MMR_08_BIT_MACRO(P0OUT_ADDRESS)
 #define P0OUTS_ADDRESS			(0x4008)
-#define P0OUTS					MMR_08_BIT_MACRO(P0OUTS_ADDRESS)
 #define P0OUTC_ADDRESS			(0x400C)
-#define P0OUTC					MMR_08_BIT_MACRO(P0OUTC_ADDRESS)
 #define P0OUTT_ADDRESS			(0x4010)
-#define P0OUTT					MMR_32_BIT_MACRO(P0OUTT_ADDRESS)
 #define P0DIR_ADDRESS			(0x4014)
-#define P0DIR					MMR_08_BIT_MACRO(P0DIR_ADDRESS)
 #define P0REN_ADDRESS			(0x4018)
-#define P0REN					MMR_08_BIT_MACRO(P0REN_ADDRESS)
 #define P0SEL_ADDRESS			(0x401C)
-#define P0SEL					MMR_08_BIT_MACRO(P0SEL_ADDRESS)
 #define P0IF_ADDRESS			(0x4020)
-#define P0IF					MMR_32_BIT_MACRO(P0IF_ADDRESS)
 #define P0IES_ADDRESS			(0x4024)
-#define P0IES					MMR_08_BIT_MACRO(P0IES_ADDRESS)
 #define P0IE_ADDRESS			(0x4028)
-#define P0IE					MMR_08_BIT_MACRO(P0IE_ADDRESS)
 
 
 
@@ -1012,27 +1001,16 @@ extern "C" {
 #define GPIO1_BASE				(0x4100)
 
 #define P1IN_ADDRESS			(0x4100)
-#define P1IN					MMR_08_BIT_MACRO(P1IN_ADDRESS)
 #define P1OUT_ADDRESS			(0x4104)
-#define P1OUT					MMR_08_BIT_MACRO(P1OUT_ADDRESS)
 #define P1OUTS_ADDRESS			(0x4108)
-#define P1OUTS					MMR_08_BIT_MACRO(P1OUTS_ADDRESS)
 #define P1OUTC_ADDRESS			(0x410C)
-#define P1OUTC					MMR_08_BIT_MACRO(P1OUTC_ADDRESS)
 #define P1OUTT_ADDRESS			(0x4110)
-#define P1OUTT					MMR_32_BIT_MACRO(P1OUTT_ADDRESS)
 #define P1DIR_ADDRESS			(0x4114)
-#define P1DIR					MMR_08_BIT_MACRO(P1DIR_ADDRESS)
 #define P1REN_ADDRESS			(0x4118)
-#define P1REN					MMR_08_BIT_MACRO(P1REN_ADDRESS)
 #define P1SEL_ADDRESS			(0x411C)
-#define P1SEL					MMR_08_BIT_MACRO(P1SEL_ADDRESS)
 #define P1IF_ADDRESS			(0x4120)
-#define P1IF					MMR_32_BIT_MACRO(P1IF_ADDRESS)
 #define P1IES_ADDRESS			(0x4124)
-#define P1IES					MMR_08_BIT_MACRO(P1IES_ADDRESS)
 #define P1IE_ADDRESS			(0x4128)
-#define P1IE					MMR_08_BIT_MACRO(P1IE_ADDRESS)
 
 
 
@@ -1040,15 +1018,10 @@ extern "C" {
 #define SPI0_BASE				(0x4200)
 
 #define SPI0CR_ADDRESS			(0x4200)
-#define SPI0CR					MMR_32_BIT_MACRO(SPI0CR_ADDRESS)
 #define SPI0SR_ADDRESS			(0x4204)
-#define SPI0SR					MMR_08_BIT_MACRO(SPI0SR_ADDRESS)
 #define SPI0TX_ADDRESS			(0x4208)
-#define SPI0TX					MMR_32_BIT_MACRO(SPI0TX_ADDRESS)
 #define SPI0RX_ADDRESS			(0x420C)
-#define SPI0RX					MMR_32_BIT_MACRO(SPI0RX_ADDRESS)
 #define SPI0FOS_ADDRESS			(0x4210)
-#define SPI0FOS					MMR_32_BIT_MACRO(SPI0FOS_ADDRESS)
 
 
 
@@ -1056,15 +1029,10 @@ extern "C" {
 #define SPI1_BASE				(0x4300)
 
 #define SPI1CR_ADDRESS			(0x4300)
-#define SPI1CR					MMR_32_BIT_MACRO(SPI1CR_ADDRESS)
 #define SPI1SR_ADDRESS			(0x4304)
-#define SPI1SR					MMR_08_BIT_MACRO(SPI1SR_ADDRESS)
 #define SPI1TX_ADDRESS			(0x4308)
-#define SPI1TX					MMR_32_BIT_MACRO(SPI1TX_ADDRESS)
 #define SPI1RX_ADDRESS			(0x430C)
-#define SPI1RX					MMR_32_BIT_MACRO(SPI1RX_ADDRESS)
 #define SPI1FOS_ADDRESS			(0x4310)
-#define SPI1FOS					MMR_32_BIT_MACRO(SPI1FOS_ADDRESS)
 
 
 
@@ -1072,15 +1040,10 @@ extern "C" {
 #define UART0_BASE				(0x4400)
 
 #define UART0CR_ADDRESS			(0x4400)
-#define UART0CR					MMR_08_BIT_MACRO(UART0CR_ADDRESS)
 #define UART0SR_ADDRESS			(0x4404)
-#define UART0SR					MMR_08_BIT_MACRO(UART0SR_ADDRESS)
 #define UART0BR_ADDRESS			(0x4408)
-#define UART0BR					MMR_16_BIT_MACRO(UART0BR_ADDRESS)
 #define UART0RX_ADDRESS			(0x440C)
-#define UART0RX					MMR_08_BIT_MACRO(UART0RX_ADDRESS)
 #define UART0TX_ADDRESS			(0x4410)
-#define UART0TX					MMR_08_BIT_MACRO(UART0TX_ADDRESS)
 
 
 
@@ -1088,15 +1051,10 @@ extern "C" {
 #define UART1_BASE				(0x4500)
 
 #define UART1CR_ADDRESS			(0x4500)
-#define UART1CR					MMR_08_BIT_MACRO(UART1CR_ADDRESS)
 #define UART1SR_ADDRESS			(0x4504)
-#define UART1SR					MMR_08_BIT_MACRO(UART1SR_ADDRESS)
 #define UART1BR_ADDRESS			(0x4508)
-#define UART1BR					MMR_16_BIT_MACRO(UART1BR_ADDRESS)
 #define UART1RX_ADDRESS			(0x450C)
-#define UART1RX					MMR_08_BIT_MACRO(UART1RX_ADDRESS)
 #define UART1TX_ADDRESS			(0x4510)
-#define UART1TX					MMR_08_BIT_MACRO(UART1TX_ADDRESS)
 
 
 
@@ -1104,21 +1062,13 @@ extern "C" {
 #define TIMER0_BASE				(0x4600)
 
 #define TIM0CR_ADDRESS			(0x4600)
-#define TIM0CR					MMR_32_BIT_MACRO(TIM0CR_ADDRESS)
 #define TIM0SR_ADDRESS			(0x4604)
-#define TIM0SR					MMR_08_BIT_MACRO(TIM0SR_ADDRESS)
 #define TIM0VAL_ADDRESS			(0x4608)
-#define TIM0VAL					MMR_32_BIT_MACRO(TIM0VAL_ADDRESS)
 #define TIM0CMP0_ADDRESS		(0x460C)
-#define TIM0CMP0				MMR_32_BIT_MACRO(TIM0CMP0_ADDRESS)
 #define TIM0CMP1_ADDRESS		(0x4610)
-#define TIM0CMP1				MMR_32_BIT_MACRO(TIM0CMP1_ADDRESS)
 #define TIM0CMP2_ADDRESS		(0x4614)
-#define TIM0CMP2				MMR_32_BIT_MACRO(TIM0CMP2_ADDRESS)
 #define TIM0CAP0_ADDRESS		(0x4618)
-#define TIM0CAP0				MMR_32_BIT_MACRO(TIM0CAP0_ADDRESS)
 #define TIM0CAP1_ADDRESS		(0x461C)
-#define TIM0CAP1				MMR_32_BIT_MACRO(TIM0CAP1_ADDRESS)
 
 
 
@@ -1126,21 +1076,13 @@ extern "C" {
 #define TIMER1_BASE				(0x4700)
 
 #define TIM1CR_ADDRESS			(0x4700)
-#define TIM1CR					MMR_32_BIT_MACRO(TIM1CR_ADDRESS)
 #define TIM1SR_ADDRESS			(0x4704)
-#define TIM1SR					MMR_08_BIT_MACRO(TIM1SR_ADDRESS)
 #define TIM1VAL_ADDRESS			(0x4708)
-#define TIM1VAL					MMR_32_BIT_MACRO(TIM1VAL_ADDRESS)
 #define TIM1CMP0_ADDRESS		(0x470C)
-#define TIM1CMP0				MMR_32_BIT_MACRO(TIM1CMP0_ADDRESS)
 #define TIM1CMP1_ADDRESS		(0x4710)
-#define TIM1CMP1				MMR_32_BIT_MACRO(TIM1CMP1_ADDRESS)
 #define TIM1CMP2_ADDRESS		(0x4714)
-#define TIM1CMP2				MMR_32_BIT_MACRO(TIM1CMP2_ADDRESS)
 #define TIM1CAP0_ADDRESS		(0x4718)
-#define TIM1CAP0				MMR_32_BIT_MACRO(TIM1CAP0_ADDRESS)
 #define TIM1CAP1_ADDRESS		(0x471C)
-#define TIM1CAP1				MMR_32_BIT_MACRO(TIM1CAP1_ADDRESS)
 
 
 
@@ -1148,27 +1090,16 @@ extern "C" {
 #define GPIO2_BASE				(0x4800)
 
 #define P2IN_ADDRESS			(0x4800)
-#define P2IN					MMR_08_BIT_MACRO(P2IN_ADDRESS)
 #define P2OUT_ADDRESS			(0x4804)
-#define P2OUT					MMR_08_BIT_MACRO(P2OUT_ADDRESS)
 #define P2OUTS_ADDRESS			(0x4808)
-#define P2OUTS					MMR_08_BIT_MACRO(P2OUTS_ADDRESS)
 #define P2OUTC_ADDRESS			(0x480C)
-#define P2OUTC					MMR_08_BIT_MACRO(P2OUTC_ADDRESS)
 #define P2OUTT_ADDRESS			(0x4810)
-#define P2OUTT					MMR_32_BIT_MACRO(P2OUTT_ADDRESS)
 #define P2DIR_ADDRESS			(0x4814)
-#define P2DIR					MMR_08_BIT_MACRO(P2DIR_ADDRESS)
 #define P2REN_ADDRESS			(0x4818)
-#define P2REN					MMR_08_BIT_MACRO(P2REN_ADDRESS)
 #define P2SEL_ADDRESS			(0x481C)
-#define P2SEL					MMR_08_BIT_MACRO(P2SEL_ADDRESS)
 #define P2IF_ADDRESS			(0x4820)
-#define P2IF					MMR_32_BIT_MACRO(P2IF_ADDRESS)
 #define P2IES_ADDRESS			(0x4824)
-#define P2IES					MMR_08_BIT_MACRO(P2IES_ADDRESS)
 #define P2IE_ADDRESS			(0x4828)
-#define P2IE					MMR_08_BIT_MACRO(P2IE_ADDRESS)
 
 
 
@@ -1176,41 +1107,23 @@ extern "C" {
 #define SYSTEM_BASE				(0x4900)
 
 #define SYSCLKCR_ADDRESS		(0x4900)
-#define SYSCLKCR				MMR_16_BIT_MACRO(SYSCLKCR_ADDRESS)
 #define CLKDIVCR_ADDRESS		(0x4904)
-#define CLKDIVCR				MMR_08_BIT_MACRO(CLKDIVCR_ADDRESS)
 #define BLOCKPWR_ADDRESS		(0x4908)
-#define BLOCKPWR				MMR_08_BIT_MACRO(BLOCKPWR_ADDRESS)
 #define CRCDATA_ADDRESS			(0x490C)
-#define CRCDATA					MMR_08_BIT_MACRO(CRCDATA_ADDRESS)
 #define CRCSTATE_ADDRESS		(0x4910)
-#define CRCSTATE				MMR_16_BIT_MACRO(CRCSTATE_ADDRESS)
 #define IRQENL_ADDRESS			(0x4914)
-#define IRQENL					MMR_32_BIT_MACRO(IRQENL_ADDRESS)
 #define IRQENM_ADDRESS			(0x4918)
-#define IRQENM					MMR_32_BIT_MACRO(IRQENM_ADDRESS)
 #define IRQENU_ADDRESS			(0x491C)
-#define IRQENU					MMR_32_BIT_MACRO(IRQENU_ADDRESS)
 #define IRQPRIL_ADDRESS			(0x4920)
-#define IRQPRIL					MMR_32_BIT_MACRO(IRQPRIL_ADDRESS)
 #define IRQPRIM_ADDRESS			(0x4924)
-#define IRQPRIM					MMR_32_BIT_MACRO(IRQPRIM_ADDRESS)
 #define IRQPRIU_ADDRESS			(0x4928)
-#define IRQPRIU					MMR_32_BIT_MACRO(IRQPRIU_ADDRESS)
 #define IRQCR_ADDRESS			(0x492C)
-#define IRQCR					MMR_08_BIT_MACRO(IRQCR_ADDRESS)
 #define WDTCR_ADDRESS			(0x4930)
-#define WDTCR					MMR_08_BIT_MACRO(WDTCR_ADDRESS)
 #define WDTSR_ADDRESS			(0x4934)
-#define WDTSR					MMR_08_BIT_MACRO(WDTSR_ADDRESS)
 #define WDTPASS_ADDRESS			(0x4938)
-#define WDTPASS					MMR_32_BIT_MACRO(WDTPASS_ADDRESS)
 #define WDTVAL_ADDRESS			(0x493C)
-#define WDTVAL					MMR_32_BIT_MACRO(WDTVAL_ADDRESS)
 #define DCO0BIAS_ADDRESS		(0x4940)
-#define DCO0BIAS				MMR_16_BIT_MACRO(DCO0BIAS_ADDRESS)
 #define DCO1BIAS_ADDRESS		(0x4944)
-#define DCO1BIAS				MMR_16_BIT_MACRO(DCO1BIAS_ADDRESS)
 
 
 
@@ -1218,13 +1131,9 @@ extern "C" {
 #define NPU_BASE				(0x4A00)
 
 #define NPUCR_ADDRESS			(0x4A00)
-#define NPUCR					MMR_32_BIT_MACRO(NPUCR_ADDRESS)
 #define NPUIVSAR_ADDRESS		(0x4A04)
-#define NPUIVSAR				MMR_32_BIT_MACRO(NPUIVSAR_ADDRESS)
 #define NPUWVSAR_ADDRESS		(0x4A08)
-#define NPUWVSAR				MMR_32_BIT_MACRO(NPUWVSAR_ADDRESS)
 #define NPUOVSAR_ADDRESS		(0x4A0C)
-#define NPUOVSAR				MMR_32_BIT_MACRO(NPUOVSAR_ADDRESS)
 
 
 
@@ -1232,15 +1141,10 @@ extern "C" {
 #define SARADC_BASE				(0x4B00)
 
 #define SARADC_CR_ADDRESS		(0x4B00)
-#define SARADC_CR				MMR_16_BIT_MACRO(SARADC_CR_ADDRESS)
 #define SARADC_CDIV_ADDRESS		(0x4B04)
-#define SARADC_CDIV				MMR_08_BIT_MACRO(SARADC_CDIV_ADDRESS)
 #define SARADC_SR_ADDRESS		(0x4B08)
-#define SARADC_SR				MMR_08_BIT_MACRO(SARADC_SR_ADDRESS)
 #define SARADC_DATA_ADDRESS		(0x4B0C)
-#define SARADC_DATA				MMR_16_BIT_MACRO(SARADC_DATA_ADDRESS)
 #define SARADC_TPR_ADDRESS		(0x4B10)
-#define SARADC_TPR				MMR_08_BIT_MACRO(SARADC_TPR_ADDRESS)
 
 
 
@@ -1248,43 +1152,24 @@ extern "C" {
 #define AFE_BASE				(0x4C00)
 
 #define AFE_CR_ADDRESS			(0x4C00)
-#define AFE_CR					MMR_32_BIT_MACRO(AFE_CR_ADDRESS)
 #define AFE_TPR_ADDRESS			(0x4C04)
-#define AFE_TPR					MMR_32_BIT_MACRO(AFE_TPR_ADDRESS)
 #define AFE_SR_ADDRESS			(0x4C08)
-#define AFE_SR					MMR_08_BIT_MACRO(AFE_SR_ADDRESS)
 #define AFE_ADC_VAL_ADDRESS		(0x4C0C)
-#define AFE_ADC_VAL				MMR_16_BIT_MACRO(AFE_ADC_VAL_ADDRESS)
 #define BIAS_CR_ADDRESS			(0x4C10)
-#define BIAS_CR					MMR_08_BIT_MACRO(BIAS_CR_ADDRESS)
 #define BIAS_ADJ_ADDRESS		(0x4C14)
-#define BIAS_ADJ				MMR_08_BIT_MACRO(BIAS_ADJ_ADDRESS)
 #define BIAS_DBP_ADDRESS		(0x4C18)
-#define BIAS_DBP				MMR_16_BIT_MACRO(BIAS_DBP_ADDRESS)
 #define BIAS_DBPC_ADDRESS		(0x4C1C)
-#define BIAS_DBPC				MMR_16_BIT_MACRO(BIAS_DBPC_ADDRESS)
 #define BIAS_DBNC_ADDRESS		(0x4C20)
-#define BIAS_DBNC				MMR_16_BIT_MACRO(BIAS_DBNC_ADDRESS)
 #define BIAS_DBN_ADDRESS		(0x4C24)
-#define BIAS_DBN				MMR_16_BIT_MACRO(BIAS_DBN_ADDRESS)
 #define BIAS_TC_POT_ADDRESS		(0x4C28)
-#define BIAS_TC_POT				MMR_08_BIT_MACRO(BIAS_TC_POT_ADDRESS)
 #define BIAS_LC_POT_ADDRESS		(0x4C2C)
-#define BIAS_LC_POT				MMR_08_BIT_MACRO(BIAS_LC_POT_ADDRESS)
 #define BIAS_TIA_G_POT_ADDRESS	(0x4C30)
-#define BIAS_TIA_G_POT			MMR_32_BIT_MACRO(BIAS_TIA_G_POT_ADDRESS)
 #define BIAS_DSADC_VCM_ADDRESS	(0x4C34)
-#define BIAS_DSADC_VCM			MMR_16_BIT_MACRO(BIAS_DSADC_VCM_ADDRESS)
 #define BIAS_REV_POT_ADDRESS	(0x4C38)
-#define BIAS_REV_POT			MMR_16_BIT_MACRO(BIAS_REV_POT_ADDRESS)
 #define BIAS_TC_DSADC_ADDRESS	(0x4C3C)
-#define BIAS_TC_DSADC			MMR_08_BIT_MACRO(BIAS_TC_DSADC_ADDRESS)
 #define BIAS_LC_DSADC_ADDRESS	(0x4C40)
-#define BIAS_LC_DSADC			MMR_08_BIT_MACRO(BIAS_LC_DSADC_ADDRESS)
 #define BIAS_RIN_DSADC_ADDRESS	(0x4C44)
-#define BIAS_RIN_DSADC			MMR_08_BIT_MACRO(BIAS_RIN_DSADC_ADDRESS)
 #define BIAS_RFB_DSADC_ADDRESS	(0x4C48)
-#define BIAS_RFB_DSADC			MMR_08_BIT_MACRO(BIAS_RFB_DSADC_ADDRESS)
 
 
 
@@ -1292,27 +1177,16 @@ extern "C" {
 #define GPIO3_BASE				(0x4D00)
 
 #define P3IN_ADDRESS			(0x4D00)
-#define P3IN					MMR_08_BIT_MACRO(P3IN_ADDRESS)
 #define P3OUT_ADDRESS			(0x4D04)
-#define P3OUT					MMR_08_BIT_MACRO(P3OUT_ADDRESS)
 #define P3OUTS_ADDRESS			(0x4D08)
-#define P3OUTS					MMR_08_BIT_MACRO(P3OUTS_ADDRESS)
 #define P3OUTC_ADDRESS			(0x4D0C)
-#define P3OUTC					MMR_08_BIT_MACRO(P3OUTC_ADDRESS)
 #define P3OUTT_ADDRESS			(0x4D10)
-#define P3OUTT					MMR_32_BIT_MACRO(P3OUTT_ADDRESS)
 #define P3DIR_ADDRESS			(0x4D14)
-#define P3DIR					MMR_08_BIT_MACRO(P3DIR_ADDRESS)
 #define P3REN_ADDRESS			(0x4D18)
-#define P3REN					MMR_08_BIT_MACRO(P3REN_ADDRESS)
 #define P3SEL_ADDRESS			(0x4D1C)
-#define P3SEL					MMR_08_BIT_MACRO(P3SEL_ADDRESS)
 #define P3IF_ADDRESS			(0x4D20)
-#define P3IF					MMR_32_BIT_MACRO(P3IF_ADDRESS)
 #define P3IES_ADDRESS			(0x4D24)
-#define P3IES					MMR_08_BIT_MACRO(P3IES_ADDRESS)
 #define P3IE_ADDRESS			(0x4D28)
-#define P3IE					MMR_08_BIT_MACRO(P3IE_ADDRESS)
 
 
 
@@ -1320,23 +1194,14 @@ extern "C" {
 #define I2C0_BASE				(0x4E00)
 
 #define I2C0CR_ADDRESS			(0x4E00)
-#define I2C0CR					MMR_32_BIT_MACRO(I2C0CR_ADDRESS)
 #define I2C0FCR_ADDRESS			(0x4E04)
-#define I2C0FCR					MMR_08_BIT_MACRO(I2C0FCR_ADDRESS)
 #define I2C0SR_ADDRESS			(0x4E08)
-#define I2C0SR					MMR_16_BIT_MACRO(I2C0SR_ADDRESS)
 #define I2C0MTX_ADDRESS			(0x4E0C)
-#define I2C0MTX					MMR_08_BIT_MACRO(I2C0MTX_ADDRESS)
 #define I2C0MRX_ADDRESS			(0x4E10)
-#define I2C0MRX					MMR_08_BIT_MACRO(I2C0MRX_ADDRESS)
 #define I2C0STX_ADDRESS			(0x4E14)
-#define I2C0STX					MMR_08_BIT_MACRO(I2C0STX_ADDRESS)
 #define I2C0SRX_ADDRESS			(0x4E18)
-#define I2C0SRX					MMR_08_BIT_MACRO(I2C0SRX_ADDRESS)
 #define I2C0AR_ADDRESS			(0x4E1C)
-#define I2C0AR					MMR_08_BIT_MACRO(I2C0AR_ADDRESS)
 #define I2C0AMR_ADDRESS			(0x4E20)
-#define I2C0AMR					MMR_08_BIT_MACRO(I2C0AMR_ADDRESS)
 
 
 
@@ -1344,23 +1209,14 @@ extern "C" {
 #define I2C1_BASE				(0x4F00)
 
 #define I2C1CR_ADDRESS			(0x4F00)
-#define I2C1CR					MMR_32_BIT_MACRO(I2C1CR_ADDRESS)
 #define I2C1FCR_ADDRESS			(0x4F04)
-#define I2C1FCR					MMR_08_BIT_MACRO(I2C1FCR_ADDRESS)
 #define I2C1SR_ADDRESS			(0x4F08)
-#define I2C1SR					MMR_16_BIT_MACRO(I2C1SR_ADDRESS)
 #define I2C1MTX_ADDRESS			(0x4F0C)
-#define I2C1MTX					MMR_08_BIT_MACRO(I2C1MTX_ADDRESS)
 #define I2C1MRX_ADDRESS			(0x4F10)
-#define I2C1MRX					MMR_08_BIT_MACRO(I2C1MRX_ADDRESS)
 #define I2C1STX_ADDRESS			(0x4F14)
-#define I2C1STX					MMR_08_BIT_MACRO(I2C1STX_ADDRESS)
 #define I2C1SRX_ADDRESS			(0x4F18)
-#define I2C1SRX					MMR_08_BIT_MACRO(I2C1SRX_ADDRESS)
 #define I2C1AR_ADDRESS			(0x4F1C)
-#define I2C1AR					MMR_08_BIT_MACRO(I2C1AR_ADDRESS)
 #define I2C1AMR_ADDRESS			(0x4F20)
-#define I2C1AMR					MMR_08_BIT_MACRO(I2C1AMR_ADDRESS)
 
 
 
