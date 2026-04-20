@@ -19,48 +19,48 @@ package tb_defs is
 
         -- List of RCF test files
     constant test_files : file_array := (
-        -- "../rcf/xxxrv32ui-p-simple.rcf", -- Simplest Test
+        "../rcf/xxxrv32ui-p-simple.rcf", -- Simplest Test
         -- "../rcf/xxxxxxxxxxxinvalid.rcf", -- Invalid SPI Flash Command Tests
         -- "../rcf/xxxxxload_stpgtram.rcf", -- Start address greater than RAM end
         -- "../rcf/xxxxload_strtgtstp.rcf", -- Start address greater than stop address
         -- "../rcf/xxxxload_strtltram.rcf", -- Start address less than RAM lower bound
         -- "../rcf/xxxxxrv32ua-p-lrsc.rcf", -- Currently only working if ran on its own - signature section overwritten by previous tests. Also - need to zero foo section of memory to work post genus. Fail innovus
-        -- "../rcf/xxxxxxxrv32ui-p-lb.rcf", -- Load Instructions - Start innovus pass 11/11
-        -- "../rcf/xxxxxxxrv32ui-p-lh.rcf",
-        -- "../rcf/xxxxxxxrv32ui-p-lw.rcf", 
-        -- "../rcf/xxxxxxrv32ui-p-lbu.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-lhu.rcf",
-        -- "../rcf/xxxxxrv32ui-p-addi.rcf",  -- Immediete Instructions
-        -- "../rcf/xxxxxrv32ui-p-slli.rcf",
-        -- "../rcf/xxxxxrv32ui-p-slti.rcf",
-        -- "../rcf/xxxxrv32ui-p-sltiu.rcf",
-        -- "../rcf/xxxxxrv32ui-p-srli.rcf",
-        -- "../rcf/xxxxxrv32ui-p-srai.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-ori.rcf",
-        -- "../rcf/xxxxxrv32ui-p-andi.rcf",
-        -- "../rcf/xxxxrv32ui-p-auipc.rcf", -- AUIPC
-        -- "../rcf/xxxxxxxrv32ui-p-sb.rcf", -- Store Instructions
-        -- "../rcf/xxxxxxxrv32ui-p-sh.rcf",
-        -- "../rcf/xxxxxxxrv32ui-p-sw.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-add.rcf", -- Arithmetic Instructions
-        -- "../rcf/xxxxxxrv32ui-p-sub.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-sll.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-slt.rcf",
-        -- "../rcf/xxxxxrv32ui-p-sltu.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-xor.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-srl.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-sra.rcf",
-        -- "../rcf/xxxxxxxrv32ui-p-or.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-and.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-lui.rcf", 
-        -- "../rcf/xxxxxxrv32ui-p-beq.rcf", --Branch Instructions
-        -- "../rcf/xxxxxxrv32ui-p-bne.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-blt.rcf",
-        -- "../rcf/xxxxxxrv32ui-p-bge.rcf",
-        -- "../rcf/xxxxxrv32ui-p-bltu.rcf",
-        -- "../rcf/xxxxxrv32ui-p-bgeu.rcf",
-        -- "../rcf/xxxxxrv32ui-p-jalr.rcf", --Jump Instructions
-        -- "../rcf/xxxxxxrv32ui-p-jal.rcf", 
+        "../rcf/xxxxxxxrv32ui-p-lb.rcf", -- Load Instructions - Start innovus pass 11/11
+        "../rcf/xxxxxxxrv32ui-p-lh.rcf",
+        "../rcf/xxxxxxxrv32ui-p-lw.rcf", 
+        "../rcf/xxxxxxrv32ui-p-lbu.rcf",
+        "../rcf/xxxxxxrv32ui-p-lhu.rcf",
+        "../rcf/xxxxxrv32ui-p-addi.rcf",  -- Immediete Instructions
+        "../rcf/xxxxxrv32ui-p-slli.rcf",
+        "../rcf/xxxxxrv32ui-p-slti.rcf",
+        "../rcf/xxxxrv32ui-p-sltiu.rcf",
+        "../rcf/xxxxxrv32ui-p-srli.rcf",
+        "../rcf/xxxxxrv32ui-p-srai.rcf",
+        "../rcf/xxxxxxrv32ui-p-ori.rcf",
+        "../rcf/xxxxxrv32ui-p-andi.rcf",
+        "../rcf/xxxxrv32ui-p-auipc.rcf", -- AUIPC
+        "../rcf/xxxxxxxrv32ui-p-sb.rcf", -- Store Instructions
+        "../rcf/xxxxxxxrv32ui-p-sh.rcf",
+        "../rcf/xxxxxxxrv32ui-p-sw.rcf",
+        "../rcf/xxxxxxrv32ui-p-add.rcf", -- Arithmetic Instructions
+        "../rcf/xxxxxxrv32ui-p-sub.rcf",
+        "../rcf/xxxxxxrv32ui-p-sll.rcf",
+        "../rcf/xxxxxxrv32ui-p-slt.rcf",
+        "../rcf/xxxxxrv32ui-p-sltu.rcf",
+        "../rcf/xxxxxxrv32ui-p-xor.rcf",
+        "../rcf/xxxxxxrv32ui-p-srl.rcf",
+        "../rcf/xxxxxxrv32ui-p-sra.rcf",
+        "../rcf/xxxxxxxrv32ui-p-or.rcf",
+        "../rcf/xxxxxxrv32ui-p-and.rcf",
+        "../rcf/xxxxxxrv32ui-p-lui.rcf", 
+        "../rcf/xxxxxxrv32ui-p-beq.rcf", --Branch Instructions
+        "../rcf/xxxxxxrv32ui-p-bne.rcf",
+        "../rcf/xxxxxxrv32ui-p-blt.rcf",
+        "../rcf/xxxxxxrv32ui-p-bge.rcf",
+        "../rcf/xxxxxrv32ui-p-bltu.rcf",
+        "../rcf/xxxxxrv32ui-p-bgeu.rcf",
+        "../rcf/xxxxxrv32ui-p-jalr.rcf", --Jump Instructions
+        "../rcf/xxxxxxrv32ui-p-jal.rcf", 
         -- "../rcf/xxxxxxrv32uc-p-rvc.rcf", -- NO longer needed - all tests are compiled compressed
         -- "../rcf/xxxxxxrv32um-p-div.rcf", -- Division Instructions
         -- "../rcf/xxxxxrv32um-p-divu.rcf",
