@@ -3,7 +3,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
-use ieee.math_real.all;
 use ieee.numeric_std.all;
 library work;
 use work.macros.all;  
@@ -158,7 +157,7 @@ end component;
     --RAM Memory Load Signals 
     signal load_ram : boolean := false;
     signal load_ram_sig : std_logic;
-    signal ram_file_name : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
+    signal ram_file_name : string(1 to 49) := "../../../verification/isa/rcf/rv32ui-p-simple.rcf";
     signal current_test : integer := 0;
 
     -- SPI Flash Signals 
@@ -637,7 +636,7 @@ end component;
 
     -- Main test sequence
     test_sequence: process
-        variable current_file : string(1 to 29);
+        variable current_file : string(1 to 49);
         variable file_exists : boolean;
     begin
         -- Reset MCU at begining of test 

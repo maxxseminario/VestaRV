@@ -266,7 +266,7 @@ begin
         UartReceiveStringFromTXUntil(baudratePeriodROM, '>', TX0, TXing, str);
         TXStr <= str;
         wait for clk_hfxt_period;
-        if str(1 to 16) = "124 0x04B00 !" & lf & lf & ">" then
+        if str(1 to 16) = "124 0x10000 !" & lf & lf & ">" then
             report "Second write command response correct: " & str(1 to 16);
         else
             report "Error: incorrect second write response: " & str(1 to 16) severity error;
@@ -374,8 +374,8 @@ begin
         SentSync <= '0';
         wait until ReceivedSync = '1';
 
-        report "Sending second write command: 124 0x04B00 !";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "124 0x04B00 !" & lf);
+        report "Sending second write command: 124 0x10000 !";
+        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "124 0x10000 !" & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
@@ -388,8 +388,8 @@ begin
         SentSync <= '0';
         wait until ReceivedSync = '1';
 
-        report "Sending second read command: 0x04B00 @ .";
-        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x04B00 @ ." & lf);
+        report "Sending second read command: 0x10000 @ .";
+        UartSendStrToRX(baudratePeriodROM, RX0, RXing, "0x10000 @ ." & lf);
         SentSync <= '1';
         wait for clk_hfxt_period;
         SentSync <= '0';
