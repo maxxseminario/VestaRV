@@ -9,11 +9,14 @@
 #include "MemoryMap.h"
 
 int main(void) {
-    // Configure P2.0 as output for T0CMP0 (Timer0 Compare 0 output)
-    // P2SEL.P0 = 1 to enable T0CMP0 peripheral function
-    // P2DIR.P0 = 1 to set as output
-    GPIO2->SEL.P0 = 1;   // Select T0CMP0 peripheral function on P2.0
-    GPIO2->DIR.P0 = 1;   // Set P2.0 as output
+    // Configure P3.0 as output for T0CMP0 (Timer0 Compare 0 output)
+    // GPIO2 peripheral (base 0x4800) controls Port 3 pins
+    // P3SEL.P0 = 1 to enable T0CMP0 peripheral function
+    // P3DIR.P0 = 1 to set as output
+    
+    // Write full register values instead of individual bitfields
+    GPIO2->SEL.value = 0x01;   // Select T0CMP0 peripheral function on P3.0
+    GPIO2->DIR.value = 0x01;   // Set P3.0 as output
     
     // Configure TIMER0 for fastest possible toggling
     TIMER0->CMP0.value = 1;        // Toggle at count 1 (minimum for toggling)
