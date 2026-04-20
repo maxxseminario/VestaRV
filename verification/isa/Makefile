@@ -444,6 +444,10 @@ periph-flash: periph-clean periph
 	@python3 ../python/rcf_insert.py xxxxperiph-p-SPIEM.rcf xxxxxxxspifem-p-lw.rcf xxxxperiph-p-SPIFM.rcf --index 0x800
 
 
+# Target basename length for all RCF files (must match flash_prepend.sh TARGET_BASENAME_LEN).
+# Reference: "xxxxxxperiph-p-NPU.rcf" = 22 characters.
+TARGET_RCF_NAMELEN := 22
+
 .PHONY: pad_rcf_filenames
 pad_rcf_filenames:
 	@echo "Note: Use pad_rcf_filenames_<suite> for specific test suites"
@@ -452,16 +456,16 @@ pad_rcf_filenames:
 .PHONY: pad_rcf_filenames_%
 pad_rcf_filenames_%:
 	@if [ -d "$(build_dir)/$*" ] && [ -n "$$(find $(build_dir)/$* -maxdepth 1 -name '*.rcf' 2>/dev/null)" ]; then \
-	  maxlen=$$(find $(build_dir)/$* -maxdepth 1 -name "*.rcf" ! -name "boot-p-boot.rcf" -printf "%f\n" | awk '{ print length, $$0 }' | sort -nr | head -1 | cut -d' ' -f1); \
 	  cd $(build_dir)/$* && for f in *.rcf; do \
 	    if [ "$$f" = "boot-p-boot.rcf" ]; then continue; fi; \
-	    len=$${#f}; \
-	    if [ $$len -lt $$maxlen ]; then \
-	      pad=$$(printf '%*s' $$((maxlen - len)) '' | tr ' ' x); \
-	      mv "$$f" "$$pad$$f"; \
-	    fi; \
+	    stripped="$${f#$${f%%[!x]*}}"; \
+	    slen=$${#stripped}; \
+	    pad_count=$$(( $(TARGET_RCF_NAMELEN) - slen )); \
+	    if [ $$pad_count -lt 0 ]; then pad_count=0; fi; \
+	    newname="$$(printf '%*s' $$pad_count '' | tr ' ' x)$${stripped}"; \
+	    if [ "$$f" != "$$newname" ]; then mv "$$f" "$$newname"; fi; \
 	  done; \
-	  echo "Padded RCF filenames in $(build_dir)/$*"; \
+	  echo "Padded RCF filenames in $(build_dir)/$* to length $(TARGET_RCF_NAMELEN)"; \
 	fi
 
 # Collect RCF files from specific test suite to central rcf/ directory
@@ -478,15 +482,14 @@ collect_rcf_%:
 .PHONY: pad_all_rcf
 pad_all_rcf:
 	@if [ -d "rcf" ] && [ -n "$$(find rcf -maxdepth 1 -name '*.rcf' 2>/dev/null)" ]; then \
-	  maxlen=$$(find rcf -maxdepth 1 -name "*.rcf" ! -name "boot-p-boot.rcf" -printf "%f\n" | awk '{ print length, $$0 }' | sort -nr | head -1 | cut -d' ' -f1); \
 	  cd rcf && for f in *.rcf; do \
 	    if [ "$$f" = "boot-p-boot.rcf" ]; then continue; fi; \
-	    basename="$$(basename $$f)"; \
-	    len=$${#basename}; \
-	    if [ $$len -lt $$maxlen ]; then \
-	      pad=$$(printf '%*s' $$((maxlen - len)) '' | tr ' ' x); \
-	      mv "$$f" "$$pad$$f"; \
-	    fi; \
+	    stripped="$${f#$${f%%[!x]*}}"; \
+	    slen=$${#stripped}; \
+	    pad_count=$$(( $(TARGET_RCF_NAMELEN) - slen )); \
+	    if [ $$pad_count -lt 0 ]; then pad_count=0; fi; \
+	    newname="$$(printf '%*s' $$pad_count '' | tr ' ' x)$${stripped}"; \
+	    if [ "$$f" != "$$newname" ]; then mv "$$f" "$$newname"; fi; \
 	  done; \
 	fi
 
