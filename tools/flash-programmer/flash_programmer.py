@@ -30,6 +30,7 @@ import RPi.GPIO as GPIO
 import time
 import sys
 import os
+import argparse
 from pathlib import Path
 
 # GPIO Pin Definitions
@@ -64,8 +65,14 @@ ERASE_CHIP_DELAY = 20.0  # 20s typical chip erase time
 class FlashProgrammer:
     """SPI Flash Programmer for Raspberry Pi"""
     
-    def __init__(self):
-        """Initialize GPIO and SPI interface"""
+    def __init__(self, skip_ready_check=False):
+        """Initialize GPIO and SPI interface
+        
+        Args:
+            skip_ready_check: If True, skip waiting for flash ready (for debugging)
+        """
+        self.skip_ready_check = skip_ready_check
+        
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
@@ -178,6 +185,10 @@ class FlashProgrammer:
     
     def wait_ready(self, timeout=10.0):
         """Wait for flash to be ready (bit 7 of status register)"""
+        if self.skip_ready_check:
+            print("  [DEBUG] Skipping ready check")
+            return True
+        
         start_time = time.time()
         while True:
             status = self.read_status()
@@ -367,18 +378,31 @@ def read_rcf_file(rcf_path):
 
 def main():
     """Main program entry point"""
-    if len(sys.argv) < 2:
-        print("Usage: flash_programmer.py <rcf_file> [start_address]")
-        print("  rcf_file: Path to RCF file to program")
-        print("  start_address: Optional starting address (default: 0x0000)")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description='Program TI serial flash chip via Raspberry Pi GPIO',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''Examples:
+  sudo python3 flash_programmer.py firmware.rcf
+  sudo python3 flash_programmer.py firmware.rcf 0x1000
+  sudo python3 flash_programmer.py firmware.rcf --no-wait  # Debug mode
+''')
+    parser.add_argument('rcf_file', help='Path to the .rcf file to program')
+    parser.add_argument('start_address', nargs='?', default='0x0000',
+                        help='Starting flash address (default: 0x0000)')
+    parser.add_argument('--no-wait', action='store_true',
+                        help='Skip waiting for flash ready (for logic analyzer debugging)')
     
-    rcf_file = sys.argv[1]
-    start_address = int(sys.argv[2], 0) if len(sys.argv) > 2 else 0x0000
+    args = parser.parse_args()
+    
+    rcf_file = args.rcf_file
+    start_address = int(args.start_address, 0)
     
     if not os.path.exists(rcf_file):
         print(f"Error: RCF file not found: {rcf_file}")
         sys.exit(1)
+    
+    if args.no_wait:
+        print("[DEBUG MODE] Flash ready checks disabled for logic analyzer debugging\n")
     
     programmer = None
     try:
@@ -386,7 +410,7 @@ def main():
         data = read_rcf_file(rcf_file)
         
         # Initialize programmer
-        programmer = FlashProgrammer()
+        programmer = FlashProgrammer(skip_ready_check=args.no_wait)
         
         # Power on flash
         programmer.power_on()
