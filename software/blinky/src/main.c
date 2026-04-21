@@ -35,7 +35,6 @@ int main(void) {
     TIMER0->CR.SSEL_ = 2; // SSEL_SMCLK
     
     // Timer now toggles T0CMP0 output in hardware automatically
-    // No CPU intervention - maximum possible speed!
     while(1) {
         // Infinite loop - hardware handles everything
     }
