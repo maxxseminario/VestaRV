@@ -9,7 +9,7 @@ GPIO Pin Connections:
     MOSI - GPIO23
     CS   - GPIO4
 
-Flash Commands (from serial_flash.vhd):
+Flash Commands:
     0xAB - Power On (Release from Deep Power Down)
     0xB9 - Power Down
     0xD7 - Read Status Register
@@ -70,21 +70,41 @@ class FlashProgrammer:
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
         
-        # Configure SPI pins
-        GPIO.setup(PIN_CS, GPIO.OUT, initial=GPIO.HIGH)
+        # Configure SPI pins - setup one at a time with delays
         GPIO.setup(PIN_SCK, GPIO.OUT, initial=GPIO.LOW)
+        time.sleep(0.001)
         GPIO.setup(PIN_MOSI, GPIO.OUT, initial=GPIO.LOW)
+        time.sleep(0.001)
         GPIO.setup(PIN_MISO, GPIO.IN)
+        time.sleep(0.001)
+        GPIO.setup(PIN_CS, GPIO.OUT, initial=GPIO.HIGH)
+        time.sleep(0.01)  # 10ms to let CS stabilize high
         
         self.powered_on = False
         
     def cleanup(self):
         """Release GPIO pins as floating inputs"""
+        # Set CS high before releasing to avoid glitches
+        GPIO.output(PIN_CS, GPIO.HIGH)
+        time.sleep(0.01)
+        
         GPIO.setup(PIN_CS, GPIO.IN)
         GPIO.setup(PIN_SCK, GPIO.IN)
         GPIO.setup(PIN_MOSI, GPIO.IN)
         GPIO.setup(PIN_MISO, GPIO.IN)
         print("All SPI pins set to floating inputs")
+    
+    def test_cs_line(self):
+        """Test CS line - toggle it a few times"""
+        print("Testing CS line...")
+        for i in range(5):
+            print(f"  CS LOW (iteration {i+1})")
+            GPIO.output(PIN_CS, GPIO.LOW)
+            time.sleep(0.1)
+            print(f"  CS HIGH (iteration {i+1})")
+            GPIO.output(PIN_CS, GPIO.HIGH)
+            time.sleep(0.1)
+        print("CS test complete - check logic analyzer for clean transitions")
         
     def spi_transfer_byte(self, data):
         """
