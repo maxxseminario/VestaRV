@@ -100,23 +100,28 @@ class FlashProgrammer:
             else:
                 GPIO.output(PIN_MOSI, GPIO.LOW)
             data <<= 1
+            time.sleep(0.000001)  # 1us delay for setup time
             
             # Rising edge - slave samples MOSI
             GPIO.output(PIN_SCK, GPIO.HIGH)
+            time.sleep(0.000001)  # 1us delay for hold time
             
             # Falling edge - sample MISO
             GPIO.output(PIN_SCK, GPIO.LOW)
             rx_data <<= 1
             if GPIO.input(PIN_MISO):
                 rx_data |= 1
+            time.sleep(0.000001)  # 1us delay between bits
                 
         return rx_data
     
     def spi_command(self, cmd):
         """Send a single command byte"""
         GPIO.output(PIN_CS, GPIO.LOW)
+        time.sleep(0.000010)  # 10us CS setup time
         self.spi_transfer_byte(cmd)
         GPIO.output(PIN_CS, GPIO.HIGH)
+        time.sleep(0.000010)  # 10us CS hold time
         
     def spi_write_enable(self):
         """Enable writing to flash"""
@@ -144,9 +149,11 @@ class FlashProgrammer:
     def read_status(self):
         """Read status register"""
         GPIO.output(PIN_CS, GPIO.LOW)
+        time.sleep(0.000010)  # 10us CS setup time
         self.spi_transfer_byte(CMD_READ_STATUS)
         status = self.spi_transfer_byte(0x00)
         GPIO.output(PIN_CS, GPIO.HIGH)
+        time.sleep(0.000010)  # 10us CS hold time
         return status
     
     def wait_ready(self, timeout=10.0):
@@ -173,12 +180,17 @@ class FlashProgrammer:
     def sector_erase(self, address):
         """Erase a 4KB sector at the given address"""
         self.spi_write_enable()
+        time.sleep(0.000100)  # 100us after write enable
+        
         GPIO.output(PIN_CS, GPIO.LOW)
+        time.sleep(0.000010)  # 10us CS setup time
         self.spi_transfer_byte(CMD_SECTOR_ERASE)
         self.spi_transfer_byte((address >> 16) & 0xFF)
         self.spi_transfer_byte((address >> 8) & 0xFF)
         self.spi_transfer_byte(address & 0xFF)
         GPIO.output(PIN_CS, GPIO.HIGH)
+        time.sleep(0.000010)  # 10us CS hold time
+        
         if not self.wait_ready(timeout=ERASE_SECTOR_DELAY + 1.0):
             raise Exception(f"Sector erase timeout at address 0x{address:06X}")
     
@@ -191,7 +203,10 @@ class FlashProgrammer:
             raise ValueError(f"Data length {len(data)} exceeds page size {PAGE_SIZE}")
         
         self.spi_write_enable()
+        time.sleep(0.000100)  # 100us after write enable
+        
         GPIO.output(PIN_CS, GPIO.LOW)
+        time.sleep(0.000010)  # 10us CS setup time
         self.spi_transfer_byte(CMD_PAGE_PROGRAM)
         self.spi_transfer_byte((address >> 16) & 0xFF)
         self.spi_transfer_byte((address >> 8) & 0xFF)
@@ -201,6 +216,7 @@ class FlashProgrammer:
             self.spi_transfer_byte(byte)
             
         GPIO.output(PIN_CS, GPIO.HIGH)
+        time.sleep(0.000010)  # 10us CS hold time
         
         if not self.wait_ready(timeout=WRITE_CYCLE_DELAY + 1.0):
             raise Exception(f"Page program timeout at address 0x{address:06X}")
@@ -209,6 +225,7 @@ class FlashProgrammer:
         """Read data from flash starting at address"""
         data = []
         GPIO.output(PIN_CS, GPIO.LOW)
+        time.sleep(0.000010)  # 10us CS setup time
         self.spi_transfer_byte(CMD_READ_DATA)
         self.spi_transfer_byte((address >> 16) & 0xFF)
         self.spi_transfer_byte((address >> 8) & 0xFF)
@@ -218,6 +235,7 @@ class FlashProgrammer:
             data.append(self.spi_transfer_byte(0x00))
             
         GPIO.output(PIN_CS, GPIO.HIGH)
+        time.sleep(0.000010)  # 10us CS hold time
         return bytes(data)
     
     def program_flash(self, data, start_address=0x0000, erase_before_write=True):
