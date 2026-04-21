@@ -130,10 +130,15 @@ class FlashTester:
             
             if expect_output:
                 # Parse numeric output from response
-                # Look for hex numbers (starting with $) or decimal numbers
+                # Look for hex numbers (starting with $ or ?$) or decimal numbers (possibly with ? prefix)
                 lines = response_str.split('\n')
                 for line in lines:
                     line = line.strip()
+                    
+                    # Remove leading ? if present (Forth output prefix)
+                    if line.startswith('?'):
+                        line = line[1:].strip()
+                    
                     if line.startswith('$'):
                         # Hex number
                         try:
@@ -146,7 +151,7 @@ class FlashTester:
                     elif line and line[0].isdigit():
                         # Decimal number
                         try:
-                            value = int(line)
+                            value = int(line.split()[0])  # Take first token in case there's extra text
                             if self.verbose:
                                 print(f"  [PARSED] {value} (0x{value:X})")
                             return value
