@@ -187,22 +187,40 @@ class FlashTester:
         Returns:
             Received byte value
         """
+        if self.verbose:
+            print(f"  [SPI] TX: 0x{byte_val:02X}")
+        
         # Write byte to TX register
         self.write_register(self.SPI0TX, byte_val)
         
         # Wait for SPI to become not busy (bit 2 of status = 0)
         # Forth: BEGIN $4204 @ 4 AND 0= UNTIL
         timeout = 100
+        busy_count = 0
         while timeout > 0:
             status = self.read_register(self.SPI0SR)
-            if status is not None and (status & 0x04) == 0:
-                break
+            if status is not None:
+                if self.verbose and busy_count < 3:  # Only print first few status reads
+                    print(f"  [SPI] Status: 0x{status:04X} (busy={bool(status & 0x04)})")
+                    busy_count += 1
+                if (status & 0x04) == 0:
+                    break
             time.sleep(0.001)
             timeout -= 1
         
+        if timeout == 0 and self.verbose:
+            print(f"  [SPI] Warning: Timeout waiting for SPI ready")
+        
         # Read received byte
         rx_val = self.read_register(self.SPI0RX)
-        return rx_val if rx_val is not None else 0
+        
+        # Mask to byte (in case register returns more bits)
+        rx_byte = (rx_val & 0xFF) if rx_val is not None else 0
+        
+        if self.verbose:
+            print(f"  [SPI] RX: 0x{rx_byte:02X} (raw: 0x{rx_val:X})")
+        
+        return rx_byte
     
     def init_spi(self):
         """Initialize SPI0 peripheral"""
