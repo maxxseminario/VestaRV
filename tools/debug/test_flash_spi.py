@@ -33,6 +33,14 @@ class FlashTester:
     SPI0TX = 0x4208  # Transmit Register
     SPI0RX = 0x420C  # Receive Register
     
+    # GPIO Registers (for manual CS control)
+    # GPIO0 base = 0x4000, typical offsets:
+    GPIO0_BASE = 0x4000
+    GPIO0_DIR = 0x4000   # Direction register
+    GPIO0_OUT = 0x4004   # Output data register
+    GPIO0_SET = 0x4008   # Set bits (write 1 to set)
+    GPIO0_CLR = 0x400C   # Clear bits (write 1 to clear)
+    
     # AT45DB021E Commands
     CMD_READ_ID = 0x9F           # Read Manufacturer and Device ID
     CMD_READ_STATUS = 0xD7       # Read Status Register
@@ -44,7 +52,7 @@ class FlashTester:
     TEST_WORD = 0xDEADBEEF
     TEST_BYTES = [0xEF, 0xBE, 0xAD, 0xDE]  # Little-endian byte order
     
-    def __init__(self, port='/dev/ttyAMA0', baudrate=115200, verbose=False):
+    def __init__(self, port='/dev/ttyAMA0', baudrate=115200, verbose=False, cs_pin=None):
         """
         Initialize UART connection
         
@@ -52,9 +60,11 @@ class FlashTester:
             port: Serial port device (default: /dev/ttyAMA0 for RPi 4)
             baudrate: UART baudrate (default: 115200)
             verbose: Enable verbose debugging output
+            cs_pin: GPIO pin number for chip select (None = no CS control, e.g., 0-7 for GPIO0 pins)
         """
         self.uart = None
         self.verbose = verbose
+        self.cs_pin = cs_pin
         
         try:
             self.uart = serial.Serial(
@@ -69,6 +79,8 @@ class FlashTester:
                 dsrdtr=False,
             )
             print(f"✓ UART connection established on {port} at {baudrate} baud")
+            if cs_pin is not None:
+                print(f"✓ Using GPIO0.{cs_pin} for chip select")
         except serial.SerialException as e:
             print(f"✗ Error: Could not open UART port {port}: {e}")
             sys.exit(1)
@@ -177,6 +189,26 @@ class FlashTester:
         cmd = f"{self.addr_to_forth(addr)} @ ."
         return self.send_forth(cmd, expect_output=True)
     
+    def cs_low(self):
+        """Assert chip select (drive CS pin LOW)"""
+        if self.cs_pin is not None:
+            # Clear the bit to drive pin low
+            mask = 1 << self.cs_pin
+            self.write_register(self.GPIO0_CLR, mask)
+            if self.verbose:
+                print(f"  [CS] Asserted (GPIO0.{self.cs_pin} = LOW)")
+            time.sleep(0.001)  # Small delay after CS assertion
+    
+    def cs_high(self):
+        """Deassert chip select (drive CS pin HIGH)"""
+        if self.cs_pin is not None:
+            # Set the bit to drive pin high
+            mask = 1 << self.cs_pin
+            self.write_register(self.GPIO0_SET, mask)
+            if self.verbose:
+                print(f"  [CS] Deasserted (GPIO0.{self.cs_pin} = HIGH)")
+            time.sleep(0.001)  # Small delay after CS deassertion
+    
     def spi_transfer_byte(self, byte_val):
         """
         Send one byte via SPI and return received byte
@@ -223,8 +255,22 @@ class FlashTester:
         return rx_byte
     
     def init_spi(self):
-        """Initialize SPI0 peripheral"""
+        """Initialize SPI0 peripheral and CS GPIO pin"""
         print("\n--- Initializing SPI0 ---")
+        
+        # Configure CS GPIO pin if specified
+        if self.cs_pin is not None:
+            # Set GPIO pin as output (set bit in direction register)
+            mask = 1 << self.cs_pin
+            dir_val = self.read_register(self.GPIO0_DIR)
+            if dir_val is None:
+                dir_val = 0
+            new_dir = dir_val | mask
+            self.write_register(self.GPIO0_DIR, new_dir)
+            
+            # Set CS high (inactive)
+            self.cs_high()
+            print(f"✓ GPIO0.{self.cs_pin} configured as output for CS")
         
         # SPI0CR configuration:
         # Bit 18: SM = 1 (Master mode)
@@ -249,6 +295,9 @@ class FlashTester:
         """Read and verify manufacturer ID"""
         print("\n--- Reading Manufacturer ID ---")
         
+        # Assert CS
+        self.cs_low()
+        
         # Send Read ID command (0x9F)
         self.spi_transfer_byte(self.CMD_READ_ID)
         
@@ -259,6 +308,9 @@ class FlashTester:
         dev_id1 = self.spi_transfer_byte(0x00)
         dev_id2 = self.spi_transfer_byte(0x00)
         dev_id3 = self.spi_transfer_byte(0x00)
+        
+        # Deassert CS
+        self.cs_high()
         
         print(f"Manufacturer ID: 0x{mfg_id:02X}")
         print(f"Device ID: 0x{dev_id1:02X} 0x{dev_id2:02X} 0x{dev_id3:02X}")
@@ -283,9 +335,11 @@ class FlashTester:
         start_time = time.time()
         
         while (time.time() - start_time) * 1000 < timeout_ms:
-            # Send Read Status command
+            # Assert CS, send Read Status command, deassert CS
+            self.cs_low()
             self.spi_transfer_byte(self.CMD_READ_STATUS)
             status = self.spi_transfer_byte(0x00)
+            self.cs_high()
             
             if status is not None and (status & 0x80):
                 return True
@@ -303,6 +357,9 @@ class FlashTester:
         """
         print(f"\n--- Writing {len(data_bytes)} bytes to Buffer 1 ---")
         
+        # Assert CS
+        self.cs_low()
+        
         # Send Buffer 1 Write command (0x84)
         self.spi_transfer_byte(self.CMD_BUFFER1_WRITE)
         
@@ -316,6 +373,9 @@ class FlashTester:
             self.spi_transfer_byte(byte_val)
             print(f"  Byte {i}: 0x{byte_val:02X}")
         
+        # Deassert CS
+        self.cs_high()
+        
         print("✓ Data written to Buffer 1")
     
     def program_buffer_to_page(self, page_num):
@@ -326,6 +386,9 @@ class FlashTester:
             page_num: Page number (0-1023)
         """
         print(f"\n--- Programming Buffer 1 to Page {page_num} ---")
+        
+        # Assert CS
+        self.cs_low()
         
         # Send Buffer 1 to Main Memory command (0x83)
         self.spi_transfer_byte(self.CMD_BUFFER1_TO_PAGE)
@@ -343,6 +406,9 @@ class FlashTester:
         self.spi_transfer_byte(addr_byte0)
         self.spi_transfer_byte(addr_byte1)
         self.spi_transfer_byte(addr_byte2)
+        
+        # Deassert CS
+        self.cs_high()
         
         print(f"  Address bytes: 0x{addr_byte0:02X} 0x{addr_byte1:02X} 0x{addr_byte2:02X}")
         print("  Waiting for programming to complete...")
@@ -371,6 +437,9 @@ class FlashTester:
         """
         print(f"\n--- Reading {num_bytes} bytes from Page {page_num} offset {offset} ---")
         
+        # Assert CS
+        self.cs_low()
+        
         # Send Main Memory Page Read command (0xD2)
         self.spi_transfer_byte(self.CMD_PAGE_READ)
         
@@ -398,6 +467,9 @@ class FlashTester:
             byte_val = self.spi_transfer_byte(0x00)
             data.append(byte_val if byte_val is not None else 0)
             print(f"  Byte {i}: 0x{data[i]:02X}")
+        
+        # Deassert CS
+        self.cs_high()
         
         return data
     
@@ -454,20 +526,33 @@ def main():
     # Default port for Raspberry Pi 4
     port = '/dev/ttyAMA0'
     verbose = False
+    cs_pin = None
     
     # Parse command line arguments
-    for arg in sys.argv[1:]:
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
         if arg in ['-v', '--verbose']:
             verbose = True
+        elif arg in ['--cs']:
+            if i + 1 < len(sys.argv):
+                cs_pin = int(sys.argv[i + 1])
+                i += 1
         elif not arg.startswith('-'):
             port = arg
+        i += 1
     
     print(f"Using UART port: {port}")
     if verbose:
         print("Verbose debugging: ENABLED")
-    print("(Usage: python3 test_flash_spi.py [port] [-v|--verbose])")
+    if cs_pin is not None:
+        print(f"Chip select: GPIO0.{cs_pin}")
+    else:
+        print("Chip select: Not controlled (WARNING: May not work without CS!)")
+    print("(Usage: python3 test_flash_spi.py [port] [-v|--verbose] [--cs PIN])")
+    print("  Example: python3 test_flash_spi.py /dev/ttyAMA0 --cs 0 -v")
     
-    tester = FlashTester(port=port, verbose=verbose)
+    tester = FlashTester(port=port, verbose=verbose, cs_pin=cs_pin)
     
     try:
         success = tester.run_test()
