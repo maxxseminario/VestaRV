@@ -296,35 +296,35 @@ p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='PxDIR', msb=31, lsb=0, accessibility='rw'))
 
-# PxREN
-r = RegisterTemplate(nameTemplate='PxREN', registerMemorySlot=6, description='GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.', size=32)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw'))
-
-# PxSEL
-r = RegisterTemplate(nameTemplate='PxSEL', registerMemorySlot=7, description='GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to secondary function (peripheral) mode. When a pin is in secondary function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. Pin interrupts remain available when in secondary function (peripheral) mode in addition to any interrupts the secondary function/peripheral may generate. If a pin has no secondary function defined, setting PxSEL to 1 will configure the pin as a high-impedance input.', size=32)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='PxSEL', msb=31, lsb=0, accessibility='rw'))
-
 # PxIF
-r = RegisterTemplate(nameTemplate='PxIF', registerMemorySlot=8, description='GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.', size=32)
+r = RegisterTemplate(nameTemplate='PxIF', registerMemorySlot=6, description='GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='PxIF', msb=31, lsb=0, accessibility='rw1'))
 
 # PxIES
-r = RegisterTemplate(nameTemplate='PxIES', registerMemorySlot=9, description='GPIO interrupt edge select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin interrupt to trigger on low-to-high (rising) edge; write a 1 to set to high-to-low (falling) edge triggering.', size=32)
+r = RegisterTemplate(nameTemplate='PxIES', registerMemorySlot=7, description='GPIO interrupt edge select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin interrupt to trigger on low-to-high (rising) edge; write a 1 to set to high-to-low (falling) edge triggering.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='PxIES', msb=31, lsb=0, accessibility='rw'))
 
 # PxIE
-r = RegisterTemplate(nameTemplate='PxIE', registerMemorySlot=10, description='GPIO interrupt enable register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to disable the pin interrupt; write a 1 to enable the pin interrupt. Each pin has an individual interrupt output that connects to the system interrupt vector table. Interrupts function in both GPIO (primary) and secondary function (peripheral) modes.', size=32)
+r = RegisterTemplate(nameTemplate='PxIE', registerMemorySlot=8, description='GPIO interrupt enable register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to disable the pin interrupt; write a 1 to enable the pin interrupt. Each pin has an individual interrupt output that connects to the system interrupt vector table. Interrupts function in both GPIO (primary) and secondary function (peripheral) modes.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='PxIE', msb=31, lsb=0, accessibility='rw'))
+
+# PxSEL
+r = RegisterTemplate(nameTemplate='PxSEL', registerMemorySlot=9, description='GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to secondary function (peripheral) mode. When a pin is in secondary function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. Pin interrupts remain available when in secondary function (peripheral) mode in addition to any interrupts the secondary function/peripheral may generate. If a pin has no secondary function defined, setting PxSEL to 1 will configure the pin as a high-impedance input.', size=32)
+p.AddRegisterTemplate(r)
+
+r.AddBitField(BitField(name='PxSEL', msb=31, lsb=0, accessibility='rw'))
+
+# PxREN
+r = RegisterTemplate(nameTemplate='PxREN', registerMemorySlot=10, description='GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.', size=32)
+p.AddRegisterTemplate(r)
+
+r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw'))
 
 ## PxOCEN
 #r = RegisterTemplate(nameTemplate='PxOCEN', registerMemorySlot=10, description='GPIO open collector register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin open-collector mode; write a 1 to enable the pin open-collector mode.', size=32)

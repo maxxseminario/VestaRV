@@ -2,7 +2,7 @@
  **	MemoryMap.h
  **	Memory map definition header file
  **	Defines the microcontroller peripheral and register addresses, as well as the bit field bit masks
- **	Generated on 2026/04/20 at 16:30:37 with the MemoryMap.py memory map generator
+ **	Generated on 2026/04/20 at 19:01:23 with the MemoryMap.py memory map generator
  **	WARNING: Do not edit or modify this file!
  **		If you need to change it, use the MemoryMap.py memory map generator tool
  **/
@@ -116,25 +116,25 @@ extern "C" {
 #define PxDIR_OFFSET			(20)
 #define PxDIR_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxDIR_OFFSET)
 
-// PxREN
-#define PxREN_OFFSET			(24)
-#define PxREN_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxREN_OFFSET)
-
-// PxSEL
-#define PxSEL_OFFSET			(28)
-#define PxSEL_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxSEL_OFFSET)
-
 // PxIF
-#define PxIF_OFFSET				(32)
+#define PxIF_OFFSET				(24)
 #define PxIF_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxIF_OFFSET)
 
 // PxIES
-#define PxIES_OFFSET			(36)
+#define PxIES_OFFSET			(28)
 #define PxIES_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxIES_OFFSET)
 
 // PxIE
-#define PxIE_OFFSET				(40)
+#define PxIE_OFFSET				(32)
 #define PxIE_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxIE_OFFSET)
+
+// PxSEL
+#define PxSEL_OFFSET			(36)
+#define PxSEL_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxSEL_OFFSET)
+
+// PxREN
+#define PxREN_OFFSET			(40)
+#define PxREN_PTR(_GPIOx_BASE)	MMR_32_PTR(_GPIOx_BASE, PxREN_OFFSET)
 
 
 
@@ -989,11 +989,11 @@ extern "C" {
 #define P0OUTC_ADDRESS			(0x400C)
 #define P0OUTT_ADDRESS			(0x4010)
 #define P0DIR_ADDRESS			(0x4014)
-#define P0REN_ADDRESS			(0x4018)
-#define P0SEL_ADDRESS			(0x401C)
-#define P0IF_ADDRESS			(0x4020)
-#define P0IES_ADDRESS			(0x4024)
-#define P0IE_ADDRESS			(0x4028)
+#define P0IF_ADDRESS			(0x4018)
+#define P0IES_ADDRESS			(0x401C)
+#define P0IE_ADDRESS			(0x4020)
+#define P0SEL_ADDRESS			(0x4024)
+#define P0REN_ADDRESS			(0x4028)
 
 
 
@@ -1006,11 +1006,11 @@ extern "C" {
 #define P1OUTC_ADDRESS			(0x410C)
 #define P1OUTT_ADDRESS			(0x4110)
 #define P1DIR_ADDRESS			(0x4114)
-#define P1REN_ADDRESS			(0x4118)
-#define P1SEL_ADDRESS			(0x411C)
-#define P1IF_ADDRESS			(0x4120)
-#define P1IES_ADDRESS			(0x4124)
-#define P1IE_ADDRESS			(0x4128)
+#define P1IF_ADDRESS			(0x4118)
+#define P1IES_ADDRESS			(0x411C)
+#define P1IE_ADDRESS			(0x4120)
+#define P1SEL_ADDRESS			(0x4124)
+#define P1REN_ADDRESS			(0x4128)
 
 
 
@@ -1095,11 +1095,11 @@ extern "C" {
 #define P2OUTC_ADDRESS			(0x480C)
 #define P2OUTT_ADDRESS			(0x4810)
 #define P2DIR_ADDRESS			(0x4814)
-#define P2REN_ADDRESS			(0x4818)
-#define P2SEL_ADDRESS			(0x481C)
-#define P2IF_ADDRESS			(0x4820)
-#define P2IES_ADDRESS			(0x4824)
-#define P2IE_ADDRESS			(0x4828)
+#define P2IF_ADDRESS			(0x4818)
+#define P2IES_ADDRESS			(0x481C)
+#define P2IE_ADDRESS			(0x4820)
+#define P2SEL_ADDRESS			(0x4824)
+#define P2REN_ADDRESS			(0x4828)
 
 
 
@@ -1182,11 +1182,11 @@ extern "C" {
 #define P3OUTC_ADDRESS			(0x4D0C)
 #define P3OUTT_ADDRESS			(0x4D10)
 #define P3DIR_ADDRESS			(0x4D14)
-#define P3REN_ADDRESS			(0x4D18)
-#define P3SEL_ADDRESS			(0x4D1C)
-#define P3IF_ADDRESS			(0x4D20)
-#define P3IES_ADDRESS			(0x4D24)
-#define P3IE_ADDRESS			(0x4D28)
+#define P3IF_ADDRESS			(0x4D18)
+#define P3IES_ADDRESS			(0x4D1C)
+#define P3IE_ADDRESS			(0x4D20)
+#define P3SEL_ADDRESS			(0x4D24)
+#define P3REN_ADDRESS			(0x4D28)
 
 
 
@@ -1325,19 +1325,19 @@ typedef struct
 	volatile GPIO_8bit_Register_t	DIR;
 	volatile uint8_t				__unused10;
 	volatile uint16_t				__unused11;
-	volatile GPIO_8bit_Register_t	REN;
+	volatile GPIO_8bit_Register_t	IF;
 	volatile uint8_t				__unused12;
 	volatile uint16_t				__unused13;
-	volatile GPIO_8bit_Register_t	SEL;
+	volatile GPIO_8bit_Register_t	IES;
 	volatile uint8_t				__unused14;
 	volatile uint16_t				__unused15;
-	volatile GPIO_8bit_Register_t	IF;
+	volatile GPIO_8bit_Register_t	IE;
 	volatile uint8_t				__unused16;
 	volatile uint16_t				__unused17;
-	volatile GPIO_8bit_Register_t	IES;
+	volatile GPIO_8bit_Register_t	SEL;
 	volatile uint8_t				__unused18;
 	volatile uint16_t				__unused19;
-	volatile GPIO_8bit_Register_t	IE;
+	volatile GPIO_8bit_Register_t	REN;
 	volatile uint8_t				__unused20;
 	volatile uint16_t				__unused21;
 	volatile uint32_t				__unused22[53];
@@ -1358,15 +1358,15 @@ typedef struct
 	volatile uint16_t				__unused4;
 	volatile GPIO_16bit_Register_t	DIR;
 	volatile uint16_t				__unused5;
-	volatile GPIO_16bit_Register_t	REN;
-	volatile uint16_t				__unused6;
-	volatile GPIO_16bit_Register_t	SEL;
-	volatile uint16_t				__unused7;
 	volatile GPIO_16bit_Register_t	IF;
-	volatile uint16_t				__unused8;
+	volatile uint16_t				__unused6;
 	volatile GPIO_16bit_Register_t	IES;
-	volatile uint16_t				__unused9;
+	volatile uint16_t				__unused7;
 	volatile GPIO_16bit_Register_t	IE;
+	volatile uint16_t				__unused8;
+	volatile GPIO_16bit_Register_t	SEL;
+	volatile uint16_t				__unused9;
+	volatile GPIO_16bit_Register_t	REN;
 	volatile uint16_t				__unused10;
 	volatile uint32_t				__unused11[53];
 }GPIOx_16bit_t;
@@ -1380,11 +1380,11 @@ typedef struct
 	volatile GPIO_32bit_Register_t	OUTC;
 	volatile GPIO_32bit_Register_t	OUTT;
 	volatile GPIO_32bit_Register_t	DIR;
-	volatile GPIO_32bit_Register_t	REN;
-	volatile GPIO_32bit_Register_t	SEL;
 	volatile GPIO_32bit_Register_t	IF;
 	volatile GPIO_32bit_Register_t	IES;
 	volatile GPIO_32bit_Register_t	IE;
+	volatile GPIO_32bit_Register_t	SEL;
+	volatile GPIO_32bit_Register_t	REN;
 	volatile uint32_t				__unused0[53];
 }GPIOx_32bit_t;
 
