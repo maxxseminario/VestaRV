@@ -44,15 +44,17 @@ class FlashTester:
     TEST_WORD = 0xDEADBEEF
     TEST_BYTES = [0xEF, 0xBE, 0xAD, 0xDE]  # Little-endian byte order
     
-    def __init__(self, port='/dev/ttyAMA0', baudrate=115200):
+    def __init__(self, port='/dev/ttyAMA0', baudrate=115200, verbose=False):
         """
         Initialize UART connection
         
         Args:
             port: Serial port device (default: /dev/ttyAMA0 for RPi 4)
             baudrate: UART baudrate (default: 115200)
+            verbose: Enable verbose debugging output
         """
         self.uart = None
+        self.verbose = verbose
         
         try:
             self.uart = serial.Serial(
@@ -92,6 +94,10 @@ class FlashTester:
                 self.uart.reset_input_buffer()
                 time.sleep(0.01)
             
+            # Debug: Print command being sent
+            if self.verbose:
+                print(f"  [TX] {command}")
+            
             # Send command
             self.uart.write((command + '\n').encode('utf-8'))
             self.uart.flush()
@@ -118,6 +124,10 @@ class FlashTester:
             
             response_str = response.decode('utf-8', errors='replace').strip()
             
+            # Debug: Print raw response
+            if self.verbose:
+                print(f"  [RX] {repr(response_str)}")
+            
             if expect_output:
                 # Parse numeric output from response
                 # Look for hex numbers (starting with $) or decimal numbers
@@ -127,15 +137,23 @@ class FlashTester:
                     if line.startswith('$'):
                         # Hex number
                         try:
-                            return int(line[1:], 16)
+                            value = int(line[1:], 16)
+                            if self.verbose:
+                                print(f"  [PARSED] 0x{value:X} ({value})")
+                            return value
                         except ValueError:
                             pass
                     elif line and line[0].isdigit():
                         # Decimal number
                         try:
-                            return int(line)
+                            value = int(line)
+                            if self.verbose:
+                                print(f"  [PARSED] {value} (0x{value:X})")
+                            return value
                         except ValueError:
                             pass
+                if self.verbose:
+                    print(f"  [PARSED] None (no numeric output found)")
                 return None
             
             return response_str
@@ -412,15 +430,21 @@ def main():
     """Main entry point"""
     # Default port for Raspberry Pi 4
     port = '/dev/ttyAMA0'
+    verbose = False
     
-    # Allow port override from command line
-    if len(sys.argv) > 1:
-        port = sys.argv[1]
+    # Parse command line arguments
+    for arg in sys.argv[1:]:
+        if arg in ['-v', '--verbose']:
+            verbose = True
+        elif not arg.startswith('-'):
+            port = arg
     
     print(f"Using UART port: {port}")
-    print("(Override with: python3 test_flash_spi.py /dev/ttyUSB0)")
+    if verbose:
+        print("Verbose debugging: ENABLED")
+    print("(Usage: python3 test_flash_spi.py [port] [-v|--verbose])")
     
-    tester = FlashTester(port=port)
+    tester = FlashTester(port=port, verbose=verbose)
     
     try:
         success = tester.run_test()
