@@ -24,7 +24,7 @@ hardware/Myshkin.vhd
 *.bin
 *.hex
 *.dump
-*.rcf
+#*.rcf
 *.map
 
 # Python cache
