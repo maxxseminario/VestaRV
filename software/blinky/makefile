@@ -73,10 +73,11 @@ help:
 	@echo "  make all      - Build ELF, binary, hex, dump, and RCF with flash headers"
 	@echo "  make clean    - Remove all build artifacts"
 
-all: $(BIN_DIR)/$(TARGET).dump $(RCF_DIR)/*$(TARGET).rcf
+all: $(BIN_DIR)/$(TARGET).hex $(BIN_DIR)/$(TARGET).dump $(RCF_DIR)/*$(TARGET).rcf
 	@echo ""
 	@echo "Build complete: $(TARGET)"
 	@$(SIZE) $(BIN_DIR)/$(TARGET).elf
+	@echo "Intel hex file: $(BIN_DIR)/$(TARGET).hex"
 	@echo "RCF file with flash headers ready for simulation"
 
 $(BIN_DIR)/$(TARGET).elf: $(ALL_OBJS) | $(BIN_DIR)
