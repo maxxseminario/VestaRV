@@ -57,7 +57,7 @@ ABI = ilp32
 
 # Flags
 CFLAGS = -march=$(ARCH) -mabi=$(ABI) -Wall -O2 -g -I$(INC_DIR) -I$(PLATFORM_DIR)/include -I$(LIB_INC_DIR) -ffreestanding -nostdlib
-LDFLAGS = -march=$(ARCH) -mabi=$(ABI) -T$(LD_SCRIPT) -nostartfiles -nostdlib -Wl,-Map=$(BIN_DIR)/$(TARGET).map -L$(LD_DIR)
+LDFLAGS = -march=$(ARCH) -mabi=$(ABI) -T$(LD_SCRIPT) -nostartfiles -nostdlib -Wl,-Map=$(BIN_DIR)/$(TARGET).map -L$(PLATFORM_LD_DIR) -L$(LD_DIR)
 
 # Source files
 SRC_FILES = $(addprefix $(SRC_DIR)/,$(SRC_SOURCES))
