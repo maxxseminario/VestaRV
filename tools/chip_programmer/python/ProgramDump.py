@@ -115,31 +115,39 @@ def IntelHexToSpiFlashCommands(activeChip:Chip, intelHexFilePath:str, defaultWor
 			print('Memory segment is partially in bounds and partially out of bounds of the RAM')
 			return None
 		
-	# Create the commands - just one big DUMP command with all data (including zeros)
+	# Create the commands - write from first segment start to last segment end (with zeros for gaps)
 	commands = []
 	
-	# Build complete word array from RamStartAddress to RamEndAddress
+	if len(segments) == 0:
+		print('No program data found in Intel Hex file')
+		return None
+	
+	# Get the range to write: from first segment start to last segment end
+	writeStartAddress = segments[0][0]
+	writeEndAddress = segments[-1][1]
+	
+	# Build word array from writeStartAddress to writeEndAddress (including gaps filled with zeros)
 	words = []
-	for i in range(RamStartAddress, RamEndAddress, bytesPerWord):
+	for i in range(writeStartAddress, writeEndAddress, bytesPerWord):
 		word = 0
 		for j in range(bytesPerWord):
 			b = ihex[i + j]
 			if b is None:
-				b = 0  # Use 0 for blank areas instead of defaultWordValue
+				b = 0  # Use 0 for blank areas
 			word |= b << (j * 8)
 		words.append(word)
 	
-	# Create single DUMP command for entire RAM
+	# Create single DUMP command for the program range
 	cmdDumpSegment = 0x10adbeef
 	cmdExecuteProgram = 0xcafebabe
 	
 	commands.append({
 		'Type': 'Dump',
 		'CommandWord': cmdDumpSegment,
-		'StartAddress': RamStartAddress,
-		'EndAddress': RamEndAddress,
+		'StartAddress': writeStartAddress,
+		'EndAddress': writeEndAddress,
 		'Words': words,
-		'Bytes': WordToBytes(cmdDumpSegment, activeChip.SwapProgramBytes) + WordToBytes(RamStartAddress, activeChip.SwapProgramBytes) + WordToBytes(RamEndAddress, activeChip.SwapProgramBytes) + WordsToBytes(words, activeChip.SwapProgramBytes)
+		'Bytes': WordToBytes(cmdDumpSegment, activeChip.SwapProgramBytes) + WordToBytes(writeStartAddress, activeChip.SwapProgramBytes) + WordToBytes(writeEndAddress, activeChip.SwapProgramBytes) + WordsToBytes(words, activeChip.SwapProgramBytes)
 	})
 	
 	commands.append({'Type': 'Execute', 'CommandWord': cmdExecuteProgram, 'Bytes': WordToBytes(cmdExecuteProgram, activeChip.SwapProgramBytes)})
