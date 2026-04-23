@@ -22,7 +22,7 @@
 		4
 	],
 	"RamEndAddress": 65535,
-	"SpiFlashProgramAddress": 32768,
+	"SpiFlashProgramAddress": 0,
 	"NativeSpiFlashMemoryReadAccess": true,
 	"NativeSpiFlashMemoryWriteAccess": false,
 	"VectorsStartAddress": 32768,
