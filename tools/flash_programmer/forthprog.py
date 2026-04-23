@@ -124,10 +124,18 @@ print('Connected to', forth.ActiveChip.Name, 'board', forth.ActiveBoard.Name, 'o
 flash = ProgramFlash()
 flash.Setup(forth)
 
-if flash.WriteProgram(args.IntelHexFile, verify=args.verify, skipBlank=args.skipBlank, showProgressBar=True) != True:
-	print('')
-	print('ERROR: unable to write program to flash memory')
-	exit()
+# Check if input file is RCF or Intel Hex
+if args.IntelHexFile.endswith('.rcf'):
+	print('Detected RCF file, writing directly to flash')
+	if flash.WriteRcfFile(args.IntelHexFile, verify=args.verify, showProgressBar=True) != True:
+		print('')
+		print('ERROR: unable to write RCF to flash memory')
+		exit()
+else:
+	if flash.WriteProgram(args.IntelHexFile, verify=args.verify, skipBlank=args.skipBlank, showProgressBar=True) != True:
+		print('')
+		print('ERROR: unable to write program to flash memory')
+		exit()
 	
 # Reset the chip in SPI Flash mode
 forth.SetBootToSpiFlash()
