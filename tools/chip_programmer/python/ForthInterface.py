@@ -195,9 +195,16 @@ class ForthInterface():
 			
 			oldTimeout = self.uart.Timeout
 			self.uart.Timeout = 10
-			if self.uart.ReadUntil(forthInitString) is None:
-				print('Timeout: Unable to connect to board')
-				return False
+			
+			# Only wait for init string if one is specified
+			if forthInitString and len(forthInitString) > 0:
+				if self.uart.ReadUntil(forthInitString) is None:
+					print('Timeout: Unable to connect to board')
+					return False
+			else:
+				# No init string expected, just give the chip time to boot
+				sleep(0.5)
+			
 			self.uart.Timeout = oldTimeout
 			
 		# Get the chip name (and disable echo) and determine if you're actually in the ROM or SpiFlash Forth interpreter
