@@ -106,7 +106,7 @@ class ProgramFlash():
 	
 	def WriteProgram(self, intelHexFilePath:str, verify=False, skipBlank=False, showProgressBar=False):
 		defaultWordValue = 0xDEADBEEF
-		fillEmptySegments = True
+		fillEmptySegments = False  # Don't fill gaps - bootloader expects LOAD command first
 		
 		if self.forth.ActiveChip.BootloaderUsesSpiFlashCommands:
 			pages = SpiFlashCommandsToSpiFlashPages(self.forth.ActiveChip, IntelHexToSpiFlashCommands(self.forth.ActiveChip, intelHexFilePath, defaultWordValue=defaultWordValue, fillEmptySegments=fillEmptySegments), defaultWordValue=defaultWordValue)
