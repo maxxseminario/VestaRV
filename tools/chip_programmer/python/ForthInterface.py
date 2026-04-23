@@ -766,12 +766,16 @@ class ForthInterface():
 	
 	def WriteFlashPage(self, pageAddress:int, binData:bytes):
 		if self.uart.IsOpen != True:
+			print('ERROR: UART is not open')
 			return None
 		if pageAddress < 0:
+			print('ERROR: Invalid page address (negative)')
 			return None
 		if pageAddress % 256 != 0:
+			print(f'ERROR: Page address {hex(pageAddress)} is not 256-byte aligned')
 			return None
 		if len(binData) != 256:
+			print(f'ERROR: Binary data length is {len(binData)}, expected 256 bytes')
 			return None
 		
 		self.uart.FlushBuffers()
@@ -783,8 +787,10 @@ class ForthInterface():
 		bin_payload = 1
 		s = str(bin_payload) + ' ' + str(pageAddress) + ' fw' #+ ' 0xBEEF .'
 		if self.uart.WriteLine(s) is None:
+			print(f'ERROR: Failed to send fw command for address {hex(pageAddress)}')
 			return None
 		if self.uart.ReadUntil('$') is None:	# Receive handshaking char
+			print(f'ERROR: Timeout waiting for handshake $ after fw command for address {hex(pageAddress)}')
 			return None
 		
 		# Send the payload
@@ -793,16 +799,19 @@ class ForthInterface():
 		# Receive the CRC string
 		crcStr = self.uart.Read(4)
 		if crcStr is None:
+			print(f'ERROR: Timeout waiting for CRC response for address {hex(pageAddress)}')
 			self.uart.Write('n')
 			return None
 		receivedCrc = hexToUint(crcStr)
 		if receivedCrc is None:
+			print(f'ERROR: Received invalid CRC string "{crcStr}" for address {hex(pageAddress)}')
 			self.uart.Write('n')
 			return None
 		
 		# Compare the CRC data
 		if calcCrc != receivedCrc:
 			# The CRC strings do not match
+			print(f'ERROR: CRC mismatch at address {hex(pageAddress)} - calculated {hex(calcCrc)}, received {hex(receivedCrc)}')
 			self.uart.Write('n')
 			return False
 		
