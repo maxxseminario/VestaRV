@@ -796,8 +796,11 @@ class ForthInterface():
 		# Send the payload
 		self.uart.WriteBytes(binData)
 		
-		# Receive the CRC string
+		# Receive the CRC string (with longer timeout for flash write)
+		oldTimeout = self.uart.Timeout
+		self.uart.Timeout = 2.0  # 2 seconds for flash write
 		crcStr = self.uart.Read(4)
+		self.uart.Timeout = oldTimeout
 		if crcStr is None:
 			print(f'ERROR: Timeout waiting for CRC response for address {hex(pageAddress)}')
 			self.uart.Write('n')
