@@ -134,7 +134,7 @@ class ProgramFlash():
 			# Write the page
 			sleep(2e-3)
 			if self.WritePage(PageAddress, pageBytes) != True:
-				print('Failed to write page')
+				print(f'Failed to write page at address {hex(PageAddress)}')
 				return False
 			
 			# Verify
