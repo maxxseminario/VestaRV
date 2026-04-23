@@ -123,6 +123,10 @@ class ProgramFlash():
 		# Print verification status
 		if verify:
 			print('Verification enabled: will read back and verify each page')
+		
+		# Debug: print first page address
+		if len(nonblankPages) > 0:
+			print(f'First page will be written to flash address: {hex(nonblankPages[0]["PageAddress"])}')
 			
 		# Program the non-blank pages
 		iter = nonblankPages
