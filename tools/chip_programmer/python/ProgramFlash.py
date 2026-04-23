@@ -134,7 +134,7 @@ class ProgramFlash():
 			# Write the page
 			sleep(2e-3)
 			if self.WritePage(PageAddress, pageBytes) != True:
-				print(f'Failed to write page at address {hex(PageAddress)}')
+				print('Failed to write page')
 				return False
 			
 			# Verify
@@ -148,7 +148,7 @@ class ProgramFlash():
 		
 		# Print verification summary
 		if verify:
-			print(f'✓ Verification successful: {pagesVerified} pages verified')
+			print(f'Verification successful: {pagesVerified} pages verified')
 		
 		# Erase blank pages
 		if len(consecutiveBlankPages) > 0:
