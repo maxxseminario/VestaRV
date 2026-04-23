@@ -126,7 +126,19 @@ class ProgramFlash():
 		
 		# Debug: print first page address
 		if len(nonblankPages) > 0:
-			print(f'First page will be written to flash address: {hex(nonblankPages[0]["PageAddress"])}')
+			firstPage = nonblankPages[0]
+			print(f'First page will be written to flash address: {hex(firstPage["PageAddress"])}')
+			# Show first 16 bytes of data
+			firstBytes = firstPage["Bytes"][:16]
+			hexStr = ' '.join([f'{b:02x}' for b in firstBytes])
+			print(f'First 16 bytes: {hexStr}')
+			# Interpret as 4 little-endian 32-bit words
+			if len(firstBytes) >= 16:
+				word0 = int.from_bytes(firstBytes[0:4], 'little')
+				word1 = int.from_bytes(firstBytes[4:8], 'little')
+				word2 = int.from_bytes(firstBytes[8:12], 'little')
+				word3 = int.from_bytes(firstBytes[12:16], 'little')
+				print(f'First 4 words (little-endian): {hex(word0)} {hex(word1)} {hex(word2)} {hex(word3)}')
 			
 		# Program the non-blank pages
 		iter = nonblankPages
