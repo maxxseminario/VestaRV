@@ -1,5 +1,5 @@
 {
-	"ChipName": "Myshkin",
+	"ChipName": "myshkin",
 	"RomStartAddress": 0,
 	"RomSize": 16384,
 	"RomEndAddress": 16383,
