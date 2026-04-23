@@ -16,14 +16,16 @@ endif
 # Construct hex file path (if PROGRAM doesn't already contain .hex)
 ifeq (,$(findstring .hex,$(PROGRAM)))
     HEX_FILE = $(REPO_ROOT)/software/$(PROGRAM)/bin/$(PROGRAM).hex
+    RCF_FILE = $(REPO_ROOT)/software/$(PROGRAM)/rcf/xxxxxxxxxxxxblinky.rcf
 else
     HEX_FILE = $(PROGRAM)
+    RCF_FILE = $(PROGRAM)
 endif
 
 # Python
 PYTHON = python3
 
-.PHONY: help flash flash-verify clean clean-% build-%
+.PHONY: help flash flash-verify flash-rcf flash-rcf-verify clean clean-% build-%
 
 # Catch-all for program names
 %:
@@ -53,6 +55,19 @@ flash:
 flash-verify:
 	@echo "Flashing with verification: $(HEX_FILE)"
 	$(PYTHON) $(FLASH_PROG) $(HEX_FILE) \
+		--chip $(CHIP_NAME) \
+		--board $(BOARD_NAME) \
+		--verify
+
+flash-rcf:
+	@echo "Flashing RCF file: $(RCF_FILE)"
+	$(PYTHON) $(FLASH_PROG) $(RCF_FILE) \
+		--chip $(CHIP_NAME) \
+		--board $(BOARD_NAME)
+
+flash-rcf-verify:
+	@echo "Flashing RCF with verification: $(RCF_FILE)"
+	$(PYTHON) $(FLASH_PROG) $(RCF_FILE) \
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--verify

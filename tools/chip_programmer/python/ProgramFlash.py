@@ -27,6 +27,96 @@ class ProgramFlash():
 		self.forth = forthInterface
 		return True
 	
+	def WriteRcfFile(self, rcfFilePath:str, verify=False, showProgressBar=False):
+		"""
+		Write an RCF file directly to flash starting at address 0.
+		RCF format: one 32-bit word per line in binary (e.g., 00010000101011011011111011101111)
+		"""
+		# Read the RCF file
+		try:
+			with open(rcfFilePath, 'r') as f:
+				lines = f.readlines()
+		except Exception as e:
+			print(f'Error reading RCF file: {e}')
+			return False
+		
+		# Parse words from binary strings
+		words = []
+		for line in lines:
+			line = line.strip()
+			if len(line) == 32 and all(c in '01' for c in line):
+				# Convert binary string to 32-bit word (big-endian in file)
+				word = int(line, 2)
+				words.append(word)
+		
+		if len(words) == 0:
+			print('No valid data found in RCF file')
+			return False
+		
+		print(f'Read {len(words)} words from RCF file')
+		
+		# Convert words to bytes (little-endian for SPI flash)
+		allBytes = b''
+		for word in words:
+			allBytes += word.to_bytes(4, byteorder='little')
+		
+		# Pad to 256-byte page boundary
+		if len(allBytes) % 256 != 0:
+			padLen = 256 - (len(allBytes) % 256)
+			allBytes += b'\x00' * padLen
+		
+		# Split into 256-byte pages
+		pages = []
+		for pageAddr in range(0, len(allBytes), 256):
+			pageBytes = allBytes[pageAddr:pageAddr+256]
+			pages.append({'PageAddress': pageAddr, 'Bytes': pageBytes})
+		
+		print(f'Writing {len(pages)} pages to flash starting at address 0x0')
+		
+		# Show first 16 bytes for debugging
+		if len(allBytes) >= 16:
+			firstBytes = allBytes[:16]
+			hexStr = ' '.join([f'{b:02x}' for b in firstBytes])
+			print(f'First 16 bytes: {hexStr}')
+			word0 = int.from_bytes(firstBytes[0:4], 'little')
+			word1 = int.from_bytes(firstBytes[4:8], 'little')
+			word2 = int.from_bytes(firstBytes[8:12], 'little')
+			word3 = int.from_bytes(firstBytes[12:16], 'little')
+			print(f'First 4 words (little-endian): {hex(word0)} {hex(word1)} {hex(word2)} {hex(word3)}')
+		
+		# Program the pages
+		iter = pages
+		if showProgressBar:
+			pbar = ProgressBar(widgets=['Programming: ', Percentage(), ' ', Bar(), ' ', ETA()])
+			iter = pbar(iter)
+		
+		pagesVerified = 0
+		for pageDict in iter:
+			pageAddress = pageDict['PageAddress']
+			pageBytes = pageDict['Bytes']
+			
+			# Write the page
+			sleep(2e-3)
+			if self.WritePage(pageAddress, pageBytes) != True:
+				print('Failed to write page')
+				return False
+			
+			# Verify
+			if verify:
+				sleep(10e-3)
+				readbackPageBytes = self.Read(pageAddress, 256)
+				if (readbackPageBytes is None) or (pageBytes != readbackPageBytes):
+					print(f'Verification error at page address {hex(pageAddress)}')
+					return False
+				pagesVerified += 1
+		
+		# Print verification summary
+		if verify:
+			print(f'Verification successful: {pagesVerified} pages verified')
+		
+		print('Successfully wrote RCF to flash memory')
+		return True
+	
 	def WritePage(self, pageAddress:int, binData:bytes):
 		attempt = 0
 		ret = False
