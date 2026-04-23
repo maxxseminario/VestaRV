@@ -184,11 +184,9 @@ def IntelHexToSpiFlashCommands(activeChip:Chip, intelHexFilePath:str, defaultWor
 		commands.append({'Type': 'Erase', 'StartAddress': segments[-1][1], 'EndAddress': RamEndAddress, 'Word': defaultWordValue})
 	
 	# Create the bytes for each RAM command
-	cmdDumpSegment = 0x831D2F7C
-	cmdEraseSegment = 0xDBE556E8
-	cmdWriteWord = 0x44573DB0
-	cmdWriteMaskedWord = 0x1EC021EE
-	cmdExecuteProgram = 0xAE3BF97C
+	cmdDumpSegment = 0x10adbeef
+	cmdEraseSegment = 0xdeadbeef
+	cmdExecuteProgram = 0xcafebabe
 	
 	for command in commands:
 		if command['Type'] == 'Dump':
