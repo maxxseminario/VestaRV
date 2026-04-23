@@ -1,5 +1,12 @@
 {
   "ChipName": "Myshkin-2025-11",
   "Description": "VestaRV Myshkin ASIC Implementation",
-  "Version": "1.0"
+  "Version": "1.0",
+  "IDChipPrefix": "MYSHKIN",
+  "ForthInitStringRom": "8000000 constant HFXTFREQ",
+  "ForthInitStringFlash": "8000000 constant HFXTFREQ",
+  "BootForthFlashWriteCompressionAllowed": true,
+  "SwapProgramBytes": false,
+  "BootForthHasMultiPageFlashEraseCommand": true,
+  "BootloaderUsesSpiFlashCommands": true
 }
