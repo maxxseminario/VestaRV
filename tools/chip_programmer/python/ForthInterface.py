@@ -793,8 +793,26 @@ class ForthInterface():
 			print(f'ERROR: Timeout waiting for handshake $ after fw command for address {hex(pageAddress)}')
 			return None
 		
-		# Send the payload
-		self.uart.WriteBytes(binData)
+		# Send the payload.
+		#
+		# IMPORTANT: The ROM-burned UART getc on the chip is pure polling with
+		# NO receive FIFO (see bootrom/src/uart.c:uartx_getc). If two bytes
+		# arrive at 115200 baud (~87us/byte) between polls, the first is
+		# overwritten and lost, and flashWritePageFunc's 256-iteration for()
+		# loop hangs forever waiting for the missing byte -- so printHex16
+		# is never reached and the host sees "Timeout waiting for CRC".
+		#
+		# Pace the transmission in small chunks with a short inter-chunk
+		# sleep so the chip's polling loop has slack to keep up.
+		chunkSize = 16
+		interChunkSleep = 2e-3  # 2 ms between chunks
+		for off in range(0, len(binData), chunkSize):
+			self.uart.WriteBytes(binData[off:off + chunkSize])
+			try:
+				self.uart.ser.flush()
+			except Exception:
+				pass
+			sleep(interChunkSleep)
 		
 		# Receive the CRC string (with longer timeout for flash write)
 		oldTimeout = self.uart.Timeout
