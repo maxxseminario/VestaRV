@@ -22,7 +22,7 @@ hardware/Myshkin.vhd
 *.o
 *.elf
 *.bin
-*.hex
+# *.hex
 *.dump
 #*.rcf
 *.map
