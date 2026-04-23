@@ -256,15 +256,23 @@ class UART():
 			ser.stopbits = serial.STOPBITS_ONE
 			ser.bytesize = serial.EIGHTBITS
 			ser.timeout = timeout
+			# Disable flow control for more reliable communication
+			ser.xonxoff = False  # Disable software flow control
+			ser.rtscts = False   # Disable hardware (RTS/CTS) flow control
+			ser.dsrdtr = False   # Disable hardware (DSR/DTR) flow control
 			
 			ser.open()
+			# Give the port a moment to stabilize
+			sleep(50e-3)
+			# Flush any stale data
+			ser.reset_input_buffer()
+			ser.reset_output_buffer()
 		except serial.SerialException as e:
 			print('Could not open serial port:', e)
 			self.ResetSerial()
 			return False
 		
 		self.ser = ser
-		sleep(50e-3)
 		return True
 	
 	def Close(self):

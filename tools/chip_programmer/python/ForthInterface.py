@@ -193,9 +193,6 @@ class ForthInterface():
 				print('Unable to open serial port: ' + port)
 				return False
 			
-			# Flush any garbage from the UART buffer immediately after opening
-			self.uart.FlushBuffers()
-			
 			oldTimeout = self.uart.Timeout
 			self.uart.Timeout = 10
 			
@@ -205,10 +202,8 @@ class ForthInterface():
 					print('Timeout: Unable to connect to board')
 					return False
 			else:
-				# No init string expected, give the chip time to boot and stabilize
-				sleep(1.0)
-				# Flush again in case chip sent data during boot
-				self.uart.FlushBuffers()
+				# No init string expected, just give the chip time to boot
+				sleep(0.5)
 			
 			self.uart.Timeout = oldTimeout
 			
@@ -2114,9 +2109,6 @@ class ForthInterface():
 		if not self.uart.IsOpen:
 			return None
 		self.uart.FlushBuffers()
-		
-		# Give Forth interpreter a moment to be ready for commands
-		sleep(0.1)
 		
 		# Issue the command
 		if self.uart.WriteLine('1 echo') is None:	# Enable echo
