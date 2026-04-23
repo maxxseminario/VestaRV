@@ -82,7 +82,18 @@ chipImplDir = os.path.join(repoRootDir, 'implementations/asic', args.chip)
 if not os.path.exists(chipImplDir):
 	print(f'Error: Chip implementation directory not found: {chipImplDir}')
 	exit()
+
+print(f'Loading chip configuration from: {chipImplDir}')
 chip = Chip.CreateFromChipRootDirectory(chipImplDir)
+
+if chip is None:
+	print(f'Error: Failed to load chip configuration from {chipImplDir}')
+	print('Please check that the following files exist:')
+	print(f'  - {chipImplDir}/config/MemoryMap.json')
+	print(f'  - {chipImplDir}/config/ChipConfig.json')
+	print(f'  - {chipImplDir}/config/BoardConfig.json')
+	exit(1)
+
 activeBoard = None
 
 # if --board argument is not provided, try to autoselect or ask the user to select from a list
