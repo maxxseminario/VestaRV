@@ -115,6 +115,10 @@ class ProgramFlash():
 		
 		nonblankPages = pages['PagesToWrite']
 		consecutiveBlankPages = pages['ConsecutiveBlankPages']
+		
+		# Print verification status
+		if verify:
+			print('Verification enabled: will read back and verify each page')
 			
 		# Program the non-blank pages
 		iter = nonblankPages
@@ -122,6 +126,7 @@ class ProgramFlash():
 			pbar = ProgressBar(widgets=['Programming: ', Percentage(), ' ', Bar(), ' ', ETA()])
 			iter = pbar(iter)
 		
+		pagesVerified = 0
 		for pageDict in iter:
 			PageAddress = pageDict['PageAddress']
 			pageBytes = pageDict['Bytes']
@@ -137,8 +142,13 @@ class ProgramFlash():
 				sleep(10e-3)
 				readbackPageBytes = self.Read(PageAddress, 256)
 				if (readbackPageBytes is None) or (pageBytes != readbackPageBytes):
-					print('Verification error')
+					print('Verification error at page address', hex(PageAddress))
 					return False
+				pagesVerified += 1
+		
+		# Print verification summary
+		if verify:
+			print(f'✓ Verification successful: {pagesVerified} pages verified')
 		
 		# Erase blank pages
 		if len(consecutiveBlankPages) > 0:
