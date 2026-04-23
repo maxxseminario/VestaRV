@@ -32,12 +32,16 @@ class ProgramFlash():
 		ret = False
 		while ret != True:
 			if attempt == self.Attempts:
+				print(f'ERROR: Failed to write page at address {hex(pageAddress)} after {self.Attempts} attempts')
 				return False
 			ret = self.forth.WriteFlashPage(pageAddress, binData)
 			if ret is None:
-				return None
+				print(f'WARNING: WriteFlashPage returned None for address {hex(pageAddress)} (attempt {attempt+1}/{self.Attempts})')
+				attempt += 1
+				continue
 			if ret is True:
 				return True
+			attempt += 1
 		return False
 	
 	def ErasePage(self, pageAddress:int):
