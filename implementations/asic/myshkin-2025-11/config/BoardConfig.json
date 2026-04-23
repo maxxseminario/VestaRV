@@ -4,8 +4,8 @@
     {
       "BoardName": "MyshkinDevBoard",
       "Description": "Myshkin Development Board (Raspberry Pi Hat)",
-      "RomBootBaudrate": 9600,
-      "SpiFlashBootBaudrate": 9600,
+      "RomBootBaudrate": 115200,
+      "SpiFlashBootBaudrate": 115200,
       "ProgrammingBaudrate": 115200,
       "UartPort": "/dev/ttyAMA0",
       "BootModeGPIO": {
