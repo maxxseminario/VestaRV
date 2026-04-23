@@ -115,86 +115,32 @@ def IntelHexToSpiFlashCommands(activeChip:Chip, intelHexFilePath:str, defaultWor
 			print('Memory segment is partially in bounds and partially out of bounds of the RAM')
 			return None
 		
-	# Merge segments that are too close together
-	for i in reversed(range(1, len(segments))):
-		if (segments[i - 1][1] + maxConsecutiveBlankWords * bytesPerWord) > segments[i][0]:
-			segments[i - 1][1] = segments[i][1]
-			segments.pop(i)
-	
-	# Create the commands
+	# Create the commands - just one big DUMP command with all data (including zeros)
 	commands = []
 	
-	# If there is nothing at the beginning of the RAM...
-	if fillEmptySegments and RamStartAddress != segments[0][0]:
-		commands.append({'Type': 'Erase', 'StartAddress': RamStartAddress, 'EndAddress': segments[0][0], 'Word': defaultWordValue})
+	# Build complete word array from RamStartAddress to RamEndAddress
+	words = []
+	for i in range(RamStartAddress, RamEndAddress, bytesPerWord):
+		word = 0
+		for j in range(bytesPerWord):
+			b = ihex[i + j]
+			if b is None:
+				b = 0  # Use 0 for blank areas instead of defaultWordValue
+			word |= b << (j * 8)
+		words.append(word)
 	
-	# Go through each segment
-	for segmentIndex, segment in enumerate(segments):
-		start = segment[0]
-		sameCount = 1
-		prevWord = None
-		words = []
-		for i in range(segment[0], segment[1], bytesPerWord):
-			word = 0
-			for j in range(bytesPerWord):
-				b = ihex[i + j]
-				if b is None:
-					b = (defaultWordValue >> (i * 8)) & 0xFF
-				word |= b << (j * 8)
-			
-			if word == prevWord:
-				sameCount += 1
-				if sameCount < maxConsecutiveBlankWords:
-					words.append(word)
-				elif sameCount == maxConsecutiveBlankWords:
-					# End the data command here
-					end = i - ((maxConsecutiveBlankWords - 1) * bytesPerWord)
-					if end > start:
-						commands.append({'Type': 'Dump', 'StartAddress': start, 'EndAddress': end, 'Words': words[:-(maxConsecutiveBlankWords - 1)]})
-						start = end
-			else:
-				if sameCount >= maxConsecutiveBlankWords:
-					# End the erase command here
-					end = i
-					commands.append({'Type': 'Erase', 'StartAddress': start, 'EndAddress': end, 'Word': prevWord})
-					start = i
-					words = [word]
-				else:
-					words.append(word)
-				sameCount = 1
-			
-			prevWord = word
-		
-		# End the command no matter what here
-		if sameCount >= maxConsecutiveBlankWords:
-			# End the erase command here
-			end = segment[1]
-			commands.append({'Type': 'Erase', 'StartAddress': start, 'EndAddress': end, 'Word': prevWord})
-		else:
-			# End the data command here
-			end = segment[1]
-			commands.append({'Type': 'Dump', 'StartAddress': start, 'EndAddress': end, 'Words': words})
-		
-		# If there is a gap between this segment and the next...
-		if fillEmptySegments and (segmentIndex + 1) < len(segments) and segments[segmentIndex][1] < segments[segmentIndex + 1][0]:
-			commands.append({'Type': 'Erase', 'StartAddress': segments[segmentIndex][1], 'EndAddress': segments[segmentIndex + 1][0], 'Word': defaultWordValue})
-	
-	# If there is nothing at the end of the RAM...
-	if fillEmptySegments and RamEndAddress != segments[-1][1]:
-		commands.append({'Type': 'Erase', 'StartAddress': segments[-1][1], 'EndAddress': RamEndAddress, 'Word': defaultWordValue})
-	
-	# Create the bytes for each RAM command
+	# Create single DUMP command for entire RAM
 	cmdDumpSegment = 0x10adbeef
-	cmdEraseSegment = 0xdeadbeef
 	cmdExecuteProgram = 0xcafebabe
 	
-	for command in commands:
-		if command['Type'] == 'Dump':
-			command['CommandWord'] = cmdDumpSegment
-			command['Bytes'] = WordToBytes(command['CommandWord'], activeChip.SwapProgramBytes) + WordToBytes(command['StartAddress'], activeChip.SwapProgramBytes) + WordToBytes(command['EndAddress'], activeChip.SwapProgramBytes) + WordsToBytes(command['Words'], activeChip.SwapProgramBytes)
-		elif command['Type'] == 'Erase':
-			command['CommandWord'] = cmdEraseSegment
-			command['Bytes'] = WordToBytes(command['CommandWord'], activeChip.SwapProgramBytes) + WordToBytes(command['StartAddress'], activeChip.SwapProgramBytes) + WordToBytes(command['EndAddress'], activeChip.SwapProgramBytes) + WordToBytes(command['Word'], activeChip.SwapProgramBytes)
+	commands.append({
+		'Type': 'Dump',
+		'CommandWord': cmdDumpSegment,
+		'StartAddress': RamStartAddress,
+		'EndAddress': RamEndAddress,
+		'Words': words,
+		'Bytes': WordToBytes(cmdDumpSegment, activeChip.SwapProgramBytes) + WordToBytes(RamStartAddress, activeChip.SwapProgramBytes) + WordToBytes(RamEndAddress, activeChip.SwapProgramBytes) + WordsToBytes(words, activeChip.SwapProgramBytes)
+	})
 	
 	commands.append({'Type': 'Execute', 'CommandWord': cmdExecuteProgram, 'Bytes': WordToBytes(cmdExecuteProgram, activeChip.SwapProgramBytes)})
 
