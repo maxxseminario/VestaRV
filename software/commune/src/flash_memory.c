@@ -64,10 +64,13 @@ void flash_memory_init()
 	//for (i = 5000; i > 0; i--) {}
 	while (flash_memory_busy()) {}
 
+	// NOTE: NOT configuring flash to 256-byte mode because the ROM bootloader
+	// expects the flash to be in its default 264-byte mode. If we configure
+	// to 256-byte mode here, the bootloader will read from the wrong addresses.
 	// Configure the SPI flash to use 256-byte pages
-	assert_CS_FLASH();
-	spi_transfer(SPI_FLASH_OPCODE_256B_PAGE);
-	deassert_CS_FLASH();
+	//assert_CS_FLASH();
+	//spi_transfer(SPI_FLASH_OPCODE_256B_PAGE);
+	//deassert_CS_FLASH();
 }
 
 void flash_memory_beginRead(uint32_t start_address)
