@@ -1,0 +1,382 @@
+================================================================================
+DETAILED EXPLANATION OF FLASH PROGRAMMING SYSTEM FOR MYSHKIN RISC-V CHIP
+================================================================================
+
+SYSTEM OVERVIEW
+===============
+
+The Myshkin chip has a custom RISC-V bootloader burned into ROM that can load 
+programs from an external AT45DB021E SPI flash chip (256KB). The Python script 
+forthprog.py programs this flash chip by communicating with the chip's Forth 
+interpreter over UART.
+
+--------------------------------------------------------------------------------
+
+HARDWARE CONFIGURATION
+======================
+
+Myshkin Chip:
+- Custom RISC-V processor with ROM bootloader
+- 32KB RAM at address 0x8000-0x10000
+- Boot mode controlled by GPIO pin (low = ROM/Forth mode, high = SPI flash boot)
+- UART at 115200 baud for programming
+
+Raspberry Pi 4 (Programming Host):
+- GPIO17: Reset control (active-low)
+- GPIO18: Boot mode control (low = ROM mode, high = flash boot)
+- UART: /dev/serial0 at 115200 baud
+
+SPI Flash:
+- AT45DB021E DataFlash (2-Mbit/256KB)
+- Connected to Myshkin's SPI0 peripheral
+- Chip select controlled by GPIO
+- DEFAULT: 264-byte pages (1024 pages × 264 bytes)
+- IMPORTANT: Must remain in 264-byte mode for bootloader compatibility
+
+--------------------------------------------------------------------------------
+
+WHAT forthprog.py DOES
+======================
+
+forthprog.py is a Python script that programs the SPI flash memory by:
+
+1. Connecting to the chip via UART when it's in ROM/Forth mode
+2. Using Forth commands to write data through the chip to the SPI flash
+3. Writing program data (either from Intel Hex or RCF files) to flash
+4. Optionally verifying the written data by reading it back
+5. Resetting the chip to boot from flash
+
+--------------------------------------------------------------------------------
+
+HOW forthprog.py WORKS (STEP-BY-STEP)
+======================================
+
+PHASE 1: Connection & Setup
+----------------------------
+
+1. Load chip configuration from implementations/asic/myshkin-2025-11/config/:
+   - MemoryMap.json: RAM/ROM addresses, peripherals
+   - ChipConfig.json: Forth settings, boot parameters
+   - BoardConfig.json: GPIO pins, UART settings, flash specs
+
+2. Open UART connection:
+   # Open serial port at 115200 baud
+   # Disable all flow control (xonxoff, rtscts, dsrdtr)
+   # Flush buffers to clear stale data
+
+3. Detect chip:
+   # Send: "1 echo\n"           # Enable echo
+   # Send: "42 bye\n"            # Reset and identify
+   # Receive: "myshkin\n"        # Chip name
+   # Send: "0 echo\n"            # Disable echo
+
+
+PHASE 2: Flash Programming (RCF Mode)
+--------------------------------------
+
+When using RCF files (.rcf extension):
+
+1. Read RCF file:
+   # Each line is a 32-bit word in binary format:
+   # 00010000101011011011111011101111  <- 0x10adbeef (loadSegment command)
+   # 00000000000000001000000000000000  <- 0x00008000 (start address)
+   # 00000000000000001000001000001100  <- 0x0000814C (end address)
+   # ...program data words...
+   # 11001010111111101011101010111110  <- 0xcafebabe (execute command)
+
+2. Convert to bytes:
+   # Convert each 32-bit binary string to little-endian bytes
+   word = int(line, 2)  # e.g., 0x10adbeef
+   bytes = word.to_bytes(4, 'little')  # [ef, be, ad, 10]
+
+3. Write to flash in 256-byte pages:
+   for pageAddress in range(0, totalBytes, 256):
+       WritePage(pageAddress, page_data)
+
+
+PHASE 3: Writing a Page (Forth 'fw' command)
+---------------------------------------------
+
+For each 256-byte page:
+
+1. Flush UART buffers
+2. Calculate CRC16-CDMA2000 of the 256 bytes
+3. Send Forth command:
+   "1 <pageAddress> fw\n"
+   # Example: "1 0 fw\n" to write page at flash address 0
+
+4. Wait for handshake:
+   Receive: '$'  (chip is ready for data)
+
+5. Send 256 bytes of binary data
+
+6. Receive CRC:
+   Receive: "XXXX"  (4 hex characters, e.g., "A3F2")
+
+7. Compare CRCs:
+   If match: Send 'Y'
+   If mismatch: Send 'n' and fail
+
+
+PHASE 4: Verification (Optional)
+---------------------------------
+
+If --verify flag is used:
+
+1. Read back each page using Forth 'fr' command:
+   Send: "1 256 <pageAddress> fr 0xBEEF .\n"
+   Receive: <256 bytes of data>
+
+2. Compare with original data
+
+3. Report verification status
+
+
+PHASE 5: Reset to Flash Boot
+-----------------------------
+
+# Set GPIO18 high (SPI flash boot mode)
+# Assert reset (GPIO17 low)
+# Wait 25ms
+# Deassert reset (GPIO17 high)
+# Chip now boots from flash
+
+--------------------------------------------------------------------------------
+
+WHAT start.S EXPECTS (BOOTLOADER BEHAVIOR)
+===========================================
+
+The bootloader in start.S runs when the chip resets. Here's what it does:
+
+BOOT SEQUENCE
+-------------
+
+1. Initialize hardware:
+   # Disable interrupts
+   # Power on all peripherals
+   # Initialize stack pointer to top of RAM (0x10000)
+   # Configure GPIO for SPI flash
+
+2. Check boot mode pin (GPIO0_BOOT):
+   - If low: Jump to main (Forth interpreter in ROM)
+   - If high: Continue to SPI flash boot
+
+3. Initialize SPI flash:
+   # Send 0xAB (Power Up command)
+   # Wait 30µs for flash to wake up
+   # Send 0x0B (High Frequency Read command)
+   # Send 0x00000000 (24-bit start address + 8-bit dummy)
+
+
+READING FLASH COMMANDS
+-----------------------
+
+The bootloader reads from flash starting at address 0x00000000 and expects 
+a series of commands:
+
+Command Format 1: Load Segment (0x10adbeef)
+--------------------------------------------
+Word 0: 0x10adbeef          (loadSegment command)
+Word 1: <RAM_start_address>  (e.g., 0x8000)
+Word 2: <RAM_end_address>    (e.g., 0x814C, not inclusive)
+Word 3+: <program_words>     (data to write to RAM)
+
+The bootloader:
+- Reads words 1 & 2 to get RAM address range
+- Validates addresses are within RAM bounds (0x8000-0x10000)
+- Reads subsequent words and writes them to RAM sequentially
+- Continues until RAM_end_address is reached
+
+Command Format 2: Erase Segment (0xdeadbeef) [Not currently used]
+------------------------------------------------------------------
+Word 0: 0xdeadbeef          (eraseSegment command)
+Word 1: <RAM_start_address>
+Word 2: <RAM_end_address>
+Word 3: <fill_value>         (value to fill each word with)
+
+Command Format 3: Execute (0xcafebabe)
+---------------------------------------
+Word 0: 0xcafebabe          (executeProgram command)
+
+The bootloader:
+- Powers down SPI flash
+- Clears all registers
+- Switches clocks (MCLK to HFXT, SMCLK to LFXT)
+- Jumps to program start address in RAM (typically 0x814C)
+
+
+CRITICAL REQUIREMENTS
+----------------------
+
+1. First word at flash address 0x0 MUST be a valid command (0x10adbeef, 
+   0xdeadbeef, or 0xcafebabe)
+   - Bootloader reads this first and dispatches based on command
+   - If invalid command, chip enters trap state
+
+2. Addresses must be RAM-aligned:
+   - Start/end addresses must be valid RAM addresses (0x8000-0x10000)
+   - Addresses must be 4-byte (word) aligned
+
+3. Little-endian byte order:
+   - SPI flash reads 4 bytes and assembles into 32-bit word
+   - Byte 0 is LSB, Byte 3 is MSB
+   - Example: Flash bytes [EF BE AD 10] = 0x10ADBEEF
+
+4. Commands are processed sequentially:
+   - After completing a LOAD command, bootloader immediately reads next command
+   - Multiple LOAD commands can be chained
+   - EXECUTE command terminates boot sequence
+
+--------------------------------------------------------------------------------
+
+RCF FILE FORMAT
+===============
+
+RCF files contain the exact data that should be written to flash:
+
+# Line 1: 0x10adbeef (loadSegment command)
+00010000101011011011111011101111
+
+# Line 2: 0x00008000 (RAM start address)
+00000000000000001000000000000000
+
+# Line 3: 0x0000814C (RAM end address)
+00000000000000001000001000001100
+
+# Lines 4-N: Program instructions/data
+00001000010000000000000001101111
+00000000000000000000000000010011
+...
+
+# Last line: 0xcafebabe (execute command)
+11001010111111101011101010111110
+
+
+Format rules:
+- One 32-bit word per line
+- Each line is exactly 32 binary digits (0 or 1)
+- Words are in big-endian format in the file (most significant bit first)
+- Python script converts to little-endian bytes for flash
+
+--------------------------------------------------------------------------------
+
+DATA FLOW SUMMARY
+=================
+
+RCF File (binary strings, big-endian)
+    ↓ [Python: parse and convert]
+Words (32-bit integers)
+    ↓ [Python: to_bytes(4, 'little')]
+Bytes (little-endian)
+    ↓ [Python: split into 256-byte pages]
+Pages
+    ↓ [UART: Forth 'fw' command]
+Chip RAM buffer
+    ↓ [Forth: SPI write commands]
+Flash memory (starting at address 0x0)
+    ↓ [Chip reset, bootloader runs]
+Bootloader reads from flash byte 0
+    ↓ [SPI read, assemble little-endian bytes]
+Commands (32-bit words)
+    ↓ [Bootloader: parse and execute]
+Program loaded to RAM
+    ↓ [executeProgram command]
+Jump to program start
+
+--------------------------------------------------------------------------------
+
+CURRENT SYSTEM STATE
+====================
+
+CRITICAL FIX APPLIED:
+- The AT45DB021E DataFlash uses 264-byte pages by default
+- The ROM bootloader does NOT configure the flash to 256-byte mode
+- Previously, flash_memory_init() configured the flash to 256-byte mode during programming
+- This caused address mismatches when the bootloader tried to read
+- FIX: Commented out the 256-byte configuration in flash_memory.c
+- Now the flash remains in 264-byte mode during both programming and boot
+- Data at byte address 0x0 is correctly accessible in both modes
+
+What works:
+- UART communication and Forth command execution
+- Page-by-page flash writing with CRC verification
+- RCF direct flash mode bypasses Intel Hex complexity
+- Flash remains in 264-byte mode (matching ROM bootloader expectations)
+
+What to verify:
+- Flash data is being written to address 0x0 correctly
+- First 4 words should be: 0x10adbeef <start> <end> <data>
+- Bootloader can read these commands on chip reset
+
+Usage:
+
+    # Flash RCF file with verification
+    make flash-rcf-verify blinky
+
+    # Or direct command:
+    python3 tools/flash_programmer/forthprog.py \
+        software/blinky/rcf/xxxxxxxxxxxxblinky.rcf \
+        --chip myshkin-2025-11 \
+        --board MyshkinDevBoard \
+        --verify
+
+--------------------------------------------------------------------------------
+
+TROUBLESHOOTING
+===============
+
+Issue: Bootloader reads 0x00000000 as first word instead of 0x10adbeef
+-----------------------------------------------------------------------
+Cause: The AT45DB021E was configured to 256-byte mode during programming,
+       but the ROM bootloader expects 264-byte mode (default).
+       
+Solution: Ensure flash_memory_init() does NOT send the 0x3D2A7F9A command
+          to configure 256-byte pages. The flash must remain in its default
+          264-byte page mode.
+          
+          Fixed in: software/commune/src/flash_memory.c (line 69-71)
+                    software/bootrom/src/flash_memory.c (line 69-71)
+          
+          The configuration command is now commented out with an explanation.
+
+Issue: Verification passes but bootloader still fails
+------------------------------------------------------
+Cause: The Forth interpreter may cache the 256-byte configuration state
+       across power cycles.
+       
+Solution: Perform a full power cycle of the chip (not just reset) after
+          updating the flash_memory.c files and rebuilding the Forth
+          interpreter. This ensures the flash starts in 264-byte mode.
+
+--------------------------------------------------------------------------------
+
+FILE LOCATIONS
+==============
+
+Key files in the repository:
+
+Configuration:
+- implementations/asic/myshkin-2025-11/config/MemoryMap.json
+- implementations/asic/myshkin-2025-11/config/ChipConfig.json
+- implementations/asic/myshkin-2025-11/config/BoardConfig.json
+
+Python Tools:
+- tools/flash_programmer/forthprog.py (main script)
+- tools/chip_programmer/python/UART.py (serial communication)
+- tools/chip_programmer/python/ForthInterface.py (Forth commands)
+- tools/chip_programmer/python/ProgramFlash.py (flash operations)
+- tools/chip_programmer/python/ProgramDump.py (Intel Hex processing)
+
+Bootloader:
+- software/bootrom/src/start.S (ROM bootloader assembly)
+
+Makefile:
+- implementations/asic/myshkin-2025-11/Makefile (flash commands)
+
+Example Program:
+- software/blinky/rcf/xxxxxxxxxxxxblinky.rcf (RCF format program)
+- software/blinky/bin/blinky.hex (Intel Hex format)
+
+================================================================================
+END OF DOCUMENT
+================================================================================
