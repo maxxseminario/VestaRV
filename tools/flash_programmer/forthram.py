@@ -416,14 +416,18 @@ def WriteMemoryBlock(forth, startAddress, data, chunkSize=8, interChunkSleep=3e-
 # Requires: data length be a multiple of 4, and startAddress be word aligned.
 # ---------------------------------------------------------------------------
 
-def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=2e-3,
+def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 						 showProgressBar=False, progressBar=None,
 						 progressBase=0):
 	"""Upload `data` via one `<val> <addr> !` Forth line per 32-bit word.
 
-	Returns True on success, None on transport failure. There is no CRC in
-	this method; reliability comes from the protocol being trivial. Use
-	--verify (readback via mr) to confirm integrity.
+	Uses the same pattern proven to work in tools/debug/forth_dashboard:
+	send the bare `!` line, sleep briefly, drain whatever came back
+	(usually nothing, since `Connect()` disables `echo`), and move on.
+	No per-line sync -- reliability is ensured by the final --verify step
+	(a single bulk `mr` readback).
+
+	Returns True on success, None on transport failure.
 	"""
 	if len(data) == 0:
 		return True
@@ -433,17 +437,15 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=2e-3,
 		print(f'ERROR: poke startAddress 0x{startAddress:08x} is not word aligned')
 		return None
 	if len(data) % 4 != 0:
-		# Pad up to a word boundary with 0xFF so we still write an aligned span.
 		pad = 4 - (len(data) % 4)
 		data = data + (b'\xff' * pad)
 
+	# Drain any stale RX bytes once up front; after that we rely on the
+	# fact that a bare `!` produces zero output to keep buffers clean.
 	forth.uart.FlushBuffers()
 
-	# Drain any pending input, then issue a tiny probe so we can sync on the
-	# interpreter's echo cadence.
-	# (The Forth interpreter echoes each token it parses followed by a space.)
-
 	oldTimeout = forth.uart.Timeout
+	forth.uart.Timeout = 0.05  # only used for opportunistic RX drains
 
 	for wordIndex in range(0, len(data), 4):
 		w = (data[wordIndex + 0] <<  0 |
@@ -452,39 +454,38 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=2e-3,
 			 data[wordIndex + 3] << 24)
 		addr = startAddress + wordIndex
 
-		# The Forth interpreter does NOT echo tokens as it parses them; it
-		# only emits output produced by executed words. We therefore append
-		# `0x7D .` which pushes 125 then prints it in decimal, emitting the
-		# literal text "125 " as a sentinel we can synchronize on. (This is
-		# the same trick used by ForthInterface.MemorySetBlock, etc.)
-		#
-		# '!' is opcode 42 (word store): ( val addr -- ).
-		cmd = f'0x{w:08x} 0x{addr:08x} ! 0x7D .'
+		# Hex for both value and address. rv4th parses `0x` prefix via the
+		# number-word path (rv4th.c, ~line 736). `!` is opcode 42 and stores
+		# a word ( val addr -- ).
+		cmd = f'0x{w:08X} 0x{addr:08X} !'
 		if forth.uart.WriteLine(cmd) is None:
 			print(f'ERROR: failed to send poke command at 0x{addr:08x}')
 			forth.uart.Timeout = oldTimeout
 			return None
 
-		# Wait for the sentinel "125" to come back. If we instead see a
-		# '?' the interpreter hit a parse error (e.g. the value literal
-		# overflowed Forth's idea of a number) -- surface that clearly.
-		forth.uart.Timeout = 0.5
-		r = forth.uart.ReadUntil('125')
-		forth.uart.Timeout = oldTimeout
-		if r is None:
-			print(f'ERROR: no sentinel reply after poke at 0x{addr:08x} '
-				  f'(cmd: {cmd!r})')
-			return None
-		if '?' in r:
-			print(f'ERROR: Forth parse error on poke line at 0x{addr:08x}: '
-				  f'reply was {r!r} (cmd: {cmd!r})')
-			return None
-
+		# Give the chip time to parse + execute the line. This matches the
+		# ~10 ms quiet period used by forth_dashboard. The exact value is
+		# not critical -- any unparseable output will be flushed before the
+		# next iteration by the short ReadBytes() drain below.
 		sleep(interLineSleep)
+
+		# Opportunistically drain anything that did come back (e.g. an
+		# unexpected '?' from a parse error, or stale echo chars). This
+		# keeps the RX buffer from filling up over a long upload.
+		try:
+			leftover = forth.uart.ReadBytes()
+			if leftover and b'?' in leftover:
+				forth.uart.Timeout = oldTimeout
+				print(f'ERROR: Forth parse error on poke at 0x{addr:08x} '
+					  f'(cmd={cmd!r}, reply={leftover!r})')
+				return None
+		except Exception:
+			pass
 
 		if showProgressBar and progressBar is not None:
 			progressBar.update(progressBase + wordIndex + 4)
 
+	forth.uart.Timeout = oldTimeout
 	return True
 
 
@@ -542,9 +543,9 @@ def main():
 			 'via `<val> <addr> !` Forth lines -- much slower but completely '
 			 'bypasses the binary RX path and the `mw` CRC handshake, so it '
 			 'is robust when the ROM UART drops bytes mid-stream.')
-	parser.add_argument('--poke-delay', type=float, default=2e-3,
+	parser.add_argument('--poke-delay', type=float, default=10e-3,
 		help='Seconds to sleep between `!` lines when --method=poke '
-			 '(default: 0.002).')
+			 '(default: 0.010).')
 	parser.add_argument('--log', type=str, default=None,
 		metavar='FILE',
 		help='Write a full UART transcript (every byte TX/RX, with '
