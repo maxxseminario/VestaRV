@@ -314,7 +314,6 @@ def _image_to_contiguous_runs(image):
 
 def WriteMemoryBlock(forth, startAddress, data, chunkSize=8, interChunkSleep=3e-3):
 	"""Upload `data` bytes into RAM starting at `startAddress` using `mw`.
-
 	Returns True on success (CRC matches), False on CRC mismatch, None on
 	transport failure.
 	"""
@@ -395,6 +394,100 @@ def WriteMemoryBlock(forth, startAddress, data, chunkSize=8, interChunkSleep=3e-
 	return True
 
 
+# ---------------------------------------------------------------------------
+# Fallback: per-word POKE using the Forth `!` opcode (42).
+# ---------------------------------------------------------------------------
+#
+# This method completely avoids the `mw` binary-stream protocol. Every 32-bit
+# word is written by a single ASCII Forth line:
+#
+#     <value> <address> !
+#
+# The chip parses the line through its normal command loop, stores one word,
+# and emits its " ok" / echo as usual. No `$` handshake, no long binary RX
+# burst, no CRC -- bytes are always ASCII and there is ample time between
+# successive lines for the ROM UART polling to keep up.
+#
+# Drawback: ~25 UART chars per 4 bytes vs. ~1 byte per byte for `mw`, so it
+# is roughly 6x slower on the wire AND each line adds parser/echo overhead
+# on the chip. For a few-hundred-byte blinky it's still sub-second; for a
+# 30 KB program it would be ~30s, which is fine for development.
+#
+# Requires: data length be a multiple of 4, and startAddress be word aligned.
+# ---------------------------------------------------------------------------
+
+def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=2e-3,
+						 showProgressBar=False, progressBar=None,
+						 progressBase=0):
+	"""Upload `data` via one `<val> <addr> !` Forth line per 32-bit word.
+
+	Returns True on success, None on transport failure. There is no CRC in
+	this method; reliability comes from the protocol being trivial. Use
+	--verify (readback via mr) to confirm integrity.
+	"""
+	if len(data) == 0:
+		return True
+	if forth.uart.IsOpen is not True:
+		return None
+	if startAddress % 4 != 0:
+		print(f'ERROR: poke startAddress 0x{startAddress:08x} is not word aligned')
+		return None
+	if len(data) % 4 != 0:
+		# Pad up to a word boundary with 0xFF so we still write an aligned span.
+		pad = 4 - (len(data) % 4)
+		data = data + (b'\xff' * pad)
+
+	forth.uart.FlushBuffers()
+
+	# Drain any pending input, then issue a tiny probe so we can sync on the
+	# interpreter's echo cadence.
+	# (The Forth interpreter echoes each token it parses followed by a space.)
+
+	oldTimeout = forth.uart.Timeout
+
+	for wordIndex in range(0, len(data), 4):
+		w = (data[wordIndex + 0] <<  0 |
+			 data[wordIndex + 1] <<  8 |
+			 data[wordIndex + 2] << 16 |
+			 data[wordIndex + 3] << 24)
+		addr = startAddress + wordIndex
+
+		# The Forth interpreter treats bare ints as positive literals; use
+		# unsigned decimal. '!' is opcode 42 (word store): ( val addr -- ).
+		cmd = f'{w} {addr} !'
+		if forth.uart.WriteLine(cmd) is None:
+			print(f'ERROR: failed to send poke command at 0x{addr:08x}')
+			forth.uart.Timeout = oldTimeout
+			return None
+
+		# Wait for the interpreter to finish parsing the line. rv4th echoes
+		# each whitespace-separated token as it is parsed (so we'll see the
+		# three tokens echoed), and then emits nothing else for a bare `!`.
+		# Draining the echoed tokens gives the chip time to complete the
+		# store before we pile on another line.
+		#
+		# The cheapest sync is to wait for the final token ('!') to echo.
+		forth.uart.Timeout = 0.5
+		r = forth.uart.ReadUntil('!')
+		forth.uart.Timeout = oldTimeout
+		if r is None:
+			print(f'ERROR: no echo of `!` after poke at 0x{addr:08x}')
+			return None
+		if '?' in r:
+			# Forth interpreter reports parse errors with '?'. Very unlikely
+			# with a fresh interpreter, but a useful guard.
+			print(f'ERROR: Forth parse error on poke line at 0x{addr:08x}: '
+				  f'echo contained "{r!r}"')
+			return None
+
+		sleep(interLineSleep)
+
+		if showProgressBar and progressBar is not None:
+			progressBar.update(progressBase + wordIndex + 4)
+
+	return True
+
+
 def VerifyMemoryBlock(forth, startAddress, data):
 	"""Read back and compare against `data`. Returns True on match."""
 	readBack = forth.ReadMemoryBlock(startAddress, len(data))
@@ -443,6 +536,15 @@ def main():
 	parser.add_argument('--chunk-delay', type=float, default=3e-3,
 		help='Seconds to sleep between TX chunks (default: 0.003). '
 			 'Raise if you see "no CRC reply" errors.')
+	parser.add_argument('--method', choices=['mw', 'poke'], default='mw',
+		help='Upload strategy. "mw" (default) uses the fast binary-stream '
+			 '`mw` Forth opcode. "poke" writes one 32-bit word at a time '
+			 'via `<val> <addr> !` Forth lines -- much slower but completely '
+			 'bypasses the binary RX path and the `mw` CRC handshake, so it '
+			 'is robust when the ROM UART drops bytes mid-stream.')
+	parser.add_argument('--poke-delay', type=float, default=2e-3,
+		help='Seconds to sleep between `!` lines when --method=poke '
+			 '(default: 0.002).')
 	parser.add_argument('--log', type=str, default=None,
 		metavar='FILE',
 		help='Write a full UART transcript (every byte TX/RX, with '
@@ -564,18 +666,25 @@ def main():
 	for (addr, data) in runs:
 		if bar is None:
 			print(f'  writing 0x{addr:08x} .. 0x{addr + len(data):08x} '
-				  f'({len(data)} bytes)')
+				  f'({len(data)} bytes) via {args.method}')
 		if logger:
-			logger.note(f'mw start addr=0x{addr:08x} len={len(data)}')
-		ret = WriteMemoryBlock(forth, addr, data,
-							   chunkSize=args.chunk_size,
-							   interChunkSleep=args.chunk_delay)
+			logger.note(f'{args.method} start addr=0x{addr:08x} len={len(data)}')
+		if args.method == 'mw':
+			ret = WriteMemoryBlock(forth, addr, data,
+								   chunkSize=args.chunk_size,
+								   interChunkSleep=args.chunk_delay)
+		else:  # poke
+			ret = WriteMemoryBlockPoke(forth, addr, data,
+									   interLineSleep=args.poke_delay,
+									   showProgressBar=(bar is not None),
+									   progressBar=bar,
+									   progressBase=written)
 		if ret is not True:
 			if bar is not None:
 				bar.finish()
 			print(f'\nERROR: upload failed at 0x{addr:08x}')
 			if logger:
-				logger.note('mw FAILED')
+				logger.note(f'{args.method} FAILED')
 				logger.close()
 			sys.exit(2)
 		written += len(data)

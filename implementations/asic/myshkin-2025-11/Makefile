@@ -23,6 +23,16 @@ else
     LOG_ARG = --log $(LOG)
 endif
 
+# Upload method for `make run*`: "mw" (default, fast binary stream) or
+# "poke" (slow per-word `!` writes; robust when the ROM UART drops bytes).
+#   make run-rcf blinky METHOD=poke
+METHOD =
+ifeq ($(METHOD),)
+    METHOD_ARG =
+else
+    METHOD_ARG = --method $(METHOD)
+endif
+
 # Get program name from command line arguments
 PROGRAM = $(filter-out $@,$(MAKECMDGOALS))
 ifeq ($(PROGRAM),)
@@ -67,6 +77,7 @@ help:
 	@echo "  make run-rcf blinky                # Upload blinky to RAM and execute at 0x8200"
 	@echo "  make run-rcf blinky RAM_ENTRY=0x8000  # Override entry address"
 	@echo "  make run-rcf blinky LOG=auto       # Also write UART transcript to ./forthram-<ts>.log"
+	@echo "  make run-rcf blinky METHOD=poke    # Slow per-word '!' upload (robust if mw drops bytes)"
 	@echo "  make clean-blinky                  # Clean blinky software"
 
 flash:
@@ -106,7 +117,7 @@ run:
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
-		$(LOG_ARG)
+		$(METHOD_ARG) $(LOG_ARG)
 
 run-verify:
 	@echo "Uploading $(HEX_FILE) to RAM (with verify) and jumping to $(RAM_ENTRY)..."
@@ -115,7 +126,7 @@ run-verify:
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
-		$(LOG_ARG)
+		$(METHOD_ARG) $(LOG_ARG)
 
 run-rcf:
 	@echo "Uploading $(RCF_FILE) to RAM and jumping to $(RAM_ENTRY)..."
@@ -123,7 +134,7 @@ run-rcf:
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
-		$(LOG_ARG)
+		$(METHOD_ARG) $(LOG_ARG)
 
 run-rcf-verify:
 	@echo "Uploading $(RCF_FILE) to RAM (with verify) and jumping to $(RAM_ENTRY)..."
@@ -132,7 +143,7 @@ run-rcf-verify:
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
-		$(LOG_ARG)
+		$(METHOD_ARG) $(LOG_ARG)
 
 build-%:
 	@echo "Building $* software..."
