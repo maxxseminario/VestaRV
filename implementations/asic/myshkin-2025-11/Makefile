@@ -11,7 +11,7 @@ BOARD_NAME = MyshkinDevBoard
 
 # Entry point used by `make run*` (forthram.py `call0` target).
 # Override on the command line, e.g.  make run-rcf blinky RAM_ENTRY=0x8000
-RAM_ENTRY = 0x8200
+RAM_ENTRY = 0x0000814c
 
 # Optional UART transcript log for `make run*`. Set to a path or to "auto"
 # to get ./forthram-<timestamp>.log. Example:
@@ -149,21 +149,26 @@ run-rcf-verify:
 		$(METHOD_ARG) $(LOG_ARG)
 
 # --- Offline: convert program file to Forth !/call0 script ---------------
-# Produces <program>.forth in the current dir that can be pasted / streamed
-# into the rv4th ROM REPL to load the program into RAM and jump to it.
+# Produces <program>.forth in the program's software dir that can be pasted /
+# streamed into the rv4th ROM REPL to load the program into RAM and jump to it.
+FORTH_SCRIPT_DIR = $(REPO_ROOT)/software/$(PROGRAM)/forth
+FORTH_SCRIPT     = $(FORTH_SCRIPT_DIR)/$(PROGRAM).forth
+
 forth-script:
-	@echo "Generating Forth script from $(HEX_FILE) (entry $(RAM_ENTRY)) -> $(PROGRAM).forth"
+	@mkdir -p $(FORTH_SCRIPT_DIR)
+	@echo "Generating Forth script from $(HEX_FILE) (entry $(RAM_ENTRY)) -> $(FORTH_SCRIPT)"
 	$(PYTHON) $(RCF2FORTH) $(HEX_FILE) \
 		--entry $(RAM_ENTRY) \
 		--header \
-		-o $(PROGRAM).forth
+		-o $(FORTH_SCRIPT)
 
 forth-script-rcf:
-	@echo "Generating Forth script from $(RCF_FILE) (entry $(RAM_ENTRY)) -> $(PROGRAM).forth"
+	@mkdir -p $(FORTH_SCRIPT_DIR)
+	@echo "Generating Forth script from $(RCF_FILE) (entry $(RAM_ENTRY)) -> $(FORTH_SCRIPT)"
 	$(PYTHON) $(RCF2FORTH) $(RCF_FILE) \
 		--entry $(RAM_ENTRY) \
 		--header \
-		-o $(PROGRAM).forth
+		-o $(FORTH_SCRIPT)
 
 build-%:
 	@echo "Building $* software..."
