@@ -416,36 +416,57 @@ def WriteMemoryBlock(forth, startAddress, data, chunkSize=8, interChunkSleep=3e-
 # Requires: data length be a multiple of 4, and startAddress be word aligned.
 # ---------------------------------------------------------------------------
 
+def _pokeOneWord(forth, addr, word, interLineSleep, logger=None):
+	"""Send a single `<val> <addr> !` Forth line. Returns:
+	   True   on (apparent) success (no '?' seen in drain)
+	   False  if chip replied with '?'  (parse error; byte likely dropped)
+	   None   on transport failure.
+	Does NOT abort; callers decide what to do.
+	"""
+	cmd = f'0x{word:08X} 0x{addr:08X} !'
+	if forth.uart.WriteLine(cmd) is None:
+		return None
+	sleep(interLineSleep)
+	try:
+		leftover = forth.uart.ReadBytes()
+	except Exception:
+		leftover = b''
+	if leftover and b'?' in leftover:
+		if logger is not None:
+			logger.note(f'poke parse error at 0x{addr:08x}: {leftover!r}')
+		return False
+	return True
+
+
 def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 						 showProgressBar=False, progressBar=None,
-						 progressBase=0):
+						 progressBase=0, logger=None):
 	"""Upload `data` via one `<val> <addr> !` Forth line per 32-bit word.
 
-	Uses the same pattern proven to work in tools/debug/forth_dashboard:
-	send the bare `!` line, sleep briefly, drain whatever came back
-	(usually nothing, since `Connect()` disables `echo`), and move on.
-	No per-line sync -- reliability is ensured by the final --verify step
-	(a single bulk `mr` readback).
-
-	Returns True on success, None on transport failure.
+	Sends every word regardless of per-line errors. Returns a dict:
+	    { 'ok': True/None,
+	      'errors': [list of (addr, reason) tuples for '?' replies] }
+	The caller is expected to run a per-word verify+retry pass afterwards;
+	a '?' almost always means a UART byte was dropped and exactly one word
+	is wrong -- re-poking that word fixes it.
 	"""
+	result = {'ok': True, 'errors': []}
 	if len(data) == 0:
-		return True
+		return result
 	if forth.uart.IsOpen is not True:
-		return None
+		result['ok'] = None
+		return result
 	if startAddress % 4 != 0:
 		print(f'ERROR: poke startAddress 0x{startAddress:08x} is not word aligned')
-		return None
+		result['ok'] = None
+		return result
 	if len(data) % 4 != 0:
 		pad = 4 - (len(data) % 4)
 		data = data + (b'\xff' * pad)
 
-	# Drain any stale RX bytes once up front; after that we rely on the
-	# fact that a bare `!` produces zero output to keep buffers clean.
 	forth.uart.FlushBuffers()
-
 	oldTimeout = forth.uart.Timeout
-	forth.uart.Timeout = 0.05  # only used for opportunistic RX drains
+	forth.uart.Timeout = 0.05
 
 	for wordIndex in range(0, len(data), 4):
 		w = (data[wordIndex + 0] <<  0 |
@@ -454,49 +475,132 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 			 data[wordIndex + 3] << 24)
 		addr = startAddress + wordIndex
 
-		# Hex for both value and address. rv4th parses `0x` prefix via the
-		# number-word path (rv4th.c, ~line 736). `!` is opcode 42 and stores
-		# a word ( val addr -- ).
-		cmd = f'0x{w:08X} 0x{addr:08X} !'
-		if forth.uart.WriteLine(cmd) is None:
-			print(f'ERROR: failed to send poke command at 0x{addr:08x}')
+		r = _pokeOneWord(forth, addr, w, interLineSleep, logger=logger)
+		if r is None:
+			print(f'ERROR: transport failure writing 0x{addr:08x}')
+			result['ok'] = None
 			forth.uart.Timeout = oldTimeout
-			return None
-
-		# Give the chip time to parse + execute the line. This matches the
-		# ~10 ms quiet period used by forth_dashboard. The exact value is
-		# not critical -- any unparseable output will be flushed before the
-		# next iteration by the short ReadBytes() drain below.
-		sleep(interLineSleep)
-
-		# Opportunistically drain anything that did come back (e.g. an
-		# unexpected '?' from a parse error, or stale echo chars). This
-		# keeps the RX buffer from filling up over a long upload.
-		try:
-			leftover = forth.uart.ReadBytes()
-			if leftover and b'?' in leftover:
-				forth.uart.Timeout = oldTimeout
-				print(f'ERROR: Forth parse error on poke at 0x{addr:08x} '
-					  f'(cmd={cmd!r}, reply={leftover!r})')
-				return None
-		except Exception:
-			pass
+			return result
+		if r is False:
+			# '?' reply; very likely one dropped byte. Record and keep going.
+			result['errors'].append((addr, 'parse_error'))
 
 		if showProgressBar and progressBar is not None:
 			progressBar.update(progressBase + wordIndex + 4)
 
 	forth.uart.Timeout = oldTimeout
-	return True
+	return result
+
+
+def _readOneWordMr(forth, addr):
+	"""Read one 32-bit word at `addr` via the chip's `mr` (CRC-checked) path.
+	Returns the word value (int) on success, None on failure.
+	"""
+	buf = forth.ReadMemoryBlock(addr, 4)
+	if buf is None or buf is False or len(buf) < 4:
+		return None
+	return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
+
+
+def VerifyAndRepairBlock(forth, startAddress, data,
+						 interLineSleep=10e-3,
+						 knownErrors=None,
+						 maxRepairPasses=3,
+						 logger=None,
+						 progressBar=None,
+						 progressBase=0,
+						 showProgressBar=False):
+	"""Per-word readback + repair.
+
+	For each 32-bit word in `data`, read it back from the chip via `mr` and
+	compare to the expected value. If any word mismatches (or is listed in
+	`knownErrors`), re-poke it and re-read. Repeat up to `maxRepairPasses`
+	times. Returns True if the whole block matches at the end, False if
+	anything still mismatches.
+
+	`knownErrors` is an optional iterable of addresses that the upload
+	already flagged as suspicious (from '?' replies); they get unconditionally
+	re-poked before the first readback pass, regardless of what is currently
+	at that address.
+	"""
+	if len(data) % 4 != 0:
+		pad = 4 - (len(data) % 4)
+		data = data + (b'\xff' * pad)
+
+	expected = {}
+	for wordIndex in range(0, len(data), 4):
+		w = (data[wordIndex + 0] <<  0 |
+			 data[wordIndex + 1] <<  8 |
+			 data[wordIndex + 2] << 16 |
+			 data[wordIndex + 3] << 24)
+		expected[startAddress + wordIndex] = w
+
+	# First: re-poke any addresses the upload flagged as errored.
+	if knownErrors:
+		uniqErr = sorted(set(knownErrors))
+		if logger is not None:
+			logger.note(f'repair: re-poking {len(uniqErr)} upload-flagged '
+						f'address(es) before verify')
+		print(f'Re-poking {len(uniqErr)} upload-flagged word(s) before verify...')
+		for a in uniqErr:
+			if a in expected:
+				_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
+
+	for attempt in range(maxRepairPasses + 1):
+		mismatches = []
+		# Walk every word, read-back, compare.
+		nWords = len(data) // 4
+		for i, addr in enumerate(sorted(expected.keys())):
+			got = _readOneWordMr(forth, addr)
+			if got is None:
+				if logger is not None:
+					logger.note(f'verify: readback FAILED at 0x{addr:08x}')
+				print(f'ERROR: readback failed at 0x{addr:08x}')
+				return False
+			if got != expected[addr]:
+				mismatches.append(addr)
+			if showProgressBar and progressBar is not None:
+				progressBar.update(progressBase + (i + 1) * 4)
+
+		if not mismatches:
+			if logger is not None:
+				logger.note(f'verify OK on attempt {attempt} '
+							f'({nWords} words checked)')
+			return True
+
+		if attempt >= maxRepairPasses:
+			# Out of retries; print a digest.
+			print(f'ERROR: {len(mismatches)} word(s) still mismatch after '
+				  f'{maxRepairPasses} repair pass(es). First few:')
+			for a in mismatches[:8]:
+				got = _readOneWordMr(forth, a)
+				print(f'  0x{a:08x}: expected 0x{expected[a]:08x}, '
+					  f'read 0x{(got if got is not None else 0):08x}')
+			if logger is not None:
+				logger.note(f'verify FAILED: {len(mismatches)} mismatches '
+							f'remain after {maxRepairPasses} passes')
+			return False
+
+		# Repair pass: re-poke each mismatching word.
+		if logger is not None:
+			logger.note(f'verify attempt {attempt}: {len(mismatches)} '
+						f'mismatch(es); repairing')
+		print(f'Verify pass {attempt}: {len(mismatches)} mismatch(es); '
+			  f're-poking...')
+		for a in mismatches:
+			_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
+
+	return False
 
 
 def VerifyMemoryBlock(forth, startAddress, data):
-	"""Read back and compare against `data`. Returns True on match."""
+	"""Legacy bulk-mr verify (kept for API compat). Prefer
+	VerifyAndRepairBlock for actual use."""
 	readBack = forth.ReadMemoryBlock(startAddress, len(data))
 	if readBack is None or readBack is False:
 		print(f'ERROR: readback failed at 0x{startAddress:08x}')
 		return False
 	if bytes(readBack) != bytes(data):
-		# find first diff for diagnostics
 		for i, (a, b) in enumerate(zip(readBack, data)):
 			if a != b:
 				print(f'ERROR: verify mismatch at 0x{startAddress + i:08x}: '
@@ -546,6 +650,12 @@ def main():
 	parser.add_argument('--poke-delay', type=float, default=10e-3,
 		help='Seconds to sleep between `!` lines when --method=poke '
 			 '(default: 0.010).')
+	parser.add_argument('--repair-passes', type=int, default=3,
+		help='When --verify is set, number of per-word readback/repair '
+			 'passes to run after the initial upload (default: 3). Each '
+			 'pass reads every word via `mr` and re-pokes any that do '
+			 'not match. Setting to 0 effectively makes --verify a '
+			 'one-shot read-only check.')
 	parser.add_argument('--log', type=str, default=None,
 		metavar='FILE',
 		help='Write a full UART transcript (every byte TX/RX, with '
@@ -674,6 +784,9 @@ def main():
 		bar.start()
 
 	written = 0
+	# Collect any per-word errors (e.g. '?' replies from dropped bytes) from
+	# the poke path so the verify/repair pass can re-poke those words.
+	pokeErrorsByRun = {}  # (addr_run_start, run_len) -> [addr,...]
 	for (addr, data) in runs:
 		if bar is None:
 			print(f'  writing 0x{addr:08x} .. 0x{addr + len(data):08x} '
@@ -684,20 +797,39 @@ def main():
 			ret = WriteMemoryBlock(forth, addr, data,
 								   chunkSize=args.chunk_size,
 								   interChunkSleep=args.chunk_delay)
+			if ret is not True:
+				if bar is not None:
+					bar.finish()
+				print(f'\nERROR: upload failed at 0x{addr:08x}')
+				if logger:
+					logger.note(f'{args.method} FAILED')
+					logger.close()
+				sys.exit(2)
 		else:  # poke
-			ret = WriteMemoryBlockPoke(forth, addr, data,
-									   interLineSleep=args.poke_delay,
-									   showProgressBar=(bar is not None),
-									   progressBar=bar,
-									   progressBase=written)
-		if ret is not True:
-			if bar is not None:
-				bar.finish()
-			print(f'\nERROR: upload failed at 0x{addr:08x}')
-			if logger:
-				logger.note(f'{args.method} FAILED')
-				logger.close()
-			sys.exit(2)
+			result = WriteMemoryBlockPoke(forth, addr, data,
+										  interLineSleep=args.poke_delay,
+										  showProgressBar=(bar is not None),
+										  progressBar=bar,
+										  progressBase=written,
+										  logger=logger)
+			if result['ok'] is None:
+				if bar is not None:
+					bar.finish()
+				print(f'\nERROR: transport failure at 0x{addr:08x}')
+				if logger:
+					logger.note('poke TRANSPORT FAILED')
+					logger.close()
+				sys.exit(2)
+			errs = [a for (a, _r) in result['errors']]
+			if errs:
+				msg = (f'  {len(errs)} word(s) flagged during upload '
+					   f'(will be re-poked during verify): '
+					   f'{", ".join(f"0x{a:08x}" for a in errs[:6])}'
+					   + (' ...' if len(errs) > 6 else ''))
+				print(msg)
+				if logger:
+					logger.note(f'poke errors in run 0x{addr:08x}: {errs}')
+			pokeErrorsByRun[(addr, len(data))] = errs
 		written += len(data)
 		if bar is not None:
 			bar.update(written)
@@ -705,13 +837,20 @@ def main():
 	if bar is not None:
 		bar.finish()
 
-	# ---- optional verify --------------------------------------------------
+	# ---- optional verify (per-word readback + repair) ---------------------
 	if args.verify:
-		print('Verifying RAM contents ...')
+		print('Verifying RAM contents (per-word readback + repair)...')
 		if logger:
-			logger.note('verify start')
+			logger.note('verify start (per-word readback + repair)')
 		for (addr, data) in runs:
-			if VerifyMemoryBlock(forth, addr, data) is not True:
+			knownErrors = pokeErrorsByRun.get((addr, len(data)), [])
+			ok = VerifyAndRepairBlock(
+				forth, addr, data,
+				interLineSleep=args.poke_delay,
+				knownErrors=knownErrors,
+				maxRepairPasses=args.repair_passes,
+				logger=logger)
+			if ok is not True:
 				print(f'ERROR: verification failed at 0x{addr:08x}')
 				if logger:
 					logger.note('verify FAILED')
