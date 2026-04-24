@@ -30,6 +30,7 @@ derived from the RCF's 0xcafebabe terminator or from the Intel-Hex EIP field.
 import sys
 import os
 import argparse
+import time
 from time import sleep
 
 thisScriptDir = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +53,134 @@ except Exception:
 # User-requested fixed entry point.
 # ---------------------------------------------------------------------------
 ENTRY_ADDRESS = 0x8200
+
+
+# ---------------------------------------------------------------------------
+# UART I/O logger
+# ---------------------------------------------------------------------------
+# Hooks pyserial's underlying `write()` and `read()` so every byte that
+# crosses the wire in EITHER direction is captured, regardless of which
+# higher-level helper (Connect, ChangeBaudrateUsingHFXT, mw, call0, ...)
+# produced it. Output is a human-readable transcript: direction, relative
+# timestamp, ASCII representation, and a raw hex side-channel.
+# ---------------------------------------------------------------------------
+
+class _UartLogger:
+	def __init__(self, logPath):
+		self.path = logPath
+		self.fp = open(logPath, 'w', buffering=1)  # line-buffered
+		self.t0 = time.time()
+		self.tx_accum = bytearray()
+		self.rx_accum = bytearray()
+		self.last_dir = None
+		self.last_ts = self.t0
+		# Coalesce consecutive same-direction activity that happens within
+		# this many seconds into a single log line. Keeps the transcript
+		# readable while still showing ordering.
+		self.coalesce_window = 0.020
+
+	def _flush_dir(self, direction):
+		if direction == 'TX' and self.tx_accum:
+			self._emit('TX', bytes(self.tx_accum), self.last_ts)
+			self.tx_accum = bytearray()
+		elif direction == 'RX' and self.rx_accum:
+			self._emit('RX', bytes(self.rx_accum), self.last_ts)
+			self.rx_accum = bytearray()
+
+	def _emit(self, direction, data, ts):
+		rel = ts - self.t0
+		# Show printable ASCII, escape control chars.
+		ascii_repr = ''.join(
+			(chr(b) if 32 <= b < 127 else
+			 '\\n' if b == 0x0A else
+			 '\\r' if b == 0x0D else
+			 '\\t' if b == 0x09 else
+			 f'\\x{b:02x}')
+			for b in data
+		)
+		hex_repr = data.hex()
+		self.fp.write(
+			f'[{rel:10.4f}s] {direction} {len(data):4d}B  {ascii_repr!r}\n'
+		)
+		if len(data) <= 64:
+			self.fp.write(f'             hex: {hex_repr}\n')
+		else:
+			self.fp.write(f'             hex: {hex_repr[:128]}...[truncated {len(data)}B]\n')
+
+	def _now(self):
+		return time.time()
+
+	def log_tx(self, data):
+		if not data:
+			return
+		now = self._now()
+		if self.last_dir == 'RX':
+			self._flush_dir('RX')
+		if self.tx_accum and (now - self.last_ts) > self.coalesce_window:
+			self._flush_dir('TX')
+		if not self.tx_accum:
+			self.last_ts = now
+		self.tx_accum.extend(data)
+		self.last_dir = 'TX'
+
+	def log_rx(self, data):
+		if not data:
+			return
+		now = self._now()
+		if self.last_dir == 'TX':
+			self._flush_dir('TX')
+		if self.rx_accum and (now - self.last_ts) > self.coalesce_window:
+			self._flush_dir('RX')
+		if not self.rx_accum:
+			self.last_ts = now
+		self.rx_accum.extend(data)
+		self.last_dir = 'RX'
+
+	def note(self, msg):
+		"""Emit a free-form annotation (e.g. phase markers)."""
+		self._flush_dir('TX')
+		self._flush_dir('RX')
+		rel = self._now() - self.t0
+		self.fp.write(f'[{rel:10.4f}s] -- {msg}\n')
+
+	def close(self):
+		self._flush_dir('TX')
+		self._flush_dir('RX')
+		try:
+			self.fp.close()
+		except Exception:
+			pass
+
+
+def install_uart_logger(uart, logger):
+	"""Wrap the pyserial object inside `uart` so every byte is logged."""
+	ser = uart.ser
+	if ser is None:
+		raise RuntimeError('UART has no underlying serial object to wrap')
+
+	orig_write = ser.write
+	orig_read = ser.read
+
+	def logged_write(data):
+		try:
+			logger.log_tx(bytes(data))
+		except Exception:
+			pass
+		return orig_write(data)
+
+	def logged_read(n=1):
+		r = orig_read(n)
+		try:
+			if r:
+				logger.log_rx(bytes(r))
+		except Exception:
+			pass
+		return r
+
+	ser.write = logged_write
+	ser.read = logged_read
+	# Stash for later restore / access from the app code.
+	uart._forthram_logger = logger
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +443,11 @@ def main():
 	parser.add_argument('--chunk-delay', type=float, default=3e-3,
 		help='Seconds to sleep between TX chunks (default: 0.003). '
 			 'Raise if you see "no CRC reply" errors.')
+	parser.add_argument('--log', type=str, default=None,
+		metavar='FILE',
+		help='Write a full UART transcript (every byte TX/RX, with '
+			 'timestamps) to FILE for debugging. Pass "auto" to write to '
+			 './forthram-<timestamp>.log in the current directory.')
 
 	args = parser.parse_args()
 
@@ -392,9 +526,27 @@ def main():
 	if forth.Connect(chip, activeBoard, args.port, desiredBootMode='ROM') is not True:
 		print('Unable to connect')
 		sys.exit(1)
+
+	# ---- optional UART transcript logger ---------------------------------
+	logger = None
+	if args.log is not None:
+		logPath = args.log
+		if logPath == 'auto':
+			logPath = f'forthram-{time.strftime("%Y%m%d-%H%M%S")}.log'
+		logger = _UartLogger(logPath)
+		install_uart_logger(forth.uart, logger)
+		logger.note(f'forthram.py transcript start; port={forth.uart.Port} '
+					f'baud={forth.uart.Baudrate} chip={args.chip} '
+					f'board={activeBoard.Name} file={args.ProgramFile} '
+					f'entry=0x{args.entry:08x}')
+		print(f'UART transcript -> {logPath}')
+
 	if forth.ChangeBaudrateUsingHFXT(activeBoard.ProgrammingBaudrate) is not True:
 		print('Unable to change baudrate to', activeBoard.ProgrammingBaudrate)
+		if logger: logger.close()
 		sys.exit(1)
+	if logger:
+		logger.note(f'baudrate now {forth.uart.Baudrate}')
 	print('Connected to', forth.ActiveChip.Name, 'board', forth.ActiveBoard.Name,
 		  'on', forth.uart.Port, 'at', forth.uart.Baudrate, 'baud')
 
@@ -413,6 +565,8 @@ def main():
 		if bar is None:
 			print(f'  writing 0x{addr:08x} .. 0x{addr + len(data):08x} '
 				  f'({len(data)} bytes)')
+		if logger:
+			logger.note(f'mw start addr=0x{addr:08x} len={len(data)}')
 		ret = WriteMemoryBlock(forth, addr, data,
 							   chunkSize=args.chunk_size,
 							   interChunkSleep=args.chunk_delay)
@@ -420,6 +574,9 @@ def main():
 			if bar is not None:
 				bar.finish()
 			print(f'\nERROR: upload failed at 0x{addr:08x}')
+			if logger:
+				logger.note('mw FAILED')
+				logger.close()
 			sys.exit(2)
 		written += len(data)
 		if bar is not None:
@@ -431,25 +588,40 @@ def main():
 	# ---- optional verify --------------------------------------------------
 	if args.verify:
 		print('Verifying RAM contents ...')
+		if logger:
+			logger.note('verify start')
 		for (addr, data) in runs:
 			if VerifyMemoryBlock(forth, addr, data) is not True:
 				print(f'ERROR: verification failed at 0x{addr:08x}')
+				if logger:
+					logger.note('verify FAILED')
+					logger.close()
 				sys.exit(3)
 		print('Verify OK')
+		if logger:
+			logger.note('verify OK')
 
 	# ---- jump -------------------------------------------------------------
 	if args.no_jump:
 		print(f'--no-jump specified; program is in RAM but not executing. '
 			  f'To jump manually, send `{args.entry} call0` over the Forth '
 			  f'UART.')
+		if logger:
+			logger.note('no-jump; transcript end')
+			logger.close()
 		return
 
 	print(f'Jumping to 0x{args.entry:08x} via `call0` ...')
 	# Make sure the TX pipe is clean so the jump command is not corrupted.
 	forth.uart.FlushBuffers()
 	cmd = f'{args.entry} call0'
+	if logger:
+		logger.note(f'call0 jump to 0x{args.entry:08x}')
 	if forth.uart.WriteLine(cmd) is None:
 		print('ERROR: failed to send call0 command')
+		if logger:
+			logger.note('call0 send FAILED')
+			logger.close()
 		sys.exit(4)
 
 	# call0 returns the function's return value onto the math stack. If the
@@ -461,6 +633,9 @@ def main():
 		  f'0x{args.entry:08x}.')
 	print('(If the program returns, the Forth interpreter will resume on '
 		  'this UART.)')
+	if logger:
+		logger.note('launched; transcript end')
+		logger.close()
 
 
 if __name__ == '__main__':

@@ -12,6 +12,17 @@ BOARD_NAME = MyshkinDevBoard
 # Override on the command line, e.g.  make run-rcf blinky RAM_ENTRY=0x8000
 RAM_ENTRY = 0x8200
 
+# Optional UART transcript log for `make run*`. Set to a path or to "auto"
+# to get ./forthram-<timestamp>.log. Example:
+#   make run-rcf blinky LOG=auto
+#   make run-rcf blinky LOG=/tmp/blinky.log
+LOG =
+ifeq ($(LOG),)
+    LOG_ARG =
+else
+    LOG_ARG = --log $(LOG)
+endif
+
 # Get program name from command line arguments
 PROGRAM = $(filter-out $@,$(MAKECMDGOALS))
 ifeq ($(PROGRAM),)
@@ -55,6 +66,7 @@ help:
 	@echo "  make flash-verify rv4th            # Flash rv4th with verification"
 	@echo "  make run-rcf blinky                # Upload blinky to RAM and execute at 0x8200"
 	@echo "  make run-rcf blinky RAM_ENTRY=0x8000  # Override entry address"
+	@echo "  make run-rcf blinky LOG=auto       # Also write UART transcript to ./forthram-<ts>.log"
 	@echo "  make clean-blinky                  # Clean blinky software"
 
 flash:
@@ -93,7 +105,8 @@ run:
 	$(PYTHON) $(RAM_PROG) $(HEX_FILE) \
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
-		--entry $(RAM_ENTRY)
+		--entry $(RAM_ENTRY) \
+		$(LOG_ARG)
 
 run-verify:
 	@echo "Uploading $(HEX_FILE) to RAM (with verify) and jumping to $(RAM_ENTRY)..."
@@ -101,14 +114,16 @@ run-verify:
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
-		--verify
+		--verify \
+		$(LOG_ARG)
 
 run-rcf:
 	@echo "Uploading $(RCF_FILE) to RAM and jumping to $(RAM_ENTRY)..."
 	$(PYTHON) $(RAM_PROG) $(RCF_FILE) \
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
-		--entry $(RAM_ENTRY)
+		--entry $(RAM_ENTRY) \
+		$(LOG_ARG)
 
 run-rcf-verify:
 	@echo "Uploading $(RCF_FILE) to RAM (with verify) and jumping to $(RAM_ENTRY)..."
@@ -116,7 +131,8 @@ run-rcf-verify:
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
-		--verify
+		--verify \
+		$(LOG_ARG)
 
 build-%:
 	@echo "Building $* software..."
