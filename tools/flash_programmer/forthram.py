@@ -183,7 +183,7 @@ def _image_to_contiguous_runs(image):
 # does after commit e8c816d.
 # ---------------------------------------------------------------------------
 
-def WriteMemoryBlock(forth, startAddress, data, chunkSize=16, interChunkSleep=2e-3):
+def WriteMemoryBlock(forth, startAddress, data, chunkSize=8, interChunkSleep=3e-3):
 	"""Upload `data` bytes into RAM starting at `startAddress` using `mw`.
 
 	Returns True on success (CRC matches), False on CRC mismatch, None on
@@ -214,6 +214,9 @@ def WriteMemoryBlock(forth, startAddress, data, chunkSize=16, interChunkSleep=2e
 		return None
 
 	# Send the payload paced to survive the ROM UART's polling-only RX path.
+	# The chip's memoryWriteFunc busy-waits on uart_getchar() with no FIFO;
+	# if two bytes land between polls the first is lost and the chip never
+	# emits the terminating CRC. Default pacing is small + generous.
 	for off in range(0, len(data), chunkSize):
 		forth.uart.WriteBytes(data[off:off + chunkSize])
 		try:
@@ -222,12 +225,31 @@ def WriteMemoryBlock(forth, startAddress, data, chunkSize=16, interChunkSleep=2e
 			pass
 		sleep(interChunkSleep)
 
-	# Receive the 4-char hex CRC.
-	forth.uart.Timeout = 5.0
+	# Receive the 4-char hex CRC. Allow plenty of slack -- even with a stuck
+	# chip we want to surface something useful to the user.
+	forth.uart.Timeout = 10.0
 	crcStr = forth.uart.Read(4)
 	forth.uart.Timeout = oldTimeout
 	if crcStr is None:
-		print(f'ERROR: no CRC reply from mw at 0x{startAddress:08x}')
+		# Dump whatever (if anything) DID arrive so the user can tell whether
+		# a byte was lost, the chip is echoing a '?' (Forth parse error), or
+		# the UART is simply dead.
+		forth.uart.Timeout = 0.25
+		leftover = forth.uart.ReadBytes()
+		forth.uart.Timeout = oldTimeout
+		print(f'ERROR: no CRC reply from mw at 0x{startAddress:08x} '
+			  f'(sent {len(data)} bytes, expected 4 hex chars back).')
+		if leftover:
+			try:
+				print(f'       RX buffer after timeout ({len(leftover)} bytes): '
+					  f'{leftover!r}')
+			except Exception:
+				print(f'       RX buffer after timeout: {leftover}')
+		else:
+			print('       RX buffer is empty -- chip is likely stuck in '
+				  'uart_getchar() waiting for a dropped payload byte.')
+		print('       Try lowering --chunk-size or raising --chunk-delay '
+			  '(e.g. --chunk-size 4 --chunk-delay 0.005).')
 		return None
 
 	try:
@@ -286,6 +308,12 @@ def main():
 	parser.add_argument('--entry', type=lambda s: int(s, 0),
 		default=ENTRY_ADDRESS,
 		help=f'Override the jump entry address (default: 0x{ENTRY_ADDRESS:08x})')
+	parser.add_argument('--chunk-size', type=int, default=8,
+		help='Bytes per TX chunk during RAM upload (default: 8). '
+			 'Lower if you see "no CRC reply" errors.')
+	parser.add_argument('--chunk-delay', type=float, default=3e-3,
+		help='Seconds to sleep between TX chunks (default: 0.003). '
+			 'Raise if you see "no CRC reply" errors.')
 
 	args = parser.parse_args()
 
@@ -385,7 +413,9 @@ def main():
 		if bar is None:
 			print(f'  writing 0x{addr:08x} .. 0x{addr + len(data):08x} '
 				  f'({len(data)} bytes)')
-		ret = WriteMemoryBlock(forth, addr, data)
+		ret = WriteMemoryBlock(forth, addr, data,
+							   chunkSize=args.chunk_size,
+							   interChunkSleep=args.chunk_delay)
 		if ret is not True:
 			if bar is not None:
 				bar.finish()
