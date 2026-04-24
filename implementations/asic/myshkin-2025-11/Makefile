@@ -5,6 +5,7 @@
 REPO_ROOT = ../../..
 FLASH_PROG = $(REPO_ROOT)/tools/flash_programmer/forthprog.py
 RAM_PROG   = $(REPO_ROOT)/tools/flash_programmer/forthram.py
+RCF2FORTH  = $(REPO_ROOT)/tools/flash_programmer/rcf2forth.py
 CHIP_NAME = myshkin-2025-11
 BOARD_NAME = MyshkinDevBoard
 
@@ -51,7 +52,7 @@ endif
 # Python
 PYTHON = python3
 
-.PHONY: help flash flash-verify flash-rcf flash-rcf-verify run run-verify run-rcf run-rcf-verify clean clean-% build-%
+.PHONY: help flash flash-verify flash-rcf flash-rcf-verify run run-verify run-rcf run-rcf-verify forth-script forth-script-rcf clean clean-% build-%
 
 # Catch-all for program names
 %:
@@ -65,6 +66,8 @@ help:
 	@echo "  make run-verify [program-name]     - Same as run, with RAM readback verification"
 	@echo "  make run-rcf [program-name]        - Upload RCF file to RAM and jump"
 	@echo "  make run-rcf-verify [program-name] - Upload RCF to RAM with verification and jump"
+	@echo "  make forth-script [program-name]     - Convert program's .hex to a Forth !/call0 script (-> <program>.forth)"
+	@echo "  make forth-script-rcf [program-name] - Same, but from the program's .rcf file"
 	@echo "  make build-<program>               - Build specific software project"
 	@echo "  make clean-<program>               - Clean specific software project"
 	@echo "  make clean                         - Clean build artifacts"
@@ -144,6 +147,23 @@ run-rcf-verify:
 		--entry $(RAM_ENTRY) \
 		--verify \
 		$(METHOD_ARG) $(LOG_ARG)
+
+# --- Offline: convert program file to Forth !/call0 script ---------------
+# Produces <program>.forth in the current dir that can be pasted / streamed
+# into the rv4th ROM REPL to load the program into RAM and jump to it.
+forth-script:
+	@echo "Generating Forth script from $(HEX_FILE) (entry $(RAM_ENTRY)) -> $(PROGRAM).forth"
+	$(PYTHON) $(RCF2FORTH) $(HEX_FILE) \
+		--entry $(RAM_ENTRY) \
+		--header \
+		-o $(PROGRAM).forth
+
+forth-script-rcf:
+	@echo "Generating Forth script from $(RCF_FILE) (entry $(RAM_ENTRY)) -> $(PROGRAM).forth"
+	$(PYTHON) $(RCF2FORTH) $(RCF_FILE) \
+		--entry $(RAM_ENTRY) \
+		--header \
+		-o $(PROGRAM).forth
 
 build-%:
 	@echo "Building $* software..."
