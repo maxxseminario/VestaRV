@@ -653,6 +653,16 @@ def main():
 	print('Connected to', forth.ActiveChip.Name, 'board', forth.ActiveBoard.Name,
 		  'on', forth.uart.Port, 'at', forth.uart.Baudrate, 'baud')
 
+	# Populate the list of available Forth functions on the chip. Connect()
+	# does not do this by default, but ReadMemoryBlock() (used by verify) asserts
+	# that 'mr' is present, so we need to query the chip now.
+	if forth.UpdateAvailableFunctionsList() is None:
+		print('Unable to query available Forth functions from chip')
+		if logger: logger.close()
+		sys.exit(1)
+	if logger:
+		logger.note(f'forth functions: {sorted(forth.ForthFunctions)}')
+
 	# ---- upload every run -------------------------------------------------
 	bar = None
 	if HAVE_PROGRESSBAR:
