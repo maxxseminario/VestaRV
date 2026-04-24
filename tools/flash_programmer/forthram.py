@@ -452,32 +452,32 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=2e-3,
 			 data[wordIndex + 3] << 24)
 		addr = startAddress + wordIndex
 
-		# The Forth interpreter treats bare ints as positive literals; use
-		# unsigned decimal. '!' is opcode 42 (word store): ( val addr -- ).
-		cmd = f'{w} {addr} !'
+		# The Forth interpreter does NOT echo tokens as it parses them; it
+		# only emits output produced by executed words. We therefore append
+		# `0x7D .` which pushes 125 then prints it in decimal, emitting the
+		# literal text "125 " as a sentinel we can synchronize on. (This is
+		# the same trick used by ForthInterface.MemorySetBlock, etc.)
+		#
+		# '!' is opcode 42 (word store): ( val addr -- ).
+		cmd = f'0x{w:08x} 0x{addr:08x} ! 0x7D .'
 		if forth.uart.WriteLine(cmd) is None:
 			print(f'ERROR: failed to send poke command at 0x{addr:08x}')
 			forth.uart.Timeout = oldTimeout
 			return None
 
-		# Wait for the interpreter to finish parsing the line. rv4th echoes
-		# each whitespace-separated token as it is parsed (so we'll see the
-		# three tokens echoed), and then emits nothing else for a bare `!`.
-		# Draining the echoed tokens gives the chip time to complete the
-		# store before we pile on another line.
-		#
-		# The cheapest sync is to wait for the final token ('!') to echo.
+		# Wait for the sentinel "125" to come back. If we instead see a
+		# '?' the interpreter hit a parse error (e.g. the value literal
+		# overflowed Forth's idea of a number) -- surface that clearly.
 		forth.uart.Timeout = 0.5
-		r = forth.uart.ReadUntil('!')
+		r = forth.uart.ReadUntil('125')
 		forth.uart.Timeout = oldTimeout
 		if r is None:
-			print(f'ERROR: no echo of `!` after poke at 0x{addr:08x}')
+			print(f'ERROR: no sentinel reply after poke at 0x{addr:08x} '
+				  f'(cmd: {cmd!r})')
 			return None
 		if '?' in r:
-			# Forth interpreter reports parse errors with '?'. Very unlikely
-			# with a fresh interpreter, but a useful guard.
 			print(f'ERROR: Forth parse error on poke line at 0x{addr:08x}: '
-				  f'echo contained "{r!r}"')
+				  f'reply was {r!r} (cmd: {cmd!r})')
 			return None
 
 		sleep(interLineSleep)
