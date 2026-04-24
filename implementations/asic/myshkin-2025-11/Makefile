@@ -6,6 +6,7 @@ REPO_ROOT = ../../..
 FLASH_PROG = $(REPO_ROOT)/tools/flash_programmer/forthprog.py
 RAM_PROG   = $(REPO_ROOT)/tools/flash_programmer/forthram.py
 RCF2FORTH  = $(REPO_ROOT)/tools/flash_programmer/rcf2forth.py
+FORTHRUN   = $(REPO_ROOT)/tools/flash_programmer/forthrun.py
 CHIP_NAME = myshkin-2025-11
 BOARD_NAME = MyshkinDevBoard
 
@@ -52,7 +53,7 @@ endif
 # Python
 PYTHON = python3
 
-.PHONY: help flash flash-verify flash-rcf flash-rcf-verify run run-verify run-rcf run-rcf-verify forth-script forth-script-rcf clean clean-% build-%
+.PHONY: help flash flash-verify flash-rcf flash-rcf-verify run run-verify run-rcf run-rcf-verify forth-script forth-script-rcf forth-run forth-run-file clean clean-% build-%
 
 # Catch-all for program names
 %:
@@ -68,6 +69,8 @@ help:
 	@echo "  make run-rcf-verify [program-name] - Upload RCF to RAM with verification and jump"
 	@echo "  make forth-script [program-name]     - Convert program's .hex to a Forth !/call0 script (-> <program>.forth)"
 	@echo "  make forth-script-rcf [program-name] - Same, but from the program's .rcf file"
+	@echo "  make forth-run [program-name]        - Stream the program's generated .forth file to the chip over UART"
+	@echo "  make forth-run-file FORTH_FILE=<path> - Stream an arbitrary .forth file to the chip over UART"
 	@echo "  make build-<program>               - Build specific software project"
 	@echo "  make clean-<program>               - Clean specific software project"
 	@echo "  make clean                         - Clean build artifacts"
@@ -169,6 +172,53 @@ forth-script-rcf:
 		--entry $(RAM_ENTRY) \
 		--header \
 		-o $(FORTH_SCRIPT)
+
+# --- Stream a *.forth script to the chip over UART ------------------------
+# Uses forthrun.py, which mirrors rv4th_terminal.py's transport (serial port,
+# optional boot-mode / reset GPIOs) but reads commands from a file instead
+# of the keyboard. Skips blank lines and '\' comments.
+#
+# Extra knobs:
+#   FORTH_FILE      path to the script (default: $(FORTH_SCRIPT))
+#   FORTH_PORT      serial device        (default: /dev/ttyAMA0)
+#   FORTH_BAUD      baud rate            (default: 115200)
+#   FORTH_DELAY     inter-line delay (s) (default: 0.010)
+#   FORTH_BOOT_PIN  optional BCM GPIO to hold HIGH during session
+#   FORTH_RESET_PIN optional BCM GPIO to pulse for chip reset
+#   FORTH_LOG       optional log file path
+#   FORTH_EXTRA     any extra forthrun.py args (e.g. --wait-boot --quiet)
+FORTH_FILE      ?= $(FORTH_SCRIPT)
+FORTH_PORT      ?=
+FORTH_BAUD      ?=
+FORTH_DELAY     ?=
+FORTH_BOOT_PIN  ?=
+FORTH_RESET_PIN ?=
+FORTH_LOG       ?=
+FORTH_EXTRA     ?=
+
+FORTH_PORT_ARG      = $(if $(FORTH_PORT),--port $(FORTH_PORT),)
+FORTH_BAUD_ARG      = $(if $(FORTH_BAUD),--baud $(FORTH_BAUD),)
+FORTH_DELAY_ARG     = $(if $(FORTH_DELAY),--line-delay $(FORTH_DELAY),)
+FORTH_BOOT_ARG      = $(if $(FORTH_BOOT_PIN),--boot-pin $(FORTH_BOOT_PIN),)
+FORTH_RESET_ARG     = $(if $(FORTH_RESET_PIN),--reset-pin $(FORTH_RESET_PIN),)
+FORTH_LOG_ARG       = $(if $(FORTH_LOG),--log $(FORTH_LOG),)
+
+forth-run:
+	@test -f $(FORTH_SCRIPT) || (echo "ERROR: $(FORTH_SCRIPT) does not exist. Run 'make forth-script-rcf $(PROGRAM)' first." && exit 1)
+	@echo "Streaming $(FORTH_SCRIPT) to chip over UART"
+	$(PYTHON) $(FORTHRUN) $(FORTH_SCRIPT) \
+		$(FORTH_PORT_ARG) $(FORTH_BAUD_ARG) $(FORTH_DELAY_ARG) \
+		$(FORTH_BOOT_ARG) $(FORTH_RESET_ARG) $(FORTH_LOG_ARG) \
+		$(FORTH_EXTRA)
+
+forth-run-file:
+	@test -n "$(FORTH_FILE)" || (echo "ERROR: set FORTH_FILE=<path to *.forth>" && exit 1)
+	@test -f $(FORTH_FILE) || (echo "ERROR: $(FORTH_FILE) not found" && exit 1)
+	@echo "Streaming $(FORTH_FILE) to chip over UART"
+	$(PYTHON) $(FORTHRUN) $(FORTH_FILE) \
+		$(FORTH_PORT_ARG) $(FORTH_BAUD_ARG) $(FORTH_DELAY_ARG) \
+		$(FORTH_BOOT_ARG) $(FORTH_RESET_ARG) $(FORTH_LOG_ARG) \
+		$(FORTH_EXTRA)
 
 build-%:
 	@echo "Building $* software..."
