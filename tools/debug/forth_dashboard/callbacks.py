@@ -258,6 +258,48 @@ def read_register_control(n_clicks, input_id):
 # reg-input control is still used with the read_register_control callback.
 
 
+# ---------------------------------------------------------------------------
+# BIAS_TIA_G_POT – thermometer lookup table
+# 17 discrete slider positions (0 = max R, 16 = min R).
+# Assumed bit layout (adjust if hardware differs):
+#   bit 15 = 1 MΩ short; bits 0-14 = 15 × 60 kΩ thermometer shorts
+# ---------------------------------------------------------------------------
+_TIA_GAIN_STEPS = [
+    0x00000000,  # 0:  max R  – nothing shorted
+    0x00008000,  # 1:  1M shorted            (large step)
+    0x00008001,  # 2:  1M + 1×60k
+    0x00008003,  # 3:  1M + 2×60k
+    0x00008007,  # 4:  1M + 3×60k
+    0x0000800F,  # 5:  1M + 4×60k
+    0x0000801F,  # 6:  1M + 5×60k
+    0x0000803F,  # 7:  1M + 6×60k
+    0x0000807F,  # 8:  1M + 7×60k
+    0x000080FF,  # 9:  1M + 8×60k
+    0x000081FF,  # 10: 1M + 9×60k
+    0x000083FF,  # 11: 1M + 10×60k
+    0x000087FF,  # 12: 1M + 11×60k
+    0x00008FFF,  # 13: 1M + 12×60k
+    0x00009FFF,  # 14: 1M + 13×60k
+    0x0000BFFF,  # 15: 1M + 14×60k
+    0x0000FFFF,  # 16: min R – 1M + all 15×60k shorted
+]
+_TIA_GAIN_REG_TO_SLIDER = {reg: pos for pos, reg in enumerate(_TIA_GAIN_STEPS)}
+
+
+def _tia_slider_to_reg(pos):
+    """Convert 0-16 slider position to register value for BIAS_TIA_G_POT."""
+    pos = max(0, min(16, int(pos)))
+    return _TIA_GAIN_STEPS[pos]
+
+
+def _tia_reg_to_slider(reg_val):
+    """Convert raw register value to nearest 0-16 slider position for BIAS_TIA_G_POT."""
+    if reg_val in _TIA_GAIN_REG_TO_SLIDER:
+        return _TIA_GAIN_REG_TO_SLIDER[reg_val]
+    # Fallback: find the closest step
+    return min(range(17), key=lambda i: abs(_TIA_GAIN_STEPS[i] - reg_val))
+
+
 @app.callback(
     [Output({'type': 'reg-slider', 'name': MATCH}, 'value'),
      Output({'type': 'reg-slider-input', 'name': MATCH}, 'value')],
@@ -295,11 +337,15 @@ def sync_slider_and_input(slider_value, input_value, read_clicks, slider_id):
         raise PreventUpdate
 
     addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
+    is_tia = (reg_name == 'BIAS_TIA_G_POT')
 
     # Read button: read from chip and update controls without writing
     if 'reg-bias-read-btn' in trigger_id:
-        value = chip.read(addr)
-        return value, value
+        raw = chip.read(addr)
+        if is_tia:
+            pos = _tia_reg_to_slider(raw)
+            return pos, pos
+        return raw, raw
 
     # Slider or numeric input changed: sync and write to chip
     if 'reg-slider-input' in trigger_id:
@@ -310,7 +356,13 @@ def sync_slider_and_input(slider_value, input_value, read_clicks, slider_id):
     if value is None:
         raise PreventUpdate
 
-    chip.write(addr, int(value))
+    if is_tia:
+        # value is a slider position 0-16; convert to actual register bits before writing
+        reg_val = _tia_slider_to_reg(value)
+        chip.write(addr, reg_val)
+    else:
+        chip.write(addr, int(value))
+
     return value, value
 
 
