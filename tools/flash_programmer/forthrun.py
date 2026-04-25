@@ -123,13 +123,20 @@ def main():
         help=f'Serial port (default: {DEFAULT_PORT})')
     parser.add_argument('-b', '--baud', type=int, default=DEFAULT_BAUD,
         help=f'Baud rate (default: {DEFAULT_BAUD})')
-    parser.add_argument('--line-delay', type=float, default=0.010,
-        help='Seconds to pause between sending lines (default: 0.010). '
-             'Mirrors forthram.py --poke-delay.')
+    parser.add_argument('--line-delay', type=float, default=0.020,
+        help='Seconds to pause between sending lines (default: 0.020). '
+             'Mirrors forthram.py --poke-delay. If you see "?" parse errors '
+             'or missing "!" characters in the chip output, increase this.')
     parser.add_argument('--drain-tail', type=float, default=0.5,
         help='After the last line, keep reading the UART for this many '
              'seconds so post-jump output (or a TRAP/boot banner) still '
              'makes it onto the console (default: 0.5).')
+    parser.add_argument('--keep-echo', action='store_true',
+        help='By default, forthrun sends "0 echo" before the first line so '
+             'the chip stops bouncing every byte back -- the ROM UART has '
+             'no RX FIFO and the echo collides with the next byte arriving, '
+             'producing dropped chars and "?" parse errors. Pass --keep-echo '
+             'to leave echo on (useful for interactive debugging).')
     parser.add_argument('--boot-pin', type=int, default=None, metavar='BCM',
         help='Optional BCM GPIO pin to drive HIGH during the session '
              '(PCB-inverted to pull chip BOOT LOW -> Forth mode). Held for '
@@ -252,6 +259,20 @@ def main():
 
     # --- initial drain of anything sitting in RX
     drainAndShow(0.1)
+
+    # --- silence the chip's echo+prompt unless asked to keep them.
+    # Without this, the ROM bounces every byte back; with no RX FIFO it
+    # then drops bytes mid-line, producing "?" parse errors and missing
+    # characters. forthram.py / ForthInterface.Connect() already do this
+    # for the binary upload path; we mirror the behaviour here.
+    if not args.keep_echo:
+        print('[info] disabling chip echo via "0 echo"')
+        send('0 echo')
+        # Give the chip extra time here: the LAST byte we're about to send
+        # may still get echoed before echo takes effect, and the chip then
+        # has to re-enter getLine() in silent mode.
+        time.sleep(0.05)
+        drainAndShow(0.05)
 
     # --- stream lines -------------------------------------------------------
     try:
