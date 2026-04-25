@@ -6,21 +6,44 @@
  */
 
 #include <stdint.h>
-#include "MemoryMap.h"
+
+/*
+ * NOTE: We bypass software/commune/include/MemoryMap.h because that header
+ * is wrong for this chip:
+ *   - it labels Port 2 (base 0x4800) as "GPIO2" but P3.0/T0CMP0 is on the
+ *     chip's Port 3, base 0x4D00 (per platform/gcc/lib/linker/periph.x);
+ *   - its GPIOx_8bit_t struct puts SEL at offset 0x24, but the real chip
+ *     layout has SEL at offset 0x1C.
+ * Until the header is regenerated from the HDL/linker script, write the
+ * actual chip addresses directly.
+ */
+#define REG8(addr)  (*(volatile unsigned char *)(addr))
+#define REG32(addr) (*(volatile unsigned int  *)(addr))
+
+/* Port 3 (T0CMP0 pad is P3.0) */
+#define P3DIR   REG8(0x4D14)
+#define P3SEL   REG8(0x4D1C)
+
+/* TIMER0 */
+#define TIM0CR   REG32(0x4600)
+#define TIM0CMP0 REG32(0x460C)
+#define TIM0CMP2 REG32(0x4614)
+
+/* TIM0CR bit fields (from MemoryMap.h - these match the HDL) */
+#define TEN_BIT     (0x00000040)  /* bit 6  - timer enable             */
+#define CMP2RST_BIT (0x00000080)  /* bit 7  - counter reset at CMP2     */
+#define CMP0IH_BIT  (0x00004000)  /* bit 14 - toggle T0CMP0 on match    */
+#define SSEL_SMCLK  (0x00000000)  /* SSEL field = 0 -> clock from SMCLK */
+#define DIV_1       (0x00000000)  /* no prescaler                       */
 
 int main(void) {
-    // Configure P3.0 as output for T0CMP0 (Timer0 Compare 0 output)
-    // GPIO2 peripheral (base 0x4800) controls Port 3 pins
-    // P3SEL.P0 = 1 to enable T0CMP0 peripheral function
-    // P3DIR.P0 = 1 to set as output
-    
-    // Write full register values instead of individual bitfields
-    GPIO2->SEL.value = 0x01;   // Select T0CMP0 peripheral function on P3.0
-    GPIO2->DIR.value = 0x01;   // Set P3.0 as output
-    
-    // Configure TIMER0 for fastest possible toggling
-    TIMER0->CMP0.value = 1;        // Toggle at count 1 (minimum for toggling)
-    TIMER0->CMP2.value = 2;        // Reset counter at 2 (creates fastest toggle)
+    /* P3.0 -> T0CMP0 peripheral function (SEL=1), output (DIR=1). */
+    P3SEL = 0x01;
+    P3DIR = 0x01;
+
+    /* Fastest possible toggle: CMP0=1, CMP2=2 -> counter goes 0,1,0,1,... */
+    TIM0CMP0 = 1;
+    TIM0CMP2 = 2;
     
     // Configure timer control register:
     // - CMP0IH: CMP0 output toggles on each match
@@ -34,11 +57,11 @@ int main(void) {
     // is value 0, NOT 2 (value 2 is SSEL_LFXT, which has no crystal on the
     // dev board and is gated off by SYSCLKCR.LFXTOFF=1 at reset, so the
     // timer counted at 0 Hz on silicon even though it ran in simulation).
-    TIMER0->CR.value = TEN_BIT      // enable timer
-                     | CMP0IH_BIT   // toggle T0CMP0 output on each CMP0 match
-                     | CMP2RST_BIT  // reset counter at CMP2 (-> 0,1,0,1,...)
-                     | SSEL_SMCLK   // clock source = SMCLK (value 0)
-                     | DIV_1;       // no prescaler
+    TIM0CR = TEN_BIT       /* enable timer                       */
+           | CMP0IH_BIT    /* toggle T0CMP0 output on each match */
+           | CMP2RST_BIT   /* reset counter at CMP2              */
+           | SSEL_SMCLK    /* clock source = SMCLK               */
+           | DIV_1;        /* no prescaler                       */
     
     // Timer now toggles T0CMP0 output in hardware automatically
     while(1) {

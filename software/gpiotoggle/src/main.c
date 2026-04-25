@@ -15,11 +15,18 @@
  * pnum_gpio2_t0_cmp0 := 00).
  */
 
+/*
+ * Port 3 base on this chip is 0x4D00 (per platform/gcc/lib/linker/periph.x),
+ * NOT 0x4800 -- the C MemoryMap.h header mislabels Port 2 (0x4800) as
+ * "GPIO2". 0x4800 is Port 2 (P2.x); P3.0 / T0CMP0 lives at 0x4D00.
+ * Register offsets within the 8-bit GPIO peripheral (also wrong in the C
+ * header): IN=0x00, OUT=0x04, OUTT=0x10, DIR=0x14, SEL=0x1C.
+ */
 #define REG8(addr) (*(volatile unsigned char *)(addr))
 
-#define P3SEL  REG8(0x4824)
-#define P3DIR  REG8(0x4814)
-#define P3OUTT REG8(0x4810)
+#define P3OUTT REG8(0x4D10)
+#define P3DIR  REG8(0x4D14)
+#define P3SEL  REG8(0x4D1C)
 
 int main(void) {
     P3SEL = 0x00;   /* P3.0 -> plain GPIO (not T0CMP0 peripheral) */
