@@ -261,98 +261,56 @@ def read_register_control(n_clicks, input_id):
 @app.callback(
     [Output({'type': 'reg-slider', 'name': MATCH}, 'value'),
      Output({'type': 'reg-slider-input', 'name': MATCH}, 'value')],
-    Input({'type': 'reg-bias-read-btn', 'name': MATCH}, 'n_clicks'),
-    State({'type': 'reg-bias-read-btn', 'name': MATCH}, 'id'),
-    prevent_initial_call=True
-)
-def read_bias_register(n_clicks, btn_id):
-    """
-    Read a BIAS register from the chip and update both the slider and numeric input.
-    """
-    if n_clicks is None:
-        raise PreventUpdate
-
-    full_name = btn_id['name']
-
-    # Resolve peripheral and register name
-    periph_name = None
-    reg_name = None
-    for potential_periph in PERIPHERALS.keys():
-        if full_name.startswith(potential_periph + '_'):
-            periph_name = potential_periph
-            reg_name = full_name[len(potential_periph) + 1:]
-            break
-
-    if periph_name is None or reg_name is None:
-        raise PreventUpdate
-
-    if reg_name not in PERIPHERALS[periph_name]['registers']:
-        raise PreventUpdate
-
-    addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
-    value = chip.read(addr)
-
-    return value, value
-
-
-@app.callback(
-    [Output({'type': 'reg-slider', 'name': MATCH}, 'value'),
-     Output({'type': 'reg-slider-input', 'name': MATCH}, 'value')],
     [Input({'type': 'reg-slider', 'name': MATCH}, 'value'),
-     Input({'type': 'reg-slider-input', 'name': MATCH}, 'value')],
+     Input({'type': 'reg-slider-input', 'name': MATCH}, 'value'),
+     Input({'type': 'reg-bias-read-btn', 'name': MATCH}, 'n_clicks')],
     [State({'type': 'reg-slider', 'name': MATCH}, 'id')],
     prevent_initial_call=True
 )
-def sync_slider_and_input(slider_value, input_value, slider_id):
+def sync_slider_and_input(slider_value, input_value, read_clicks, slider_id):
     """
-    Sync slider and numeric input below it, and write value to register (for BIAS registers)
+    Sync slider and numeric input below it, and write value to register (for BIAS registers).
+    Also handles read button: reads the register from the chip and updates both controls.
     """
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    
-    # Determine which input triggered the callback
+
     trigger_id = ctx.triggered[0]['prop_id']
-    
-    # Get the value from whichever was changed
-    if 'reg-slider-input' in trigger_id:
-        value = input_value
-    else:
-        value = slider_value
-    
-    if value is None:
-        raise PreventUpdate
-    
-    # Parse peripheral and register name
+
+    # Parse peripheral and register name (shared by all branches)
     full_name = slider_id['name']
-    parts = full_name.rsplit('_', 1)
-    if len(parts) < 2:
-        raise PreventUpdate
-    
-    # Handle multi-word register names like "BIAS_DBP"
-    # Try to find the peripheral
     periph_name = None
     reg_name = None
-    
     for potential_periph in PERIPHERALS.keys():
         if full_name.startswith(potential_periph + '_'):
             periph_name = potential_periph
             reg_name = full_name[len(potential_periph)+1:]
             break
-    
+
     if periph_name is None or reg_name is None:
         raise PreventUpdate
-    
-    # Get register address
+
     if reg_name not in PERIPHERALS[periph_name]['registers']:
         raise PreventUpdate
-    
+
     addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
-    
-    # Write to chip
+
+    # Read button: read from chip and update controls without writing
+    if 'reg-bias-read-btn' in trigger_id:
+        value = chip.read(addr)
+        return value, value
+
+    # Slider or numeric input changed: sync and write to chip
+    if 'reg-slider-input' in trigger_id:
+        value = input_value
+    else:
+        value = slider_value
+
+    if value is None:
+        raise PreventUpdate
+
     chip.write(addr, int(value))
-    
-    # Return the value to update both slider and input
     return value, value
 
 
