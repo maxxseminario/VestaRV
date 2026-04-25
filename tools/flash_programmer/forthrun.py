@@ -127,12 +127,12 @@ def main():
         help='Seconds to pause between sending lines (default: 0.020). '
              'This is the gap AFTER the trailing newline of each line, '
              'before the next line begins. Independent of --char-delay.')
-    parser.add_argument('--char-delay', type=float, default=0.0015,
+    parser.add_argument('--char-delay', type=float, default=0.003,
         help='Seconds to pause between individual bytes within a line '
-             '(default: 0.0015 = 1.5 ms). At 115200 baud one byte takes '
+             '(default: 0.003 = 3 ms). At 115200 baud one byte takes '
              '~87 us; the ROM UART has no RX FIFO, so if the chip is busy '
              'echoing a byte when the next one arrives, it gets dropped. '
-             'A 1.5 ms inter-byte gap leaves plenty of room for echo.')
+             'A 3 ms inter-byte gap leaves plenty of room for echo.')
     parser.add_argument('--drain-tail', type=float, default=0.5,
         help='After the last line, keep reading the UART for this many '
              'seconds so post-jump output (or a TRAP/boot banner) still '
@@ -157,6 +157,13 @@ def main():
              'what was sent) to FILE.')
     parser.add_argument('-q', '--quiet', action='store_true',
         help='Do not mirror chip output to stdout (still written to --log).')
+    parser.add_argument('--ignore-errors', action='store_true',
+        help='By default, forthrun ABORTS on the first "?" reply from the '
+             'chip. A "?" means the chip dropped a byte mid-line, which '
+             'leaves a broken line that may still execute its trailing "!" '
+             'with garbage stack values -- one dropped byte can do an '
+             'arbitrary memory write that crashes the chip. With this flag, '
+             'forthrun keeps streaming anyway. Use only for debugging.')
     args = parser.parse_args()
 
     # --- load the script
@@ -235,28 +242,29 @@ def main():
     def send(line):
         """Send a line + LF, byte-by-byte with --char-delay pacing.
         After each byte we briefly drain RX so the chip's echo (if on)
-        appears interleaved on the console. This is the only reliable
-        way to feed the ROM UART when echo is on, because every TX byte
-        causes an echo TX and the chip can drop the next RX byte if we
-        don't give it room to breathe."""
+        appears interleaved on the console. Returns the bytes received
+        from the chip during this call so the caller can scan for '?'.
+        """
         data = (line + '\n').encode('ascii')
         if log_fh is not None:
             log_fh.write(f'\n>>> {line}\n'.encode('ascii'))
             log_fh.flush()
+        rx = bytearray()
         for b in data:
             ser.write(bytes([b]))
             ser.flush()
             if args.char_delay > 0:
                 time.sleep(args.char_delay)
-            # Mirror whatever came back during this byte's transmission.
             n = ser.in_waiting
             if n:
                 got = ser.read(n)
+                rx.extend(got)
                 if log_fh is not None:
                     log_fh.write(got); log_fh.flush()
                 if not args.quiet:
                     sys.stdout.write(got.decode('ascii', errors='replace'))
                     sys.stdout.flush()
+        return bytes(rx)
 
     # --- optionally wait for the boot banner
     if args.wait_boot:
@@ -293,19 +301,41 @@ def main():
         drainAndShow(0.05)
 
     # --- stream lines -------------------------------------------------------
+    aborted = False
     try:
         for i, line in enumerate(cmds, 1):
-            send(line)
+            rx = send(line)
             time.sleep(args.line_delay)
-            # mirror any reply (prompt echo, trap banner, etc.)
-            drainAndShow(0.02)
+            # Drain any final reply (the chip's '\n' + '>' prompt).
+            tail = drainAndShow(0.02)
+            rx = rx + tail
+            # If the chip replied with '?', a byte was dropped mid-line and
+            # the line was parsed wrong. The trailing '!' will have stored
+            # a wrong value to a wrong address using whatever junk was on
+            # the stack -- this often crashes the chip (corrupts ROM
+            # interpreter state, MMIO, etc.). Stop now unless told otherwise.
+            if b'?' in rx and not args.ignore_errors:
+                print(f'\n[error] chip replied "?" on line {i}/{len(cmds)}: '
+                      f'{line!r}', file=sys.stderr)
+                print('[error] aborting -- a dropped byte means the line '
+                      'was parsed wrong, the trailing "!" wrote garbage '
+                      'somewhere, and the chip may already be in an '
+                      'undefined state. Try increasing --char-delay '
+                      '(currently {:.4f}s) or --line-delay (currently '
+                      '{:.4f}s) and rerunning.'.format(
+                          args.char_delay, args.line_delay), file=sys.stderr)
+                print('[error] use --ignore-errors to push through anyway.',
+                      file=sys.stderr)
+                aborted = True
+                break
             if not args.quiet and (i % 50 == 0):
                 print(f'\n[info] sent {i}/{len(cmds)} lines', file=sys.stderr)
 
-        # Tail drain: the last line is usually `<entry> call0`, after which
-        # the chip leaves the REPL. But it might still print a prompt echo,
-        # a trap banner, a reboot, etc. Give it a moment.
-        drainAndShow(args.drain_tail, note='end of script')
+        if not aborted:
+            # Tail drain: the last line is usually `<entry> call0`, after
+            # which the chip leaves the REPL. But it might still print a
+            # prompt echo, a trap banner, a reboot, etc.
+            drainAndShow(args.drain_tail, note='end of script')
         if not args.quiet:
             sys.stdout.write('\n')
 
@@ -322,6 +352,10 @@ def main():
             except Exception:
                 pass
 
+    if aborted:
+        print('[info] aborted; chip may need reset before retrying',
+              file=sys.stderr)
+        sys.exit(2)
     print(f'[info] done; {len(cmds)} line(s) sent')
 
 
