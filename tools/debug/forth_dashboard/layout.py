@@ -194,41 +194,91 @@ def create_peripheral_tab(peripheral_name, figure_path=None, figure_caption=None
         elif reg_type == 'BIAS':
             # Bias registers get sliders
             max_val = (1 << (reg_info['size'] * 8)) - 1
-            children.append(html.Div(
-                className='register-bias',
-                children=[
-                    html.Div(className='register-header', children=[
-                        html.Label(f"{reg_name}: {reg_info['description']}", className='register-title'),
-                        html.Div(className='register-actions', children=[
-                            html.Button(
-                                'Read',
-                                id={'type': 'reg-bias-read-btn', 'name': full_name},
-                                className='reg-button reg-button-small'
-                            ),
+
+            # BIAS_TIA_G_POT: thermometer-coded register with 17 discrete resistance steps.
+            # Bit 15 = 1M ohm shorted when set; bits 0-14 = 15x60k ohm thermometer.
+            # Slider position 0  = nothing shorted (max R).
+            # Slider position 1  = 1M ohm shorted (large step).
+            # Slider positions 2-16 = 1M + thermometer 60k bits 0..14 (fine steps).
+            if reg_name == 'BIAS_TIA_G_POT':
+                tia_marks = {
+                    0:  {'label': 'Max R', 'style': {'fontSize': '10px'}},
+                    1:  {'label': '1M',    'style': {'fontSize': '10px'}},
+                    8:  {'label': '1M+7×60k', 'style': {'fontSize': '10px'}},
+                    16: {'label': 'Min R', 'style': {'fontSize': '10px'}},
+                }
+                children.append(html.Div(
+                    className='register-bias',
+                    children=[
+                        html.Div(className='register-header', children=[
+                            html.Label(f"{reg_name}: {reg_info['description']}", className='register-title'),
+                            html.Div(className='register-actions', children=[
+                                html.Button(
+                                    'Read',
+                                    id={'type': 'reg-bias-read-btn', 'name': full_name},
+                                    className='reg-button reg-button-small'
+                                ),
+                            ]),
                         ]),
-                    ]),
-                    dcc.Slider(
-                        id={'type': 'reg-slider', 'name': full_name},
-                        min=0,
-                        max=max_val,
-                        value=0,
-                        marks={i: str(i) for i in range(0, max_val+1, max(1, max_val//8))},
-                        tooltip={"placement": "bottom", "always_visible": False},
-                    ),
-                    html.Div(
-                        className='slider-value-display',
-                        children=[
-                            daq.NumericInput(
-                                id={'type': 'reg-slider-input', 'name': full_name},
-                                min=0,
-                                max=max_val,
-                                value=0,
-                                size=150,
-                            ),
-                        ]
-                    ),
-                ]
-            ))
+                        dcc.Slider(
+                            id={'type': 'reg-slider', 'name': full_name},
+                            min=0,
+                            max=16,
+                            step=1,
+                            value=0,
+                            marks=tia_marks,
+                            tooltip={"placement": "bottom", "always_visible": False},
+                        ),
+                        html.Div(
+                            className='slider-value-display',
+                            children=[
+                                daq.NumericInput(
+                                    id={'type': 'reg-slider-input', 'name': full_name},
+                                    min=0,
+                                    max=16,
+                                    value=0,
+                                    size=150,
+                                ),
+                            ]
+                        ),
+                    ]
+                ))
+            else:
+                children.append(html.Div(
+                    className='register-bias',
+                    children=[
+                        html.Div(className='register-header', children=[
+                            html.Label(f"{reg_name}: {reg_info['description']}", className='register-title'),
+                            html.Div(className='register-actions', children=[
+                                html.Button(
+                                    'Read',
+                                    id={'type': 'reg-bias-read-btn', 'name': full_name},
+                                    className='reg-button reg-button-small'
+                                ),
+                            ]),
+                        ]),
+                        dcc.Slider(
+                            id={'type': 'reg-slider', 'name': full_name},
+                            min=0,
+                            max=max_val,
+                            value=0,
+                            marks={i: str(i) for i in range(0, max_val+1, max(1, max_val//8))},
+                            tooltip={"placement": "bottom", "always_visible": False},
+                        ),
+                        html.Div(
+                            className='slider-value-display',
+                            children=[
+                                daq.NumericInput(
+                                    id={'type': 'reg-slider-input', 'name': full_name},
+                                    min=0,
+                                    max=max_val,
+                                    value=0,
+                                    size=150,
+                                ),
+                            ]
+                        ),
+                    ]
+                ))
         
         elif reg_type in ['DATA', 'CONFIG']:
             # Data/Config registers get read/write capability
