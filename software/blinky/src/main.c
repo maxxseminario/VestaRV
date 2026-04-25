@@ -8,23 +8,26 @@
 #include <stdint.h>
 
 /*
- * NOTE: We bypass software/commune/include/MemoryMap.h because that header
- * is wrong for this chip:
- *   - it labels Port 2 (base 0x4800) as "GPIO2" but P3.0/T0CMP0 is on the
- *     chip's Port 3, base 0x4D00 (per platform/gcc/lib/linker/periph.x);
- *   - its GPIOx_8bit_t struct puts SEL at offset 0x24, but the real chip
- *     layout has SEL at offset 0x1C.
- * Until the header is regenerated from the HDL/linker script, write the
- * actual chip addresses directly.
+ * NOTE on naming: the chip pads labelled "P3.x" externally are driven by
+ * the HDL entity named "GPIO2" (slot 8) which lives at base 0x4800. See
+ * hdl/MCU/MCU.vhd line ~855: "-- GPIO2 Signals (Port 3)". The peripheral
+ * at 0x4D00 (HDL "GPIO3", slot 13) is a different, unrelated port.
+ * Pin 0 of the 0x4800 port is T0CMP0 (the timer's CMP0 output pad).
+ *
+ * We bypass software/commune/include/MemoryMap.h's TIMER0->CR.value path
+ * because the per-bitfield-then-OR pattern was easy to mis-use; we write
+ * the chip addresses directly.
  */
 #define REG8(addr)  (*(volatile unsigned char *)(addr))
 #define REG32(addr) (*(volatile unsigned int  *)(addr))
 
-/* Port 3 (T0CMP0 pad is P3.0) */
-#define P3DIR   REG8(0x4D14)
-#define P3SEL   REG8(0x4D1C)
+/* Port labelled P3 externally / GPIO2 in HDL (base 0x4800).
+ * 8-bit GPIO peripheral register offsets: OUT=0x04, OUTT=0x10,
+ * DIR=0x14, SEL=0x24 (matches C MemoryMap.h GPIOx_8bit_t). */
+#define P3DIR   REG8(0x4814)
+#define P3SEL   REG8(0x4824)
 
-/* TIMER0 */
+/* TIMER0 (base 0x4600) */
 #define TIM0CR   REG32(0x4600)
 #define TIM0CMP0 REG32(0x460C)
 #define TIM0CMP2 REG32(0x4614)
