@@ -344,6 +344,20 @@ def main():
                 if bad is None:
                     break  # line accepted cleanly
 
+                # The last line is typically `<entry> call0`, which hands
+                # control to the loaded program. Any noise the chip emits
+                # afterwards (`?`, garbage from a hung REPL, trap banner)
+                # is irrelevant -- there is no Forth interpreter left to
+                # resend to. Don't retry it.
+                if i == len(cmds):
+                    if not args.quiet:
+                        kind, bv = bad
+                        sys.stdout.write(
+                            f'\n[info] ignoring post-call0 noise '
+                            f'({kind} 0x{bv:02X}) on final line\n')
+                        sys.stdout.flush()
+                    break
+
                 kind, bv = bad
                 attempt += 1
                 if attempt > args.max_retries:
