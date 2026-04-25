@@ -309,20 +309,36 @@ def main():
             # Drain any final reply (the chip's '\n' + '>' prompt).
             tail = drainAndShow(0.02)
             rx = rx + tail
-            # If the chip replied with '?', a byte was dropped mid-line and
-            # the line was parsed wrong. The trailing '!' will have stored
-            # a wrong value to a wrong address using whatever junk was on
-            # the stack -- this often crashes the chip (corrupts ROM
-            # interpreter state, MMIO, etc.). Stop now unless told otherwise.
-            if b'?' in rx and not args.ignore_errors:
-                print(f'\n[error] chip replied "?" on line {i}/{len(cmds)}: '
-                      f'{line!r}', file=sys.stderr)
-                print('[error] aborting -- a dropped byte means the line '
-                      'was parsed wrong, the trailing "!" wrote garbage '
-                      'somewhere, and the chip may already be in an '
-                      'undefined state. Try increasing --char-delay '
+            # Detect trouble in the chip's reply:
+            #   (a) literal '?' (0x3F): rv4th's parse-error reply -- a
+            #       dropped/extra byte made a token unparseable.
+            #   (b) any non-printable / non-ASCII byte (< 0x20 except
+            #       \r\n\t, or >= 0x80): the UART itself corrupted a byte.
+            #       Python's errors='replace' shows these as '?' on screen
+            #       but the underlying byte is not 0x3F, so we have to
+            #       check the raw bytes ourselves.
+            # Either way the line is broken; the trailing '!' may already
+            # have done a wild memory write -> chip in undefined state.
+            badByte = None
+            for byteVal in rx:
+                if byteVal == 0x3F:
+                    badByte = ('parse-error', byteVal); break
+                if byteVal >= 0x80:
+                    badByte = ('uart-corruption', byteVal); break
+                if byteVal < 0x20 and byteVal not in (0x09, 0x0A, 0x0D):
+                    badByte = ('uart-control', byteVal); break
+            if badByte is not None and not args.ignore_errors:
+                kind, bv = badByte
+                print(f'\n[error] chip reply on line {i}/{len(cmds)} '
+                      f'contains {kind} byte 0x{bv:02X}', file=sys.stderr)
+                print(f'[error]   line: {line!r}', file=sys.stderr)
+                print(f'[error]   raw rx: {bytes(rx)!r}', file=sys.stderr)
+                print('[error] aborting -- the chip dropped/garbled a byte. '
+                      'The trailing "!" may already have written garbage '
+                      'to a wild address. Try increasing --char-delay '
                       '(currently {:.4f}s) or --line-delay (currently '
-                      '{:.4f}s) and rerunning.'.format(
+                      '{:.4f}s), or use --no-echo to eliminate echo '
+                      'collisions entirely.'.format(
                           args.char_delay, args.line_delay), file=sys.stderr)
                 print('[error] use --ignore-errors to push through anyway.',
                       file=sys.stderr)
