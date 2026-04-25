@@ -193,7 +193,9 @@ def create_peripheral_tab(peripheral_name, figure_path=None, figure_caption=None
         
         elif reg_type == 'BIAS':
             # Bias registers get sliders
-            max_val = (1 << (reg_info['size'] * 8)) - 1
+            # Use 'bits' if specified (for registers narrower than their byte size, e.g. 14-bit DACs)
+            n_bits = reg_info.get('bits', reg_info['size'] * 8)
+            max_val = (1 << n_bits) - 1
 
             # BIAS_TIA_G_POT: thermometer-coded register with 17 discrete resistance steps.
             # Bit 15 = 1M ohm shorted when set; bits 0-14 = 15x60k ohm thermometer.
