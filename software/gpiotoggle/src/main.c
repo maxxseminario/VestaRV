@@ -1,39 +1,20 @@
 /*
- * gpiotoggle - Manually toggle P3.0 (GPIO2 pin 0, same physical pad as
- * T0CMP0) from a tight CPU loop. No timer, no interrupts. Use a logic
- * analyzer to confirm the chip is actually executing RAM code that the
- * Forth ROM uploaded via `forth-run gpiotoggle`.
+ * gpiotoggle - Manually toggle P3.0 (T0CMP0 pad) from a tight CPU loop.
  *
- * GPIO2 base = 0x4800 (8-bit GPIO peripheral, registers spaced 4 bytes):
- *   OUT  @ 0x4804  - data output register
- *   OUTT @ 0x4810  - "toggle" strobe: writing 1-bits flips the matching
- *                    OUT bits in one cycle
- *   DIR  @ 0x4814  - direction (1 = output)
- *   SEL  @ 0x4824  - 0 = plain GPIO, 1 = peripheral function (T0CMP0)
- *
- * Pin 0 of GPIO2 is P3.0 / T0CMP0 (see hdl/MCU/MemoryMap.vhd:
- * pnum_gpio2_t0_cmp0 := 00).
+ * Uses the auto-generated platform header (platform/gcc/lib/include/
+ * MemoryMap.h, produced by platform/python/generate.py). Note that what
+ * the chip exposes externally as "P3.x" is driven by the HDL entity
+ * named GPIO2 (slot 8, base 0x4800) -- see hdl/MCU/MCU.vhd line ~855.
+ * So GPIO2->* in this file refers to the P3 pads, and pin 0 is T0CMP0.
  */
 
-/*
- * The chip pads labelled P3.x externally are driven by the HDL entity
- * named "GPIO2" (slot 8, base 0x4800). See hdl/MCU/MCU.vhd line ~855:
- * "-- GPIO2 Signals (Port 3)". Pin 0 is T0CMP0.
- * (The peripheral at 0x4D00 / HDL "GPIO3" is a different physical port.)
- * Register offsets within the 8-bit GPIO peripheral: IN=0x00, OUT=0x04,
- * OUTT=0x10, DIR=0x14, SEL=0x24.
- */
-#define REG8(addr) (*(volatile unsigned char *)(addr))
-
-#define P3OUTT REG8(0x4810)
-#define P3DIR  REG8(0x4814)
-#define P3SEL  REG8(0x4824)
+#include "MemoryMap.h"
 
 int main(void) {
-    P3SEL = 0x00;   /* P3.0 -> plain GPIO (not T0CMP0 peripheral) */
-    P3DIR = 0x01;   /* P3.0 -> output                              */
+    GPIO2->SEL.value = 0x00;   /* P3.0 -> plain GPIO (not T0CMP0) */
+    GPIO2->DIR.value = 0x01;   /* P3.0 -> output                  */
     for (;;) {
-        P3OUTT = 0x01;   /* toggle P3.0 every iteration */
+        GPIO2->OUTT.value = 0x01;   /* toggle P3.0 every iteration */
     }
     return 0;
 }
