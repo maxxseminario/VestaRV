@@ -157,13 +157,16 @@ def main():
              'what was sent) to FILE.')
     parser.add_argument('-q', '--quiet', action='store_true',
         help='Do not mirror chip output to stdout (still written to --log).')
+    parser.add_argument('--max-retries', type=int, default=4,
+        help='If the chip echoes a corrupted byte (parse error or non-ASCII), '
+             'flush the data stack and resend the same line up to this many '
+             'times before giving up (default: 4). Each line is an '
+             'idempotent "<val> <addr> !" store, so re-sending it just '
+             'overwrites the same word with the same value -- safe to '
+             'repeat. Set to 0 to disable retries.')
     parser.add_argument('--ignore-errors', action='store_true',
-        help='By default, forthrun ABORTS on the first "?" reply from the '
-             'chip. A "?" means the chip dropped a byte mid-line, which '
-             'leaves a broken line that may still execute its trailing "!" '
-             'with garbage stack values -- one dropped byte can do an '
-             'arbitrary memory write that crashes the chip. With this flag, '
-             'forthrun keeps streaming anyway. Use only for debugging.')
+        help='Keep streaming even after --max-retries is exhausted on a '
+             'line. Default is to abort. Use only for debugging.')
     args = parser.parse_args()
 
     # --- load the script
@@ -300,49 +303,80 @@ def main():
         time.sleep(0.05)
         drainAndShow(0.05)
 
+    def detectCorruption(rx):
+        """Return (kind, byteVal) on first suspicious byte, else None.
+        Suspicious = literal '?' (rv4th parse error), any byte >= 0x80
+        (UART corrupted a printable to non-ASCII), or a non-CR/LF/TAB
+        control byte."""
+        for byteVal in rx:
+            if byteVal == 0x3F:
+                return ('parse-error', byteVal)
+            if byteVal >= 0x80:
+                return ('uart-corruption', byteVal)
+            if byteVal < 0x20 and byteVal not in (0x09, 0x0A, 0x0D):
+                return ('uart-control', byteVal)
+        return None
+
+    def flushStack():
+        """Send a handful of `drop`s to clear any stack residue left by a
+        partially-parsed line (e.g. an addr pushed before the value-token
+        parse error). Extra drops on an already-empty stack are harmless
+        in rv4th (the underflow either no-ops or is bounded). The result
+        is silently drained."""
+        for _ in range(6):
+            send('drop')
+            time.sleep(0.005)
+        drainAndShow(0.05)
+
     # --- stream lines -------------------------------------------------------
     aborted = False
     try:
         for i, line in enumerate(cmds, 1):
-            rx = send(line)
-            time.sleep(args.line_delay)
-            # Drain any final reply (the chip's '\n' + '>' prompt).
-            tail = drainAndShow(0.02)
-            rx = rx + tail
-            # Detect trouble in the chip's reply:
-            #   (a) literal '?' (0x3F): rv4th's parse-error reply -- a
-            #       dropped/extra byte made a token unparseable.
-            #   (b) any non-printable / non-ASCII byte (< 0x20 except
-            #       \r\n\t, or >= 0x80): the UART itself corrupted a byte.
-            #       Python's errors='replace' shows these as '?' on screen
-            #       but the underlying byte is not 0x3F, so we have to
-            #       check the raw bytes ourselves.
-            # Either way the line is broken; the trailing '!' may already
-            # have done a wild memory write -> chip in undefined state.
-            badByte = None
-            for byteVal in rx:
-                if byteVal == 0x3F:
-                    badByte = ('parse-error', byteVal); break
-                if byteVal >= 0x80:
-                    badByte = ('uart-corruption', byteVal); break
-                if byteVal < 0x20 and byteVal not in (0x09, 0x0A, 0x0D):
-                    badByte = ('uart-control', byteVal); break
-            if badByte is not None and not args.ignore_errors:
-                kind, bv = badByte
-                print(f'\n[error] chip reply on line {i}/{len(cmds)} '
-                      f'contains {kind} byte 0x{bv:02X}', file=sys.stderr)
-                print(f'[error]   line: {line!r}', file=sys.stderr)
-                print(f'[error]   raw rx: {bytes(rx)!r}', file=sys.stderr)
-                print('[error] aborting -- the chip dropped/garbled a byte. '
-                      'The trailing "!" may already have written garbage '
-                      'to a wild address. Try increasing --char-delay '
-                      '(currently {:.4f}s) or --line-delay (currently '
-                      '{:.4f}s), or use --no-echo to eliminate echo '
-                      'collisions entirely.'.format(
-                          args.char_delay, args.line_delay), file=sys.stderr)
-                print('[error] use --ignore-errors to push through anyway.',
-                      file=sys.stderr)
-                aborted = True
+            attempt = 0
+            while True:
+                rx = send(line)
+                time.sleep(args.line_delay)
+                # Drain any final reply (the chip's '\n' + '>' prompt).
+                tail = drainAndShow(0.02)
+                rx = rx + tail
+
+                bad = detectCorruption(rx)
+                if bad is None:
+                    break  # line accepted cleanly
+
+                kind, bv = bad
+                attempt += 1
+                if attempt > args.max_retries:
+                    print(f'\n[error] line {i}/{len(cmds)} still corrupted '
+                          f'after {args.max_retries} retries '
+                          f'({kind} byte 0x{bv:02X})', file=sys.stderr)
+                    print(f'[error]   line: {line!r}', file=sys.stderr)
+                    print(f'[error]   raw rx: {bytes(rx)!r}', file=sys.stderr)
+                    if not args.ignore_errors:
+                        print('[error] aborting; chip may need reset before '
+                              'retrying. Try --char-delay 0.005 or '
+                              '--no-echo.', file=sys.stderr)
+                        aborted = True
+                    break
+
+                # Recoverable: corrupted line probably left junk on the data
+                # stack (e.g. addr pushed but value-token rejected). Flush
+                # and resend the same line -- it's idempotent (a memory
+                # store).
+                if not args.quiet:
+                    sys.stdout.write(
+                        f'\n[retry {attempt}/{args.max_retries}] '
+                        f'{kind} 0x{bv:02X} on line {i}; '
+                        f'flushing stack and resending\n')
+                    sys.stdout.flush()
+                if log_fh is not None:
+                    log_fh.write(
+                        f'\n--- retry {attempt} on line {i}: {kind} '
+                        f'0x{bv:02X} ---\n'.encode('ascii'))
+                    log_fh.flush()
+                flushStack()
+
+            if aborted:
                 break
             if not args.quiet and (i % 50 == 0):
                 print(f'\n[info] sent {i}/{len(cmds)} lines', file=sys.stderr)
