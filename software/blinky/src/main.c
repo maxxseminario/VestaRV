@@ -28,11 +28,17 @@ int main(void) {
     // - TEN: Enable timer
     // - DIV_1: No clock division (maximum speed)
     // - SSEL_SMCLK: Use system master clock
-    TIMER0->CR.CMP0IH_ = 1;
-    TIMER0->CR.CMP2RST_ = 1;
-    TIMER0->CR.EN = 1;  // TEN becomes EN in struct
-    TIMER0->CR.DIV_ = 0;  // DIV_1
-    TIMER0->CR.SSEL_ = 2; // SSEL_SMCLK
+    // Write CR atomically. Doing per-bitfield writes does read-modify-write
+    // on the whole 32-bit CR, which (a) briefly enables the timer with the
+    // wrong source and (b) made it easy to ship the bug below: SSEL_SMCLK
+    // is value 0, NOT 2 (value 2 is SSEL_LFXT, which has no crystal on the
+    // dev board and is gated off by SYSCLKCR.LFXTOFF=1 at reset, so the
+    // timer counted at 0 Hz on silicon even though it ran in simulation).
+    TIMER0->CR.value = TEN_BIT      // enable timer
+                     | CMP0IH_BIT   // toggle T0CMP0 output on each CMP0 match
+                     | CMP2RST_BIT  // reset counter at CMP2 (-> 0,1,0,1,...)
+                     | SSEL_SMCLK   // clock source = SMCLK (value 0)
+                     | DIV_1;       // no prescaler
     
     // Timer now toggles T0CMP0 output in hardware automatically
     while(1) {
