@@ -197,7 +197,16 @@ def create_peripheral_tab(peripheral_name, figure_path=None, figure_caption=None
             children.append(html.Div(
                 className='register-bias',
                 children=[
-                    html.Label(f"{reg_name}: {reg_info['description']}"),
+                    html.Div(className='register-header', children=[
+                        html.Label(f"{reg_name}: {reg_info['description']}", className='register-title'),
+                        html.Div(className='register-actions', children=[
+                            html.Button(
+                                'Read',
+                                id={'type': 'reg-bias-read-btn', 'name': full_name},
+                                className='reg-button reg-button-small'
+                            ),
+                        ]),
+                    ]),
                     dcc.Slider(
                         id={'type': 'reg-slider', 'name': full_name},
                         min=0,
