@@ -38,13 +38,11 @@ endif
 # Per-word readback + repair after upload. Off by default (matches the
 # pre-existing behavior of the bare `run` target). Set VERIFY=1 to enable:
 #   make run slowblink METHOD=poke VERIFY=1
-# Pick the readback transport with VERIFY_METHOD=ascii (default, works on any
-# rv4th ROM via `<addr> @ .`) or VERIFY_METHOD=mr (binary CRC opcode -- only
-# if the chip's mr path actually replies on the wire).
+# Verify works by reading each 32-bit word back via plain Forth `<addr> @ .`
+# and comparing to the expected value, re-poking any mismatches.
 VERIFY ?=
-VERIFY_METHOD ?= ascii
 ifneq ($(strip $(VERIFY)),)
-    VERIFY_ARG = --verify --verify-method $(VERIFY_METHOD)
+    VERIFY_ARG = --verify
 else
     VERIFY_ARG =
 endif
@@ -98,7 +96,7 @@ help:
 	@echo "  make run-rcf blinky RAM_ENTRY=0x8000  # Override entry address"
 	@echo "  make run-rcf blinky LOG=auto       # Also write UART transcript to ./forthram-<ts>.log"
 	@echo "  make run-rcf blinky METHOD=poke    # Slow per-word '!' upload (robust if mw drops bytes)"
-	@echo "  make run blinky METHOD=poke VERIFY=1   # Per-word readback + repair (ascii). Add VERIFY_METHOD=mr for binary path"
+	@echo "  make run blinky METHOD=poke VERIFY=1   # Per-word readback + repair via Forth '<addr> @ .'"
 	@echo "  make clean-blinky                  # Clean blinky software"
 
 flash:
