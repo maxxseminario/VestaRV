@@ -1027,7 +1027,14 @@ class ForthInterface():
 		# Receive the payload
 		payload = self.uart.ReadBytes(receiveLength)
 		if payload is None:
-			print(self.uart.ReadBytes())
+			# Drain whatever (if anything) arrived so the next mr starts clean.
+			# Used to print this for debugging, but on a flaky UART that
+			# floods the verify pass with empty b'' lines. Caller treats
+			# None as retryable.
+			try:
+				self.uart.ReadBytes()
+			except Exception:
+				pass
 			return None
 		
 		# Receive the CRC
