@@ -15,6 +15,16 @@ __start_RAM_program__:
 
 .section .text.init
 _init:
+    # Initialize global pointer (required for any code that references
+    # globals via gp-relative addressing -- the rv4th 'call0' boot path
+    # leaves gp=0). Must disable linker relaxation around this load so
+    # the assembler emits a real auipc/addi pair instead of a gp-relative
+    # access of an as-yet-uninitialised gp.
+.option push
+.option norelax
+    la gp, __global_pointer$
+.option pop
+
     # Initialize stack pointer to end of RAM
     li sp, 0x10000
 
