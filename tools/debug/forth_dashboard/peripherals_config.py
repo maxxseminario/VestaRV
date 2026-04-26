@@ -264,6 +264,7 @@ PERIPHERALS = {
             'BIAS_TC_POT': {'addr': 0x4C28, 'size': 1, 'type': 'BIAS', 'description': 'Bias TC potentiostat register'},
             'BIAS_LC_POT': {'addr': 0x4C2C, 'size': 1, 'type': 'BIAS', 'description': 'Bias LC potentiostat register'},
             'BIAS_TIA_G_POT': {'addr': 0x4C30, 'size': 4, 'type': 'BIAS', 'description': 'Bias TIA gain potentiostat register'},
+            'BIAS_DSADC_VCM': {'addr': 0x4C34, 'size': 2, 'bits': 14, 'type': 'BIAS', 'description': 'Bias DSADC VCM register'},
             'BIAS_REV_POT': {'addr': 0x4C38, 'size': 2, 'bits': 14, 'type': 'BIAS', 'description': 'Bias REV potentiostat register'},
         }
     },
@@ -276,7 +277,6 @@ PERIPHERALS = {
             'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONTROL', 'description': 'AFE test port register'},
             'SR': {'addr': 0x4C08, 'size': 1, 'type': 'STATUS', 'description': 'AFE status register'},
             'ADC_VAL': {'addr': 0x4C0C, 'size': 2, 'type': 'DATA', 'description': 'DSADC result register'},
-            'BIAS_DSADC_VCM': {'addr': 0x4C34, 'size': 2, 'bits': 14, 'type': 'BIAS', 'description': 'Bias DSADC VCM register'},
             'BIAS_TC_DSADC': {'addr': 0x4C3C, 'size': 1, 'type': 'BIAS', 'description': 'Bias TC DSADC register'},
             'BIAS_LC_DSADC': {'addr': 0x4C40, 'size': 1, 'type': 'BIAS', 'description': 'Bias LC DSADC register'},
             'BIAS_RIN_DSADC': {'addr': 0x4C44, 'size': 1, 'type': 'BIAS', 'description': 'Bias RIN DSADC register'},
