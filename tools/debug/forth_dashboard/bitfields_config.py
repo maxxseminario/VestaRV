@@ -549,7 +549,169 @@ BITFIELDS = {
             }
         },
     },
-    
+
+    # AFE Test Port Register - 4x 5-bit selectors choosing which internal signal to route to each DTP pin
+    # dtp0_sel = TPR[4:0], dtp1_sel = TPR[9:5], dtp2_sel = TPR[14:10], dtp3_sel = TPR[19:15]
+    # Each selector indexes into dtp_vect[31:0] as defined in AFE.vhd
+    'POTENTIOSTAT_TPR': {
+        'DTP0': {
+            'bits': 0,
+            'width': 5,
+            'desc': 'Digital test port 0 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+        'DTP1': {
+            'bits': 5,
+            'width': 5,
+            'desc': 'Digital test port 1 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+        'DTP2': {
+            'bits': 10,
+            'width': 5,
+            'desc': 'Digital test port 2 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+        'DTP3': {
+            'bits': 15,
+            'width': 5,
+            'desc': 'Digital test port 3 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+    },
+
     'POTENTIOSTAT_BIAS_CR': {
         'USEDAC': {
             'bits': 4,
@@ -749,8 +911,9 @@ def extract_bitfield(reg_value, bitfield_info):
         mask = (1 << width) - 1
         return (reg_value >> start_bit) & mask
     else:
-        # Single bit
-        return (reg_value >> bits) & 1
+        # Scalar LSB position, width may be > 1
+        mask = (1 << width) - 1
+        return (reg_value >> bits) & mask
 
 
 def insert_bitfield(reg_value, bitfield_info, field_value):
@@ -777,10 +940,9 @@ def insert_bitfield(reg_value, bitfield_info, field_value):
         # Set the new value
         reg_value |= (field_value & mask) << start_bit
     else:
-        # Single bit
-        if field_value:
-            reg_value |= (1 << bits)
-        else:
-            reg_value &= ~(1 << bits)
+        # Scalar LSB position, width may be > 1
+        mask = (1 << width) - 1
+        reg_value &= ~(mask << bits)
+        reg_value |= (field_value & mask) << bits
     
     return reg_value

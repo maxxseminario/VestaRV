@@ -253,7 +253,7 @@ PERIPHERALS = {
         'base_addr': 0x4C00,
         'registers': {
             'CR': {'addr': 0x4C00, 'size': 4, 'type': 'CONTROL', 'description': 'AFE control register'},
-            'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONFIG', 'description': 'AFE test port register'},
+            'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONTROL', 'description': 'AFE test port register'},
             'SR': {'addr': 0x4C08, 'size': 1, 'type': 'STATUS', 'description': 'AFE status register'},
             'BIAS_CR': {'addr': 0x4C10, 'size': 1, 'type': 'CONTROL', 'description': 'Bias control register'},
             'BIAS_ADJ': {'addr': 0x4C14, 'size': 1, 'type': 'BIAS', 'description': 'Bias adjustment register'},
@@ -273,7 +273,7 @@ PERIPHERALS = {
         'base_addr': 0x4C00,
         'registers': {
             'CR': {'addr': 0x4C00, 'size': 4, 'type': 'CONTROL', 'description': 'AFE control register'},
-            'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONFIG', 'description': 'AFE test port register'},
+            'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONTROL', 'description': 'AFE test port register'},
             'SR': {'addr': 0x4C08, 'size': 1, 'type': 'STATUS', 'description': 'AFE status register'},
             'ADC_VAL': {'addr': 0x4C0C, 'size': 2, 'type': 'DATA', 'description': 'DSADC result register'},
             'BIAS_DSADC_VCM': {'addr': 0x4C34, 'size': 2, 'bits': 14, 'type': 'BIAS', 'description': 'Bias DSADC VCM register'},
