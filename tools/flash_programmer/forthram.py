@@ -495,11 +495,49 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 def _readOneWordMr(forth, addr):
 	"""Read one 32-bit word at `addr` via the chip's `mr` (CRC-checked) path.
 	Returns the word value (int) on success, None on failure.
+
+	Falls back to a plain Forth `<addr> @ .` read if `mr` repeatedly fails
+	(e.g. the on-chip `mr` definition was lost or its binary RX path is
+	dropping bytes). The fallback is ASCII-only so it survives the same
+	UART hiccups that break `mr`.
 	"""
 	buf = forth.ReadMemoryBlock(addr, 4)
-	if buf is None or buf is False or len(buf) < 4:
+	if buf is not None and buf is not False and len(buf) >= 4:
+		return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
+	# Fallback: ASCII '@' fetch.
+	try:
+		forth.uart.FlushBuffers()
+		if forth.uart.WriteLine(f'0x{addr:08X} @ .') is None:
+			return None
+		oldTimeout = forth.uart.Timeout
+		forth.uart.Timeout = 0.5
+		# rv4th echoes the typed line back, then prints the decimal value
+		# followed by ' ok\n'. Read until we see ' ok' or timeout.
+		raw = forth.uart.ReadUntil('ok')
+		forth.uart.Timeout = oldTimeout
+		if raw is None:
+			return None
+		# Last whitespace-separated decimal token before the 'ok' is the value.
+		text = raw if isinstance(raw, str) else raw.decode('ascii', 'ignore')
+		# Strip the echoed command if present.
+		if '@' in text:
+			text = text.split('@', 1)[1]
+		text = text.replace('ok', ' ').strip()
+		token = None
+		for tok in reversed(text.split()):
+			tok = tok.strip().rstrip('.')
+			if not tok:
+				continue
+			try:
+				token = int(tok, 0)
+				break
+			except ValueError:
+				continue
+		if token is None:
+			return None
+		return token & 0xFFFFFFFF
+	except Exception:
 		return None
-	return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
 
 
 def VerifyAndRepairBlock(forth, startAddress, data,
