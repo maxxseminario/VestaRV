@@ -492,59 +492,78 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 	return result
 
 
-def _readOneWord(forth, addr, timeout=0.5):
-	"""Read one 32-bit word at `addr` via plain Forth `<addr> @ .`.
+def _readOneWord(forth, addr, timeout=0.5, retries=2):
+	"""Read one 32-bit word at `addr` via plain Forth `<addr> @ . 0 emit`.
 
-	Protocol (rv4th with default echo on):
-	  TX: '<addr> @ .\\n'
-	  RX: '<echoed cmd>\\r\\n<value> \\n>'   (decimal value, then prompt '>')
+	Why this command:
+	  `@`         fetches the 32-bit value at `addr` onto the data stack.
+	  `.`         pops it and prints it as a decimal number followed by space.
+	  `0 emit`    pushes 0 then emits it as a single byte -- ASCII NUL (\\x00).
+	The trailing NUL is our sentinel: works regardless of whether the Forth
+	REPL has echo on or off (echo state can change between connect and now).
 
-	Returns the 32-bit word, or None on parse / timeout failure. On any
-	failure path the UART read buffer is drained so the next request starts
-	clean (otherwise stale echoed tokens become bogus payload next call).
+	Returns the 32-bit word, or None on parse / timeout failure. Retries up
+	to `retries` times on transient drops (NUL never seen, garbage parse).
+	On every failure path the UART read buffer is drained so the next
+	request starts clean.
 	"""
 	uart = forth.uart
-	try:
-		uart.FlushBuffers()
-	except Exception:
-		pass
-	cmd = f'0x{addr:08X} @ .'
-	if uart.WriteLine(cmd) is None:
-		return None
-	oldTimeout = uart.Timeout
-	uart.Timeout = timeout
-	raw = uart.ReadUntil('>')
-	uart.Timeout = oldTimeout
-	if raw is None:
+	sentinel = b'\x00'
+	cmd = f'0x{addr:08X} @ . 0 emit'
+
+	for attempt in range(retries + 1):
 		try:
-			uart.ReadBytes()
 			uart.FlushBuffers()
 		except Exception:
 			pass
-		return None
-	# raw looks like '0x0000814C @ .\r\n268500111 \n>'.
-	# Strip the echoed command (first line) so we don't confuse the echoed
-	# hex address with the decimal reply.
-	text = raw
-	for sep in ('\r\n', '\n', '\r'):
-		if sep in text:
-			text = text.split(sep, 1)[1]
-			break
-	text = text.replace('>', ' ').replace('.', ' ')
-	val = None
-	for tok in reversed(text.split()):
-		tok = tok.strip()
-		if not tok:
+		if uart.WriteLine(cmd) is None:
+			return None
+		oldTimeout = uart.Timeout
+		uart.Timeout = timeout
+		raw = uart.ReadBytesUntil(sentinel, stripTerminator=True)
+		uart.Timeout = oldTimeout
+
+		if raw is None:
+			# Sentinel never arrived. Drain and retry.
+			try:
+				uart.ReadBytes()
+				uart.FlushBuffers()
+			except Exception:
+				pass
 			continue
+
+		# Decode and parse. With echo OFF the reply is just '<value> '.
+		# With echo ON it's '<echoed cmd>\r\n<value> '. Either way, the
+		# decimal value is the LAST integer token in the captured text
+		# (the echoed command contains '0x...' hex and the literal '0',
+		# so we walk tokens in reverse and pick the largest plausible one).
 		try:
-			val = int(tok, 0)  # accepts decimal or 0x...
-			break
-		except ValueError:
+			text = raw.decode('latin-1', errors='replace')
+		except Exception:
+			text = ''
+		# Strip echoed command line if present.
+		for sep in ('\r\n', '\n', '\r'):
+			if sep in text:
+				text = text.split(sep, 1)[1]
+				break
+		# Remove trailing prompt chars and the printed '.' separator.
+		text = text.replace('>', ' ').replace('.', ' ')
+		val = None
+		for tok in reversed(text.split()):
+			tok = tok.strip()
+			if not tok:
+				continue
+			try:
+				val = int(tok, 0)  # accepts decimal or 0x...
+				break
+			except ValueError:
+				continue
+		if val is None:
+			# Got the sentinel but couldn't parse; retry.
 			continue
-	if val is None:
-		return None
-	# rv4th may print signed; coerce to 32-bit unsigned.
-	return val & 0xFFFFFFFF
+		return val & 0xFFFFFFFF
+
+	return None
 
 
 def VerifyAndRepairBlock(forth, startAddress, data,
