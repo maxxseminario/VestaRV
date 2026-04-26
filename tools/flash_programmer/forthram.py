@@ -496,48 +496,34 @@ def _readOneWordMr(forth, addr):
 	"""Read one 32-bit word at `addr` via the chip's `mr` (CRC-checked) path.
 	Returns the word value (int) on success, None on failure.
 
-	Falls back to a plain Forth `<addr> @ .` read if `mr` repeatedly fails
-	(e.g. the on-chip `mr` definition was lost or its binary RX path is
-	dropping bytes). The fallback is ASCII-only so it survives the same
-	UART hiccups that break `mr`.
+	On failure we MUST drain the UART thoroughly. Otherwise stale bytes from
+	the failed transfer (a partial payload, an unread CRC, an echoed Forth
+	prompt, ...) will be picked up by the NEXT `mr` as its payload, returning
+	plausible-looking but completely bogus data on every subsequent word.
+	Without this drain, verify never converges: each pass re-pokes the
+	wrongly-flagged word, then re-reads garbage again next time.
 	"""
 	buf = forth.ReadMemoryBlock(addr, 4)
-	if buf is not None and buf is not False and len(buf) >= 4:
-		return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
-	# Fallback: ASCII '@' fetch.
-	try:
-		forth.uart.FlushBuffers()
-		if forth.uart.WriteLine(f'0x{addr:08X} @ .') is None:
-			return None
-		oldTimeout = forth.uart.Timeout
-		forth.uart.Timeout = 0.5
-		# rv4th echoes the typed line back, then prints the decimal value
-		# followed by ' ok\n'. Read until we see ' ok' or timeout.
-		raw = forth.uart.ReadUntil('ok')
-		forth.uart.Timeout = oldTimeout
-		if raw is None:
-			return None
-		# Last whitespace-separated decimal token before the 'ok' is the value.
-		text = raw if isinstance(raw, str) else raw.decode('ascii', 'ignore')
-		# Strip the echoed command if present.
-		if '@' in text:
-			text = text.split('@', 1)[1]
-		text = text.replace('ok', ' ').strip()
-		token = None
-		for tok in reversed(text.split()):
-			tok = tok.strip().rstrip('.')
-			if not tok:
-				continue
+	if buf is None or buf is False or len(buf) < 4:
+		# Hard drain: read everything that's queued, wait briefly for any
+		# trailing bytes the chip is still transmitting, then read again.
+		try:
+			oldTimeout = forth.uart.Timeout
+			forth.uart.Timeout = 0.05
+			for _ in range(3):
+				junk = forth.uart.ReadBytes()
+				if not junk:
+					break
+				sleep(0.01)
+			forth.uart.Timeout = oldTimeout
+			forth.uart.FlushBuffers()
+		except Exception:
 			try:
-				token = int(tok, 0)
-				break
-			except ValueError:
-				continue
-		if token is None:
-			return None
-		return token & 0xFFFFFFFF
-	except Exception:
+				forth.uart.FlushBuffers()
+			except Exception:
+				pass
 		return None
+	return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
 
 
 def VerifyAndRepairBlock(forth, startAddress, data,
@@ -584,7 +570,14 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			if a in expected:
 				_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
 
-	for attempt in range(maxRepairPasses + 1):
+	attempt = 0
+	prevMismatchCount = None
+	noProgressStreak = 0
+	# Hard ceiling so we can never loop literally forever in pathological
+	# cases (chip dead, etc.). 64 passes over a few hundred words is still
+	# only a few seconds of work.
+	HARD_CEILING = max(maxRepairPasses * 8, 32)
+	while True:
 		mismatches = []
 		readbackFailures = []
 		# Walk every word, read-back, compare. A transient `mr` failure
@@ -615,17 +608,28 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 							f'({nWords} words checked)')
 			return True
 
-		if attempt >= maxRepairPasses:
-			# Out of retries; print a digest.
+		# Decide whether to keep going. We keep going as long as we are
+		# making progress (mismatch count is strictly decreasing). Once we
+		# stop making progress, we allow `maxRepairPasses` more no-progress
+		# passes (the chip might just be having a bad UART moment) and only
+		# THEN give up.
+		if prevMismatchCount is not None and len(mismatches) >= prevMismatchCount:
+			noProgressStreak += 1
+		else:
+			noProgressStreak = 0
+		prevMismatchCount = len(mismatches)
+
+		if noProgressStreak > maxRepairPasses or attempt >= HARD_CEILING:
 			print(f'ERROR: {len(mismatches)} word(s) still mismatch after '
-				  f'{maxRepairPasses} repair pass(es). First few:')
+				  f'{attempt + 1} pass(es) (no progress for the last '
+				  f'{noProgressStreak} pass(es)). First few:')
 			for a in mismatches[:8]:
 				got = _readOneWordMr(forth, a)
 				print(f'  0x{a:08x}: expected 0x{expected[a]:08x}, '
 					  f'read 0x{(got if got is not None else 0):08x}')
 			if logger is not None:
 				logger.note(f'verify FAILED: {len(mismatches)} mismatches '
-							f'remain after {maxRepairPasses} passes')
+							f'remain after {attempt + 1} passes')
 			return False
 
 		# Repair pass: re-poke each mismatching word.
@@ -636,8 +640,16 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			  f're-poking...')
 		for a in mismatches:
 			_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
+		# Settle for a moment so any in-flight stale bytes finish arriving
+		# before the next readback pass.
+		sleep(0.02)
+		try:
+			forth.uart.FlushBuffers()
+		except Exception:
+			pass
+		attempt += 1
 
-	return False
+	# Unreachable.
 
 
 def VerifyMemoryBlock(forth, startAddress, data):
