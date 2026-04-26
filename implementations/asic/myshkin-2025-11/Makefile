@@ -25,15 +25,12 @@ else
     LOG_ARG = --log $(LOG)
 endif
 
-# Upload method for `make run*`: "mw" (default, fast binary stream) or
-# "poke" (slow per-word `!` writes; robust when the ROM UART drops bytes).
-#   make run-rcf blinky METHOD=poke
-METHOD =
-ifeq ($(METHOD),)
-    METHOD_ARG =
-else
-    METHOD_ARG = --method $(METHOD)
-endif
+# Upload method for `make run*`: "poke" (default, slow per-word `!` writes;
+# robust when the ROM UART drops bytes) or "mw" (fast binary stream, may
+# drop bytes on noisy UARTs).
+#   make run blinky METHOD=mw
+METHOD ?= poke
+METHOD_ARG = --method $(METHOD)
 
 # Get program name from command line arguments
 PROGRAM = $(filter-out $@,$(MAKECMDGOALS))
@@ -63,10 +60,10 @@ help:
 	@echo "Myshkin-2025-11 Implementation Targets:"
 	@echo "  make flash [program-name]          - Flash program to chip"
 	@echo "  make flash-verify [program-name]   - Flash with verification"
-	@echo "  make run [program-name]            - Upload program to RAM via Forth and jump to \$$(RAM_ENTRY) (default 0x8200)"
-	@echo "  make run-verify [program-name]     - Same as run, with RAM readback verification"
-	@echo "  make run-rcf [program-name]        - Upload RCF file to RAM and jump"
-	@echo "  make run-rcf-verify [program-name] - Upload RCF to RAM with verification and jump"
+	@echo "  make run [program-name]            - Upload program to RAM via Forth (verify+repair, method=poke) and jump to \$$(RAM_ENTRY) (default 0x814C)"
+	@echo "  make run-verify [program-name]     - Alias for 'run' (kept for compatibility)"
+	@echo "  make run-rcf [program-name]        - Same, but uploads the .rcf file"
+	@echo "  make run-rcf-verify [program-name] - Alias for 'run-rcf'"
 	@echo "  make forth-script [program-name]     - Convert program's .hex to a Forth !/call0 script (-> <program>.forth)"
 	@echo "  make forth-script-rcf [program-name] - Same, but from the program's .rcf file"
 	@echo "  make forth-run [program-name]        - Stream the program's generated .forth file to the chip over UART"
@@ -118,38 +115,26 @@ flash-rcf-verify:
 # SPI-flash boot path is broken.
 
 run:
-	@echo "Uploading $(HEX_FILE) to RAM and jumping to $(RAM_ENTRY)..."
-	$(PYTHON) $(RAM_PROG) $(HEX_FILE) \
-		--chip $(CHIP_NAME) \
-		--board $(BOARD_NAME) \
-		--entry $(RAM_ENTRY) \
-		$(METHOD_ARG) $(LOG_ARG)
-
-run-verify:
-	@echo "Uploading $(HEX_FILE) to RAM (with verify) and jumping to $(RAM_ENTRY)..."
+	@echo "Uploading $(HEX_FILE) to RAM (verify + repair, method=$(METHOD)) and jumping to $(RAM_ENTRY)..."
 	$(PYTHON) $(RAM_PROG) $(HEX_FILE) \
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
 		$(METHOD_ARG) $(LOG_ARG)
+
+run-verify: run
 
 run-rcf:
-	@echo "Uploading $(RCF_FILE) to RAM and jumping to $(RAM_ENTRY)..."
-	$(PYTHON) $(RAM_PROG) $(RCF_FILE) \
-		--chip $(CHIP_NAME) \
-		--board $(BOARD_NAME) \
-		--entry $(RAM_ENTRY) \
-		$(METHOD_ARG) $(LOG_ARG)
-
-run-rcf-verify:
-	@echo "Uploading $(RCF_FILE) to RAM (with verify) and jumping to $(RAM_ENTRY)..."
+	@echo "Uploading $(RCF_FILE) to RAM (verify + repair, method=$(METHOD)) and jumping to $(RAM_ENTRY)..."
 	$(PYTHON) $(RAM_PROG) $(RCF_FILE) \
 		--chip $(CHIP_NAME) \
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
 		$(METHOD_ARG) $(LOG_ARG)
+
+run-rcf-verify: run-rcf
 
 # --- Offline: convert program file to Forth !/call0 script ---------------
 # Produces <program>.forth in the program's software dir that can be pasted /
