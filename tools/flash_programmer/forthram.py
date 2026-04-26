@@ -502,6 +502,73 @@ def _readOneWordMr(forth, addr):
 	return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
 
 
+def _readOneWordAscii(forth, addr, timeout=0.5):
+	"""Read one 32-bit word at `addr` via plain Forth `<addr> @ .`.
+
+	Works on any rv4th-compatible ROM, even ones whose binary `mr` opcode
+	is broken or silent on the wire (we have observed this on Myshkin
+	ROMs in the wild). Slower than `mr` (no CRC, char-by-char reply) but
+	often the only readback that actually works.
+
+	Protocol (rv4th with default echo on):
+	  TX: '<addr> @ .\\n'
+	  RX: '<echoed cmd>\\r\\n<value> \\n>'   (decimal value, then prompt '>')
+
+	Returns the 32-bit word, or None on parse / timeout failure. On any
+	failure path the UART read buffer is drained so the next request starts
+	clean (otherwise stale echoed tokens become bogus payload next call).
+	"""
+	uart = forth.uart
+	try:
+		uart.FlushBuffers()
+	except Exception:
+		pass
+	cmd = f'0x{addr:08X} @ .'
+	if uart.WriteLine(cmd) is None:
+		return None
+	oldTimeout = uart.Timeout
+	uart.Timeout = timeout
+	raw = uart.ReadUntil('>')
+	uart.Timeout = oldTimeout
+	if raw is None:
+		try:
+			uart.ReadBytes()
+			uart.FlushBuffers()
+		except Exception:
+			pass
+		return None
+	# raw looks like '0x0000814C @ .\r\n268500111 \n>'.
+	# Strip the echoed command (first line) so we don't confuse the echoed
+	# hex address with the decimal reply.
+	text = raw
+	for sep in ('\r\n', '\n', '\r'):
+		if sep in text:
+			text = text.split(sep, 1)[1]
+			break
+	text = text.replace('>', ' ').replace('.', ' ')
+	val = None
+	for tok in reversed(text.split()):
+		tok = tok.strip()
+		if not tok:
+			continue
+		try:
+			val = int(tok, 0)  # accepts decimal or 0x...
+			break
+		except ValueError:
+			continue
+	if val is None:
+		return None
+	# rv4th may print signed; coerce to 32-bit unsigned.
+	return val & 0xFFFFFFFF
+
+
+def _readOneWord(forth, addr, method='ascii'):
+	"""Dispatch to the chosen single-word read path."""
+	if method == 'mr':
+		return _readOneWordMr(forth, addr)
+	return _readOneWordAscii(forth, addr)
+
+
 def VerifyAndRepairBlock(forth, startAddress, data,
 						 interLineSleep=10e-3,
 						 knownErrors=None,
@@ -509,7 +576,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 						 logger=None,
 						 progressBar=None,
 						 progressBase=0,
-						 showProgressBar=False):
+						 showProgressBar=False,
+						 verifyMethod='ascii'):
 	"""Per-word readback + repair.
 
 	For each 32-bit word in `data`, read it back from the chip via `mr` and
@@ -546,12 +614,28 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			if a in expected:
 				_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
 
+	# Sanity probe: do a single readback before the loop. If it returns
+	# nothing, the chosen verify method is unusable on this chip and there's
+	# no point burning time on every word -- bail with a clear message.
+	probeAddr = startAddress
+	probeVal = _readOneWord(forth, probeAddr, method=verifyMethod)
+	if probeVal is None:
+		msg = (f'verify sanity-probe `{verifyMethod}` read at '
+			   f'0x{probeAddr:08x} returned no data. The chip likely does '
+			   f'not support this read method on this ROM. Try '
+			   f'--verify-method=' + ('ascii' if verifyMethod == 'mr' else 'mr')
+			   + '.')
+		if logger is not None:
+			logger.note(msg)
+		print('ERROR: ' + msg)
+		return False
+
 	for attempt in range(maxRepairPasses + 1):
 		mismatches = []
 		# Walk every word, read-back, compare.
 		nWords = len(data) // 4
 		for i, addr in enumerate(sorted(expected.keys())):
-			got = _readOneWordMr(forth, addr)
+			got = _readOneWord(forth, addr, method=verifyMethod)
 			if got is None:
 				if logger is not None:
 					logger.note(f'verify: readback FAILED at 0x{addr:08x}')
@@ -573,7 +657,7 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			print(f'ERROR: {len(mismatches)} word(s) still mismatch after '
 				  f'{maxRepairPasses} repair pass(es). First few:')
 			for a in mismatches[:8]:
-				got = _readOneWordMr(forth, a)
+				got = _readOneWord(forth, a, method=verifyMethod)
 				print(f'  0x{a:08x}: expected 0x{expected[a]:08x}, '
 					  f'read 0x{(got if got is not None else 0):08x}')
 			if logger is not None:
@@ -661,6 +745,12 @@ def main():
 		help='Write a full UART transcript (every byte TX/RX, with '
 			 'timestamps) to FILE for debugging. Pass "auto" to write to '
 			 './forthram-<timestamp>.log in the current directory.')
+	parser.add_argument('--verify-method', choices=['ascii', 'mr'],
+		default='ascii',
+		help='Readback path used during --verify. "ascii" uses the plain '
+			 'Forth `<addr> @ .` reply (works on any rv4th ROM, slower); '
+			 '"mr" uses the binary CRC-checked opcode (faster but unusable '
+			 'on ROMs whose mr path is broken). Default: ascii.')
 
 	args = parser.parse_args()
 
@@ -849,7 +939,8 @@ def main():
 				interLineSleep=args.poke_delay,
 				knownErrors=knownErrors,
 				maxRepairPasses=args.repair_passes,
-				logger=logger)
+				logger=logger,
+				verifyMethod=args.verify_method)
 			if ok is not True:
 				print(f'ERROR: verification failed at 0x{addr:08x}')
 				if logger:
