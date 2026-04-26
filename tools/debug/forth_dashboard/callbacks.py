@@ -192,6 +192,7 @@ def read_register_status(n_clicks, btn_id):
         raise PreventUpdate
     
     # Parse peripheral and register — iterate to handle names with underscores (e.g. BIAS_CR)
+    full_name = btn_id['name']
     periph_name = None
     reg_name = None
     for potential_periph in PERIPHERALS.keys():
