@@ -1054,7 +1054,14 @@ class ForthInterface():
 		# Compare the CRCs
 		calcCrc = compute_CRC16_CDMA2000(payload)
 		if receivedCrc != calcCrc:
-			print('Bad CRC. Expected', hex(calcCrc), 'but got', hex(receivedCrc))
+			# Caller (e.g. forthram VerifyAndRepairBlock) treats False as a
+			# retryable hiccup and will redo the read; printing this on every
+			# word would spam the verify pass with hundreds of lines. Drain
+			# any straggling bytes so the next mr starts clean.
+			try:
+				self.uart.ReadBytes()
+			except Exception:
+				pass
 			return False
 		
 		# Optionally swap the bytes around
@@ -1838,7 +1845,14 @@ class ForthInterface():
 		# Compare the CRCs
 		calcCrc = compute_CRC16_CDMA2000(payload)
 		if receivedCrc != calcCrc:
-			print('Bad CRC. Expected', hex(calcCrc), 'but got', hex(receivedCrc))
+			# Caller (e.g. forthram VerifyAndRepairBlock) treats False as a
+			# retryable hiccup and will redo the read; printing this on every
+			# word would spam the verify pass with hundreds of lines. Drain
+			# any straggling bytes so the next mr starts clean.
+			try:
+				self.uart.ReadBytes()
+			except Exception:
+				pass
 			return False
 		
 		# Parse the payload
