@@ -49,15 +49,18 @@ def read_register_and_update_bitfields(n_clicks_list, dropdown_ids, dropdown_val
     button_info = json.loads(trigger_id)
     full_reg_name = button_info['name']
     
-    # Parse peripheral and register
-    parts = full_reg_name.rsplit('_', 1)
-    if len(parts) != 2:
-        raise PreventUpdate
-    
-    periph_name, reg_name = parts
-    
-    # Get register address
-    if periph_name not in PERIPHERALS or reg_name not in PERIPHERALS[periph_name]['registers']:
+    # Parse peripheral and register — iterate to handle names with underscores (e.g. BIAS_CR)
+    periph_name = None
+    reg_name = None
+    for potential_periph in PERIPHERALS.keys():
+        if full_reg_name.startswith(potential_periph + '_'):
+            candidate_reg = full_reg_name[len(potential_periph) + 1:]
+            if candidate_reg in PERIPHERALS[potential_periph]['registers']:
+                periph_name = potential_periph
+                reg_name = candidate_reg
+                break
+
+    if periph_name is None or reg_name is None:
         raise PreventUpdate
     
     addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
@@ -116,15 +119,18 @@ def write_register_from_bitfields(n_clicks, dropdown_values, dropdown_ids, numer
     
     full_reg_name = button_id['name']
     
-    # Parse peripheral and register
-    parts = full_reg_name.rsplit('_', 1)
-    if len(parts) != 2:
-        raise PreventUpdate
-    
-    periph_name, reg_name = parts
-    
-    # Get register address
-    if periph_name not in PERIPHERALS or reg_name not in PERIPHERALS[periph_name]['registers']:
+    # Parse peripheral and register — iterate to handle names with underscores (e.g. BIAS_CR)
+    periph_name = None
+    reg_name = None
+    for potential_periph in PERIPHERALS.keys():
+        if full_reg_name.startswith(potential_periph + '_'):
+            candidate_reg = full_reg_name[len(potential_periph) + 1:]
+            if candidate_reg in PERIPHERALS[potential_periph]['registers']:
+                periph_name = potential_periph
+                reg_name = candidate_reg
+                break
+
+    if periph_name is None or reg_name is None:
         raise PreventUpdate
     
     addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
@@ -185,20 +191,19 @@ def read_register_status(n_clicks, btn_id):
     if n_clicks is None:
         raise PreventUpdate
     
-    # Parse peripheral and register name from ID
-    full_name = btn_id['name']
-    parts = full_name.rsplit('_', 1)
-    if len(parts) != 2:
+    # Parse peripheral and register — iterate to handle names with underscores (e.g. BIAS_CR)
+    periph_name = None
+    reg_name = None
+    for potential_periph in PERIPHERALS.keys():
+        if full_name.startswith(potential_periph + '_'):
+            candidate_reg = full_name[len(potential_periph) + 1:]
+            if candidate_reg in PERIPHERALS[potential_periph]['registers']:
+                periph_name = potential_periph
+                reg_name = candidate_reg
+                break
+
+    if periph_name is None or reg_name is None:
         return "Error: Invalid name"
-    
-    periph_name, reg_name = parts
-    
-    # Get register address from config
-    if periph_name not in PERIPHERALS:
-        return "Error: Unknown peripheral"
-    
-    if reg_name not in PERIPHERALS[periph_name]['registers']:
-        return "Error: Unknown register"
     
     addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
     
@@ -230,14 +235,17 @@ def read_register_control(n_clicks, input_id):
     
     # Parse peripheral and register name
     full_name = input_id['name']
-    parts = full_name.rsplit('_', 1)
-    if len(parts) != 2:
-        return 0
-    
-    periph_name, reg_name = parts
-    
-    # Get register address
-    if periph_name not in PERIPHERALS or reg_name not in PERIPHERALS[periph_name]['registers']:
+    periph_name = None
+    reg_name = None
+    for potential_periph in PERIPHERALS.keys():
+        if full_name.startswith(potential_periph + '_'):
+            candidate_reg = full_name[len(potential_periph) + 1:]
+            if candidate_reg in PERIPHERALS[potential_periph]['registers']:
+                periph_name = potential_periph
+                reg_name = candidate_reg
+                break
+
+    if periph_name is None or reg_name is None:
         return 0
     
     addr = PERIPHERALS[periph_name]['registers'][reg_name]['addr']
