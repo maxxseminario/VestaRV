@@ -416,7 +416,35 @@ def WriteMemoryBlock(forth, startAddress, data, chunkSize=8, interChunkSleep=3e-
 # Requires: data length be a multiple of 4, and startAddress be word aligned.
 # ---------------------------------------------------------------------------
 
-def _pokeOneWord(forth, addr, word, interLineSleep, logger=None):
+def _pacedWriteLine(uart, line, charDelay=2e-3):
+	"""Send `line` + '\\n' to the chip byte-by-byte with `charDelay` between
+	bytes. Returns True on success, None on transport failure.
+
+	The Myshkin ROM UART has no RX FIFO -- if we blast bytes faster than
+	the ROM can copy them out of the receive register (which it does in
+	the main loop, between each character of its echo), we drop bytes and
+	the line never parses. Pacing each byte at >~1 char-time @ 115200
+	gives the ROM enough headroom to keep up. This is the same trick that
+	rv4th_terminal.py gets for free from a human typing.
+	"""
+	ser = getattr(uart, 'ser', None)
+	data = (line + '\n').encode('ascii')
+	if ser is None:
+		# Best effort: fall back to bulk write.
+		return uart.WriteLine(line)
+	try:
+		for b in data:
+			ser.write(bytes([b]))
+			ser.flush()
+			if charDelay > 0:
+				sleep(charDelay)
+	except Exception:
+		return None
+	return True
+
+
+def _pokeOneWord(forth, addr, word, interLineSleep, logger=None,
+				 charDelay=2e-3):
 	"""Send a single `<val> <addr> !` Forth line. Returns:
 	   True   on (apparent) success (no '?' seen in drain)
 	   False  if chip replied with '?'  (parse error; byte likely dropped)
@@ -424,7 +452,7 @@ def _pokeOneWord(forth, addr, word, interLineSleep, logger=None):
 	Does NOT abort; callers decide what to do.
 	"""
 	cmd = f'0x{word:08X} 0x{addr:08X} !'
-	if forth.uart.WriteLine(cmd) is None:
+	if _pacedWriteLine(forth.uart, cmd, charDelay=charDelay) is None:
 		return None
 	sleep(interLineSleep)
 	try:
@@ -440,7 +468,7 @@ def _pokeOneWord(forth, addr, word, interLineSleep, logger=None):
 
 def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 						 showProgressBar=False, progressBar=None,
-						 progressBase=0, logger=None):
+						 progressBase=0, logger=None, charDelay=2e-3):
 	"""Upload `data` via one `<val> <addr> !` Forth line per 32-bit word.
 
 	Sends every word regardless of per-line errors. Returns a dict:
@@ -475,7 +503,8 @@ def WriteMemoryBlockPoke(forth, startAddress, data, interLineSleep=10e-3,
 			 data[wordIndex + 3] << 24)
 		addr = startAddress + wordIndex
 
-		r = _pokeOneWord(forth, addr, w, interLineSleep, logger=logger)
+		r = _pokeOneWord(forth, addr, w, interLineSleep, logger=logger,
+						 charDelay=charDelay)
 		if r is None:
 			print(f'ERROR: transport failure writing 0x{addr:08x}')
 			result['ok'] = None
@@ -526,16 +555,22 @@ def _readOneWordMr(forth, addr):
 	return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
 
 
-def _readOneWordAscii(forth, addr, timeout=0.5):
+def _readOneWordAscii(forth, addr, timeout=0.5, charDelay=2e-3):
 	"""Read one 32-bit word at `addr` via plain Forth `<addr> @ .`.
 
 	This works on any rv4th-compatible ROM, even ones that do not have
-	the binary `mr` opcode. It is slower than `mr` (no CRC, char-by-char
-	reply) but it is what you fall back to when `mr` returns nothing at
-	all (e.g. the chip's TX is silent under the binary handshake).
+	the binary `mr` opcode. Slower than `mr` (no CRC, char-by-char
+	reply) but it is what you fall back to when `mr` returns nothing
+	(e.g. the chip's TX is silent under the binary handshake).
+
+	IMPORTANT: the chip's ROM UART has no RX FIFO, so we MUST send the
+	command byte-by-byte with a small delay between bytes, otherwise
+	the chip drops bytes mid-line and the line never parses (TX stays
+	silent). This mirrors what forthrun.py's send() does and what a
+	human typing into rv4th_terminal.py inadvertently does.
 
 	Protocol (rv4th with default echo on):
-	  TX: '<addr> @ .\\n'
+	  TX: '0x<addr> @ .\\n'  (paced)
 	  RX: '<echoed cmd>\\r\\n<value> \\n>'   (decimal value, then prompt '>')
 
 	Returns the 32-bit word, or None on parse / timeout failure.
@@ -547,8 +582,9 @@ def _readOneWordAscii(forth, addr, timeout=0.5):
 	except Exception:
 		pass
 	cmd = f'0x{addr:08X} @ .'
-	if uart.WriteLine(cmd) is None:
+	if _pacedWriteLine(uart, cmd, charDelay=charDelay) is None:
 		return None
+
 	oldTimeout = uart.Timeout
 	uart.Timeout = timeout
 	# rv4th terminates each interactive reply with '>' (its prompt char).
@@ -564,11 +600,17 @@ def _readOneWordAscii(forth, addr, timeout=0.5):
 		return None
 	# `raw` looks something like:
 	#   '0x0000814C @ .\r\n268500111 \n>'
-	# We want the LAST integer token before the '>' prompt. Strip the echoed
-	# command (everything up to the last '@' or '.') so we don't confuse the
-	# echoed address (which is hex with a leading '0x') with the reply.
-	text = raw
+	# A '?' anywhere means rv4th choked on the line (usually a dropped
+	# byte that turned a token into something it cannot parse).
+	if '?' in raw:
+		try:
+			uart.ReadBytes()
+			uart.FlushBuffers()
+		except Exception:
+			pass
+		return None
 	# Cut the echoed command. The echoed line ends at the first '\n' or '\r'.
+	text = raw
 	for sep in ('\r\n', '\n', '\r'):
 		if sep in text:
 			text = text.split(sep, 1)[1]
@@ -584,8 +626,6 @@ def _readOneWordAscii(forth, addr, timeout=0.5):
 			val = int(tok, 0)  # accepts decimal or 0x...
 			break
 		except ValueError:
-			# Sometimes rv4th prints values as plain decimal even when
-			# input was hex; skip non-numeric trailing tokens (rare).
 			continue
 	if val is None:
 		return None
@@ -593,11 +633,11 @@ def _readOneWordAscii(forth, addr, timeout=0.5):
 	return val & 0xFFFFFFFF
 
 
-def _readOneWord(forth, addr, method='ascii'):
+def _readOneWord(forth, addr, method='ascii', charDelay=2e-3):
 	"""Dispatch to the chosen read path."""
 	if method == 'mr':
 		return _readOneWordMr(forth, addr)
-	return _readOneWordAscii(forth, addr)
+	return _readOneWordAscii(forth, addr, charDelay=charDelay)
 
 
 def VerifyAndRepairBlock(forth, startAddress, data,
@@ -611,7 +651,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 						 verifyLogPath=None,
 						 verboseVerify=False,
 						 verboseShowFirst=8,
-						 verifyMethod='ascii'):
+						 verifyMethod='ascii',
+						 charDelay=2e-3):
 	"""Per-word readback + repair.
 
 	For each 32-bit word in `data`, read it back from the chip via `mr` and
@@ -646,7 +687,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 		print(f'Re-poking {len(uniqErr)} upload-flagged word(s) before verify...')
 		for a in uniqErr:
 			if a in expected:
-				_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
+				_pokeOneWord(forth, a, expected[a], interLineSleep,
+							 logger=logger, charDelay=charDelay)
 
 	# Optional verify log file. We open in append mode so multiple runs
 	# accumulate, which is handy for diagnosing flaky chips.
@@ -667,7 +709,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 	# working read word for this method, and there is no point spinning
 	# through dozens of guaranteed-to-fail verify passes.
 	probeAddr = sorted(expected.keys())[0]
-	probeVal = _readOneWord(forth, probeAddr, method=verifyMethod)
+	probeVal = _readOneWord(forth, probeAddr, method=verifyMethod,
+							charDelay=charDelay)
 	if probeVal is None:
 		msg = (f'WARNING: sanity-probe `{verifyMethod}` read at '
 			   f'0x{probeAddr:08x} returned no data. The chip may not '
@@ -706,7 +749,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 		# is much more reliable than aborting the whole verify.
 		nWords = len(data) // 4
 		for i, addr in enumerate(sorted(expected.keys())):
-			got = _readOneWord(forth, addr, method=verifyMethod)
+			got = _readOneWord(forth, addr, method=verifyMethod,
+							   charDelay=charDelay)
 			lastReads[addr] = got
 			if got is None:
 				if logger is not None:
@@ -778,7 +822,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 				  f'{attempt + 1} pass(es) (no progress for the last '
 				  f'{noProgressStreak} pass(es)). First few:')
 			for a in mismatches[:8]:
-				got = _readOneWord(forth, a, method=verifyMethod)
+				got = _readOneWord(forth, a, method=verifyMethod,
+								   charDelay=charDelay)
 				print(f'  0x{a:08x}: expected 0x{expected[a]:08x}, '
 					  f'read 0x{(got if got is not None else 0):08x}')
 			if logger is not None:
@@ -798,7 +843,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 		print(f'Verify pass {attempt}: {len(mismatches)} mismatch(es); '
 			  f're-poking...')
 		for a in mismatches:
-			_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
+			_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger,
+						 charDelay=charDelay)
 		# Settle for a moment so any in-flight stale bytes finish arriving
 		# before the next readback pass.
 		sleep(0.02)
@@ -868,6 +914,12 @@ def main():
 	parser.add_argument('--poke-delay', type=float, default=10e-3,
 		help='Seconds to sleep between `!` lines when --method=poke '
 			 '(default: 0.010).')
+	parser.add_argument('--char-delay', type=float, default=2e-3,
+		help='Seconds to sleep between BYTES when sending Forth lines to '
+			 'the chip (default: 0.002 = 2 ms). The Myshkin ROM UART '
+			 'has no RX FIFO; without this pacing we drop bytes mid-line '
+			 'and the chip never responds. Lower if your chip can keep '
+			 'up at full line rate.')
 	parser.add_argument('--repair-passes', type=int, default=3,
 		help='When --verify is set, number of per-word readback/repair '
 			 'passes to run after the initial upload (default: 3). Each '
@@ -1051,7 +1103,8 @@ def main():
 										  showProgressBar=(bar is not None),
 										  progressBar=bar,
 										  progressBase=written,
-										  logger=logger)
+										  logger=logger,
+										  charDelay=args.char_delay)
 			if result['ok'] is None:
 				if bar is not None:
 					bar.finish()
@@ -1099,7 +1152,8 @@ def main():
 				logger=logger,
 				verifyLogPath=verifyLogPath,
 				verboseVerify=args.verbose_verify,
-				verifyMethod=args.verify_method)
+				verifyMethod=args.verify_method,
+				charDelay=args.char_delay)
 			if ok is not True:
 				verifyFailed = True
 				print(f'WARNING: verification did not fully pass at '
