@@ -526,6 +526,80 @@ def _readOneWordMr(forth, addr):
 	return (buf[0] <<  0 | buf[1] <<  8 | buf[2] << 16 | buf[3] << 24)
 
 
+def _readOneWordAscii(forth, addr, timeout=0.5):
+	"""Read one 32-bit word at `addr` via plain Forth `<addr> @ .`.
+
+	This works on any rv4th-compatible ROM, even ones that do not have
+	the binary `mr` opcode. It is slower than `mr` (no CRC, char-by-char
+	reply) but it is what you fall back to when `mr` returns nothing at
+	all (e.g. the chip's TX is silent under the binary handshake).
+
+	Protocol (rv4th with default echo on):
+	  TX: '<addr> @ .\\n'
+	  RX: '<echoed cmd>\\r\\n<value> \\n>'   (decimal value, then prompt '>')
+
+	Returns the 32-bit word, or None on parse / timeout failure.
+	"""
+	uart = forth.uart
+	# Drain anything stale before the request.
+	try:
+		uart.FlushBuffers()
+	except Exception:
+		pass
+	cmd = f'0x{addr:08X} @ .'
+	if uart.WriteLine(cmd) is None:
+		return None
+	oldTimeout = uart.Timeout
+	uart.Timeout = timeout
+	# rv4th terminates each interactive reply with '>' (its prompt char).
+	raw = uart.ReadUntil('>')
+	uart.Timeout = oldTimeout
+	if raw is None:
+		# Drain whatever did arrive so the next request starts clean.
+		try:
+			uart.ReadBytes()
+			uart.FlushBuffers()
+		except Exception:
+			pass
+		return None
+	# `raw` looks something like:
+	#   '0x0000814C @ .\r\n268500111 \n>'
+	# We want the LAST integer token before the '>' prompt. Strip the echoed
+	# command (everything up to the last '@' or '.') so we don't confuse the
+	# echoed address (which is hex with a leading '0x') with the reply.
+	text = raw
+	# Cut the echoed command. The echoed line ends at the first '\n' or '\r'.
+	for sep in ('\r\n', '\n', '\r'):
+		if sep in text:
+			text = text.split(sep, 1)[1]
+			break
+	# Strip the trailing prompt and any leftover '.'s.
+	text = text.replace('>', ' ').replace('.', ' ')
+	val = None
+	for tok in reversed(text.split()):
+		tok = tok.strip()
+		if not tok:
+			continue
+		try:
+			val = int(tok, 0)  # accepts decimal or 0x...
+			break
+		except ValueError:
+			# Sometimes rv4th prints values as plain decimal even when
+			# input was hex; skip non-numeric trailing tokens (rare).
+			continue
+	if val is None:
+		return None
+	# Treat the value as 32-bit unsigned (rv4th may print it as signed).
+	return val & 0xFFFFFFFF
+
+
+def _readOneWord(forth, addr, method='ascii'):
+	"""Dispatch to the chosen read path."""
+	if method == 'mr':
+		return _readOneWordMr(forth, addr)
+	return _readOneWordAscii(forth, addr)
+
+
 def VerifyAndRepairBlock(forth, startAddress, data,
 						 interLineSleep=10e-3,
 						 knownErrors=None,
@@ -536,7 +610,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 						 showProgressBar=False,
 						 verifyLogPath=None,
 						 verboseVerify=False,
-						 verboseShowFirst=8):
+						 verboseShowFirst=8,
+						 verifyMethod='ascii'):
 	"""Per-word readback + repair.
 
 	For each 32-bit word in `data`, read it back from the chip via `mr` and
@@ -587,17 +662,18 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			print(f'WARNING: could not open verify log {verifyLogPath}: {e}')
 			verifyLog = None
 
-	# Sanity probe: try `mr` ONCE before the loop. If even this single
-	# read fails the chip almost certainly does not have a working `mr`
-	# definition, and there is no point spinning through dozens of
-	# guaranteed-to-fail verify passes.
+	# Sanity probe: try the chosen read path ONCE before the loop. If even
+	# this single read fails, the chip almost certainly does not have a
+	# working read word for this method, and there is no point spinning
+	# through dozens of guaranteed-to-fail verify passes.
 	probeAddr = sorted(expected.keys())[0]
-	probeVal = _readOneWordMr(forth, probeAddr)
+	probeVal = _readOneWord(forth, probeAddr, method=verifyMethod)
 	if probeVal is None:
-		msg = (f'WARNING: sanity-probe `mr` at 0x{probeAddr:08x} returned '
-			   f'no data. The chip may not have a working `mr` word, or the '
-			   f'UART RX path is severely broken. Verify will almost certainly '
-			   f'fail on every word.')
+		msg = (f'WARNING: sanity-probe `{verifyMethod}` read at '
+			   f'0x{probeAddr:08x} returned no data. The chip may not '
+			   f'support this read method, or the UART RX path is severely '
+			   f'broken. Verify will almost certainly fail on every word. '
+			   f'Try a different --verify-method.')
 		print(msg)
 		if logger is not None:
 			logger.note(msg)
@@ -605,8 +681,8 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			verifyLog.write(msg + '\n')
 			verifyLog.flush()
 	else:
-		msg = (f'sanity-probe `mr` at 0x{probeAddr:08x} -> 0x{probeVal:08x} '
-			   f'(expected 0x{expected[probeAddr]:08x})')
+		msg = (f'sanity-probe `{verifyMethod}` read at 0x{probeAddr:08x} '
+			   f'-> 0x{probeVal:08x} (expected 0x{expected[probeAddr]:08x})')
 		print(msg)
 		if verifyLog is not None:
 			verifyLog.write(msg + '\n')
@@ -630,7 +706,7 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 		# is much more reliable than aborting the whole verify.
 		nWords = len(data) // 4
 		for i, addr in enumerate(sorted(expected.keys())):
-			got = _readOneWordMr(forth, addr)
+			got = _readOneWord(forth, addr, method=verifyMethod)
 			lastReads[addr] = got
 			if got is None:
 				if logger is not None:
@@ -702,7 +778,7 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 				  f'{attempt + 1} pass(es) (no progress for the last '
 				  f'{noProgressStreak} pass(es)). First few:')
 			for a in mismatches[:8]:
-				got = _readOneWordMr(forth, a)
+				got = _readOneWord(forth, a, method=verifyMethod)
 				print(f'  0x{a:08x}: expected 0x{expected[a]:08x}, '
 					  f'read 0x{(got if got is not None else 0):08x}')
 			if logger is not None:
@@ -805,6 +881,13 @@ def main():
 			 'actually running fine, verify failures are usually just '
 			 'host-side UART hiccups on the readback path, not real RAM '
 			 'corruption.')
+	parser.add_argument('--verify-method', choices=['ascii', 'mr'],
+		default='ascii',
+		help='Read-back path used during --verify. "ascii" (default) uses '
+			 'plain Forth `<addr> @ .` reads -- works on any rv4th ROM and '
+			 'on chips whose binary `mr` opcode is missing or broken. "mr" '
+			 'uses the fast binary CRC-checked read; only works if the chip '
+			 'ROM actually defines `mr`.')
 	parser.add_argument('--verify-log', type=str, default=None, metavar='FILE',
 		help='Append every per-word verify result (expected/read/status) '
 			 'to FILE. Use "auto" to write to ./verify-<timestamp>.log. '
@@ -1015,7 +1098,8 @@ def main():
 				maxRepairPasses=args.repair_passes,
 				logger=logger,
 				verifyLogPath=verifyLogPath,
-				verboseVerify=args.verbose_verify)
+				verboseVerify=args.verbose_verify,
+				verifyMethod=args.verify_method)
 			if ok is not True:
 				verifyFailed = True
 				print(f'WARNING: verification did not fully pass at '

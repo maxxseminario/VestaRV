@@ -46,6 +46,13 @@ ifneq ($(strip $(VERBOSE_VERIFY)),)
     VERBOSE_VERIFY_ARG = --verbose-verify
 endif
 
+# Read-back path during verify: "ascii" (default, plain `<addr> @ .` reads --
+# works on any rv4th ROM) or "mr" (fast binary CRC read; only if the chip's
+# Forth ROM actually defines `mr`).
+#   make run afefsm VERIFY_METHOD=mr
+VERIFY_METHOD ?= ascii
+VERIFY_METHOD_ARG = --verify-method $(VERIFY_METHOD)
+
 # Get program name from command line arguments
 PROGRAM = $(filter-out $@,$(MAKECMDGOALS))
 ifeq ($(PROGRAM),)
@@ -135,7 +142,7 @@ run:
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
-		$(METHOD_ARG) $(LOG_ARG) $(VERIFY_LOG_ARG) $(VERBOSE_VERIFY_ARG)
+		$(METHOD_ARG) $(LOG_ARG) $(VERIFY_LOG_ARG) $(VERBOSE_VERIFY_ARG) $(VERIFY_METHOD_ARG)
 
 run-verify: run
 
@@ -146,7 +153,7 @@ run-rcf:
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
-		$(METHOD_ARG) $(LOG_ARG) $(VERIFY_LOG_ARG) $(VERBOSE_VERIFY_ARG)
+		$(METHOD_ARG) $(LOG_ARG) $(VERIFY_LOG_ARG) $(VERBOSE_VERIFY_ARG) $(VERIFY_METHOD_ARG)
 
 run-rcf-verify: run-rcf
 
