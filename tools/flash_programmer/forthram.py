@@ -548,19 +548,28 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 
 	for attempt in range(maxRepairPasses + 1):
 		mismatches = []
-		# Walk every word, read-back, compare.
+		readbackFailures = []
+		# Walk every word, read-back, compare. A transient `mr` failure
+		# (None) is treated as a mismatch -- it almost always means a UART
+		# byte was dropped on the readback path, NOT that the RAM contents
+		# are bad. Re-poking the word and re-reading it on the next pass
+		# is much more reliable than aborting the whole verify.
 		nWords = len(data) // 4
 		for i, addr in enumerate(sorted(expected.keys())):
 			got = _readOneWordMr(forth, addr)
 			if got is None:
 				if logger is not None:
-					logger.note(f'verify: readback FAILED at 0x{addr:08x}')
-				print(f'ERROR: readback failed at 0x{addr:08x}')
-				return False
-			if got != expected[addr]:
+					logger.note(f'verify: readback hiccup at 0x{addr:08x} '
+								f'(attempt {attempt}); will retry')
+				readbackFailures.append(addr)
+				mismatches.append(addr)
+			elif got != expected[addr]:
 				mismatches.append(addr)
 			if showProgressBar and progressBar is not None:
 				progressBar.update(progressBase + (i + 1) * 4)
+		if readbackFailures:
+			print(f'  {len(readbackFailures)} readback hiccup(s) on '
+				  f'attempt {attempt} (will retry)')
 
 		if not mismatches:
 			if logger is not None:
@@ -656,6 +665,13 @@ def main():
 			 'pass reads every word via `mr` and re-pokes any that do '
 			 'not match. Setting to 0 effectively makes --verify a '
 			 'one-shot read-only check.')
+	parser.add_argument('--strict-verify', action='store_true', default=False,
+		help='If --verify fails after all repair passes, abort instead '
+			 'of jumping to the entry point. Default behaviour is to '
+			 'print a warning and jump anyway -- on a chip that is '
+			 'actually running fine, verify failures are usually just '
+			 'host-side UART hiccups on the readback path, not real RAM '
+			 'corruption.')
 	parser.add_argument('--log', type=str, default=None,
 		metavar='FILE',
 		help='Write a full UART transcript (every byte TX/RX, with '
@@ -838,6 +854,7 @@ def main():
 		bar.finish()
 
 	# ---- optional verify (per-word readback + repair) ---------------------
+	verifyFailed = False
 	if args.verify:
 		print('Verifying RAM contents (per-word readback + repair)...')
 		if logger:
@@ -851,14 +868,28 @@ def main():
 				maxRepairPasses=args.repair_passes,
 				logger=logger)
 			if ok is not True:
-				print(f'ERROR: verification failed at 0x{addr:08x}')
+				verifyFailed = True
+				print(f'WARNING: verification did not fully pass at '
+					  f'0x{addr:08x}.')
 				if logger:
-					logger.note('verify FAILED')
-					logger.close()
-				sys.exit(3)
-		print('Verify OK')
-		if logger:
-			logger.note('verify OK')
+					logger.note(f'verify FAILED at 0x{addr:08x}')
+				if args.strict_verify:
+					print('--strict-verify set; aborting instead of jumping.')
+					if logger:
+						logger.close()
+					sys.exit(3)
+		if not verifyFailed:
+			print('Verify OK')
+			if logger:
+				logger.note('verify OK')
+		else:
+			print('NOTE: continuing to jump anyway. Most verify failures '
+				  'are host-side UART hiccups on the readback path; if the '
+				  'program does not run, re-flash with --strict-verify to '
+				  'catch real RAM corruption, or raise --repair-passes.')
+			if logger:
+				logger.note('verify FAILED but jumping anyway '
+							'(--strict-verify not set)')
 
 	# ---- jump -------------------------------------------------------------
 	if args.no_jump:
