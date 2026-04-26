@@ -32,6 +32,20 @@ endif
 METHOD ?= poke
 METHOD_ARG = --method $(METHOD)
 
+# Per-word verify log: when verify is failing the same way every pass, set
+# VERIFY_LOG=auto to dump every (expected, actual) pair to a file:
+#   make run blinky VERIFY_LOG=auto
+#   make run blinky VERIFY_LOG=./mychip-verify.log
+# Or set VERBOSE_VERIFY=1 to print the first few mismatches inline each pass.
+VERIFY_LOG ?=
+VERBOSE_VERIFY ?=
+ifneq ($(strip $(VERIFY_LOG)),)
+    VERIFY_LOG_ARG = --verify-log $(VERIFY_LOG)
+endif
+ifneq ($(strip $(VERBOSE_VERIFY)),)
+    VERBOSE_VERIFY_ARG = --verbose-verify
+endif
+
 # Get program name from command line arguments
 PROGRAM = $(filter-out $@,$(MAKECMDGOALS))
 ifeq ($(PROGRAM),)
@@ -121,7 +135,7 @@ run:
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
-		$(METHOD_ARG) $(LOG_ARG)
+		$(METHOD_ARG) $(LOG_ARG) $(VERIFY_LOG_ARG) $(VERBOSE_VERIFY_ARG)
 
 run-verify: run
 
@@ -132,7 +146,7 @@ run-rcf:
 		--board $(BOARD_NAME) \
 		--entry $(RAM_ENTRY) \
 		--verify \
-		$(METHOD_ARG) $(LOG_ARG)
+		$(METHOD_ARG) $(LOG_ARG) $(VERIFY_LOG_ARG) $(VERBOSE_VERIFY_ARG)
 
 run-rcf-verify: run-rcf
 

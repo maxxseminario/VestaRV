@@ -533,7 +533,10 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 						 logger=None,
 						 progressBar=None,
 						 progressBase=0,
-						 showProgressBar=False):
+						 showProgressBar=False,
+						 verifyLogPath=None,
+						 verboseVerify=False,
+						 verboseShowFirst=8):
 	"""Per-word readback + repair.
 
 	For each 32-bit word in `data`, read it back from the chip via `mr` and
@@ -570,6 +573,45 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			if a in expected:
 				_pokeOneWord(forth, a, expected[a], interLineSleep, logger=logger)
 
+	# Optional verify log file. We open in append mode so multiple runs
+	# accumulate, which is handy for diagnosing flaky chips.
+	verifyLog = None
+	if verifyLogPath:
+		try:
+			verifyLog = open(verifyLogPath, 'a')
+			verifyLog.write(
+				f'\n=== verify session start: '
+				f'{len(expected)} word(s) at 0x{startAddress:08x} ===\n')
+			verifyLog.flush()
+		except Exception as e:
+			print(f'WARNING: could not open verify log {verifyLogPath}: {e}')
+			verifyLog = None
+
+	# Sanity probe: try `mr` ONCE before the loop. If even this single
+	# read fails the chip almost certainly does not have a working `mr`
+	# definition, and there is no point spinning through dozens of
+	# guaranteed-to-fail verify passes.
+	probeAddr = sorted(expected.keys())[0]
+	probeVal = _readOneWordMr(forth, probeAddr)
+	if probeVal is None:
+		msg = (f'WARNING: sanity-probe `mr` at 0x{probeAddr:08x} returned '
+			   f'no data. The chip may not have a working `mr` word, or the '
+			   f'UART RX path is severely broken. Verify will almost certainly '
+			   f'fail on every word.')
+		print(msg)
+		if logger is not None:
+			logger.note(msg)
+		if verifyLog is not None:
+			verifyLog.write(msg + '\n')
+			verifyLog.flush()
+	else:
+		msg = (f'sanity-probe `mr` at 0x{probeAddr:08x} -> 0x{probeVal:08x} '
+			   f'(expected 0x{expected[probeAddr]:08x})')
+		print(msg)
+		if verifyLog is not None:
+			verifyLog.write(msg + '\n')
+			verifyLog.flush()
+
 	attempt = 0
 	prevMismatchCount = None
 	noProgressStreak = 0
@@ -580,6 +622,7 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 	while True:
 		mismatches = []
 		readbackFailures = []
+		lastReads = {}  # addr -> got (or None) for this pass
 		# Walk every word, read-back, compare. A transient `mr` failure
 		# (None) is treated as a mismatch -- it almost always means a UART
 		# byte was dropped on the readback path, NOT that the RAM contents
@@ -588,6 +631,7 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 		nWords = len(data) // 4
 		for i, addr in enumerate(sorted(expected.keys())):
 			got = _readOneWordMr(forth, addr)
+			lastReads[addr] = got
 			if got is None:
 				if logger is not None:
 					logger.note(f'verify: readback hiccup at 0x{addr:08x} '
@@ -602,10 +646,44 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			print(f'  {len(readbackFailures)} readback hiccup(s) on '
 				  f'attempt {attempt} (will retry)')
 
+		# Always dump every read of every pass to the verify log.
+		if verifyLog is not None:
+			verifyLog.write(f'--- pass {attempt}: {len(mismatches)} mismatch(es) '
+							f'of {nWords} word(s) ---\n')
+			for addr in sorted(expected.keys()):
+				g = lastReads[addr]
+				ex = expected[addr]
+				if g is None:
+					verifyLog.write(f'  0x{addr:08x}: expected 0x{ex:08x}, '
+									f'read None  (no response)\n')
+				elif g != ex:
+					verifyLog.write(f'  0x{addr:08x}: expected 0x{ex:08x}, '
+									f'read 0x{g:08x}  MISMATCH\n')
+				else:
+					verifyLog.write(f'  0x{addr:08x}: expected 0x{ex:08x}, '
+									f'read 0x{g:08x}  ok\n')
+			verifyLog.flush()
+
+		# Verbose-verify: print the first few mismatches inline each pass.
+		if verboseVerify and mismatches:
+			print(f'  first {min(verboseShowFirst, len(mismatches))} mismatch(es) '
+				  f'on attempt {attempt}:')
+			for a in mismatches[:verboseShowFirst]:
+				g = lastReads[a]
+				if g is None:
+					print(f'    0x{a:08x}: expected 0x{expected[a]:08x}, '
+						  f'read None')
+				else:
+					print(f'    0x{a:08x}: expected 0x{expected[a]:08x}, '
+						  f'read 0x{g:08x}')
+
 		if not mismatches:
 			if logger is not None:
 				logger.note(f'verify OK on attempt {attempt} '
 							f'({nWords} words checked)')
+			if verifyLog is not None:
+				verifyLog.write(f'verify OK on attempt {attempt}\n')
+				verifyLog.close()
 			return True
 
 		# Decide whether to keep going. We keep going as long as we are
@@ -630,6 +708,11 @@ def VerifyAndRepairBlock(forth, startAddress, data,
 			if logger is not None:
 				logger.note(f'verify FAILED: {len(mismatches)} mismatches '
 							f'remain after {attempt + 1} passes')
+			if verifyLog is not None:
+				verifyLog.write(
+					f'verify FAILED: {len(mismatches)} mismatch(es) remain '
+					f'after {attempt + 1} pass(es)\n')
+				verifyLog.close()
 			return False
 
 		# Repair pass: re-poke each mismatching word.
@@ -722,6 +805,14 @@ def main():
 			 'actually running fine, verify failures are usually just '
 			 'host-side UART hiccups on the readback path, not real RAM '
 			 'corruption.')
+	parser.add_argument('--verify-log', type=str, default=None, metavar='FILE',
+		help='Append every per-word verify result (expected/read/status) '
+			 'to FILE. Use "auto" to write to ./verify-<timestamp>.log. '
+			 'Useful when verify is failing the same way every pass and '
+			 'you want to see exactly what the chip is returning.')
+	parser.add_argument('--verbose-verify', action='store_true', default=False,
+		help='Print the first few mismatches from each verify pass to the '
+			 'console (in addition to the summary line).')
 	parser.add_argument('--log', type=str, default=None,
 		metavar='FILE',
 		help='Write a full UART transcript (every byte TX/RX, with '
@@ -904,6 +995,12 @@ def main():
 		bar.finish()
 
 	# ---- optional verify (per-word readback + repair) ---------------------
+	verifyLogPath = args.verify_log
+	if verifyLogPath == 'auto':
+		verifyLogPath = f'verify-{time.strftime("%Y%m%d-%H%M%S")}.log'
+	if verifyLogPath:
+		print(f'Per-word verify log -> {verifyLogPath}')
+
 	verifyFailed = False
 	if args.verify:
 		print('Verifying RAM contents (per-word readback + repair)...')
@@ -916,7 +1013,9 @@ def main():
 				interLineSleep=args.poke_delay,
 				knownErrors=knownErrors,
 				maxRepairPasses=args.repair_passes,
-				logger=logger)
+				logger=logger,
+				verifyLogPath=verifyLogPath,
+				verboseVerify=args.verbose_verify)
 			if ok is not True:
 				verifyFailed = True
 				print(f'WARNING: verification did not fully pass at '
