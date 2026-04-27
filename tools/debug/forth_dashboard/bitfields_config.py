@@ -870,6 +870,50 @@ BITFIELDS = {
             }
         },
     },
+
+    # AFE Status Register
+    # Based on AFE.vhd - 4 bits total (bits 0-3)
+    # Bit 3 is reserved (always reads 0).
+    # Bits 1 (ADC_DATA_RDY_IF) and 2 (ADC_OVF_IF) are sticky interrupt flags
+    # that get cleared by writing 1 to the corresponding bit in AFE_SR_CLR.
+    'AFE_SR': {
+        'RESERVED': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Reserved (always 0)',
+            'values': {
+                0: 'Reserved',
+                1: 'Reserved'
+            }
+        },
+        'ADC_OVF_IF': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'ADC overflow interrupt flag - AFE_ADC_VAL was overwritten before being read (write 1 to AFE_SR_CLR to clear)',
+            'values': {
+                0: 'No overflow',
+                1: 'Overflow occurred'
+            }
+        },
+        'ADC_DATA_RDY_IF': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'ADC data ready interrupt flag - new conversion result available in AFE_ADC_VAL (write 1 to AFE_SR_CLR to clear)',
+            'values': {
+                0: 'No new data',
+                1: 'New data available'
+            }
+        },
+        'ADC_ACTIVE': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'ADC active status (read-only) - high while a conversion is in progress',
+            'values': {
+                0: 'Idle',
+                1: 'Conversion in progress'
+            }
+        },
+    },
 }
 
 
