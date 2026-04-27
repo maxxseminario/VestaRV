@@ -254,7 +254,7 @@ PERIPHERALS = {
         'registers': {
             'CR': {'addr': 0x4C00, 'size': 4, 'type': 'CONTROL', 'description': 'AFE control register'},
             'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONTROL', 'description': 'AFE test port register'},
-            'SR': {'addr': 0x4C08, 'size': 1, 'type': 'STATUS', 'description': 'AFE status register'},
+            'SR': {'addr': 0x4C08, 'size': 1, 'type': 'CONTROL', 'description': 'AFE status register (read status, write 1 to clear flags)'},
             'BIAS_CR': {'addr': 0x4C10, 'size': 1, 'type': 'CONTROL', 'description': 'Bias control register'},
             'BIAS_ADJ': {'addr': 0x4C14, 'size': 1, 'type': 'BIAS', 'description': 'Bias adjustment register'},
             'BIAS_DBP': {'addr': 0x4C18, 'size': 2, 'bits': 14, 'type': 'BIAS', 'description': 'Bias DAC BP register'},
@@ -275,7 +275,7 @@ PERIPHERALS = {
         'registers': {
             'CR': {'addr': 0x4C00, 'size': 4, 'type': 'CONTROL', 'description': 'AFE control register'},
             'TPR': {'addr': 0x4C04, 'size': 4, 'type': 'CONTROL', 'description': 'AFE test port register'},
-            'SR': {'addr': 0x4C08, 'size': 1, 'type': 'STATUS', 'description': 'AFE status register'},
+            'SR': {'addr': 0x4C08, 'size': 1, 'type': 'CONTROL', 'description': 'AFE status register (read status, write 1 to clear flags)'},
             'ADC_VAL': {'addr': 0x4C0C, 'size': 2, 'type': 'DATA', 'description': 'DSADC result register'},
             'BIAS_TC_DSADC': {'addr': 0x4C3C, 'size': 1, 'type': 'BIAS', 'description': 'Bias TC DSADC register'},
             'BIAS_LC_DSADC': {'addr': 0x4C40, 'size': 1, 'type': 'BIAS', 'description': 'Bias LC DSADC register'},
