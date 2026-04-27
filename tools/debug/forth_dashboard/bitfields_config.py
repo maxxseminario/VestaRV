@@ -876,7 +876,10 @@ BITFIELDS = {
     # Bit 3 is reserved (always reads 0).
     # Bits 1 (ADC_DATA_RDY_IF) and 2 (ADC_OVF_IF) are sticky interrupt flags
     # that get cleared by writing 1 to the corresponding bit in AFE_SR_CLR.
-    'AFE_SR': {
+    # The same physical AFE peripheral is exposed in peripherals_config.py
+    # under two logical names (POTENTIOSTAT and DSADC), so we register the
+    # bitfields under both keys via assignment after the dict.
+    'POTENTIOSTAT_SR': {
         'RESERVED': {
             'bits': 3,
             'width': 1,
@@ -889,7 +892,7 @@ BITFIELDS = {
         'ADC_OVF_IF': {
             'bits': 2,
             'width': 1,
-            'desc': 'ADC overflow interrupt flag - AFE_ADC_VAL was overwritten before being read (write 1 to AFE_SR_CLR to clear)',
+            'desc': 'ADC overflow interrupt flag - AFE_ADC_VAL was overwritten before being read (write 1 to clear)',
             'values': {
                 0: 'No overflow',
                 1: 'Overflow occurred'
@@ -898,7 +901,7 @@ BITFIELDS = {
         'ADC_DATA_RDY_IF': {
             'bits': 1,
             'width': 1,
-            'desc': 'ADC data ready interrupt flag - new conversion result available in AFE_ADC_VAL (write 1 to AFE_SR_CLR to clear)',
+            'desc': 'ADC data ready interrupt flag - new conversion result available in AFE_ADC_VAL (write 1 to clear)',
             'values': {
                 0: 'No new data',
                 1: 'New data available'
@@ -915,6 +918,10 @@ BITFIELDS = {
         },
     },
 }
+
+# DSADC and POTENTIOSTAT are two logical views of the same AFE peripheral, so
+# they share the same status-register bitfield layout.
+BITFIELDS['DSADC_SR'] = BITFIELDS['POTENTIOSTAT_SR']
 
 
 def get_bitfields(peripheral, register):
