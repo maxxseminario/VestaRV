@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-Plot SARADC log files - ADC value vs sample number with INL/DNL analysis
+Plot ADC log files - ADC value vs sample number with INL/DNL analysis
+
+Works with logs from both fast_saradc_acquire.py (10-bit SARADC) and
+fast_dsadc_acquire.py (12-bit DSADC).  Use --bits 12 for DSADC data.
 
 Usage:
-    python3 plot_saradc_log.py <log_file> [--min-code MIN] [--max-code MAX]
+    python3 plot_saradc_log.py <log_file> [--bits BITS] [--min-code MIN] [--max-code MAX]
     python3 plot_saradc_log.py forth_dashboard/saradc_logs/saradc_data_20260415_213844.txt
     python3 plot_saradc_log.py my_data.txt --min-code 200 --max-code 800
+    python3 plot_saradc_log.py dsadc_data.txt --bits 12
 
-This script reads SARADC acquisition log files and plots the ADC values
+This script reads ADC acquisition log files and plots the ADC values
 over sample number (sequential order), showing the distribution, trends,
 and linearity metrics (INL/DNL).
 """
@@ -19,13 +23,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def read_saradc_log(log_file):
+def read_saradc_log(log_file, max_adc=1023):
     """
-    Read SARADC log file and extract ADC values
-    
+    Read ADC log file and extract ADC values.
+
     Args:
         log_file: Path to log file
-        
+        max_adc:  Maximum valid ADC code (default 1023 for 10-bit SARADC;
+                  use 4095 for 12-bit DSADC)
+
     Returns:
         tuple: (sample_numbers, adc_values, timestamps)
     """
@@ -52,8 +58,8 @@ def read_saradc_log(log_file):
                         timestamp = float(parts[0].strip())
                         value = int(parts[1].strip())
                         
-                        # Validate 10-bit ADC range
-                        if 0 <= value <= 1023:
+                        # Validate ADC range
+                        if 0 <= value <= max_adc:
                             sample_numbers.append(sample_count)
                             adc_values.append(value)
                             timestamps.append(timestamp)
@@ -66,7 +72,12 @@ def read_saradc_log(log_file):
     return sample_numbers, adc_values, timestamps
 
 
-def calculate_dnl_inl(adc_values, num_codes=1024, min_code=0, max_code=1023):
+def calculate_dnl_inl(adc_values, num_codes=None, min_code=0, max_code=None):
+    # Default num_codes/max_code derived from data if not supplied
+    if max_code is None:
+        max_code = max(adc_values) if adc_values else 1023
+    if num_codes is None:
+        num_codes = max_code + 1
     """
     Calculate DNL and INL from ADC histogram
     
@@ -88,6 +99,7 @@ def calculate_dnl_inl(adc_values, num_codes=1024, min_code=0, max_code=1023):
     
     # Build histogram
     histogram, _ = np.histogram(adc_values, bins=range(num_codes + 1))
+
     
     # Calculate ideal count per code (uniform distribution)
     # Only count samples in the specified range
@@ -156,7 +168,8 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     
     # Create figure with 2x2 grid
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
-    fig.suptitle(f'SARADC Analysis: {os.path.basename(log_file)}', fontsize=14, fontweight='bold')
+    adc_bits = int(np.ceil(np.log2(max(adc_values) + 1))) if adc_values else 10
+    fig.suptitle(f'ADC Analysis ({adc_bits}-bit): {os.path.basename(log_file)}', fontsize=14, fontweight='bold')
     
     # Plot 1: ADC value vs sample number (time series) - Top Left
     ax1.plot(sample_numbers, adc_values, linewidth=0.8, color='#3498db', alpha=0.7)
@@ -175,13 +188,13 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     
     # Plot 2: Histogram - Top Right
     # Note: Use bar() instead of hist() for proper control over y-axis
-    hist_counts, hist_bins = np.histogram(adc_values, bins=range(1025))
+    num_codes_plot = len(histogram)
     ax2.bar(codes, histogram, width=1.0, color='#3498db', alpha=0.7, edgecolor='#2980b9', linewidth=0.3)
     ax2.set_xlabel('ADC Code')
     ax2.set_ylabel('Count')
     ax2.set_title('Histogram')
     ax2.grid(True, alpha=0.3, axis='y')
-    ax2.set_xlim(0, 1023)
+    ax2.set_xlim(0, num_codes_plot - 1)
     # Force y-axis to fit data with 10% headroom
     max_count = np.max(histogram)
     if max_count > 0:
@@ -253,34 +266,40 @@ Examples:
         """
     )
     
-    parser.add_argument('log_file', help='Path to SARADC log file')
-    parser.add_argument('--min-code', type=int, default=0, 
+    parser.add_argument('log_file', help='Path to ADC log file')
+    parser.add_argument('--bits', type=int, default=10,
+                        help='ADC resolution in bits (default: 10 for SARADC; use 12 for DSADC)')
+    parser.add_argument('--min-code', type=int, default=0,
                         help='Minimum ADC code for DNL/INL analysis (default: 0)')
-    parser.add_argument('--max-code', type=int, default=1023,
-                        help='Maximum ADC code for DNL/INL analysis (default: 1023)')
-    
+    parser.add_argument('--max-code', type=int, default=None,
+                        help='Maximum ADC code for DNL/INL analysis (default: 2^bits - 1)')
+
     args = parser.parse_args()
-    
+
+    max_adc = (1 << args.bits) - 1  # e.g. 1023 for 10-bit, 4095 for 12-bit
+    if args.max_code is None:
+        args.max_code = max_adc
+
     # Validate range
-    if args.min_code < 0 or args.min_code > 1023:
-        print(f"Error: --min-code must be between 0 and 1023")
+    if args.min_code < 0 or args.min_code > max_adc:
+        print(f"Error: --min-code must be between 0 and {max_adc}")
         sys.exit(1)
-    if args.max_code < 0 or args.max_code > 1023:
-        print(f"Error: --max-code must be between 0 and 1023")
+    if args.max_code < 0 or args.max_code > max_adc:
+        print(f"Error: --max-code must be between 0 and {max_adc}")
         sys.exit(1)
     if args.min_code >= args.max_code:
         print(f"Error: --min-code must be less than --max-code")
         sys.exit(1)
-    
+
     # Read log file
-    sample_numbers, adc_values, timestamps = read_saradc_log(args.log_file)
-    
+    sample_numbers, adc_values, timestamps = read_saradc_log(args.log_file, max_adc=max_adc)
+
     if adc_values is None or len(adc_values) == 0:
         print("Error: No valid data found in log file")
         sys.exit(1)
-    
+
     # Plot data
-    plot_saradc_data(sample_numbers, adc_values, timestamps, args.log_file, 
+    plot_saradc_data(sample_numbers, adc_values, timestamps, args.log_file,
                      min_code=args.min_code, max_code=args.max_code)
 
 
