@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>540</width>
+    <height>385</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>540</width>
+    <height>385</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>540</width>
+    <height>385</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>PyEmanate</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QGroupBox" name="groupBoxConnection">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>10</y>
+      <width>521</width>
+      <height>241</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Chip and Board Configuration</string>
+    </property>
+    <widget class="QListWidget" name="listWidgetChipName">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>40</y>
+       <width>141</width>
+       <height>131</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>20</y>
+       <width>71</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Chip Name</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_2">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>180</y>
+       <width>41</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>The hexadecimal chip ID string, case insensitive. You may add the chip prefix if you desire, but it must be correct for the selected chip name.</string>
+     </property>
+     <property name="text">
+      <string>Die ID:</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="lineEditDieID">
+     <property name="geometry">
+      <rect>
+       <x>170</x>
+       <y>180</y>
+       <width>91</width>
+       <height>22</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>The hexadecimal chip ID string, case insensitive. You may add the chip prefix if you desire, but it must be correct for the selected chip name.</string>
+     </property>
+    </widget>
+    <widget class="QListWidget" name="listWidgetBoardName">
+     <property name="geometry">
+      <rect>
+       <x>270</x>
+       <y>40</y>
+       <width>241</width>
+       <height>131</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_3">
+     <property name="geometry">
+      <rect>
+       <x>270</x>
+       <y>20</y>
+       <width>81</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Board Name</string>
+     </property>
+    </widget>
+    <widget class="QListWidget" name="listWidgetSerialPorts">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>40</y>
+       <width>101</width>
+       <height>131</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_4">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>20</y>
+       <width>71</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Serial Port</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButtonRefreshSerialPortsList">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>180</y>
+       <width>101</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Refresh the list of available serial ports&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="text">
+      <string>Refresh</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButtonConnect">
+     <property name="geometry">
+      <rect>
+       <x>410</x>
+       <y>180</y>
+       <width>101</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>Connect to the selected chip</string>
+     </property>
+     <property name="text">
+      <string>Connect</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="labelConnection">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>220</y>
+       <width>491</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Status: Not Connected</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBoxFeatures">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>260</y>
+      <width>521</width>
+      <height>101</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Features</string>
+    </property>
+    <widget class="QPushButton" name="pushButtonSerialTerminal">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>20</y>
+       <width>161</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>Launches an interactive serial terminal for direct textual communication with the chip</string>
+     </property>
+     <property name="text">
+      <string>Serial Terminal</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButtonRegisterInterface">
+     <property name="geometry">
+      <rect>
+       <x>180</x>
+       <y>20</y>
+       <width>161</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>Launches an interface to modify the values and bits within the chip's registers</string>
+     </property>
+     <property name="text">
+      <string>Register Interface</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButtonHistogramInterface">
+     <property name="geometry">
+      <rect>
+       <x>350</x>
+       <y>20</y>
+       <width>161</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>Launches an interface to modify the values and bits within the chip's registers</string>
+     </property>
+     <property name="text">
+      <string>Histogram Interface</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButtonFatfsBrowser">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>60</y>
+       <width>161</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>Launches an interface to modify the values and bits within the chip's registers</string>
+     </property>
+     <property name="text">
+      <string>FATFS Browser</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButtonPsdInterface">
+     <property name="geometry">
+      <rect>
+       <x>180</x>
+       <y>60</y>
+       <width>161</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>Launches an interface to modify the values and bits within the chip's registers</string>
+     </property>
+     <property name="text">
+      <string>PSD Interface</string>
+     </property>
+    </widget>
+   </widget>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

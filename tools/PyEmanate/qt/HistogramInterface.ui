@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Histogram Interface</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="1" column="0">
+     <widget class="QLabel" name="labelStatus">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>200</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="text">
+       <string>Status</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>26</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuHistogram">
+    <property name="title">
+     <string>&amp;Histogram</string>
+    </property>
+    <addaction name="actionRefresh"/>
+    <addaction name="actionClear"/>
+    <addaction name="actionAuto_Clear"/>
+    <addaction name="actionAuto_NPU"/>
+    <addaction name="separator"/>
+    <addaction name="actionAuto_Refresh_Setup"/>
+    <addaction name="actionAuto_Refresh_Toggle"/>
+    <addaction name="separator"/>
+    <addaction name="actionSet_Parameters"/>
+    <addaction name="actionSet_DPS_A_Value"/>
+    <addaction name="separator"/>
+    <addaction name="actionNotes"/>
+   </widget>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>&amp;File</string>
+    </property>
+    <addaction name="actionSave_Histogram"/>
+    <addaction name="actionQuick_Save_Histogram"/>
+    <addaction name="action_Include_Registers"/>
+    <addaction name="separator"/>
+    <addaction name="actionAuto_Save"/>
+    <addaction name="actionAuto_Collate_Histograms"/>
+    <addaction name="separator"/>
+    <addaction name="actionSave_Histogram_PNG"/>
+    <addaction name="actionSave_Histogram_PGF"/>
+    <addaction name="actionSave_Histogram_Images"/>
+    <addaction name="separator"/>
+    <addaction name="actionOpen_Histogram_Folder"/>
+   </widget>
+   <widget class="QMenu" name="menu_View">
+    <property name="title">
+     <string>&amp;View</string>
+    </property>
+    <widget class="QMenu" name="menu_Plot_Type">
+     <property name="title">
+      <string>&amp;Plot Type</string>
+     </property>
+     <addaction name="actionLine"/>
+     <addaction name="actionHistogram"/>
+     <addaction name="action_Filled_Line"/>
+    </widget>
+    <widget class="QMenu" name="menu_Channel">
+     <property name="title">
+      <string>&amp;Channel</string>
+     </property>
+    </widget>
+    <addaction name="menu_Channel"/>
+    <addaction name="actionLogarithmic_Scale"/>
+    <addaction name="menu_Plot_Type"/>
+    <addaction name="separator"/>
+    <addaction name="action_Calibrate"/>
+    <addaction name="actionDisplay_Calibration"/>
+    <addaction name="separator"/>
+    <addaction name="actionShow_First_Bin"/>
+    <addaction name="actionShow_Last_Bin"/>
+    <addaction name="actionSmooth"/>
+    <addaction name="separator"/>
+    <addaction name="actionLoad_DNL_Correction"/>
+    <addaction name="actionCorrect_for_DNL"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuHistogram"/>
+   <addaction name="menu_View"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionSave_Histogram">
+   <property name="text">
+    <string>&amp;Save Histogram</string>
+   </property>
+  </action>
+  <action name="actionQuick_Save_Histogram">
+   <property name="text">
+    <string>&amp;Quick Save Histogram</string>
+   </property>
+   <property name="iconText">
+    <string>Quick Save Histogram</string>
+   </property>
+   <property name="toolTip">
+    <string>Quick Save Histogram</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionSave_Calibrated_Histogram">
+   <property name="text">
+    <string>Save &amp;Calibrated Histogram</string>
+   </property>
+  </action>
+  <action name="actionSave_Histogram_PNG">
+   <property name="text">
+    <string>Save Histogram PNG</string>
+   </property>
+  </action>
+  <action name="actionSave_Histogram_EPS">
+   <property name="text">
+    <string>Save Histogram EPS</string>
+   </property>
+  </action>
+  <action name="actionSave_Histogram_PDF">
+   <property name="text">
+    <string>Save Histogram PDF</string>
+   </property>
+  </action>
+  <action name="actionAuto_Save">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Auto Save Histograms</string>
+   </property>
+  </action>
+  <action name="actionSave_Histogram_Images">
+   <property name="text">
+    <string>Save Histogram &amp;Images</string>
+   </property>
+  </action>
+  <action name="actionRefresh">
+   <property name="text">
+    <string>&amp;Refresh</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
+   </property>
+  </action>
+  <action name="actionAuto_Clear">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto Clear</string>
+   </property>
+  </action>
+  <action name="actionClear">
+   <property name="text">
+    <string>&amp;Clear</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+N</string>
+   </property>
+  </action>
+  <action name="actionLogarithmic_Scale">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Logarithmic Scale</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+L</string>
+   </property>
+  </action>
+  <action name="action_Auto_Scale_Y_Axis">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Auto Scale Y-Axis</string>
+   </property>
+  </action>
+  <action name="actionHistogram">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Histogram</string>
+   </property>
+  </action>
+  <action name="actionLine">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Line</string>
+   </property>
+  </action>
+  <action name="action_Filled_Line">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Filled Line</string>
+   </property>
+  </action>
+  <action name="action_Calibrate">
+   <property name="text">
+    <string>&amp;Calibrate</string>
+   </property>
+  </action>
+  <action name="actionDisplay_Calibration">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Display Calibration</string>
+   </property>
+  </action>
+  <action name="action5_seconds">
+   <property name="text">
+    <string>5 seconds</string>
+   </property>
+  </action>
+  <action name="action15_seconds">
+   <property name="text">
+    <string>15 seconds</string>
+   </property>
+  </action>
+  <action name="action30_seconds">
+   <property name="text">
+    <string>30 seconds</string>
+   </property>
+  </action>
+  <action name="action1_minute">
+   <property name="text">
+    <string>1 minute</string>
+   </property>
+  </action>
+  <action name="action2_minutes">
+   <property name="text">
+    <string>2 minutes</string>
+   </property>
+  </action>
+  <action name="action5_minutes">
+   <property name="text">
+    <string>5 minutes</string>
+   </property>
+  </action>
+  <action name="action10_minutes">
+   <property name="text">
+    <string>10 minutes</string>
+   </property>
+  </action>
+  <action name="action15_minutes">
+   <property name="text">
+    <string>15 minutes</string>
+   </property>
+  </action>
+  <action name="action30_minutes">
+   <property name="text">
+    <string>30 minutes</string>
+   </property>
+  </action>
+  <action name="action1_hour">
+   <property name="text">
+    <string>1 hour</string>
+   </property>
+  </action>
+  <action name="actionDisabled">
+   <property name="text">
+    <string>Disabled</string>
+   </property>
+  </action>
+  <action name="action_Stop_Refreshing">
+   <property name="text">
+    <string>&amp;Stop Auto Refresh</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+B</string>
+   </property>
+  </action>
+  <action name="actionAuto_Refresh_Toggle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Auto Refresh</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
+  <action name="actionSave_Histogram_PGF">
+   <property name="text">
+    <string>Save Histogram PGF</string>
+   </property>
+  </action>
+  <action name="actionAuto_Refresh_Iterations">
+   <property name="text">
+    <string>Auto Refresh Iterations</string>
+   </property>
+  </action>
+  <action name="actionAuto_Refresh_Setup">
+   <property name="text">
+    <string>Auto Refresh Setup</string>
+   </property>
+  </action>
+  <action name="actionSet_Isotope_Abundances">
+   <property name="text">
+    <string>Set &amp;Isotope Abundances</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+I</string>
+   </property>
+  </action>
+  <action name="actionAuto_Collate_Histograms">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto &amp;Collate Histograms</string>
+   </property>
+  </action>
+  <action name="actionShow_First_Bin">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show &amp;First Bin</string>
+   </property>
+  </action>
+  <action name="actionShow_Last_Bin">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show &amp;Last Bin</string>
+   </property>
+  </action>
+  <action name="actionSmooth">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Smooth</string>
+   </property>
+  </action>
+  <action name="actionSet_Parameters">
+   <property name="text">
+    <string>Set &amp;Parameters</string>
+   </property>
+  </action>
+  <action name="action_Include_Registers">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Include Registers</string>
+   </property>
+  </action>
+  <action name="actionLoad_DNL_Correction">
+   <property name="text">
+    <string>Load DNL Correction</string>
+   </property>
+  </action>
+  <action name="actionCorrect_for_DNL">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Correct for DNL</string>
+   </property>
+  </action>
+  <action name="actionAuto_NPU">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto NPU</string>
+   </property>
+  </action>
+  <action name="actionSet_DPS_A_Value">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Set DPS &quot;A&quot; Value</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+H</string>
+   </property>
+  </action>
+  <action name="actionNotes">
+   <property name="text">
+    <string>&amp;Notes</string>
+   </property>
+  </action>
+  <action name="actionOpen_Histogram_Folder">
+   <property name="text">
+    <string>Open Histogram Folder</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
