@@ -1,0 +1,70 @@
+{
+	"Type": "PreviousHistogramSetupParameters",
+	"ScintillatorList": [
+		"LaBr",
+		"NaI",
+		"CsI",
+		"CeBr",
+		"SiPM",
+		"CLYC"
+	],
+	"PmtModelNumberList": [
+		"38 S 38 /2",
+		"2M2/2",
+		"905-3",
+		"38B38/2M-CeBr-LB-X",
+		"R11265U",
+		"PMT 6231-100"
+	],
+	"PmtSerialNumberList": [
+		"A 7632",
+		"60014-04542-I",
+		"S2AB8625",
+		"002",
+		"CLYC-588-1",
+		"CLYC-609-1"
+	],
+	"PowerSupplyModelNumberList": [
+		"Benchtop",
+		"Small DPS board (low counts)",
+		"Dan's High Counts DPS",
+		"Benchtop with E1198-27",
+		"DPS"
+	],
+	"PowerSupplySerialNumberList": [
+		"Lots of tinker wire",
+		"White Round DPS"
+	],
+	"PmtTaperList": [
+		"2-2-2-1-1-1-1-1-1-2",
+		"2-2-1-1-1-1-2-2",
+		"1-1-1-1-1-1-1-1-1-1",
+		"2-2-1-1-1-1-1-1-1-1-1",
+		"2-1-1-1-1-1-1-1-1-1"
+	]
+}
+
+{
+	"Type": "PreviousHistogramSetupParameters",
+	"Scintillators": {
+		"LaBr": {
+			"PmtModelNumbers": {
+				"38 S 38 /2": {
+					"PmtSerialNumbers": [
+						"A 7632"
+					],
+					"Tapers": [
+
+					]
+				}
+			}
+		}
+	},
+	"PowerSupplyModelNumbers": {
+		"Benchtop": {
+			"PowerSupplySerialNumbers": [
+				"Benchtop"
+			]
+		}
+	}
+}

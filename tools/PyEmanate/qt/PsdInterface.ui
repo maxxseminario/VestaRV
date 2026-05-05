@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>PSD Interface</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="1" column="0">
+     <widget class="QLabel" name="labelStatus">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>200</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="text">
+       <string>Status</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>26</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>&amp;File</string>
+    </property>
+    <addaction name="action_Save_PSD_Data"/>
+    <addaction name="action_Quick_Save_PSD_Data"/>
+    <addaction name="action_Include_Registers"/>
+    <addaction name="separator"/>
+    <addaction name="action_Auto_Save_PSD_Data"/>
+    <addaction name="separator"/>
+    <addaction name="action_Save_PSD_Plot_PNG"/>
+    <addaction name="action_Save_PSD_Plot_PGF"/>
+    <addaction name="action_Save_PSD_Plot_Images"/>
+    <addaction name="separator"/>
+    <addaction name="actionOpen_PsdData_Folder"/>
+   </widget>
+   <widget class="QMenu" name="menu_View">
+    <property name="title">
+     <string>&amp;View</string>
+    </property>
+    <widget class="QMenu" name="menu_Channel">
+     <property name="title">
+      <string>&amp;Channel</string>
+     </property>
+    </widget>
+    <addaction name="menu_Channel"/>
+    <addaction name="action_Logarithmic_Scale"/>
+    <addaction name="action_Smooth"/>
+    <addaction name="actionGrid"/>
+   </widget>
+   <widget class="QMenu" name="menuPSD">
+    <property name="title">
+     <string>PSD</string>
+    </property>
+    <addaction name="actionRefresh"/>
+    <addaction name="action_Clear"/>
+    <addaction name="actionAuto_Clear"/>
+    <addaction name="separator"/>
+    <addaction name="actionAuto_Refresh_Setup"/>
+    <addaction name="actionAuto_Refresh_Toggle"/>
+    <addaction name="separator"/>
+    <addaction name="actionSet_Parameters"/>
+    <addaction name="actionSet_DPS_A_Value"/>
+    <addaction name="separator"/>
+    <addaction name="actionNotes"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuPSD"/>
+   <addaction name="menu_View"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionAuto_Refresh_Setup">
+   <property name="text">
+    <string>Auto Refresh Setup</string>
+   </property>
+  </action>
+  <action name="actionSet_Parameters">
+   <property name="text">
+    <string>Set &amp;Parameters</string>
+   </property>
+  </action>
+  <action name="actionNotes">
+   <property name="text">
+    <string>&amp;Notes</string>
+   </property>
+  </action>
+  <action name="actionRefresh">
+   <property name="text">
+    <string>&amp;Refresh</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+R</string>
+   </property>
+  </action>
+  <action name="action_Clear">
+   <property name="text">
+    <string>&amp;Clear</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+N</string>
+   </property>
+  </action>
+  <action name="actionAuto_Clear">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto Clear</string>
+   </property>
+  </action>
+  <action name="actionAuto_Refresh_Toggle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto Refresh</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
+  <action name="actionSet_DPS_A_Value">
+   <property name="text">
+    <string>Set DPS &quot;A&quot; Value</string>
+   </property>
+  </action>
+  <action name="action_Save_PSD_Data">
+   <property name="text">
+    <string>&amp;Save PSD Data</string>
+   </property>
+  </action>
+  <action name="action_Quick_Save_PSD_Data">
+   <property name="text">
+    <string>&amp;Quick Save PSD Data</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="action_Include_Registers">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Include Registers</string>
+   </property>
+  </action>
+  <action name="action_Auto_Save_PSD_Data">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Auto Save PSD Data</string>
+   </property>
+  </action>
+  <action name="action_Save_PSD_Plot_PNG">
+   <property name="text">
+    <string>Save PSD Plot PNG</string>
+   </property>
+  </action>
+  <action name="action_Save_PSD_Plot_PGF">
+   <property name="text">
+    <string>Save PSD Plot PGF</string>
+   </property>
+  </action>
+  <action name="action_Save_PSD_Plot_Images">
+   <property name="text">
+    <string>Save PSD Plot Images</string>
+   </property>
+  </action>
+  <action name="action_Smooth">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Smooth</string>
+   </property>
+  </action>
+  <action name="actionOpen_PsdData_Folder">
+   <property name="text">
+    <string>Open PsdData Folder</string>
+   </property>
+  </action>
+  <action name="actionGrid">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Grid</string>
+   </property>
+  </action>
+  <action name="action_Logarithmic_Scale">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Logarithmic Scale</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

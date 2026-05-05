@@ -1,0 +1,3 @@
+#!/bin/bash
+cd python && python3 PyEmanate.py &
+

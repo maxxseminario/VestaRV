@@ -126,7 +126,7 @@ def calculate_dnl_inl(adc_values, num_codes=None, min_code=0, max_code=None):
     return codes, dnl, inl, histogram, min_code, max_code
 
 
-def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=0, max_code=1023):
+def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=0, max_code=1023, hist_ymax=None):
     """
     Plot ADC values vs sample number with INL/DNL analysis
     
@@ -137,6 +137,7 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
         log_file: Path to log file (for title)
         min_code: Minimum code for INL/DNL analysis
         max_code: Maximum code for INL/DNL analysis
+        hist_ymax: Optional y-axis maximum for histogram (None = auto)
     """
     if not adc_values:
         print("No data to plot")
@@ -195,11 +196,13 @@ def plot_saradc_data(sample_numbers, adc_values, timestamps, log_file, min_code=
     ax2.set_title('Histogram')
     ax2.grid(True, alpha=0.3, axis='y')
     ax2.set_xlim(0, num_codes_plot - 1)
-    # Force y-axis to fit data with 10% headroom
+    # Force y-axis limit — use hist_ymax if provided, otherwise auto with 10% headroom
     max_count = np.max(histogram)
-    if max_count > 0:
+    if hist_ymax is not None:
+        ax2.set_ylim([0, hist_ymax])
+    elif max_count > 0:
         ax2.set_ylim([0, max_count * 1.1])
-        ax2.autoscale(enable=False, axis='y')  # Disable autoscaling after setting limit
+    ax2.autoscale(enable=False, axis='y')
     
     # Plot 3: DNL - Bottom Left
     ax3.plot(codes[actual_min:actual_max+1], dnl[actual_min:actual_max+1], linewidth=0.8, color='#e74c3c', alpha=0.8)
@@ -273,6 +276,8 @@ Examples:
                         help='Minimum ADC code for DNL/INL analysis (default: 0)')
     parser.add_argument('--max-code', type=int, default=None,
                         help='Maximum ADC code for DNL/INL analysis (default: 2^bits - 1)')
+    parser.add_argument('--hist-ymax', type=int, default=None,
+                        help='Cap the histogram y-axis at this count (useful to zoom in on low bins)')
 
     args = parser.parse_args()
 
@@ -300,7 +305,8 @@ Examples:
 
     # Plot data
     plot_saradc_data(sample_numbers, adc_values, timestamps, args.log_file,
-                     min_code=args.min_code, max_code=args.max_code)
+                     min_code=args.min_code, max_code=args.max_code,
+                     hist_ymax=args.hist_ymax)
 
 
 if __name__ == '__main__':
