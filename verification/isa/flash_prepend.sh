@@ -37,7 +37,7 @@ line3="00000000000000001000001000000000"  # End address for vectors (0x00008200)
 line4="11001010111111101011101010111110"  # Execute (0xcafebabe)
 
 # Start address where actual program code begins in memory
-program_start_address=0x8200
+program_start_address=0x8000
 # Convert to decimal
 program_start_dec=$((program_start_address))
 
