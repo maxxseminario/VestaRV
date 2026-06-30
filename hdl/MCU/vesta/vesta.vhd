@@ -197,6 +197,7 @@ architecture struct of vesta is
     -- ==========================================
     signal pc, pc_next           : std_logic_vector(31 downto 0);
     signal pc_plus_2, pc_plus_4  : std_logic_vector(31 downto 0);
+    signal pc_link               : std_logic_vector(31 downto 0);  -- JAL/JALR return addr: pc+2 for compressed, else pc+4
     signal pc_target              : std_logic_vector(31 downto 0);
     signal pc_next_trad           : std_logic_vector(31 downto 0);  -- Traditional PC next value
     signal pc_next_reg            : std_logic_vector(31 downto 0);  -- Registered PC next
@@ -461,6 +462,15 @@ architecture struct of vesta is
     -- ==========================================
     pc_plus_2 <= std_logic_vector(unsigned(pc) + 2);
     pc_plus_4 <= std_logic_vector(unsigned(pc) + 4);
+
+    -- JAL/JALR return address must be the sequential next-PC = pc + (size of the
+    -- jump instruction). The datapath link path was hardwired to pc_plus_4, which
+    -- is correct for 32-bit jumps but wrong for compressed c.jal/c.jalr (2 bytes).
+    -- Mirror the compressed-instruction conditions used by pc_next_trad below so
+    -- compressed jumps link pc+2; all other cases keep pc+4 (unchanged behavior).
+    pc_link <= pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and repeat_if = '0') else
+               pc_plus_2 when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11") else
+               pc_plus_4;
 
     -- ==========================================
     -- Instruction Type Detection
@@ -1091,7 +1101,7 @@ architecture struct of vesta is
             clk         => clk_cpu,
             resetn      => resetn,
             pc          => pc,
-            pc_plus_4   => pc_plus_4,
+            pc_plus_4   => pc_link,
             result_src  => result_src,
             pc_src      => pc_src,
             ALU_src     => ALU_src,

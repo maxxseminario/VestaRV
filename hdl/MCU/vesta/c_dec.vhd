@@ -208,7 +208,7 @@ begin
                                     imm(6) := instr16(5);
                                     imm(5) := instr16(2);
                                     imm(4) := instr16(6);
-                                    -- imm[3:0] = 0000 (implicit)
+                                    imm(3 downto 0) := "0000";  -- implicit low zeros (must clear: sign-extend init above set them to imm_sign)
                                     
                                     if unsigned(imm(9 downto 4)) = 0 then
                                         dec := (others => '0');  -- Reserved
