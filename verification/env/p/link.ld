@@ -10,9 +10,16 @@ SECTIONS
     . = ALIGN(4);
   }
 
-  /* Text init section starts at 0x8150 */
+  /* Text init section starts at 0x8200, where the boot ROM / IVT jumps to
+   * _start. SUBALIGN(4) pins the section (and _start) at 0x8200 even when a
+   * test forces a large section alignment: rv32uc's rvc.S has an internal
+   * `.align 12` (its cross-page fetch test) that otherwise propagates 4 KB
+   * alignment to .text.init, bumping the whole section — and _start — to the
+   * next 4 KB boundary (0x9000) and breaking the hardcoded jump to _start at
+   * 0x8200. The internal `.align 12` is still honored by the linker's
+   * R_RISCV_ALIGN handling, so the cross-page test data stays 4 KB-aligned. */
   . = 0x00008200;
-  .text.init : { *(.text.init) }
+  .text.init 0x00008200 : SUBALIGN(4) { *(.text.init) }
 
   /* Remove the ALIGN(0x1000) that was causing the issue */
   .tohost : { *(.tohost) }
