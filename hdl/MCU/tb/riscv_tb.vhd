@@ -13,6 +13,9 @@ use work.tb_defs.all;
 
 
 entity riscv_tb is
+    generic (
+        TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf"
+    );
 end riscv_tb;
 
 architecture behavioral of riscv_tb is
@@ -105,7 +108,11 @@ end component;
     constant clk_lfxt_delay : time := (0.5 sec) / 32768;	-- 32.768 kHz
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
-    constant SIMULATION_TIMEOUT : time := 10000000 us;
+    -- Watchdog: a test that never writes CAFEBABE/DEADBEEF to a0 (e.g. traps on an
+    -- unimplemented instruction and spins) is failed when this fires. Longest known
+    -- legit passing test is ~13.7 ms sim-time, so 100 ms gives ~7x headroom while
+    -- failing tests give up ~100x sooner than the old 10 s value.
+    constant SIMULATION_TIMEOUT : time := 100000 us;
     
     -- Test control addresses
     constant FAIL_LABEL : std_logic_vector(31 downto 0) := x"DEADBEEF"; -- fail label
@@ -158,8 +165,7 @@ end component;
     --RAM Memory Load Signals 
     signal load_ram : boolean := false;
     signal load_ram_sig : std_logic;
-    signal ram_file_name : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
-    signal current_test : integer := 0;
+    signal ram_file_name : string(1 to 29) := TEST_FILE;
 
     -- SPI Flash Signals 
     signal load_data    : std_logic := '1';
@@ -637,74 +643,40 @@ end component;
 
     -- Main test sequence
     test_sequence: process
-        variable current_file : string(1 to 29);
         variable file_exists : boolean;
     begin
-        -- Reset MCU at begining of test 
         resetn <= '0';
-        -- wait for 1.25* CLK_PERIOD;
         wait for 1 * CLK_PERIOD;
         resetn <= '1';
 
-        for i in test_files'range loop
+        check_file_exists(TEST_FILE, file_exists);
+        if not file_exists then
+            report "FATAL ERROR: Test file not found: " & TEST_FILE
+                severity failure;
+        end if;
 
-            current_file := (others => nul); 
-            for j in test_files(i)'range loop
-                if j <= current_file'length then
-                    current_file(j) := test_files(i)(j);
-                end if;
-            end loop;
+        wait for 5*CLK_PERIOD;
+        ram_file_name <= TEST_FILE;
+        wait for CLK_PERIOD;
+        resetn <= '0';
+        report " New Test Loading Via SPI Flash ..." severity note;
+        wait for 2.5*CLK_PERIOD;
+        resetn <= '1';
+        wait for CLK_PERIOD;
 
-            -- Verify file exists
-            check_file_exists(current_file, file_exists);
+        report "Starting test: " & TEST_FILE severity note;
 
-            if not file_exists then
-                report "FATAL ERROR: Test file not found: " & current_file 
-                    & LF & "Please verify the file path and ensure the file exists."
-                    severity failure;
-            end if;
+        wait until (a0_reached_fail or a0_reached_pass or simulation_timeout_flag);
 
-            --Delay for visual clarity of setting up filename before rising edge of reset
-            wait for 5*CLK_PERIOD;
+        if a0_reached_pass then
+            report "TEST PASSED - " & TEST_FILE severity note;
+            report get_pass_logo severity failure;
+        elsif a0_reached_fail then
+            report "TEST FAILED - " & TEST_FILE severity failure;
+        else
+            report "TEST TIMED OUT - " & TEST_FILE severity failure;
+        end if;
 
-            ram_file_name <= current_file;
-            wait for CLK_PERIOD;
-            resetn <= '0';
-            report " New Test Loading Via SPI Flash ..."  severity note;
-            wait for 2.5*CLK_PERIOD;
-            resetn <= '1';
-            wait for CLK_PERIOD;
-
-
-            report "Starting test " & integer'image(i) & " with file: " & 
-                current_file severity note;
-            
-            -- Phase 2: Wait for test completion
-            wait until (a0_reached_fail or a0_reached_pass or simulation_timeout_flag);
-            
-            -- Phase 3: Evaluate results
-            if a0_reached_pass then
-                report "************************ TEST PASSED - " & 
-                    current_file severity note;
-                
-            elsif a0_reached_fail then
-                report "TEST FAILED - " &
-                    current_file severity failure;
-            else
-                report "TEST TIMED OUT - " &
-                    current_file severity failure;
-            end if;
-            
-        -- Delay before next test
-            wait for 10*CLK_PERIOD; --NOTE: May need to reset here
-
-        end loop;
-
-        
-        --All tests have complelted
-        report get_pass_logo severity failure;
-        -- Phase 4: Stop simulation
-        stop_clock <= true;
         wait;
     end process;
 

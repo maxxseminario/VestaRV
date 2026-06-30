@@ -12,16 +12,16 @@ library work;
 use work.fixed_float_types.all;
 use work.fixed_pkg.all;
 
--- Testbench for NPU.vhd with separate SRAM instantiation. NPU is tested for y=2x^2 + 1 for x = [-1,1] with 1 hidden layer with 5 neurons. 
--- Testbench resets NPU, loads SRAM with inputs and weights (both should be integers) from the "npu_fp_inputs.txt" 
--- and "npu_fp_weights.txt" files, respectively (these should be in simulation directory). These can be generated using 
--- FPMLPNN_test.m. Next, NPU's memory mapped registers will be configured for first layer. NPU is then run for all test 
--- points. Memory mapped registers are then reconfigured for second layer. NPU is then run again for all test points. 
+-- Testbench for NPU.vhd with separate SRAM instantiation. NPU is tested for y=2x^2 + 1 for x = [-1,1] with 1 hidden layer with 5 neurons.
+-- Testbench resets NPU, loads SRAM with inputs and weights (both should be integers) from the "npu_fp_inputs.txt"
+-- and "npu_fp_weights.txt" files, respectively (these should be in simulation directory). These can be generated using
+-- FPMLPNN_test.m. Next, NPU's memory mapped registers will be configured for first layer. NPU is then run for all test
+-- points. Memory mapped registers are then reconfigured for second layer. NPU is then run again for all test points.
 -- Lastly, final outputs are read from SRAM and written to "npu_actual_fp_outputs.txt".
-entity NPU_tb is 
+entity NPU_tb is
 end NPU_tb;
 
-architecture testbench of NPU_tb is 
+architecture testbench of NPU_tb is
     ----- Clock Information
     constant CLK_FREQ   : integer 	:= 100e6;                -- 100 MHz
     constant CLK_PERIOD : time		:= 1 sec / CLK_FREQ;     -- 10 ns for 100 MHz (may need to increase)
@@ -29,7 +29,7 @@ architecture testbench of NPU_tb is
 
 	----- Constants
 	-- Memory Assert/Deassert Constants (Active Low)
-	constant MEM_ASSERT			: std_logic	:= '0';	
+	constant MEM_ASSERT			: std_logic	:= '0';
 	constant MEM_DEASSERT		: std_logic	:= '1';
 	-- Memory Address Bus Constants
 	constant MmrAddrNPUCR		: natural	:= 0;
@@ -50,7 +50,7 @@ architecture testbench of NPU_tb is
     -- Memory Address Bus to Memory Mapped Registers Signals
 	signal  MabMmrA		: std_logic_vector(1 downto 0)
 							:= (others => '0');	    		-- MCU To NPU MMR - Address
-    signal MabMmrD		: std_logic_vector(31 downto 0)		
+    signal MabMmrD		: std_logic_vector(31 downto 0)
 								:= (others => '0');			-- MCU To NPU MMR - Data Input
     signal MabMmrCLK	: std_logic;						-- MCU To NPU MMR - Clock
     signal MabMmrCEN	: std_logic := MEM_DEASSERT;		-- MCU To NPU MMR - Chip Enable
@@ -58,7 +58,7 @@ architecture testbench of NPU_tb is
 							:= (others => MEM_DEASSERT);	-- MCU To NPU MMR - Write Enable
     signal MabMmrQ		: std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Output
     -- NPU to SRAM Interface Signals
-    signal NpuSramA		: std_logic_vector(11 downto 0);	-- NPU To SRAM - Address 
+    signal NpuSramA		: std_logic_vector(11 downto 0);	-- NPU To SRAM - Address
     signal NpuSramD		: std_logic_vector(31 downto 0);	-- NPU To SRAM - Data Input
     signal NpuSramCLK	: std_logic;						-- NPU To SRAM - Clock
     signal NpuSramCEN	: std_logic;						-- NPU To SRAM - Chip Enable
@@ -75,17 +75,15 @@ architecture testbench of NPU_tb is
     signal NpuSramCEN_out	: std_logic;					-- NPU To SRAM - Chip Enable
     signal NpuSramGWEN_out	: std_logic;					-- NPU To SRAM - Global Write Enable
     signal NpuSramWEN_out	: std_logic_vector(3 downto 0);	-- NPU To SRAM - Write Enable
-    signal NpuSramQ_out	: std_logic_vector(31 downto 0);	-- NPU From SRAM - Data Output
-
     ----- MCU to SRAM Interface Signals (Testbench controlled)
     signal MabSramA		: std_logic_vector(11 downto 0)
-							:= (others => '0');				-- MCU To SRAM - Address 
+							:= (others => '0');				-- MCU To SRAM - Address
     signal MabSramD		: std_logic_vector(31 downto 0)
 							:= (others => '0');	    		-- MCU To SRAM - Data Inputs
     signal MabSramCLK	: std_logic;						-- MCU To SRAM - Clock
     signal MabSramCEN	: std_logic := MEM_DEASSERT;		-- MCU To SRAM - Chip Enable
     signal MabSramGWEN	: std_logic := MEM_DEASSERT;		-- MCU To SRAM - Global Write Enable
-    signal MabSramWEN	: std_logic_vector(3 downto 0) 
+    signal MabSramWEN	: std_logic_vector(3 downto 0)
 							:= (others => MEM_DEASSERT);	-- MCU To SRAM - Write Enable
     signal MabSramPGEN	: std_logic := '0';					-- MCU To SRAM - Power Gating Input
     signal MabSramQ		: std_logic_vector(31 downto 0);	-- MCU From SRAM - Data Outputs
@@ -139,7 +137,6 @@ begin
         NpuSramCEN_out	=> NpuSramCEN_out,
         NpuSramGWEN_out	=> NpuSramGWEN_out,
         NpuSramWEN_out	=> NpuSramWEN_out,
-        NpuSramQ_out	=> NpuSramQ_out,
 
 		-- Status
         NpuActive	=> NpuActive
@@ -154,7 +151,7 @@ begin
     );
 
     -- Single-Port SRAM Instantiation
-    SRAM_INST: entity work.sram1p16k_hvt_pg 
+    SRAM_INST: entity work.sram1p16k_hvt_pg
     port map(
         A		=> NpuSramA_out,
         D		=> NpuSramD_out,
@@ -175,10 +172,10 @@ begin
     -- SramCEN <= NpuSramCEN when NpuActive = '1' else MabSramCEN;
     -- SramGWEN <= NpuSramGWEN when NpuActive = '1' else MabSramGWEN;
     -- SramWEN <= NpuSramWEN when NpuActive = '1' else MabSramWEN;
-    
+
     -- Clock enable for SRAM
     SramClkEn <= '1' when (SramCEN = MEM_ASSERT) else '0';
-    
+
     -- Output data routing
     -- NpuSramQ <= NpuSramQ;		-- NPU reads from SRAM
     MabSramQ <= NpuSramQ;		-- MCU reads from SRAM (testbench)
@@ -197,7 +194,7 @@ begin
 
 	-- Main Test Simulation Process
 	SIM_PROCESS: process
-		----- I/O 
+		----- I/O
 		-- NPU Inputs File I/O (File must be in simulation directory or symlinked)
 		file x_file				: text open read_mode is "npu_fp_inputs.txt";
 		variable x_file_line	: line;
@@ -213,21 +210,25 @@ begin
 		-- I/O Variables
 		variable data			: integer;
 		variable ram_address	: integer := 0;
+		variable weight_count	: integer := 0;
 		----- Process Variables & Constants
 		constant layer_loop	: integer 	:= 201;
 		variable x_address		: integer 	:= 0;
 		variable y_address		: integer 	:= 256;
 	begin
 		----- Reset NPU
+		report "[NPU_TB] Starting NPU testbench simulation..." severity note;
 		ResetN		<= '0';
 		wait for 1 us;
 		wait until falling_edge(Clk);
 		ResetN		<= '1';
 		MabSramPGEN	<= '0';
 		wait for 1 us;
+		report "[NPU_TB] Reset complete." severity note;
 
 		----- Write Inputs and Weights to RAM
 		-- Write NPU inputs to Single-Port SRAM (via MCU interface)
+		report "[NPU_TB] Loading inputs to SRAM..." severity note;
 		MabSramCEN	<= MEM_ASSERT;
 		MabSramWEN	<= (others => MEM_ASSERT);
 		wait until falling_edge(MabSramCLK);
@@ -236,18 +237,23 @@ begin
 			readline(x_file, x_file_line);
 			read(x_file_line, data);
 			MabSramA	<= std_logic_vector(to_unsigned(ram_address, MabSramA'length));
-			MabSramD	<= (31 downto (X_M_BITS+N_BITS+1) => '0') & 
+			MabSramD	<= (31 downto (X_M_BITS+N_BITS+1) => '0') &
 							std_logic_vector(to_signed(data, 16));
 			wait until falling_edge(MabSramCLK);
 			MabSramGWEN	<= MEM_ASSERT;
 			wait until falling_edge(MabSramCLK);
 			MabSramGWEN	<= MEM_DEASSERT;
 			ram_address	:= ram_address + 1;
+			if (ram_address mod 25 = 0) then
+				report "[NPU_TB] Inputs loaded: " & integer'image(ram_address) & " (SRAM addr " & integer'image(ram_address - 1) & ")." severity note;
+			end if;
 		end loop LOAD_X_LOOP;
 		file_close(x_file);
+		report "[NPU_TB] Inputs loaded to SRAM." severity note;
 		wait for (5*clk_period);
 
 		-- Write NPU weights to Single-Port SRAM (via MCU interface)
+		report "[NPU_TB] Loading weights to SRAM..." severity note;
 		ram_address	:= 2048;
 		wait until falling_edge(MabSramCLK);
 		LOAD_W_LOOP: loop
@@ -255,20 +261,24 @@ begin
 			readline(w_file, w_file_line);
 			read(w_file_line, data);
 			MabSramA	<= std_logic_vector(to_unsigned(ram_address, MabSramA'length));
-			MabSramD	<= (31 downto (W_M_BITS+N_BITS+1) => '0') & 
+			MabSramD	<= (31 downto (W_M_BITS+N_BITS+1) => '0') &
 							std_logic_vector(to_signed(data, 19));
 			wait until falling_edge(MabSramCLK);
 			MabSramGWEN	<= MEM_ASSERT;
 			wait until falling_edge(MabSramCLK);
 			MabSramGWEN	<= MEM_DEASSERT;
 			ram_address	:= ram_address + 1;
+			weight_count := weight_count + 1;
+			report "[NPU_TB] Weight " & integer'image(weight_count) & " loaded (value=" & integer'image(data) & ", SRAM addr " & integer'image(ram_address - 1) & ")." severity note;
 		end loop LOAD_W_LOOP;
 		file_close(w_file);
+		report "[NPU_TB] Weights loaded to SRAM. Total weights: " & integer'image(weight_count) & "." severity note;
 		wait for (5*clk_period);
 		MabSramWEN	<= (others => MEM_DEASSERT);
 		MabSramCEN	<= MEM_DEASSERT;
 
 		----- Initialize Memory Mapped Register Values For First Layer
+		report "[NPU_TB] Configuring MMRs for Layer 1..." severity note;
 		-- NPU Control Register
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
@@ -296,7 +306,9 @@ begin
 		wait until falling_edge(MabMmrCLK);
 
 		----- Loop For First Layer
+		report "[NPU_TB] Starting Layer 1 inference loop (" & integer'image(layer_loop) & " points)..." severity note;
 		LAYER_1_LOOP: for i in 1 to layer_loop loop
+			report "[NPU_TB] Layer 1: Point " & integer'image(i) & "/" & integer'image(layer_loop) & " - configuring MMRs." severity note;
 			-- Set NPU Input Vector Start Address Register
 			wait until falling_edge(MabMmrCLK);
 			MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUIVSAR, MabMmrA'length));
@@ -317,7 +329,7 @@ begin
 			MabMmrCEN	<= MEM_ASSERT;
 			wait until falling_edge(MabMmrCLK);
 			MabMmrCEN	<= MEM_DEASSERT;
-			
+
 			-- Set NPU THINK
 			-- NPU Control Register
 			wait until falling_edge(MabMmrCLK);
@@ -334,7 +346,8 @@ begin
 			MabMmrWEN	<= (others => MEM_DEASSERT);
 			MabMmrCEN	<= MEM_DEASSERT;
 			wait until falling_edge(MabMmrCLK);
-			
+			report "[NPU_TB] Layer 1: Point " & integer'image(i) & "/" & integer'image(layer_loop) & " - NPU activated, waiting for completion..." severity note;
+
 			-- Wait for NPU THINK to complete (wait for it to go low)
 			MabMmrCEN	<= MEM_ASSERT;
 			MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
@@ -342,14 +355,16 @@ begin
 			wait until falling_edge(MabMmrQ(16));
 			MabMmrCEN	<= MEM_DEASSERT;
 			wait until falling_edge(MabMmrCLK);
-			--Layer Done
+			report "[NPU_TB] Layer 1: Point " & integer'image(i) & "/" & integer'image(layer_loop) & " - complete." severity note;
 			--Update Address Variables
 			x_address	:= x_address + 1;
 			y_address	:= y_address + 5;
 		end loop LAYER_1_LOOP;
+		report "[NPU_TB] Layer 1 complete." severity note;
 
-		
+
 		----- Initialize Memory Mapped Register Values For Second Layer
+		report "[NPU_TB] Configuring MMRs for Layer 2..." severity note;
 		-- NPU Control Register
 		wait until falling_edge(MabMmrCLK);
 		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
@@ -377,9 +392,11 @@ begin
 		wait until falling_edge(MabMmrCLK);
 
 		----- Loop For Second Layer
+		report "[NPU_TB] Starting Layer 2 inference loop (" & integer'image(layer_loop) & " points)..." severity note;
 		x_address	:= 256;
 		y_address	:= 0;
 		LAYER_2_LOOP: for i in 1 to layer_loop loop
+			report "[NPU_TB] Layer 2: Point " & integer'image(i) & "/" & integer'image(layer_loop) & " - configuring MMRs." severity note;
 			-- Set NPU Input Vector Start Address Register
 			wait until falling_edge(MabMmrCLK);
 			MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUIVSAR, MabMmrA'length));
@@ -400,7 +417,7 @@ begin
 			MabMmrCEN	<= MEM_ASSERT;
 			wait until falling_edge(MabMmrCLK);
 			MabMmrCEN	<= MEM_DEASSERT;
-			
+
 			-- Set NPU THINK
 			-- NPU Control Register
 			wait until falling_edge(MabMmrCLK);
@@ -417,7 +434,8 @@ begin
 			MabMmrWEN	<= (others => MEM_DEASSERT);
 			MabMmrCEN	<= MEM_DEASSERT;
 			wait until falling_edge(MabMmrCLK);
-			
+			report "[NPU_TB] Layer 2: Point " & integer'image(i) & "/" & integer'image(layer_loop) & " - NPU activated, waiting for completion..." severity note;
+
 			-- Wait for NPU THINK to complete (wait for it to go low)
 			MabMmrCEN	<= MEM_ASSERT;
 			MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
@@ -425,13 +443,15 @@ begin
 			wait until falling_edge(MabMmrQ(16));
 			wait until falling_edge(MabMmrCLK);
 			MabMmrCEN	<= MEM_DEASSERT;
-			--Layer Done
+			report "[NPU_TB] Layer 2: Point " & integer'image(i) & "/" & integer'image(layer_loop) & " - complete." severity note;
 			--Update Address Variables
 			x_address	:= x_address + 5;
 			y_address	:= y_address + 1;
 		end loop LAYER_2_LOOP;
+		report "[NPU_TB] Layer 2 complete." severity note;
 
 		----- NPU Now DONE!!! Extract Output Values.
+		report "[NPU_TB] Extracting output values from SRAM..." severity note;
 		-- Read NPU outputs from Single-Port SRAM (via MCU interface)
 		MabSramCEN	<= MEM_ASSERT;
 		ram_address	:= 0;
@@ -449,6 +469,9 @@ begin
 			write(y_out_file_line, to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0))), left, 18);
 			writeline(y_out_file, y_out_file_line);
 			ram_address	:= ram_address + 1;
+			if (i mod 25 = 0) or (i = layer_loop) then
+				report "[NPU_TB] Outputs extracted: " & integer'image(i) & "/" & integer'image(layer_loop) & "." severity note;
+			end if;
 		end loop GET_Y_LOOP;
 		wait until falling_edge(MabSramCLK);
 		file_close(y_out_file);
@@ -459,4 +482,3 @@ begin
 		wait;
 	end process SIM_PROCESS;
 end testbench;
-
