@@ -453,17 +453,24 @@ begin
         ----------------------------------------------------------------
         wait for 1 us;
         if error_count = 0 then
-            report "==================================================" severity note;
-            report "==== GPIO TESTBENCH: ALL CHECKS PASSED        ====" severity note;
-            report "==================================================" severity note;
+            report LF & LF &
+                "    ##################################################" & LF &
+                "    ##                                              ##" & LF &
+                "    ##        GPIO TB:  ALL CHECKS PASSED           ##" & LF &
+                "    ##                                              ##" & LF &
+                "    ##################################################" & LF
+                severity note;
         else
-            report "==================================================" severity note;
-            report "==== GPIO TESTBENCH: " & integer'image(error_count) &
-                   " CHECK(S) FAILED ====" severity warning;
-            report "==================================================" severity note;
+            report LF & LF &
+                "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
+                "    !!                                              !!" & LF &
+                "    !!   GPIO TB:  " & integer'image(error_count) &
+                       " CHECK(S) FAILED" & LF &
+                "    !!                                              !!" & LF &
+                "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
+                severity warning;
         end if;
 
-        report "GPIO testbench complete" severity note;
         stop;
         wait;
     end process;

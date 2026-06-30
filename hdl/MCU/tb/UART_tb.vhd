@@ -556,17 +556,24 @@ begin
         ----------------------------------------------------------------
         wait for 1 us;
         if error_count = 0 then
-            report "==================================================" severity note;
-            report "==== UART TESTBENCH: ALL CHECKS PASSED        ====" severity note;
-            report "==================================================" severity note;
+            report LF & LF &
+                "    ##################################################" & LF &
+                "    ##                                              ##" & LF &
+                "    ##        UART TB:  ALL CHECKS PASSED           ##" & LF &
+                "    ##                                              ##" & LF &
+                "    ##################################################" & LF
+                severity note;
         else
-            report "==================================================" severity note;
-            report "==== UART TESTBENCH: " & integer'image(error_count) &
-                   " CHECK(S) FAILED ====" severity error;
-            report "==================================================" severity note;
+            report LF & LF &
+                "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
+                "    !!                                              !!" & LF &
+                "    !!   UART TB:  " & integer'image(error_count) &
+                       " CHECK(S) FAILED" & LF &
+                "    !!                                              !!" & LF &
+                "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
+                severity warning;
         end if;
 
-        report "UART testbench complete" severity note;
         stop;          -- clean halt (no failure assertion)
         wait;
     end process;
