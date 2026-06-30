@@ -1,3 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EDA tool working directories (Cadence) — entirely generated, never committed
+# ─────────────────────────────────────────────────────────────────────────────
+# genus  = synthesis, innovus = place & route, xcelium = simulation, .cadence = session state
+genus/
+innovus/
+xcelium/
+.cadence/
+
+# Generic EDA/simulation intermediates (in case tools run elsewhere)
+*.rcf
+*.trn
+*.dsn
+*.pak
+*.svcf
+*.diag
+INCA_libs/
+xcelium.d/
+*.shm/
+.simvision/
+xrun.log
+xrun.history
+xrun.key
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Generated source / build artifacts
+# ─────────────────────────────────────────────────────────────────────────────
 # Platform generator outputs (auto-generated)
 platform/latex/TRM/
 platform/config/MemoryMap.json
@@ -18,13 +45,21 @@ software/commune/include/periph.S
 # Hardware VHDL (auto-generated)
 hardware/Myshkin.vhd
 
+# HDL peripheral blocks (custom IP)
+hardware/MCU/peripherals/NPU.vhd
+hardware/MCU/periph/SARADC.vhd
+hardware/MCU/periph/AFE.vhd
+hardware/MCU/periph/AFE_FSM.vhd
+
+# ARM IP
+*ARM*
+
 # Compiled binaries
 *.o
 *.elf
 *.bin
 # *.hex
 *.dump
-#*.rcf
 *.map
 
 # Python cache
@@ -34,41 +69,50 @@ __pycache__/
 *.pyd
 .Python
 
-# SARADC acquisition logs
+# ─────────────────────────────────────────────────────────────────────────────
+# LaTeX — keep only sources (.tex) and final output (.pdf); ignore everything else
+# ─────────────────────────────────────────────────────────────────────────────
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Logs & acquisition data
+# ─────────────────────────────────────────────────────────────────────────────
 tools/debug/forth_dashboard/saradc_logs/
 tools/debug/fast_saradc/logs/
 **/saradc_logs/*.txt
 **/fast_saradc_data_*.txt
 myshkin_commands.log
 
-# LaTeX intermediate files
-*.aux
-*.log
-*.out
-*.toc
-*.fdb_latexmk
-*.fls
-*.synctex.gz
-
-# Editor/IDE files
+# ─────────────────────────────────────────────────────────────────────────────
+# Editor / IDE
+# ─────────────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
+# ─────────────────────────────────────────────────────────────────────────────
 # OS files
+# ─────────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
+# ─────────────────────────────────────────────────────────────────────────────
 # Syncthing
+# ─────────────────────────────────────────────────────────────────────────────
 .stfolder/
-
-# ARM IP
-*ARM*
-
-# HDL peripheral blocks (custom IP)
-hardware/MCU/peripherals/NPU.vhd
-hardware/MCU/periph/SARADC.vhd
-hardware/MCU/periph/AFE.vhd
-hardware/MCU/periph/AFE_FSM.vhd
+*.sync-conflict-*
