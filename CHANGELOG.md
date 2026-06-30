@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- VHDL testbench for the UART peripheral (`hdl/MCU/tb/UART_tb.vhd`).
+
+### Fixed
+- UART RX overflow flag was checking the wrong status bit (TX-complete instead
+  of RX-complete), so overflows never got flagged.
+
+---
+
 ## [1.0.0] — Nov. 2025 — Myshkin Tape-out
 
 First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November 2025.
