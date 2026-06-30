@@ -412,9 +412,10 @@ begin
                         UART_RX <= rx_sr(8 downto 1); -- Store MSBs in UART_RX
                     end if;
 
-                    -- Overflow check 
-                    if USR_UTCIF = '1' then 
-                        -- RX has not been read by core since last write, therefore there is now overflow 
+                    -- Overflow check
+                    if USR_RCIF = '1' then
+                        -- Previous RX byte was never read (RCIF still set), so the
+                        -- newly received byte overruns it -> overflow.
                         USR_OVF <= '1'; -- Set Overflow Flag
                     end if;
 
