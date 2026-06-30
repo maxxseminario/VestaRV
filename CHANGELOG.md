@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - VHDL testbench for the UART peripheral (`hdl/MCU/tb/UART_tb.vhd`).
 - VHDL testbench for the GPIO peripheral (`hdl/MCU/tb/GPIO_tb.vhd`).
 - VHDL testbench for the TIMER peripheral (`hdl/MCU/tb/TIMER_tb.vhd`).
+- VHDL testbench for the SPI peripheral (`hdl/MCU/tb/SPI_tb.vhd`).
 
 ### Fixed
 - UART RX overflow flag was checking the wrong status bit (TX-complete instead
