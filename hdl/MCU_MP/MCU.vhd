@@ -617,6 +617,7 @@ architecture behav of MCU is
         signal clk_osc_dco0     : std_logic; -- DCO0 Clock directly from oscillator
         signal clk_osc_dco1     : std_logic; -- DCO1 Clock directly from oscillator
         signal clk_cpu          : std_logic; -- Gated cpu clock from system
+        signal core_mem_ready   : std_logic; -- M2: memory back-pressure to the core (from mp_wait_injector)
 
         -- signal wen_mem        : std_logic_vector(3 downto 0);
 
@@ -1305,7 +1306,7 @@ begin
             write_data   => write_word,
             read_data    => read_data,
             mask         => mask,
-            mem_ready    => '1',  -- single-master MCU_MP top: no back-pressure (M1 no-op)
+            mem_ready    => core_mem_ready,  -- M2: driven by mp_wait_injector (real wait states)
 
             irq_vector   => irq_deglitch,
             irq_priority => irq_priority,
@@ -1319,7 +1320,21 @@ begin
 
     );
 
-    -- System Peripheral 
+    -- M2 stall exerciser: drives the core's mem_ready with repeating wait states
+    -- on the free-running mclk (see hdl/MCU_MP/mp_wait_injector.vhd). Replaced by
+    -- mp_arbiter in M3. Set STALL_CYCLES=0 to make it a no-op (always ready).
+    wait_inj0: entity work.mp_wait_injector
+        generic map (
+            RUN_CYCLES   => 4,
+            STALL_CYCLES => 2
+        )
+        port map (
+            mclk      => mclk,
+            resetn    => resetn,
+            mem_ready => core_mem_ready
+        );
+
+    -- System Peripheral
     system0: SYSTEM
         generic map (
             NUM_IRQS => NUM_IRQS 
