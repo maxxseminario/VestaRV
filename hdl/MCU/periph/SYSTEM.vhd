@@ -256,14 +256,15 @@ begin
             wdt_trigger <= '0';
             wdt_bit_prev := '0';
         elsif rising_edge(clk_wdt) then
-            -- Store previous state of the watched bit
-            wdt_bit_prev := SYS_WDT_VAL(slv2uint(wdt_cdiv));
-            
-            -- Detect rising edge on the selected bit (WDT event)
+            -- Detect rising edge on the selected bit (WDT event).
+            -- NOTE: wdt_bit_prev must hold the PREVIOUS cycle's sample here, so
+            -- the compare happens BEFORE wdt_bit_prev is refreshed below.
+            -- (Previously the sample was taken first, making prev==current and
+            -- the edge undetectable -- wdt_if/wdt_trigger never fired.)
             if wdt_bit_prev = '0' and SYS_WDT_VAL(slv2uint(wdt_cdiv)) = '1' then
                 -- Set interrupt flag on WDT timeout
                 wdt_if <= '1';
-                
+
                 -- Generate trigger pulse if interrupts are enabled
                 if wdt_ie = '1' and irq_gen = '1' then
                     wdt_trigger <= '1';
@@ -272,7 +273,10 @@ begin
                 -- Clear trigger after one cycle (pulse)
                 wdt_trigger <= '0';
             end if;
-            
+
+            -- Store state of the watched bit for the next edge's comparison
+            wdt_bit_prev := SYS_WDT_VAL(slv2uint(wdt_cdiv));
+
             -- Clear interrupt flag if requested
             if clr_wdt_if = '1' then
                 wdt_if <= '0';
