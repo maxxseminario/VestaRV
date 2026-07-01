@@ -458,8 +458,12 @@ begin
 	end process MMR_WRITE;
 
 	----- MMR Reads
-	with MabMmrAInt select 
-		MabMmrQ <=	(31 downto 19 => '0') & NPUCR		when MmrAddrNPUCR,
+	-- NPUTHINK is stored separately from NPUCR (set from MabMmrD(16), cleared by
+	-- NpuDone) so it must be re-inserted at bit 16 of the NPUCR readback -- else
+	-- bit 16 reads the dead NPUCR(16) and software (and the TB) can never observe
+	-- the NPU finishing (NPUTHINK 1->0).
+	with MabMmrAInt select
+		MabMmrQ <=	(31 downto 19 => '0') & NPUCR(18 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
 					(31 downto 12 => '0') & NPUIVSAR	when MmrAddrNPUIVSAR,
 					(31 downto 12 => '0') & NPUWVSAR	when MmrAddrNPUWVSAR,
 					(31 downto 12 => '0') & NPUOVSAR	when MmrAddrNPUOVSAR,

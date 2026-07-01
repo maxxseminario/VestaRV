@@ -7,6 +7,7 @@ use ieee.numeric_std.all;
 library std;
 use std.standard.all;
 use std.textio.all;
+use std.env.all;
 library work;
 -- Synthesizable Fixed Point libraries created by David Bishop for VHDL 2008
 use work.fixed_float_types.all;
@@ -215,6 +216,7 @@ begin
 		constant layer_loop	: integer 	:= 201;
 		variable x_address		: integer 	:= 0;
 		variable y_address		: integer 	:= 256;
+		variable error_count	: integer 	:= 0;	-- self-checking mismatch tally
 	begin
 		----- Reset NPU
 		report "[NPU_TB] Starting NPU testbench simulation..." severity note;
@@ -461,10 +463,13 @@ begin
 			wait until falling_edge(MabSramCLK);
 			readline(y_exp_file, y_exp_file_line);
 			read(y_exp_file_line, data);
+			-- Self-checking: tally mismatches as warnings (don't halt) so the
+			-- whole output vector is compared and one banner reports the verdict.
 			if (data /= to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0)))) then
-				report "ERROR: For i = " & integer'image(i) & ", expected and actual outputs do not match! Y HW = "
-						& integer'image(to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0)))) & 	" Y SW = " & integer'image(data)
-						severity error;
+				error_count := error_count + 1;
+				report "FAIL: point " & integer'image(i) & " output mismatch (Y_HW = "
+						& integer'image(to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0)))) & ", Y_SW = " & integer'image(data) & ")"
+						severity warning;
 			end if;
 			write(y_out_file_line, to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0))), left, 18);
 			writeline(y_out_file, y_out_file_line);
@@ -477,8 +482,28 @@ begin
 		file_close(y_out_file);
 		file_close(y_exp_file);
 		wait for (5*clk_period);
-		----- TEST DONE! -----
-		report "Test Passed!" severity error;
+
+		----- Final verdict -----
+		if error_count = 0 then
+			report LF & LF &
+				"    ##################################################" & LF &
+				"    ##                                              ##" & LF &
+				"    ##         NPU TB:  ALL CHECKS PASSED           ##" & LF &
+				"    ##                                              ##" & LF &
+				"    ##################################################" & LF
+				severity note;
+		else
+			report LF & LF &
+				"    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
+				"    !!                                              !!" & LF &
+				"    !!    NPU TB:  " & integer'image(error_count) &
+					   " CHECK(S) FAILED" & LF &
+				"    !!                                              !!" & LF &
+				"    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
+				severity warning;
+		end if;
+
+		stop;
 		wait;
 	end process SIM_PROCESS;
 end testbench;
