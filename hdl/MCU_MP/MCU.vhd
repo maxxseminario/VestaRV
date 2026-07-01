@@ -619,6 +619,10 @@ architecture behav of MCU is
         signal clk_cpu          : std_logic; -- Gated cpu clock from system
         signal core_mem_ready   : std_logic; -- M2: memory back-pressure to the core (from mp_wait_injector)
 
+        -- M3a: tie-offs for parked harts 1-3 (held in reset; no shared memory yet).
+        signal zero_word        : std_logic_vector(31 downto 0) := (others => '0');
+        signal zero_irq         : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+
         -- signal wen_mem        : std_logic_vector(3 downto 0);
 
         -- IRQ Signal Declarations
@@ -1333,6 +1337,38 @@ begin
             resetn    => resetn,
             mem_ready => core_mem_ready
         );
+
+    -- M3a: parked harts 1-3. Instantiated to prove 4-core elaboration and that
+    -- extra cores don't disturb hart 0. Held in reset + sleep='1' so their gated
+    -- clk_cpu never ticks and they drive nothing shared (all outputs open). The
+    -- real per-hart memory + mp_arbiter come in M3b. Distinct HARTID per core.
+    gen_parked_harts: for h in 1 to 3 generate
+        hart_parked: vesta
+            generic map (
+                PC_RST_VAL => x"00000000",
+                NUM_IRQS   => NUM_IRQS,
+                HARTID     => h
+            )
+            port map (
+                clk              => mclk,
+                resetn           => '0',            -- held in reset (parked)
+                sleep            => '1',            -- gate clk_cpu off (no ticks)
+                clk_cpu          => open,
+                data_addr        => open,
+                wen              => open,
+                write_data       => open,
+                read_data        => zero_word,
+                mask             => "00",
+                mem_ready        => '1',
+                irq_vector       => zero_irq,
+                irq_priority     => zero_irq,
+                irq_en           => zero_irq,
+                irq_recursion_en => '0',
+                isr_ret          => open,
+                trap_flag        => open,
+                a0               => open
+            );
+    end generate;
 
     -- System Peripheral
     system0: SYSTEM
