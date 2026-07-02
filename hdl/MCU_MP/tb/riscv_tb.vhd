@@ -96,7 +96,12 @@ architecture behavioral of riscv_tb is
             saradc_data     : in std_logic_vector(9 downto 0); 
 
             -- Test Port
-            a0  : out std_logic_vector(31 downto 0) 
+            a0  : out std_logic_vector(31 downto 0);
+
+            -- M3b: per-hart pass/fail observation (a0 of the 3 private-memory harts)
+            a0_1 : out std_logic_vector(31 downto 0);
+            a0_2 : out std_logic_vector(31 downto 0);
+            a0_3 : out std_logic_vector(31 downto 0)
 
         );
 end component;
@@ -149,6 +154,8 @@ end component;
     -- Testbench signals
     signal clk, resetn : std_logic := '1';
     signal a0 : std_logic_vector(31 downto 0);
+    -- M3b: a0 of the 3 private-memory harts (boot from preloaded RAM at 0x8200)
+    signal a0_1, a0_2, a0_3 : std_logic_vector(31 downto 0);
     signal spi_flash_din_sig, spi_flash_addr_sig : std_logic_vector(31 downto 0);
 
     signal clk_hfxt : std_logic;
@@ -160,6 +167,9 @@ end component;
 
     signal a0_reached_fail : boolean := false;
     signal a0_reached_pass : boolean := false;
+    -- M3b: latched pass/fail for private-memory harts 1-3
+    signal h1_pass, h2_pass, h3_pass : boolean := false;
+    signal h1_fail, h2_fail, h3_fail : boolean := false;
     signal flash_awake : std_logic := '0';
 
     --RAM Memory Load Signals 
@@ -348,7 +358,12 @@ end component;
 
 
         -- Test Port
-        a0          => a0
+        a0          => a0,
+
+        -- M3b: private-memory harts 1-3
+        a0_1        => a0_1,
+        a0_2        => a0_2,
+        a0_3        => a0_3
     );
 
     cs_flash <= spi_cs when boot_done_flag = '0' or spifem_test = '1'
@@ -668,6 +683,24 @@ end component;
 
         wait until (a0_reached_fail or a0_reached_pass or simulation_timeout_flag);
 
+        -- M3b: report the private-memory harts (1-3). They run rv32ui-p-add from
+        -- their own preloaded RAM and normally reach the pass value well before
+        -- hart 0 (which pays the SPI-boot cost first).
+        report "HART1 (private-mem) pass=" & boolean'image(h1_pass) &
+               " fail=" & boolean'image(h1_fail) severity note;
+        report "HART2 (private-mem) pass=" & boolean'image(h2_pass) &
+               " fail=" & boolean'image(h2_fail) severity note;
+        report "HART3 (private-mem) pass=" & boolean'image(h3_pass) &
+               " fail=" & boolean'image(h3_fail) severity note;
+        if h1_fail or h2_fail or h3_fail then
+            report "M3b: a private-memory hart FAILED" severity failure;
+        elsif not (h1_pass and h2_pass and h3_pass) then
+            report "M3b WARNING: not all private-memory harts reached PASS at hart-0 resolution"
+                severity warning;
+        else
+            report "M3b: all 3 private-memory harts PASSED (concurrent w/ hart 0)" severity note;
+        end if;
+
         if a0_reached_pass then
             report "TEST PASSED - " & TEST_FILE severity note;
             report get_pass_logo severity failure;
@@ -695,6 +728,24 @@ end component;
             if a0 = FAIL_LABEL then
                 a0_reached_fail <= true;
             end if;
+        end if;
+    end process;
+
+    -- M3b: monitor the 3 private-memory harts. They boot at 0x8200 straight from
+    -- preloaded RAM (no SPI boot) and run concurrently with hart 0. Latched so the
+    -- end-of-test report can confirm all four harts reached the pass value.
+    monitor_harts: process(resetn, clk)
+    begin
+        if resetn = '0' then
+            h1_pass <= false; h2_pass <= false; h3_pass <= false;
+            h1_fail <= false; h2_fail <= false; h3_fail <= false;
+        elsif rising_edge(clk) then
+            if a0_1 = PASS_LABEL then h1_pass <= true; end if;
+            if a0_2 = PASS_LABEL then h2_pass <= true; end if;
+            if a0_3 = PASS_LABEL then h3_pass <= true; end if;
+            if a0_1 = FAIL_LABEL then h1_fail <= true; end if;
+            if a0_2 = FAIL_LABEL then h2_fail <= true; end if;
+            if a0_3 = FAIL_LABEL then h3_fail <= true; end if;
         end if;
     end process;
 
