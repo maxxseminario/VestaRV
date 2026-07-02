@@ -699,6 +699,27 @@ architecture behav of MCU is
         signal data_addr        : std_logic_vector(31 downto 0);
         signal wen_re           : std_logic_vector(3 downto 0);
         signal wen_fe           : std_logic_vector(3 downto 0);
+
+        -- M3c.2: shared-RAM window (region 4 = 0x10000) behind mp_arbiter on mclk.
+        constant SH_AW : natural := 8;                 -- 256-word shared window
+        signal core_read_data   : std_logic_vector(31 downto 0);  -- muxed into core
+        signal core_mem_ready_g : std_logic;                      -- injector AND shared_ok
+        signal sh_sel           : std_logic;
+        signal sh_dphase        : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
+        signal sh_acked         : std_logic := '0';
+        signal sh_rdata_reg     : std_logic_vector(31 downto 0) := (others => '0');
+        -- arbiter master buses (master 0 = hart 0; masters 1-3 reserved)
+        signal arb_req, arb_we, arb_gnt, arb_done : std_logic_vector(3 downto 0);
+        signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
+        signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
+        signal arb_rdata        : std_logic_vector(31 downto 0);
+        -- arbiter <-> shared RAM slave
+        signal sh_en, sh_we     : std_logic;
+        signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
+        signal sh_wdata         : std_logic_vector(31 downto 0);
+        signal sh_rdata         : std_logic_vector(31 downto 0);
+        type shram_t is array(0 to 2**SH_AW-1) of std_logic_vector(31 downto 0);
+        signal shram            : shram_t := (others => (others => '0'));
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -1313,9 +1334,9 @@ begin
             data_addr    => data_addr,
             wen          => wen_re,
             write_data   => write_word,
-            read_data    => read_data,
+            read_data    => core_read_data,   -- M3c.2: adddec data, or shared-window data on region-4 access
             mask         => mask,
-            mem_ready    => core_mem_ready,  -- M2: driven by mp_wait_injector (real wait states)
+            mem_ready    => core_mem_ready_g, -- M2 injector AND M3c.2 shared back-pressure
 
             irq_vector   => irq_deglitch,
             irq_priority => irq_priority,
@@ -1342,6 +1363,112 @@ begin
             resetn    => resetn,
             mem_ready => core_mem_ready
         );
+
+    -- =========================================================================
+    -- M3c.2: shared-RAM window (0x10000, region 4) behind mp_arbiter, on the
+    -- free-running mclk. Hart 0 is arbiter master 0; masters 1-3 are reserved
+    -- for the private-memory tiles / future shared access. The ISA regression
+    -- never addresses region 4, so sh_sel stays '0' and this whole subsystem is
+    -- a PROVEN NO-OP: core_mem_ready_g == core_mem_ready and core_read_data ==
+    -- read_data. Real transaction-aware shared loads/stores are exercised in M4.
+    -- =========================================================================
+    -- EXACT decode of 0x10000-0x13FFF (data_addr(31:14) = 4), the complement of
+    -- adddec's extended-flash decode (>= 0x14000). A bits-16:14-only decode would
+    -- alias higher flash addresses (e.g. 0x30000) back into the shared window and
+    -- re-create the double-claim deadlock fixed in M3c.3.
+    sh_sel <= '1' when data_addr(31 downto 14) = "000000000000000100" else '0';
+
+    -- one-shot handshake: request until this access is granted (done), then hold
+    -- off re-request until the core steps off the shared address (clk_cpu is gated
+    -- while stalled, so data_addr/wen/write_word are stable across the wait).
+    sh_handshake: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            sh_acked     <= '0';
+            sh_rdata_reg <= (others => '0');
+        elsif rising_edge(mclk) then
+            if sh_sel = '0' then
+                sh_acked <= '0';
+            elsif arb_done(0) = '1' then
+                sh_acked     <= '1';
+                sh_rdata_reg <= arb_rdata;   -- capture shared read data
+            end if;
+        end if;
+    end process;
+
+    -- hart 0 -> arbiter master 0
+    arb_req(0) <= sh_sel and not sh_acked;
+    -- wen is ACTIVE-LOW per byte lane (adddec writes lane i when wen(i)='0');
+    -- arbiter we is active-high => write when ANY lane is enabled. NOTE: the
+    -- shared window writes the FULL word (no byte lanes yet) — sub-word stores
+    -- to 0x10000 would corrupt neighbours; shmem.S uses sw/lw only. (M4 TODO)
+    arb_we(0)  <= sh_sel and not (wen_re(0) and wen_re(1) and wen_re(2) and wen_re(3));
+    arb_addr(SH_AW-1 downto 0) <= data_addr(SH_AW+1 downto 2);
+    arb_wdata(31 downto 0)     <= write_word;
+    -- masters 1-3 reserved (idle) in M3c.2
+    arb_req(3 downto 1)              <= (others => '0');
+    arb_we(3 downto 1)               <= (others => '0');
+    arb_addr(4*SH_AW-1 downto SH_AW) <= (others => '0');
+    arb_wdata(4*32-1 downto 32)      <= (others => '0');
+
+    -- back-pressure into the core (identity while sh_sel='0')
+    core_mem_ready_g <= core_mem_ready and ((not sh_sel) or sh_acked);
+
+    -- Read-data mux, DATA-PHASE ONLY. vesta's unified bus uses read_data as the
+    -- INSTRUCTION during decode (EXECUTE), and data_addr/sh_sel derive
+    -- combinationally from that instruction — muxing on raw sh_sel therefore
+    -- creates a zero-delay oscillation (instr->mem_access->data_addr->sh_sel->
+    -- instr), which was the M3c.3 "hang" (sim time frozen at the first shared
+    -- access). sh_dphase registers sh_sel on clk_cpu: it freezes with the core,
+    -- so it is '1' during exactly the MEMORY_WAIT cycle after a shared access —
+    -- where instr comes from the held instr_curr_prev and read_data is consumed
+    -- as LOAD DATA. Registered select => no combinational feedback, loop broken.
+    -- (Also means the shared window is DATA-only: no instruction fetch from it.)
+    sh_dphase_reg: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            sh_dphase <= '0';
+        elsif rising_edge(clk_cpu) then
+            sh_dphase <= sh_sel;
+        end if;
+    end process;
+
+    core_read_data <= sh_rdata_reg when sh_dphase = '1' else read_data;
+
+    mp_arb0: entity work.mp_arbiter
+        generic map (N => 4, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            req    => arb_req,
+            we     => arb_we,
+            addr   => arb_addr,
+            wdata  => arb_wdata,
+            gnt    => arb_gnt,
+            done   => arb_done,
+            rdata  => arb_rdata,
+            s_en    => sh_en,
+            s_we    => sh_we,
+            s_addr  => sh_addr,
+            s_wdata => sh_wdata,
+            s_rdata => sh_rdata
+        );
+
+    -- shared single-port RAM window (behavioral; 1-cycle registered read, active-
+    -- high enables to match mp_arbiter's slave model)
+    sh_ram: process(mclk)
+    begin
+        if rising_edge(mclk) then
+            if sh_en = '1' then
+                if sh_we = '1' then
+                    shram(conv_integer(sh_addr)) <= sh_wdata;
+                    sh_rdata <= sh_wdata;
+                else
+                    sh_rdata <= shram(conv_integer(sh_addr));
+                end if;
+            end if;
+        end if;
+    end process;
 
     -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
     -- tile is a full vesta + its own adddec + private ROM/RAM0/RAM1, with RAM0

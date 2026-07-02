@@ -387,9 +387,13 @@ begin
     -- mab_out <= data_addr;
     
     -- Determine if this is a flash access
-    -- Flash memory is accessed when address is >= 0x10000 (bit 16 or higher is set)
+    -- Flash memory is accessed when address is >= 0x14000.
+    -- MCU_MP: 0x10000-0x13FFF (region 4) is the shared-RAM window (mp_arbiter in
+    -- MCU.vhd), NOT external flash. Both subsystems claiming 0x10000 deadlocked
+    -- the core (SPI0 FlashActive freezes clk_cpu via sleep_cpu while the shared
+    -- handshake stalls mem_ready). Extended flash therefore starts at 0x14000.
     gen_flash_detect: if ENABLE_FLASH_EXTENDED_MEM generate
-        is_flash_access <= '1' when unsigned(data_addr) >= x"00010000" else '0';
+        is_flash_access <= '1' when unsigned(data_addr) >= x"00014000" else '0';
     end generate;
     
     gen_no_flash_detect: if not ENABLE_FLASH_EXTENDED_MEM generate
