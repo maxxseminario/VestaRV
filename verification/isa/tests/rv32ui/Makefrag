@@ -5,6 +5,7 @@
 
 rv32ui_sc_tests = \
 	simple \
+	shmem \
 	add addi \
 	and andi \
 	auipc \
