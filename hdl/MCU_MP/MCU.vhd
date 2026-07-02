@@ -82,9 +82,14 @@ entity MCU is
         saradc_data     : in std_logic_vector(9 downto 0); 
 
         -- Testing Purposes Only
-        a0  : out std_logic_vector(31 downto 0) 
+        a0  : out std_logic_vector(31 downto 0);
 
-    ); 
+        -- M3b: per-hart pass/fail observation (a0 of the 3 private-memory harts)
+        a0_1 : out std_logic_vector(31 downto 0);
+        a0_2 : out std_logic_vector(31 downto 0);
+        a0_3 : out std_logic_vector(31 downto 0)
+
+    );
 end entity;
 
 architecture behav of MCU is
@@ -1338,37 +1343,61 @@ begin
             mem_ready => core_mem_ready
         );
 
-    -- M3a: parked harts 1-3. Instantiated to prove 4-core elaboration and that
-    -- extra cores don't disturb hart 0. Held in reset + sleep='1' so their gated
-    -- clk_cpu never ticks and they drive nothing shared (all outputs open). The
-    -- real per-hart memory + mp_arbiter come in M3b. Distinct HARTID per core.
-    gen_parked_harts: for h in 1 to 3 generate
-        hart_parked: vesta
-            generic map (
-                PC_RST_VAL => x"00000000",
-                NUM_IRQS   => NUM_IRQS,
-                HARTID     => h
-            )
-            port map (
-                clk              => mclk,
-                resetn           => '0',            -- held in reset (parked)
-                sleep            => '1',            -- gate clk_cpu off (no ticks)
-                clk_cpu          => open,
-                data_addr        => open,
-                wen              => open,
-                write_data       => open,
-                read_data        => zero_word,
-                mask             => "00",
-                mem_ready        => '1',
-                irq_vector       => zero_irq,
-                irq_priority     => zero_irq,
-                irq_en           => zero_irq,
-                irq_recursion_en => '0',
-                isr_ret          => open,
-                trap_flag        => open,
-                a0               => open
-            );
-    end generate;
+    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
+    -- tile is a full vesta + its own adddec + private ROM/RAM0/RAM1, with RAM0
+    -- (0x8000) and RAM1 (0xC000) PRELOADED from .rcf images and PC_RST_VAL set to
+    -- 0x8200 -> they boot directly from RAM with NO SPI/flash boot, and run
+    -- concurrently with hart 0. Distinct HARTID per core. No cross-hart hazard
+    -- (each tile is unchanged single-core logic). They touch no peripherals in
+    -- M3b (peripheral bus tied off inside the tile; shared bus + arbiter = M3c).
+    --
+    -- All three currently run the SAME ISA test image (see ram_images/); each
+    -- hart's a0 is brought out (a0_1/2/3) so the testbench can confirm all four
+    -- harts reach the pass value independently.
+    hart1: entity work.hart_tile
+        generic map (
+            HARTID         => 1,
+            PC_RST_VAL     => x"00008200",
+            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram0.rcf",
+            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram1.rcf"
+        )
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            sleep     => '0',
+            trap_flag => open,
+            a0        => a0_1
+        );
+
+    hart2: entity work.hart_tile
+        generic map (
+            HARTID         => 2,
+            PC_RST_VAL     => x"00008200",
+            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram0.rcf",
+            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram1.rcf"
+        )
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            sleep     => '0',
+            trap_flag => open,
+            a0        => a0_2
+        );
+
+    hart3: entity work.hart_tile
+        generic map (
+            HARTID         => 3,
+            PC_RST_VAL     => x"00008200",
+            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram0.rcf",
+            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram1.rcf"
+        )
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            sleep     => '0',
+            trap_flag => open,
+            a0        => a0_3
+        );
 
     -- System Peripheral
     system0: SYSTEM
