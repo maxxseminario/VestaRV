@@ -1405,11 +1405,8 @@ begin
     arb_we(0)  <= sh_sel and not (wen_re(0) and wen_re(1) and wen_re(2) and wen_re(3));
     arb_addr(SH_AW-1 downto 0) <= data_addr(SH_AW+1 downto 2);
     arb_wdata(31 downto 0)     <= write_word;
-    -- masters 1-3 reserved (idle) in M3c.2
-    arb_req(3 downto 1)              <= (others => '0');
-    arb_we(3 downto 1)               <= (others => '0');
-    arb_addr(4*SH_AW-1 downto SH_AW) <= (others => '0');
-    arb_wdata(4*32-1 downto 32)      <= (others => '0');
+    -- masters 1-3: driven by the hart_tile shared-window ports (M3c.4) — see
+    -- the hart1/2/3 instances below, which map sh_* straight onto these slices.
 
     -- back-pressure into the core (identity while sh_sel='0')
     core_mem_ready_g <= core_mem_ready and ((not sh_sel) or sh_acked);
@@ -1475,23 +1472,35 @@ begin
     -- (0x8000) and RAM1 (0xC000) PRELOADED from .rcf images and PC_RST_VAL set to
     -- 0x8200 -> they boot directly from RAM with NO SPI/flash boot, and run
     -- concurrently with hart 0. Distinct HARTID per core. No cross-hart hazard
-    -- (each tile is unchanged single-core logic). They touch no peripherals in
-    -- M3b (peripheral bus tied off inside the tile; shared bus + arbiter = M3c).
+    -- (each tile is unchanged single-core logic).
     --
-    -- All three currently run the SAME ISA test image (see ram_images/); each
-    -- hart's a0 is brought out (a0_1/2/3) so the testbench can confirm all four
-    -- harts reach the pass value independently.
+    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared-RAM
+    -- window at 0x10000 — its sh_* port maps straight onto that master's slice
+    -- of the flattened arb_* buses. All three run shmem_mp (hartid-indexed
+    -- DISJOINT shared words at 0x10040+4*hartid; shared-word atomicity = M4):
+    -- one verified sweep -> a0 = PASS, then hammer the window forever so every
+    -- regression test runs hart 0 against 3 live contending masters. Each
+    -- hart's a0 is brought out (a0_1/2/3); the tb latches pass AND fail, so a
+    -- post-PASS corruption still fails the run.
     hart1: entity work.hart_tile
         generic map (
             HARTID         => 1,
             PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram0.rcf",
-            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram1.rcf"
+            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf",
+            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf",
+            SH_AW          => SH_AW
         )
         port map (
             clk       => mclk,
             resetn    => resetn,
             sleep     => '0',
+            sh_req    => arb_req(1),
+            sh_we     => arb_we(1),
+            sh_addr   => arb_addr(2*SH_AW-1 downto SH_AW),
+            sh_wdata  => arb_wdata(2*32-1 downto 32),
+            sh_gnt    => arb_gnt(1),
+            sh_done   => arb_done(1),
+            sh_rdata  => arb_rdata,
             trap_flag => open,
             a0        => a0_1
         );
@@ -1500,13 +1509,21 @@ begin
         generic map (
             HARTID         => 2,
             PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram0.rcf",
-            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram1.rcf"
+            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf",
+            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf",
+            SH_AW          => SH_AW
         )
         port map (
             clk       => mclk,
             resetn    => resetn,
             sleep     => '0',
+            sh_req    => arb_req(2),
+            sh_we     => arb_we(2),
+            sh_addr   => arb_addr(3*SH_AW-1 downto 2*SH_AW),
+            sh_wdata  => arb_wdata(3*32-1 downto 2*32),
+            sh_gnt    => arb_gnt(2),
+            sh_done   => arb_done(2),
+            sh_rdata  => arb_rdata,
             trap_flag => open,
             a0        => a0_2
         );
@@ -1515,13 +1532,21 @@ begin
         generic map (
             HARTID         => 3,
             PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram0.rcf",
-            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-add.ram1.rcf"
+            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf",
+            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf",
+            SH_AW          => SH_AW
         )
         port map (
             clk       => mclk,
             resetn    => resetn,
             sleep     => '0',
+            sh_req    => arb_req(3),
+            sh_we     => arb_we(3),
+            sh_addr   => arb_addr(4*SH_AW-1 downto 3*SH_AW),
+            sh_wdata  => arb_wdata(4*32-1 downto 3*32),
+            sh_gnt    => arb_gnt(3),
+            sh_done   => arb_done(3),
+            sh_rdata  => arb_rdata,
             trap_flag => open,
             a0        => a0_3
         );
