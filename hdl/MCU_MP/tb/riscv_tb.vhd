@@ -14,12 +14,20 @@ use work.tb_defs.all;
 
 entity riscv_tb is
     generic (
-        TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf"
+        TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
+        -- M5a: preload images for harts 1-3 (threaded to MCU; defaults keep
+        -- every existing test bit-identical — shmem_mp contention images).
+        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf";
+        HART_RAM1_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf"
     );
 end riscv_tb;
 
 architecture behavioral of riscv_tb is
     component MCU
+        generic (
+            HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf";
+            HART_RAM1_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf"
+        );
         port (
             
             -- Resetn Pad
@@ -289,6 +297,10 @@ end component;
 
 
     dut: MCU
+    generic map (
+        HART_RAM0_INIT => HART_RAM0_INIT,
+        HART_RAM1_INIT => HART_RAM1_INIT
+    )
     port map (
     
         -- Reset Pad

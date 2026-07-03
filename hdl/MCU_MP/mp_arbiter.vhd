@@ -85,6 +85,20 @@ architecture behav of mp_arbiter is
     signal cur    : natural range 0 to N-1 := 0;   -- currently granted master
     signal rr_ptr : natural range 0 to N-1 := 0;   -- round-robin start pointer
 
+    -- M5a GHOST-TXN FIX: req(i) is HELD until done(i), and the master's ack
+    -- flop (sh_acked) only clears req one mclk AFTER the done cycle — so at
+    -- the IDLE pick edge immediately following DATA, the just-served master's
+    -- req is still (stalely) '1'. Picking it re-runs a GHOST transaction with
+    -- whatever addr/lanes the now-unstalling core happens to present, and the
+    -- ghost's done collides with (and swallows) that master's NEXT real access
+    -- — back-to-back shared mem instructions then consume stale rdata (found
+    -- by shspin's owner re-check; masked under heavy contention, which is why
+    -- shmem_mp's sw/lw hammer never hit it). Fix: mask the served master for
+    -- exactly ONE pick cycle. A legitimate re-request can't arrive earlier
+    -- than two cycles after done, so this can never starve anyone.
+    signal mask_last : std_logic := '0';           -- valid for one pick only
+    signal last_m    : natural range 0 to N-1 := 0;
+
     -- slice helpers
     function addr_of(a : std_logic_vector; i : natural) return std_logic_vector is
     begin
@@ -126,11 +140,14 @@ begin
             case state is
                 when IDLE =>
                     gnt <= (others => '0');
+                    mask_last <= '0';   -- the mask covers only this pick
                     -- round-robin winner: first requester at or after rr_ptr
+                    -- (skipping the just-served master's stale req, see above)
                     winner := -1;
                     for k in 0 to N-1 loop
                         idx := (rr_ptr + k) mod N;
-                        if winner = -1 and req(idx) = '1' then
+                        if winner = -1 and req(idx) = '1'
+                           and not (mask_last = '1' and idx = last_m) then
                             winner := idx;
                         end if;
                     end loop;
@@ -167,6 +184,8 @@ begin
                     end if;
                     gnt   <= (others => '0');
                     gnt(cur) <= '1';   -- hold grant through its done cycle
+                    last_m    <= cur;  -- ghost-txn fix: mask cur's stale req
+                    mask_last <= '1';  --   for the pick at the next edge
                     state <= IDLE;
             end case;
         end if;

@@ -7,6 +7,7 @@ rv32ui_sc_tests = \
 	simple \
 	shmem \
 	shmem_mp \
+	shboot \
 	add addi \
 	and andi \
 	auipc \

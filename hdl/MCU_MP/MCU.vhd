@@ -7,6 +7,13 @@ use work.constants.all;
 use work.MemoryMap.all;
 
 entity MCU is
+   generic (
+        -- M5a: preload images for harts 1-3 (all three tiles share one image;
+        -- tests are hart-generic via mhartid). Defaults = the M3c.4 shmem_mp
+        -- contention images, so every existing run is bit-identical.
+        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf";
+        HART_RAM1_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf"
+   );
    port (
 
         -- Resetn Pad
@@ -1539,8 +1546,8 @@ begin
         generic map (
             HARTID         => 1,
             PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf",
-            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf",
+            RAM0_INIT_FILE => HART_RAM0_INIT,
+            RAM1_INIT_FILE => HART_RAM1_INIT,
             SH_AW          => SH_AW
         )
         port map (
@@ -1564,8 +1571,8 @@ begin
         generic map (
             HARTID         => 2,
             PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf",
-            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf",
+            RAM0_INIT_FILE => HART_RAM0_INIT,
+            RAM1_INIT_FILE => HART_RAM1_INIT,
             SH_AW          => SH_AW
         )
         port map (
@@ -1589,8 +1596,8 @@ begin
         generic map (
             HARTID         => 3,
             PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf",
-            RAM1_INIT_FILE => "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf",
+            RAM0_INIT_FILE => HART_RAM0_INIT,
+            RAM1_INIT_FILE => HART_RAM1_INIT,
             SH_AW          => SH_AW
         )
         port map (
