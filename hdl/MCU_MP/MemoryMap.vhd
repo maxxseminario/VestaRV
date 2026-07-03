@@ -252,7 +252,12 @@ package MemoryMap is
 	constant IRQB_I2C1_sovf	: natural := 80;	-- I2C1 Slave Overflow Interrupt IVT address = 0xa148
 	constant IRQB_I2C1_snr 	: natural := 81;	-- I2C1 slave mode NACK received Interrupt IVT address = 0xa14C
 	constant IRQB_I2C1_sxc 	: natural := 82;	-- I2C1 Slave Transfer Complete Interrupt IVT address = 0xa150
-	constant NUM_IRQS		: natural := 83;	-- Total number of IRQs
+	-- M5b: real CLINT (hdl/MCU_MP/clint.vhd, shared window 0x11000). Per-hart
+	-- level IRQs: each hart's irq_vector gets ITS OWN msip/mtip bit at these
+	-- slots (IVT @0x8000: slot 83 = 0x814C, slot 84 = 0x8150).
+	constant IRQB_CLINT_MSIP : natural := 83;	-- CLINT software interrupt (IPI), IVT entry 0x814C
+	constant IRQB_CLINT_MTIP : natural := 84;	-- CLINT timer interrupt, IVT entry 0x8150
+	constant NUM_IRQS		: natural := 85;	-- Total number of IRQs
 	constant NUM_GF_INSTANCES : natural := (NUM_IRQS + 31) / 32;
 
 
