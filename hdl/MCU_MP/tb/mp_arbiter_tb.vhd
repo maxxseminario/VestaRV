@@ -32,9 +32,9 @@ entity mp_master is
     port (
         clk      : in  std_logic;
         resetn   : in  std_logic;
-        -- arbiter master interface
+        -- arbiter master interface (we = 4 active-high byte-lane strobes, M4a)
         req      : out std_logic;
-        we       : out std_logic;
+        we       : out std_logic_vector(3 downto 0);
         addr     : out std_logic_vector(11 downto 0);
         wdata    : out std_logic_vector(31 downto 0);
         gnt      : in  std_logic;
@@ -59,24 +59,26 @@ architecture bfm of mp_master is
     end function;
 begin
     process
-        variable rd : std_logic_vector(31 downto 0);
+        variable rd       : std_logic_vector(31 downto 0);
+        variable expected : std_logic_vector(31 downto 0);
+        variable lane     : natural;
     begin
-        req <= '0'; we <= '0'; addr <= (others => '0'); wdata <= (others => '0');
+        req <= '0'; we <= (others => '0'); addr <= (others => '0'); wdata <= (others => '0');
         finished <= '0'; err <= '0';
         wait until resetn = '1';
         wait until rising_edge(clk);
 
-        -- WRITE pass
+        -- WRITE pass (full word: all four lane strobes)
         for k in 0 to NTX-1 loop
-            req <= '1'; we <= '1'; addr <= addr_for(k); wdata <= data_for(k);
+            req <= '1'; we <= "1111"; addr <= addr_for(k); wdata <= data_for(k);
             wait until done = '1';           -- transaction complete
-            req <= '0'; we <= '0';
+            req <= '0'; we <= (others => '0');
             wait until rising_edge(clk);      -- one-cycle gap before next req
         end loop;
 
         -- READ-BACK pass
         for k in 0 to NTX-1 loop
-            req <= '1'; we <= '0'; addr <= addr_for(k);
+            req <= '1'; we <= (others => '0'); addr <= addr_for(k);
             wait until done = '1';
             rd := rdata;                      -- valid on the done cycle
             req <= '0';
@@ -87,6 +89,29 @@ begin
             end if;
             wait until rising_edge(clk);
         end loop;
+
+        -- BYTE-LANE pass (M4a): overwrite ONE byte of word 0 with 0xEE and
+        -- check the merged word — other lanes must be untouched.
+        lane := INDEX mod 4;
+        req <= '1'; addr <= addr_for(0); wdata <= x"EEEEEEEE";
+        we <= (others => '0'); we(lane) <= '1';
+        wait until done = '1';
+        req <= '0'; we <= (others => '0');
+        wait until rising_edge(clk);
+
+        expected := data_for(0);
+        expected((lane+1)*8-1 downto lane*8) := x"EE";
+        req <= '1'; we <= (others => '0'); addr <= addr_for(0);
+        wait until done = '1';
+        rd := rdata;
+        req <= '0';
+        if rd /= expected then
+            err <= '1';
+            report "mp_master " & integer'image(INDEX) &
+                   " BYTE-LANE merge MISMATCH (lane " & integer'image(lane) & ")"
+                severity error;
+        end if;
+        wait until rising_edge(clk);
 
         finished <= '1';
         wait;
@@ -120,18 +145,22 @@ architecture sim of mp_arbiter_tb is
     -- master <-> arbiter (per-master arrays, one driver each -> no bus conflict)
     type slv12_arr is array(0 to N-1) of std_logic_vector(AW-1 downto 0);
     type slv32_arr is array(0 to N-1) of std_logic_vector(DW-1 downto 0);
-    signal m_req, m_we, m_gnt, m_done : std_logic_vector(N-1 downto 0);
+    type slv4_arr  is array(0 to N-1) of std_logic_vector(3 downto 0);
+    signal m_req, m_gnt, m_done : std_logic_vector(N-1 downto 0);
+    signal m_we    : slv4_arr;
     signal m_addr  : slv12_arr;
     signal m_wdata : slv32_arr;
     signal m_finished, m_err : std_logic_vector(N-1 downto 0) := (others => '0');
 
     -- flattened buses to the arbiter
+    signal f_we    : std_logic_vector(N*4-1 downto 0);
     signal f_addr  : std_logic_vector(N*AW-1 downto 0);
     signal f_wdata : std_logic_vector(N*DW-1 downto 0);
     signal a_rdata : std_logic_vector(DW-1 downto 0);
 
     -- arbiter <-> shared slave
-    signal s_en, s_we : std_logic;
+    signal s_en    : std_logic;
+    signal s_we    : std_logic_vector(3 downto 0);
     signal s_addr  : std_logic_vector(AW-1 downto 0);
     signal s_wdata : std_logic_vector(DW-1 downto 0);
     signal s_rdata : std_logic_vector(DW-1 downto 0);
@@ -148,14 +177,14 @@ architecture sim of mp_arbiter_tb is
             clk    : in  std_logic;
             resetn : in  std_logic;
             req    : in  std_logic_vector(N-1 downto 0);
-            we     : in  std_logic_vector(N-1 downto 0);
+            we     : in  std_logic_vector(N*4-1 downto 0);
             addr   : in  std_logic_vector(N*ADDR_WIDTH-1 downto 0);
             wdata  : in  std_logic_vector(N*DATA_WIDTH-1 downto 0);
             gnt    : out std_logic_vector(N-1 downto 0);
             done   : out std_logic_vector(N-1 downto 0);
             rdata  : out std_logic_vector(DATA_WIDTH-1 downto 0);
             s_en    : out std_logic;
-            s_we    : out std_logic;
+            s_we    : out std_logic_vector(3 downto 0);
             s_addr  : out std_logic_vector(ADDR_WIDTH-1 downto 0);
             s_wdata : out std_logic_vector(DATA_WIDTH-1 downto 0);
             s_rdata : in  std_logic_vector(DATA_WIDTH-1 downto 0)
@@ -170,6 +199,7 @@ begin
 
     -- flatten per-master arrays into the arbiter's buses
     gen_flat: for i in 0 to N-1 generate
+        f_we((i+1)*4-1 downto i*4)      <= m_we(i);
         f_addr((i+1)*AW-1 downto i*AW)  <= m_addr(i);
         f_wdata((i+1)*DW-1 downto i*DW) <= m_wdata(i);
     end generate;
@@ -192,23 +222,27 @@ begin
         generic map (N => N, ADDR_WIDTH => AW, DATA_WIDTH => DW)
         port map (
             clk => clk, resetn => resetn,
-            req => m_req, we => m_we, addr => f_addr, wdata => f_wdata,
+            req => m_req, we => f_we, addr => f_addr, wdata => f_wdata,
             gnt => m_gnt, done => m_done, rdata => a_rdata,
             s_en => s_en, s_we => s_we, s_addr => s_addr,
             s_wdata => s_wdata, s_rdata => s_rdata
         );
 
-    -- shared single-port RAM slave (matches the arbiter's 1-cycle-latency model)
+    -- shared single-port RAM slave (matches the arbiter's 1-cycle-latency model;
+    -- per-byte-lane writes, M4a)
     slave: process(clk)
+        variable merged : std_logic_vector(DW-1 downto 0);
     begin
         if rising_edge(clk) then
             if s_en = '1' then
-                if s_we = '1' then
-                    shram(conv_integer(s_addr)) <= s_wdata;
-                    s_rdata <= s_wdata;               -- write-through (unused by master)
-                else
-                    s_rdata <= shram(conv_integer(s_addr));
-                end if;
+                merged := shram(conv_integer(s_addr));
+                for l in 0 to 3 loop
+                    if s_we(l) = '1' then
+                        merged((l+1)*8-1 downto l*8) := s_wdata((l+1)*8-1 downto l*8);
+                    end if;
+                end loop;
+                shram(conv_integer(s_addr)) <= merged;
+                s_rdata <= merged;   -- read returns stored (merged) word
             end if;
         end if;
     end process;

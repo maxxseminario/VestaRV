@@ -113,6 +113,9 @@ architecture behav of MCU is
             mask             : in  std_logic_vector(1 downto 0);
             mem_ready        : in  std_logic := '1';
 
+            lr_sc_bus        : out std_logic_vector(1 downto 0);
+            sc_fail_ext      : in  std_logic := '0';
+
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -707,14 +710,26 @@ architecture behav of MCU is
         signal sh_sel           : std_logic;
         signal sh_dphase        : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
         signal sh_acked         : std_logic := '0';
+        signal sh_acked_we      : std_logic_vector(3 downto 0) := (others => '0'); -- lanes of acked txn (M4b)
+        signal sh_ack_ok        : std_logic;         -- ack valid for the CURRENT access type
+        signal sh_we_lanes0     : std_logic_vector(3 downto 0); -- hart 0 lane strobes
         signal sh_rdata_reg     : std_logic_vector(31 downto 0) := (others => '0');
-        -- arbiter master buses (master 0 = hart 0; masters 1-3 reserved)
-        signal arb_req, arb_we, arb_gnt, arb_done : std_logic_vector(3 downto 0);
+        signal sh_scfail_reg    : std_logic := '0';  -- resv_unit SC verdict latch (M4b)
+        signal lr_sc_bus_0      : std_logic_vector(1 downto 0);
+        -- M4b: global LR/SC reservation unit
+        signal arb_lrsc         : std_logic_vector(4*2-1 downto 0);
+        signal arb_scfail       : std_logic_vector(3 downto 0);
+        signal sh_we_raw        : std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating
+        -- arbiter master buses (master 0 = hart 0; masters 1-3 = hart tiles).
+        -- we = 4 active-high byte-lane strobes per master (M4a).
+        signal arb_req, arb_gnt, arb_done : std_logic_vector(3 downto 0);
+        signal arb_we           : std_logic_vector(4*4-1 downto 0);
         signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
         signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
         signal arb_rdata        : std_logic_vector(31 downto 0);
         -- arbiter <-> shared RAM slave
-        signal sh_en, sh_we     : std_logic;
+        signal sh_en            : std_logic;
+        signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
         signal sh_wdata         : std_logic_vector(31 downto 0);
         signal sh_rdata         : std_logic_vector(31 downto 0);
@@ -1337,6 +1352,8 @@ begin
             read_data    => core_read_data,   -- M3c.2: adddec data, or shared-window data on region-4 access
             mask         => mask,
             mem_ready    => core_mem_ready_g, -- M2 injector AND M3c.2 shared back-pressure
+            lr_sc_bus    => lr_sc_bus_0,
+            sc_fail_ext  => sh_scfail_reg,
 
             irq_vector   => irq_deglitch,
             irq_priority => irq_priority,
@@ -1381,35 +1398,47 @@ begin
     -- one-shot handshake: request until this access is granted (done), then hold
     -- off re-request until the core steps off the shared address (clk_cpu is gated
     -- while stalled, so data_addr/wen/write_word are stable across the wait).
+    --
+    -- M4b: ack is qualified by the txn's LANE STROBES (sh_ack_ok) — an SC holds
+    -- data_addr across a read (EXECUTE) then a write (SC_CHECK); an address-only
+    -- ack would silently swallow the SC write. See hart_tile.vhd for the full
+    -- rationale (this block mirrors the tile).
     sh_handshake: process(mclk, resetn)
     begin
         if resetn = '0' then
-            sh_acked     <= '0';
-            sh_rdata_reg <= (others => '0');
+            sh_acked      <= '0';
+            sh_acked_we   <= (others => '0');
+            sh_rdata_reg  <= (others => '0');
+            sh_scfail_reg <= '0';
         elsif rising_edge(mclk) then
             if sh_sel = '0' then
-                sh_acked <= '0';
+                sh_acked      <= '0';
+                sh_scfail_reg <= '0';
             elsif arb_done(0) = '1' then
-                sh_acked     <= '1';
-                sh_rdata_reg <= arb_rdata;   -- capture shared read data
+                sh_acked      <= '1';
+                sh_acked_we   <= sh_we_lanes0;
+                sh_rdata_reg  <= arb_rdata;      -- capture shared read data
+                sh_scfail_reg <= arb_scfail(0);  -- capture resv_unit SC verdict
             end if;
         end if;
     end process;
 
     -- hart 0 -> arbiter master 0
-    arb_req(0) <= sh_sel and not sh_acked;
     -- wen is ACTIVE-LOW per byte lane (adddec writes lane i when wen(i)='0');
-    -- arbiter we is active-high => write when ANY lane is enabled. NOTE: the
-    -- shared window writes the FULL word (no byte lanes yet) — sub-word stores
-    -- to 0x10000 would corrupt neighbours; shmem.S uses sw/lw only. (M4 TODO)
-    arb_we(0)  <= sh_sel and not (wen_re(0) and wen_re(1) and wen_re(2) and wen_re(3));
+    -- arbiter we is active-high per lane (M4a) — write_word is already
+    -- lane-positioned by the core's store extender, so sb/sh work directly.
+    sh_we_lanes0 <= (not wen_re) when sh_sel = '1' else (others => '0');
+    arb_we(3 downto 0) <= sh_we_lanes0;
+    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes0 else '0';
+    arb_req(0) <= sh_sel and not sh_ack_ok;
     arb_addr(SH_AW-1 downto 0) <= data_addr(SH_AW+1 downto 2);
     arb_wdata(31 downto 0)     <= write_word;
+    arb_lrsc(1 downto 0)       <= lr_sc_bus_0 when sh_sel = '1' else "00";
     -- masters 1-3: driven by the hart_tile shared-window ports (M3c.4) — see
     -- the hart1/2/3 instances below, which map sh_* straight onto these slices.
 
     -- back-pressure into the core (identity while sh_sel='0')
-    core_mem_ready_g <= core_mem_ready and ((not sh_sel) or sh_acked);
+    core_mem_ready_g <= core_mem_ready and ((not sh_sel) or sh_ack_ok);
 
     -- Read-data mux, DATA-PHASE ONLY. vesta's unified bus uses read_data as the
     -- INSTRUCTION during decode (EXECUTE), and data_addr/sh_sel derive
@@ -1445,24 +1474,48 @@ begin
             done   => arb_done,
             rdata  => arb_rdata,
             s_en    => sh_en,
-            s_we    => sh_we,
+            s_we    => sh_we_raw,
             s_addr  => sh_addr,
             s_wdata => sh_wdata,
             s_rdata => sh_rdata
         );
 
+    -- M4b: global LR/SC reservation unit — snoops every granted shared txn,
+    -- places reservations on LR reads, kills them on writes, adjudicates SC
+    -- writes IN THE ARBITER'S SERIALIZATION ORDER (a dead SC's write is
+    -- suppressed via sh_we and its fail verdict returns with done). This is
+    -- what makes cross-hart LR/SC sound: two harts SC-ing the same word both
+    -- pass their core-LOCAL checks, and only this unit can order them.
+    resv0: entity work.resv_unit
+        generic map (N => 4, ADDR_WIDTH => SH_AW)
+        port map (
+            clk        => mclk,
+            resetn     => resetn,
+            lr_sc      => arb_lrsc,
+            gnt        => arb_gnt,
+            s_en       => sh_en,
+            s_we       => sh_we_raw,
+            s_addr     => sh_addr,
+            s_we_gated => sh_we,
+            sc_fail    => arb_scfail
+        );
+
     -- shared single-port RAM window (behavioral; 1-cycle registered read, active-
-    -- high enables to match mp_arbiter's slave model)
+    -- high enables to match mp_arbiter's slave model; per-byte-lane writes, M4a —
+    -- invert sh_we for the active-low WEN if this is ever replaced by the macro)
     sh_ram: process(mclk)
+        variable merged : std_logic_vector(31 downto 0);
     begin
         if rising_edge(mclk) then
             if sh_en = '1' then
-                if sh_we = '1' then
-                    shram(conv_integer(sh_addr)) <= sh_wdata;
-                    sh_rdata <= sh_wdata;
-                else
-                    sh_rdata <= shram(conv_integer(sh_addr));
-                end if;
+                merged := shram(conv_integer(sh_addr));
+                for l in 0 to 3 loop
+                    if sh_we(l) = '1' then
+                        merged((l+1)*8-1 downto l*8) := sh_wdata((l+1)*8-1 downto l*8);
+                    end if;
+                end loop;
+                shram(conv_integer(sh_addr)) <= merged;
+                sh_rdata <= merged;
             end if;
         end if;
     end process;
@@ -1495,12 +1548,14 @@ begin
             resetn    => resetn,
             sleep     => '0',
             sh_req    => arb_req(1),
-            sh_we     => arb_we(1),
+            sh_we     => arb_we(7 downto 4),
             sh_addr   => arb_addr(2*SH_AW-1 downto SH_AW),
             sh_wdata  => arb_wdata(2*32-1 downto 32),
             sh_gnt    => arb_gnt(1),
             sh_done   => arb_done(1),
             sh_rdata  => arb_rdata,
+            sh_lrsc   => arb_lrsc(3 downto 2),
+            sh_scfail => arb_scfail(1),
             trap_flag => open,
             a0        => a0_1
         );
@@ -1518,12 +1573,14 @@ begin
             resetn    => resetn,
             sleep     => '0',
             sh_req    => arb_req(2),
-            sh_we     => arb_we(2),
+            sh_we     => arb_we(11 downto 8),
             sh_addr   => arb_addr(3*SH_AW-1 downto 2*SH_AW),
             sh_wdata  => arb_wdata(3*32-1 downto 2*32),
             sh_gnt    => arb_gnt(2),
             sh_done   => arb_done(2),
             sh_rdata  => arb_rdata,
+            sh_lrsc   => arb_lrsc(5 downto 4),
+            sh_scfail => arb_scfail(2),
             trap_flag => open,
             a0        => a0_2
         );
@@ -1541,12 +1598,14 @@ begin
             resetn    => resetn,
             sleep     => '0',
             sh_req    => arb_req(3),
-            sh_we     => arb_we(3),
+            sh_we     => arb_we(15 downto 12),
             sh_addr   => arb_addr(4*SH_AW-1 downto 3*SH_AW),
             sh_wdata  => arb_wdata(4*32-1 downto 3*32),
             sh_gnt    => arb_gnt(3),
             sh_done   => arb_done(3),
             sh_rdata  => arb_rdata,
+            sh_lrsc   => arb_lrsc(7 downto 6),
+            sh_scfail => arb_scfail(3),
             trap_flag => open,
             a0        => a0_3
         );

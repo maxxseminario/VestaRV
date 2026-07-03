@@ -23,6 +23,17 @@ entity vesta is
         mask       : in  std_logic_vector(1 downto 0);
         mem_ready  : in  std_logic := '1';                    -- Memory back-pressure; '0' stalls the core (freezes clk_cpu). Defaults '1' for single-master use.
 
+        -- Global LR/SC interface (M4b; defaults keep single-master use a no-op).
+        -- lr_sc_bus tags the CURRENT memory access: "01" = LR read, "10" = SC
+        -- write attempt (local reservation check passed), "00" = plain access.
+        -- sc_fail_ext: external (resv_unit) SC verdict for a SHARED SC — '1'
+        -- forces the SC rd result to fail (the shared write was suppressed
+        -- upstream). Must be stable by the end of the SC_CHECK cycle; for a
+        -- stalled shared SC it is latched from the arbiter done, well before
+        -- the core's release edge.
+        lr_sc_bus   : out std_logic_vector(1 downto 0);
+        sc_fail_ext : in  std_logic := '0';
+
         -- IRQ Interface
         irq_vector   : in  std_logic_vector(NUM_IRQS-1 downto 0);
         irq_priority : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -104,6 +115,7 @@ architecture struct of vesta is
             pc_target    : out std_logic_vector(31 downto 0);
             instr        : in  std_logic_vector(31 downto 0);
             ALU_result   : out std_logic_vector(31 downto 0);
+            rs1_value    : out std_logic_vector(31 downto 0);
             alu_done     : out std_logic;
             write_data   : out std_logic_vector(31 downto 0);
             read_data    : in  std_logic_vector(31 downto 0);
@@ -259,6 +271,7 @@ architecture struct of vesta is
     -- ALU and Division Signals
     -- ==========================================
     signal ALU_result             : std_logic_vector(31 downto 0);
+    signal rs1_value              : std_logic_vector(31 downto 0);  -- M4b: phase-independent rs1 for reservation compares
     signal alu_done               : std_logic;
     signal is_div_op              : std_logic;
     signal div_start              : std_logic;
@@ -395,7 +408,7 @@ architecture struct of vesta is
             -- Set reservation on LR
             if current_state = LR_READ then
                 reservation_valid <= '1';
-                reservation_addr <= ALU_result;
+                reservation_addr <= rs1_value;  -- M4b: rs1 IS the LR address (phase-independent)
             -- Clear reservation on SC, interrupt, or context switch
             elsif current_state = SC_CHECK or current_state = IRQ_SV then
                 reservation_valid <= '0';
@@ -557,9 +570,15 @@ architecture struct of vesta is
     -- ==========================================
     -- Memory Interface Address Selection
     -- ==========================================
-    data_addr <= ALU_Result when (mem_access_instr = '1' or 
-                                  current_state = AMO_READ or current_state = AMO_WRITE or 
-                                  current_state = LR_READ or current_state = SC_CHECK) else
+    -- M4b FIX: during SC_CHECK the ALU is repurposed to produce the SC rd
+    -- value (alu_control_dp = pass-B => ALU_result = 0/1), so the write
+    -- address must come from rs1 directly — with the old ALU_Result term
+    -- every SC write went to address 0x0/0x1 instead of (rs1). Never caught:
+    -- no test checked an SC's memory effect before shlrsc.
+    data_addr <= rs1_value  when (current_state = SC_CHECK) else
+                 ALU_Result when (mem_access_instr = '1' or
+                                  current_state = AMO_READ or current_state = AMO_WRITE or
+                                  current_state = LR_READ) else
                  std_logic_vector(unsigned(stack_pointer) - 4) when (current_state = IRQ_SV) else
                  stack_pointer when next_state = IRQ_REST else
                  pc_next;
@@ -575,12 +594,32 @@ architecture struct of vesta is
     -- ==========================================
     -- Atomic Operation Phase Signal - Pass to Datapath to use ALU for computation
     -- ==========================================
+    -- M4b: SC success = LOCAL reservation check (valid AND address match — the
+    -- same condition that drives wen in SC_CHECK; the old valid-only term let
+    -- an address-mismatched SC report success while skipping the write) AND
+    -- the EXTERNAL verdict (sc_fail_ext, from the global resv_unit for shared
+    -- addresses; ties '0' for private/single-master use).
     amo_phase <=    "001" when current_state = AMO_READ or current_state = LR_READ else  -- Reading address
                     "010" when current_state = AMO_COMPUTE else  -- Computing with memory data
                     "011" when current_state = AMO_WRITE else     -- Writing result back
-                    "100" when current_state = SC_CHECK and reservation_valid = '0' else  -- SC failed
-                    "101" when current_state = SC_CHECK and reservation_valid = '1' else  -- SC succeeded
+                    "101" when current_state = SC_CHECK and reservation_valid = '1'
+                               and reservation_addr = rs1_value
+                               and sc_fail_ext = '0' else          -- SC succeeded
+                    "100" when current_state = SC_CHECK else       -- SC failed
                     "000";  -- Normal operation
+
+    -- M4b: tag the current memory access for the global reservation unit.
+    -- PHASING: the LR's bus transaction runs during the EXECUTE (decode) cycle
+    -- — data_addr goes live there via mem_access_instr — and LR_READ merely
+    -- consumes the returned data, so the "01" tag must ride the EXECUTE cycle.
+    -- The SC's conditional WRITE transaction runs during SC_CHECK (EXECUTE
+    -- only issues a harmless read for SC after the M4b wen fix). "10" requires
+    -- the LOCAL check to pass — a locally failed SC issues no write and must
+    -- not be adjudicated as an SC.
+    lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' else
+                 "10" when current_state = SC_CHECK and reservation_valid = '1'
+                           and reservation_addr = rs1_value else
+                 "00";
 
 
     -- ==========================================
@@ -592,7 +631,7 @@ architecture struct of vesta is
                              pc_plus_4, pc_plus_2, alu_done, irq_save_ack, isr_ret, 
                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
-                             reservation_valid, reservation_addr, ALU_result, fence_op)
+                             reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -665,10 +704,18 @@ architecture struct of vesta is
                                     reg_write_dp <= '0';
                                 elsif sc_op = '1' then
                                     -- Store-Conditional operation
-                                    mem_access_instr <= '1';
+                                    -- M4b FIX: no EXECUTE-phase access — the
+                                    -- ALU holds rs1+rs2 here (garbage addr);
+                                    -- the only SC access is SC_CHECK's write.
+                                    mem_access_instr <= '0';
                                     next_state <= SC_CHECK;
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
+                                    -- M4b FIX: wen_controller decodes SC as a
+                                    -- word store, which committed the write
+                                    -- HERE — before the reservation check. The
+                                    -- only (conditional) SC write is SC_CHECK's.
+                                    wen <= (others => '1');
                                 elsif amo_op = '1' then
                                     -- Atomic memory operation
                                     mem_access_instr <= '1';
@@ -748,10 +795,15 @@ architecture struct of vesta is
                                 reg_write_dp <= '0';
                             elsif sc_op = '1' then
                                 -- Store-Conditional operation
-                                mem_access_instr <= '1';
+                                -- M4b FIX: no EXECUTE-phase access (see the
+                                -- half-word path above).
+                                mem_access_instr <= '0';
                                 next_state <= SC_CHECK;
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
+                                -- M4b FIX: no unconditional EXECUTE-phase SC
+                                -- write (see the half-word path above).
+                                wen <= (others => '1');
                             elsif amo_op = '1' then
                                 -- Atomic memory operation
                                 mem_access_instr <= '1';
@@ -887,7 +939,7 @@ architecture struct of vesta is
                     reg_write_dp <= '1';  -- Write success/fail to rd
                     
                     -- Only write if reservation is valid and addresses match
-                    if reservation_valid = '1' and reservation_addr = ALU_result then
+                    if reservation_valid = '1' and reservation_addr = rs1_value then  -- M4b: rs1, not the phase-dependent ALU_result
                         wen <= "0000";  -- Write word (success)
                     else
                         wen <= (others => '1');  -- No write (fail)
@@ -1128,6 +1180,7 @@ architecture struct of vesta is
             pc_target   => pc_target,
             instr       => instr_curr,
             ALU_result  => ALU_result,
+            rs1_value   => rs1_value,
             alu_done    => alu_done,
             write_data  => write_data_dp,
             read_data   => read_data, --TODO

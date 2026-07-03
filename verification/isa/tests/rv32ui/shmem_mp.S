@@ -51,7 +51,43 @@ sweep_loop:
     addi s6, s6, 1
     bne  s6, s5, sweep_loop
 
-    # ---- phase 2: declare PASS, then hammer forever under contention ----
+    # ---- phase 2 (M4c): 64 LR/SC increments on the COMMON counter word ----
+    # All preloaded harts run this concurrently from t=0 -> real same-word
+    # LR/SC contention through resv_unit in EVERY regression run. The counter
+    # (0x10080) deterministically reaches 64*3=192 (+64 when hart 0 runs
+    # shcount, which then checks ==256).
+    #
+    # LIVELOCK (found the hard way): three IDENTICAL harts released together
+    # and served by a fair round-robin arbiter livelock on a naked LR/SC retry
+    # loop — the schedule is perfectly periodic, so the same losers lose every
+    # round (the RISC-V forward-progress guarantee assumes de-synchronizing
+    # factors). The hartid-scaled BACKOFF after a failed SC breaks the
+    # symmetry; 64 consecutive failures WITH backoff -> RVTEST_FAIL.
+    .option push
+    .option arch, +a
+    mv   s10, t0                # hartid (still live from the csrr above)
+    li   s7, 0x10080            # common atomic counter
+    li   s8, 64                 # increments to commit
+    li   s9, 64                 # consecutive-failure budget
+count_loop:
+    lr.w t3, (s7)
+    addi t3, t3, 1
+    sc.w t4, t3, (s7)
+    beqz t4, count_ok           # committed
+    addi s9, s9, -1             # SC failed: spend livelock budget
+    beqz s9, shmem_mp_fail
+    slli t3, s10, 3             # backoff = hartid*8 + 8 spins
+    addi t3, t3, 8
+1:  addi t3, t3, -1
+    bnez t3, 1b
+    j    count_loop
+count_ok:
+    li   s9, 64                 # reset budget
+    addi s8, s8, -1
+    bnez s8, count_loop
+    .option pop
+
+    # ---- phase 3: declare PASS, then hammer forever under contention ----
     # (same a0 write as RVTEST_PASS, but WITHOUT the terminal spin loop)
     li   a0, 0xCAFEBABE
 hammer_loop:
