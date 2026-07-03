@@ -711,7 +711,12 @@ architecture behav of MCU is
         signal wen_fe           : std_logic_vector(3 downto 0);
 
         -- M3c.2: shared-RAM window (region 4 = 0x10000) behind mp_arbiter on mclk.
-        constant SH_AW : natural := 8;                 -- 256-word shared window
+        -- M5b: SH_AW widened 8 -> 12 so the arbiter address covers the WHOLE
+        -- region 4 (0x10000-0x13FFF, word addr = data_addr(13:2)) and slaves
+        -- decode their own sub-ranges (no more 0x10400+ aliasing back onto the
+        -- RAM words): RAM = 0x10000-0x103FF (256 words, unchanged), CLINT =
+        -- 0x11000-0x11FFF. 0x12000+ reserved for future shared peripherals.
+        constant SH_AW : natural := 12;                -- region-4 word-address width
         signal core_read_data   : std_logic_vector(31 downto 0);  -- muxed into core
         signal core_mem_ready_g : std_logic;                      -- injector AND shared_ok
         signal sh_sel           : std_logic;
@@ -734,14 +739,25 @@ architecture behav of MCU is
         signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
         signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
         signal arb_rdata        : std_logic_vector(31 downto 0);
-        -- arbiter <-> shared RAM slave
+        -- arbiter <-> shared slave side (RAM + CLINT sub-decoded below, M5b)
         signal sh_en            : std_logic;
         signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
         signal sh_wdata         : std_logic_vector(31 downto 0);
         signal sh_rdata         : std_logic_vector(31 downto 0);
-        type shram_t is array(0 to 2**SH_AW-1) of std_logic_vector(31 downto 0);
+        -- shared RAM stays 256 WORDS (0x10000-0x103FF) regardless of SH_AW
+        type shram_t is array(0 to 255) of std_logic_vector(31 downto 0);
         signal shram            : shram_t := (others => (others => '0'));
+        -- M5b: slave sub-decode within region 4 + real CLINT
+        signal shslv_ram_sel    : std_logic;   -- word addr 0x000-0x0FF -> RAM
+        signal shslv_clint_sel  : std_logic;   -- word addr 0x400-0x7FF -> CLINT (0x11000)
+        signal shslv_ram_en     : std_logic;
+        signal shslv_clint_en   : std_logic;
+        signal shslv_rd_clint   : std_logic := '0'; -- registered: last access was CLINT
+        signal sh_rdata_mux     : std_logic_vector(31 downto 0); -- into arbiter s_rdata
+        signal clint_rdata      : std_logic_vector(31 downto 0);
+        signal clint_msip       : std_logic_vector(3 downto 0);
+        signal clint_mtip       : std_logic_vector(3 downto 0);
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -1332,6 +1348,9 @@ begin
             IRQB_I2C1_sovf  => irq_i2c1_sovf,
             IRQB_I2C1_snr   => irq_i2c1_snr,
             IRQB_I2C1_sxc   => irq_i2c1_sxc,
+            -- M5b: hart 0's CLINT levels (harts 1-3 get theirs via tile ports)
+            IRQB_CLINT_MSIP => clint_msip(0),
+            IRQB_CLINT_MTIP => clint_mtip(0),
             others          => irq_tielow
         );
 
@@ -1484,7 +1503,7 @@ begin
             s_we    => sh_we_raw,
             s_addr  => sh_addr,
             s_wdata => sh_wdata,
-            s_rdata => sh_rdata
+            s_rdata => sh_rdata_mux
         );
 
     -- M4b: global LR/SC reservation unit — snoops every granted shared txn,
@@ -1507,6 +1526,52 @@ begin
             sc_fail    => arb_scfail
         );
 
+    -- =========================================================================
+    -- M5b: slave-side sub-decode of region 4. The arbiter serializes ALL
+    -- masters onto ONE slave port; the 12-bit word address then selects which
+    -- physical slave this transaction hits:
+    --   0x10000-0x103FF (word 0x000-0x0FF) -> shared RAM (256 words, as ever)
+    --   0x11000-0x11FFF (word 0x400-0x7FF) -> CLINT (msip/mtime/mtimecmp)
+    --   everything else                    -> no slave (reads return 0)
+    -- Both slaves obey the same 1-cycle registered-read contract, so the
+    -- arbiter's IDLE->LATCH->DATA timing is untouched; shslv_rd_clint is
+    -- registered at the access cycle and steers s_rdata during DATA.
+    -- resv_unit still snoops every transaction (its s_we_gated drives BOTH
+    -- slaves: a suppressed SC write must not touch the CLINT either); CLINT
+    -- word addresses can never match a RAM reservation (disjoint ranges).
+    -- =========================================================================
+    shslv_ram_sel   <= '1' when sh_addr(11 downto 8) = "0000" else '0';
+    shslv_clint_sel <= '1' when sh_addr(11 downto 10) = "01"  else '0';
+    shslv_ram_en    <= sh_en and shslv_ram_sel;
+    shslv_clint_en  <= sh_en and shslv_clint_sel;
+
+    shslv_rd_sel: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            shslv_rd_clint <= '0';
+        elsif rising_edge(mclk) then
+            if sh_en = '1' then
+                shslv_rd_clint <= shslv_clint_sel;
+            end if;
+        end if;
+    end process;
+
+    sh_rdata_mux <= clint_rdata when shslv_rd_clint = '1' else sh_rdata;
+
+    clint0: entity work.clint
+        generic map (NHARTS => 4)
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            en     => shslv_clint_en,
+            we     => sh_we,
+            addr   => sh_addr(3 downto 0),
+            wdata  => sh_wdata,
+            rdata  => clint_rdata,
+            msip   => clint_msip,
+            mtip   => clint_mtip
+        );
+
     -- shared single-port RAM window (behavioral; 1-cycle registered read, active-
     -- high enables to match mp_arbiter's slave model; per-byte-lane writes, M4a —
     -- invert sh_we for the active-low WEN if this is ever replaced by the macro)
@@ -1514,14 +1579,14 @@ begin
         variable merged : std_logic_vector(31 downto 0);
     begin
         if rising_edge(mclk) then
-            if sh_en = '1' then
-                merged := shram(conv_integer(sh_addr));
+            if shslv_ram_en = '1' then
+                merged := shram(conv_integer(sh_addr(7 downto 0)));
                 for l in 0 to 3 loop
                     if sh_we(l) = '1' then
                         merged((l+1)*8-1 downto l*8) := sh_wdata((l+1)*8-1 downto l*8);
                     end if;
                 end loop;
-                shram(conv_integer(sh_addr)) <= merged;
+                shram(conv_integer(sh_addr(7 downto 0))) <= merged;
                 sh_rdata <= merged;
             end if;
         end if;
@@ -1554,6 +1619,8 @@ begin
             clk       => mclk,
             resetn    => resetn,
             sleep     => '0',
+            msip_in   => clint_msip(1),
+            mtip_in   => clint_mtip(1),
             sh_req    => arb_req(1),
             sh_we     => arb_we(7 downto 4),
             sh_addr   => arb_addr(2*SH_AW-1 downto SH_AW),
@@ -1579,6 +1646,8 @@ begin
             clk       => mclk,
             resetn    => resetn,
             sleep     => '0',
+            msip_in   => clint_msip(2),
+            mtip_in   => clint_mtip(2),
             sh_req    => arb_req(2),
             sh_we     => arb_we(11 downto 8),
             sh_addr   => arb_addr(3*SH_AW-1 downto 2*SH_AW),
@@ -1604,6 +1673,8 @@ begin
             clk       => mclk,
             resetn    => resetn,
             sleep     => '0',
+            msip_in   => clint_msip(3),
+            mtip_in   => clint_mtip(3),
             sh_req    => arb_req(3),
             sh_we     => arb_we(15 downto 12),
             sh_addr   => arb_addr(4*SH_AW-1 downto 3*SH_AW),

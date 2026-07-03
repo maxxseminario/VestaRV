@@ -50,12 +50,21 @@ entity hart_tile is
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00008200";
         RAM0_INIT_FILE : string := "";   -- 0x8000-0xBFFF preload image (first 4096 words of build .rcf)
         RAM1_INIT_FILE : string := "";   -- 0xC000-0xFFFF preload image (next 4096 words)
-        SH_AW          : natural := 8    -- shared-window word-address width (must match mp_arbiter)
+        SH_AW          : natural := 12   -- shared-window word-address width (must match mp_arbiter)
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
         resetn    : in  std_logic;
         sleep     : in  std_logic;
+
+        -- M5b: per-hart CLINT level interrupts (mclk domain -- same domain as
+        -- this vesta's free-running clk, and its irq_handler clocks on clk, so
+        -- msip/mtip can wake a hart whose gated clk_cpu is OFF in SLEEPING).
+        -- Tiles have no SYSTEM peripheral to program irq_en, so exactly these
+        -- two irq_vector slots (IRQB_CLINT_MSIP / IRQB_CLINT_MTIP) are
+        -- hardwired ENABLED below; every other IRQ stays masked.
+        msip_in   : in  std_logic := '0';
+        mtip_in   : in  std_logic := '0';
 
         -- M3c.4: shared-window master port -> one mp_arbiter master slice in
         -- MCU.vhd. req/we/addr/wdata out; gnt/done/rdata back. req is held
@@ -155,6 +164,14 @@ architecture behav of hart_tile is
     constant zero_irq    : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
     constant zero_periph : word_array(0 to 15)                  := (others => (others => '0'));
 
+    -- M5b: only the two CLINT slots are ever enabled in a tile (no SYSTEM
+    -- peripheral here to program irq_en; everything else stays masked).
+    constant tile_irq_en : std_logic_vector(NUM_IRQS-1 downto 0) :=
+        (IRQB_CLINT_MSIP => '1', IRQB_CLINT_MTIP => '1', others => '0');
+
+    -- M5b: per-hart CLINT level IRQs into this core's vector
+    signal tile_irq_vec  : std_logic_vector(NUM_IRQS-1 downto 0);
+
     -- core <-> adddec private bus
     signal clk_cpu     : std_logic;
     signal data_addr   : std_logic_vector(31 downto 0);
@@ -195,6 +212,14 @@ architecture behav of hart_tile is
 
 begin
 
+    -- M5b: CLINT levels into the only two enabled slots; all other IRQs '0'
+    tile_irq_proc: process(msip_in, mtip_in)
+    begin
+        tile_irq_vec <= (others => '0');
+        tile_irq_vec(IRQB_CLINT_MSIP) <= msip_in;
+        tile_irq_vec(IRQB_CLINT_MTIP) <= mtip_in;
+    end process;
+
     core: vesta
         generic map (
             PC_RST_VAL => PC_RST_VAL,
@@ -217,9 +242,9 @@ begin
             lr_sc_bus    => lr_sc_bus,
             sc_fail_ext  => sh_scfail_reg,
 
-            irq_vector       => zero_irq,
+            irq_vector       => tile_irq_vec,
             irq_priority     => zero_irq,
-            irq_en           => zero_irq,
+            irq_en           => tile_irq_en,
             irq_recursion_en => '0',
             isr_ret          => open,
 
