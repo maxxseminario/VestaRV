@@ -23,7 +23,9 @@
 --
 -- HANDSHAKE (per master i):
 --   req(i)   in : master i wants the slave; HELD until it sees done(i).
---   we(i)    in : 1 = write, 0 = read (sampled at grant).
+--   we slice in : 4 ACTIVE-HIGH byte-lane strobes (M4a); "0000" = read,
+--                 any lane '1' = write those lanes (wdata is lane-positioned
+--                 by the core's store extender). Sampled at grant.
 --   addr/wdata  : master i's address / write data (sampled at grant).
 --   gnt(i)  out : master i currently owns the slave (held for the transaction).
 --   done(i) out : 1 for exactly one cycle when master i's access completes;
@@ -50,18 +52,20 @@ entity mp_arbiter is
         clk    : in  std_logic;   -- free-running mclk
         resetn : in  std_logic;
 
-        -- master side (flattened: master i occupies bit i / slice i)
+        -- master side (flattened: master i occupies bit i / slice i;
+        -- we is 4 byte-lane strobes per master, active-high)
         req    : in  std_logic_vector(N-1 downto 0);
-        we     : in  std_logic_vector(N-1 downto 0);
+        we     : in  std_logic_vector(N*4-1 downto 0);
         addr   : in  std_logic_vector(N*ADDR_WIDTH-1 downto 0);
         wdata  : in  std_logic_vector(N*DATA_WIDTH-1 downto 0);
         gnt    : out std_logic_vector(N-1 downto 0);
         done   : out std_logic_vector(N-1 downto 0);
         rdata  : out std_logic_vector(DATA_WIDTH-1 downto 0);
 
-        -- shared single-port slave side (active-high enables)
+        -- shared single-port slave side (active-high enables; s_we = per-byte
+        -- lane strobes — invert for the active-low WEN of the real SRAM macro)
         s_en    : out std_logic;
-        s_we    : out std_logic;
+        s_we    : out std_logic_vector(3 downto 0);
         s_addr  : out std_logic_vector(ADDR_WIDTH-1 downto 0);
         s_wdata : out std_logic_vector(DATA_WIDTH-1 downto 0);
         s_rdata : in  std_logic_vector(DATA_WIDTH-1 downto 0)
@@ -92,6 +96,11 @@ architecture behav of mp_arbiter is
         return d((i+1)*DATA_WIDTH-1 downto i*DATA_WIDTH);
     end function;
 
+    function we_of(w : std_logic_vector; i : natural) return std_logic_vector is
+    begin
+        return w((i+1)*4-1 downto i*4);
+    end function;
+
 begin
 
     process(clk, resetn)
@@ -106,7 +115,7 @@ begin
             done    <= (others => '0');
             rdata   <= (others => '0');
             s_en    <= '0';
-            s_we    <= '0';
+            s_we    <= (others => '0');
             s_addr  <= (others => '0');
             s_wdata <= (others => '0');
         elsif rising_edge(clk) then
@@ -133,7 +142,7 @@ begin
                         -- slave samples s_en at the next edge (s_en self-clears
                         -- via the default above, so it is a one-cycle strobe).
                         s_en         <= '1';
-                        s_we         <= we(winner);
+                        s_we         <= we_of(we, winner);
                         s_addr       <= addr_of(addr, winner);
                         s_wdata      <= wdata_of(wdata, winner);
                         state        <= LATCH;

@@ -9,7 +9,9 @@
 # transaction) -> data return -> release. Distinct from the private RAM path.
 #
 # Writes patterns to two shared-window words, reads them back, and checks value
-# + isolation (writing one word must not disturb the other). PASS => a0=CAFEBABE.
+# + isolation (writing one word must not disturb the other). M4a added sub-word
+# coverage: sb/sh through the arbiter byte lanes + lb/lbu/lhu extraction from
+# the returned word. PASS => a0=CAFEBABE.
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -39,6 +41,38 @@ RVTEST_CODE_BEGIN
     # ---- overwrite word0, confirm the new value + word1 intact ----
     li   t1, 0xCA11AB1E
     sw   t1, 0(t0)
+    lw   t2, 0(t0)
+    bne  t1, t2, shmem_fail
+    li   t3, 0xABCDEF01
+    lw   t4, 4(t0)
+    bne  t3, t4, shmem_fail
+
+    # ---- M4a: sub-word shared stores (byte lanes through the arbiter) ----
+    # word2 = 0x11223344 (lane0=0x44..lane3=0x11), then sb 0xEE @ +0 and
+    # sh 0xBEEF @ +2: expect 0xBEEF33EE with lane 1 (0x33) preserved.
+    li   t1, 0x11223344
+    sw   t1, 8(t0)
+    li   t2, 0xEE
+    sb   t2, 8(t0)              # lane 0
+    li   t2, 0xBEEF
+    sh   t2, 10(t0)             # lanes 3:2
+    lw   t2, 8(t0)
+    li   t1, 0xBEEF33EE
+    bne  t1, t2, shmem_fail
+
+    # sub-word shared LOADS (byte/half extraction from the returned word)
+    lbu  t2, 9(t0)              # byte lane 1 = 0x33
+    li   t1, 0x33
+    bne  t1, t2, shmem_fail
+    lhu  t2, 10(t0)             # half lanes 3:2 = 0xBEEF
+    li   t1, 0xBEEF
+    bne  t1, t2, shmem_fail
+    lb   t2, 8(t0)              # sign-extended 0xEE = 0xFFFFFFEE
+    li   t1, 0xFFFFFFEE
+    bne  t1, t2, shmem_fail
+
+    # word0/word1 still intact after the sub-word traffic
+    li   t1, 0xCA11AB1E
     lw   t2, 0(t0)
     bne  t1, t2, shmem_fail
     li   t3, 0xABCDEF01

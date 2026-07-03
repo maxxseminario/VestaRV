@@ -47,6 +47,7 @@ entity datapath is
         Zero         : out std_logic;                          -- ALU zero flag
         pc_target    : out std_logic_vector(31 downto 0);      -- Target PC for branches/jumps
         ALU_result   : out std_logic_vector(31 downto 0);      -- ALU computation result
+        rs1_value    : out std_logic_vector(31 downto 0);      -- rs1 register value (M4b: phase-independent address for LR/SC reservation compares)
         alu_done     : out std_logic;                          -- ALU operation complete (for multi-cycle ops)
         
         -- ==========================================
@@ -272,6 +273,12 @@ begin
 
     -- Output ALU result
     ALU_result <= ALU_result_internal;
+
+    -- M4b: rs1 straight from the regfile — the SC/LR address WITHOUT the
+    -- amo_phase-dependent ALU_B mux (ALU_result = rs1 + 0/1 during SC_CHECK
+    -- depending on the pass/fail phase, so comparing reservation_addr against
+    -- ALU_result there forms a combinational loop with two stable solutions).
+    rs1_value <= src_a;
 
     -- ==========================================
     -- Result Source Multiplexer

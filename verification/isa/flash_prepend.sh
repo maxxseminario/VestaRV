@@ -59,7 +59,14 @@ for file in $filter; do
         pad_count=0
     fi
 
-    x_prefix=$(printf '%0.s x' $(seq 1 "$pad_count") | tr -d ' ')
+    # NOTE: printf repeats its format once even with ZERO args (seq 1 0 is
+    # empty), which used to prepend a spurious 'x' to exactly-22-char names
+    # (23 chars -> truncated TEST_FILE -> "Test file not found").
+    if [ "$pad_count" -gt 0 ]; then
+        x_prefix=$(printf '%0.s x' $(seq 1 "$pad_count") | tr -d ' ')
+    else
+        x_prefix=""
+    fi
     new_base="${x_prefix}${stripped_base}"
     new_file="${file_dir}/${new_base}"
 

@@ -31,8 +31,8 @@
 --                during the MEMORY_WAIT data phase. Shared window is DATA-only.
 --   * mem_ready = (not sh_sel) or sh_acked - freezes the core (clk_cpu gate)
 --                for the whole arbiter transaction, inside the EXECUTE cycle.
--- The shared window writes the FULL word (no byte lanes yet - M4 TODO);
--- sub-word shared stores are unsupported.
+-- M4a: sh_we carries the 4 byte-lane strobes (active-high), so sub-word
+-- shared stores (sb/sh) work — write_word is lane-positioned by the core.
 -- =============================================================================
 
 library IEEE;
@@ -62,12 +62,16 @@ entity hart_tile is
         -- until done (1-cycle pulse); addr/wdata are stable across the wait
         -- because the core's clk_cpu is gated off while stalled.
         sh_req    : out std_logic;
-        sh_we     : out std_logic;
+        sh_we     : out std_logic_vector(3 downto 0);  -- active-high byte-lane strobes (M4a)
         sh_addr   : out std_logic_vector(SH_AW-1 downto 0);
         sh_wdata  : out std_logic_vector(31 downto 0);
         sh_gnt    : in  std_logic := '0';
         sh_done   : in  std_logic := '0';
         sh_rdata  : in  std_logic_vector(31 downto 0) := (others => '0');
+        -- M4b: global LR/SC — txn tag out ("01" LR read / "10" SC write
+        -- attempt), resv_unit SC verdict in (valid with sh_done; latched here)
+        sh_lrsc   : out std_logic_vector(1 downto 0);
+        sh_scfail : in  std_logic := '0';
 
         trap_flag : out std_logic;
         a0        : out std_logic_vector(31 downto 0)
@@ -95,6 +99,9 @@ architecture behav of hart_tile is
             read_data        : in  std_logic_vector(31 downto 0);
             mask             : in  std_logic_vector(1 downto 0);
             mem_ready        : in  std_logic := '1';
+
+            lr_sc_bus        : out std_logic_vector(1 downto 0);
+            sc_fail_ext      : in  std_logic := '0';
 
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -177,9 +184,14 @@ architecture behav of hart_tile is
     signal sh_sel         : std_logic;
     signal sh_dphase      : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
     signal sh_acked       : std_logic := '0';
+    signal sh_acked_we    : std_logic_vector(3 downto 0) := (others => '0'); -- lanes of the acked txn (M4b)
+    signal sh_ack_ok      : std_logic;          -- ack valid FOR THE CURRENT ACCESS TYPE
+    signal sh_we_lanes    : std_logic_vector(3 downto 0);
     signal sh_rdata_reg   : std_logic_vector(31 downto 0) := (others => '0');
+    signal sh_scfail_reg  : std_logic := '0';   -- resv_unit SC verdict, latched at done (M4b)
     signal core_read_data : std_logic_vector(31 downto 0);
     signal mem_ready_sh   : std_logic;
+    signal lr_sc_bus      : std_logic_vector(1 downto 0);
 
 begin
 
@@ -201,6 +213,9 @@ begin
             read_data    => core_read_data, -- adddec data, or shared-window data in the data phase
             mask         => mask,
             mem_ready    => mem_ready_sh,   -- '1' except during a shared-window transaction
+
+            lr_sc_bus    => lr_sc_bus,
+            sc_fail_ext  => sh_scfail_reg,
 
             irq_vector       => zero_irq,
             irq_priority     => zero_irq,
@@ -259,30 +274,49 @@ begin
     -- access completes (done), then hold off re-request until the core steps
     -- off the shared address (clk_cpu is gated while stalled, so
     -- data_addr/wen/write_word are stable across the wait).
+    --
+    -- M4b: the ack additionally remembers the LANE STROBES of the completed
+    -- txn (sh_acked_we) and only satisfies an access with the SAME strobes
+    -- (sh_ack_ok, combinational). WHY: an SC keeps data_addr on the shared
+    -- address across two back-to-back accesses with different types — a read
+    -- in EXECUTE, then the conditional WRITE in SC_CHECK. With an
+    -- address-only ack the write would never issue (silently lost SC). The
+    -- lane change drops sh_ack_ok inside the SC_CHECK cycle => the core
+    -- re-stalls and the write runs as a fresh arbiter transaction.
     sh_handshake: process(clk, resetn)
     begin
         if resetn = '0' then
-            sh_acked     <= '0';
-            sh_rdata_reg <= (others => '0');
+            sh_acked      <= '0';
+            sh_acked_we   <= (others => '0');
+            sh_rdata_reg  <= (others => '0');
+            sh_scfail_reg <= '0';
         elsif rising_edge(clk) then
             if sh_sel = '0' then
-                sh_acked <= '0';
+                sh_acked      <= '0';
+                sh_scfail_reg <= '0';
             elsif sh_done = '1' then
-                sh_acked     <= '1';
-                sh_rdata_reg <= sh_rdata;   -- capture shared read data
+                sh_acked      <= '1';
+                sh_acked_we   <= sh_we_lanes;
+                sh_rdata_reg  <= sh_rdata;   -- capture shared read data
+                sh_scfail_reg <= sh_scfail;  -- capture resv_unit SC verdict
             end if;
         end if;
     end process;
 
-    sh_req <= sh_sel and not sh_acked;
-    -- wen is ACTIVE-LOW per byte lane; arbiter we is active-high => write when
-    -- ANY lane is enabled. FULL-word writes only (no byte lanes yet - M4 TODO).
-    sh_we  <= sh_sel and not (wen_re(0) and wen_re(1) and wen_re(2) and wen_re(3));
+    -- wen is ACTIVE-LOW per byte lane; arbiter we is active-high per lane (M4a).
+    -- write_word is lane-positioned by the core's store extender => sb/sh work.
+    sh_we_lanes <= (not wen_re) when sh_sel = '1' else (others => '0');
+    sh_we       <= sh_we_lanes;
+
+    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes else '0';
+
+    sh_req   <= sh_sel and not sh_ack_ok;
     sh_addr  <= data_addr(SH_AW+1 downto 2);
     sh_wdata <= write_word;
+    sh_lrsc  <= lr_sc_bus when sh_sel = '1' else "00";
 
     -- back-pressure into the core (identity while sh_sel='0')
-    mem_ready_sh <= (not sh_sel) or sh_acked;
+    mem_ready_sh <= (not sh_sel) or sh_ack_ok;
 
     -- Read-data mux, DATA-PHASE ONLY, select registered on the tile's own gated
     -- clk_cpu — BY DESIGN (bug 4: a raw-sh_sel mux on read_data oscillates,
