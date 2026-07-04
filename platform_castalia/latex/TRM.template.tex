@@ -89,6 +89,8 @@ The following list details the MCU configuration:
 % Pin configuration
 \section{Packaging and Pins Configuration} \label{s:pinsConfig}
 
+\textbf{Preliminary:} the package and pinout in this section are inherited from the single-core Myshkin MCU and have not yet been finalized for Castalia. Pin assignments, package type, and pin count are subject to change.
+
 \begin{figure}[h]
 	\begin{tikzpicture}[x=12mm, y=12mm]
 		% This is for a square, symmetrical QFN package (e.g. all sides have the same number of pins)
@@ -182,6 +184,8 @@ When the MCU comes out of reset, it immediately begins to execute the bootloader
 
 Only hart 0 executes the boot ROM and the SPI-flash boot sequence described above. Harts 1--3 come out of reset executing from their private RAM and park until hart 0 releases them through the boot mailboxes in shared RAM; see Section \ref{ss:multicore-boot}.
 
+Note that the boot ROM reprograms the clock system during boot, so the SMCLK source at application entry is a boot-ROM implementation detail --- in particular, it may be left on the slow LFXT (32.768~\si{\kilo\hertz}) source. Applications that use SMCLK-domain peripherals (the UARTs, SPIs, I\textsuperscript{2}Cs, or a timer clock-source switch) should therefore always select their desired SMCLK source in the \peripheral{SYSTEM} peripheral first, rather than relying on the boot-time clock state; see Section \ref{ss:clocks} and the clock handoff note in the \peripheral{TIMERx} chapter.
+
 \newpage
 
 
@@ -199,13 +203,13 @@ The interrupt vector table (IVT) is located at the base of RAM, beginning at add
 
 While the VestaRV hardware does not mandate a specific IVT structure, it is strongly recommended to populate the IVT with jump instructions during system initialization. The automatic code generation tools produce linker scripts and initialization code that configure the IVT at the beginning of RAM. The memory map header files provide macros to facilitate proper ISR placement and IVT entry configuration.
 
-\subsection{Recursive Interrupt Handling}
+\subsection{Interrupt Entry, Exit, and Recursion}
 
-The VestaRV CPU supports recursive interrupt handling through hardware-assisted context preservation. When an interrupt occurs, the CPU automatically saves the complete processor context—including all 32 general-purpose registers and the program counter—onto the system stack. This automatic context switching enables nested interrupts, allowing higher-priority interrupts to preempt lower-priority interrupt handlers without software intervention for register preservation.
+When an interrupt is taken, the hardware saves a minimal context: it pushes the return program counter --- one 32-bit word --- onto the system stack at $\mathtt{sp}-4$, decrements \asminline{sp} by 4, and vectors execution through the IVT entry for the interrupt. \textbf{No other state is saved by hardware.} Software is responsible for saving and restoring every general-purpose register the interrupt service routine (ISR) uses. The generated runtime provides an interrupt entry wrapper (in the startup code) that saves the general-purpose registers on the stack --- about 120 bytes per interrupt level --- calls the C-level handler, restores the registers, and returns with the \asminline{retirq} instruction, so C-coded ISRs need no special handling. Hand-written assembly ISRs must perform the equivalent save/restore themselves. Executing \asminline{retirq} pops the hardware-saved program counter, increments \asminline{sp} by 4, and resumes execution at the interrupted location.
 
-Upon entering an ISR, the stack pointer references the saved context, and the ISR may execute normally without concern for register conflicts with the interrupted code. When the ISR completes and executes the \asminline{retirq} instruction, the CPU automatically restores the saved context from the stack and resumes execution at the interrupted location. If a higher-priority interrupt occurs during ISR execution, the current ISR context is saved and the new ISR begins execution, creating a stack of nested interrupt contexts. This mechanism allows for efficient, deterministic handling of complex interrupt scenarios while maintaining system responsiveness.
+Because the very first thing interrupt entry does is a store at $\mathtt{sp}-4$, \textbf{the stack pointer must point at valid, writable private memory before interrupts are enabled}. This applies to every hart: a freshly released tile hart must load its stack pointer before unmasking interrupts or going to sleep (see Section \ref{s:multicore}).
 
-The depth of interrupt nesting is limited only by available stack space. Programmers must ensure sufficient stack allocation to accommodate the maximum anticipated nesting level, accounting for both interrupt contexts (120 bytes per level) and local variables used within ISRs.
+Recursive (nested) interrupt handling is supported when the interrupt recursion enable bit is set (see the \peripheral{SYSTEM} peripheral): a higher-priority interrupt may preempt a running ISR, pushing a new return program counter and nesting another ISR invocation. The depth of interrupt nesting is limited only by available stack space. Programmers must ensure sufficient stack allocation for the maximum anticipated nesting level, accounting for the 4-byte hardware-saved return address and the runtime wrapper's register frame (about 120 bytes) per level, plus the local variables of each ISR.
 
 \subsection{Sleep Mode and Interrupt Wake-Up}
 
@@ -758,11 +762,7 @@ It is highly suggested to use the provided Python program \bashinline{forthprog.
 
 % Errata
 \section{Errata} \label{s:errata}
-Listed are the known issues with the {\AsicNameForUserGuide} MCU:
-
-\begin{itemize}
-	\item 
-\end{itemize}
+There are no known errata for the {\AsicNameForUserGuide} MCU at this time. This section will list hardware issues, their impact, and software workarounds as they are discovered.
 
 
 \end{document}

@@ -10,6 +10,7 @@ rv32ui_sc_tests = \
 	shboot \
 	shwfi \
 	shclint \
+	irqctx \
 	shuart \
 	shirq \
 	shtimer \

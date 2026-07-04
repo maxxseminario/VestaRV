@@ -453,13 +453,28 @@ begin
     end process;
 
     -- Falling edge sensitive register for memory signals
-    process(clk)
+    -- M9b GATE-SIM FIX: async reset to the INACTIVE values. These staging regs
+    -- were unreset — X at power-on — so the first mclk edge pushed X through
+    -- the clock gates (En = not mem_en) onto the RAM macros' CLK/CEN/WEN pins,
+    -- and the vendor SRAM models corrupt their mem arrays on unknown-control
+    -- accesses (nuked tile preloads -> tile cores X -> arb_req X -> NPU CEN X
+    -- -> sleep_cpu X -> hart 0 clk_cpu dead). Holding every strobe deasserted
+    -- (clock gates closed, CEN/WEN high) across reset kills the X at its
+    -- source. Root cause via fs-ordered first-X VCD (multicore_plan.md M9b).
+    process(clk, resetn)
     begin
-        if falling_edge(clk) then
+        if resetn = '0' then
+            mem_en        <= (others => '1');
+            mem_en_periph <= (others => '1');
+            mab_out       <= (others => '0');
+            mem_addr      <= (others => '0');
+            addr_periph   <= (others => '0');
+            wen_fe        <= (others => '1');
+        elsif falling_edge(clk) then
             mem_en <= mem_en_sig;
             mem_en_periph <= mem_en_periph_sig;
             mab_out <= data_addr;
-            mem_addr    <= data_addr(13 downto 2); 
+            mem_addr    <= data_addr(13 downto 2);
             addr_periph <= data_addr(7 downto 2);
             -- mask        <= data_addr(1 downto 0);
             wen_fe <= wen;
@@ -469,9 +484,16 @@ begin
     
 
     -- Rising edge sensitive register for memory select
-    process(clk)
+    -- M9b GATE-SIM FIX: same async-reset treatment as the strobe staging above
+    -- (deasserted selects -> read mux falls through to the safe default arm).
+    process(clk, resetn)
     begin
-       if rising_edge(clk) then
+        if resetn = '0' then
+            mem_sel_int        <= (others => '1');
+            mem_sel_periph_int <= (others => '1');
+            mem_sel_flash_int  <= '1';
+            flash_dout_reg     <= (others => '0');
+        elsif rising_edge(clk) then
             mem_sel_int <= mem_en_sig;
             mem_sel_periph_int <= mem_en_periph_sig;
             if ENABLE_FLASH_EXTENDED_MEM then
@@ -570,9 +592,14 @@ begin
 
 
     -- Memory control process from memory_subsystem
-    mem_cntrl: process(clk)
+    -- M9b GATE-SIM FIX: async reset (see strobe staging above). X on the RAM
+    -- D pins is harmless while WEN is deasserted, but a defined value here
+    -- costs nothing and keeps the write bus X-free from power-on.
+    mem_cntrl: process(clk, resetn)
     begin
-        if falling_edge(clk) then
+        if resetn = '0' then
+            write_data <= (others => '0');
+        elsif falling_edge(clk) then
             if wen(0) = '0' then
                 write_data(7 downto 0)   <= write_word(7 downto 0);
             end if;

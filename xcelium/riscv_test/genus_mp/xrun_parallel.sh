@@ -1,26 +1,35 @@
 #!/bin/bash
-# Parallel rv32ui test runner — 4-step Xcelium flow:
-#   1. Generate a tiny VHDL wrapper entity per test (unique top-level name = unique snapshot)
-#   2. Compile all HDL + wrappers with xmvhdl/xmvlog (once)
-#   3. Elaborate each wrapper with xmelab (sequential, fast)
-#   4. Simulate all xmsim snapshots in parallel (throttled to MAX_PARALLEL licenses)
+# Parallel test runner — POST-SYNTHESIS (genus) MCU_MP gate-level sim with SDF.
+#
+# Same 4-step strategy as behavioral_mp/xrun_parallel.sh (wrapper-per-test →
+# compile once → elaborate each → simulate in parallel), with the gate-flow
+# deltas of riscv_test/genus/xrun_parallel.sh:
+#   * DUT = ../../../genus/out/MCU_MP.genus.v, SDF back-annotated at xmelab
+#     (MCU_MP.sdfcmd rescoped :dut → :uut:dut for the wrapper level).
+#   * The netlist MCU has no generics: the behavioral tile-preload generics are
+#     replaced by per-test xmsim DEPOSIT scripts into the tile SRAM macro
+#     models (make_ram_deposit.py; harts 1-3 ram0/ram1; deposits at t=1ns and
+#     re-asserted at t=300ns inside the second reset pulse). The sh-protocol
+#     tests preload their own image; everything else gets shmem_mp contention
+#     tiles — same binding rule as every other flow.
+#   * xmelab needs -ACCESS +rwc (deposits write into the models).
 #
 # Usage:
-#   ./xrun_parallel.sh
-#   MAX_PARALLEL=8 ./xrun_parallel.sh
+#   ./xrun_parallel.sh                              # full suite
+#   TESTS_FILE=rv32ui.txt MAX_PARALLEL=6 ./xrun_parallel.sh   # subset
 #
-# MAX_PARALLEL = number of simultaneous simulations. Each running xmsim checks
-# out one Xcelium_Single_Core license. The pool on poseidon has 40 such seats,
-# shared with all other users, so 40 is the hard ceiling; leave headroom if
-# others are simulating. Sims use -licqueue, so any that can't grab a seat wait
-# rather than fail. (Host has 128 cores / 251 GB, so licenses are the limit.)
+# GATE SIMS ARE SLOW — the behavioral 1-minute rule does NOT apply here.
 
 source ~/vestarv/cdspaths.sh
 
-BEHAVIORAL_DIR="$(cd "$(dirname "$0")" && pwd)"
-WRAPPERS_DIR="$BEHAVIORAL_DIR/wrappers"
-LOG_PATH="$BEHAVIORAL_DIR/log"
-LIB_PATH="$BEHAVIORAL_DIR/xcelium.d"
+RUN_DIR="$(cd "$(dirname "$0")" && pwd)"
+WRAPPERS_DIR="$RUN_DIR/wrappers"
+LOG_PATH="$RUN_DIR/log"
+LIB_PATH="$RUN_DIR/xcelium.d"
+CELL_LIST="$RUN_DIR/cell_list_genus_mp.txt"
+SDF_CMD="$RUN_DIR/MCU_MP.sdfcmd"
+SDF_CMD_PAR="$RUN_DIR/MCU_MP.parallel.sdfcmd"
+IMG_DIR="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images"
 MAX_PARALLEL=${MAX_PARALLEL:-8}
 
 TEST_FILES=(
@@ -30,7 +39,6 @@ TEST_FILES=(
     "../rcf/xxxrv32ui-p-shboot.rcf"
     "../rcf/xxxxrv32ui-p-shwfi.rcf"
     "../rcf/xxrv32ui-p-shclint.rcf"
-    "../rcf/xxxrv32ui-p-irqctx.rcf"
     "../rcf/xxxrv32ui-p-shuart.rcf"
     "../rcf/xxxxrv32ui-p-shirq.rcf"
     "../rcf/xxrv32ui-p-shtimer.rcf"
@@ -138,76 +146,77 @@ TEST_FILES=(
     "../rcf/xxxrv32uzbs-p-bset.rcf"
 )
 
-# Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the
-# rcf paths listed (one per line) in that file instead of the full array above.
-# Used for quick smoke runs; unset → full regression.
+# Optional subset override, e.g. TESTS_FILE=rv32ui.txt (stage-2 pure-ISA set).
 if [ -n "${TESTS_FILE:-}" ] && [ -f "$TESTS_FILE" ]; then
     mapfile -t TEST_FILES < <(grep -vE '^\s*(#|$)' "$TESTS_FILE")
     echo "TESTS_FILE=$TESTS_FILE → running ${#TEST_FILES[@]} test(s)"
 fi
 
-# Derive a valid VHDL entity name from a test file path.
-# "../rcf/xxxxxxxrv32ui-p-lb.rcf" → "tb_rv32ui_p_lb"
 snap_name() {
     basename "$1" .rcf | sed 's/^x*//' | tr '-' '_' | sed 's/^/tb_/'
 }
 
-# ── 1. Generate wrapper VHDL files ────────────────────────────────────────────
-echo "=== [1/4] Generating per-test wrapper entities ==="
-mkdir -p "$WRAPPERS_DIR"
+# ── 1. Generate wrappers + per-test preload/driver tcl ───────────────────────
+echo "=== [1/4] Generating per-test wrappers + preload scripts ==="
+mkdir -p "$WRAPPERS_DIR" "$LOG_PATH"
 WRAPPER_FILES=()
 ENTITIES=()
+declare -A PRELOAD_DONE
 for rcf in "${TEST_FILES[@]}"; do
     entity=$(snap_name "$rcf")
     ENTITIES+=("$entity")
     wf="$WRAPPERS_DIR/${entity}.vhd"
     WRAPPER_FILES+=("$wf")
-    # Minimal wrapper: unique top-level entity that binds the test file generic.
-    # No ports (riscv_tb is a testbench), no signal declarations needed.
-    # M5a: park/release + lock-protocol tests (shboot/shspin) need harts 1-3
-    # preloaded with the SAME hart-generic program as hart 0; every other test
-    # keeps the default shmem_mp contention tiles (generic defaults).
-    base="$(basename "$rcf" .rcf)"
-    base="$(sed 's/^x*//' <<< "$base")"          # strip the pad prefix
-    extra_gen=""
-    case "$base" in
-        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu)
-            img="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/${base}"
-            extra_gen=", HART_RAM0_INIT => \"${img}.ram0.rcf\", HART_RAM1_INIT => \"${img}.ram1.rcf\"" ;;
-    esac
     cat > "$wf" <<VHDL
 entity ${entity} is end ${entity};
 architecture behavioral of ${entity} is begin
-    uut: entity work.riscv_tb generic map (TEST_FILE => "${rcf}"${extra_gen});
+    uut: entity work.riscv_tb generic map (TEST_FILE => "${rcf}");
 end architecture;
 VHDL
+    # Tile preload image: sh-protocol tests use their own image, the rest the
+    # shmem_mp contention tiles (same rule as behavioral_mp + xrun.sh here).
+    base="$(basename "$rcf" .rcf | sed 's/^x*//')"
+    case "$base" in
+        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu)
+            img="$base" ;;
+        *)  img="rv32ui-p-shmem_mp" ;;
+    esac
+    if [ -z "${PRELOAD_DONE[$img]:-}" ]; then
+        python3 "$RUN_DIR/make_ram_deposit.py" \
+            "$IMG_DIR/$img.ram0.rcf" "$IMG_DIR/$img.ram1.rcf" ":uut:dut" \
+            > "$LOG_PATH/preload_$img.tcl" || { echo "preload gen failed: $img"; exit 1; }
+        PRELOAD_DONE[$img]=1
+    fi
+    cat > "$LOG_PATH/driver_${entity}.tcl" <<EOF
+run 1 ns
+source $LOG_PATH/preload_$img.tcl
+run 299 ns
+source $LOG_PATH/preload_$img.tcl
+run
+exit
+EOF
 done
-echo "  ${#ENTITIES[@]} wrappers written to wrappers/"
+echo "  ${#ENTITIES[@]} wrappers written to wrappers/ (+${#PRELOAD_DONE[@]} preload images)"
 
 # ── 2. Compile all HDL + wrappers ────────────────────────────────────────────
 echo ""
 echo "=== [2/4] Compiling HDL ==="
 [ -d "$LIB_PATH" ] && rm -r "$LIB_PATH"
-mkdir -p "$LOG_PATH"
 
-cd "$BEHAVIORAL_DIR"
+cd "$RUN_DIR"
 
-# The single-step `xrun` manages the library mapping internally. The standalone
-# xmvlog/xmvhdl/xmelab/xmsim flow does not, so provide a cds.lib that pulls in
-# the installed IEEE/std/synopsys libraries and defines the local `work` library.
 mkdir -p "$LIB_PATH/work"
-cat > "$BEHAVIORAL_DIR/cds.lib" <<LIB
+cat > "$RUN_DIR/cds.lib" <<LIB
 SOFTINCLUDE ${XCELIUM_HOME}/tools/xcelium/files/cds.lib
 DEFINE work ./xcelium.d/work
 LIB
 
-# Split cell_list_behavioral.txt into Verilog (.v) and VHDL (.vhd/.vhdl).
-# Use unquoted word-splitting (like xrun_batch.sh) so trailing spaces and a
-# missing final newline don't silently drop files — a per-line `read` loop
-# mis-classifies "...AFE_FSM.vhd " (trailing space) and skips the last line.
+# Rescope the SDF command file for the wrapper level (:dut → :uut:dut).
+sed -E 's/(SCOPE[[:space:]]*=[[:space:]]*):dut/\1:uut:dut/' "$SDF_CMD" > "$SDF_CMD_PAR"
+
 VLOG_FILES=()
 VHDL_FILES=()
-for f in $(< "$BEHAVIORAL_DIR/cell_list_behavioral.txt"); do
+for f in $(< "$CELL_LIST"); do
     case "$f" in \#*) continue ;; esac
     case "${f##*.}" in
         v)        VLOG_FILES+=("$f") ;;
@@ -234,13 +243,19 @@ xmvhdl -V200X -WORK work -CONTROLRELAX nlstex -RELAX \
     2>&1 | tee "$LOG_PATH/compile_wrappers.log"
 [ "${PIPESTATUS[0]}" -ne 0 ] && { echo "Wrapper compile failed."; exit 1; }
 
-# ── 3. Elaborate each snapshot (sequential, fast) ────────────────────────────
+# ── 3. Elaborate each snapshot with SDF (sequential) ─────────────────────────
 echo ""
-echo "=== [3/4] Elaborating snapshots ==="
+echo "=== [3/4] Elaborating snapshots (SDF annotated) ==="
 > "$LOG_PATH/elab.log"
 for entity in "${ENTITIES[@]}"; do
     echo "  elab: $entity"
-    xmelab -ACCESS +r "work.${entity}:behavioral" \
+    # -nonotifier (M9b, same as xrun.sh): timing-check violations still print
+    # but no longer X the violating flop — the tb's reset release trips
+    # reset-time $hold(SN/R) checks whose notifier-X kills the chip.
+    xmelab -ACCESS +rwc -nonotifier \
+        -sdf_cmd_file "$SDF_CMD_PAR" \
+        -sdfstats "$LOG_PATH/sdf_stats.log" \
+        "work.${entity}:behavioral" \
         >> "$LOG_PATH/elab.log" 2>&1
     if [ $? -ne 0 ]; then
         echo "  ERROR: elaboration failed for $entity — see $LOG_PATH/elab.log"
@@ -255,24 +270,19 @@ TOTAL=${#ENTITIES[@]}
 STATUS_DIR="$LOG_PATH/.status"
 rm -rf "$STATUS_DIR"; mkdir -p "$STATUS_DIR"
 
-# Simulate one snapshot, then immediately classify and report its result, so
-# PASS/FAIL lines stream to the terminal as each test finishes (in completion
-# order, not submission order). The per-test status file lets the parent tally
-# accurately afterward.
 run_one() {
     local entity="$1"
     xmsim "work.${entity}:behavioral" \
         -input ../../disable_x_warnings.tcl \
-        -input batch_run.tcl \
+        -input "$LOG_PATH/driver_${entity}.tcl" \
         -licqueue \
         -LOGFILE "$LOG_PATH/${entity}.log" \
         > /dev/null 2>&1
     local result=FAIL
     grep -q "TEST PASSED" "$LOG_PATH/${entity}.log" 2>/dev/null && result=PASS
     echo "$result" > "$STATUS_DIR/$entity"
-    # Completion index = number of status files written so far.
     local done; done=$(ls "$STATUS_DIR" | wc -l)
-    printf "  [%2d/%2d]  %-4s  %s\n" "$done" "$TOTAL" "$result" "$entity"
+    printf "  [%3d/%3d]  %-4s  %s\n" "$done" "$TOTAL" "$result" "$entity"
 }
 
 for entity in "${ENTITIES[@]}"; do

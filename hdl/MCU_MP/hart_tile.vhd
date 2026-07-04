@@ -189,6 +189,10 @@ architecture behav of hart_tile is
     -- M5b/M7a: per-hart CLINT + routed peripheral levels into this core's vector
     signal tile_irq_vec  : std_logic_vector(NUM_IRQS-1 downto 0);
 
+    -- M9b: delayed core reset release (see core_rst_stretch below)
+    signal resetn_core_sr : std_logic_vector(1 downto 0) := "00";
+    signal resetn_core    : std_logic;
+
     -- core <-> adddec private bus
     signal clk_cpu     : std_logic;
     signal data_addr   : std_logic_vector(31 downto 0);
@@ -242,6 +246,23 @@ begin
 
     tile_irq_en <= irq_en_ext or tile_irq_hw_en;
 
+    -- M9b: adddec's bus staging now resets to INACTIVE (gate-sim X fix), so
+    -- the first fetch is no longer primed DURING reset. Release the core two
+    -- mclk rising edges after everything else: the staging loads the PC
+    -- decode on the first falling edge after release, the memory clocks the
+    -- fetch on the following rising edge, and the core then wakes with its
+    -- first instruction already stable on read_data — the same contract the
+    -- unified bus had when the staging free-ran through reset.
+    core_rst_stretch: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            resetn_core_sr <= (others => '0');
+        elsif rising_edge(clk) then
+            resetn_core_sr <= resetn_core_sr(0) & '1';
+        end if;
+    end process;
+    resetn_core <= resetn_core_sr(1);
+
     core: vesta
         generic map (
             PC_RST_VAL => PC_RST_VAL,
@@ -250,7 +271,7 @@ begin
         )
         port map (
             clk         => clk,
-            resetn      => resetn,
+            resetn      => resetn_core,   -- M9b: delayed release (fetch priming)
             sleep       => sleep,
             clk_cpu     => clk_cpu,
 
@@ -358,7 +379,11 @@ begin
 
     sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes else '0';
 
-    sh_req   <= sh_sel and not sh_ack_ok;
+    -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
+    -- settle AND fetch-priming windows from the arbiter — sh_sel is a
+    -- combinational decode of data_addr and can carry X/garbage until the
+    -- core is released with a primed instruction bus.
+    sh_req   <= sh_sel and not sh_ack_ok and resetn_core;
     sh_addr  <= data_addr(SH_AW+1 downto 2);
     sh_wdata <= write_word;
     sh_lrsc  <= lr_sc_bus when sh_sel = '1' else "00";
@@ -380,7 +405,15 @@ begin
         end if;
     end process;
 
-    core_read_data <= sh_rdata_reg when sh_dphase = '1' else read_data;
+    -- M9b: nop-force the instruction bus until the STRETCHED core reset
+    -- releases. adddec's own nop arm uses the early chip resetn, which in the
+    -- gate netlist releases ~2 cycles before resetn_core — in that window the
+    -- select staging points at a memory whose Q has never been clocked, and
+    -- the X instruction feeds pc_next -> data_addr -> decode -> select: a
+    -- self-sustaining X loop on the unified bus. A defined nop keeps
+    -- pc_next/data_addr/decode defined while the fetch pipeline primes.
+    core_read_data <= nop          when resetn_core = '0' else
+                      sh_rdata_reg when sh_dphase = '1'   else read_data;
 
     -- Private ROM (0x0000). Never fetched in M3b (harts boot at 0x8200 in RAM0),
     -- present only to satisfy the decoder's mem_dout(0) region.
@@ -395,10 +428,15 @@ begin
         );
 
     -- Private RAM0 (0x8000-0xBFFF): code + IVT, preloaded from RAM0_INIT_FILE.
+    -- INIT_FILE is a sim-only preload hook on the ARM_IP_RAM model; the real
+    -- sram1p16k_hvt_pg is a .lib macro and cannot take generics, so hide the
+    -- generic map from synthesis.
     ram0: entity work.sram1p16k_hvt_pg
+        -- synopsys translate_off
         generic map (
             INIT_FILE => RAM0_INIT_FILE
         )
+        -- synopsys translate_on
         port map (
             Q     => mem_dout(1),
             CLK   => clk_mem(1),
@@ -415,9 +453,11 @@ begin
     -- Private RAM1 (0xC000-0xFFFF): stack + ISR vectors + data, preloaded from
     -- RAM1_INIT_FILE. Plain (no NPU mux) -- harts 1-3 have no NPU in M3b.
     ram1: entity work.sram1p16k_hvt_pg
+        -- synopsys translate_off
         generic map (
             INIT_FILE => RAM1_INIT_FILE
         )
+        -- synopsys translate_on
         port map (
             Q     => mem_dout(2),
             CLK   => clk_mem(2),

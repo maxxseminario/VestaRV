@@ -633,6 +633,8 @@ architecture behav of MCU is
         signal clk_osc_dco0     : std_logic; -- DCO0 Clock directly from oscillator
         signal clk_osc_dco1     : std_logic; -- DCO1 Clock directly from oscillator
         signal clk_cpu          : std_logic; -- Gated cpu clock from system
+        signal resetn_core_sr   : std_logic_vector(1 downto 0) := "00"; -- M9b: delayed core release
+        signal resetn_core      : std_logic;
         signal core_mem_ready   : std_logic; -- M2: memory back-pressure to the core (from mp_wait_injector)
 
         -- M3a: tie-offs for parked harts 1-3 (held in reset; no shared memory yet).
@@ -1454,6 +1456,20 @@ begin
     -- Component Instantiations
     -- =============================================================================
     sleep_cpu <= npu0_active or flash_ext_meming; -- Sleep when either NPU is active or external flash memory access is occurring
+    -- M9b: adddec's bus staging now resets to INACTIVE (gate-sim X fix), so
+    -- the first fetch is no longer primed DURING reset. Release the core two
+    -- mclk rising edges after everything else so the staging + ROM prime the
+    -- first instruction before the core consumes it (mirrors hart_tile.vhd).
+    core_rst_stretch: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            resetn_core_sr <= (others => '0');
+        elsif rising_edge(mclk) then
+            resetn_core_sr <= resetn_core_sr(0) & '1';
+        end if;
+    end process;
+    resetn_core <= resetn_core_sr(1);
+
     core: vesta
         generic map (
             PC_RST_VAL     => x"00000000",
@@ -1462,7 +1478,7 @@ begin
         )
         port map (
             clk         => mclk,
-            resetn      => resetn,
+            resetn      => resetn_core,   -- M9b: delayed release (fetch priming)
             sleep       => sleep_cpu,
             clk_cpu     => clk_cpu,
 
@@ -1551,7 +1567,10 @@ begin
     sh_we_lanes0 <= (not wen_re) when sh_sel = '1' else (others => '0');
     arb_we(3 downto 0) <= sh_we_lanes0;
     sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes0 else '0';
-    arb_req(0) <= sh_sel and not sh_ack_ok;
+    -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
+    -- settle AND fetch-priming windows from the arbiter (same qualifier as
+    -- the tiles' sh_req in hart_tile.vhd).
+    arb_req(0) <= sh_sel and not sh_ack_ok and resetn_core;
     arb_addr(SH_AW-1 downto 0) <= data_addr(SH_AW+1 downto 2);
     arb_wdata(31 downto 0)     <= write_word;
     arb_lrsc(1 downto 0)       <= lr_sc_bus_0 when sh_sel = '1' else "00";
@@ -1580,7 +1599,10 @@ begin
         end if;
     end process;
 
-    core_read_data <= sh_rdata_reg when sh_dphase = '1' else read_data;
+    -- M9b: nop-force the instruction bus until the STRETCHED core reset
+    -- releases (mirrors hart_tile.vhd — see the rationale there).
+    core_read_data <= nop          when resetn_core = '0' else
+                      sh_rdata_reg when sh_dphase = '1'   else read_data;
 
     mp_arb0: entity work.mp_arbiter
         generic map (N => 4, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)

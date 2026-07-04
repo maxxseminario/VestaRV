@@ -9,7 +9,7 @@ Castalia is a four-hart (four-core) multiprocessor built from four identical Ves
 	\item Sixteen single-instruction hardware mutexes (\peripheral{MUTEX} bank)
 	\item Per-hart peripheral interrupt routing (\peripheral{IRQROUTER}), so any peripheral interrupt can be steered to any hart
 	\item \texttt{LR}/\texttt{SC} and \texttt{AMO} atomic instructions supported to shared RAM, including sub-word shared stores (byte lanes)
-	\item Parked harts sleep in \asminline{wfi} and are woken by a software interrupt --- no busy-wait power burn
+	\item Parked harts can sleep via the custom \asminline{sleep} instruction and be woken by a software interrupt --- no busy-wait power burn
 \end{itemize}
 
 
@@ -52,11 +52,11 @@ An \texttt{AMO} (atomic read-modify-write) instruction holds the arbiter grant a
 
 \subsubsection{The Shared Peripheral Page}
 
-The page at \texttt{0x13000}--\texttt{0x13FFF} is divided into sixteen 256-byte slots that deliberately mirror the legacy peripheral page's slot numbering at \texttt{0x4000}: the shared alias of the peripheral in legacy slot $n$ lives at $\mathtt{0x13000} + 256 n$. Through these aliases, harts 1--3 (and hart 0) can operate peripherals with the arbiter guaranteeing register-access atomicity. Two slots are repurposed for multi-core infrastructure blocks: slot 0 holds the \peripheral{MUTEX} bank (its legacy owner \peripheral{GPIO0} is never shared) and slot 9 holds the \peripheral{IRQROUTER} (its legacy owner \peripheral{SYSTEM} remains hart 0's private system controller).
+The page at \texttt{0x13000}--\texttt{0x13FFF} is divided into sixteen 256-byte slots that deliberately mirror the legacy peripheral page's slot numbering at \texttt{0x4000}: the shared peripheral that historically occupied legacy slot $n$ lives at $\mathtt{0x13000} + 256 n$. These shared addresses are the \textbf{only} addresses of the moved peripherals --- their old \texttt{0x4000}-page windows are decoded but read zeros. Through the shared page, every hart (including hart 0) operates peripherals with the arbiter guaranteeing register-access atomicity. Two slots are repurposed for multi-core infrastructure blocks: slot 0 holds the \peripheral{MUTEX} bank (its legacy owner \peripheral{GPIO0} is never shared) and slot 9 holds the \peripheral{IRQROUTER} (its legacy owner \peripheral{SYSTEM} remains hart 0's private system controller).
 
 \begin{center}
 \begin{tabular}{ l l l l }
-	\textbf{Slot} & \textbf{Shared address} & \textbf{Device} & \textbf{Legacy address} \\ \hline
+	\textbf{Slot} & \textbf{Address} & \textbf{Device} & \textbf{Legacy address (reads zero)} \\ \hline
 	0  & \texttt{0x13000} & \peripheral{MUTEX} bank (\peripheral{GPIO0} is never shared) & --- \\
 	1  & \texttt{0x13100} & \peripheral{GPIO1}  & \texttt{0x4100} \\
 	3  & \texttt{0x13300} & \peripheral{SPI1}   & \texttt{0x4300} \\
@@ -89,7 +89,11 @@ Only hart 0 executes the boot ROM and SPI-flash boot sequence, exactly as on the
 \end{tabular}
 \end{center}
 
-The release sequence for hart $h$ is: hart 0 writes the hart's entry point to \register{ENTRY[h]}, then writes the magic value to \register{GO[h]}; hart $h$ observes the magic value, jumps to the entry PC, and acknowledges by writing \register{DONE[h]}. Alternatively (and preferably, once the application is running), a parked hart can sleep in \asminline{wfi} and be woken with a \peripheral{CLINT} software interrupt instead of polling --- see the \peripheral{CLINT} chapter.
+\textbf{Tile program loading (preliminary):} a tile hart begins fetching from its private RAM immediately at reset and has no boot ROM of its own, so its private RAM must already contain valid code (at minimum, the park loop) when reset deasserts. In simulation the tile RAMs are preloaded with per-hart images; the production mechanism for loading tile programs on silicon is platform-defined and not yet finalized.
+
+\textbf{Stacks:} each hart needs its own stack in its own private RAM. When an interrupt is taken, the hardware pushes the return program counter at $\mathtt{sp}-4$ (see Section \ref{s:interrupts}), so every hart --- including a freshly released tile hart --- must load a valid stack pointer before enabling interrupts or sleeping. The convention is to place each hart's stack at the top of its private RAM1 and let it grow downward.
+
+The release sequence for hart $h$ is: hart 0 writes the hart's entry point to \register{ENTRY[h]}, then writes the magic value to \register{GO[h]}; hart $h$ observes the magic value, jumps to the entry PC, and acknowledges by writing \register{DONE[h]}. Alternatively (and preferably, once the application is running), a parked hart can sleep via the custom \asminline{sleep} instruction and be woken with a \peripheral{CLINT} software interrupt instead of polling --- see the \peripheral{CLINT} chapter and Section \ref{ss:sleep}.
 
 
 

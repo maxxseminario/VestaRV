@@ -1048,11 +1048,18 @@ architecture struct of vesta is
                 -- ==========================================
                 when IRQ_SV =>
                     wen <= (others => '0');  -- Enable write to save PC
-                    
+
                     -- Update stack pointer
                     sp_write_en <= '1';
                     sp_write_data <= std_logic_vector(unsigned(stack_pointer) - 4);
-                    
+
+                    -- No writeback belongs to the IRQ dispatch cycles: the
+                    -- instruction mux shows the already-retired interrupted
+                    -- instruction here (a load decodes RegWrite=1 and would
+                    -- re-write its rd with garbage) and raw read_data during
+                    -- IRQ_JUMP (arbitrary image -> arbitrary rd). Caught by
+                    -- rv32ui-p-irqctx (phantom t1 write during IRQ_JUMP).
+                    reg_write_dp <= '0';
                     pc_en <= '0';
                     next_state <= IRQ_JUMP;
 
@@ -1063,6 +1070,7 @@ architecture struct of vesta is
                     irq_save_ack <= '1';
                     pc_en <= '1';  -- Load IVT entry
                     wen <= (others => '1');
+                    reg_write_dp <= '0';
                     next_state <= EXECUTE;
 
                 -- ==========================================

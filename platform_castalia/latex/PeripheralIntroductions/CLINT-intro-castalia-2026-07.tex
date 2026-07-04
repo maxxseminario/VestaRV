@@ -5,7 +5,7 @@ The Core-Local Interruptor (\peripheral{CLINT}) provides the two interrupt sourc
 	\item Shared free-running 64-bit \register{MTIME} counter, incrementing once per MCLK cycle
 	\item One 64-bit compare register per hart (\register{MTIMECMP0}--\register{MTIMECMP3}); hart $h$'s timer interrupt is asserted while $\register{MTIME} \geq \register{MTIMECMP}h$
 	\item Level-sensitive interrupt delivery into interrupt vectors 83 (software) and 84 (timer)
-	\item Wakes harts sleeping in \asminline{wfi}, enabling zero-power hart parking
+	\item Wakes harts sleeping via the custom \asminline{sleep} instruction, enabling zero-power hart parking
 	\item Compare registers reset to all-ones, so no timer interrupt fires until one is programmed
 \end{itemize}
 
@@ -15,7 +15,7 @@ The \peripheral{CLINT} runs on the free-running MCLK --- the same clock as each 
 
 Writing 1 to \register{MSIPh} raises the software-interrupt level into hart $h$ (interrupt vector 83); writing 0 clears it. Because the interrupt is \textbf{level-sensitive}, hart $h$'s interrupt service routine must write 0 to its own \register{MSIPh} register before returning, or the interrupt immediately re-triggers.
 
-The canonical use is waking a parked hart: the parked hart enables interrupt vector 83 and executes \asminline{wfi}; another hart writes 1 to the sleeper's \register{MSIP} register; the sleeper wakes, clears its \register{MSIP}, and proceeds.
+The canonical use is waking a parked hart: the parked hart enables interrupt vector 83 and executes the custom \asminline{sleep} instruction (see Section \ref{ss:sleep}); another hart writes 1 to the sleeper's \register{MSIP} register. The sleeper's interrupt service routine runs, clears its \register{MSIP}, and must execute the custom \asminline{wake} instruction before returning --- otherwise the hart goes back to sleep when the service routine returns.
 
 \subsection{Timer Interrupts}
 
