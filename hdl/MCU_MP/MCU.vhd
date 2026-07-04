@@ -758,6 +758,74 @@ architecture behav of MCU is
         signal clint_rdata      : std_logic_vector(31 downto 0);
         signal clint_msip       : std_logic_vector(3 downto 0);
         signal clint_mtip       : std_logic_vector(3 downto 0);
+        -- M6: shared UART0 (console) = third region-4 slave at 0x12000
+        signal shslv_uart_sel   : std_logic;   -- word addr 0x800-0xBFF -> UART0 (0x12000)
+        signal shslv_uart_en    : std_logic;
+        signal shslv_rd_uart    : std_logic := '0'; -- registered: last access was UART0
+        signal uart0_sh_en_n    : std_logic;   -- UART bus is active-LOW en/wen
+        signal sh_wen_n   : std_logic_vector(3 downto 0);
+        signal uart0_sh_rdata   : std_logic_vector(31 downto 0);
+        -- M7a: shared-window page 0x13000-0x13FFF = 16 x 256B slots
+        -- (slot = sh_addr(9:6); numbering MIRRORS the legacy 0x4000 periph
+        -- page). Slot 9 (0x13900) = irq_router, the tile IRQ fan-out.
+        signal shslv_pg3_sel    : std_logic;   -- word addr 0xC00-0xFFF -> page 3
+        signal shslv_irtr_sel   : std_logic;   -- page-3 slot 9 -> irq_router
+        signal shslv_irtr_en    : std_logic;
+        signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
+        signal irtr_rdata       : std_logic_vector(31 downto 0);
+        signal tile_irq_en_flat : std_logic_vector(4*NUM_IRQS-1 downto 0);
+        -- M7b: shared TIMER0/1 + GPIO1/2/3 = page-3 slots 6/7/1/8/13 (the
+        -- legacy 0x4000 page's slot numbers -> 0x13600/0x13700/0x13100/
+        -- 0x13800/0x13D00). GPIO0 is NEVER shared: the ROM bootrom programs
+        -- its DIR/SEL and drives the flash CS through PxOUTS/PxOUTC on every
+        -- SPI boot — it stays private with SPI0/SYSTEM0.
+        signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
+        signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
+        signal shslv_gpio1_sel, shslv_gpio1_en  : std_logic;
+        signal shslv_gpio2_sel, shslv_gpio2_en  : std_logic;
+        signal shslv_gpio3_sel, shslv_gpio3_en  : std_logic;
+        signal shslv_rd_tim0    : std_logic := '0';
+        signal shslv_rd_tim1    : std_logic := '0';
+        signal shslv_rd_gpio1   : std_logic := '0';
+        signal shslv_rd_gpio2   : std_logic := '0';
+        signal shslv_rd_gpio3   : std_logic := '0';
+        signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen
+        signal tim1_sh_en_n     : std_logic;
+        signal gpio1_sh_en_n    : std_logic;
+        signal gpio2_sh_en_n    : std_logic;
+        signal gpio3_sh_en_n    : std_logic;
+        signal tim0_sh_rdata    : std_logic_vector(31 downto 0);
+        signal tim1_sh_rdata    : std_logic_vector(31 downto 0);
+        signal gpio1_sh_rdata   : std_logic_vector(31 downto 0);
+        signal gpio2_sh_rdata   : std_logic_vector(31 downto 0);
+        signal gpio3_sh_rdata   : std_logic_vector(31 downto 0);
+        -- M7c: shared SPI1 + UART1 = page-3 slots 3/5 (0x13300/0x13500).
+        -- SPI0 stays private forever (ROM bootrom boot path).
+        signal shslv_spi1_sel,  shslv_spi1_en   : std_logic;
+        signal shslv_uart1_sel, shslv_uart1_en  : std_logic;
+        signal shslv_rd_spi1    : std_logic := '0';
+        signal shslv_rd_uart1   : std_logic := '0';
+        signal spi1_sh_en_n     : std_logic;
+        signal uart1_sh_en_n    : std_logic;
+        signal spi1_sh_rdata    : std_logic_vector(31 downto 0);
+        signal uart1_sh_rdata   : std_logic_vector(31 downto 0);
+        -- M7c.2: shared I2C0/I2C1 = page-3 slots 14/15 (0x13E00/0x13F00).
+        -- I2C's register READ is COMBINATIONAL (unlike every other moved
+        -- peripheral): rdata_out collapses to register 0 the moment
+        -- EnMemPeriph deasserts, so the bridge REGISTERS it at the
+        -- LATCH->DATA edge (i2c*_sh_rdata below) — reproducing exactly the
+        -- old adddec timing the I2C.vhd comment assumes ("EnMemPeriph has a
+        -- leading edge exactly one clock cycle before rdata latches").
+        signal shslv_i2c0_sel,  shslv_i2c0_en   : std_logic;
+        signal shslv_i2c1_sel,  shslv_i2c1_en   : std_logic;
+        signal shslv_rd_i2c0    : std_logic := '0';
+        signal shslv_rd_i2c1    : std_logic := '0';
+        signal i2c0_sh_en_n     : std_logic;
+        signal i2c1_sh_en_n     : std_logic;
+        signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance
+        signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
+        signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
+        signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -1532,6 +1600,10 @@ begin
     -- physical slave this transaction hits:
     --   0x10000-0x103FF (word 0x000-0x0FF) -> shared RAM (256 words, as ever)
     --   0x11000-0x11FFF (word 0x400-0x7FF) -> CLINT (msip/mtime/mtimecmp)
+    --   0x12000-0x12FFF (word 0x800-0xBFF) -> UART0 (M6: the console UART is
+    --                                         now SHARED by all 4 harts; its
+    --                                         old private window at 0x4400 is
+    --                                         dead — hart 0 reads 0 there)
     --   everything else                    -> no slave (reads return 0)
     -- Both slaves obey the same 1-cycle registered-read contract, so the
     -- arbiter's IDLE->LATCH->DATA timing is untouched; shslv_rd_clint is
@@ -1542,21 +1614,140 @@ begin
     -- =========================================================================
     shslv_ram_sel   <= '1' when sh_addr(11 downto 8) = "0000" else '0';
     shslv_clint_sel <= '1' when sh_addr(11 downto 10) = "01"  else '0';
+    shslv_uart_sel  <= '1' when sh_addr(11 downto 10) = "10"  else '0';
+    -- M7a: page 3 (0x13000-0x13FFF) sub-decodes into 16 x 256B slots
+    -- (slot = sh_addr(9:6), mirroring the legacy 0x4000 periph page's slot
+    -- numbering). Slot 9 = irq_router @0x13900 (SYSTEM0's slot number there —
+    -- this is the MP system-control block). Remaining slots = M7b+ shared
+    -- peripherals.
+    shslv_pg3_sel   <= '1' when sh_addr(11 downto 10) = "11"  else '0';
+    shslv_irtr_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1001" else '0';
+    -- M7b: page-3 peripheral slots (numbers mirror the legacy 0x4000 page)
+    shslv_gpio1_sel <= shslv_pg3_sel when sh_addr(9 downto 6) = "0001" else '0';
+    shslv_spi1_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "0011" else '0';
+    shslv_uart1_sel <= shslv_pg3_sel when sh_addr(9 downto 6) = "0101" else '0';
+    shslv_tim0_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "0110" else '0';
+    shslv_tim1_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "0111" else '0';
+    shslv_gpio2_sel <= shslv_pg3_sel when sh_addr(9 downto 6) = "1000" else '0';
+    shslv_gpio3_sel <= shslv_pg3_sel when sh_addr(9 downto 6) = "1101" else '0';
+    shslv_i2c0_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1110" else '0';
+    shslv_i2c1_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1111" else '0';
     shslv_ram_en    <= sh_en and shslv_ram_sel;
     shslv_clint_en  <= sh_en and shslv_clint_sel;
+    shslv_uart_en   <= sh_en and shslv_uart_sel;
+    shslv_irtr_en   <= sh_en and shslv_irtr_sel;
+    shslv_gpio1_en  <= sh_en and shslv_gpio1_sel;
+    shslv_spi1_en   <= sh_en and shslv_spi1_sel;
+    shslv_uart1_en  <= sh_en and shslv_uart1_sel;
+    shslv_tim0_en   <= sh_en and shslv_tim0_sel;
+    shslv_tim1_en   <= sh_en and shslv_tim1_sel;
+    shslv_gpio2_en  <= sh_en and shslv_gpio2_sel;
+    shslv_gpio3_en  <= sh_en and shslv_gpio3_sel;
+    shslv_i2c0_en   <= sh_en and shslv_i2c0_sel;
+    shslv_i2c1_en   <= sh_en and shslv_i2c1_sel;
 
     shslv_rd_sel: process(mclk, resetn)
     begin
         if resetn = '0' then
             shslv_rd_clint <= '0';
+            shslv_rd_uart  <= '0';
+            shslv_rd_irtr  <= '0';
+            shslv_rd_gpio1 <= '0';
+            shslv_rd_tim0  <= '0';
+            shslv_rd_tim1  <= '0';
+            shslv_rd_gpio2 <= '0';
+            shslv_rd_gpio3 <= '0';
+            shslv_rd_spi1  <= '0';
+            shslv_rd_uart1 <= '0';
+            shslv_rd_i2c0  <= '0';
+            shslv_rd_i2c1  <= '0';
         elsif rising_edge(mclk) then
             if sh_en = '1' then
                 shslv_rd_clint <= shslv_clint_sel;
+                shslv_rd_uart  <= shslv_uart_sel;
+                shslv_rd_irtr  <= shslv_irtr_sel;
+                shslv_rd_gpio1 <= shslv_gpio1_sel;
+                shslv_rd_tim0  <= shslv_tim0_sel;
+                shslv_rd_tim1  <= shslv_tim1_sel;
+                shslv_rd_gpio2 <= shslv_gpio2_sel;
+                shslv_rd_gpio3 <= shslv_gpio3_sel;
+                shslv_rd_spi1  <= shslv_spi1_sel;
+                shslv_rd_uart1 <= shslv_uart1_sel;
+                shslv_rd_i2c0  <= shslv_i2c0_sel;
+                shslv_rd_i2c1  <= shslv_i2c1_sel;
             end if;
         end if;
     end process;
 
-    sh_rdata_mux <= clint_rdata when shslv_rd_clint = '1' else sh_rdata;
+    -- M7c.2: I2C read-bridge registers — capture the I2C's COMBINATIONAL
+    -- rdata at the LATCH->DATA edge (while its one-cycle en strobe is high
+    -- and MABPart still selects the addressed register), so the arbiter's
+    -- end-of-DATA capture sees the right value. Every other slave registers
+    -- its own read; I2C.vhd's collapses to register 0 when en deasserts.
+    i2c_rdata_bridge: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            i2c0_sh_rdata <= (others => '0');
+            i2c1_sh_rdata <= (others => '0');
+        elsif rising_edge(mclk) then
+            if shslv_i2c0_en = '1' then
+                i2c0_sh_rdata <= i2c0_sh_rdata_c;
+            end if;
+            if shslv_i2c1_en = '1' then
+                i2c1_sh_rdata <= i2c1_sh_rdata_c;
+            end if;
+        end if;
+    end process;
+
+    sh_rdata_mux <= clint_rdata    when shslv_rd_clint = '1' else
+                    uart0_sh_rdata when shslv_rd_uart  = '1' else
+                    irtr_rdata     when shslv_rd_irtr  = '1' else
+                    gpio1_sh_rdata when shslv_rd_gpio1 = '1' else
+                    tim0_sh_rdata  when shslv_rd_tim0  = '1' else
+                    tim1_sh_rdata  when shslv_rd_tim1  = '1' else
+                    gpio2_sh_rdata when shslv_rd_gpio2 = '1' else
+                    gpio3_sh_rdata when shslv_rd_gpio3 = '1' else
+                    spi1_sh_rdata  when shslv_rd_spi1  = '1' else
+                    uart1_sh_rdata when shslv_rd_uart1 = '1' else
+                    i2c0_sh_rdata  when shslv_rd_i2c0  = '1' else
+                    i2c1_sh_rdata  when shslv_rd_i2c1  = '1' else
+                    sh_rdata;
+
+    -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
+    -- UART.vhd already obeys the 1-cycle registered-read contract
+    -- (reg_read_proc) and qualifies every write by en_mem='0', so the bridge is
+    -- pure polarity/width adaptation: en_mem is the active-LOW one-cycle access
+    -- strobe, wen the active-LOW byte lanes (from the resv-GATED sh_we — a
+    -- suppressed SC write must not touch the UART), and clk_mem is the
+    -- free-running mclk (the gated-clock "stuck clear-pulse" behaviour of the
+    -- old private periph bus disappears: clr_* become true one-cycle pulses,
+    -- consumed asynchronously by the TX/RX FSMs).
+    uart0_sh_en_n  <= not shslv_uart_en;
+    sh_wen_n <= not sh_we;
+
+    -- M7b: same polarity shim for the moved TIMER/GPIO blocks (active-LOW
+    -- one-cycle en strobes; they share sh_wen_n's active-low lanes —
+    -- all from the resv-GATED sh_we, so a suppressed SC write can't touch
+    -- any shared peripheral). clk_mem = free-running mclk everywhere; the
+    -- M7b audit found TIMER and GPIO both already en-qualify every write and
+    -- register every read (UART-class movers) — their un-en-qualified logic
+    -- (timer core, pin IRQ flags) runs on its OWN muxed/pin clocks, not
+    -- clk_mem, so the gated->free-running change is invariant for them.
+    tim0_sh_en_n  <= not shslv_tim0_en;
+    tim1_sh_en_n  <= not shslv_tim1_en;
+    gpio1_sh_en_n <= not shslv_gpio1_en;
+    gpio2_sh_en_n <= not shslv_gpio2_en;
+    gpio3_sh_en_n <= not shslv_gpio3_en;
+    -- M7c: SPI1 + UART1 (audited clean; SPI1's flash FSM is compiled out by
+    -- ENABLE_EXTENDED_MEM=false, and its baud core runs on smclk — the
+    -- SYS_CLK_CR=0 rule applies to SPI software too)
+    spi1_sh_en_n  <= not shslv_spi1_en;
+    uart1_sh_en_n <= not shslv_uart1_en;
+    -- M7c.2: I2C0/I2C1 (combinational read handled by i2c_rdata_bridge above;
+    -- writes/snapshot-latches audit clean — single en-qualified ClkMem
+    -- process, core FSMs on smclk/pin edges)
+    i2c0_sh_en_n  <= not shslv_i2c0_en;
+    i2c1_sh_en_n  <= not shslv_i2c1_en;
 
     clint0: entity work.clint
         generic map (NHARTS => 4)
@@ -1570,6 +1761,24 @@ begin
             rdata  => clint_rdata,
             msip   => clint_msip,
             mtip   => clint_mtip
+        );
+
+    -- M7a: tile IRQ fan-out — per-hart peripheral-IRQ enable rows, written by
+    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows
+    -- 1-3 feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's
+    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,
+    -- so this block is a provable NO-OP until software routes an IRQ.
+    irtr0: entity work.irq_router
+        generic map (NHARTS => 4, NUM_IRQS => NUM_IRQS)
+        port map (
+            clk        => mclk,
+            resetn     => resetn,
+            en         => shslv_irtr_en,
+            we         => sh_we,
+            addr       => sh_addr(3 downto 0),
+            wdata      => sh_wdata,
+            rdata      => irtr_rdata,
+            irq_en_out => tile_irq_en_flat
         );
 
     -- shared single-port RAM window (behavioral; 1-cycle registered read, active-
@@ -1621,6 +1830,11 @@ begin
             sleep     => '0',
             msip_in   => clint_msip(1),
             mtip_in   => clint_mtip(1),
+            -- M7a: deglitched peripheral levels fan out to every tile; the
+            -- tile's row of the irq_router gates them (slots 83/84 are
+            -- overridden/hardwired inside the tile)
+            irq_ext    => irq_deglitch,
+            irq_en_ext => tile_irq_en_flat(2*NUM_IRQS-1 downto 1*NUM_IRQS),
             sh_req    => arb_req(1),
             sh_we     => arb_we(7 downto 4),
             sh_addr   => arb_addr(2*SH_AW-1 downto SH_AW),
@@ -1648,6 +1862,8 @@ begin
             sleep     => '0',
             msip_in   => clint_msip(2),
             mtip_in   => clint_mtip(2),
+            irq_ext    => irq_deglitch,
+            irq_en_ext => tile_irq_en_flat(3*NUM_IRQS-1 downto 2*NUM_IRQS),
             sh_req    => arb_req(2),
             sh_we     => arb_we(11 downto 8),
             sh_addr   => arb_addr(3*SH_AW-1 downto 2*SH_AW),
@@ -1675,6 +1891,8 @@ begin
             sleep     => '0',
             msip_in   => clint_msip(3),
             mtip_in   => clint_mtip(3),
+            irq_ext    => irq_deglitch,
+            irq_en_ext => tile_irq_en_flat(4*NUM_IRQS-1 downto 3*NUM_IRQS),
             sh_req    => arb_req(3),
             sh_we     => arb_we(15 downto 12),
             sh_addr   => arb_addr(4*SH_AW-1 downto 3*SH_AW),
@@ -1805,7 +2023,9 @@ begin
     );
 
     -- GPIO1 (SPI1, UART0, UART1)
-    gpio1: GPIO 
+    -- M7b: register bus moved onto the mp_arbiter (page-3 slot 1 @0x13100,
+    -- all 4 harts); pads/alt-func/IRQ wiring unchanged. Old 0x4100 reads 0.
+    gpio1: GPIO
         generic map (
             num_pins        => 8,
             PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
@@ -1820,12 +2040,12 @@ begin
             resetn           => resetn,
             irq              => irq_gpio1,
 
-            clk_mem         => clk_periph(PeriphSlotGPIO1), 
-            en              => mem_en_periph(PeriphSlotGPIO1), 
-            wen             => wen_fe, 
-            write_data      => write_data, 
-            read_data       => periph_dout(PeriphSlotGPIO1), 
-            addr_periph     => addr_periph, 
+            clk_mem         => mclk,
+            en              => gpio1_sh_en_n,
+            wen             => sh_wen_n,
+            write_data      => sh_wdata,
+            read_data       => gpio1_sh_rdata,
+            addr_periph     => sh_addr(5 downto 0),
 
             prt_in          => prt2_in,
             prt_out_out     => prt2_out,
@@ -1858,12 +2078,12 @@ begin
             resetn           => resetn, 
             irq              => irq_gpio2,
 
-            clk_mem         => clk_periph(PeriphSlotGPIO2), 
-            en              => mem_en_periph(PeriphSlotGPIO2), 
-            wen             => wen_fe, 
-            write_data      => write_data, 
-            read_data       => periph_dout(PeriphSlotGPIO2), 
-            addr_periph     => addr_periph, 
+            clk_mem         => mclk,
+            en              => gpio2_sh_en_n,
+            wen             => sh_wen_n,
+            write_data      => sh_wdata,
+            read_data       => gpio2_sh_rdata,
+            addr_periph     => sh_addr(5 downto 0),
 
             prt_in          => prt3_in,
             prt_out_out     => prt3_out,
@@ -1896,12 +2116,12 @@ begin
             resetn          => resetn, 
             irq             => irq_gpio3,
 
-            clk_mem         => clk_periph(PeriphSlotGPIO3),
-            en              => mem_en_periph(PeriphSlotGPIO3),
-            wen             => wen_fe, 
-            write_data      => write_data, 
-            read_data       => periph_dout(PeriphSlotGPIO3), 
-            addr_periph     => addr_periph, 
+            clk_mem         => mclk,
+            en              => gpio3_sh_en_n,
+            wen             => sh_wen_n,
+            write_data      => sh_wdata,
+            read_data       => gpio3_sh_rdata,
+            addr_periph     => sh_addr(5 downto 0),
 
             prt_in          => prt4_in,
             prt_out_out     => prt4_out,
@@ -1981,12 +2201,13 @@ begin
             irq_tc          => irq_spi1_tc,
             irq_te          => irq_spi1_te,
 
-            clk_mem         => clk_periph(PeriphSlotSPI1),
-            en_mem          => mem_en_periph(PeriphSlotSPI1),
-            wen             => wen_fe,
-            write_data      => write_data,
-            read_data       => periph_dout(PeriphSlotSPI1),
-            addr_periph     => addr_periph,
+            -- Memory Bus (arbiter slave side, M7c — page-3 slot 3 @0x13300)
+            clk_mem         => mclk,
+            en_mem          => spi1_sh_en_n,
+            wen             => sh_wen_n,
+            write_data      => sh_wdata,
+            read_data       => spi1_sh_rdata,
+            addr_periph     => sh_addr(5 downto 0),
 
             cs_in       => cs1_in,
 
@@ -2020,24 +2241,28 @@ begin
 
     );
 
+    -- M6: UART0 is the SHARED console UART. Its register bus now hangs off the
+    -- mp_arbiter slave port (region-4 sub-decode @0x12000, all 4 harts) instead
+    -- of hart 0's private periph bus @0x4400. Core clock (smclk), pads and IRQ
+    -- wiring (-> hart 0's SYSTEM only) are unchanged.
     uart0: UART
         port map (
             -- System Signals
             clk         => smclk,
             resetn       => resetn,
-            
+
             -- Interrupt Signals
             irq_rc       => irq_uart0_rc,
             irq_te       => irq_uart0_te,
             irq_tc       => irq_uart0_tc,
 
-            -- Memory Bus
-            clk_mem     => clk_periph(PeriphSlotUART0), 
-            en_mem      => mem_en_periph(PeriphSlotUART0),
-            wen         => wen_fe,
-            addr_periph => addr_periph,
-            write_data  => write_data,
-            read_data   => periph_dout(PeriphSlotUART0),
+            -- Memory Bus (arbiter slave side, M6)
+            clk_mem     => mclk,
+            en_mem      => uart0_sh_en_n,
+            wen         => sh_wen_n,
+            addr_periph => sh_addr(5 downto 0),
+            write_data  => sh_wdata,
+            read_data   => uart0_sh_rdata,
 
             -- Pad Interface
             TX_OUT      => tx0_out,
@@ -2050,6 +2275,26 @@ begin
             RX_REN      => rx0_ren
     );
 
+    -- M6: hart 0's old private UART0 slot reads as zeros (slot 4 decode in
+    -- adddec is untouched; there is just no peripheral behind it any more)
+    periph_dout(PeriphSlotUART0) <= (others => '0');
+
+    -- M7b: same for the moved TIMER0/1 + GPIO1/2/3 — their old private slots
+    -- read zeros (the adddec slot decode is untouched; nothing is behind it).
+    -- GPIO0 (PeriphSlotGPIO0) deliberately stays on the private bus: the ROM
+    -- bootrom programs it on every SPI boot.
+    periph_dout(PeriphSlotTIMER0) <= (others => '0');
+    periph_dout(PeriphSlotTIMER1) <= (others => '0');
+    periph_dout(PeriphSlotGPIO1)  <= (others => '0');
+    periph_dout(PeriphSlotGPIO2)  <= (others => '0');
+    periph_dout(PeriphSlotGPIO3)  <= (others => '0');
+    -- M7c: SPI1 + UART1 moved too (SPI0 stays — bootrom boot path)
+    periph_dout(PeriphSlotSPI1)   <= (others => '0');
+    periph_dout(PeriphSlotUART1)  <= (others => '0');
+    -- M7c.2: I2C0 + I2C1 moved (slots 14/15)
+    periph_dout(PeriphSlotI2C0)   <= (others => '0');
+    periph_dout(PeriphSlotI2C1)   <= (others => '0');
+
     uart1: UART
         port map (
             -- System Signals
@@ -2061,13 +2306,13 @@ begin
             irq_te       => irq_uart1_te,
             irq_tc       => irq_uart1_tc,
 
-            -- Memory Bus
-            clk_mem     => clk_periph(PeriphSlotUART1), 
-            en_mem      => mem_en_periph(PeriphSlotUART1),
-            wen         => wen_fe,
-            addr_periph => addr_periph,
-            write_data  => write_data,
-            read_data   => periph_dout(PeriphSlotUART1),
+            -- Memory Bus (arbiter slave side, M7c — page-3 slot 5 @0x13500)
+            clk_mem     => mclk,
+            en_mem      => uart1_sh_en_n,
+            wen         => sh_wen_n,
+            addr_periph => sh_addr(5 downto 0),
+            write_data  => sh_wdata,
+            read_data   => uart1_sh_rdata,
 
             -- Pad Interface
             TX_OUT      => tx1_out,
@@ -2104,13 +2349,14 @@ begin
             irq_snr			=> irq_i2c0_snr,
             irq_sxc			=> irq_i2c0_sxc,
             
-            -- Memory Bus
-            ClkMem			=> clk_periph(PeriphSlotI2C0),
-            EnMemPeriph		=> mem_en_periph(PeriphSlotI2C0),
-            WEn				=> wen_fe,
-            MABPart			=> addr_periph,
-            wdata			=> write_data,
-            rdata_out		=> periph_dout(PeriphSlotI2C0),
+            -- Memory Bus (arbiter slave side, M7c.2 — page-3 slot 14 @0x13E00;
+            -- rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)
+            ClkMem			=> mclk,
+            EnMemPeriph		=> i2c0_sh_en_n,
+            WEn				=> sh_wen_n,
+            MABPart			=> sh_addr(5 downto 0),
+            wdata			=> sh_wdata,
+            rdata_out		=> i2c0_sh_rdata_c,
             
             -- Pin Inputs/Outputs
             SCL_IN			=> scl0_in,
@@ -2150,13 +2396,14 @@ begin
             irq_snr			=> irq_i2c1_snr,
             irq_sxc			=> irq_i2c1_sxc,
             
-            -- Memory Bus
-            ClkMem			=> clk_periph(PeriphSlotI2C1),
-            EnMemPeriph		=> mem_en_periph(PeriphSlotI2C1),
-            WEn				=> wen_fe,
-            MABPart			=> addr_periph,
-            wdata			=> write_data,
-            rdata_out		=> periph_dout(PeriphSlotI2C1),
+            -- Memory Bus (arbiter slave side, M7c.2 — page-3 slot 15 @0x13F00;
+            -- rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)
+            ClkMem			=> mclk,
+            EnMemPeriph		=> i2c1_sh_en_n,
+            WEn				=> sh_wen_n,
+            MABPart			=> sh_addr(5 downto 0),
+            wdata			=> sh_wdata,
+            rdata_out		=> i2c1_sh_rdata_c,
 
             -- Pin Inputs/Outputs
             SCL_IN			=> scl1_in,
@@ -2189,13 +2436,13 @@ begin
             irq_cmp1     => irq_tim0_cmp1,
             irq_cmp2     => irq_tim0_cmp2,
 
-            -- Memory Bus
-            clk_mem      => clk_periph(PeriphSlotTIMER0),
-            en_mem       => mem_en_periph(PeriphSlotTIMER0),
-            wen          => wen_fe,
-            addr_periph  => addr_periph,
-            write_data   => write_data,
-            read_data    => periph_dout(PeriphSlotTIMER0),
+            -- Memory Bus (arbiter slave side, M7b — page-3 slot 6 @0x13600)
+            clk_mem      => mclk,
+            en_mem       => tim0_sh_en_n,
+            wen          => sh_wen_n,
+            addr_periph  => sh_addr(5 downto 0),
+            write_data   => sh_wdata,
+            read_data    => tim0_sh_rdata,
 
             -- Pad Interface
             cmp0_ren_in  => t0_cmp0_ren_in,
@@ -2236,13 +2483,13 @@ begin
             irq_cmp1     => irq_tim1_cmp1,
             irq_cmp2     => irq_tim1_cmp2,
 
-            -- Memory Bus
-            clk_mem      => clk_periph(PeriphSlotTIMER1),
-            en_mem       => mem_en_periph(PeriphSlotTIMER1),
-            wen          => wen_fe,
-            addr_periph  => addr_periph,
-            write_data   => write_data,
-            read_data    => periph_dout(PeriphSlotTIMER1),
+            -- Memory Bus (arbiter slave side, M7b — page-3 slot 7 @0x13700)
+            clk_mem      => mclk,
+            en_mem       => tim1_sh_en_n,
+            wen          => sh_wen_n,
+            addr_periph  => sh_addr(5 downto 0),
+            write_data   => sh_wdata,
+            read_data    => tim1_sh_rdata,
 
             -- Pad Interface
             cmp0_ren_in  => t1_cmp0_ren_in,

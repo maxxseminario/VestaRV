@@ -66,6 +66,16 @@ entity hart_tile is
         msip_in   : in  std_logic := '0';
         mtip_in   : in  std_logic := '0';
 
+        -- M7a: shared-peripheral IRQ fan-out. irq_ext carries the SAME
+        -- deglitched peripheral IRQ levels hart 0's SYSTEM sees (mclk-domain
+        -- fan-out of irq_deglitch in MCU.vhd); its CLINT slots 83/84 are
+        -- IGNORED here — this hart's own msip_in/mtip_in override them.
+        -- irq_en_ext is this hart's row of the shared-window irq_router
+        -- (0x13900): software routes a peripheral IRQ to this hart by setting
+        -- its slot bit. Both default to all-zeros = pre-M7a behavior.
+        irq_ext    : in std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+        irq_en_ext : in std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+
         -- M3c.4: shared-window master port -> one mp_arbiter master slice in
         -- MCU.vhd. req/we/addr/wdata out; gnt/done/rdata back. req is held
         -- until done (1-cycle pulse); addr/wdata are stable across the wait
@@ -164,12 +174,14 @@ architecture behav of hart_tile is
     constant zero_irq    : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
     constant zero_periph : word_array(0 to 15)                  := (others => (others => '0'));
 
-    -- M5b: only the two CLINT slots are ever enabled in a tile (no SYSTEM
-    -- peripheral here to program irq_en; everything else stays masked).
-    constant tile_irq_en : std_logic_vector(NUM_IRQS-1 downto 0) :=
+    -- M5b: the two CLINT slots are ALWAYS enabled in a tile (no SYSTEM
+    -- peripheral here to program them); M7a ORs in the software-routed
+    -- shared-peripheral enables from the irq_router (irq_en_ext).
+    constant tile_irq_hw_en : std_logic_vector(NUM_IRQS-1 downto 0) :=
         (IRQB_CLINT_MSIP => '1', IRQB_CLINT_MTIP => '1', others => '0');
+    signal tile_irq_en   : std_logic_vector(NUM_IRQS-1 downto 0);
 
-    -- M5b: per-hart CLINT level IRQs into this core's vector
+    -- M5b/M7a: per-hart CLINT + routed peripheral levels into this core's vector
     signal tile_irq_vec  : std_logic_vector(NUM_IRQS-1 downto 0);
 
     -- core <-> adddec private bus
@@ -212,13 +224,18 @@ architecture behav of hart_tile is
 
 begin
 
-    -- M5b: CLINT levels into the only two enabled slots; all other IRQs '0'
-    tile_irq_proc: process(msip_in, mtip_in)
+    -- M7a: vector = the fanned-out deglitched peripheral levels, with the two
+    -- CLINT slots overridden by THIS hart's own msip/mtip (irq_ext carries
+    -- hart 0's CLINT bits there — never consume them). Enables = hardwired
+    -- CLINT slots OR the software-routed row from the irq_router.
+    tile_irq_proc: process(irq_ext, msip_in, mtip_in)
     begin
-        tile_irq_vec <= (others => '0');
+        tile_irq_vec <= irq_ext;
         tile_irq_vec(IRQB_CLINT_MSIP) <= msip_in;
         tile_irq_vec(IRQB_CLINT_MTIP) <= mtip_in;
     end process;
+
+    tile_irq_en <= irq_en_ext or tile_irq_hw_en;
 
     core: vesta
         generic map (
