@@ -1,0 +1,7 @@
+../../../hdl/MCU/constants.vhd
+../../../hdl/MCU/MemoryMap.vhd
+../../../hdl/MCU/sim/ClkGate.vhd
+../../../hdl/MCU/periph/UART.vhd
+../../../hdl/MCU/tb/periph_tb_pkg.vhd
+../../../hdl/MCU/tb/uart_bfm_pkg.vhd
+../../../hdl/MCU/tb/UART_tb.vhd
