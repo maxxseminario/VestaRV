@@ -1,0 +1,10 @@
+# Generated outputs — recreate with `make chip` / `make pdf`
+out/
+config/MemoryMap.json
+python/__pycache__/
+# Generated LaTeX project (except the hand-maintained _man wrappers)
+latex/TRM/*
+!latex/TRM/include/
+latex/TRM/include/*
+!latex/TRM/include/InterruptsTable_man.tex
+!latex/TRM/include/SystemConfigurationList_man.tex

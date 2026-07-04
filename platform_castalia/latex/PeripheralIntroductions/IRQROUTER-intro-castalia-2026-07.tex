@@ -1,0 +1,27 @@
+The interrupt router steers peripheral interrupts to harts. Every peripheral interrupt line fans out to all four harts; each hart's tile ANDs the incoming vector with that hart's row of enable registers in this block. This lets software route any peripheral's interrupt to whichever hart currently owns that peripheral --- for example, a hart that has taken over \peripheral{TIMER1} through the shared peripheral page can also receive \peripheral{TIMER1}'s interrupts. The main features are listed below:
+
+\begin{itemize}
+	\item One row of three 32-bit enable registers per hart, covering interrupt vectors 0--84
+	\item Programmable by \textit{any} hart through the shared window
+	\item Resets fully masked (all zeros): the router is inert until software programs it
+	\item The \peripheral{CLINT} vectors (83 and 84) are hardwired into each hart and ORed with this block's enables, so they can be redundantly re-enabled but never masked here
+	\item Runs on the free-running MCLK, so a routed interrupt can wake a hart whose gated CPU clock is off
+\end{itemize}
+
+\subsection{Routing Model}
+
+Hart $h$ receives interrupt vector $v$ when bit $v$ of hart $h$'s enable row is set \textit{and} the peripheral asserts the interrupt. Whether the hart then \textit{takes} the interrupt is still governed by that hart's own interrupt controller state (its enable and priority machinery), exactly as on the single-core chip.
+
+Hart 0 is the exception: its row (row 0) exists for symmetry and debugging but is not wired into hart 0's interrupt path. Hart 0's interrupt enables come from the \peripheral{SYSTEM} peripheral's \register{IRQENL}/\register{IRQENM}/\register{IRQENU} registers, as on the single-core chip.
+
+Note that the vector packing of the \register{HxENU} registers is contiguous (bit $b$ of \register{HxENU} is vector $64 + b$, for $b = 0 \ldots 20$), which deliberately differs from the write-packing quirk of the \peripheral{SYSTEM} peripheral's \register{IRQENU} register.
+
+A typical hand-off of a peripheral to hart 2 looks like:
+
+\begin{enumerate}
+	\item Hart 2 (or any hart) sets the peripheral's vector bits in \register{H2ENL}/\register{H2ENM}/\register{H2ENU}.
+	\item The previous owner clears the same bits in its own row (or in \peripheral{SYSTEM}'s enables, if the previous owner was hart 0).
+	\item Hart 2 enables the vector in its local interrupt controller and starts operating the peripheral through the shared peripheral page.
+\end{enumerate}
+
+The block decodes only the low bits of the address, so its registers alias throughout the 256-byte slot at \texttt{0x13900}--\texttt{0x139FF}. Always use the canonical addresses.

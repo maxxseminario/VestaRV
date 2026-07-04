@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 816 1056"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="test.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="px"
+     showgrid="true"
+     units="in"
+     inkscape:zoom="8.0674455"
+     inkscape:cx="81.004576"
+     inkscape:cy="130.09075"
+     inkscape:window-width="2560"
+     inkscape:window-height="1361"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     inkscape:snap-object-midpoints="true"
+     inkscape:snap-center="true"
+     inkscape:snap-text-baseline="true">
+    <inkscape:grid
+       type="xygrid"
+       id="grid16"
+       units="in"
+       spacingx="3"
+       spacingy="3"
+       empspacing="8" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <symbol
+       id="voltage-source-independent">
+      <title
+         id="title86">Voltage Source Independent</title>
+      <circle
+         style="fill:none;stroke:#000000;stroke-opacity:1"
+         id="path2410-7"
+         cx="36"
+         cy="108"
+         r="12" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 36,99 v 6"
+         id="path2783-4" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 33,102 h 6"
+         id="path2943-9" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 33,114 h 6"
+         id="path3103-1" />
+    </symbol>
+    <symbol
+       id="mosfet-nmos">
+      <title
+         id="title104">MOSFET NMOS Transistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 129,198 v 24"
+         id="path1945" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 126,201 v 18"
+         id="path2397" />
+      <path
+         sodipodi:type="star"
+         style="fill:#000000;stroke:#000000"
+         id="path2725"
+         inkscape:flatsided="false"
+         sodipodi:sides="3"
+         sodipodi:cx="137"
+         sodipodi:cy="219"
+         sodipodi:r1="3"
+         sodipodi:r2="1.5"
+         sodipodi:arg1="0"
+         sodipodi:arg2="1.0471976"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         d="m 140,219 -2.25,1.29904 -2.25,1.29904 V 219 216.40192 l 2.25,1.29904 z"
+         inkscape:transform-center-x="-0.75" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 144,192 v 9 h -15"
+         id="path7670" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 144,228 v -9 h -15"
+         id="path8425" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 126,210 h -6"
+         id="path13387" />
+    </symbol>
+    <symbol
+       id="resistor">
+      <title
+         id="title27">Resistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 216,24 h 6 l 3,-6 6,12 6,-12 6,12 6,-12 6,12 3,-6 h 6"
+         id="path4591" />
+    </symbol>
+    <symbol
+       id="symbol3218">
+      <title
+         id="title73-6">VDD Labeled</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 456,24 V 18"
+         id="path29585-2" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 447,18 h 18"
+         id="path29737-8" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none"
+         x="455.95767"
+         y="12.854156"
+         id="text31454-3"><tspan
+           sodipodi:role="line"
+           id="tspan31452-6"
+           x="455.95767"
+           y="12.854156">$V_{DD}$</tspan></text>
+    </symbol>
+    <symbol
+       id="symbol3260">
+      <title
+         id="title51-1">Ground</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 303,24 h 18"
+         id="path3823-3" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 306,27 h 12"
+         id="path3913-8" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 309,30 h 6"
+         id="path4003-6" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 312,24 V 18"
+         id="path4093-6" />
+    </symbol>
+    <symbol
+       id="capacitor">
+      <title
+         id="title1680">Capacitor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 96,72 h 9"
+         id="path1421" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 105,60 V 84"
+         id="path1773" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 111,84 V 60"
+         id="path2125" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 111,72 h 9"
+         id="path2477" />
+    </symbol>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="use1455"
+       transform="translate(-240,126)">
+      <title
+         id="title963">Ground</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 303,24 h 18"
+         id="path965" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 306,27 h 12"
+         id="path967" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 309,30 h 6"
+         id="path969" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 312,24 V 18"
+         id="path971" />
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 72,120 v -6 h 24"
+       id="path1511" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 120,114 h 12"
+       id="path1513" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="56.999996"
+       y="135"
+       id="text3449"><tspan
+         sodipodi:role="line"
+         id="tspan3447"
+         x="57"
+         y="135">$V_\textrm{in}$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="159"
+       y="117"
+       id="text8676"><tspan
+         sodipodi:role="line"
+         id="tspan8674"
+         x="159"
+         y="117">$M_1$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="165"
+       y="75"
+       id="text8676-8"><tspan
+         sodipodi:role="line"
+         id="tspan8674-1"
+         x="165"
+         y="75">$R_1$</tspan></text>
+    <use
+       xlink:href="#resistor"
+       id="use3159"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="rotate(90,174,6)" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="108"
+       y="96"
+       id="text10390"><tspan
+         sodipodi:role="line"
+         id="tspan10388"
+         x="108"
+         y="96">$C_1$</tspan></text>
+    <use
+       xlink:href="#voltage-source-independent"
+       id="use3020"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(36,24)" />
+    <use
+       xlink:href="#mosfet-nmos"
+       id="use3104"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(12,-96)" />
+    <g
+       id="use3191"
+       transform="translate(-300,24)">
+      <title
+         id="title987">VDD Labeled</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 456,24 V 18"
+         id="path989" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 447,18 h 18"
+         id="path991" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none"
+         x="455.95767"
+         y="12.854156"
+         id="text995"><tspan
+           sodipodi:role="line"
+           id="tspan993"
+           x="455.95767"
+           y="12.854156">$V_{DD}$</tspan></text>
+    </g>
+    <g
+       id="use3233"
+       transform="translate(-156,114)">
+      <title
+         id="title975">Ground</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 303,24 h 18"
+         id="path977" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 306,27 h 12"
+         id="path979" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 309,30 h 6"
+         id="path981" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 312,24 V 18"
+         id="path983" />
+    </g>
+    <use
+       xlink:href="#capacitor"
+       id="use1908"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(0,42)" />
+  </g>
+</svg>
