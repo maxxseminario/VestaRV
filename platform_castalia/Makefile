@@ -1,0 +1,88 @@
+# Castalia (4-hart multi-core VestaRV) chip generator Makefile
+# Source of truth: python/generate.py — everything else is generated from it.
+# All outputs stay inside platform_castalia/ (never touches ../hdl, ../software, ../tools).
+
+.PHONY: all help chip generate pdf show config clean install-deps
+
+# Default: regenerate the chip artifacts, then build the TRM PDF
+all: chip pdf
+
+help:
+	@echo "=========================================="
+	@echo "Castalia Chip Generator"
+	@echo "=========================================="
+	@echo ""
+	@echo "Available targets:"
+	@echo "  make              - chip + pdf (everything)"
+	@echo "  make chip         - Regenerate all chip artifacts from python/generate.py"
+	@echo "                      (headers, linker scripts, HDL templates, JSON, TRM LaTeX)"
+	@echo "  make pdf          - Compile the Technical Reference Manual PDF"
+	@echo "  make show         - Show current MCU configuration"
+	@echo "  make clean        - Remove generated output files (out/, config JSON)"
+	@echo "  make install-deps - Check Python/LaTeX dependencies"
+	@echo ""
+	@echo "Source of truth: python/generate.py"
+	@echo "Documentation:   README.md (and CLAUDE.md for AI sessions)"
+	@echo "=========================================="
+
+# ---------------------------------------------------------------------------
+# Chip generation (memory map -> headers, linker scripts, HDL, JSON, TRM LaTeX)
+# ---------------------------------------------------------------------------
+chip generate:
+	@echo "Generating Castalia chip artifacts from python/generate.py..."
+	@cd python && python3 generate.py
+	@echo ""
+	@echo "✅ Generation complete. Outputs:"
+	@echo "  • out/software/include/MemoryMap.h, periph.S"
+	@echo "  • out/linker-scripts/memory.x, periph.x, *.txt"
+	@echo "  • out/hdl/MemoryMap.vhd, MCU_routing_template.vhd  (reference only)"
+	@echo "  • config/MemoryMap.json"
+	@echo "  • latex/TRM/  (run 'make pdf' next)"
+
+# ---------------------------------------------------------------------------
+# TRM PDF (requires pdflatex, e.g. the user-local TeX Live in ~/texlive)
+# ---------------------------------------------------------------------------
+pdf:
+	@command -v pdflatex >/dev/null 2>&1 || { \
+		echo "❌ pdflatex not found on PATH."; \
+		echo "   Try: export PATH=\$$HOME/texlive/2026/bin/x86_64-linux:\$$PATH"; \
+		exit 1; }
+	@if [ ! -f latex/TRM/TRM.tex ]; then \
+		echo "❌ latex/TRM/TRM.tex not generated yet. Run 'make chip' first."; \
+		exit 1; fi
+	@echo "Compiling TRM (two pdflatex passes)..."
+	@cd latex/TRM && \
+		pdflatex -interaction=nonstopmode TRM.tex > build.log 2>&1 && \
+		pdflatex -interaction=nonstopmode TRM.tex > build.log 2>&1 || \
+		{ echo "❌ pdflatex failed — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }
+	@grep -E "Output written|^!" latex/TRM/build.log | head -3
+	@echo "✅ latex/TRM/TRM.pdf"
+
+show config:
+	@./show_config.sh
+
+# Clean generated files (Castalia outputs only — NEVER touches the Myshkin toolchain
+# files in ../software or ../tools, and keeps latex/TRM/include/*_man.tex wrappers)
+clean:
+	@echo "⚠️  This removes generated Castalia outputs: out/, config/MemoryMap.json,"
+	@echo "    and LaTeX build artifacts in latex/TRM/ (not the _man.tex wrappers)."
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		rm -rf out; \
+		rm -f config/MemoryMap.json; \
+		rm -f latex/TRM/TRM.pdf latex/TRM/build.log latex/TRM/*.aux latex/TRM/*.toc latex/TRM/*.out latex/TRM/*.log; \
+		echo "✅ Cleaned generated files"; \
+	else \
+		echo "❌ Clean cancelled"; \
+	fi
+
+install-deps:
+	@echo "Python 3 (>= 3.6):"
+	@command -v python3 >/dev/null && python3 --version || echo "  ❌ python3 not found"
+	@echo "pdflatex (TeX Live):"
+	@command -v pdflatex >/dev/null && pdflatex --version | head -1 || \
+		echo "  ❌ not on PATH — try: export PATH=\$$HOME/texlive/2026/bin/x86_64-linux:\$$PATH"
+	@echo "Figure tools (only needed when editing latex/figures/*.svg):"
+	@command -v soffice >/dev/null && echo "  ✅ soffice" || echo "  ⚠️  soffice (LibreOffice) not found"
+	@command -v gs >/dev/null && echo "  ✅ ghostscript" || echo "  ⚠️  ghostscript not found"

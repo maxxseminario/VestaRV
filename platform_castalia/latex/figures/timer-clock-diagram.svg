@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 816 1056"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="timer-clock-diagram.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="px"
+     showgrid="true"
+     units="in"
+     inkscape:zoom="5.0897483"
+     inkscape:cx="262.58666"
+     inkscape:cy="105.21149"
+     inkscape:window-width="1920"
+     inkscape:window-height="1001"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     inkscape:snap-object-midpoints="true"
+     inkscape:snap-center="true"
+     inkscape:snap-text-baseline="true">
+    <inkscape:grid
+       type="xygrid"
+       id="grid16"
+       units="in"
+       spacingx="3"
+       spacingy="3"
+       empspacing="8" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <symbol
+       id="open-node">
+      <title
+         id="title8">Open Node</title>
+      <circle
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1327"
+         cx="48"
+         cy="24"
+         r="3" />
+    </symbol>
+    <symbol
+       id="terminal">
+      <title
+         id="title38">Terminal</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 72,24 -6,-6 h -6 v 12 h 6 z"
+         id="path1104" />
+    </symbol>
+    <symbol
+       id="mux4-large-labeled">
+      <title
+         id="title7483">MUX4 Large Labeled</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 552,60 h -6"
+         id="path9886" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 552,84 h -6"
+         id="path10182" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 552,132 h -6"
+         id="path10774" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 552,108 h -6"
+         id="path11851" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 552,48 v 96 l 24,-6 V 54 Z"
+         id="path12147" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 576,96 h 6"
+         id="path12443" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 564,141 v 3"
+         id="path12999" />
+      <text
+         xml:space="preserve"
+         style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+         x="564"
+         y="63"
+         id="text14920"><tspan
+           sodipodi:role="line"
+           id="tspan14918"
+           x="564"
+           y="63">\texttt{00}</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+         x="564"
+         y="87"
+         id="text16419"><tspan
+           sodipodi:role="line"
+           id="tspan16417"
+           x="564"
+           y="87">\texttt{01}</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+         x="564"
+         y="111"
+         id="text18131"><tspan
+           sodipodi:role="line"
+           id="tspan18129"
+           x="564"
+           y="111">\texttt{10}</tspan></text>
+      <text
+         xml:space="preserve"
+         style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+         x="564"
+         y="135"
+         id="text20454"><tspan
+           sodipodi:role="line"
+           id="tspan20452"
+           x="564"
+           y="135">\texttt{11}</tspan></text>
+    </symbol>
+    <symbol
+       id="solder-dot">
+      <title
+         id="title4">Solder Dot</title>
+      <circle
+         style="fill:#000000;fill-rule:evenodd;fill-opacity:1"
+         id="path36"
+         cx="12"
+         cy="15"
+         r="3" />
+    </symbol>
+    <symbol
+       id="switch-gated-open2">
+      <title
+         id="title324">Switch Gated Open 2</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 624,48 633.7063,43.14685 648,36"
+         id="path4825"
+         sodipodi:nodetypes="ccc" />
+      <path
+         sodipodi:type="star"
+         style="fill:#000000;stroke:none;stroke-width:1;stroke-linecap:square;stroke-miterlimit:4;stroke-dasharray:none"
+         id="path53598-0"
+         inkscape:flatsided="true"
+         sodipodi:sides="3"
+         sodipodi:cx="684"
+         sodipodi:cy="43.5"
+         sodipodi:r1="3"
+         sodipodi:r2="1.5"
+         sodipodi:arg1="1.5707963"
+         sodipodi:arg2="2.6179939"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         inkscape:transform-center-y="0.75"
+         d="m 684,46.5 -2.59808,-4.5 5.19616,0 z"
+         transform="translate(-48,-4.5)" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 636,36 v 3"
+         id="path63000" />
+      <circle
+         style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1546"
+         cx="624"
+         cy="48"
+         r="3" />
+      <circle
+         style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1546-6"
+         cx="648"
+         cy="48"
+         r="3" />
+    </symbol>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="420.3353"
+       y="60.821606"
+       id="text18549-9"><tspan
+         sodipodi:role="line"
+         x="420.3353"
+         y="60.821606"
+         id="tspan9695">\bitfield{TIMEN}</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="348"
+       y="132"
+       id="text18549-4-20"><tspan
+         sodipodi:role="line"
+         id="tspan18547-2-8"
+         x="348"
+         y="132">\bitfield{TIMDIV}</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="252"
+       y="150"
+       id="text18549-4-20-8"><tspan
+         sodipodi:role="line"
+         id="tspan18547-2-8-1"
+         x="252"
+         y="150">\bitfield{TIMSSEL}</tspan></text>
+    <use
+       xlink:href="#mux4-large-labeled"
+       id="use7733"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-312,-12)" />
+    <use
+       xlink:href="#open-node"
+       id="use7957"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(204,111)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 270,84 h 42"
+       id="path3500" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="347.32291"
+       y="80.630867"
+       id="text5751"><tspan
+         sodipodi:role="line"
+         id="tspan5749"
+         x="347.32291"
+         y="80.630867">Clock</tspan><tspan
+         sodipodi:role="line"
+         x="347.32291"
+         y="97.297493"
+         id="tspan5786">Divider</tspan></text>
+    <rect
+       style="fill:none;stroke:#000000"
+       id="rect7539"
+       width="72"
+       height="48"
+       x="312"
+       y="60" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 348,108 c 0,6 0,6 0,6"
+       id="path7786" />
+    <use
+       xlink:href="#open-node"
+       id="use7987"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(300,93)" />
+    <use
+       xlink:href="#open-node"
+       id="use13013"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(372,42)" />
+    <use
+       xlink:href="#open-node"
+       id="use1582-1-7"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(435,60)" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="487.81708"
+       y="88.847"
+       id="text4643-9"><tspan
+         sodipodi:role="line"
+         id="tspan4641-5"
+         x="487.81708"
+         y="88.847">Timer Clock</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 432,84 h 48"
+       id="path8413" />
+    <use
+       xlink:href="#switch-gated-open2"
+       id="use1376-2"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-216,36)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 420,72 V 69"
+       id="path2124" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 384,84 h 21"
+       id="path10834" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;fill:#000000;fill-opacity:1;stroke:none"
+       x="210"
+       y="54"
+       id="text12908"><tspan
+         sodipodi:role="line"
+         id="tspan12906"
+         x="210"
+         y="54" /></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="223.79617"
+       y="52.846992"
+       id="text18549-4-3"><tspan
+         sodipodi:role="line"
+         x="223.79617"
+         y="52.846992"
+         id="tspan3014-5">SMCLK</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="225.02405"
+       y="76.846992"
+       id="text18549-4-3-2"><tspan
+         sodipodi:role="line"
+         x="225.02405"
+         y="76.846992"
+         id="tspan3014-5-4">MCLK</tspan></text>
+    <use
+       xlink:href="#open-node"
+       id="use18032"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(183,24)" />
+    <use
+       xlink:href="#open-node"
+       id="use18032-0"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(183,48)" />
+    <use
+       xlink:href="#open-node"
+       id="use18032-5"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(183,72)" />
+    <use
+       xlink:href="#open-node"
+       id="use18032-8"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(183,96)" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="225.56636"
+       y="100.84699"
+       id="text18549-4-3-6"><tspan
+         sodipodi:role="line"
+         x="225.56636"
+         y="100.84699"
+         id="tspan3014-5-5">LFXT</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="223.86519"
+       y="124.84699"
+       id="text18549-4-3-64"><tspan
+         sodipodi:role="line"
+         x="223.86519"
+         y="124.84699"
+         id="tspan3014-5-7">HFXT</tspan></text>
+  </g>
+</svg>
