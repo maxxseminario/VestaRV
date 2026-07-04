@@ -10,6 +10,11 @@ rv32ui_sc_tests = \
 	shboot \
 	shwfi \
 	shclint \
+	shuart \
+	shirq \
+	shtimer \
+	shperiph \
+	shi2c \
 	add addi \
 	and andi \
 	auipc \
