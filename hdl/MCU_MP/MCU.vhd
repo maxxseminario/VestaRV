@@ -122,6 +122,7 @@ architecture behav of MCU is
 
             lr_sc_bus        : out std_logic_vector(1 downto 0);
             sc_fail_ext      : in  std_logic := '0';
+            amo_lock         : out std_logic;
 
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -735,6 +736,10 @@ architecture behav of MCU is
         -- arbiter master buses (master 0 = hart 0; masters 1-3 = hart tiles).
         -- we = 4 active-high byte-lane strobes per master (M4a).
         signal arb_req, arb_gnt, arb_done : std_logic_vector(3 downto 0);
+        -- M8: per-master grant-lock (cores' amo_lock) — pins the arbiter to a
+        -- master across its AMO read+write transaction pair (cross-hart AMO
+        -- atomicity).
+        signal arb_lock         : std_logic_vector(3 downto 0);
         signal arb_we           : std_logic_vector(4*4-1 downto 0);
         signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
         signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
@@ -1469,6 +1474,7 @@ begin
             mem_ready    => core_mem_ready_g, -- M2 injector AND M3c.2 shared back-pressure
             lr_sc_bus    => lr_sc_bus_0,
             sc_fail_ext  => sh_scfail_reg,
+            amo_lock     => arb_lock(0),      -- M8: grant-lock the arbiter across this hart's AMO RMW pair
 
             irq_vector   => irq_deglitch,
             irq_priority => irq_priority,
@@ -1585,6 +1591,7 @@ begin
             we     => arb_we,
             addr   => arb_addr,
             wdata  => arb_wdata,
+            lock   => arb_lock,   -- M8: grant-locking (AMO RMW atomicity)
             gnt    => arb_gnt,
             done   => arb_done,
             rdata  => arb_rdata,
@@ -1905,6 +1912,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => arb_lrsc(3 downto 2),
             sh_scfail => arb_scfail(1),
+            sh_lock   => arb_lock(1),
             trap_flag => open,
             a0        => a0_1
         );
@@ -1934,6 +1942,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => arb_lrsc(5 downto 4),
             sh_scfail => arb_scfail(2),
+            sh_lock   => arb_lock(2),
             trap_flag => open,
             a0        => a0_2
         );
@@ -1963,6 +1972,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => arb_lrsc(7 downto 6),
             sh_scfail => arb_scfail(3),
+            sh_lock   => arb_lock(3),
             trap_flag => open,
             a0        => a0_3
         );

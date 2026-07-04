@@ -34,6 +34,15 @@ entity vesta is
         lr_sc_bus   : out std_logic_vector(1 downto 0);
         sc_fail_ext : in  std_logic := '0';
 
+        -- M8: cross-hart AMO atomicity. '1' for the whole AMO read-modify-write
+        -- flow (the EXECUTE dispatch cycle — where the shared READ transaction
+        -- runs, like LR's — through AMO_WRITE, where the WRITE transaction
+        -- runs). The MCU-level mp_arbiter samples it at the read's completion
+        -- and HOLDS THE GRANT pinned to this hart until the write commits
+        -- (grant-locking), making shared AMOs atomic across masters. Leave
+        -- open / unconnected in single-master tops.
+        amo_lock    : out std_logic;
+
         -- IRQ Interface
         irq_vector   : in  std_logic_vector(NUM_IRQS-1 downto 0);
         irq_priority : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -575,7 +584,19 @@ architecture struct of vesta is
     -- address must come from rs1 directly — with the old ALU_Result term
     -- every SC write went to address 0x0/0x1 instead of (rs1). Never caught:
     -- no test checked an SC's memory effect before shlrsc.
+    -- M8 FIX: during the AMO dispatch cycle (EXECUTE with amo_op) the ALU
+    -- computes rs1 <amo-op> rs2 (the controller decodes the AMO's own function
+    -- there — ADD/AND/MAX/...), NOT the address, so the EXECUTE-phase access
+    -- rode a GARBAGE address — same class as the M4b SC bugs. Private memory
+    -- masked it (AMO_READ re-presents the correct pass-A address a cycle
+    -- later and the SRAM refreshes Q mid-cycle), but the SHARED window
+    -- completes its whole transaction inside the frozen EXECUTE cycle at
+    -- that garbage address, and AMO_READ then consumes the stale sh_rdata_reg
+    -- — shared AMOs returned wrong data. rs1 IS the AMO address; with it the
+    -- shared read rides EXECUTE exactly like the proven LR pattern.
     data_addr <= rs1_value  when (current_state = SC_CHECK) else
+                 rs1_value  when (current_state = EXECUTE and amo_op = '1'
+                                  and mem_access_instr = '1') else
                  ALU_Result when (mem_access_instr = '1' or
                                   current_state = AMO_READ or current_state = AMO_WRITE or
                                   current_state = LR_READ) else
@@ -620,6 +641,22 @@ architecture struct of vesta is
                  "10" when current_state = SC_CHECK and reservation_valid = '1'
                            and reservation_addr = rs1_value else
                  "00";
+
+    -- M8: assert for the WHOLE AMO flow. The read transaction completes while
+    -- the core is FROZEN in EXECUTE (so the dispatch-cycle term is required —
+    -- the arbiter samples lock at that transaction's completion), and the
+    -- lock must persist through AMO_WRITE so the write's grant is the pinned
+    -- one. It drops at AMO_COMPLETE / IRQ_SV / TRAP, which is the arbiter's
+    -- release valve if the write can never issue. mem_access_instr qualifies
+    -- the EXECUTE term to the real dispatch (not a compressed half-fetch
+    -- cycle where amo_op may be decoded from an incomplete instruction).
+    amo_lock <= '1' when (current_state = EXECUTE and amo_op = '1'
+                          and mem_access_instr = '1')
+                      or current_state = AMO_READ
+                      or current_state = AMO_WRITEBACK
+                      or current_state = AMO_COMPUTE
+                      or current_state = AMO_WRITE
+                else '0';
 
 
     -- ==========================================
