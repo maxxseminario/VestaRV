@@ -6,6 +6,26 @@ genus/
 innovus/
 xcelium/
 .cadence/
+ic_bad/          # Pegasus/Calibre DRC-LVS run logs
+logo/            # contained *.gds
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FOUNDRY / PDK IP — NEVER commit. TSMC (and any foundry) PDK data is under NDA.
+# Layout, timing, netlist, and tech files embed foundry-proprietary information.
+# ─────────────────────────────────────────────────────────────────────────────
+*.gds
+*.gds2
+*.oas
+*.lef
+*.def
+*.def.gz
+*.sdf
+*.spef
+*.cdl
+*.oa
+*.lvs.v
+*.route.gz
+*tsmc*           # any file whose name carries the foundry/PDK name
 
 # Generic EDA/simulation intermediates (in case tools run elsewhere)
 *.rcf
