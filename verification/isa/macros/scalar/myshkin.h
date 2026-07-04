@@ -44,6 +44,10 @@ extern "C" {
 // 0x4000 page (old windows read zeros). Slot 9 = the per-hart IRQ router
 // (M7a: HhENL/M/U at +0x10*h + 0/4/8, contiguous packing, resets masked).
 // GPIO0 never moves: the ROM bootrom drives it on every SPI boot.
+// M7c LOCKING: slot 0 = HW mutex bank — lw returns 0 (was free, you now own
+// it) or the holder's hartid+1; sw 0 releases; nonzero writes ignored.
+// 16 word-mapped mutexes at +4*i. Never LR/SC these addresses.
+#define MUTEX_BANK_SH_BASE      (0x13000)
 #define PERIPH_GPIO1_SH_BASE    (0x13100)
 #define PERIPH_SPI1_SH_BASE     (0x13300)
 #define PERIPH_UART1_SH_BASE    (0x13500)
