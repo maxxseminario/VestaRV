@@ -98,8 +98,11 @@ class Peripheral():
 	isGPIO = None
 
 	InterruptPriority = None
-	
-	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None):
+	LegacySlot = None	# The 0x4000-page slot NUMBER this peripheral owns (or owned, for shared-window
+						# devices moved out of the page): the RTL still indexes periph_dout by these
+						# numbers (e.g. to zero a moved peripheral's dead legacy window)
+
+	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None, legacySlot=None):
 		'''
 		@peripheralTemplate - The PeripheralTemplate type to bind this Peripheral to
 		@peripheralMemorySlot - The peripheral memory slot number that this peripheral will use
@@ -108,6 +111,7 @@ class Peripheral():
 		@peripheralMemoryStartAddress - The address of the beginning of the peripheral memory address space
 		@interruptPriority - The value of the interrupt priority (range: [0, ∞), smaller is higher priority). Also the element number in the interrupt vector table. Set to None if there is no interrupt in this peripheral
 		@nameIndex - The index to replace the "x" character in the PeripheralTemplate and the RegisterTemplates
+		@legacySlot - The 0x4000-page slot number this peripheral owns or (for shared-window devices) used to own. Defaults to peripheralMemorySlot. Set explicitly for moved peripherals whose slot number still matters to the RTL; None for devices that never had one (e.g. CLINT)
 		'''
 		# Check peripheralTemplate
 		if type(peripheralTemplate) != PeripheralTemplate:
@@ -188,7 +192,19 @@ class Peripheral():
 			if interruptPriority < 0:
 				raise Exception('interruptPriority must be None or a non-negative integer, but its value is ' + str(interruptPriority))
 			self.InterruptPriority = interruptPriority
-		
+
+		# Set the legacy 0x4000-page slot number
+		if legacySlot is None:
+			self.LegacySlot = self.PeripheralMemorySlot
+		else:
+			if type(legacySlot) != int:
+				raise Exception('legacySlot must be None or a non-negative integer, but its value is ' + str(legacySlot))
+			if (legacySlot < 0) or (legacySlot >= peripheralMemorySlotCount):
+				raise Exception('legacySlot must be on the range of [0, ' + str(peripheralMemorySlotCount) + '), but its value is ' + str(legacySlot))
+			if (self.PeripheralMemorySlot is not None) and (legacySlot != self.PeripheralMemorySlot):
+				raise Exception('legacySlot (' + str(legacySlot) + ') contradicts peripheralMemorySlot (' + str(self.PeripheralMemorySlot) + ')')
+			self.LegacySlot = legacySlot
+
 		# Create blank pins list
 		self.Pins = []
 		
