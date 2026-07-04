@@ -837,6 +837,16 @@ architecture behav of MCU is
         signal npu_sh_en_n      : std_logic;
         signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
         signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
+        -- M7c LOCKING: HW mutex bank = page-3 slot 0 (0x13000; GPIO0's legacy
+        -- slot number — free forever, GPIO0 is never shared). READ = atomic
+        -- return-old-and-claim, WRITE 0 = release; atomic because the arbiter
+        -- serializes whole transactions. sh_master is the arbiter's granted-
+        -- master index (new mp_arbiter s_master port) — attributes the
+        -- claim-read to a hart. Registered read, resv-gated we (contract).
+        signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
+        signal shslv_rd_mtx     : std_logic := '0';
+        signal mtx_rdata        : std_logic_vector(31 downto 0);
+        signal sh_master        : std_logic_vector(1 downto 0);
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -1579,6 +1589,7 @@ begin
             done   => arb_done,
             rdata  => arb_rdata,
             s_en    => sh_en,
+            s_master => sh_master,
             s_we    => sh_we_raw,
             s_addr  => sh_addr,
             s_wdata => sh_wdata,
@@ -1644,6 +1655,8 @@ begin
     shslv_i2c0_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1110" else '0';
     shslv_i2c1_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1111" else '0';
     shslv_npu_sel   <= shslv_pg3_sel when sh_addr(9 downto 6) = "1010" else '0';
+    -- M7c LOCKING: slot 0 = HW mutex bank (0x13000)
+    shslv_mtx_sel   <= shslv_pg3_sel when sh_addr(9 downto 6) = "0000" else '0';
     shslv_ram_en    <= sh_en and shslv_ram_sel;
     shslv_clint_en  <= sh_en and shslv_clint_sel;
     shslv_uart_en   <= sh_en and shslv_uart_sel;
@@ -1658,6 +1671,7 @@ begin
     shslv_i2c0_en   <= sh_en and shslv_i2c0_sel;
     shslv_i2c1_en   <= sh_en and shslv_i2c1_sel;
     shslv_npu_en    <= sh_en and shslv_npu_sel;
+    shslv_mtx_en    <= sh_en and shslv_mtx_sel;
 
     shslv_rd_sel: process(mclk, resetn)
     begin
@@ -1675,6 +1689,7 @@ begin
             shslv_rd_i2c0  <= '0';
             shslv_rd_i2c1  <= '0';
             shslv_rd_npu   <= '0';
+            shslv_rd_mtx   <= '0';
         elsif rising_edge(mclk) then
             if sh_en = '1' then
                 shslv_rd_clint <= shslv_clint_sel;
@@ -1690,6 +1705,7 @@ begin
                 shslv_rd_i2c0  <= shslv_i2c0_sel;
                 shslv_rd_i2c1  <= shslv_i2c1_sel;
                 shslv_rd_npu   <= shslv_npu_sel;
+                shslv_rd_mtx   <= shslv_mtx_sel;
             end if;
         end if;
     end process;
@@ -1732,6 +1748,7 @@ begin
                     i2c0_sh_rdata  when shslv_rd_i2c0  = '1' else
                     i2c1_sh_rdata  when shslv_rd_i2c1  = '1' else
                     npu_sh_rdata   when shslv_rd_npu   = '1' else
+                    mtx_rdata      when shslv_rd_mtx   = '1' else
                     sh_rdata;
 
     -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
@@ -1804,6 +1821,25 @@ begin
             wdata      => sh_wdata,
             rdata      => irtr_rdata,
             irq_en_out => tile_irq_en_flat
+        );
+
+    -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
+    -- return-old-and-claim (1-instruction acquire; the arbiter's whole-txn
+    -- serialization IS the atomicity), WRITE 0 = release. sh_master tells it
+    -- WHICH hart's claim-read this is. Resets all-free -> provable NO-OP.
+    -- ADVISORY by design decision: no bus-enforced locking (no core bus-error
+    -- path; stall-until-release would be a deadlock generator).
+    mtx0: entity work.mutex_bank
+        generic map (NMUTEX => 16)
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            en     => shslv_mtx_en,
+            we     => sh_we,
+            addr   => sh_addr(3 downto 0),
+            wdata  => sh_wdata,
+            master => sh_master,
+            rdata  => mtx_rdata
         );
 
     -- shared single-port RAM window (behavioral; 1-cycle registered read, active-

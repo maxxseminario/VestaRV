@@ -64,7 +64,12 @@ entity mp_arbiter is
 
         -- shared single-port slave side (active-high enables; s_we = per-byte
         -- lane strobes — invert for the active-low WEN of the real SRAM macro)
-        s_en    : out std_logic;
+        -- s_master (M7c LOCKING): the granted master's index, registered at
+        -- the IDLE pick alongside s_addr — valid for the whole transaction.
+        -- Lets a slave attribute the access to a hart (the mutex_bank's
+        -- claim-read needs to know WHO is reading). Width fixed for N <= 4.
+        s_en     : out std_logic;
+        s_master : out std_logic_vector(1 downto 0);
         s_we    : out std_logic_vector(3 downto 0);
         s_addr  : out std_logic_vector(ADDR_WIDTH-1 downto 0);
         s_wdata : out std_logic_vector(DATA_WIDTH-1 downto 0);
@@ -129,6 +134,7 @@ begin
             done    <= (others => '0');
             rdata   <= (others => '0');
             s_en    <= '0';
+            s_master <= (others => '0');
             s_we    <= (others => '0');
             s_addr  <= (others => '0');
             s_wdata <= (others => '0');
@@ -159,6 +165,7 @@ begin
                         -- slave samples s_en at the next edge (s_en self-clears
                         -- via the default above, so it is a one-cycle strobe).
                         s_en         <= '1';
+                        s_master     <= conv_std_logic_vector(winner, 2);
                         s_we         <= we_of(we, winner);
                         s_addr       <= addr_of(addr, winner);
                         s_wdata      <= wdata_of(wdata, winner);
