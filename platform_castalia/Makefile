@@ -2,7 +2,9 @@
 # Source of truth: python/generate.py — everything else is generated from it.
 # All outputs stay inside platform_castalia/ (never touches ../hdl, ../software, ../tools).
 
-.PHONY: all help chip generate pdf show config clean install-deps
+.PHONY: all help chip generate pdf publish show config clean install-deps
+
+PUBLISH_PDF = ../implementations/asic/castalia/docs/TRM.pdf
 
 # Default: regenerate the chip artifacts, then build the TRM PDF
 all: chip pdf
@@ -17,6 +19,8 @@ help:
 	@echo "  make chip         - Regenerate all chip artifacts from python/generate.py"
 	@echo "                      (headers, linker scripts, HDL templates, JSON, TRM LaTeX)"
 	@echo "  make pdf          - Compile the Technical Reference Manual PDF"
+	@echo "  make publish      - Copy the built TRM.pdf to implementations/asic/castalia/docs/"
+	@echo "                      (then review + commit it yourself)"
 	@echo "  make show         - Show current MCU configuration"
 	@echo "  make clean        - Remove generated output files (out/, config JSON)"
 	@echo "  make install-deps - Check Python/LaTeX dependencies"
@@ -57,6 +61,17 @@ pdf:
 		{ echo "❌ pdflatex failed — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }
 	@grep -E "Output written|^!" latex/TRM/build.log | head -3
 	@echo "✅ latex/TRM/TRM.pdf"
+
+# Publish the built TRM to the repo's implementations tree (committing is left to you,
+# so a stale or broken PDF never gets pushed by accident)
+publish:
+	@if [ ! -f latex/TRM/TRM.pdf ]; then \
+		echo "❌ latex/TRM/TRM.pdf not built. Run 'make pdf' first."; \
+		exit 1; fi
+	@mkdir -p $(dir $(PUBLISH_PDF))
+	@cp latex/TRM/TRM.pdf $(PUBLISH_PDF)
+	@echo "✅ Published to $(PUBLISH_PDF)"
+	@echo "   Review and commit it: git add $(PUBLISH_PDF) && git commit"
 
 show config:
 	@./show_config.sh
