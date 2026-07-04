@@ -9,6 +9,7 @@ rv32ua_sc_tests = \
 	shcount \
 	shspin \
 	shlock \
+	shamo \
 
 rv32ua_p_tests = $(addprefix rv32ua-p-, $(rv32ua_sc_tests))
 rv32ua_v_tests = $(addprefix rv32ua-v-, $(rv32ua_sc_tests))

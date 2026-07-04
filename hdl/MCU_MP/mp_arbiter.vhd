@@ -58,6 +58,15 @@ entity mp_arbiter is
         we     : in  std_logic_vector(N*4-1 downto 0);
         addr   : in  std_logic_vector(N*ADDR_WIDTH-1 downto 0);
         wdata  : in  std_logic_vector(N*DATA_WIDTH-1 downto 0);
+        -- M8 GRANT-LOCKING (cross-hart AMO atomicity): lock(i) = master i is
+        -- inside a read-modify-write pair (the core's amo_lock — asserted from
+        -- the AMO dispatch through its write). When a READ transaction
+        -- completes with the served master's lock high, the arbiter enters
+        -- LOCKED: no other master is granted until that master's follow-up
+        -- WRITE transaction completes (or its lock drops — the release valve
+        -- if the write can never issue, e.g. the core diverted to a trap).
+        -- Defaults all-zeros = pre-M8 behavior.
+        lock   : in  std_logic_vector(N-1 downto 0) := (others => '0');
         gnt    : out std_logic_vector(N-1 downto 0);
         done   : out std_logic_vector(N-1 downto 0);
         rdata  : out std_logic_vector(DATA_WIDTH-1 downto 0);
@@ -84,7 +93,10 @@ architecture behav of mp_arbiter is
     --   LATCH : bubble; the single-port slave registers the access at edge T+1
     --           (its 1-cycle read latency), s_rdata becomes valid in this cycle
     --   DATA  : capture s_rdata, pulse done(cur), advance round-robin (edge T+2)
-    type state_t is (IDLE, LATCH, DATA);
+    -- M8: + LOCKED — after a grant-locked master's READ completes, wait here
+    -- with the grant pinned to it until its follow-up WRITE request arrives
+    -- (then serve it via LATCH/DATA as usual) or its lock drops.
+    type state_t is (IDLE, LATCH, DATA, LOCKED);
     signal state : state_t := IDLE;
 
     signal cur    : natural range 0 to N-1 := 0;   -- currently granted master
@@ -103,6 +115,12 @@ architecture behav of mp_arbiter is
     -- than two cycles after done, so this can never starve anyone.
     signal mask_last : std_logic := '0';           -- valid for one pick only
     signal last_m    : natural range 0 to N-1 := 0;
+
+    -- M8: shadow of the granted transaction's lane strobes (s_we is an out
+    -- port, unreadable in -V200X) — LOCKED is entered only after a READ
+    -- ("0000") completes with lock(cur) high; a locked WRITE completing is
+    -- the RMW pair's second half and releases normally.
+    signal cur_we : std_logic_vector(3 downto 0) := (others => '0');
 
     -- slice helpers
     function addr_of(a : std_logic_vector; i : natural) return std_logic_vector is
@@ -136,6 +154,7 @@ begin
             s_en    <= '0';
             s_master <= (others => '0');
             s_we    <= (others => '0');
+            cur_we  <= (others => '0');
             s_addr  <= (others => '0');
             s_wdata <= (others => '0');
         elsif rising_edge(clk) then
@@ -167,6 +186,7 @@ begin
                         s_en         <= '1';
                         s_master     <= conv_std_logic_vector(winner, 2);
                         s_we         <= we_of(we, winner);
+                        cur_we       <= we_of(we, winner);
                         s_addr       <= addr_of(addr, winner);
                         s_wdata      <= wdata_of(wdata, winner);
                         state        <= LATCH;
@@ -193,7 +213,39 @@ begin
                     gnt(cur) <= '1';   -- hold grant through its done cycle
                     last_m    <= cur;  -- ghost-txn fix: mask cur's stale req
                     mask_last <= '1';  --   for the pick at the next edge
-                    state <= IDLE;
+                    -- M8: a completed READ by a lock-holding master opens its
+                    -- RMW critical section — pin the arbiter to cur until its
+                    -- write lands. A completed WRITE (locked or not) closes
+                    -- it and releases normally.
+                    if lock(cur) = '1' and cur_we = "0000" then
+                        state <= LOCKED;
+                    else
+                        state <= IDLE;
+                    end if;
+
+                when LOCKED =>
+                    -- Wait for the locked master's follow-up write, serving
+                    -- NO ONE ELSE. The ghost-txn rule still applies here:
+                    -- cur's req is stale-high for the first LOCKED cycle
+                    -- (its ack flop clears one mclk after done), so the same
+                    -- one-pick mask covers it before a fresh req is honored.
+                    gnt       <= (others => '0');
+                    mask_last <= '0';   -- consumed on this first pass
+                    if lock(cur) = '0' then
+                        -- release valve: the AMO flow ended without a write
+                        -- (trap/IRQ divert) — never deadlock the bus.
+                        state <= IDLE;
+                    elsif req(cur) = '1'
+                          and not (mask_last = '1' and cur = last_m) then
+                        gnt(cur) <= '1';
+                        s_en     <= '1';
+                        s_master <= conv_std_logic_vector(cur, 2);
+                        s_we     <= we_of(we, cur);
+                        cur_we   <= we_of(we, cur);
+                        s_addr   <= addr_of(addr, cur);
+                        s_wdata  <= wdata_of(wdata, cur);
+                        state    <= LATCH;
+                    end if;
             end case;
         end if;
     end process;

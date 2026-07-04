@@ -91,6 +91,10 @@ entity hart_tile is
         -- attempt), resv_unit SC verdict in (valid with sh_done; latched here)
         sh_lrsc   : out std_logic_vector(1 downto 0);
         sh_scfail : in  std_logic := '0';
+        -- M8: grant-lock request to mp_arbiter — the core's amo_lock, high
+        -- for the whole AMO read-modify-write flow so the arbiter pins the
+        -- grant to this hart between the AMO's read and write transactions.
+        sh_lock   : out std_logic;
 
         trap_flag : out std_logic;
         a0        : out std_logic_vector(31 downto 0)
@@ -121,6 +125,7 @@ architecture behav of hart_tile is
 
             lr_sc_bus        : out std_logic_vector(1 downto 0);
             sc_fail_ext      : in  std_logic := '0';
+            amo_lock         : out std_logic;
 
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -258,6 +263,7 @@ begin
 
             lr_sc_bus    => lr_sc_bus,
             sc_fail_ext  => sh_scfail_reg,
+            amo_lock     => sh_lock,
 
             irq_vector       => tile_irq_vec,
             irq_priority     => zero_irq,
