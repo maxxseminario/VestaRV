@@ -35,6 +35,18 @@ A connection diagram for the UART is displayed in Figure \ref{fig:uart-connectio
 
 
 
+\subsection{Shared Access on Castalia}
+
+Both UARTs live in the shared window behind the multi-core arbiter (see Section \ref{s:multicore}), so all four harts can use them. \peripheral{UART0} is the \textit{console UART}: it carries the boot-time Forth console and has its own dedicated window at \texttt{0x12000} rather than a slot in the shared peripheral page. \peripheral{UART1} sits in the shared peripheral page at \texttt{0x13500}.
+
+The arbiter makes every individual register access atomic: one hart's read or write of \register{UARTxTX}, \register{UARTxSR}, and so on completes as a whole before any other hart's access is served. Message-level ownership, however, is software's responsibility --- if two harts transmit at the same time, their \textit{bytes} interleave on the wire. Software that shares a UART between harts should serialize whole messages with a lock: claim a hardware mutex (\peripheral{MUTEX} bank) or an \texttt{LR}/\texttt{SC} session lock in shared RAM, transmit the message, then release. See Section \ref{ss:multicore-sync}.
+
+The UART interrupt lines (receive complete, TX register empty, transmit complete) are wired to hart 0's interrupt enables in the \peripheral{SYSTEM} peripheral and can additionally be routed to any other hart through the \peripheral{IRQROUTER} peripheral. A hart's interrupt service routine must clear the interrupt flag (through the shared window) before returning.
+
+Note that the UART core runs in the SMCLK clock domain, and the boot ROM may leave SMCLK sourced from LFXT (32.768~\si{\kilo\hertz}) when it jumps to the application --- in that state UART frames take roughly 10~\si{\milli\second} each. Always configure the SMCLK source in the \peripheral{SYSTEM} peripheral (Section \ref{ss:clocks}) before using a UART, rather than relying on the boot-time clock state.
+
+
+
 \subsection{Generalized UART Transmission Process}
 
 \begin{figure}[htpb]
@@ -65,11 +77,11 @@ The UART uses 16× oversampling for improved noise immunity and accurate bit det
 	\textrm{UART baud} = \frac{f_\textrm{SMCLK}}{16 \times (\bitfield{BR} + 1)}
 \end{equation*}
 
-For example, with SMCLK running at 48 MHz:
+For example, with SMCLK running at 24 MHz:
 \begin{itemize}
-	\item \bitfield{BR} = 25 gives 115,200 baud
-	\item \bitfield{BR} = 51 gives 57,600 baud
-	\item \bitfield{BR} = 103 gives 28,800 baud
+	\item \bitfield{BR} = 12 gives 115,385 baud (within 0.2\,\% of standard 115,200)
+	\item \bitfield{BR} = 25 gives 57,692 baud (within 0.2\,\% of standard 57,600)
+	\item \bitfield{BR} = 51 gives 28,846 baud (within 0.2\,\% of standard 28,800)
 \end{itemize}
 
 

@@ -30,6 +30,7 @@ TEST_FILES=(
     "../rcf/xxxrv32ui-p-shboot.rcf"
     "../rcf/xxxxrv32ui-p-shwfi.rcf"
     "../rcf/xxrv32ui-p-shclint.rcf"
+    "../rcf/xxxrv32ui-p-irqctx.rcf"
     "../rcf/xxxrv32ui-p-shuart.rcf"
     "../rcf/xxxxrv32ui-p-shirq.rcf"
     "../rcf/xxrv32ui-p-shtimer.rcf"

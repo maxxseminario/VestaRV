@@ -52,7 +52,7 @@ flow and otherwise appear as raw macro source in the figure.
 | `out/software/include/MemoryMap.h` | C header: base addresses, register offsets, bit-field macros |
 | `out/software/include/periph.S` | Assembly definitions of the same |
 | `out/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker memory regions (incl. `SHARED_RAM`) and symbols |
-| `out/hdl/MemoryMap.vhd`, `MCU_routing_template.vhd` | Generated VHDL, for reference/diffing only — **not** wired into `hdl/MCU_MP/` |
+| `out/hdl/MemoryMap.vhd`, `MCU_routing_template.vhd` | Generated VHDL. `MemoryMap.vhd` is a verified **drop-in replacement** for `hdl/MCU_MP/MemoryMap.vhd` (full behavioral_mp regression passes with the cell list pointed at it, 2026-07-04) but is not wired into the build; the routing template is reference-only |
 | `config/MemoryMap.json` | Machine-readable full memory map |
 
 ---
@@ -69,7 +69,13 @@ Chip definition (`python/generate.py`):
 
 Generator engine (`python/`):
 - `Peripheral`/`ChipGenerator.CreatePeripheral` accept `absoluteBaseAddress=` for
-  peripherals outside the legacy `0x4000` slot space
+  peripherals outside the legacy `0x4000` slot space, and `legacySlot=` for moved
+  shared-window peripherals whose old `0x4000`-page slot number the RTL still uses
+- `make chip` emits an "MCU_MP Compatibility" section into `out/hdl/MemoryMap.vhd`
+  (per-vector `IRQB_*` names, `RegSlotSYS_*`, GPIO reset values in RTL port numbering,
+  `pnum_*` pin constants, slot masks — driven by the `McuMpCompat` block in
+  `generate.py`, values transcribed from the RTL package). `python/check_memorymap_vhd.py`
+  diffs the generated package against `hdl/MCU_MP/MemoryMap.vhd` by name/type/value
 - All output paths redirected into `out/` (see table above); signal-routing VHD is written
   as a fresh template instead of editing an `MCU.vhd` in place
 - Python 3.6 compatible (`copytree` shim); address-space diagram fixed to use the same
@@ -81,6 +87,13 @@ TRM content:
   synchronization rules
 - New peripheral chapters: CLINT, MUTEX, IRQROUTER (intro prose + generated register tables)
 - Interrupts, startup, and atomics sections updated for 4 harts
+- Shared peripherals publish their real shared-window base addresses (UART0 at `0x12000`,
+  the rest at `0x13000 + 256*legacy_slot`) in the register tables, C headers, and linker
+  scripts — their legacy `0x4X00` windows read zeros in the RTL
+- SYSTEM/NPU/TIMER/UART intros reviewed for Castalia (2026-07): NPU data formats and
+  address-register semantics corrected against the RTL, timer clock-mux handoff procedure
+  documented, shared-UART usage rules added, interrupt entry/exit contract corrected
+  (hardware pushes only the return PC at sp-4)
 
 Hand-maintained (survive regeneration, not overwritten):
 - `latex/PeripheralIntroductions/*.tex` — per-peripheral prose (edit these, then regenerate)
@@ -92,6 +105,14 @@ Known TODOs:
 - AFE intro: three figures (`fsmstatediagram.png`, `dsTimingDia.png`, `peripheral.png`) are
   missing from the repo; their figure blocks are commented out with `TODO(castalia)` markers
   (same figures are also unresolved in `platform/`).
-- Package/pinout is inherited from Myshkin unchanged — revisit when Castalia gets a package.
-- Peripheral intros still reference Myshkin figures/text where content is identical;
-  chip-specific intros (SYSTEM clocking in particular) should be reviewed for Castalia.
+- Package/pinout is inherited from Myshkin unchanged (§2 carries a "preliminary" note) —
+  revisit when Castalia gets a package.
+- Remaining intros not yet reviewed for Castalia: AFE, SARADC, SPI, GPIO (their filenames
+  keep the inherited `-myshkin-`/undated suffixes until reviewed; see CLAUDE.md).
+- Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map (it was
+  compiled with UART0 at `0x4400`, which now reads zeros — the BOOT-pin-low Forth console
+  path is dead until then; SPI-flash boot is unaffected).
+- The description's WDT register order (WDTCR=12/WDTSR=13/WDTPASS=14) contradicts the RTL
+  (WDT_PASS=12/WDT_CR=13/WDT_SR=14) — the TRM and `MemoryMap.h` document these offsets
+  wrong. Same for the GPIO0/GPIO1 pin reset attributes (trap DIR, lfxt/hfxt SEL, tx0 DIR).
+  `make chip` warns about both; the generated VHDL emits the RTL truth.
