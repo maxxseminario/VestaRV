@@ -59,7 +59,8 @@ class ChipGenerator():
 	ExtraMemorySections = None	# [(SECTION_NAME (rwx), ORIGIN = 0x?, LENGTH = 0x?, notes), ...]
 	SharedWindowSections = None	# [(name, startAddress, endAddress, description), ...] — multi-core shared window regions drawn in the address space diagram
 	ExtraLatexIntroFiles = None	# [filename, ...] — extra PeripheralIntroductions tex files input by the master template itself (e.g. the multi-core architecture chapter)
-	
+	McuMpCompat = None	# dict of MCU_MP drop-in compatibility facts (see generate.py) — when set, generateMemoryMapVHD emits an "MCU_MP compatibility" section and RTL-numbered GPIO reset values so the generated package drops into the hdl/MCU_MP build
+
 	NeedToCheckPeripheralTemplates = None
 	NeedToCheckPeripherals = None
 
@@ -466,9 +467,9 @@ class ChipGenerator():
 		raise Exception('Could not find Peripheral "' + name + '"')
 		return
 	
-	def CreatePeripheral(self, nameTemplate, nameIndex, peripheralMemorySlot, interruptPriority, absoluteBaseAddress=None):
+	def CreatePeripheral(self, nameTemplate, nameIndex, peripheralMemorySlot, interruptPriority, absoluteBaseAddress=None, legacySlot=None):
 		pt = self.FindPeripheralTemplate(nameTemplate)
-		p = Peripheral(peripheralTemplate=pt, peripheralMemorySlot=peripheralMemorySlot, peripheralMemorySlotCount=self.PeripheralMemorySlotCount, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterMemorySlotsPerPeripheralMemorySlot, peripheralMemoryStartAddress=self.PeripheralMemoryStartAddress, interruptPriority=interruptPriority, nameIndex=nameIndex, absoluteBaseAddress=absoluteBaseAddress)
+		p = Peripheral(peripheralTemplate=pt, peripheralMemorySlot=peripheralMemorySlot, peripheralMemorySlotCount=self.PeripheralMemorySlotCount, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterMemorySlotsPerPeripheralMemorySlot, peripheralMemoryStartAddress=self.PeripheralMemoryStartAddress, interruptPriority=interruptPriority, nameIndex=nameIndex, absoluteBaseAddress=absoluteBaseAddress, legacySlot=legacySlot)
 		p.Parent = self
 		self.Peripherals.append(p)
 		return p
@@ -1730,33 +1731,66 @@ class ChipGenerator():
 		# Add the GPIO register reset values
 		t = TabbedTable()
 		t.AddLine('---------- GPIO Register Reset Values ----------', prefixTabs=1)
-		for p in self.Peripherals:
-			if p.IsGPIO():
-				t.AddLine('-- GPIO' + p.GetGPIOPortLabel(), prefixTabs=1)
-				
-				rstValPxOUT = 0
-				rstValPxDIR = 0
-				rstValPxSEL = 0
-				rstValPxREN = 0
-				#rstValPxOCEN = 0
-				
+		if self.McuMpCompat is not None:
+			# MCU_MP drop-in mode: emit the values transcribed from the RTL package, with
+			# the RTL's port numbering (GPIO0 = P1 ... GPIO3 = P4). The description's
+			# per-pin reset attributes are cross-checked below and produce warnings when
+			# they disagree with the RTL (the RTL wins; see generate.py).
+			t.AddLine('-- Transcribed from ' + self.McuMpCompat['sourceFile'] + ' (RTL port numbering: GPIO0 = P1)', prefixTabs=1)
+			for gpioName, entries in self.McuMpCompat['rstVals']:
+				t.AddLine('-- ' + gpioName, prefixTabs=1)
+				for name, value, comment in entries:
+					row = ['constant ' + name, ': std_logic_vector(31 downto 0) := X"' + self.fmthex(value, 8)[2:] + '";']
+					if len(comment) > 0:
+						row.append('-- ' + comment)
+					t.AddRow(row, prefixTabs=1)
+				t.AddBlankLine()
+
+			# Cross-check against the description's per-pin reset attributes
+			for gpioName, entries in self.McuMpCompat['rstVals']:
+				p = self.FindPeripheral(gpioName)
+				derived = {'OUT': 0, 'DIR': 0, 'SEL': 0, 'REN': 0}
 				for pin in p.Pins:
 					if pin.NoConnect:
 						continue
-					rstValPxOUT |= pin.RstOUT << pin.BitNumber
-					rstValPxDIR |= pin.RstDIR << pin.BitNumber
-					rstValPxSEL |= pin.RstSEL << pin.BitNumber
-					rstValPxREN |= pin.RstREN << pin.BitNumber
-					#rstValPxOCEN |= pin.RstOCEN << pin.BitNumber
-				
-				t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'OUT', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxOUT, 8)[2:] + '";'], prefixTabs=1)
-				t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'DIR', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxDIR, 8)[2:] + '";'], prefixTabs=1)
-				t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'SEL', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxSEL, 8)[2:] + '";'], prefixTabs=1)
-				t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'REN', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxREN, 8)[2:] + '";'], prefixTabs=1)
-				#t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'OCEN', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxOCEN, 8)[2:] + '";'], prefixTabs=1)
-				
-				t.AddBlankLine()
-		
+					derived['OUT'] |= pin.RstOUT << pin.BitNumber
+					derived['DIR'] |= pin.RstDIR << pin.BitNumber
+					derived['SEL'] |= pin.RstSEL << pin.BitNumber
+					derived['REN'] |= pin.RstREN << pin.BitNumber
+				for name, value, comment in entries:
+					reg = name[-3:]	# OUT/DIR/SEL/REN
+					if derived[reg] != value:
+						print('***')
+						print('WARNING: ' + gpioName + ' pin reset attributes derive ' + name + ' = ' + self.fmthex(derived[reg], 8) + ', but the RTL (' + self.McuMpCompat['sourceFile'] + ') says ' + self.fmthex(value, 8) + '. Emitting the RTL value; the description\'s pin rstOUT/rstDIR/rstSEL/rstREN attributes (and the TRM pin tables) need review.')
+						print('***')
+		else:
+			for p in self.Peripherals:
+				if p.IsGPIO():
+					t.AddLine('-- GPIO' + p.GetGPIOPortLabel(), prefixTabs=1)
+
+					rstValPxOUT = 0
+					rstValPxDIR = 0
+					rstValPxSEL = 0
+					rstValPxREN = 0
+					#rstValPxOCEN = 0
+
+					for pin in p.Pins:
+						if pin.NoConnect:
+							continue
+						rstValPxOUT |= pin.RstOUT << pin.BitNumber
+						rstValPxDIR |= pin.RstDIR << pin.BitNumber
+						rstValPxSEL |= pin.RstSEL << pin.BitNumber
+						rstValPxREN |= pin.RstREN << pin.BitNumber
+						#rstValPxOCEN |= pin.RstOCEN << pin.BitNumber
+
+					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'OUT', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxOUT, 8)[2:] + '";'], prefixTabs=1)
+					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'DIR', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxDIR, 8)[2:] + '";'], prefixTabs=1)
+					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'SEL', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxSEL, 8)[2:] + '";'], prefixTabs=1)
+					t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'REN', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxREN, 8)[2:] + '";'], prefixTabs=1)
+					#t.AddRow(['constant RstValP' + p.GetGPIOPortLabel() + 'OCEN', ': slv(31 downto 0) := X"' + self.fmthex(rstValPxOCEN, 8)[2:] + '";'], prefixTabs=1)
+
+					t.AddBlankLine()
+
 		t.AddBlankLines(2)
 
 		s += t.ToString()
@@ -1834,7 +1868,11 @@ class ChipGenerator():
 		t.AddBlankLines(1)
 
 		s += t.ToString()
-		
+
+		# Add the MCU_MP drop-in compatibility section
+		if self.McuMpCompat is not None:
+			s += self.generateMcuMpCompatSection()
+
 		# Create the postamble
 		s += 'end MemoryMap;\n'
 		s += '\n'
@@ -1850,6 +1888,141 @@ class ChipGenerator():
 		
 		return
 	
+	def generateMcuMpCompatSection(self):
+		'''Emit the constants that the hand-written hdl/MCU_MP/MemoryMap.vhd package defines
+		beyond the generic sections above, so the generated package is a DROP-IN replacement
+		for it in the MCU_MP build. Name spellings and transcribed values come from
+		generate.py's McuMpCompat block (source: the RTL package — the RTL wins). Facts the
+		description already knows are cross-checked: interrupt priorities raise on mismatch,
+		register-slot disagreements print warnings.'''
+		c = self.McuMpCompat
+		t = TabbedTable()
+		t.AddLine('---------- MCU_MP Compatibility ----------', prefixTabs=1)
+		t.AddLine('-- Constants the hand-written ' + c['sourceFile'] + ' defines beyond the sections', prefixTabs=1)
+		t.AddLine('-- above. Emitted so this generated package is a drop-in replacement for that file;', prefixTabs=1)
+		t.AddLine('-- transcribed values cite it as their source.', prefixTabs=1)
+		t.AddBlankLine()
+
+		# Memory block slot assignments
+		t.AddLine('-- Memory Block Memory Slot Assignments', prefixTabs=1)
+		for name, value, comment in c['memSlots']:
+			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(value, 2) + ';', '-- ' + comment], prefixTabs=1)
+		t.AddBlankLine()
+
+		# Legacy peripheral slot numbers for ALL peripherals, in the RTL's spelling. The
+		# main "Peripheral Memory Slot Assignments" section above only covers peripherals
+		# still living in the 0x4000 page under the description's own name; the RTL also
+		# indexes the moved (shared-window) peripherals' dead legacy windows by slot number.
+		periphBySlot = {}
+		for p in self.Peripherals:
+			if p.LegacySlot is not None:
+				if p.LegacySlot in periphBySlot:
+					raise Exception('MCU_MP compat: legacy slot ' + str(p.LegacySlot) + ' claimed by both ' + periphBySlot[p.LegacySlot].Name + ' and ' + p.Name)
+				periphBySlot[p.LegacySlot] = p
+
+		t.AddLine('-- Peripheral legacy slot numbers (RTL spelling; slots of moved peripherals are', prefixTabs=1)
+		t.AddLine('-- still used to zero their dead 0x4000-page windows)', prefixTabs=1)
+		spelling = c['periphSlotSpelling']
+		rtlSlotNames = {}	# slot -> RTL constant-name suffix
+		for i in range(self.PeripheralMemorySlotCount):
+			p = periphBySlot.get(i)
+			if p is None:
+				continue
+			rtlName = spelling.get(p.Name, p.Name)
+			rtlSlotNames[i] = rtlName
+			if (p.PeripheralMemorySlot is not None) and (rtlName == p.Name):
+				continue	# already emitted verbatim in the main slot-assignment section
+			comment = '-- base address = ' + self.fmthex(self.PeripheralMemoryStartAddress + i * self.PeripheralMemorySlotSize)
+			if p.PeripheralMemorySlot is None:
+				comment += ' (legacy; peripheral now at ' + self.fmthex(p.BaseAddress) + ')'
+			t.AddRow(['constant PeriphSlot' + rtlName, ': natural := ' + self.fmtint(i, 2) + ';', comment], prefixTabs=1)
+		t.AddBlankLine()
+
+		# Per-peripheral IRQ mask constants
+		t.AddLine('-- Peripheral slot masks', prefixTabs=1)
+		for i in range(self.PeripheralMemorySlotCount):
+			if i not in rtlSlotNames:
+				continue
+			rtlName = rtlSlotNames[i]
+			t.AddRow(['constant ' + rtlName.upper() + '_MASK', ': natural := 2 ** PeriphSlot' + rtlName + ';'], prefixTabs=1)
+		t.AddBlankLine()
+
+		# GPIO logic-level helper constants
+		t.AddLine('-- GPIO Constants', prefixTabs=1)
+		for name, value, comment in c['gpioHelpers']:
+			t.AddRow(['constant ' + name, ": std_logic := '" + value + "';", '-- ' + comment], prefixTabs=1)
+		t.AddBlankLine()
+
+		# SYSTEM register slots in the RTL's RegSlotSYS_* spelling (values transcribed from
+		# the RTL, which SYSTEM.vhd decodes against; cross-checked against the description)
+		t.AddLine('-- SYSTEM register slots (RTL spelling; slot values from ' + c['sourceFile'] + ')', prefixTabs=1)
+		sysP = self.FindPeripheral('SYSTEM')
+		sysSlotByName = {}
+		for rt in sysP.Template.RegisterTemplates:
+			sysSlotByName[rt.NameTemplate] = rt.RegisterMemorySlot
+		for name, slot, descRegName in c['sysRegSlots']:
+			if descRegName not in sysSlotByName:
+				print('***')
+				print('WARNING: MCU_MP compat: SYSTEM has no register named ' + descRegName + ' to cross-check ' + name + ' against')
+				print('***')
+			elif sysSlotByName[descRegName] != slot:
+				print('***')
+				print('WARNING: MCU_MP compat: the description puts SYSTEM register ' + descRegName + ' at slot ' + str(sysSlotByName[descRegName]) + ', but the RTL (' + c['sourceFile'] + ') puts ' + name + ' at slot ' + str(slot) + '. Emitting the RTL value — the TRM/MemoryMap.h document this register WRONG; the description needs fixing (TRM track).')
+				print('***')
+			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(slot, 2) + ';', '-- offset = ' + str(slot * 4) + ' bytes'], prefixTabs=1)
+		t.AddBlankLine()
+
+		# NPU register slots in the RTL's MmrAddrNPU* spelling (values from the description)
+		t.AddLine('-- NPU register slots (RTL spelling)', prefixTabs=1)
+		npuP = self.FindPeripheral('NPU')
+		npuSlotByName = {}
+		for rt in npuP.Template.RegisterTemplates:
+			npuSlotByName[rt.NameTemplate] = rt.RegisterMemorySlot
+		for name, descRegName in c['npuMmrAddr']:
+			if descRegName not in npuSlotByName:
+				raise Exception('MCU_MP compat: NPU has no register named ' + descRegName + ' for ' + name)
+			slot = npuSlotByName[descRegName]
+			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(slot, 2) + ';', '-- offset = ' + str(slot * 4) + ' bytes'], prefixTabs=1)
+		t.AddBlankLine()
+
+		# Per-vector interrupt bit numbers. The list is transcribed from the RTL; each
+		# interrupting peripheral's first vector must agree with its interruptPriority.
+		if len(c['irqVectors']) != self.VectorsCount:
+			raise Exception('MCU_MP compat: IRQB vector list has ' + str(len(c['irqVectors'])) + ' entries, but vectorsCount is ' + str(self.VectorsCount))
+		idxByName = {}
+		for i, entry in enumerate(c['irqVectors']):
+			name = entry[0]
+			if name in idxByName:
+				raise Exception('MCU_MP compat: duplicate IRQB vector name ' + name)
+			idxByName[name] = i
+		for p in self.Peripherals:
+			if p.InterruptPriority is None:
+				continue
+			firstVector = c['irqFirstVector'].get(p.Name)
+			if firstVector is None:
+				raise Exception('MCU_MP compat: peripheral ' + p.Name + ' has an interruptPriority but no irqFirstVector entry')
+			if idxByName.get(firstVector) != p.InterruptPriority:
+				raise Exception('MCU_MP compat: ' + p.Name + ' has interruptPriority ' + str(p.InterruptPriority) + ' but its first vector ' + firstVector + ' is at IRQB list index ' + str(idxByName.get(firstVector)))
+
+		t.AddLine('-- Interrupt Bit Assignments (per-vector; names from ' + c['sourceFile'] + ')', prefixTabs=1)
+		t.AddRow(['constant IVT_BASE_ADDR', ': integer := 16#' + '{:X}'.format(self.VectorsStartAddress) + '#;', '-- IVT base address = ' + self.fmthex(self.VectorsStartAddress)], prefixTabs=1)
+		for i, entry in enumerate(c['irqVectors']):
+			name, description = entry
+			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(i, 2) + ';', '-- ' + description + ', IVT address = ' + self.fmthex(self.VectorsStartAddress + i * 4)], prefixTabs=1)
+		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(self.VectorsCount) + ';', '-- Total number of IRQs'], prefixTabs=1)
+		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
+		t.AddBlankLine()
+
+		# GPIO pin-number constants in the RTL's pnum_* spelling
+		for groupComment, portNumber, pins in c['pnums']:
+			t.AddLine('-- ' + groupComment, prefixTabs=1)
+			for name, bit in pins:
+				t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(bit, 2) + ';', '-- P' + str(portNumber) + '.' + str(bit)], prefixTabs=1)
+			t.AddBlankLine()
+		t.AddBlankLines(2)
+
+		return t.ToString()
+
 	def generateLatexUserGuide(self, outDirectoryPath):
 		self.isTimeToGenerate()
 		l = LatexUserGuide(self, outDirectoryPath)

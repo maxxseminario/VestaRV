@@ -91,7 +91,7 @@ m.SharedWindowSections = [
 
 
 ''' System '''
-p = PeripheralTemplate(nameTemplate='SYSTEM', description='Controls the entire system, including the clocking and power state. Also has a CRC calculator using the CRC16_CDMA2000 polynomial.', bitFieldPrefix='SYS', latexIntroFileName='SYSTEM-intro-myshkin-2025-11.tex')
+p = PeripheralTemplate(nameTemplate='SYSTEM', description='Controls the entire system, including the clocking and power state. Also has a CRC calculator using the CRC16_CDMA2000 polynomial.', bitFieldPrefix='SYS', latexIntroFileName='SYSTEM-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
 # SYSCLK
@@ -358,7 +358,7 @@ r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw'))
 
 
 ''' UARTx '''
-p = PeripheralTemplate(nameTemplate='UARTx', description='Full-duplex Universal Asynchronous Receiver/Transmitter with hardware parity support', registerPrefix='UARTx', bitFieldPrefix='U', latexIntroFileName='UART-intro-2020-05.tex')
+p = PeripheralTemplate(nameTemplate='UARTx', description='Full-duplex Universal Asynchronous Receiver/Transmitter with hardware parity support', registerPrefix='UARTx', bitFieldPrefix='U', latexIntroFileName='UART-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
 # UARTxCR
@@ -408,7 +408,7 @@ r.AddBitField(BitField(name='TX', msb=7, lsb=0, description='Transmit data byte'
 
 
 ''' TIMERx '''
-p = PeripheralTemplate(nameTemplate='TIMERx', description='32-bit Timer/Counter with input capture, output compare, and pulse-width modulation functionality. Features glitch-free clock source switching and configurable clock division.', registerPrefix='TIMx', bitFieldPrefix='T', latexIntroFileName='TIMER-intro-2020-05.tex')
+p = PeripheralTemplate(nameTemplate='TIMERx', description='32-bit Timer/Counter with input capture, output compare, and pulse-width modulation functionality. Features glitch-free clock source switching and configurable clock division.', registerPrefix='TIMx', bitFieldPrefix='T', latexIntroFileName='TIMER-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
 # TIMxCR
@@ -587,7 +587,7 @@ r.AddBitField(BitField(name='I2CxAMR', msb=6, lsb=0, accessibility='rw'))
 r.AddBitField(BitField(msb=7, unused=True))
 
 ''' NPU '''
-p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs and outputs are signed Q0.15 (signed int16) numbers. Synaptic weights are signed Q8.15 (signed int24) numbers. An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in the same 16 KiB multiplexed SRAM.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-myshkin-2025-11.tex')
+p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in hart 0\'s private RAM1 (the 16 KiB SRAM at 0xC000, multiplexed between hart 0 and the NPU). The registers are reachable by every hart through the shared window, but the data path is not: hart 0 (or software staging through shared RAM) must place the operands in RAM1. Hart 0 is put to sleep for the duration of every computation, regardless of which hart started it.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
 # NPUCR
@@ -595,35 +595,32 @@ r = RegisterTemplate(nameTemplate='NPUCR', registerMemorySlot=0, description='NP
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=19, unused=True))
-r.AddBitField(BitField(name='NPUBEN', msb=18, description='Bias enable. When set, the last weight fetched for each output neuron is used as a bias term added to the accumulator before the activation function.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
+r.AddBitField(BitField(name='NPUBEN', msb=18, description='Bias enable. When set, the first weight of each output neuron\'s row in the weight matrix is used as a bias term: it is multiplied by an implicit input of 1.0 and accumulated before the synaptic weights.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(name='NPUAEN', msb=17, description='Activation function enable. When set, the logistic sigmoid approximation activation function is applied to the accumulator output. When cleared, the raw accumulator output is used (linear/identity).', accessibility='rw', valueDescriptions=[(0b0, 'Disabled (linear output)'), (0b1, 'Enabled (logistic sigmoid approximation)')]))
 r.AddBitField(BitField(name='NPUTHINK', msb=16, description='NPU computation start and status bit. Write 1 to start the NPU. Self-clears when the computation is complete. Poll this bit to determine when results are ready.', accessibility='rw1', valueDescriptions=[(0b0, 'Idle (computation complete or not started)'), (0b1, 'Running (write 1 to start)')]))
 r.AddBitField(BitField(name='NPUNI', msb=15, lsb=8, description='Number of inputs in the input vector minus 1. The actual number of inputs is NPUNI + 1.', accessibility='rw'))
 r.AddBitField(BitField(name='NPUNN', msb=7, lsb=0, description='Number of output neurons minus 1. The actual number of outputs is NPUNN + 1.', accessibility='rw'))
 
 # NPUIVSAR
-r = RegisterTemplate(nameTemplate='NPUIVSAR', registerMemorySlot=1, description='Input vector start address (word address, i.e. byte address divided by 4). Each input is a signed Q0.15 (signed int16) value stored in bits 15:0 of its 32-bit SRAM word; bits 31:16 are ignored. The input at index 0 is at word address NPUIVSAR. The input at index 1 is at word address NPUIVSAR + 1. The rest of the inputs follow in consecutive word addresses. Bits 1:0 are unused because the start address must be aligned to a 32-bit word boundary.', size=32)
+r = RegisterTemplate(nameTemplate='NPUIVSAR', registerMemorySlot=1, description='Input vector start word index within hart 0\'s RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(msb=31, lsb=14, unused=True))
-r.AddBitField(BitField(name='NPUIVSAR', msb=13, lsb=2, description='Input vector start address (divided by 4)', accessibility='rw'))
-r.AddBitField(BitField(msb=1, lsb=0, unused=True))
+r.AddBitField(BitField(msb=31, lsb=12, unused=True))
+r.AddBitField(BitField(name='NPUIVSAR', msb=11, lsb=0, description='Input vector start word index within RAM1 (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 # NPUWVSAR
-r = RegisterTemplate(nameTemplate='NPUWVSAR', registerMemorySlot=2, description='Synaptic weight matrix start address (word address, i.e. byte address divided by 4). Each weight is a signed Q3.15 (signed 19-bit) value stored in bits 18:0 of its 32-bit SRAM word; bits 31:19 are ignored. Bit 18 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only. Bits 1:0 are unused because the start address must be aligned to a 32-bit word boundary.', size=32)
+r = RegisterTemplate(nameTemplate='NPUWVSAR', registerMemorySlot=2, description='Synaptic weight matrix start word index within hart 0\'s RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(msb=31, lsb=14, unused=True))
-r.AddBitField(BitField(name='NPUWVSAR', msb=13, lsb=2, description='Synaptic weight matrix start address (divided by 4)', accessibility='rw'))
-r.AddBitField(BitField(msb=1, lsb=0, unused=True))
+r.AddBitField(BitField(msb=31, lsb=12, unused=True))
+r.AddBitField(BitField(name='NPUWVSAR', msb=11, lsb=0, description='Synaptic weight matrix start word index within RAM1 (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 # NPUOVSAR
-r = RegisterTemplate(nameTemplate='NPUOVSAR', registerMemorySlot=3, description='Output vector start address (word address, i.e. byte address divided by 4). Each output is a signed Q3.15 (signed 19-bit) value stored in bits 18:0 of its 32-bit SRAM word; bits 31:19 are unused. Bit 18 is the sign bit. The output at index 0 is written to word address NPUOVSAR. The output at index 1 is at word address NPUOVSAR + 1, and so on. Bits 1:0 are unused because the start address must be aligned to a 32-bit word boundary.', size=32)
+r = RegisterTemplate(nameTemplate='NPUOVSAR', registerMemorySlot=3, description='Output vector start word index within hart 0\'s RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. Each output is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. The output at index 0 is written to word index NPUOVSAR. The output at index 1 is at word index NPUOVSAR + 1, and so on.', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(msb=31, lsb=14, unused=True))
-r.AddBitField(BitField(name='NPUOVSAR', msb=13, lsb=2, description='Output vector start address (divided by 4)', accessibility='rw'))
-r.AddBitField(BitField(msb=1, lsb=0, unused=True))
+r.AddBitField(BitField(msb=31, lsb=12, unused=True))
+r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vector start word index within RAM1 (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 
 
@@ -954,23 +951,26 @@ m.CheckPeripheralTemplates()
 
 
 ''' Create Peripherals from PeripheralTemplates and add them to the memory map '''
-# Based on MemoryMap.vhd peripheral slot assignments
-GPIO0 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=0, peripheralMemorySlot=0, interruptPriority=1)	# GPIO0 at 0x4000
-GPIO1 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=1, peripheralMemorySlot=1, interruptPriority=28)	# GPIO1 at 0x4100
-m.CreatePeripheral(nameTemplate='SPIx', nameIndex=0, peripheralMemorySlot=2, interruptPriority=9)	# SPI0 at 0x4200
-m.CreatePeripheral(nameTemplate='SPIx', nameIndex=1, peripheralMemorySlot=3, interruptPriority=11)	# SPI1 at 0x4300
-m.CreatePeripheral(nameTemplate='UARTx', nameIndex=0, peripheralMemorySlot=4, interruptPriority=13)	# UART0 at 0x4400
-m.CreatePeripheral(nameTemplate='UARTx', nameIndex=1, peripheralMemorySlot=5, interruptPriority=52)	# UART1 at 0x4500
-m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=0, peripheralMemorySlot=6, interruptPriority=16)	# TIMER0 at 0x4600
-m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=7, interruptPriority=22)	# TIMER1 at 0x4700
-GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=8, interruptPriority=36)	# GPIO2 at 0x4800
-m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=9, interruptPriority=0)	# SYSTEM at 0x4900
-m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=10, interruptPriority=None)	# NPU at 0x4A00
-m.CreatePeripheral(nameTemplate='SARADC', nameIndex='', peripheralMemorySlot=11, interruptPriority=56)	# SARADC at 0x4B00
-m.CreatePeripheral(nameTemplate='AFE', nameIndex='', peripheralMemorySlot=12, interruptPriority=55)	# AFE at 0x4C00
-GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=13, interruptPriority=44)	# GPIO3 at 0x4D00
-m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=14, interruptPriority=57)	# I2C0 at 0x4E00
-m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=15, interruptPriority=70)	# I2C1 at 0x4F00
+# Based on MCU_MP MCU.vhd region decode. Hart-0-private peripherals keep their legacy
+# 0x4000-page slots. The shared peripherals live ONLY at their shared-window addresses
+# (UART0 at 0x12000; the rest in the 0x13000 page at 0x13000 + 256*legacy_slot) — their
+# old 0x4X00 windows read zeros in the RTL, so the legacy addresses must not be published.
+GPIO0 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=0, peripheralMemorySlot=0, interruptPriority=1)	# GPIO0 at 0x4000 (hart 0 private: bootrom flash-CS/pad port)
+GPIO1 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=28, absoluteBaseAddress=0x13100, legacySlot=1)	# GPIO1 shared (legacy slot 1)
+m.CreatePeripheral(nameTemplate='SPIx', nameIndex=0, peripheralMemorySlot=2, interruptPriority=9)	# SPI0 at 0x4200 (hart 0 private: boot flash)
+m.CreatePeripheral(nameTemplate='SPIx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=11, absoluteBaseAddress=0x13300, legacySlot=3)	# SPI1 shared (legacy slot 3)
+m.CreatePeripheral(nameTemplate='UARTx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=13, absoluteBaseAddress=0x12000, legacySlot=4)	# UART0 shared console UART (dedicated window, NOT in the 0x13000 page)
+m.CreatePeripheral(nameTemplate='UARTx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=52, absoluteBaseAddress=0x13500, legacySlot=5)	# UART1 shared (legacy slot 5)
+m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=16, absoluteBaseAddress=0x13600, legacySlot=6)	# TIMER0 shared (legacy slot 6)
+m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=22, absoluteBaseAddress=0x13700, legacySlot=7)	# TIMER1 shared (legacy slot 7)
+GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=None, interruptPriority=36, absoluteBaseAddress=0x13800, legacySlot=8)	# GPIO2 shared (legacy slot 8)
+m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=9, interruptPriority=0)	# SYSTEM at 0x4900 (hart 0 private: clock/power/WDT monarch)
+m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13A00, legacySlot=10)	# NPU register bus shared (legacy slot 10); data path = hart 0's RAM1
+m.CreatePeripheral(nameTemplate='SARADC', nameIndex='', peripheralMemorySlot=11, interruptPriority=56)	# SARADC at 0x4B00 (hart 0 private by decision)
+m.CreatePeripheral(nameTemplate='AFE', nameIndex='', peripheralMemorySlot=12, interruptPriority=55)	# AFE at 0x4C00 (hart 0 private by decision)
+GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=None, interruptPriority=44, absoluteBaseAddress=0x13D00, legacySlot=13)	# GPIO3 shared (legacy slot 13)
+m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=57, absoluteBaseAddress=0x13E00, legacySlot=14)	# I2C0 shared (legacy slot 14)
+m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=70, absoluteBaseAddress=0x13F00, legacySlot=15)	# I2C1 shared (legacy slot 15)
 
 # Multi-core shared-window peripherals (behind the mp_arbiter, reachable by all harts)
 m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x11000)	# CLINT at 0x11000 (vectors 83 msip, 84 mtip)
@@ -1131,6 +1131,217 @@ GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0
 GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1'), packagePinNumber=40) # necessary
 GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2'), packagePinNumber=39) # necessary
 GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3'), packagePinNumber=38) # necessary
+
+
+''' MCU_MP drop-in compatibility facts (RTL-generation track Phase 1, 2026-07-04) '''
+# Everything below is either transcribed verbatim from hdl/MCU_MP/MemoryMap.vhd (the RTL
+# wins; values were NOT invented) or maps the RTL's constant-name spelling onto facts the
+# description already knows. Consumed ONLY by ChipGenerator.generateMemoryMapVHD(), which
+# emits an "MCU_MP compatibility" section making out/hdl/MemoryMap.vhd a drop-in
+# replacement for the hand-written RTL package. Nothing here affects the TRM, the C/asm
+# headers, or the linker scripts.
+
+# The RTL spells some legacy-slot constant names differently than the description's
+# peripheral names (trailing instance digit): PeriphSlotSystem0, PeriphSlotNPU0, ...
+_mcuMpPeriphSlotSpelling = {
+	'SYSTEM': 'System0',
+	'NPU': 'NPU0',
+	'SARADC': 'SARADC0',
+	'AFE': 'AFE0',
+}
+
+# Memory block slot assignments (hdl/MCU_MP/MemoryMap.vhd "Memory Block Memory Slot
+# Assignments"; these are decoder block indices, not address-region numbers)
+_mcuMpMemSlots = [
+	('MemSlotROM', 0, 'base address = 0x00000'),
+	('MemSlotRAM0', 1, 'base address = 0x08000'),
+	('MemSlotRAM1', 2, 'base address = 0x0C000'),
+	('MemSlotPeriph', 4, 'base address = 0x04000'),
+]
+
+# GPIO register-level logic helpers (fixed by the GPIO register spec; the RTL uses them
+# to compose reset values)
+_mcuMpGpioHelpers = [
+	('gpio_dir_out', '1', 'GPIO output direction'),
+	('gpio_dir_in', '0', 'GPIO input direction'),
+	('gpio_ren_en', '1', 'GPIO resistor enable'),
+	('gpio_ren_dis', '0', 'GPIO resistor disable'),
+	('gpio_out_high', '1', 'GPIO output high'),
+	('gpio_out_low', '0', 'GPIO output low'),
+]
+
+# SYSTEM register slots in the RTL's RegSlotSYS_* spelling. The slot numbers are
+# transcribed from the RTL (which SYSTEM.vhd decodes against). Third element = the
+# corresponding register in this description, for a consistency cross-check.
+# KNOWN DISCREPANCY (2026-07-04): the RTL has WDT_PASS=12/WDT_CR=13/WDT_SR=14 but this
+# description (and therefore the TRM + MemoryMap.h) has WDTCR=12/WDTSR=13/WDTPASS=14.
+# The RTL wins here; the TRM-track owns fixing the description. The generator prints a
+# warning for each such mismatch.
+_mcuMpSysRegSlots = [
+	('RegSlotSYS_CLK_CR', 0, 'SYSCLKCR'),
+	('RegSlotSYS_CLK_DIV_CR', 1, 'CLKDIVCR'),
+	('RegSlotSYS_BLOCK_PWR', 2, 'BLOCKPWR'),
+	('RegSlotSYS_CRC_DATA', 3, 'CRCDATA'),
+	('RegSlotSYS_CRC_STATE', 4, 'CRCSTATE'),
+	('RegSlotSYS_IRQ_ENL', 5, 'IRQENL'),
+	('RegSlotSYS_IRQ_ENM', 6, 'IRQENM'),
+	('RegSlotSYS_IRQ_ENU', 7, 'IRQENU'),
+	('RegSlotSYS_IRQ_PRIL', 8, 'IRQPRIL'),
+	('RegSlotSYS_IRQ_PRIM', 9, 'IRQPRIM'),
+	('RegSlotSYS_IRQ_PRIU', 10, 'IRQPRIU'),
+	('RegSlotSYS_IRQ_CR', 11, 'IRQCR'),
+	('RegSlotSYS_WDT_PASS', 12, 'WDTPASS'),
+	('RegSlotSYS_WDT_CR', 13, 'WDTCR'),
+	('RegSlotSYS_WDT_SR', 14, 'WDTSR'),
+	('RegSlotSYS_WDT_VAL', 15, 'WDTVAL'),
+	('RegSlotDCO0_BIAS', 16, 'DCO0BIAS'),
+	('RegSlotDCO1_BIAS', 17, 'DCO1BIAS'),
+]
+
+# NPU register slots in the RTL's MmrAddrNPU* spelling; values come from the
+# description's NPU register slots (they agree with the RTL)
+_mcuMpNpuMmrAddr = [
+	('MmrAddrNPUCR', 'NPUCR'),
+	('MmrAddrNPUIVSAR', 'NPUIVSAR'),
+	('MmrAddrNPUWVSAR', 'NPUWVSAR'),
+	('MmrAddrNPUOVSAR', 'NPUOVSAR'),
+]
+
+# Per-vector interrupt names (IRQB_*), copied verbatim from the RTL. List index = vector
+# number. The description only knows each peripheral's FIRST vector (interruptPriority);
+# the generator cross-checks those against this list via _mcuMpIrqFirstVector and fails
+# the build on disagreement.
+_mcuMpIrqVectors = [('IRQB_SYS_WDT', 'Watchdog Timer Interrupt')]
+for _b in range(8):
+	_mcuMpIrqVectors.append(('IRQB_GPIO0_B' + str(_b), 'GPIO0 Bit ' + str(_b) + ' Interrupt'))
+for _i in (0, 1):
+	_mcuMpIrqVectors.append(('IRQB_SPI' + str(_i) + '_TC', 'SPI' + str(_i) + ' Transmission Complete Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_SPI' + str(_i) + '_TE', 'SPI' + str(_i) + ' Transmission Buffer Empty Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_UART0_RC', 'UART0 Receive Complete Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_UART0_TE', 'UART0 Transmission Buffer Empty Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_UART0_TC', 'UART0 Transmission Complete Interrupt'))
+for _i in (0, 1):
+	for _sfx, _desc in [('CAP0', 'Capture 0'), ('CAP1', 'Capture 1'), ('OVF', 'Overflow'), ('CMP0', 'Compare 0'), ('CMP1', 'Compare 1'), ('CMP2', 'Compare 2')]:
+		_mcuMpIrqVectors.append(('IRQB_TIM' + str(_i) + '_' + _sfx, 'TIMER' + str(_i) + ' ' + _desc + ' Interrupt'))
+for _p in (1, 2, 3):
+	for _b in range(8):
+		_mcuMpIrqVectors.append(('IRQB_GPIO' + str(_p) + '_B' + str(_b), 'GPIO' + str(_p) + ' Bit ' + str(_b) + ' Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_UART1_RC', 'UART1 Receive Complete Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_UART1_TE', 'UART1 Transmission Buffer Empty Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_UART1_TC', 'UART1 Transmission Complete Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_AFE0_RC', 'AFE0 Receive Complete Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_SAR0_RC', 'SARADC0 Conversion Complete Interrupt'))
+# I2C vector suffixes are lowercase in the RTL except STR — copied verbatim
+for _i in (0, 1):
+	for _sfx, _desc in [
+			('STR', 'start received'), ('spr', 'stop received'),
+			('msts', 'master mode start condition sent'), ('msps', 'master mode stop condition sent'),
+			('marb', 'master mode arbitration lost'), ('mtxe', 'master mode transmit empty'),
+			('mnr', 'master mode NACK received'), ('mxc', 'master mode transfer complete'),
+			('sa', 'slave address'), ('stxe', 'slave transmit empty'), ('sovf', 'slave overflow'),
+			('snr', 'slave mode NACK received'), ('sxc', 'slave mode transfer complete')]:
+		_mcuMpIrqVectors.append(('IRQB_I2C' + str(_i) + '_' + _sfx, 'I2C' + str(_i) + ' ' + _desc + ' Interrupt'))
+# M5b: real CLINT (hdl/MCU_MP/clint.vhd, shared window 0x11000); per-hart msip/mtip
+_mcuMpIrqVectors.append(('IRQB_CLINT_MSIP', 'CLINT software interrupt (IPI)'))
+_mcuMpIrqVectors.append(('IRQB_CLINT_MTIP', 'CLINT timer interrupt'))
+if len(_mcuMpIrqVectors) != 85:
+	raise Exception('MCU_MP IRQB vector list must have 85 entries, has ' + str(len(_mcuMpIrqVectors)))
+
+# Each interrupting peripheral's first vector name, for cross-checking interruptPriority
+# against the IRQB list (build fails on mismatch)
+_mcuMpIrqFirstVector = {
+	'SYSTEM': 'IRQB_SYS_WDT',
+	'GPIO0': 'IRQB_GPIO0_B0',
+	'GPIO1': 'IRQB_GPIO1_B0',
+	'GPIO2': 'IRQB_GPIO2_B0',
+	'GPIO3': 'IRQB_GPIO3_B0',
+	'SPI0': 'IRQB_SPI0_TC',
+	'SPI1': 'IRQB_SPI1_TC',
+	'UART0': 'IRQB_UART0_RC',
+	'UART1': 'IRQB_UART1_RC',
+	'TIMER0': 'IRQB_TIM0_CAP0',
+	'TIMER1': 'IRQB_TIM1_CAP0',
+	'AFE': 'IRQB_AFE0_RC',
+	'SARADC': 'IRQB_SAR0_RC',
+	'I2C0': 'IRQB_I2C0_STR',
+	'I2C1': 'IRQB_I2C1_STR',
+	'CLINT': 'IRQB_CLINT_MSIP',
+}
+
+# GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
+# NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
+# description numbers from 0 — the emitted names use the RTL numbering. These values are
+# boot-critical (P1 drives the flash chip select during SPI boot).
+# KNOWN DISCREPANCY (2026-07-04): the description's per-pin rstOUT/rstDIR/rstSEL/rstREN
+# attributes (which feed the TRM pin tables) disagree with the RTL for GPIO0 (trap DIR,
+# lfxt/hfxt SEL) and GPIO1 (tx0 DIR). The RTL wins here; the TRM-track owns the pin
+# attributes. The generator prints a warning for each such mismatch.
+_mcuMpRstVals = [
+	('GPIO0', [
+		('RstValP1OUT', 0x00000001, "cs0 default to '1' to disable flash"),
+		('RstValP1DIR', 0x00000041, 'only cs0, and trap is an output'),
+		('RstValP1SEL', 0x0000004E, 'all alt fn except boot, cs0'),
+		('RstValP1REN', 0x00000080, "only boot has pullup/pulldown - should default to '1' to load from flash"),
+	]),
+	('GPIO1', [
+		('RstValP2OUT', 0x00000000, 'all pads output low'),
+		('RstValP2DIR', 0x00000010, 'tx0 is output'),
+		('RstValP2SEL', 0x00000030, 'uart0 default to alt fn'),
+		('RstValP2REN', 0x00000000, 'disable rens'),
+	]),
+	('GPIO2', [
+		('RstValP3OUT', 0x00000000, ''),
+		('RstValP3DIR', 0x00000000, ''),
+		('RstValP3SEL', 0x00000000, ''),
+		('RstValP3REN', 0x00000000, ''),
+	]),
+	('GPIO3', [
+		('RstValP4OUT', 0x00000000, ''),
+		('RstValP4DIR', 0x00000000, ''),
+		('RstValP4SEL', 0x00000000, ''),
+		('RstValP4REN', 0x00000000, ''),
+	]),
+]
+
+# GPIO pin-number constants in the RTL's pnum_* spelling (MCU.vhd routes pads by these).
+# (group header, RTL port number, [(name, bit)]) — transcribed from the RTL; bit numbers
+# agree with the description's pin list where names correspond (the RTL names differ,
+# e.g. pnum_gpio0_spi_clk vs PinNumGPIO0SCK0; pnum_gpio0_boot has no FuncName-bearing pin)
+_mcuMpPnums = [
+	('GPIO0 Pin Assignments (Serial Flash)', 1, [
+		('pnum_gpio0_cs_flash', 0), ('pnum_gpio0_miso', 1), ('pnum_gpio0_mosi', 2),
+		('pnum_gpio0_spi_clk', 3), ('pnum_gpio0_lfxt', 4), ('pnum_gpio0_hfxt', 5),
+		('pnum_gpio0_trap', 6), ('pnum_gpio0_boot', 7),
+	]),
+	('GPIO1 Pin Assignments (SPI1, UART0, UART1)', 2, [
+		('pnum_gpio1_cs1', 0), ('pnum_gpio1_miso1', 1), ('pnum_gpio1_mosi1', 2),
+		('pnum_gpio1_sck1', 3), ('pnum_gpio1_tx0', 4), ('pnum_gpio1_rx0', 5),
+		('pnum_gpio1_tx1', 6), ('pnum_gpio1_rx1', 7),
+	]),
+	('GPIO2 Pin Assignments (TIMER0, TIMER1)', 3, [
+		('pnum_gpio2_t0_cmp0', 0), ('pnum_gpio2_t0_cmp1', 1), ('pnum_gpio2_t0_cap0', 2),
+		('pnum_gpio2_t0_cap1', 3), ('pnum_gpio2_t1_cmp0', 4), ('pnum_gpio2_t1_cmp1', 5),
+		('pnum_gpio2_t1_cap0', 6), ('pnum_gpio2_t1_cap1', 7),
+	]),
+	('GPIO3 Pin Assignments (DTP)', 4, [
+		('pnum_gpio3_sda0', 0), ('pnum_gpio3_scl0', 1), ('pnum_gpio3_sda1', 2),
+		('pnum_gpio3_scl1', 3), ('pnum_gpio3_dtp0', 4), ('pnum_gpio3_dtp1', 5),
+		('pnum_gpio3_dtp2', 6), ('pnum_gpio3_dtp3', 7),
+	]),
+]
+
+m.McuMpCompat = {
+	'sourceFile': 'hdl/MCU_MP/MemoryMap.vhd',
+	'periphSlotSpelling': _mcuMpPeriphSlotSpelling,
+	'memSlots': _mcuMpMemSlots,
+	'gpioHelpers': _mcuMpGpioHelpers,
+	'sysRegSlots': _mcuMpSysRegSlots,
+	'npuMmrAddr': _mcuMpNpuMmrAddr,
+	'irqVectors': _mcuMpIrqVectors,
+	'irqFirstVector': _mcuMpIrqFirstVector,
+	'rstVals': _mcuMpRstVals,
+	'pnums': _mcuMpPnums,
+}
 
 
 ''' Check for errors '''
