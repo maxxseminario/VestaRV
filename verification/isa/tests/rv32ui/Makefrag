@@ -15,6 +15,7 @@ rv32ui_sc_tests = \
 	shtimer \
 	shperiph \
 	shi2c \
+	shnpu \
 	add addi \
 	and andi \
 	auipc \

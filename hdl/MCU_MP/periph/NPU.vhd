@@ -124,20 +124,39 @@ architecture behavioral of NPU is
 	signal CurrYAddr	: unsigned(11 downto 0);				-- Current Output's Address (0-4095)
 	signal MacOut 		: std_logic_vector
 			((Y_M_BITS+N_BITS) downto 0);						-- MAC Combinational Output
-	signal Decision		: std_logic_vector(N_BITS downto 0); 	-- Decision Signal (Output Of Activation Fucntion)	
+	signal Decision		: std_logic_vector(N_BITS downto 0); 	-- Decision Signal (Output Of Activation Fucntion)
 	signal MabMmrAInt	: natural range 0 to 63;
+	signal NpuMuxSel	: std_logic;							-- SRAM-port mux select = NPUTHINK registered on Clk (M7d)
 
 begin
 
 	----------------------------------------------
 	----- Muxed SRAM Memory Bus Multiplexer ------
 	----------------------------------------------
-	NpuSramA_out 	<= SramA_in when (NPUTHINK = '0') else NpuSramA; 
-	NpuSramD_out 	<= SramD_in when (NPUTHINK = '0') else NpuSramD;
-	NpuSramCLK_out 	<= SramCLK_in when (NPUTHINK = '0') else NpuSramCLK;
-	NpuSramCEN_out 	<= SramCEN_in when (NPUTHINK = '0') else NpuSramCEN;
-	NpuSramGWEN_out <= SramGWEN_in when (NPUTHINK = '0') else NpuSramGWEN;
-	NpuSramWEN_out 	<= SramWEN_in when (NPUTHINK = '0') else NpuSramWEN;
+	-- M7d: the select is NPUTHINK REGISTERED on the free-running Clk
+	-- (NpuMuxSel), not raw NPUTHINK. With the MMRs behind the multi-hart
+	-- arbiter, ANY hart can set THINK at an mclk edge where the CPU that owns
+	-- this SRAM port has an access in flight; switching the port on the raw
+	-- bit could eat that access (corrupted load / dropped store). NpuActive
+	-- (-> the owner CPU's sleep) is raw-OR-delayed, so the CPU is stopped one
+	-- full cycle BEFORE the port switches to the NPU and resumes one full
+	-- cycle AFTER it switches back; the NPU FSM's first SRAM access is
+	-- several NpuClk cycles after THINK, well past the switch.
+	NpuSramA_out 	<= SramA_in when (NpuMuxSel = '0') else NpuSramA;
+	NpuSramD_out 	<= SramD_in when (NpuMuxSel = '0') else NpuSramD;
+	NpuSramCLK_out 	<= SramCLK_in when (NpuMuxSel = '0') else NpuSramCLK;
+	NpuSramCEN_out 	<= SramCEN_in when (NpuMuxSel = '0') else NpuSramCEN;
+	NpuSramGWEN_out <= SramGWEN_in when (NpuMuxSel = '0') else NpuSramGWEN;
+	NpuSramWEN_out 	<= SramWEN_in when (NpuMuxSel = '0') else NpuSramWEN;
+
+	NPU_MUXSEL_REG: process(Clk, ResetN)
+	begin
+		if (ResetN = '0') then
+			NpuMuxSel <= '0';
+		elsif (rising_edge(Clk)) then
+			NpuMuxSel <= NPUTHINK;
+		end if;
+	end process;
 
 	-------------------------------------
 	----- Component Instantiations ------
@@ -194,7 +213,9 @@ begin
 	--------------------------------------
 	----- NPU Internal Functionality -----
 	--------------------------------------
-	NpuActive <= NPUTHINK;
+	-- M7d: raw OR delayed — the owner CPU sleeps from the THINK write until
+	-- one cycle AFTER the SRAM port has switched back (see mux comment)
+	NpuActive <= NPUTHINK or NpuMuxSel;
 
 	
 	----- Sequential Logic

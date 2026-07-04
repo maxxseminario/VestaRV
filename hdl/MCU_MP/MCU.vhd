@@ -826,6 +826,17 @@ architecture behav of MCU is
         signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
         signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
         signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');
+        -- M7d: shared NPU = page-3 slot 10 (0x13A00). Register bus only —
+        -- the NPU still crunches vectors in HART 0's PRIVATE RAM1 (its SRAM
+        -- port mux + npu0_active -> hart-0 sleep are unchanged; NPU.vhd's
+        -- M7d mux-select register makes a cross-hart THINK safe). Its MMR
+        -- read is COMBINATIONAL like I2C's -> same bridge register. SARADC/
+        -- AFE stay hart-0-private (decided with the user).
+        signal shslv_npu_sel,   shslv_npu_en    : std_logic;
+        signal shslv_rd_npu     : std_logic := '0';
+        signal npu_sh_en_n      : std_logic;
+        signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
+        signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -1632,6 +1643,7 @@ begin
     shslv_gpio3_sel <= shslv_pg3_sel when sh_addr(9 downto 6) = "1101" else '0';
     shslv_i2c0_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1110" else '0';
     shslv_i2c1_sel  <= shslv_pg3_sel when sh_addr(9 downto 6) = "1111" else '0';
+    shslv_npu_sel   <= shslv_pg3_sel when sh_addr(9 downto 6) = "1010" else '0';
     shslv_ram_en    <= sh_en and shslv_ram_sel;
     shslv_clint_en  <= sh_en and shslv_clint_sel;
     shslv_uart_en   <= sh_en and shslv_uart_sel;
@@ -1645,6 +1657,7 @@ begin
     shslv_gpio3_en  <= sh_en and shslv_gpio3_sel;
     shslv_i2c0_en   <= sh_en and shslv_i2c0_sel;
     shslv_i2c1_en   <= sh_en and shslv_i2c1_sel;
+    shslv_npu_en    <= sh_en and shslv_npu_sel;
 
     shslv_rd_sel: process(mclk, resetn)
     begin
@@ -1661,6 +1674,7 @@ begin
             shslv_rd_uart1 <= '0';
             shslv_rd_i2c0  <= '0';
             shslv_rd_i2c1  <= '0';
+            shslv_rd_npu   <= '0';
         elsif rising_edge(mclk) then
             if sh_en = '1' then
                 shslv_rd_clint <= shslv_clint_sel;
@@ -1675,6 +1689,7 @@ begin
                 shslv_rd_uart1 <= shslv_uart1_sel;
                 shslv_rd_i2c0  <= shslv_i2c0_sel;
                 shslv_rd_i2c1  <= shslv_i2c1_sel;
+                shslv_rd_npu   <= shslv_npu_sel;
             end if;
         end if;
     end process;
@@ -1689,12 +1704,17 @@ begin
         if resetn = '0' then
             i2c0_sh_rdata <= (others => '0');
             i2c1_sh_rdata <= (others => '0');
+            npu_sh_rdata  <= (others => '0');
         elsif rising_edge(mclk) then
             if shslv_i2c0_en = '1' then
                 i2c0_sh_rdata <= i2c0_sh_rdata_c;
             end if;
             if shslv_i2c1_en = '1' then
                 i2c1_sh_rdata <= i2c1_sh_rdata_c;
+            end if;
+            -- M7d: NPU's MabMmrQ is combinational too (same rule)
+            if shslv_npu_en = '1' then
+                npu_sh_rdata <= npu_sh_rdata_c;
             end if;
         end if;
     end process;
@@ -1711,6 +1731,7 @@ begin
                     uart1_sh_rdata when shslv_rd_uart1 = '1' else
                     i2c0_sh_rdata  when shslv_rd_i2c0  = '1' else
                     i2c1_sh_rdata  when shslv_rd_i2c1  = '1' else
+                    npu_sh_rdata   when shslv_rd_npu   = '1' else
                     sh_rdata;
 
     -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
@@ -1748,6 +1769,10 @@ begin
     -- process, core FSMs on smclk/pin edges)
     i2c0_sh_en_n  <= not shslv_i2c0_en;
     i2c1_sh_en_n  <= not shslv_i2c1_en;
+    -- M7d: NPU register bus (MabMmrCEN was HARDWIRED '0' on the old gated
+    -- bus — the clk_periph pulse was the only write qualifier; on the
+    -- free-running mclk this strobe IS the qualifier)
+    npu_sh_en_n   <= not shslv_npu_en;
 
     clint0: entity work.clint
         generic map (NHARTS => 4)
@@ -2294,6 +2319,9 @@ begin
     -- M7c.2: I2C0 + I2C1 moved (slots 14/15)
     periph_dout(PeriphSlotI2C0)   <= (others => '0');
     periph_dout(PeriphSlotI2C1)   <= (others => '0');
+    -- M7d: NPU register bus moved (slot 10). SARADC0/AFE0 stay hart-0-private
+    -- BY DECISION (with SYSTEM0/SPI0/GPIO0 they close the private set).
+    periph_dout(PeriphSlotNPU0)   <= (others => '0');
 
     uart1: UART
         port map (
@@ -2526,13 +2554,14 @@ begin
             clk         => mclk,  
             resetn      => resetn,
 
-            -- Memory Bus Signals 
-            MabMmrA     => addr_periph(3 downto 2), 
-            MabMmrD     => write_data,
-            MabMmrCLK   => clk_periph(PeriphSlotNPU0),
-            MabMmrCEN   => '0',
-            MabMmrWEN   => wen_fe,
-            MabMmrQ     => periph_dout(PeriphSlotNPU0),
+            -- Memory Bus Signals (arbiter slave side, M7d — page-3 slot 10
+            -- @0x13A00; MabMmrQ is COMBINATIONAL, registered by the bridge)
+            MabMmrA     => sh_addr(1 downto 0),
+            MabMmrD     => sh_wdata,
+            MabMmrCLK   => mclk,
+            MabMmrCEN   => npu_sh_en_n,
+            MabMmrWEN   => sh_wen_n,
+            MabMmrQ     => npu_sh_rdata_c,
 
             -- MUXed SRAM Inputs (connect directly to address decoder outputs)
             SramQ_in      => mem_dout(2),
