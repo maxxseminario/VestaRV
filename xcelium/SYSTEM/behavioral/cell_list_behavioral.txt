@@ -1,0 +1,8 @@
+../../../hdl/MCU/constants.vhd
+../../../hdl/MCU/MemoryMap.vhd
+../../../hdl/MCU/sim/ClkGate.vhd
+../../../hdl/MCU/sim/ClockMuxGlitchFree.vhd
+../../../hdl/MCU/commune/CRC16.vhd
+../../../hdl/MCU/periph/SYSTEM.vhd
+../../../hdl/MCU/tb/periph_tb_pkg.vhd
+../../../hdl/MCU/tb/SYSTEM_tb.vhd

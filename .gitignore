@@ -4,10 +4,14 @@
 # genus  = synthesis, innovus = place & route, xcelium = simulation, .cadence = session state
 genus/
 innovus/
-xcelium/
 .cadence/
-ic_bad/          # Pegasus/Calibre DRC-LVS run logs
-logo/            # contained *.gds
+# Pegasus/Calibre DRC-LVS run logs:
+ic_bad/
+# logo/ contained *.gds:
+logo/
+# NOTE: xcelium/ is intentionally NOT blanket-ignored. It is handled by the
+#       "XCELIUM SIMULATION SOURCES" whitelist at the bottom of this file, which
+#       tracks run scripts / test lists / testbenches and drops all sim artifacts.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FOUNDRY / PDK IP — NEVER commit. TSMC (and any foundry) PDK data is under NDA.
@@ -25,7 +29,8 @@ logo/            # contained *.gds
 *.oa
 *.lvs.v
 *.route.gz
-*tsmc*           # any file whose name carries the foundry/PDK name
+# any file whose name carries the foundry/PDK name:
+*tsmc*
 
 # Generic EDA/simulation intermediates (in case tools run elsewhere)
 *.rcf
@@ -142,3 +147,50 @@ Thumbs.db
 # ─────────────────────────────────────────────────────────────────────────────
 .stfolder/
 *.sync-conflict-*
+
+# ─────────────────────────────────────────────────────────────────────────────
+# XCELIUM SIMULATION SOURCES  (default-deny whitelist — keep setup, drop artifacts)
+# ─────────────────────────────────────────────────────────────────────────────
+# Goal: version only the human-authored simulation setup (run scripts, test/cell
+# lists, testbench sources) — NEVER the multi-GB generated artifacts (compiled
+# libs, waveforms, logs, snapshots). Kept at the bottom so it is evaluated last.
+#
+# NOTE: .gitignore has NO inline comments — every '#' must start its own line.
+#
+# 1) Ignore everything under xcelium/ by default:
+xcelium/**
+# 2) but descend into every subdirectory so files below can be re-included:
+!xcelium/**/
+# 3) re-include only these source / setup file types
+#    (run scripts, control scripts, testbenches, file/test/cell lists):
+!xcelium/**/*.sh
+!xcelium/**/*.tcl
+!xcelium/**/*.do
+!xcelium/**/*.vhd
+!xcelium/**/*.sv
+!xcelium/**/*.svh
+!xcelium/**/*.v
+!xcelium/**/*.vh
+!xcelium/**/*.f
+!xcelium/**/*.txt
+!xcelium/**/*.md
+!xcelium/**/README*
+!xcelium/**/Makefile
+# 4) …but ALWAYS drop these, even if they matched a rule above (last word wins).
+#    Artifact dirs: compiled libs/snapshots, waveforms, SimVision state,
+#    symbol caches, logs, local AI settings, generated RAM images.
+xcelium/**/xcelium.d/
+xcelium/**/waves.shm/
+xcelium/**/.simvision/
+xcelium/**/.bpad/
+xcelium/**/log/
+xcelium/**/.claude/
+xcelium/**/ram_images/
+xcelium/**/*.svcf
+xcelium/**/xrun.key
+xcelium/**/xrun.log
+xcelium/**/xrun.history
+# Generated data dumps that happen to be .txt (edit if you actually want them):
+xcelium/**/sig_approx_fp.txt
+xcelium/**/output_results.txt
+xcelium/**/*_actual_*.txt

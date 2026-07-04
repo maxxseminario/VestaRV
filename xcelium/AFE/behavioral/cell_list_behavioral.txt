@@ -1,0 +1,9 @@
+../../../hdl/MCU/constants.vhd
+../../../hdl/MCU/MemoryMap.vhd
+../../../hdl/MCU/sim/ClkGate.vhd
+../../../hdl/MCU/periph/AFE_FSM.vhd
+../../../hdl/MCU/periph/AFE.vhd
+../../../hdl/MCU/tb/AFE_tb.vhd
+
+
+

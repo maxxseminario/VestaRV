@@ -1,0 +1,8 @@
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/verilog/tsmc65_hvt_sc_adv10.v
+../../../hdl/periph/constants.vhd
+../../../hdl/periph/MemoryMap.vhd
+../../../genus/out/AFE.genus.v
+../../../hdl/tb/AFE_tb.vhd
+
+
+
