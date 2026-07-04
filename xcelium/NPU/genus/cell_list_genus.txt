@@ -1,0 +1,6 @@
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/vhdl/tsmc65_hvt_sc_adv10.vhd
+../../../ip/sram2p16k_hvt_pg/sram2p16k_hvt_pg.v
+../../../genus/out/NPU/NPU.genus.v
+../../../hdl/MCU/libraries/fixed_float_types_c.vhdl
+../../../hdl/MCU/libraries/fixed_pkg_c.vhdl
+../../../hdl/MCU/tb/NPU_tb.vhd

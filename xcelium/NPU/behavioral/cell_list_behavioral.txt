@@ -1,0 +1,10 @@
+../../../hdl/MCU/commune/fixed_float_types_c.vhdl
+../../../hdl/MCU/commune/fixed_pkg_c.vhdl
+../../../hdl/MCU/constants.vhd
+../../../hdl/MCU/MemoryMap.vhd
+../../../hdl/MCU/sim/ClkGate.vhd
+../../../hdl/MCU/commune/ARM_IP_RAM.vhd
+../../../hdl/MCU/commune/FPMac.vhd
+../../../hdl/MCU/commune/FPSigmoid.vhd
+../../../hdl/MCU/periph/NPU.vhd
+../../../hdl/MCU/tb/NPU_tb.vhd

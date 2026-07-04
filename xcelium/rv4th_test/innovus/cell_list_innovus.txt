@@ -1,0 +1,17 @@
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/verilog/tsmc65_hvt_sc_adv10.v
+/home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
+../../../hdl/MCU/constants.vhd
+../../../hdl/MCU/macros/macros.vhd
+../../../hdl/MCU/MemoryMap.vhd
+../../../ip/rom_hvt_pg/rom_hvt_pg.v
+../../../ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.v
+../../../ip/sram1p8k_hvt_pg/sram1p8k_hvt_pg.v
+../../../ip/sram1p1k_hvt_pg/sram1p1k_hvt_pg.v
+../../../innovus/out/MCU.xsim.v
+../../../hdl/MCU/tb/serial_flash.vhd
+../../../hdl/MCU/sim/GlitchFilter_behav.vhd
+../../../hdl/MCU/sim/PowerOnResetCheng_behav.vhd
+../../../hdl/MCU/sim/OscillatorCurrentStarved_simulation.vhd
+../../../hdl/MCU/tb/tb_defs.vhd
+../../../hdl/MCU/tb/TestbenchLibrary.vhd
+../../../hdl/MCU/tb/rv4th_tb.vhd
