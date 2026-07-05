@@ -44,6 +44,17 @@ def main():
             for r, bits in enumerate(rows):
                 print(f"deposit {prefix}:hart{hart}:{ram}:mem[{r}] = 1024'b{bits}")
     print(f'puts "tile RAM preload deposited (harts 1-3, ram0+ram1)"')
+    # Shared-window RAM: the RTL declares shram := (others => '0') and the whole
+    # sh-protocol mailbox discipline (DONE[h]==0 parked-proofs, GO polls) reads
+    # words before any hart has written them. The netlist's 8192 shram DFFs have
+    # no reset, so those reads return X at gate level -> X on the unified bus ->
+    # chip-wide collapse (M9b round 3). Deposit the declared init value; a net
+    # deposit holds only until the driving flop's first real write transition,
+    # so written words behave identically to silicon. Escaped Verilog name
+    # needs the trailing space.
+    for w in range(256):
+        print(f"deposit {{{prefix}:\\shram[{w}] }} = 32'h00000000")
+    print(f'puts "shared-window shram zeroed (256 words, matches RTL init)"')
 
 
 if __name__ == "__main__":
