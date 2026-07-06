@@ -371,29 +371,33 @@ architecture Behavioral of adddec is
 
 begin
 
-    -- Memory map:
-    -- ROM0 - 0x00000 - 0x03FFF (16KB)
-    -- MMR  - 0x04000 - 0x07FFF (~16KB) Peripherals
-    -- RAM0 - 0x08000 - 0x0BFFF (16KB)  
-    -- RAM1 - 0x0C000 - 0x0FFFF (16KB)
-    -- Extended Memory (Flash): 0x10000 and above (when ENABLE_FLASH_EXTENDED_MEM = true)
+    -- Memory map (M11 rework — this decoder now serves ONLY the tile-private
+    -- regions; everything else is the MCU-level shared window behind the
+    -- mp_arbiter, selected by the master-side sh_sel in hart_tile.vhd/MCU.vhd):
+    -- ROM0 - 0x00000 - 0x03FFF (16KB, hart 0 only until the M12 single-ROM boot)
+    -- TCM  - 0x08000 - 0x0BFFF (16KB private RAM0, one per tile)
+    -- Shared (NOT decoded here): 0x04000-0x07FFF peripheral window,
+    --   0x0C000-0x0FFFF NPU staging RAM, 0x10000-0x1FFFF shared bulk RAM.
+    -- Extended Memory (Flash): 0x20000 and above (when ENABLE_FLASH_EXTENDED_MEM = true)
 
     -- Extract address fields
     mem_region_sel      <= data_addr(16 downto 14);
     periph_addr_nat     <= slv2uint(data_addr(11 downto 8));
     mem_sel_periph_nat  <= slv2uint(not mem_sel_periph_int);
-    
+
     -- Pass full address bus for flash
     -- mab_out <= data_addr;
-    
+
     -- Determine if this is a flash access
-    -- Flash memory is accessed when address is >= 0x14000.
-    -- MCU_MP: 0x10000-0x13FFF (region 4) is the shared-RAM window (mp_arbiter in
-    -- MCU.vhd), NOT external flash. Both subsystems claiming 0x10000 deadlocked
-    -- the core (SPI0 FlashActive freezes clk_cpu via sleep_cpu while the shared
-    -- handshake stalls mem_ready). Extended flash therefore starts at 0x14000.
+    -- Flash memory is accessed when address is >= 0x20000.
+    -- MCU_MP M11: 0x10000-0x1FFFF is the shared bulk RAM (mp_arbiter in
+    -- MCU.vhd), NOT external flash (pre-M11 the boundary was 0x14000; the
+    -- 64 KB shared RAM claimed 0x14000-0x1FFFF). Both subsystems claiming an
+    -- address deadlocks the core (SPI0 FlashActive freezes clk_cpu via
+    -- sleep_cpu while the shared handshake stalls mem_ready) — keep the flash
+    -- decode the exact complement of the master-side sh_sel regions.
     gen_flash_detect: if ENABLE_FLASH_EXTENDED_MEM generate
-        is_flash_access <= '1' when unsigned(data_addr) >= x"00014000" else '0';
+        is_flash_access <= '1' when unsigned(data_addr) >= x"00020000" else '0';
     end generate;
     
     gen_no_flash_detect: if not ENABLE_FLASH_EXTENDED_MEM generate
@@ -412,40 +416,19 @@ begin
             -- Flash memory access
             mem_en_flash_sig <= '0';
         else
-            -- Normal memory map
-            -- ROM : 0x00000 - 0x03FFF (bits 16:14 = 000) 
-            -- MMR : 0x04000 - 0x07FFF (bits 16:14 = 001)
-            -- RAM0: 0x08000 - 0x0BFFF (bits 16:14 = 010)
-            -- RAM1: 0x0C000 - 0x0FFFF (bits 16:14 = 011)
-            
+            -- Normal memory map (M11: only the PRIVATE regions decode here.
+            -- Regions 001 (peripheral window), 011 (NPU staging RAM) and
+            -- 1xx (shared bulk RAM) are shared — the master-side sh_sel in
+            -- hart_tile.vhd/MCU.vhd claims them and no enable asserts here,
+            -- exactly like the pre-M11 region-4 carve-out.)
+            -- ROM : 0x00000 - 0x03FFF (bits 16:14 = 000)
+            -- TCM : 0x08000 - 0x0BFFF (bits 16:14 = 010, private RAM0)
+
             case mem_region_sel is
                 when "000" =>
                     mem_en_sig(MemSlotROM) <= '0';
-                when "001" =>
-                    -- Peripherals
-                    case periph_addr_nat is
-                        when PeriphSlotGPIO0   => mem_en_periph_sig(PeriphSlotGPIO0)   <= '0';
-                        when PeriphSlotGPIO1   => mem_en_periph_sig(PeriphSlotGPIO1)   <= '0';
-                        when PeriphSlotGPIO2   => mem_en_periph_sig(PeriphSlotGPIO2)   <= '0';
-                        when PeriphSlotGPIO3   => mem_en_periph_sig(PeriphSlotGPIO3)   <= '0';
-                        when PeriphSlotSPI0    => mem_en_periph_sig(PeriphSlotSPI0)    <= '0';
-                        when PeriphSlotSPI1    => mem_en_periph_sig(PeriphSlotSPI1)    <= '0';
-                        when PeriphSlotUART0   => mem_en_periph_sig(PeriphSlotUART0)   <= '0';
-                        when PeriphSlotUART1   => mem_en_periph_sig(PeriphSlotUART1)   <= '0';
-                        when PeriphSlotTIMER0  => mem_en_periph_sig(PeriphSlotTIMER0)  <= '0';
-                        when PeriphSlotTIMER1  => mem_en_periph_sig(PeriphSlotTIMER1)  <= '0';
-                        when PeriphSlotSystem0 => mem_en_periph_sig(PeriphSlotSystem0) <= '0';
-                        when PeriphSlotNPU0    => mem_en_periph_sig(PeriphSlotNPU0)    <= '0';
-                        when PeriphSlotAFE0    => mem_en_periph_sig(PeriphSlotAFE0)    <= '0';
-                        when PeriphSlotSARADC0 => mem_en_periph_sig(PeriphSlotSARADC0) <= '0';
-                        when PeriphSlotI2C0    => mem_en_periph_sig(PeriphSlotI2C0)    <= '0';
-                        when PeriphSlotI2C1    => mem_en_periph_sig(PeriphSlotI2C1)    <= '0';
-                        when others => null;
-                    end case;
                 when "010" =>
                     mem_en_sig(MemSlotRAM0) <= '0';
-                when "011" =>
-                    mem_en_sig(MemSlotRAM1) <= '0';
                 when others =>
                     null;
             end case;
@@ -504,53 +487,23 @@ begin
     end process;
 
     -- Output buffer selection using combinational assignments
+    -- (M11: the peripheral and RAM1 arms are gone — peripherals live behind
+    -- the arbiter and are consumed via the master-side sh_rdata_cpu mux, and
+    -- RAM1's region is the shared NPU staging RAM. Shared-region accesses
+    -- fall through to the safe default arm here, exactly like region 4 did.)
     gen_flash_mux: if ENABLE_FLASH_EXTENDED_MEM generate
         out_buff <= nop                              when resetn = '0' else
                     flash_dout_reg                   when mem_sel_flash_int = '0' else  -- Flash
                     mem_dout(MemSlotROM)             when mem_sel_int = "110" else  -- ROM
-                    mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0
-                    mem_dout(MemSlotRAM1)            when mem_sel_int = "011" else  -- RAM1
-                    periph_dout(PeriphSlotGPIO0)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO0_MASK else
-                    periph_dout(PeriphSlotGPIO1)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO1_MASK else
-                    periph_dout(PeriphSlotGPIO2)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO2_MASK else
-                    periph_dout(PeriphSlotGPIO3)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO3_MASK else
-                    periph_dout(PeriphSlotSPI0)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI0_MASK else
-                    periph_dout(PeriphSlotSPI1)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI1_MASK else
-                    periph_dout(PeriphSlotUART0)     when mem_sel_int = "111" and mem_sel_periph_nat = UART0_MASK else
-                    periph_dout(PeriphSlotUART1)     when mem_sel_int = "111" and mem_sel_periph_nat = UART1_MASK else
-                    periph_dout(PeriphSlotTIMER0)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER0_MASK else
-                    periph_dout(PeriphSlotTIMER1)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER1_MASK else
-                    periph_dout(PeriphSlotSystem0)   when mem_sel_int = "111" and mem_sel_periph_nat = SYSTEM0_MASK else
-                    periph_dout(PeriphSlotNPU0)      when mem_sel_int = "111" and mem_sel_periph_nat = NPU0_MASK else
-                    periph_dout(PeriphSlotAFE0)      when mem_sel_int = "111" and mem_sel_periph_nat = AFE0_MASK else
-                    periph_dout(PeriphSlotSARADC0)   when mem_sel_int = "111" and mem_sel_periph_nat = SARADC0_MASK else
-                    periph_dout(PeriphSlotI2C0)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C0_MASK else
-                    periph_dout(PeriphSlotI2C1)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C1_MASK else
-                    (others => '1');  
+                    mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0 (TCM)
+                    (others => '1');
     end generate;
 
     gen_no_flash_mux: if not ENABLE_FLASH_EXTENDED_MEM generate
         out_buff <= nop                              when resetn = '0' else
                     mem_dout(MemSlotROM)             when mem_sel_int = "110" else  -- ROM
-                    mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0
-                    mem_dout(MemSlotRAM1)            when mem_sel_int = "011" else  -- RAM1
-                    periph_dout(PeriphSlotGPIO0)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO0_MASK else
-                    periph_dout(PeriphSlotGPIO1)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO1_MASK else
-                    periph_dout(PeriphSlotGPIO2)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO2_MASK else
-                    periph_dout(PeriphSlotGPIO3)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO3_MASK else
-                    periph_dout(PeriphSlotSPI0)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI0_MASK else
-                    periph_dout(PeriphSlotSPI1)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI1_MASK else
-                    periph_dout(PeriphSlotUART0)     when mem_sel_int = "111" and mem_sel_periph_nat = UART0_MASK else
-                    periph_dout(PeriphSlotUART1)     when mem_sel_int = "111" and mem_sel_periph_nat = UART1_MASK else
-                    periph_dout(PeriphSlotTIMER0)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER0_MASK else
-                    periph_dout(PeriphSlotTIMER1)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER1_MASK else
-                    periph_dout(PeriphSlotSystem0)   when mem_sel_int = "111" and mem_sel_periph_nat = SYSTEM0_MASK else
-                    periph_dout(PeriphSlotNPU0)      when mem_sel_int = "111" and mem_sel_periph_nat = NPU0_MASK else
-                    periph_dout(PeriphSlotAFE0)      when mem_sel_int = "111" and mem_sel_periph_nat = AFE0_MASK else
-                    periph_dout(PeriphSlotSARADC0)   when mem_sel_int = "111" and mem_sel_periph_nat = SARADC0_MASK else
-                    periph_dout(PeriphSlotI2C0)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C0_MASK else
-                    periph_dout(PeriphSlotI2C1)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C1_MASK else
-                    (others => '1'); 
+                    mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0 (TCM)
+                    (others => '1');
     end generate;
 
     -- Clock Gates for Memory

@@ -5,10 +5,11 @@
 #-----------------------------------------------------------------------------
 # HART-GENERIC shared I2C0/I2C1 test.
 #
-# M7c.2 moved both I2Cs onto the mp_arbiter at their mirror slots:
-#     I2C0 0x4E00 -> 0x13E00 (slot 14)     I2C1 0x4F00 -> 0x13F00 (slot 15)
+# M7c.2 moved both I2Cs onto the mp_arbiter; M11's map rework put them back
+# at their ORIGINAL addresses (shared window page 0, legacy numbering):
+#     I2C0 = 0x4E00 (slot 14)     I2C1 = 0x4F00 (slot 15)
 # Register offsets unchanged (CR/FCR/SR/MTX/MRX/STX/SRX/AR/AMR at
-# +0/4/8/C/10/14/18/1C/20); old windows read zeros.
+# +0/4/8/C/10/14/18/1C/20); the windows are LIVE for all 4 harts.
 #
 # THE AUDIT FINDING THIS TEST GUARDS: I2C.vhd's register read is
 # COMBINATIONAL (every other moved peripheral registers its own read) — its
@@ -23,7 +24,7 @@
 # which resets to GPIO mode), so this is a REGISTER-LEVEL test: master/slave
 # enables (CR bits 21:20) and clock-stretch select (18) are never set; only
 # IE bits (12:0) and MDIV (16:13) are written. Sequence per hart:
-#   hart 0: old 0x4E00/0x4F00 windows dead; I2C0 dance; token=1
+#   hart 0: AR reset-value proof through both live windows; I2C0 dance; token=1
 #   hart 1: I2C0 CR must still read hart 0's value (cross-hart visibility),
 #           then restore CR=0 and verify; token=2
 #   hart 2: I2C1 dance; token=3
@@ -45,8 +46,8 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_I2C0    0x13E00
-#define SH_I2C1    0x13F00
+#define SH_I2C0    0x4E00
+#define SH_I2C1    0x4F00
 #define TOKEN      0x10200
 #define DONE_BASE  0x10210
 #define CR_TESTVAL 0x1E01F      /* IE bits 4:0 + 12:8, MDIV=0xF; SEN/MEN=0 */
@@ -62,7 +63,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s3, TOKEN
     li   s4, DONE_BASE
@@ -128,14 +129,21 @@ tile_verify:                    # forever: DONE must survive other traffic
 
     # ---- hart 0 -------------------------------------------------------------
 hart0:
-    li   t0, 0x4E00             # OLD private I2C0 window: dead, reads 0
-    lw   t1, 0(t0)
+    # M11: 0x4E00/0x4F00 are the LIVE shared windows (peripherals back at
+    # their original addresses). Positive reset proof through the arbiter:
+    # CR resets 0, AR resets each core's default slave address — nonzero,
+    # per-instance distinct, and != CR's reset, so a lost i2c_rdata_bridge
+    # register (combinational-read collapse to CR) still fails loudly here.
+    li   t0, 0x4E00             # I2C0 via the shared window
+    lw   t1, 0(t0)              # CR resets 0
     bnez t1, shi2c_fail
-    lw   t1, 28(t0)             # (was AR = 0x79 — must be gone)
-    bnez t1, shi2c_fail
-    li   t0, 0x4F00             # OLD I2C1 window
-    lw   t1, 28(t0)
-    bnez t1, shi2c_fail
+    lw   t1, 28(t0)             # AR resets 0x79 (I2C0 default SAD)
+    li   t2, I2C0_SAD
+    bne  t1, t2, shi2c_fail
+    li   t0, 0x4F00             # I2C1 via the shared window
+    lw   t1, 28(t0)             # AR resets 0x23 (I2C1 default SAD)
+    li   t2, I2C1_SAD
+    bne  t1, t2, shi2c_fail
 
     li   s2, SH_I2C0
     li   s5, I2C0_SAD

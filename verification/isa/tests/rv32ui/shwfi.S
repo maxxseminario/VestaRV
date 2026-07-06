@@ -15,7 +15,7 @@
 # reports DONE.
 #
 # CLINT (shared window, all harts reach it through the arbiter):
-#     MSIP[h]     = 0x11000 + 4*h    (bit 0; level IRQ to hart h)
+#     MSIP[h]     = 0x5000 + 4*h    (bit 0; level IRQ to hart h)
 # Shared words (>= 0x10150, clear of all earlier tests' words):
 #     READY[h]    = 0x10150 + 4*h    0x4EAD0000+h just before hart h sleeps
 #     DONE[h]     = 0x10160 + 4*h    0xD00E0000+h after hart h wakes
@@ -37,7 +37,7 @@
 #
 # ISR contract in this core: hardware pushes ONLY the return PC (at sp-4,
 # IRQ_SV) — registers are the ISR's job, and sp MUST be valid before any IRQ
-# can fire (set to top of private RAM1 at entry, long before the first IPI).
+# can fire (set to top of the private TCM at entry, before the first IPI).
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -52,11 +52,11 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3 (ISR reads it too — do not clobber)
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top; IRQ_SV pushes PC at sp-4
+    li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
 
     li   s2, 0x10150            # READY base
     li   s3, 0x10160            # DONE base
-    li   s4, 0x11000            # CLINT MSIP base
+    li   s4, 0x5000            # CLINT MSIP base
     li   s5, 0x4EAD0000         # READY magic base
     li   s6, 0xD00E0000         # DONE magic base
 
@@ -126,7 +126,7 @@ msip_isr:
     sw   t0, 0(sp)
     sw   t1, 4(sp)
     slli t0, s10, 2
-    li   t1, 0x11000
+    li   t1, 0x5000
     add  t1, t1, t0
     sw   x0, 0(t1)              # clear MY msip level (or the IRQ re-fires)
     ignite                      # clear sleep_cpu: iret must resume MAINLINE

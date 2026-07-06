@@ -8,7 +8,7 @@
 # ADVISORY LOCK WORD in shared RAM taken with the shspin LR/SC pattern
 # (hartid-scaled backoff + bounded retry — M4c/M5a rules).
 #
-# ALL FOUR harts contend for UART1 (0x13500) sessions: each hart commits 4
+# ALL FOUR harts contend for UART1 (0x4500) sessions: each hart commits 4
 # sessions, each session = acquire the lock, transmit a 4-byte message with
 # the full per-byte UTCIF flag dance, journal every byte in shared RAM at a
 # lock-protected global index (JIDX), re-check OWNER, release. The tb has no
@@ -36,7 +36,7 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_UART1   0x13500      /* +0 CR, +4 SR, +8 BR, +16 TX */
+#define SH_UART1   0x4500      /* +0 CR, +4 SR, +8 BR, +16 TX */
 #define LOCK       0x10240
 #define OWNER      0x10244
 #define GO         0x10248
@@ -56,7 +56,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s2, SH_UART1
     li   s3, GO

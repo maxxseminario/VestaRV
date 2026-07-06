@@ -292,15 +292,16 @@ for {set h 0} {$h < $NUM_HARTS} {incr h} {
 
 # When PGEN gates a ROM/SRAM power, that macro is off and its timing need not be
 # met; without these false paths Genus wastes delay cells trying to close timing
-# into a powered-down macro (or fails outright). Declare them for every hart's
-# private ROM/RAM0/RAM1 -- hart 0 at the top level, harts 1..3 inside their tiles.
+# into a powered-down macro (or fails outright). M11 memory-map rework: the
+# tiles' dead ROMs and RAM1s are RETIRED (tiles have a single TCM, ram0), and
+# hart 0's old ram1 macro is now the shared NPU staging RAM 'npuram0' (still
+# gated by BLOCKPWR via pgen_mem(2)). The bulk-RAM banks' PGEN is tied '0'
+# (no timing path), so they need no exception.
 set_false_path -to pin:$TOP_MODULE/rom0/PGEN
 set_false_path -to pin:$TOP_MODULE/ram0/PGEN
-set_false_path -to pin:$TOP_MODULE/ram1/PGEN
+set_false_path -to pin:$TOP_MODULE/npuram0/PGEN
 for {set h 1} {$h < $NUM_HARTS} {incr h} {
-	set_false_path -to pin:$TOP_MODULE/hart$h/rom0/PGEN
 	set_false_path -to pin:$TOP_MODULE/hart$h/ram0/PGEN
-	set_false_path -to pin:$TOP_MODULE/hart$h/ram1/PGEN
 }
 
 ################################################################################

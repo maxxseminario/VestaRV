@@ -8,7 +8,7 @@
 #     (MCU_MP.sdfcmd rescoped :dut → :uut:dut for the wrapper level).
 #   * The netlist MCU has no generics: the behavioral tile-preload generics are
 #     replaced by per-test xmsim DEPOSIT scripts into the tile SRAM macro
-#     models (make_ram_deposit.py; harts 1-3 ram0/ram1; deposits at t=1ns and
+#     models (make_ram_deposit.py; harts 1-3 TCM + zeroed shared macros; deposits at t=1ns and
 #     re-asserted at t=300ns inside the second reset pulse). The sh-protocol
 #     tests preload their own image; everything else gets shmem_mp contention
 #     tiles — same binding rule as every other flow.
@@ -183,7 +183,7 @@ VHDL
     esac
     if [ -z "${PRELOAD_DONE[$img]:-}" ]; then
         python3 "$RUN_DIR/make_ram_deposit.py" \
-            "$IMG_DIR/$img.ram0.rcf" "$IMG_DIR/$img.ram1.rcf" ":uut:dut" \
+            "$IMG_DIR/$img.ram0.rcf" ":uut:dut" \
             > "$LOG_PATH/preload_$img.tcl" || { echo "preload gen failed: $img"; exit 1; }
         PRELOAD_DONE[$img]=1
     fi

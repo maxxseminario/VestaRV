@@ -9,13 +9,24 @@ use work.constants.all;
 package MemoryMap is
 
 	---------- Memory Block Memory Slot Assignments ----------
+	-- M11 memory-map rework: per-tile private memories are ROM (region 000,
+	-- hart 0 only until the M12 single-ROM boot) and the TCM (RAM0, region
+	-- 010). RAM1's region (0x0C000, 011) is now the SHARED NPU staging RAM
+	-- behind the mp_arbiter; the peripheral window (001) and the bulk RAM
+	-- (0x10000-0x1FFFF, 1xx) are shared too. MemSlotRAM1 is retained only as
+	-- the historical adddec bus index (no macro behind it in the tiles).
 	constant MemSlotROM			: natural := 00;		-- base address = 0x00000
-	constant MemSlotRAM0		: natural := 01;		-- base address = 0x08000
-	constant MemSlotRAM1		: natural := 02;		-- base address = 0x0C000
+	constant MemSlotRAM0		: natural := 01;		-- base address = 0x08000 (TCM)
+	constant MemSlotRAM1		: natural := 02;		-- retired M11 (0x0C000 = shared NPU staging RAM)
 	constant MemSlotPeriph		: natural := 04;		-- base address = 0x04000
-	
+
 
 	---------- Peripheral Memory Slot Assignments ----------
+	-- M11: the 0x4000 page is the SHARED peripheral window (page 0 = 16 x
+	-- 256 B slots behind the mp_arbiter, slot numbering below; page 1 =
+	-- CLINT @0x5000, page 2 = MUTEX bank @0x6000, page 3 = IRQ router
+	-- @0x7000). The pre-M11 private peripheral page is GONE -- these are the
+	-- ORIGINAL (Myshkin) base addresses again, now reachable by all 4 harts.
 	constant PeriphSlotGPIO0		: natural := 00;		-- base address = 0x4000 
 	constant PeriphSlotGPIO1		: natural := 01;		-- base address = 0x4100
 	constant PeriphSlotSPI0			: natural := 02;		-- base address = 0x4200

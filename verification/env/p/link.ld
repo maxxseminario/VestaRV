@@ -33,88 +33,84 @@ SECTIONS
 
 
 
-  /* NPU sections at their specific addresses */
-  /* NPU weights may only be stored in ram2, offset = 0x10000, 16KB */
+  /* NPU sections (M11 map).
+   * .npu0_yhat is the TEST's expected-output copy: private TCM (0xB000).
+   * .npu0_x / .npu0_w are the NPU's live vectors: the shared NPU staging
+   * RAM at 0xC000-0xFFFF (was hart 0's private RAM1 -- same addresses; the
+   * flash bootrom copy loop reaches them THROUGH the arbiter now). */
 
-  . = 0xB000;  /* NPU 0 - Ideal Output Vector */
+  . = 0xB000;  /* NPU 0 - Ideal Output Vector (TCM) */
   .npu0_yhat : {
     KEEP(*(.npu0_yhat))
     . = ALIGN(4);
   }
 
-  . = 0xC000;  /* NPU 0 - Input Vector */
+  . = 0xC000;  /* NPU 0 - Input Vector (shared NPU staging RAM) */
   .npu0_x : {
     KEEP(*(.npu0_x))
     . = ALIGN(4);
   }
 
-  . = 0xE000;  /* NPU 0 - Weight Vector */
+  . = 0xE000;  /* NPU 0 - Weight Vector (shared NPU staging RAM) */
   .npu0_w : {
     KEEP(*(.npu0_w))
     . = ALIGN(4);
   }
 
+  /* M11 ISR bank: every ISR lives INSIDE the private TCM (RAM1 is gone --
+   * 0xC000-0xFFFF is the shared NPU staging RAM). 256 bytes per ISR,
+   * 0xB200-0xBAFF; 0xBB00 is the unused-slot parking target (DEFINE_IVT).
+   * The linker errors on overlap if an ISR outgrows its 256-byte slot. */
 
-
-
-    /* ISR sections at their specific addresses */
-  /* Each ISR gets 512 bytes (0x200) of space */
-
-  /* ISR sections at their specific addresses */
-  /* Each ISR gets 512 bytes (0x200) of space */
-
-
-  . = 0x0ED00;  /* IRQ 52 - UART1_RC */
+  . = 0x0B200;  /* IRQ 52 - UART1_RC */
   .isr_uart1_rc : {
     KEEP(*(.isr_uart1_rc))
     . = ALIGN(4);
   }
 
-  . = 0x0F000;  /* IRQ 53 - UART1_TE */
+  . = 0x0B300;  /* IRQ 53 - UART1_TE */
   .isr_uart1_te : {
     KEEP(*(.isr_uart1_te))
     . = ALIGN(4);
   }
 
-  . = 0x0F200;  /* IRQ 54 - UART1_TC */
+  . = 0x0B400;  /* IRQ 54 - UART1_TC */
   .isr_uart1_tc : {
     KEEP(*(.isr_uart1_tc))
     . = ALIGN(4);
   }
 
-
-
-  . = 0x0F400;  /* IRQ 13 - UART0_RC */
+  . = 0x0B500;  /* IRQ 13 - UART0_RC */
   .isr_uart0_rc : {
     KEEP(*(.isr_uart0_rc))
     . = ALIGN(4);
   }
 
-  . = 0x0F600;  /* IRQ 14 - UART0_TE */
+  . = 0x0B600;  /* IRQ 14 - UART0_TE */
   .isr_uart0_te : {
     KEEP(*(.isr_uart0_te))
     . = ALIGN(4);
   }
 
-  . = 0x0F800;  /* IRQ 15 - UART0_TC */
+  . = 0x0B700;  /* IRQ 15 - UART0_TC */
   .isr_uart0_tc : {
     KEEP(*(.isr_uart0_tc))
     . = ALIGN(4);
   }
 
-  . = 0x0FA00;  /* IRQ 0 - SYSTEM WDT */        
+  . = 0x0B800;  /* IRQ 0 - SYSTEM WDT */
   .isr_sys_wdt : {
     KEEP(*(.isr_sys_wdt))
     . = ALIGN(4);
   }
 
-  . = 0x0FC00;  /* IRQ 9 - SPI0_TC */
+  . = 0x0B900;  /* IRQ 9 - SPI0_TC */
   .isr_spi0_tc : {
     KEEP(*(.isr_spi0_tc))
     . = ALIGN(4);
   }
 
-  . = 0x0FE00;  /* IRQ 10 - SPI0_TE */
+  . = 0x0BA00;  /* IRQ 10 - SPI0_TE */
   .isr_spi0_te : {
     KEEP(*(.isr_spi0_te))
     . = ALIGN(4);

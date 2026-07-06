@@ -8,11 +8,12 @@ use work.MemoryMap.all;
 
 entity MCU is
    generic (
-        -- M5a: preload images for harts 1-3 (all three tiles share one image;
-        -- tests are hart-generic via mhartid). Defaults = the M3c.4 shmem_mp
-        -- contention images, so every existing run is bit-identical.
-        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf";
-        HART_RAM1_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf"
+        -- M5a: preload image for harts 1-3 (all three tiles share one image;
+        -- tests are hart-generic via mhartid). Default = the M3c.4 shmem_mp
+        -- contention image, so every existing run is bit-identical.
+        -- M11: tiles have a single TCM (RAM0) — the RAM1 preload is gone with
+        -- the RAM1 macro (0xC000 is the shared NPU staging RAM now).
+        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf"
    );
    port (
 
@@ -659,13 +660,20 @@ architecture behav of MCU is
         signal wen_re           : std_logic_vector(3 downto 0);
         signal wen_fe           : std_logic_vector(3 downto 0);
 
-        -- M3c.2: shared-RAM window (region 4 = 0x10000) behind mp_arbiter on mclk.
-        -- M5b: SH_AW widened 8 -> 12 so the arbiter address covers the WHOLE
-        -- region 4 (0x10000-0x13FFF, word addr = data_addr(13:2)) and slaves
-        -- decode their own sub-ranges (no more 0x10400+ aliasing back onto the
-        -- RAM words): RAM = 0x10000-0x103FF (256 words, unchanged), CLINT =
-        -- 0x11000-0x11FFF. 0x12000+ reserved for future shared peripherals.
-        constant SH_AW : natural := 12;                -- region-4 word-address width
+        -- M3c.2: shared window behind mp_arbiter on mclk. M5b widened SH_AW
+        -- 8 -> 12 (whole pre-M11 region 4). M11 memory-map rework: SH_AW
+        -- 12 -> 15 — the arbiter word address now covers ALL of
+        -- 0x00000-0x1FFFF (word addr = data_addr(16:2)) and the slave
+        -- sub-decode selects on s_addr(14:12):
+        --   000 = boot-ROM page   (no slave until the M12 single-ROM boot)
+        --   001 = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots
+        --         at the LEGACY slot numbering, page 1 = CLINT @0x5000,
+        --         page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)
+        --   010 = dead (TCM region — tile-private, never arrives here)
+        --   011 = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)
+        --   1xx = shared bulk RAM 0x10000-0x1FFFF (4 x sram1p16k banks,
+        --         bank = s_addr(13:12))
+        constant SH_AW : natural := 15;                -- shared-window word-address width
         signal core_read_data   : std_logic_vector(31 downto 0);  -- muxed into core
         signal core_mem_ready_g : std_logic;                      -- injector AND shared_ok
         signal sh_sel           : std_logic;
@@ -706,41 +714,66 @@ architecture behav of MCU is
         signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
         signal sh_wdata         : std_logic_vector(31 downto 0);
-        signal sh_rdata         : std_logic_vector(31 downto 0);
-        -- shared RAM stays 256 WORDS (0x10000-0x103FF) regardless of SH_AW
-        type shram_t is array(0 to 255) of std_logic_vector(31 downto 0);
-        signal shram            : shram_t := (others => (others => '0'));
-        -- M5b: slave sub-decode within region 4 + real CLINT
-        signal shslv_ram_sel    : std_logic;   -- word addr 0x000-0x0FF -> RAM
-        signal shslv_clint_sel  : std_logic;   -- word addr 0x400-0x7FF -> CLINT (0x11000)
-        signal shslv_ram_en     : std_logic;
+        -- M11 slave fabric: page select on s_addr(14:12) (see the SH_AW
+        -- comment above for the map). The peripheral window sub-decodes on
+        -- s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY
+        -- 0x4000 slot numbering (slot = s_addr(9:6)) — every peripheral is
+        -- back at its original Myshkin address, now shared by all 4 harts.
+        signal shslv_perwin_sel : std_logic;   -- 001 -> peripheral window 0x4000-0x7FFF
+        signal shslv_pg0_sel    : std_logic;   -- window page 0 -> the 16 slots
+        signal shslv_npuram_sel : std_logic;   -- 011 -> NPU staging RAM 0xC000-0xFFFF
+        signal shslv_bank0_sel  : std_logic;   -- 100 -> bulk RAM bank 0 (0x10000)
+        signal shslv_bank1_sel  : std_logic;   -- 101 -> bulk RAM bank 1 (0x14000)
+        signal shslv_bank2_sel  : std_logic;   -- 110 -> bulk RAM bank 2 (0x18000)
+        signal shslv_bank3_sel  : std_logic;   -- 111 -> bulk RAM bank 3 (0x1C000)
+        signal shslv_npuram_en  : std_logic;
+        signal shslv_bank0_en   : std_logic;
+        signal shslv_bank1_en   : std_logic;
+        signal shslv_bank2_en   : std_logic;
+        signal shslv_bank3_en   : std_logic;
+        signal shslv_rd_npuram  : std_logic := '0'; -- registered: last access was the NPU RAM
+        signal shslv_rd_bank0   : std_logic := '0';
+        signal shslv_rd_bank1   : std_logic := '0';
+        signal shslv_rd_bank2   : std_logic := '0';
+        signal shslv_rd_bank3   : std_logic := '0';
+        -- bulk RAM banks + NPU staging RAM are sram1p16k macros: their Q is
+        -- the 1-cycle registered read the arbiter's slave model expects, so
+        -- the macro output IS the rdata (no extra register). Enables/WEN are
+        -- ACTIVE-LOW at the macro — shims below.
+        signal bank0_q          : std_logic_vector(31 downto 0);
+        signal bank1_q          : std_logic_vector(31 downto 0);
+        signal bank2_q          : std_logic_vector(31 downto 0);
+        signal bank3_q          : std_logic_vector(31 downto 0);
+        signal npuram_q         : std_logic_vector(31 downto 0);
+        signal npuram_cen_n     : std_logic;
+        signal bank0_cen_n      : std_logic;
+        signal bank1_cen_n      : std_logic;
+        signal bank2_cen_n      : std_logic;
+        signal bank3_cen_n      : std_logic;
+        signal shmem_gwen_n     : std_logic;   -- shared-macro global write enable (active-low)
+        -- M5b: real CLINT (M11: peripheral-window page 1 @0x5000)
+        signal shslv_clint_sel  : std_logic;
         signal shslv_clint_en   : std_logic;
         signal shslv_rd_clint   : std_logic := '0'; -- registered: last access was CLINT
         signal sh_rdata_mux     : std_logic_vector(31 downto 0); -- into arbiter s_rdata
         signal clint_rdata      : std_logic_vector(31 downto 0);
         signal clint_msip       : std_logic_vector(3 downto 0);
         signal clint_mtip       : std_logic_vector(3 downto 0);
-        -- M6: shared UART0 (console) = third region-4 slave at 0x12000
-        signal shslv_uart_sel   : std_logic;   -- word addr 0x800-0xBFF -> UART0 (0x12000)
-        signal shslv_uart_en    : std_logic;
-        signal shslv_rd_uart    : std_logic := '0'; -- registered: last access was UART0
+        -- M6: shared UART0 (console) — M11: window slot 4 @0x4400 (its
+        -- ORIGINAL private address, live again for all 4 harts)
+        signal shslv_uart0_sel  : std_logic;
+        signal shslv_uart0_en   : std_logic;
+        signal shslv_rd_uart0   : std_logic := '0'; -- registered: last access was UART0
         signal uart0_sh_en_n    : std_logic;   -- UART bus is active-LOW en/wen
         signal sh_wen_n   : std_logic_vector(3 downto 0);
         signal uart0_sh_rdata   : std_logic_vector(31 downto 0);
-        -- M7a: shared-window page 0x13000-0x13FFF = 16 x 256B slots
-        -- (slot = sh_addr(9:6); numbering MIRRORS the legacy 0x4000 periph
-        -- page). Slot 9 (0x13900) = irq_router, the tile IRQ fan-out.
-        signal shslv_pg3_sel    : std_logic;   -- word addr 0xC00-0xFFF -> page 3
-        signal shslv_irtr_sel   : std_logic;   -- page-3 slot 9 -> irq_router
+        -- M7a: irq_router, the tile IRQ fan-out (M11: window page 3 @0x7000)
+        signal shslv_irtr_sel   : std_logic;
         signal shslv_irtr_en    : std_logic;
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
         signal tile_irq_en_flat : std_logic_vector(4*NUM_IRQS-1 downto 0);
-        -- M7b: shared TIMER0/1 + GPIO1/2/3 = page-3 slots 6/7/1/8/13 (the
-        -- legacy 0x4000 page's slot numbers -> 0x13600/0x13700/0x13100/
-        -- 0x13800/0x13D00). GPIO0 is NEVER shared: the ROM bootrom programs
-        -- its DIR/SEL and drives the flash CS through PxOUTS/PxOUTC on every
-        -- SPI boot — it stays private with SPI0/SYSTEM0.
+        -- M7b movers: TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)
         signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
         signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
         signal shslv_gpio1_sel, shslv_gpio1_en  : std_logic;
@@ -761,8 +794,7 @@ architecture behav of MCU is
         signal gpio1_sh_rdata   : std_logic_vector(31 downto 0);
         signal gpio2_sh_rdata   : std_logic_vector(31 downto 0);
         signal gpio3_sh_rdata   : std_logic_vector(31 downto 0);
-        -- M7c: shared SPI1 + UART1 = page-3 slots 3/5 (0x13300/0x13500).
-        -- SPI0 stays private forever (ROM bootrom boot path).
+        -- M7c movers: SPI1 + UART1 (M11: window slots 3/5)
         signal shslv_spi1_sel,  shslv_spi1_en   : std_logic;
         signal shslv_uart1_sel, shslv_uart1_en  : std_logic;
         signal shslv_rd_spi1    : std_logic := '0';
@@ -771,10 +803,9 @@ architecture behav of MCU is
         signal uart1_sh_en_n    : std_logic;
         signal spi1_sh_rdata    : std_logic_vector(31 downto 0);
         signal uart1_sh_rdata   : std_logic_vector(31 downto 0);
-        -- M7c.2: shared I2C0/I2C1 = page-3 slots 14/15 (0x13E00/0x13F00).
-        -- I2C's register READ is COMBINATIONAL (unlike every other moved
-        -- peripheral): rdata_out collapses to register 0 the moment
-        -- EnMemPeriph deasserts, so the bridge REGISTERS it at the
+        -- M7c.2 movers: I2C0/I2C1 (M11: window slots 14/15). I2C's register
+        -- READ is COMBINATIONAL (rdata_out collapses to register 0 the moment
+        -- EnMemPeriph deasserts), so the bridge REGISTERS it at the
         -- LATCH->DATA edge (i2c*_sh_rdata below) — reproducing exactly the
         -- old adddec timing the I2C.vhd comment assumes ("EnMemPeriph has a
         -- leading edge exactly one clock cycle before rdata latches").
@@ -788,22 +819,53 @@ architecture behav of MCU is
         signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
         signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
         signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');
-        -- M7d: shared NPU = page-3 slot 10 (0x13A00). Register bus only —
-        -- the NPU still crunches vectors in HART 0's PRIVATE RAM1 (its SRAM
-        -- port mux + npu0_active -> hart-0 sleep are unchanged; NPU.vhd's
-        -- M7d mux-select register makes a cross-hart THINK safe). Its MMR
-        -- read is COMBINATIONAL like I2C's -> same bridge register. SARADC/
-        -- AFE stay hart-0-private (decided with the user).
+        -- M7d mover: NPU register bus (M11: window slot 10 @0x4A00). Its MMR
+        -- read is COMBINATIONAL like I2C's -> same bridge register. The NPU's
+        -- DATA now lives in the shared NPU staging RAM at 0xC000 (bank above)
+        -- — the SRAM-port mux is fed by the slave fabric, and hart 0 no
+        -- longer sleeps during THINK (the staging RAM is not its private
+        -- memory any more; "don't touch 0xC000-0xFFFF during a THINK" is a
+        -- software contract, poll NPUCR bit 16).
         signal shslv_npu_sel,   shslv_npu_en    : std_logic;
         signal shslv_rd_npu     : std_logic := '0';
         signal npu_sh_en_n      : std_logic;
         signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
         signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
-        -- M7c LOCKING: HW mutex bank = page-3 slot 0 (0x13000; GPIO0's legacy
-        -- slot number — free forever, GPIO0 is never shared). READ = atomic
-        -- return-old-and-claim, WRITE 0 = release; atomic because the arbiter
-        -- serializes whole transactions. sh_master is the arbiter's granted-
-        -- master index (new mp_arbiter s_master port) — attributes the
+        -- M11 movers: the last five private peripherals join the window —
+        -- SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000), SPI0 (slot 2
+        -- @0x4200), SARADC0 (slot 11 @0x4B00), AFE0 (slot 12 @0x4C00). All
+        -- five register their reads on clk_mem (M11 audit) -> plain polarity
+        -- shims, no bridge. The private peripheral page is GONE — hart 0's
+        -- adddec no longer decodes region 001 at all. NOTE the SYSTEM0
+        -- clock-reconfig contract: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure
+        -- MCLK ITSELF; reconfiguring while other masters have in-flight
+        -- shared transactions is a SOFTWARE contract violation (management
+        -- hart quiesces the others first — the glitch-free muxes keep the
+        -- domain safe, but smclk-domain peripherals mid-frame are not).
+        signal shslv_sys_sel,   shslv_sys_en    : std_logic;
+        signal shslv_gpio0_sel, shslv_gpio0_en  : std_logic;
+        signal shslv_spi0_sel,  shslv_spi0_en   : std_logic;
+        signal shslv_sar_sel,   shslv_sar_en    : std_logic;
+        signal shslv_afe_sel,   shslv_afe_en    : std_logic;
+        signal shslv_rd_sys     : std_logic := '0';
+        signal shslv_rd_gpio0   : std_logic := '0';
+        signal shslv_rd_spi0    : std_logic := '0';
+        signal shslv_rd_sar     : std_logic := '0';
+        signal shslv_rd_afe     : std_logic := '0';
+        signal sys_sh_en_n      : std_logic;
+        signal gpio0_sh_en_n    : std_logic;
+        signal spi0_sh_en_n     : std_logic;
+        signal sar_sh_en_n      : std_logic;
+        signal afe_sh_en_n      : std_logic;
+        signal sys_sh_rdata     : std_logic_vector(31 downto 0);
+        signal gpio0_sh_rdata   : std_logic_vector(31 downto 0);
+        signal spi0_sh_rdata    : std_logic_vector(31 downto 0);
+        signal sar_sh_rdata     : std_logic_vector(31 downto 0);
+        signal afe_sh_rdata     : std_logic_vector(31 downto 0);
+        -- M7c LOCKING: HW mutex bank (M11: window page 2 @0x6000). READ =
+        -- atomic return-old-and-claim, WRITE 0 = release; atomic because the
+        -- arbiter serializes whole transactions. sh_master is the arbiter's
+        -- granted-master index (mp_arbiter s_master port) — attributes the
         -- claim-read to a hart. Registered read, resv-gated we (contract).
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
@@ -1322,7 +1384,13 @@ begin
     -- =============================================================================
     -- Component Instantiations
     -- =============================================================================
-    sleep_cpu <= npu0_active or flash_ext_meming; -- Sleep when either NPU is active or external flash memory access is occurring
+    -- M11: npu0_active no longer sleeps hart 0 — the NPU's vectors live in
+    -- the SHARED staging RAM at 0xC000 (an arbiter slave), not in hart 0's
+    -- private RAM1 (retired). The sleep existed to keep hart 0's un-stallable
+    -- private RAM1 accesses from colliding with the NPU's port mux; shared
+    -- accesses have arbiter back-pressure and "no 0xC000-0xFFFF access during
+    -- a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
+    sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
     -- M9b: adddec's bus staging now resets to INACTIVE (gate-sim X fix), so
     -- the first fetch is no longer primed DURING reset. Release the core two
     -- mclk rising edges after everything else so the staging + ROM prime the
@@ -1386,18 +1454,20 @@ begin
         );
 
     -- =========================================================================
-    -- M3c.2: shared-RAM window (0x10000, region 4) behind mp_arbiter, on the
-    -- free-running mclk. Hart 0 is arbiter master 0; masters 1-3 are reserved
-    -- for the private-memory tiles / future shared access. The ISA regression
-    -- never addresses region 4, so sh_sel stays '0' and this whole subsystem is
-    -- a PROVEN NO-OP: core_mem_ready_g == core_mem_ready and core_read_data ==
-    -- read_data. Real transaction-aware shared loads/stores are exercised in M4.
+    -- M3c.2: shared window behind mp_arbiter, on the free-running mclk.
+    -- Hart 0 is arbiter master 0; masters 1-3 are the hart tiles.
     -- =========================================================================
-    -- EXACT decode of 0x10000-0x13FFF (data_addr(31:14) = 4), the complement of
-    -- adddec's extended-flash decode (>= 0x14000). A bits-16:14-only decode would
-    -- alias higher flash addresses (e.g. 0x30000) back into the shared window and
-    -- re-create the double-claim deadlock fixed in M3c.3.
-    sh_sel <= '1' when data_addr(31 downto 14) = "000000000000000100" else '0';
+    -- M11 decode (mirrors hart_tile.vhd): the three shared regions in
+    -- 0x00000-0x1FFFF — peripheral window (bits 16:14 = 001), NPU staging
+    -- RAM (011), bulk RAM (1xx) — i.e. bit16 OR bit14 under an exact
+    -- (31:17)=0 qualification. The ROM region (000) stays hart-0-private
+    -- until the M12 single-ROM boot; the TCM (010) is private forever. The
+    -- exact upper-bit qualification keeps adddec's >=0x20000 extended-flash
+    -- decode the strict complement of this one — a loose decode would alias
+    -- flash addresses back into the window and re-create the double-claim
+    -- deadlock fixed in M3c.3.
+    sh_sel <= '1' when data_addr(31 downto 17) = "000000000000000"
+                   and (data_addr(16) = '1' or data_addr(14) = '1') else '0';
 
     -- one-shot handshake: request until this access is granted (done), then hold
     -- off re-request until the core steps off the shared address (clk_cpu is gated
@@ -1524,22 +1594,24 @@ begin
         );
 
     -- =========================================================================
-    -- M5b: slave-side sub-decode of region 4. The arbiter serializes ALL
-    -- masters onto ONE slave port; the 12-bit word address then selects which
-    -- physical slave this transaction hits:
-    --   0x10000-0x103FF (word 0x000-0x0FF) -> shared RAM (256 words, as ever)
-    --   0x11000-0x11FFF (word 0x400-0x7FF) -> CLINT (msip/mtime/mtimecmp)
-    --   0x12000-0x12FFF (word 0x800-0xBFF) -> UART0 (M6: the console UART is
-    --                                         now SHARED by all 4 harts; its
-    --                                         old private window at 0x4400 is
-    --                                         dead — hart 0 reads 0 there)
-    --   everything else                    -> no slave (reads return 0)
-    -- Both slaves obey the same 1-cycle registered-read contract, so the
-    -- arbiter's IDLE->LATCH->DATA timing is untouched; shslv_rd_clint is
-    -- registered at the access cycle and steers s_rdata during DATA.
-    -- resv_unit still snoops every transaction (its s_we_gated drives BOTH
-    -- slaves: a suppressed SC write must not touch the CLINT either); CLINT
-    -- word addresses can never match a RAM reservation (disjoint ranges).
+    -- M5b/M11: slave-side sub-decode of the shared window. The arbiter
+    -- serializes ALL masters onto ONE slave port; the 15-bit word address
+    -- then selects which physical slave this transaction hits (s_addr(14:12)
+    -- pages, see the SH_AW comment):
+    --   0x00000-0x03FFF -> no slave yet (M12's single boot ROM; reads 0)
+    --   0x04000-0x07FFF -> peripheral window: page 0 = 16 x 256B slots at
+    --                      the LEGACY slot numbering (every peripheral back
+    --                      at its Myshkin address, shared by all 4 harts),
+    --                      page 1 = CLINT, page 2 = MUTEX, page 3 = router
+    --   0x0C000-0x0FFFF -> NPU staging RAM (sram1p16k, NPU-port-muxed)
+    --   0x10000-0x1FFFF -> bulk RAM banks 0-3 (4 x sram1p16k)
+    --   everything else -> no slave (reads return 0)
+    -- Every slave obeys the same 1-cycle registered-read contract (the SRAM
+    -- macros natively; peripherals via their clk_mem-registered reads), so
+    -- the arbiter's IDLE->LATCH->DATA timing is untouched; the shslv_rd_*
+    -- selects are registered at the access cycle and steer s_rdata during
+    -- DATA. resv_unit still snoops every transaction (its s_we_gated drives
+    -- ALL slaves: a suppressed SC write must not touch a peripheral either).
     -- =========================================================================
     --@GEN:shslv-subdecode@
 
@@ -1602,35 +1674,91 @@ begin
             rdata  => mtx_rdata
         );
 
-    -- shared single-port RAM window (behavioral; 1-cycle registered read, active-
-    -- high enables to match mp_arbiter's slave model; per-byte-lane writes, M4a —
-    -- invert sh_we for the active-low WEN if this is ever replaced by the macro)
-    sh_ram: process(mclk)
-        variable merged : std_logic_vector(31 downto 0);
-    begin
-        if rising_edge(mclk) then
-            if shslv_ram_en = '1' then
-                merged := shram(conv_integer(sh_addr(7 downto 0)));
-                for l in 0 to 3 loop
-                    if sh_we(l) = '1' then
-                        merged((l+1)*8-1 downto l*8) := sh_wdata((l+1)*8-1 downto l*8);
-                    end if;
-                end loop;
-                shram(conv_integer(sh_addr(7 downto 0))) <= merged;
-                sh_rdata <= merged;
-            end if;
-        end if;
-    end process;
+    -- =========================================================================
+    -- M11: shared bulk RAM = 4 x sram1p16k macros (64 KB, 0x10000-0x1FFFF),
+    -- replacing the M3c 256-word behavioral array. The macro IS the arbiter's
+    -- slave model: CEN sampled with the address at the s_en cycle's ending
+    -- edge, Q valid the next cycle (1-cycle registered read). Enables/WEN are
+    -- ACTIVE-LOW at the macro — inverted from the arbiter's active-high
+    -- strobes; WEN comes from the resv-GATED sh_we (a suppressed SC write
+    -- must not touch memory), per-byte lanes (M4a). No INIT: power-up
+    -- contents are undefined on silicon — the write-before-read contract
+    -- (mailbox zeroing) is an M12 bootrom obligation; behavioral models
+    -- zero-fill, the gate flow deposits zeros.
+    -- =========================================================================
+    bank0_cen_n  <= not shslv_bank0_en;
+    bank1_cen_n  <= not shslv_bank1_en;
+    bank2_cen_n  <= not shslv_bank2_en;
+    bank3_cen_n  <= not shslv_bank3_en;
+    npuram_cen_n <= not shslv_npuram_en;
+    shmem_gwen_n <= '0' when sh_we /= "0000" else '1';
+
+    shbank0: entity work.sram1p16k_hvt_pg
+        port map (
+            Q     => bank0_q,
+            CLK   => mclk,
+            CEN   => bank0_cen_n,
+            WEN   => sh_wen_n,
+            A     => sh_addr(11 downto 0),
+            D     => sh_wdata,
+            EMA   => "000",
+            GWEN  => shmem_gwen_n,
+            RETN  => '1',
+            PGEN  => '0'
+        );
+
+    shbank1: entity work.sram1p16k_hvt_pg
+        port map (
+            Q     => bank1_q,
+            CLK   => mclk,
+            CEN   => bank1_cen_n,
+            WEN   => sh_wen_n,
+            A     => sh_addr(11 downto 0),
+            D     => sh_wdata,
+            EMA   => "000",
+            GWEN  => shmem_gwen_n,
+            RETN  => '1',
+            PGEN  => '0'
+        );
+
+    shbank2: entity work.sram1p16k_hvt_pg
+        port map (
+            Q     => bank2_q,
+            CLK   => mclk,
+            CEN   => bank2_cen_n,
+            WEN   => sh_wen_n,
+            A     => sh_addr(11 downto 0),
+            D     => sh_wdata,
+            EMA   => "000",
+            GWEN  => shmem_gwen_n,
+            RETN  => '1',
+            PGEN  => '0'
+        );
+
+    shbank3: entity work.sram1p16k_hvt_pg
+        port map (
+            Q     => bank3_q,
+            CLK   => mclk,
+            CEN   => bank3_cen_n,
+            WEN   => sh_wen_n,
+            A     => sh_addr(11 downto 0),
+            D     => sh_wdata,
+            EMA   => "000",
+            GWEN  => shmem_gwen_n,
+            RETN  => '1',
+            PGEN  => '0'
+        );
 
     -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
-    -- tile is a full vesta + its own adddec + private ROM/RAM0/RAM1, with RAM0
-    -- (0x8000) and RAM1 (0xC000) PRELOADED from .rcf images and PC_RST_VAL set to
-    -- 0x8200 -> they boot directly from RAM with NO SPI/flash boot, and run
-    -- concurrently with hart 0. Distinct HARTID per core. No cross-hart hazard
-    -- (each tile is unchanged single-core logic).
+    -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000),
+    -- PRELOADED from a .rcf image with PC_RST_VAL set to 0x8200 -> they boot
+    -- directly from RAM with NO SPI/flash boot, and run concurrently with
+    -- hart 0. Distinct HARTID per core. No cross-hart hazard (each tile is
+    -- unchanged single-core logic). M11 retired the tiles' dead boot ROMs
+    -- and private RAM1s (0xC000 = the shared NPU staging RAM now).
     --
-    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared-RAM
-    -- window at 0x10000 — its sh_* port maps straight onto that master's slice
+    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared
+    -- window — its sh_* port maps straight onto that master's slice
     -- of the flattened arb_* buses. All three run shmem_mp (hartid-indexed
     -- DISJOINT shared words at 0x10040+4*hartid; shared-word atomicity = M4):
     -- one verified sweep -> a0 = PASS, then hammer the window forever so every
@@ -1642,7 +1770,6 @@ begin
             HARTID         => 1,
             PC_RST_VAL     => x"00008200",
             RAM0_INIT_FILE => HART_RAM0_INIT,
-            RAM1_INIT_FILE => HART_RAM1_INIT,
             SH_AW          => SH_AW
         )
         port map (
@@ -1675,7 +1802,6 @@ begin
             HARTID         => 2,
             PC_RST_VAL     => x"00008200",
             RAM0_INIT_FILE => HART_RAM0_INIT,
-            RAM1_INIT_FILE => HART_RAM1_INIT,
             SH_AW          => SH_AW
         )
         port map (
@@ -1705,7 +1831,6 @@ begin
             HARTID         => 3,
             PC_RST_VAL     => x"00008200",
             RAM0_INIT_FILE => HART_RAM0_INIT,
-            RAM1_INIT_FILE => HART_RAM1_INIT,
             SH_AW          => SH_AW
         )
         port map (
@@ -1800,8 +1925,13 @@ begin
 
             mem_dout       => mem_dout,
             periph_dout    => periph_dout,
-            flash_dout     => flash_dout   
+            flash_dout     => flash_dout
     );
+
+    -- M11: the private peripheral page is GONE — adddec's periph-facing bus
+    -- is dead (no enable ever asserts; every peripheral hangs off the
+    -- arbiter slave fabric). Keep its array input defined.
+    periph_dout <= (others => (others => '0'));
 
     -- GPIO0 (SPI0, CLKLFXT, CLKHFXT, TRAP, BOOT)
     gpio0: GPIO
@@ -2029,9 +2159,9 @@ begin
 
     );
 
-    -- M6: UART0 is the SHARED console UART. Its register bus now hangs off the
-    -- mp_arbiter slave port (region-4 sub-decode @0x12000, all 4 harts) instead
-    -- of hart 0's private periph bus @0x4400. Core clock (smclk), pads and IRQ
+    -- M6: UART0 is the SHARED console UART on the mp_arbiter slave port (all
+    -- 4 harts). M11 moved its window from 0x12000 back to its ORIGINAL 0x4400
+    -- slot in the shared peripheral window. Core clock (smclk), pads and IRQ
     -- wiring (-> hart 0's SYSTEM only) are unchanged.
     uart0: UART
         port map (
@@ -2056,8 +2186,6 @@ begin
             RX_DIR      => rx0_dir,
             RX_REN      => rx0_ren
     );
-
-    --@GEN:dead-window-zero@
 
     uart1: UART
         port map (
@@ -2260,14 +2388,17 @@ begin
 
             --@GEN:bus:npu0@
 
-            -- MUXed SRAM Inputs (connect directly to address decoder outputs)
-            SramQ_in      => mem_dout(2),
-            SramA_in      => mem_addr,
-            SramD_in      => write_data,
-            SramCLK_in    => clk_mem(2),
-            SramCEN_in    => mem_en(2),
-            SramGWEN_in   => GWEN,
-            SramWEN_in    => wen_fe,
+            -- MUXed SRAM Inputs — M11: the staging RAM's bus side is the
+            -- ARBITER SLAVE fabric (0xC000-0xFFFF page), not hart 0's adddec:
+            -- any hart stages vectors through the shared window. Active-low
+            -- strobes shimmed exactly like the bulk RAM banks.
+            SramQ_in      => npuram_q,
+            SramA_in      => sh_addr(11 downto 0),
+            SramD_in      => sh_wdata,
+            SramCLK_in    => mclk,
+            SramCEN_in    => npuram_cen_n,
+            SramGWEN_in   => shmem_gwen_n,
+            SramWEN_in    => sh_wen_n,
 
             -- SRAM Interface (connect directly to SRAM blocks without going through address decoder)
             NpuSramA_out    => npu0_mux_ram_a,
@@ -2391,10 +2522,15 @@ begin
             PGEN  => pgen_mem(1)
     );
 
-    -- NPU SRAM Interface
-    ram1: entity work.sram1p16k_hvt_pg
+    -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1
+    -- macro, promoted to an ARBITER SLAVE). The NPU's internal port mux
+    -- (NpuMuxSel) still owns these pins: bus side = the shared-slave fabric
+    -- (see the NPU instance's Sram*_in), NPU side during a THINK. Q feeds
+    -- both the slave read mux (npuram_q) and the NPU's SramQ_in. BLOCKPWR's
+    -- RAM1OFF bit keeps gating this macro (pgen_mem(2)).
+    npuram0: entity work.sram1p16k_hvt_pg
         port map (
-            Q     => mem_dout(2),
+            Q     => npuram_q,
             CLK   => npu0_mux_ram_clk,
             CEN   => npu0_mux_ram_cen,
             WEN   => npu0_mux_wen,
@@ -2405,6 +2541,10 @@ begin
             RETN  => '1',
             PGEN  => pgen_mem(2)
     );
+
+    -- M11: hart 0's adddec no longer has memories behind its RAM1 slot (the
+    -- read mux lost that arm); keep its array input defined.
+    mem_dout(2) <= (others => '0');
 
 
     -- =============================================================================

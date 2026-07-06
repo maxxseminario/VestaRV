@@ -15,10 +15,10 @@ use work.tb_defs.all;
 entity riscv_tb is
     generic (
         TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
-        -- M5a: preload images for harts 1-3 (threaded to MCU; defaults keep
-        -- every existing test bit-identical — shmem_mp contention images).
-        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf";
-        HART_RAM1_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf"
+        -- M5a: preload image for harts 1-3 (gate flow preloads via deposits;
+        -- this generic exists only for interface parity with the wrappers).
+        -- M11: single TCM per tile — the RAM1 generic is gone.
+        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf"
     );
 end riscv_tb;
 

@@ -174,7 +174,7 @@ for rcf in "${TEST_FILES[@]}"; do
     case "$base" in
         *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
             img="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/${base}"
-            extra_gen=", HART_RAM0_INIT => \"${img}.ram0.rcf\", HART_RAM1_INIT => \"${img}.ram1.rcf\"" ;;
+            extra_gen=", HART_RAM0_INIT => \"${img}.ram0.rcf\"" ;;
     esac
     cat > "$wf" <<VHDL
 entity ${entity} is end ${entity};

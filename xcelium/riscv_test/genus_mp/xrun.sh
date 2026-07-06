@@ -11,7 +11,7 @@
 # DUT = ../../../genus/out/MCU_MP.genus.v back-annotated via MCU_MP.sdfcmd
 # (MAXIMUM). The netlist's MCU has no generics, so the behavioral tile-preload
 # generics are replaced by xmsim deposits into the tile SRAM macro models
-# (make_ram_deposit.py; harts 1-3 ram0/ram1). Deposits are applied at t=1ns
+# (make_ram_deposit.py; harts 1-3 TCM + zeroed shared macros). Deposits at t=1ns
 # (before the first fetch — tiles never execute X) and re-applied at t=300ns
 # (inside the second reset pulse, in case a settle-window X access nuked a
 # model's mem via its failedWrite task). Hart 0 SPI-boots like the real chip.
@@ -56,7 +56,7 @@ esac
 
 mkdir -p log
 echo "Tile preload image: $IMG"
-python3 make_ram_deposit.py "$IMG_DIR/$IMG.ram0.rcf" "$IMG_DIR/$IMG.ram1.rcf" ":dut" \
+python3 make_ram_deposit.py "$IMG_DIR/$IMG.ram0.rcf" ":dut" \
     > log/preload.tcl || { echo "preload generation failed"; exit 1; }
 
 # Driver tcl: preload before the first fetch, re-assert during the second

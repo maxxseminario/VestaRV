@@ -42,8 +42,7 @@ BASE="$(basename "$RCF" .rcf | sed 's/^x*//')"
 TILE_GEN=()
 case "${HART_IMG:-$BASE}" in
     *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
-        TILE_GEN=( -generic "HART_RAM0_INIT=>\"$IMG_DIR/${HART_IMG:-$BASE}.ram0.rcf\""
-                   -generic "HART_RAM1_INIT=>\"$IMG_DIR/${HART_IMG:-$BASE}.ram1.rcf\"" ) ;;
+        TILE_GEN=( -generic "HART_RAM0_INIT=>\"$IMG_DIR/${HART_IMG:-$BASE}.ram0.rcf\"" ) ;;
 esac
 
 LIB_PATH="xcelium.d"
