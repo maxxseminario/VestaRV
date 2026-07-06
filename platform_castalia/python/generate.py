@@ -29,9 +29,12 @@ arbitrated shared window at 0x10000-0x13FFF reachable by ALL harts:
 '''
 m = ChipGenerator(
 	chipRootDirectory=chipRootDirectory,
-	asicName='Castalia',
-	asicNameForUserGuide='Castalia',
+	# CHIP_NAME env var overrides the chip name everywhere it appears (TRM title page,
+	# headers, prose, generated file headers): `make chip CHIP_NAME=MyChip`
+	asicName=(os.environ.get('CHIP_NAME') or 'Castalia'),
+	asicNameForUserGuide=(os.environ.get('CHIP_NAME') or 'Castalia'),
 	mcuUserGuideLatexTemplateFileName='TRM.template.tex',
+	numHarts=4,	# 4-hart multiprocessor — drives the TRM's \NumHarts/\NumHartsWord defines and the multi-core feature bullets
 	romStartAddress=0x0000,
 	romSize=16384,	# 16 KiB
 	peripheralMemoryStartAddress=0x4000,
@@ -91,7 +94,7 @@ m.SharedWindowSections = [
 
 
 ''' System '''
-p = PeripheralTemplate(nameTemplate='SYSTEM', description='Controls the entire system, including the clocking and power state. Also has a CRC calculator using the CRC16_CDMA2000 polynomial.', bitFieldPrefix='SYS', latexIntroFileName='SYSTEM-intro-castalia-2026-07.tex')
+p = PeripheralTemplate(nameTemplate='SYSTEM', description='Controls the entire system, including the clocking and power state. Also has a CRC calculator using the CRC16_CDMA2000 polynomial.', bitFieldPrefix='SYS', latexIntroFileName='SYSTEM-intro-castalia-2026-07.tex', latexFeatureSummary=['A CRC calculation engine (CRC16\\_CDMA2000)', '2$\\times$ internal digitally controllable oscillators', '2$\\times$ external clock pins for clock generation and accurate timing', 'A windowed watchdog timer'])
 m.AddPeripheralTemplate(p)
 
 # SYSCLK
@@ -230,7 +233,7 @@ r.AddBitField(BitField(name='SYSDCO1BIAS', msb=11, lsb=0, accessibility='rw', de
 	
 	
 ''' SPIx '''
-p = PeripheralTemplate(nameTemplate='SPIx', description='Serial Peripheral Interface. Supports both master and slave modes with configurable data length (8, 16, or 32 bits), clock polarity, clock phase, and byte ordering. SPI0 includes flash extended memory capability for direct memory-mapped access to external SPI flash. SPI1 supports both master and slave modes without flash extended memory.', registerPrefix='SPIx', bitFieldPrefix='SPI', latexIntroFileName='SPI-intro-myshkin-2025-11.tex')
+p = PeripheralTemplate(nameTemplate='SPIx', description='Serial Peripheral Interface. Supports both master and slave modes with configurable data length (8, 16, or 32 bits), clock polarity, clock phase, and byte ordering. SPI0 includes flash extended memory capability for direct memory-mapped access to external SPI flash. SPI1 supports both master and slave modes without flash extended memory.', registerPrefix='SPIx', bitFieldPrefix='SPI', latexIntroFileName='SPI-intro-myshkin-2025-11.tex', latexFeatureSummary='{count} SPI interfaces (SPI0 provides memory-mapped access to external flash memory)')
 m.AddPeripheralTemplate(p)
 
 # SPIxCR
@@ -282,7 +285,7 @@ r.AddBitField(BitField(name='SPIFOS', msb=23, lsb=0, accessibility='rw'))
 
 
 ''' GPIOx '''
-p = PeripheralTemplate(nameTemplate='GPIOx', description='General Purpose Input Output', registerPrefix='Px', bitFieldPrefix='Px', latexIntroFileName='GPIO-intro-2025-11.tex')
+p = PeripheralTemplate(nameTemplate='GPIOx', description='General Purpose Input Output', registerPrefix='Px', bitFieldPrefix='Px', latexIntroFileName='GPIO-intro-2025-11.tex', latexFeatureSummary='{count} 8-pin general purpose I/O (GPIO) ports with edge-triggered interrupts and multiplexed peripheral functions')
 m.AddPeripheralTemplate(p)
 
 # PxIN
@@ -358,7 +361,7 @@ r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw'))
 
 
 ''' UARTx '''
-p = PeripheralTemplate(nameTemplate='UARTx', description='Full-duplex Universal Asynchronous Receiver/Transmitter with hardware parity support', registerPrefix='UARTx', bitFieldPrefix='U', latexIntroFileName='UART-intro-castalia-2026-07.tex')
+p = PeripheralTemplate(nameTemplate='UARTx', description='Full-duplex Universal Asynchronous Receiver/Transmitter with hardware parity support', registerPrefix='UARTx', bitFieldPrefix='U', latexIntroFileName='UART-intro-castalia-2026-07.tex', latexFeatureSummary='{count} UART interfaces with hardware parity support')
 m.AddPeripheralTemplate(p)
 
 # UARTxCR
@@ -408,7 +411,7 @@ r.AddBitField(BitField(name='TX', msb=7, lsb=0, description='Transmit data byte'
 
 
 ''' TIMERx '''
-p = PeripheralTemplate(nameTemplate='TIMERx', description='32-bit Timer/Counter with input capture, output compare, and pulse-width modulation functionality. Features glitch-free clock source switching and configurable clock division.', registerPrefix='TIMx', bitFieldPrefix='T', latexIntroFileName='TIMER-intro-castalia-2026-07.tex')
+p = PeripheralTemplate(nameTemplate='TIMERx', description='32-bit Timer/Counter with input capture, output compare, and pulse-width modulation functionality. Features glitch-free clock source switching and configurable clock division.', registerPrefix='TIMx', bitFieldPrefix='T', latexIntroFileName='TIMER-intro-castalia-2026-07.tex', latexFeatureSummary='{count} 32-bit timers with pulse-width modulation outputs and input capture units')
 m.AddPeripheralTemplate(p)
 
 # TIMxCR
@@ -489,7 +492,7 @@ i2cDescription += 'To use master transmitter mode, first configure the I2C perip
 i2cDescription += 'To use master receiver mode, first configure the I2C peripheral by setting I2CMEN, clearing I2CSEN, and configuring I2CMDIV with the appropriate clock division factor, noting that the I2C clock source is SMCLK. To send a start condition, set I2CMST, wait for the I2CMSTS flag to be set (if the bus is busy, the I2C peripheral will wait for it to become idle and then send a start condition), and then clear the status register. I2CMCB will now indicate that the I2C peripheral now has control of the bus as its master. Next, write to I2CxMTX the desired slave address in the most significant 7 bits followed by the desired read/write bit (1 for read/master receiver) in the least significant bit. Then, wait for I2CMXC or I2CMARB to be set. If I2CMARB is set, then the I2C peripheral has lost the bus arbitration contest and has released control of the bus. If I2CMNR is set, then the desired slave has not acknowledged itself. Clear the status register. Next, begin to receive a byte of data from the slave by setting I2CMRB. Wait for I2CMXC to be set. Clear the status register. Read I2CxMRX to get the byte of data received from the slave. To send the slave an ACK and begin to read another byte from the slave, set I2CMRB. Or, to send the slave a NACK and send a stop condition, set I2CMSP. Or, to send the slave a NACK and send a repeated start condition, set I2CMST. Wait for the appropriate flag, then clear the status register.\n\n'
 i2cDescription += 'To use slave receiver mode, first configure the I2C peripheral by setting I2CSEN, clearing I2CSEN, clearing I2CSN, and configuring I2CSCS and I2CGCE to the desired values. Note that if clock stretching is enabled with I2CSCS, the I2C peripheral will seize control of the bus by driving SCL low during every ACK/NACK bit transfer (if the I2C peripheral was addressed) until I2CSC is set, which requires user intervention to prevent indefinite hold-ups of the I2C bus. But, if clock stretching is not enabled, the master will be allowed full control of the rate data is sent over the bus, which opens the possibility that the software running on this MCU does not notice that a byte has been transferred in time before the next is transferred. Note that if I2CGCE is set, the I2C peripheral will be addressed if either its address is received or if the general call is received. Wait for the I2C peripheral to be addressed when I2CSA is set. Check I2CSTM to see if the master has requested slave receiver or slave transmitter mode (0 indicates slave receiver). Clear the status register. If clock stretching is enabled, send an ACK or NACK by clearing or setting I2CSN, and then set I2CSC to release SDA and continue with the transfer. If clock stretching is not enabled, the I2C peripheral will automatically ACK or NACK depending on the value of I2CSN. Next, wait for the slave to receive a data byte from the master when I2CSXC is set. If I2CSOVF is set, then the MCU has failed to read one of the bytes sent by the master in the past. Clear the status register, and then read I2CSRX to get the data byte sent from the master. If clock stretching is enabled, send an ACK or NACK by clearing or setting I2CSN, and then set I2CSC to release SDA and continue with the transfer. If clock stretching is not enabled, the I2C peripheral will automatically ACK or NACK depending on the value of I2CSN. Next, wait for I2CSXC, I2CSPR, or I2CSTR to be set, indicating the I2C peripheral has received a new byte of data, a stop condition, or a repeated start condition. If a stop or start condition has been received, clear the status register.\n\n'
 i2cDescription += 'To use slave transmitter mode, first configure the I2C peripheral by setting I2CSEN, clearing I2CSEN, clearing I2CSN, and configuring I2CSCS and I2CGCE to the desired values. Note that if clock stretching is enabled with I2CSCS, the I2C peripheral will seize control of the bus by driving SCL low during every ACK/NACK bit transfer (if the I2C peripheral was addressed) until I2CSC is set, which requires user intervention to prevent indefinite hold-ups of the I2C bus. But, if clock stretching is not enabled, the master will be allowed full control of the rate data is sent over the bus, which opens the possibility that the software running on this MCU does not notice that a byte has been transferred in time before the next is transferred. Check I2CSTM to see if the master has requested slave receiver or slave transmitter mode (1 indicates slave transmitter). Clear the status register. Queue the byte of data to transmit to the master by writing the byte to I2CSTX. If clock stretching is enabled, set I2CSC to release SDA and continue with the transfer. If clock stretching is not enabled, the I2C peripheral will automatically ACK or NACK depending on the value of I2CSN. Wait for I2CSTXE to be set, indicating that the I2C peripheral is ready to queue the next byte to send to the master. Clear the status register, and write the next byte to send to the master to I2CxSTX. If clock stretching is enabled, wait for I2CSXC to be set, clear the status register, and set I2CSC. Wait for I2CSTXE, I2CSPR, or I2CSTR to be set, then clear the status register.'
-p = PeripheralTemplate(nameTemplate='I2Cx', description=i2cDescription, registerPrefix='I2Cx', bitFieldPrefix='I2C')
+p = PeripheralTemplate(nameTemplate='I2Cx', description=i2cDescription, registerPrefix='I2Cx', bitFieldPrefix='I2C', latexFeatureSummary='{count} I$^2$C interfaces (both master and slave mode)')
 m.AddPeripheralTemplate(p)
 
 # I2CxCR
@@ -587,7 +590,7 @@ r.AddBitField(BitField(name='I2CxAMR', msb=6, lsb=0, accessibility='rw'))
 r.AddBitField(BitField(msb=7, unused=True))
 
 ''' NPU '''
-p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in hart 0\'s private RAM1 (the 16 KiB SRAM at 0xC000, multiplexed between hart 0 and the NPU). The registers are reachable by every hart through the shared window, but the data path is not: hart 0 (or software staging through shared RAM) must place the operands in RAM1. Hart 0 is put to sleep for the duration of every computation, regardless of which hart started it.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-castalia-2026-07.tex')
+p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in hart 0\'s private RAM1 (the 16 KiB SRAM at 0xC000, multiplexed between hart 0 and the NPU). The registers are reachable by every hart through the shared window, but the data path is not: hart 0 (or software staging through shared RAM) must place the operands in RAM1. Hart 0 is put to sleep for the duration of every computation, regardless of which hart started it.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-castalia-2026-07.tex', latexFeatureSummary='A neural processing unit (NPU) co-processor for hardware acceleration of machine learning tasks')
 m.AddPeripheralTemplate(p)
 
 # NPUCR
@@ -625,7 +628,7 @@ r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vecto
 
 
 ''' SARADC '''
-p = PeripheralTemplate(nameTemplate='SARADC', description='10-bit capacitive-DAC (CAPDAC) successive-approximation register analog-to-digital converter', registerPrefix='SARADC', bitFieldPrefix='SARADC', latexIntroFileName='SARADC-intro-myshkin-2025-11.tex')
+p = PeripheralTemplate(nameTemplate='SARADC', description='10-bit capacitive-DAC (CAPDAC) successive-approximation register analog-to-digital converter', registerPrefix='SARADC', bitFieldPrefix='SARADC', latexIntroFileName='SARADC-intro-myshkin-2025-11.tex', latexFeatureSummary='A 10-bit successive-approximation (SAR) ADC')
 m.AddPeripheralTemplate(p)
 
 # SARADC_CR
@@ -679,7 +682,7 @@ r.AddBitField(BitField(name='SARADCDTP0SEL', msb=3, lsb=0, description='Digital 
 
 
 ''' Pulse Counter '''
-p = PeripheralTemplate(nameTemplate='PCT', description='Pulse counter. Counts the number of digital pulses generated by a sensor, such as a Domino Neutron detector or a Geiger-Muller tube.', registerPrefix='PCT', bitFieldPrefix='PCT')
+p = PeripheralTemplate(nameTemplate='PCT', description='Pulse counter. Counts the number of digital pulses generated by a sensor, such as a Domino Neutron detector or a Geiger-Muller tube.', registerPrefix='PCT', bitFieldPrefix='PCT', latexFeatureSummary='A pulse counter for digital pulse sources (e.g. neutron detectors, Geiger--Muller tubes)')
 m.AddPeripheralTemplate(p)
 
 # PCCR
@@ -723,7 +726,7 @@ r.AddBitField(BitField(name='PCTCNT3', msb=31, lsb=0, accessibility='r'))
 
 
 ''' AFE '''
-p = PeripheralTemplate(nameTemplate='AFE', description='Dual-slope integrating ADC (DSADC) and potentiostat analog front end with programmable bias generation.', registerPrefix='AFE', bitFieldPrefix='AFE_', latexIntroFileName='AFE-intro-myshkin-2025-11.tex')
+p = PeripheralTemplate(nameTemplate='AFE', description='Dual-slope integrating ADC (DSADC) and potentiostat analog front end with programmable bias generation.', registerPrefix='AFE', bitFieldPrefix='AFE_', latexIntroFileName='AFE-intro-myshkin-2025-11.tex', latexFeatureSummary='A dual-slope integrating ADC and potentiostat analog front end with programmable bias generation')
 m.AddPeripheralTemplate(p)
 
 # AFE_CR

@@ -56,6 +56,7 @@ class ChipGenerator():
 	ProgramCounterInit = None	# The program counter value on reset
 	StackPointerInit = None	# The stack pointer initial value (this is not a reset value, it must be done in software)
 	BootloaderUsesSpiFlashCommands = None	# Determines what format the bootloader expects the program to be in on the SPI flash
+	NumHarts = None	# Number of RISC-V harts (cores). 1 = single-core; > 1 enables the multi-core defines/bullets in the TRM
 	ExtraMemorySections = None	# [(SECTION_NAME (rwx), ORIGIN = 0x?, LENGTH = 0x?, notes), ...]
 	SharedWindowSections = None	# [(name, startAddress, endAddress, description), ...] — multi-core shared window regions drawn in the address space diagram
 	ExtraLatexIntroFiles = None	# [filename, ...] — extra PeripheralIntroductions tex files input by the master template itself (e.g. the multi-core architecture chapter)
@@ -128,7 +129,8 @@ class ChipGenerator():
 		ENABLE_IRQ_TIMER:bool,
 		MASKED_IRQ:int,
 		PROGADDR_IRQ:int,
-		lastRamMemorySlotSize:int=None):
+		lastRamMemorySlotSize:int=None,
+		numHarts:int=1):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -151,6 +153,11 @@ class ChipGenerator():
 		self.AsicName = asicName
 		self.AsicNameForUserGuide = asicNameForUserGuide
 		self.McuUserGuideLatexTemplateFileName = mcuUserGuideLatexTemplateFileName
+
+		# Check hart count
+		if type(numHarts) != int or numHarts < 1:
+			raise Exception('numHarts must be an int >= 1')
+		self.NumHarts = numHarts
 		
 		# Check ROM addresses
 		if type(romStartAddress) != int:

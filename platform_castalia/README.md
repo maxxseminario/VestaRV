@@ -16,17 +16,16 @@ hand-maintained `hdl/MCU_MP/` RTL is never touched.
 
 ```bash
 cd platform_castalia
-./regenerate.sh          # or: cd python && python3 generate.py   (works on Python >= 3.6)
+make chip                # generate every chip artifact AND build the TRM PDF
+make chip CHIP_NAME=Foo  # same configuration, renamed chip (TRM title/prose, file headers)
+make generate            # artifacts only (no PDF); make pdf = PDF only
 ```
 
-Then compile the TRM PDF (needs TeX Live; no inkscape/shell-escape required — see SVG note below):
-
-```bash
-cd latex/TRM
-pdflatex TRM.tex && pdflatex TRM.tex
-```
-
-or `make pdf` from this directory.
+`make chip` produces the complete Technical Reference Manual for exactly the generated
+configuration: the feature list, peripheral chapters (intro LaTeX snippets + register
+tables), memory/address-space diagrams, interrupt tables, and multi-core defines are all
+derived from what `python/generate.py` instantiates. pdflatex is auto-detected from PATH
+or `~/texlive` (no inkscape/shell-escape required — see SVG note below).
 
 **SVG figures:** unlike `platform/`, the diagram figures are pre-converted, cropped PDFs
 (`latex/figures/*.pdf`) included with plain `\includegraphics` — the `\includesvg`/inkscape
@@ -86,6 +85,22 @@ Generator engine (`python/`):
   as a fresh template instead of editing an `MCU.vhd` in place
 - Python 3.6 compatible (`copytree` shim); address-space diagram fixed to use the same
   RAM-slot address formula as `memory.x` (the old code drew RAM at the wrong addresses)
+
+Configuration-driven TRM (2026-07-06, `make chip` = artifacts + PDF):
+- `make chip` now also compiles `latex/TRM/TRM.pdf` (use `make generate` for artifacts only);
+  `CHIP_NAME=<name>` renames the chip everywhere it appears (docs only — the generated RTL
+  is name-independent and stays byte-identical to `hdl/MCU_MP/`)
+- The System Configuration feature list is GENERATED (`include/FeaturesList.tex`) from the
+  instantiated peripheral set: each `PeripheralTemplate` carries a `latexFeatureSummary`
+  bullet (with `{count}` instance-count substitution), and the multi-core bullets (hart
+  count, shared RAM size, CLINT/mutex-count/IRQ-router presence) come from `numHarts=` and
+  the shared-window peripherals actually created
+- New config-driven LaTeX defines: `\NumHarts`/`\NumHartsWord`/`\MaxHartIndex`,
+  `\VectorsCount`/`\PeriphVectorsCount`/`\ClintMsipVector`/`\ClintMtipVector`,
+  `\SharedWindowStartAddress`/`\SharedWindowEndAddress` — the master template's prose uses
+  these (and `\AsicNameForUserGuide`) instead of hardcoded "Castalia"/"four-hart"/"85"
+- Hand-written extra chapters are input via generated `include/ExtraIntroChapters.tex`
+  (from `ExtraLatexIntroFiles`), so chapter filenames/revisions live in generate.py
 
 TRM content:
 - New chapter: **Multi-Core Architecture** (`latex/PeripheralIntroductions/MULTICORE-intro-castalia-2026-07.tex`)
