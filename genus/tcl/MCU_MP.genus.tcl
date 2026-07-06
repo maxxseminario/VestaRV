@@ -5,10 +5,10 @@
 # Derived from tcl/MCU.genus.tcl (the verified single-core "Myshkin" flow).
 # Differences vs. the single-core script:
 #   * Reads the MCU_MP HDL tree (hdl/MCU_MP/...) plus the new multi-core infra
-#     blocks (mp_arbiter, clint, irq_router, mutex_bank, resv_unit, hart_tile,
-#     mp_wait_injector).
-#   * Top entity is still "MCU"; hart 0 is the top-level "core: vesta", harts
-#     1-3 are "hart1/2/3: hart_tile" (each a full vesta + private ROM/RAM0/RAM1).
+#     blocks (mp_arbiter, clint, irq_router, mutex_bank, resv_unit, hart_tile).
+#   * Top entity is still "MCU"; since M13 ALL FOUR harts are hart_tile
+#     instances "hart0/1/2/3" (each a full vesta + adddec + private TCM,
+#     registered tile boundary).
 #   * A clk_cpu clock, cost group, path group and SRAM/ROM PGEN false-paths are
 #     declared for ALL FOUR harts.
 #   * TIME-OPTIMIZED, AREA-RELAXED: high generic/map/opt effort with NO area
@@ -217,8 +217,8 @@ read_hdl -vhdl -library work $MP/vesta/c_dec.vhd
 read_hdl -vhdl -library work $MP/vesta/vesta.vhd
 
 # --- Multi-core infrastructure (new vs. single-core) ---
+# (M13: mp_wait_injector RETIRED — hart 0 is a plain hart_tile now.)
 read_hdl -vhdl -library work $MP/adddec.vhd
-read_hdl -vhdl -library work $MP/mp_wait_injector.vhd
 read_hdl -vhdl -library work $MP/clint.vhd
 read_hdl -vhdl -library work $MP/irq_router.vhd
 read_hdl -vhdl -library work $MP/mp_arbiter.vhd
@@ -252,9 +252,9 @@ create_clock -name clk_lfxt		-domain clk_lfxt_domain		-period $CLKLFXT_PERIOD	hp
 create_clock -name clk_hfxt		-domain clk_hfxt_domain		-period $CLKHFXT_PERIOD	hpin:$TOP_MODULE/system0/clk_hfxt_out
 
 # --- Per-hart gated CPU clock (clk_cpu output of each hart's vesta core) ---
-# hart 0 is the top-level "core"; harts 1..3 live inside hart1/2/3 (hart_tile).
-create_clock -name clk_cpu0		-domain clk_cpu0_domain		-period $FASTEST_PERIOD	hpin:$TOP_MODULE/core/clk_cpu
-for {set h 1} {$h < $NUM_HARTS} {incr h} {
+# M13 tile extraction: hart 0 is hart0 (hart_tile) like the rest — all four
+# cores live at $TOP_MODULE/hart<h>/core.
+for {set h 0} {$h < $NUM_HARTS} {incr h} {
 	create_clock -name clk_cpu$h	-domain clk_cpu${h}_domain	-period $FASTEST_PERIOD	hpin:$TOP_MODULE/hart$h/core/clk_cpu
 }
 
@@ -296,11 +296,12 @@ for {set h 0} {$h < $NUM_HARTS} {incr h} {
 # tiles' dead ROMs and RAM1s are RETIRED (tiles have a single TCM, ram0), and
 # hart 0's old ram1 macro is now the shared NPU staging RAM 'npuram0' (still
 # gated by BLOCKPWR via pgen_mem(2)). The bulk-RAM banks' PGEN is tied '0'
-# (no timing path), so they need no exception.
+# (no timing path), so they need no exception. M13: hart 0's TCM lives at
+# hart0/ram0 like every other tile (its PGEN still comes from BLOCKPWR via
+# the tile's tcm_pgen port; tiles 1-3 tie it low).
 set_false_path -to pin:$TOP_MODULE/rom0/PGEN
-set_false_path -to pin:$TOP_MODULE/ram0/PGEN
 set_false_path -to pin:$TOP_MODULE/npuram0/PGEN
-for {set h 1} {$h < $NUM_HARTS} {incr h} {
+for {set h 0} {$h < $NUM_HARTS} {incr h} {
 	set_false_path -to pin:$TOP_MODULE/hart$h/ram0/PGEN
 }
 

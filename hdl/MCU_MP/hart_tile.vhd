@@ -1,5 +1,5 @@
 -- =============================================================================
--- hart_tile.vhd  (M3b; M11 memory-map rework; M12 single-ROM boot)
+-- hart_tile.vhd  (M3b; M11 memory-map rework; M12 single-ROM boot; M13 tile)
 -- =============================================================================
 -- One self-contained hart with PRIVATE memory: a vesta core + its own address
 -- decoder + private TCM (RAM0, 0x8000-0xBFFF). M11 retired the tile's dead
@@ -10,19 +10,50 @@
 -- ignites them via CLINT msip). Everything except the TCM reaches the MCU
 -- control plane through the shared-window master port below.
 --
--- This is the "private per-hart memory" building block for the 4-hart MCU_MP.
--- Each tile replicates the *unchanged* single-core core<->adddec<->ROM/RAM path,
+-- M13 TILE EXTRACTION: this entity is now THE hart tile for ALL FOUR harts —
+-- hart 0 included (MCU.vhd's inline hart-0 core/adddec/ram0/sh-machinery was
+-- this file's mirror since M3c; it is folded in here and deleted there). All
+-- four instances are STRUCTURALLY IDENTICAL (one netlist -> one hardened
+-- tile in M14); every per-instance difference is expressed by WIRING only:
+--   * hart_id      — mhartid CSR value, a PORT (the vesta HARTID generic is
+--                    retired for the same one-netlist reason).
+--   * flash/XIP    — the adddec >=0x20000 extended-flash decode is enabled
+--                    in EVERY tile; hart 0 wires flash_mem_en/flash_clk_mem/
+--                    flash_mab/flash_dout to SPI0 and sleep to SPI0's
+--                    disable_clk_cpu (XIP stall). Tiles 1-3 leave the
+--                    outputs open and the inputs at their defaults: a tile
+--                    access >=0x20000 then reads ZEROS and never stalls
+--                    (the XIP stall is SPI0's sleep, not adddec) — same
+--                    "undefined on unmapped" class as always. The flash
+--                    ports and sleep are NOT boundary-registered:
+--                    flash_clk_mem is a GATED CLOCK, and a one-cycle-late
+--                    sleep would let the core consume garbage flash_dout
+--                    (they become hart-0 tile timing-budget pins in M14).
+--   * IRQ source   — tiles: irq_en_ext = their irq_router row and
+--                    hw_clint_en='1' hardwires CLINT slots 83/84 (no SYSTEM
+--                    peripheral to program enables). Hart 0: irq_en_ext =
+--                    SYSTEM0's irq_en, irq_prio_ext/irq_recursion_en from
+--                    SYSTEM0, isr_ret back to SYSTEM0 (WDT end-of-interrupt),
+--                    and hw_clint_en='0' — SYS_IRQ_EN's reset-all-masked
+--                    semantics are preserved exactly.
+--   * tcm_pgen     — hart 0's TCM keeps its BLOCKPWR software power gating
+--                    (pgen_mem(1)); tiles tie '0'.
+-- The M2 wait_inj0 stall exerciser on hart 0's mem_ready is RETIRED here:
+-- its latency-tolerance job is done (M10 proved the protocol at boundary
+-- depths 0/1/2; the M12 boot fetch exercises it every run).
+--
+-- Each tile replicates the *unchanged* single-core core<->adddec<->RAM path,
 -- so there is NO cross-hart grant-switching hazard on the fetch/load pipeline
 -- (see ~/vesta_docs/multicore_plan.md, "GRANT-SWITCHING HAZARD").
 --
 -- M3c.4: the tile is a REAL master of the MCU-level shared window (behind
--- mp_arbiter on the free-running mclk). This replicates hart 0's proven M3c
--- wiring (see MCU.vhd + the M3c.3 post-mortem in ~/vesta_docs/multicore_plan.md):
---   * sh_sel   = decode of the three SHARED regions (M11): the peripheral
---                window 0x4000-0x7FFF, the NPU staging RAM 0xC000-0xFFFF and
---                the bulk RAM 0x10000-0x1FFFF = addr(31:17)=0 AND (bit16 OR
---                bit14). Exact upper-bit qualification (31:17)=0 keeps
---                >=0x20000 extended-flash addresses OUT of the window (a
+-- mp_arbiter on the free-running mclk), per the M3c wiring proven on hart 0
+-- (see the M3c.3 post-mortem in ~/vesta_docs/multicore_plan.md):
+--   * sh_sel   = decode of the SHARED regions (M11/M12): boot ROM 0x0-0x3FFF,
+--                the peripheral window 0x4000-0x7FFF, the NPU staging RAM
+--                0xC000-0xFFFF and the bulk RAM 0x10000-0x1FFFF = addr(31:17)=0
+--                AND region /= "010". Exact upper-bit qualification (31:17)=0
+--                keeps >=0x20000 extended-flash addresses OUT of the window (a
 --                loose decode aliases flash back into it - bug 2 class).
 --   * sh_acked = one-shot handshake flop on MCLK (the stall source must run
 --                free; a hart gated off can't clock its own release).
@@ -31,8 +62,8 @@
 --                during decode, and data_addr/sh_sel derive combinationally
 --                from it, so a raw-sh_sel read-data mux is a zero-delay
 --                oscillation (bug 4). The registered select is '1' exactly
---                during the MEMORY_WAIT data phase. Shared window is DATA-only.
---   * mem_ready = (not sh_sel) or sh_acked - freezes the core (clk_cpu gate)
+--                during the MEMORY_WAIT data phase.
+--   * mem_ready = (not sh_sel) or sh_ack_ok - freezes the core (clk_cpu gate)
 --                for the whole arbiter transaction, inside the EXECUTE cycle.
 -- M4a: sh_we carries the 4 byte-lane strobes (active-high), so sub-word
 -- shared stores (sb/sh) work — write_word is lane-positioned by the core.
@@ -49,36 +80,56 @@ use work.MemoryMap.all;      -- NUM_IRQS
 
 entity hart_tile is
     generic (
-        HARTID         : natural := 1;
-        -- M12: every hart resets to 0x0 = the shared boot ROM (the M3b-M11
-        -- preloaded-TCM boot at 0x8200, and its RAM0_INIT_FILE preload hook,
-        -- are retired -- nothing preloads RAM on silicon).
+        -- M12: every hart resets to 0x0 = the shared boot ROM.
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
         SH_AW          : natural := 15   -- shared-window word-address width (must match mp_arbiter; M11: covers 0x00000-0x1FFFF)
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
         resetn    : in  std_logic;
-        sleep     : in  std_logic;
+        -- hart 0: SPI0's disable_clk_cpu (freezes the core across an XIP
+        -- flash access). Tiles: default '0'. NOT boundary-registered — see
+        -- the flash/XIP note in the header.
+        sleep     : in  std_logic := '0';
+
+        -- M13: mhartid CSR value (was the HARTID generic — a port keeps all
+        -- four tile instances one netlist). Static per instance.
+        hart_id   : in  std_logic_vector(31 downto 0);
 
         -- M5b: per-hart CLINT level interrupts (mclk domain -- same domain as
         -- this vesta's free-running clk, and its irq_handler clocks on clk, so
         -- msip/mtip can wake a hart whose gated clk_cpu is OFF in SLEEPING).
-        -- Tiles have no SYSTEM peripheral to program irq_en, so exactly these
-        -- two irq_vector slots (IRQB_CLINT_MSIP / IRQB_CLINT_MTIP) are
-        -- hardwired ENABLED below; every other IRQ stays masked.
         msip_in   : in  std_logic := '0';
         mtip_in   : in  std_logic := '0';
 
-        -- M7a: shared-peripheral IRQ fan-out. irq_ext carries the SAME
-        -- deglitched peripheral IRQ levels hart 0's SYSTEM sees (mclk-domain
-        -- fan-out of irq_deglitch in MCU.vhd); its CLINT slots 83/84 are
-        -- IGNORED here — this hart's own msip_in/mtip_in override them.
-        -- irq_en_ext is this hart's row of the shared-window irq_router
-        -- (0x13900): software routes a peripheral IRQ to this hart by setting
-        -- its slot bit. Both default to all-zeros = pre-M7a behavior.
+        -- M7a: shared-peripheral IRQ fan-out. irq_ext carries the deglitched
+        -- peripheral IRQ levels (mclk-domain fan-out of irq_deglitch in
+        -- MCU.vhd); its CLINT slots 83/84 are IGNORED here — this hart's own
+        -- msip_in/mtip_in override them. irq_en_ext is this hart's enable
+        -- row: tiles wire their irq_router row, hart 0 wires SYSTEM0's
+        -- irq_en (M13). Both default to all-zeros.
         irq_ext    : in std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
         irq_en_ext : in std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+
+        -- M13: IRQ machinery that only hart 0 exercises (SYSTEM0-owned);
+        -- tiles keep the defaults / leave isr_ret open.
+        irq_prio_ext     : in  std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+        irq_recursion_en : in  std_logic := '0';
+        isr_ret          : out std_logic;
+        -- '1' (tiles): hardwire-enable CLINT slots 83/84 (no SYSTEM
+        -- peripheral to program them). '0' (hart 0): enables come ONLY from
+        -- irq_en_ext = SYSTEM0's irq_en (SYS_IRQ_EN resets all-masked and
+        -- software unmasks via SYS_IRQ_ENU — semantics preserved exactly).
+        hw_clint_en      : in  std_logic := '1';
+
+        -- M13: extended-flash / XIP port (adddec's >=0x20000 decode, enabled
+        -- in every tile). Hart 0 wires SPI0 here; tiles leave outputs open,
+        -- flash_dout at its zeros default. NOT boundary-registered (gated
+        -- clock + sleep race — see header).
+        flash_mem_en  : out std_logic;
+        flash_clk_mem : out std_logic;
+        flash_mab     : out std_logic_vector(31 downto 0);
+        flash_dout    : in  std_logic_vector(31 downto 0) := (others => '0');
 
         -- M3c.4: shared-window master port -> one mp_arbiter master slice in
         -- MCU.vhd. req/we/addr/wdata out; gnt/done/rdata back. req is held
@@ -100,6 +151,10 @@ entity hart_tile is
         -- grant to this hart between the AMO's read and write transactions.
         sh_lock   : out std_logic;
 
+        -- M13: TCM macro power gate. Hart 0: BLOCKPWR's RAMOFF via
+        -- pgen_mem(1) (software power gating preserved); tiles: '0'.
+        tcm_pgen  : in  std_logic := '0';
+
         trap_flag : out std_logic;
         a0        : out std_logic_vector(31 downto 0)
     );
@@ -107,18 +162,18 @@ end entity;
 
 architecture behav of hart_tile is
 
-    -- vesta core (matches hdl/MCU_MP/MCU.vhd component decl)
+    -- vesta core (M13: hart_id is a port, HARTID generic retired)
     component vesta
         generic (
             PC_RST_VAL : std_logic_vector(31 downto 0);
-            NUM_IRQS  : natural;
-            HARTID    : natural := 0
+            NUM_IRQS  : natural
         );
         port (
             clk              : in  std_logic;
             resetn           : in  std_logic;
             sleep            : in  std_logic;
             clk_cpu          : out std_logic;
+            hart_id          : in  std_logic_vector(31 downto 0);
 
             data_addr        : out std_logic_vector(31 downto 0);
             wen              : out std_logic_vector(3 downto 0);
@@ -179,15 +234,12 @@ architecture behav of hart_tile is
     end component;
 
     -- constant tie-offs
-    constant zero_word   : std_logic_vector(31 downto 0)        := (others => '0');
-    constant zero_irq    : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
     constant zero_periph : word_array(0 to 15)                  := (others => (others => '0'));
 
-    -- M5b: the two CLINT slots are ALWAYS enabled in a tile (no SYSTEM
-    -- peripheral here to program them); M7a ORs in the software-routed
-    -- shared-peripheral enables from the irq_router (irq_en_ext).
-    constant tile_irq_hw_en : std_logic_vector(NUM_IRQS-1 downto 0) :=
-        (IRQB_CLINT_MSIP => '1', IRQB_CLINT_MTIP => '1', others => '0');
+    -- M5b/M13: the two CLINT slots are hardwire-enabled when hw_clint_en='1'
+    -- (tiles — no SYSTEM peripheral to program them); M7a ORs in the
+    -- software-routed enable row (irq_en_ext: router row on tiles, SYSTEM0's
+    -- irq_en on hart 0).
     signal tile_irq_en   : std_logic_vector(NUM_IRQS-1 downto 0);
 
     -- M5b/M7a: per-hart CLINT + routed peripheral levels into this core's vector
@@ -216,14 +268,11 @@ architecture behav of hart_tile is
     signal clk_mem     : std_logic_vector(2 downto 0);
     signal mem_dout    : word_array(0 to 2);
 
-    -- unused decoder outputs (peripheral / flash side, tied off for M3b)
+    -- unused decoder outputs (private peripheral side, dead since M11)
     signal mem_en_periph : std_logic_vector(15 downto 0);
     signal clk_periph    : std_logic_vector(15 downto 0);
-    signal mem_en_flash  : std_logic;
-    signal clk_mem_flash : std_logic;
-    signal mab_out       : std_logic_vector(31 downto 0);
 
-    -- M3c.4: shared-window master state (mirror of hart 0's wiring in MCU.vhd)
+    -- M3c.4: shared-window master state
     signal sh_sel         : std_logic;
     signal sh_dphase      : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
     signal sh_acked       : std_logic := '0';
@@ -251,20 +300,127 @@ architecture behav of hart_tile is
     signal mem_ready_sh   : std_logic;
     signal lr_sc_bus      : std_logic_vector(1 downto 0);
 
+    -- =========================================================================
+    -- M13 REGISTERED TILE BOUNDARY (depth 1, mclk). Every shared-bus signal
+    -- and every IRQ/CLINT level crosses the tile edge through EXACTLY ONE
+    -- register stage — outbound req/we/addr/wdata/lrsc/lock (+ isr_ret),
+    -- inbound gnt/done/rdata/scfail (+ msip/mtip/irq vector/enables/
+    -- priority/recursion). ONE depth for ALL of them: skew between req and
+    -- addr/wdata/lrsc corrupts the arbiter's IDLE sample (arb_lat_tb
+    -- BREAK_MODE=2 is the proof), and rdata/scfail must stay aligned with
+    -- done (value-with-pulse). The arbiter protocol is proven
+    -- latency-insensitive at depths 0/1/2 (M10 wait-for-release masking);
+    -- the M12 wait-for-boot-fetch reset release is latency-insensitive by
+    -- construction. NOT registered (see header): sleep + the flash/XIP
+    -- ports (gated clock; sleep race), hart_id/hw_clint_en (static straps),
+    -- trap_flag/a0 (quasi-static observation).
+    -- =========================================================================
+    -- internal (pre-boundary) nets for signals that used to drive ports
+    signal sh_req_int     : std_logic;
+    signal sh_lrsc_int    : std_logic_vector(1 downto 0);
+    signal amo_lock_int   : std_logic;
+    signal isr_ret_int    : std_logic;
+    -- outbound stage
+    signal bnd_req_r      : std_logic := '0';
+    signal bnd_we_r       : std_logic_vector(3 downto 0) := (others => '0');
+    signal bnd_addr_r     : std_logic_vector(SH_AW-1 downto 0) := (others => '0');
+    signal bnd_wdata_r    : std_logic_vector(31 downto 0) := (others => '0');
+    signal bnd_lrsc_r     : std_logic_vector(1 downto 0) := "00";
+    signal bnd_lock_r     : std_logic := '0';
+    signal bnd_isr_ret_r  : std_logic := '0';
+    -- inbound stage
+    signal bnd_gnt_r      : std_logic := '0';   -- registered for uniformity; no tile logic consumes gnt
+    signal bnd_done_r     : std_logic := '0';
+    signal bnd_rdata_r    : std_logic_vector(31 downto 0) := (others => '0');
+    signal bnd_scfail_r   : std_logic := '0';
+    signal bnd_msip_r     : std_logic := '0';
+    signal bnd_mtip_r     : std_logic := '0';
+    signal bnd_irq_ext_r  : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+    signal bnd_irq_en_r   : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+    signal bnd_irq_prio_r : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+    signal bnd_recur_r    : std_logic := '0';
+
 begin
+
+    -- M13 boundary registers. Both stages clock on the free-running mclk and
+    -- reset with the chip resetn (the boot fetch must flow while the CORE
+    -- reset is still stretched — same qualifier rationale as sh_req_int).
+    bnd_out: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            bnd_req_r     <= '0';
+            bnd_we_r      <= (others => '0');
+            bnd_addr_r    <= (others => '0');
+            bnd_wdata_r   <= (others => '0');
+            bnd_lrsc_r    <= "00";
+            bnd_lock_r    <= '0';
+            bnd_isr_ret_r <= '0';
+        elsif rising_edge(clk) then
+            bnd_req_r     <= sh_req_int;
+            bnd_we_r      <= sh_we_lanes;
+            bnd_addr_r    <= data_addr(SH_AW+1 downto 2);
+            bnd_wdata_r   <= write_word;
+            bnd_lrsc_r    <= sh_lrsc_int;
+            bnd_lock_r    <= amo_lock_int;
+            bnd_isr_ret_r <= isr_ret_int;
+        end if;
+    end process;
+
+    sh_req  <= bnd_req_r;
+    sh_we   <= bnd_we_r;
+    sh_addr <= bnd_addr_r;
+    sh_wdata <= bnd_wdata_r;
+    sh_lrsc <= bnd_lrsc_r;
+    sh_lock <= bnd_lock_r;
+    isr_ret <= bnd_isr_ret_r;
+
+    bnd_in: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            bnd_gnt_r      <= '0';
+            bnd_done_r     <= '0';
+            bnd_rdata_r    <= (others => '0');
+            bnd_scfail_r   <= '0';
+            bnd_msip_r     <= '0';
+            bnd_mtip_r     <= '0';
+            bnd_irq_ext_r  <= (others => '0');
+            bnd_irq_en_r   <= (others => '0');
+            bnd_irq_prio_r <= (others => '0');
+            bnd_recur_r    <= '0';
+        elsif rising_edge(clk) then
+            bnd_gnt_r      <= sh_gnt;
+            bnd_done_r     <= sh_done;
+            bnd_rdata_r    <= sh_rdata;
+            bnd_scfail_r   <= sh_scfail;
+            bnd_msip_r     <= msip_in;
+            bnd_mtip_r     <= mtip_in;
+            bnd_irq_ext_r  <= irq_ext;
+            bnd_irq_en_r   <= irq_en_ext;
+            bnd_irq_prio_r <= irq_prio_ext;
+            bnd_recur_r    <= irq_recursion_en;
+        end if;
+    end process;
 
     -- M7a: vector = the fanned-out deglitched peripheral levels, with the two
     -- CLINT slots overridden by THIS hart's own msip/mtip (irq_ext carries
-    -- hart 0's CLINT bits there — never consume them). Enables = hardwired
-    -- CLINT slots OR the software-routed row from the irq_router.
-    tile_irq_proc: process(irq_ext, msip_in, mtip_in)
+    -- hart 0's CLINT bits there — never consume them). Enables = the
+    -- software-routed/programmed row, plus the hardwired CLINT slots when
+    -- hw_clint_en='1' (tiles).
+    tile_irq_proc: process(bnd_irq_ext_r, bnd_msip_r, bnd_mtip_r)
     begin
-        tile_irq_vec <= irq_ext;
-        tile_irq_vec(IRQB_CLINT_MSIP) <= msip_in;
-        tile_irq_vec(IRQB_CLINT_MTIP) <= mtip_in;
+        tile_irq_vec <= bnd_irq_ext_r;
+        tile_irq_vec(IRQB_CLINT_MSIP) <= bnd_msip_r;
+        tile_irq_vec(IRQB_CLINT_MTIP) <= bnd_mtip_r;
     end process;
 
-    tile_irq_en <= irq_en_ext or tile_irq_hw_en;
+    tile_irq_en_proc: process(bnd_irq_en_r, hw_clint_en)
+    begin
+        tile_irq_en <= bnd_irq_en_r;
+        if hw_clint_en = '1' then
+            tile_irq_en(IRQB_CLINT_MSIP) <= '1';
+            tile_irq_en(IRQB_CLINT_MTIP) <= '1';
+        end if;
+    end process;
 
     -- M9b/M12: the reset vector (0x0) is the SHARED boot ROM since M12 — the
     -- first fetch is a multi-cycle arbiter transaction, so the M9b fixed
@@ -278,7 +434,8 @@ begin
     -- sh_rdata_cpu and raises sh_dphase. sh_dphase='1' therefore means
     -- "the boot instruction is on the core's read bus": the exact
     -- private-ROM priming contract (M9b), replicated through the arbiter.
-    -- Sticky: releases once, stays released.
+    -- Sticky: releases once, stays released. Latency-insensitive by
+    -- construction (M12) — unchanged by the M13 boundary registers.
     core_rst_stretch: process(clk, resetn)
     begin
         if resetn = '0' then
@@ -294,14 +451,14 @@ begin
     core: vesta
         generic map (
             PC_RST_VAL => PC_RST_VAL,
-            NUM_IRQS   => NUM_IRQS,
-            HARTID     => HARTID
+            NUM_IRQS   => NUM_IRQS
         )
         port map (
             clk         => clk,
             resetn      => resetn_core,   -- M9b: delayed release (fetch priming)
             sleep       => sleep,
             clk_cpu     => clk_cpu,
+            hart_id     => hart_id,
 
             data_addr    => data_addr,
             wen          => wen_re,
@@ -312,21 +469,23 @@ begin
 
             lr_sc_bus    => lr_sc_bus,
             sc_fail_ext  => sh_scfail_reg,
-            amo_lock     => sh_lock,
+            amo_lock     => amo_lock_int,
 
             irq_vector       => tile_irq_vec,
-            irq_priority     => zero_irq,
+            irq_priority     => bnd_irq_prio_r,
             irq_en           => tile_irq_en,
-            irq_recursion_en => '0',
-            isr_ret          => open,
+            irq_recursion_en => bnd_recur_r,
+            isr_ret          => isr_ret_int,
 
             trap_flag    => trap_flag,
             a0           => a0
         );
 
+    -- M13: the extended-flash decode is enabled in EVERY tile (identical
+    -- netlists); only hart 0 has SPI0 behind the flash ports (see header).
     adddec0: adddec
         generic map (
-            ENABLE_FLASH_EXTENDED_MEM => false
+            ENABLE_FLASH_EXTENDED_MEM => true
         )
         port map (
             clk             => clk_cpu,
@@ -341,7 +500,7 @@ begin
             read_data       => read_data,
             mem_addr        => mem_addr,
             addr_periph     => addr_periph,
-            mab_out         => mab_out,
+            mab_out         => flash_mab,
             wen_fe          => wen_fe,
             GWEN            => GWEN,
 
@@ -350,16 +509,16 @@ begin
             clk_mem         => clk_mem,
             clk_periph      => clk_periph,
 
-            mem_en_flash    => mem_en_flash,
-            clk_mem_flash   => clk_mem_flash,
+            mem_en_flash    => flash_mem_en,
+            clk_mem_flash   => flash_clk_mem,
 
             mem_dout       => mem_dout,
             periph_dout    => zero_periph,
-            flash_dout     => zero_word
+            flash_dout     => flash_dout
         );
 
     -- =========================================================================
-    -- M3c.4: shared-window master (hart 0's proven M3c wiring, tile-internal).
+    -- M3c.4: shared-window master (proven M3c wiring, tile-internal).
     -- See the header comment for the design rationale of every piece.
     -- =========================================================================
     -- M11/M12 decode: EVERYTHING in 0x00000-0x1FFFF except the private TCM
@@ -409,20 +568,24 @@ begin
             if sh_sel = '0' then
                 sh_acked      <= '0';
                 sh_scfail_reg <= '0';
-            elsif sh_done = '1' then
+            elsif bnd_done_r = '1' then
+                -- M13: done/rdata/scfail arrive through the inbound boundary
+                -- stage — value-with-pulse alignment preserved (same depth).
                 sh_acked      <= '1';
                 sh_acked_we   <= sh_we_lanes;
                 sh_acked_addr <= data_addr(SH_AW+1 downto 2);
-                sh_rdata_reg  <= sh_rdata;   -- capture shared read data
-                sh_scfail_reg <= sh_scfail;  -- capture resv_unit SC verdict
+                sh_rdata_reg  <= bnd_rdata_r;   -- capture shared read data
+                sh_scfail_reg <= bnd_scfail_r;  -- capture resv_unit SC verdict
             end if;
         end if;
     end process;
 
     -- wen is ACTIVE-LOW per byte lane; arbiter we is active-high per lane (M4a).
     -- write_word is lane-positioned by the core's store extender => sb/sh work.
+    -- (The lanes feed BOTH the outbound boundary stage and the local ack
+    -- comparison below — the comparison stays on the RAW lanes: it is the
+    -- frozen core comparing its own current access against the acked one.)
     sh_we_lanes <= (not wen_re) when sh_sel = '1' else (others => '0');
-    sh_we       <= sh_we_lanes;
 
     sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes
                       and sh_acked_addr = data_addr(SH_AW+1 downto 2) else '0';
@@ -433,10 +596,10 @@ begin
     -- and its inputs are defined there by construction: the nop-forced
     -- read bus keeps the core's decode defined, and pc_next_trad's reset
     -- arm pins data_addr at PC_RST_VAL (M9b round-2.5 analysis).
-    sh_req   <= sh_sel and not sh_ack_ok and resetn;
-    sh_addr  <= data_addr(SH_AW+1 downto 2);
-    sh_wdata <= write_word;
-    sh_lrsc  <= lr_sc_bus when sh_sel = '1' else "00";
+    -- M13: these are the PRE-boundary nets; the ports carry their
+    -- one-stage-registered copies (bnd_out above).
+    sh_req_int  <= sh_sel and not sh_ack_ok and resetn;
+    sh_lrsc_int <= lr_sc_bus when sh_sel = '1' else "00";
 
     -- back-pressure into the core (identity while sh_sel='0')
     mem_ready_sh <= (not sh_sel) or sh_ack_ok;
@@ -480,6 +643,7 @@ begin
     -- Private TCM (RAM0, 0x8000-0xBFFF): IVT + code + data + stack. M12: NOT
     -- preloaded — like silicon, the TCM powers up unknown, and software owns
     -- write-before-read (the bootrom's tile loader fills it before use).
+    -- M13: PGEN is a port — hart 0 keeps BLOCKPWR software gating, tiles '0'.
     ram0: entity work.sram1p16k_hvt_pg
         port map (
             Q     => mem_dout(1),
@@ -491,7 +655,7 @@ begin
             EMA   => "000",
             GWEN  => GWEN,
             RETN  => '1',
-            PGEN  => '0'
+            PGEN  => tcm_pgen
         );
 
 end architecture;

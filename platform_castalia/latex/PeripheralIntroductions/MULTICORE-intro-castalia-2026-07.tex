@@ -17,9 +17,9 @@ Castalia is a four-hart (four-core) multiprocessor built from four identical Ves
 
 \subsection{Harts and Roles}
 
-Hart 0 is the \textit{management hart}. It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{0x20000}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all four harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter).
+All four harts are instances of the same \textit{hart tile}: an unmodified VestaRV core plus its own private TCM, replicating the proven single-core memory path, with every connection to the rest of the chip registered at the tile boundary. Since every hart sees the same address map --- shared boot ROM, shared peripherals, private TCM at the same local address --- the four harts are architecturally identical and code is hart-portable by construction.
 
-Harts 1--3 are \textit{tile harts}. Each tile contains an unmodified VestaRV core plus its own private TCM, replicating the proven single-core memory path. Since every hart sees the same address map --- shared boot ROM, shared peripherals, private TCM at the same local address --- the four harts are architecturally identical and code is hart-portable by construction.
+Hart 0 is additionally the \textit{management hart}. It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{0x20000}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all four harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Hart 0's peripheral-interrupt enables and priorities also come from the \peripheral{SYSTEM} controller's legacy registers, where harts 1--3 use their \peripheral{IRQROUTER} rows.
 
 Software discovers which hart it is running on by reading the \register{mhartid} CSR:
 

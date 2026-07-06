@@ -6,14 +6,17 @@ use IEEE.NUMERIC_STD.all;
 entity vesta is
     generic (
         PC_RST_VAL : std_logic_vector(31 downto 0) := (others => '0');
-        NUM_IRQS   : natural := 16;
-        HARTID     : natural := 0                             -- Unique per-hart ID (mhartid CSR)
+        NUM_IRQS   : natural := 16
     );
     port (
         clk        : in  std_logic;
         resetn     : in  std_logic;
         sleep      : in  std_logic;
         clk_cpu    : out std_logic;
+
+        -- M13: unique per-hart ID (mhartid CSR) as a PORT (was the HARTID
+        -- generic) — all four hart tiles share ONE netlist; wired per instance.
+        hart_id    : in  std_logic_vector(31 downto 0) := (others => '0');
 
         -- Memory Interface
         data_addr  : out std_logic_vector(31 downto 0);
@@ -172,12 +175,10 @@ architecture struct of vesta is
     end component;
     
     component csr_unit is
-        generic (
-            HARTID : natural := 0
-        );
         port (
             clk            : in  std_logic;
             resetn         : in  std_logic;
+            hart_id        : in  std_logic_vector(31 downto 0) := (others => '0');
 
             -- CSR instruction interface
             csr_addr       : in  std_logic_vector(11 downto 0);
@@ -1272,12 +1273,10 @@ architecture struct of vesta is
     csr_addr <= instr_curr(31 downto 20);
 
     csr_unit_inst : csr_unit
-        generic map (
-            HARTID => HARTID
-        )
         port map (
             clk            => clk,
             resetn         => resetn,
+            hart_id        => hart_id,
             csr_addr       => csr_addr,
             csr_write_data => csr_wdata, 
             csr_op         => csr_op,
