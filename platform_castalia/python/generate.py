@@ -955,27 +955,33 @@ m.CheckPeripheralTemplates()
 # 0x4000-page slots. The shared peripherals live ONLY at their shared-window addresses
 # (UART0 at 0x12000; the rest in the 0x13000 page at 0x13000 + 256*legacy_slot) — their
 # old 0x4X00 windows read zeros in the RTL, so the legacy addresses must not be published.
-GPIO0 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=0, peripheralMemorySlot=0, interruptPriority=1)	# GPIO0 at 0x4000 (hart 0 private: bootrom flash-CS/pad port)
-GPIO1 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=28, absoluteBaseAddress=0x13100, legacySlot=1)	# GPIO1 shared (legacy slot 1)
-m.CreatePeripheral(nameTemplate='SPIx', nameIndex=0, peripheralMemorySlot=2, interruptPriority=9)	# SPI0 at 0x4200 (hart 0 private: boot flash)
-m.CreatePeripheral(nameTemplate='SPIx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=11, absoluteBaseAddress=0x13300, legacySlot=3)	# SPI1 shared (legacy slot 3)
-m.CreatePeripheral(nameTemplate='UARTx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=13, absoluteBaseAddress=0x12000, legacySlot=4)	# UART0 shared console UART (dedicated window, NOT in the 0x13000 page)
-m.CreatePeripheral(nameTemplate='UARTx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=52, absoluteBaseAddress=0x13500, legacySlot=5)	# UART1 shared (legacy slot 5)
-m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=16, absoluteBaseAddress=0x13600, legacySlot=6)	# TIMER0 shared (legacy slot 6)
-m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=22, absoluteBaseAddress=0x13700, legacySlot=7)	# TIMER1 shared (legacy slot 7)
-GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=None, interruptPriority=36, absoluteBaseAddress=0x13800, legacySlot=8)	# GPIO2 shared (legacy slot 8)
-m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=9, interruptPriority=0)	# SYSTEM at 0x4900 (hart 0 private: clock/power/WDT monarch)
-m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13A00, legacySlot=10)	# NPU register bus shared (legacy slot 10); data path = hart 0's RAM1
-m.CreatePeripheral(nameTemplate='SARADC', nameIndex='', peripheralMemorySlot=11, interruptPriority=56)	# SARADC at 0x4B00 (hart 0 private by decision)
-m.CreatePeripheral(nameTemplate='AFE', nameIndex='', peripheralMemorySlot=12, interruptPriority=55)	# AFE at 0x4C00 (hart 0 private by decision)
-GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=None, interruptPriority=44, absoluteBaseAddress=0x13D00, legacySlot=13)	# GPIO3 shared (legacy slot 13)
-m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=57, absoluteBaseAddress=0x13E00, legacySlot=14)	# I2C0 shared (legacy slot 14)
-m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=70, absoluteBaseAddress=0x13F00, legacySlot=15)	# I2C1 shared (legacy slot 15)
+# RTL-generation track Phase 2: sharedBus/combinationalRead/clockDomain/strobeNote are the
+# per-peripheral BUS metadata consumed by python/mcu_vhd.py when generating MCU.vhd
+# (sharedBus='periph' = standard register bus bridged onto the mp_arbiter with the
+# active-low en/wen shim; 'native' = speaks the arbiter slave protocol directly;
+# combinationalRead=True = read path collapses when en deasserts -> MCU-side bridge
+# register at the LATCH->DATA edge, NEVER a stretched en strobe).
+GPIO0 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=0, peripheralMemorySlot=0, interruptPriority=1, clockDomain='mclk')	# GPIO0 at 0x4000 (hart 0 private: bootrom flash-CS/pad port)
+GPIO1 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=28, absoluteBaseAddress=0x13100, legacySlot=1, sharedBus='periph', clockDomain='mclk')	# GPIO1 shared (legacy slot 1)
+m.CreatePeripheral(nameTemplate='SPIx', nameIndex=0, peripheralMemorySlot=2, interruptPriority=9, clockDomain='smclk', strobeNote='reading SPI0RX auto-clears TCIF')	# SPI0 at 0x4200 (hart 0 private: boot flash)
+m.CreatePeripheral(nameTemplate='SPIx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=11, absoluteBaseAddress=0x13300, legacySlot=3, sharedBus='periph', clockDomain='smclk', strobeNote='reading SPI1RX auto-clears TCIF')	# SPI1 shared (legacy slot 3)
+m.CreatePeripheral(nameTemplate='UARTx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=13, absoluteBaseAddress=0x12000, legacySlot=4, sharedBus='periph', clockDomain='smclk')	# UART0 shared console UART (dedicated window, NOT in the 0x13000 page)
+m.CreatePeripheral(nameTemplate='UARTx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=52, absoluteBaseAddress=0x13500, legacySlot=5, sharedBus='periph', clockDomain='smclk')	# UART1 shared (legacy slot 5)
+m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=16, absoluteBaseAddress=0x13600, legacySlot=6, sharedBus='periph', clockDomain='muxed', strobeNote='ClockMuxGlitchFree needs 3 edges of the OLD source to release; poll-until-counting after enable')	# TIMER0 shared (legacy slot 6)
+m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=22, absoluteBaseAddress=0x13700, legacySlot=7, sharedBus='periph', clockDomain='muxed', strobeNote='ClockMuxGlitchFree needs 3 edges of the OLD source to release; poll-until-counting after enable')	# TIMER1 shared (legacy slot 7)
+GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=None, interruptPriority=36, absoluteBaseAddress=0x13800, legacySlot=8, sharedBus='periph', clockDomain='mclk')	# GPIO2 shared (legacy slot 8)
+m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=9, interruptPriority=0, clockDomain='mclk')	# SYSTEM at 0x4900 (hart 0 private: clock/power/WDT monarch)
+m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='a THINK sleeps hart 0 (vectors live in its private RAM1); poll NPUCR bit 16')	# NPU register bus shared (legacy slot 10); data path = hart 0's RAM1
+m.CreatePeripheral(nameTemplate='SARADC', nameIndex='', peripheralMemorySlot=11, interruptPriority=56, clockDomain='smclk')	# SARADC at 0x4B00 (hart 0 private by decision)
+m.CreatePeripheral(nameTemplate='AFE', nameIndex='', peripheralMemorySlot=12, interruptPriority=55, clockDomain='smclk')	# AFE at 0x4C00 (hart 0 private by decision)
+GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=None, interruptPriority=44, absoluteBaseAddress=0x13D00, legacySlot=13, sharedBus='periph', clockDomain='mclk')	# GPIO3 shared (legacy slot 13)
+m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=57, absoluteBaseAddress=0x13E00, legacySlot=14, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C0 shared (legacy slot 14)
+m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=70, absoluteBaseAddress=0x13F00, legacySlot=15, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C1 shared (legacy slot 15)
 
 # Multi-core shared-window peripherals (behind the mp_arbiter, reachable by all harts)
-m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x11000)	# CLINT at 0x11000 (vectors 83 msip, 84 mtip)
-m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13000)	# HW mutex bank at 0x13000 (shared page 3, slot 0)
-m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13900)	# IRQ router at 0x13900 (shared page 3, slot 9)
+m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x11000, sharedBus='native', clockDomain='mclk')	# CLINT at 0x11000 (vectors 83 msip, 84 mtip)
+m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13000, sharedBus='native', clockDomain='mclk', strobeNote='READ = atomic return-old-and-claim; never LR/SC or AMO a mutex address')	# HW mutex bank at 0x13000 (shared page 3, slot 0)
+m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x13900, sharedBus='native', clockDomain='mclk')	# IRQ router at 0x13900 (shared page 3, slot 9)
 
 
 

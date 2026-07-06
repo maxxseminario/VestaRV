@@ -52,7 +52,7 @@ flow and otherwise appear as raw macro source in the figure.
 | `out/software/include/MemoryMap.h` | C header: base addresses, register offsets, bit-field macros |
 | `out/software/include/periph.S` | Assembly definitions of the same |
 | `out/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker memory regions (incl. `SHARED_RAM`) and symbols |
-| `out/hdl/MemoryMap.vhd`, `MCU_routing_template.vhd` | Generated VHDL. `MemoryMap.vhd` is a verified **drop-in replacement** for `hdl/MCU_MP/MemoryMap.vhd` (full behavioral_mp regression passes with the cell list pointed at it, 2026-07-04) but is not wired into the build; the routing template is reference-only |
+| `out/hdl/MemoryMap.vhd`, `MCU.vhd`, `MCU_routing_template.vhd` | Generated VHDL. `MemoryMap.vhd` (2026-07-04) and `MCU.vhd` (2026-07-05, golden-master templated from `hdl_templates/MCU.template.vhd` + `python/mcu_vhd.py`) are verified **drop-in replacements** for their `hdl/MCU_MP/` originals (full behavioral_mp regression passes with the cell list pointed at them) but are not wired into the build; the routing template is reference-only |
 | `config/MemoryMap.json` | Machine-readable full memory map |
 
 ---
@@ -76,6 +76,12 @@ Generator engine (`python/`):
   `pnum_*` pin constants, slot masks — driven by the `McuMpCompat` block in
   `generate.py`, values transcribed from the RTL package). `python/check_memorymap_vhd.py`
   diffs the generated package against `hdl/MCU_MP/MemoryMap.vhd` by name/type/value
+- `make chip` also generates the top-level integration RTL `out/hdl/MCU.vhd` by
+  golden-master templating (`hdl_templates/MCU.template.vhd` holds the fixed boilerplate;
+  `python/mcu_vhd.py` fills the `--@GEN:*@` regions — IRQ signals/`irq_comb`, shared-window
+  slave fabric, dead-window zeroing, per-instance memory-bus port maps — from new
+  `CreatePeripheral` bus metadata: `sharedBus`, `combinationalRead`, `clockDomain`,
+  `strobeNote`). `python/check_mcu_vhd.py` exit 0 = byte-identical to the RTL minus header
 - All output paths redirected into `out/` (see table above); signal-routing VHD is written
   as a fresh template instead of editing an `MCU.vhd` in place
 - Python 3.6 compatible (`copytree` shim); address-space diagram fixed to use the same
