@@ -130,9 +130,9 @@ Known TODOs:
   revisit when Castalia gets a package.
 - Remaining intros not yet reviewed for Castalia: AFE, SARADC, SPI, GPIO (their filenames
   keep the inherited `-myshkin-`/undated suffixes until reviewed; see CLAUDE.md).
-- Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map (it was
-  compiled with UART0 at `0x4400`, which now reads zeros — the BOOT-pin-low Forth console
-  path is dead until then; SPI-flash boot is unaffected).
+- ~~Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map~~ DONE
+  (M12): the multicore bootrom (`software/bootrom_mp/`) implements the single-ROM boot —
+  mhartid dispatch, shared-RAM mailbox zeroing, WFI tile park, and the msip tile loader.
 - The description's WDT register order (WDTCR=12/WDTSR=13/WDTPASS=14) contradicts the RTL
   (WDT_PASS=12/WDT_CR=13/WDT_SR=14) — the TRM and `MemoryMap.h` document these offsets
   wrong. Same for the GPIO0/GPIO1 pin reset attributes (trap DIR, lfxt/hfxt SEL, tx0 DIR).

@@ -1,13 +1,15 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shamo.S  (M8 — the grant-locking signature test)
+# shamo.S  (M8 — the grant-locking signature test; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
-# CROSS-HART AMO ATOMICITY: all four harts run this image (harts 1-3
-# preloaded, hart 0 via SPI boot). Harts 1-3 hammer 64 amoadd.w increments
-# EACH into one shared counter from t=0 — a full 3-way AMO contention storm —
-# then hart 0 adds its own 64 under whatever traffic remains and requires the
-# counter to equal EXACTLY 4*64 = 256.
+# CROSS-HART AMO ATOMICITY: all four harts run this image. M12: tiles are NO
+# LONGER preloaded — hart 0 stages this TCM image once, launches all three
+# tiles into tile_entry through the bootrom loader (mp_boot.h), then falls
+# through and runs the same body itself. Harts 1-3 hammer 64 amoadd.w
+# increments EACH into one shared counter once launched — a full 3-way AMO
+# contention storm — and hart 0 adds its own 64 under whatever traffic remains
+# and requires the counter to equal EXACTLY 4*64 = 256.
 #
 # An AMO is a read+write TRANSACTION PAIR on the mp_arbiter; without M8
 # grant-locking another master can slip a write between a pair's read and
@@ -38,6 +40,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -47,6 +50,21 @@ RVTEST_CODE_BEGIN
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
     .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # into tile_entry (mp_boot.h), then fall through and run the same body.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
+    .option pop
+    li   sp, 0xBFF0             # convention (loader left 0xBFFC)
 
     li   s7, 0x103A0            # CTR
     li   s8, 0x103A4            # SWP
@@ -107,7 +125,8 @@ hart0_verify:
     # counter must reach EXACTLY 256; bounded poll (budget rule — a lost
     # update must FAIL inside the 100ms tb watchdog, not ride it)
     li   t5, 256
-    li   t6, 20000
+    li   t6, 100000             # M12: covers 3 serialized tile ROM-copies + the
+                                # tiles' 64 increments each after launch
 ctr_poll:
     lw   t3, 0(s7)
     beq  t3, t5, ctr_full
@@ -117,15 +136,23 @@ ctr_poll:
     j    shamo_fail             # poll budget expired: lost update(s)
 ctr_full:
 
-    # all three tile harts must have reported DONE
+    # all three tile harts must have reported DONE. Bounded poll (M12: the tile
+    # that commits the 256th increment writes DONE a few cycles behind hart 0
+    # seeing CTR==256 — the old preload had the tiles finished ms earlier).
     li   s6, 1
 done_chk:
     slli t0, s6, 2
     add  t3, s9, t0
-    lw   t4, 0(t3)
     li   t5, 0xA30D0000
     add  t5, t5, s6
-    bne  t4, t5, shamo_fail
+    li   t6, 100000
+dchk_poll:
+    lw   t4, 0(t3)
+    beq  t4, t5, dchk_ok
+    addi t6, t6, -1
+    bnez t6, dchk_poll
+    j    shamo_fail
+dchk_ok:
     addi s6, s6, 1
     li   t0, 4
     bne  s6, t0, done_chk

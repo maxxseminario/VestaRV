@@ -1,24 +1,25 @@
-Castalia is a four-hart (four-core) multiprocessor built from four identical VestaRV cores. Each hart is a complete, single-issue, in-order RV32IMAC processor with its own private memory, so the common case --- instruction fetch and private data access --- never contends with the other harts and runs at full core clock. The harts cooperate through a single arbitrated \textit{shared window} in the address space, which contains a small shared RAM, the inter-processor interrupt hardware (\peripheral{CLINT}), a hardware mutex bank, an interrupt router, and shared-access aliases of most peripherals. The main features of the multi-core architecture are listed below:
+Castalia is a four-hart (four-core) multiprocessor built from four identical VestaRV cores. Each hart is a complete, single-issue, in-order RV32IMAC processor with its own private \textit{tightly-coupled memory} (TCM), so the common case --- instruction fetch and private data access --- never contends with the other harts and runs at full core clock. Everything else in the low address space is \textit{shared}: a single boot ROM, all peripherals, the inter-processor interrupt hardware (\peripheral{CLINT}), a hardware mutex bank, an interrupt router, the NPU staging RAM, and 64\,KiB of bulk RAM, all reached through one serializing round-robin arbiter. The main features of the multi-core architecture are listed below:
 
 \begin{itemize}
 	\item Four identical VestaRV harts, each identified by the read-only \register{mhartid} CSR (address \texttt{0xF14})
-	\item Private memory per hart: each hart has its own RAM (and hart 0 the boot ROM), so fetch and private loads/stores never stall
-	\item One shared window at \texttt{0x10000}--\texttt{0x13FFF}, reachable by all four harts through a serializing round-robin arbiter
-	\item 1 KiB of shared RAM for locks, boot mailboxes, and inter-hart data
+	\item One shared boot ROM at \texttt{0x0}: all four harts reset to PC \texttt{0x0} and dispatch on \register{mhartid} (see Section \ref{ss:multicore-boot})
+	\item 16\,KiB of private TCM per hart at \texttt{0x8000}--\texttt{0xBFFF} (the same local address in every hart), holding each hart's vector table, code, data, and stack
+	\item All peripherals shared by all four harts at their legacy \texttt{0x4000}-page addresses, with the arbiter guaranteeing register-access atomicity
+	\item 64\,KiB of shared bulk RAM at \texttt{0x10000}--\texttt{0x1FFFF} for locks, mailboxes, staged tile programs, and inter-hart data
 	\item \peripheral{CLINT} with per-hart software interrupts (inter-processor interrupts) and a shared 64-bit \register{mtime} with per-hart compare registers
 	\item Sixteen single-instruction hardware mutexes (\peripheral{MUTEX} bank)
 	\item Per-hart peripheral interrupt routing (\peripheral{IRQROUTER}), so any peripheral interrupt can be steered to any hart
 	\item \texttt{LR}/\texttt{SC} and \texttt{AMO} atomic instructions supported to shared RAM, including sub-word shared stores (byte lanes)
-	\item Parked harts can sleep via the custom \asminline{sleep} instruction and be woken by a software interrupt --- no busy-wait power burn
+	\item Instruction fetch from shared memory is supported (the boot ROM is fetched this way by construction); parked harts sleep via the custom \asminline{sleep} instruction and are woken by a software interrupt --- no busy-wait power burn
 \end{itemize}
 
 
 
 \subsection{Harts and Roles}
 
-Hart 0 is the \textit{management hart}. It is the only hart attached to the boot path (SPI flash via \peripheral{SPI0} and the boot ROM) and the only hart wired to the private-only peripherals (\peripheral{GPIO0}, \peripheral{SYSTEM}, \peripheral{SARADC}, \peripheral{AFE}). Its address map is identical to the single-core VestaRV MCU, plus the shared window.
+Hart 0 is the \textit{management hart}. It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{0x20000}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all four harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter).
 
-Harts 1--3 are \textit{tile harts}. Each tile contains an unmodified VestaRV core plus its own private RAM0 (\texttt{0x8000}) and RAM1 (\texttt{0xC000}), replicating the proven single-core memory path. Tile harts do not have the SPI-flash boot path; they come out of reset executing from their private RAM (reset PC \texttt{0x8200}) and are expected to park immediately until hart 0 releases them (see Section \ref{ss:multicore-boot}).
+Harts 1--3 are \textit{tile harts}. Each tile contains an unmodified VestaRV core plus its own private TCM, replicating the proven single-core memory path. Since every hart sees the same address map --- shared boot ROM, shared peripherals, private TCM at the same local address --- the four harts are architecturally identical and code is hart-portable by construction.
 
 Software discovers which hart it is running on by reading the \register{mhartid} CSR:
 
@@ -30,70 +31,55 @@ Software discovers which hart it is running on by reading the \register{mhartid}
 
 \subsection{The Shared Window}
 
-All cross-hart communication happens through the shared window at \texttt{0x10000}--\texttt{0x13FFF}. Every hart sees the same physical devices at the same addresses:
+Everything below the extended flash region except each hart's private TCM is behind the arbiter. Every hart sees the same physical devices at the same addresses:
 
 \begin{center}
 \begin{tabular}{ l l l }
 	\textbf{Address range} & \textbf{Device} & \textbf{Notes} \\ \hline
-	\texttt{0x10000}--\texttt{0x103FF} & Shared RAM (1 KiB) & Locks, mailboxes, inter-hart data \\
-	\texttt{0x11000}--\texttt{0x11FFF} & \peripheral{CLINT} & IPIs (\register{MSIPx}), \register{MTIME}/\register{MTIMECMPx} \\
-	\texttt{0x12000}--\texttt{0x12FFF} & Shared \peripheral{UART0} & Console UART, shared-access alias \\
-	\texttt{0x13000}--\texttt{0x13FFF} & Shared peripheral page & 16 slots of 256 bytes, see below \\ \hline
+	\texttt{0x00000}--\texttt{0x03FFF} & Boot ROM (16\,KiB) & Shared, read-only; all harts reset here \\
+	\texttt{0x04000}--\texttt{0x04FFF} & Peripheral slots & 16 slots of 256 bytes, legacy numbering \\
+	\texttt{0x05000}--\texttt{0x05FFF} & \peripheral{CLINT} & IPIs (\register{MSIPx}), \register{MTIME}/\register{MTIMECMPx} \\
+	\texttt{0x06000}--\texttt{0x06FFF} & \peripheral{MUTEX} bank & Sixteen hardware mutexes \\
+	\texttt{0x07000}--\texttt{0x07FFF} & \peripheral{IRQROUTER} & Per-hart interrupt enable rows \\
+	\texttt{0x0C000}--\texttt{0x0FFFF} & NPU staging RAM (16\,KiB) & Vector storage; NPU-owned during a run \\
+	\texttt{0x10000}--\texttt{0x1FFFF} & Shared bulk RAM (64\,KiB) & Locks, mailboxes, inter-hart data \\ \hline
 \end{tabular}
 \end{center}
 
-The shared window is for \textbf{data access only}: harts cannot fetch instructions from it. Code must live in each hart's private memory.
+(\texttt{0x08000}--\texttt{0x0BFFF} is each hart's \textbf{private} TCM and never reaches the arbiter.) The sixteen peripheral slots at \texttt{0x4000} keep the original single-core VestaRV slot numbering --- \peripheral{GPIO0} at \texttt{0x4000}, \peripheral{UART0} at \texttt{0x4400}, \peripheral{SYSTEM} at \texttt{0x4900}, and so on --- so single-core driver code runs unchanged; the difference is that every hart can now reach every peripheral.
+
+Instruction fetch from the shared window is supported --- the boot flow depends on it, and programs may execute directly from shared RAM. One caveat: compressed (RVC) instructions in shared-window code are not currently validated; code intended to execute from shared memory should be built without the C extension. Code in the private TCM has no such restriction.
 
 \subsubsection{Arbitration and Stalling}
 
 A round-robin arbiter serializes all shared-window transactions. The arbiter grants one hart at a time and holds the grant until that hart's whole transaction completes, then advances the round-robin pointer, so no hart can be starved. While a hart waits for its grant, its clock is stalled transparently --- software never sees a partial transaction and needs no special code for shared accesses. Because a stalled hart contributes nothing until its turn comes, frequently-polled data structures (spin locks in particular) should use a backoff strategy (see Section \ref{ss:multicore-sync}).
 
-An \texttt{AMO} (atomic read-modify-write) instruction holds the arbiter grant across both halves of its read-modify-write pair, so \texttt{AMO}s to shared RAM are atomic with respect to all other harts.
-
-\subsubsection{The Shared Peripheral Page}
-
-The page at \texttt{0x13000}--\texttt{0x13FFF} is divided into sixteen 256-byte slots that deliberately mirror the legacy peripheral page's slot numbering at \texttt{0x4000}: the shared peripheral that historically occupied legacy slot $n$ lives at $\mathtt{0x13000} + 256 n$. These shared addresses are the \textbf{only} addresses of the moved peripherals --- their old \texttt{0x4000}-page windows are decoded but read zeros. Through the shared page, every hart (including hart 0) operates peripherals with the arbiter guaranteeing register-access atomicity. Two slots are repurposed for multi-core infrastructure blocks: slot 0 holds the \peripheral{MUTEX} bank (its legacy owner \peripheral{GPIO0} is never shared) and slot 9 holds the \peripheral{IRQROUTER} (its legacy owner \peripheral{SYSTEM} remains hart 0's private system controller).
-
-\begin{center}
-\begin{tabular}{ l l l l }
-	\textbf{Slot} & \textbf{Address} & \textbf{Device} & \textbf{Legacy address (reads zero)} \\ \hline
-	0  & \texttt{0x13000} & \peripheral{MUTEX} bank (\peripheral{GPIO0} is never shared) & --- \\
-	1  & \texttt{0x13100} & \peripheral{GPIO1}  & \texttt{0x4100} \\
-	3  & \texttt{0x13300} & \peripheral{SPI1}   & \texttt{0x4300} \\
-	5  & \texttt{0x13500} & \peripheral{UART1}  & \texttt{0x4500} \\
-	6  & \texttt{0x13600} & \peripheral{TIMER0} & \texttt{0x4600} \\
-	7  & \texttt{0x13700} & \peripheral{TIMER1} & \texttt{0x4700} \\
-	8  & \texttt{0x13800} & \peripheral{GPIO2}  & \texttt{0x4800} \\
-	9  & \texttt{0x13900} & \peripheral{IRQROUTER} (\peripheral{SYSTEM} is never shared) & --- \\
-	10 & \texttt{0x13A00} & \peripheral{NPU} (register bus only) & \texttt{0x4A00} \\
-	13 & \texttt{0x13D00} & \peripheral{GPIO3}  & \texttt{0x4D00} \\
-	14 & \texttt{0x13E00} & \peripheral{I2C0}   & \texttt{0x4E00} \\
-	15 & \texttt{0x13F00} & \peripheral{I2C1}   & \texttt{0x4F00} \\ \hline
-\end{tabular}
-\end{center}
-
-Peripherals not listed (\peripheral{GPIO0}, \peripheral{SYSTEM}, \peripheral{SPI0}, \peripheral{SARADC}, \peripheral{AFE}) are private to hart 0 and are only reachable at their legacy \texttt{0x4000}-page addresses. Note that the \peripheral{NPU}'s shared slot exposes only its register bus; the NPU still operates on vectors in hart 0's private RAM1.
+An \texttt{AMO} (atomic read-modify-write) instruction holds the arbiter grant across both halves of its read-modify-write pair, so \texttt{AMO}s to shared RAM are atomic with respect to all other harts. A shared-window access costs a few master-clock cycles uncontended (versus a single cycle to the private TCM), which is why per-hart code and stacks belong in the TCM.
 
 
 
-\subsection{Boot and Hart Release} \label{ss:multicore-boot}
+\subsection{Boot and Tile Loading} \label{ss:multicore-boot}
 
-Only hart 0 executes the boot ROM and SPI-flash boot sequence, exactly as on the single-core chip. Harts 1--3 come out of reset executing from their private RAM and immediately park, polling their \textit{boot mailbox} in shared RAM with plain loads (no side effects while parked). Hart 0 releases each parked hart by writing its mailbox:
+All four harts come out of reset at PC \texttt{0x0} and fetch the shared boot ROM through the arbiter. The ROM immediately dispatches on \register{mhartid}:
+
+\textbf{Hart 0} runs the full boot sequence, exactly as on the single-core chip: it configures \peripheral{GPIO0}/\peripheral{SPI0}, copies the program from SPI flash into the load window \texttt{0x8000}--\texttt{0xFFFC} (its TCM plus the NPU staging RAM), and jumps to the program at \texttt{0x8200}. Before any tile can be released, the boot ROM zeroes the shared-RAM mailbox region \texttt{0x10000}--\texttt{0x107FF}: shared RAM powers up with \textit{unknown} contents on silicon, and this write-before-read guarantee is what makes ``mailbox reads as zero'' checks safe.
+
+\textbf{Harts 1--3} set up a minimal interrupt context (a stack at the top of their TCM and a software-interrupt vector) and park in low-power sleep. A parked tile wakes only when hart 0 (or any running program) sends it a \peripheral{CLINT} software interrupt. On wake, the ROM-resident loader reads the tile's \textit{loader mailbox row} in shared RAM:
 
 \begin{center}
 \begin{tabular}{ l l l }
 	\textbf{Mailbox} & \textbf{Address} & \textbf{Meaning} \\ \hline
-	\register{ENTRY[h]} & $\mathtt{0x10110} + 4h$ & Entry PC for hart $h$, written \textit{before} \register{GO[h]} \\
-	\register{GO[h]}    & $\mathtt{0x10100} + 4h$ & Release: hart 0 writes the magic value \texttt{0x600DB007} \\
-	\register{DONE[h]}  & $\mathtt{0x10120} + 4h$ & Hart $h$ writes $\mathtt{0xD00E0000} + h$ after waking \\ \hline
+	\register{SRC[h]}   & $\mathtt{0x10400} + 16h + 0$ & Word-aligned source address in shared space \\
+	\register{LEN[h]}   & $\mathtt{0x10400} + 16h + 4$ & Words to copy to the tile's TCM at \texttt{0x8000} (0 = none) \\
+	\register{ENTRY[h]} & $\mathtt{0x10400} + 16h + 8$ & PC the tile enters with \\ \hline
 \end{tabular}
 \end{center}
 
-\textbf{Tile program loading (preliminary):} a tile hart begins fetching from its private RAM immediately at reset and has no boot ROM of its own, so its private RAM must already contain valid code (at minimum, the park loop) when reset deasserts. In simulation the tile RAMs are preloaded with per-hart images; the production mechanism for loading tile programs on silicon is platform-defined and not yet finalized.
+The loader clears the tile's own \register{MSIP} level, copies \register{LEN[h]} words from \register{SRC[h]} into the tile's private TCM at \texttt{0x8000} (a \register{LEN} of 4096 loads the full 16\,KiB image --- vector table, code, and interrupt handlers included), and enters \register{ENTRY[h]} with the stack pointer set to the top of the tile's TCM and all other registers undefined.
 
-\textbf{Stacks:} each hart needs its own stack in its own private RAM. When an interrupt is taken, the hardware pushes the return program counter at $\mathtt{sp}-4$ (see Section \ref{s:interrupts}), so every hart --- including a freshly released tile hart --- must load a valid stack pointer before enabling interrupts or sleeping. The convention is to place each hart's stack at the top of its private RAM1 and let it grow downward.
+The canonical release sequence for hart $h$ is therefore: stage the tile's program somewhere in shared RAM, write \register{SRC[h]} and \register{LEN[h]} and \register{ENTRY[h]}, then write $1$ to the hart's \register{MSIP} register (\texttt{0x5000} + $4h$). Because the mailbox row is consumed by the ROM only at wake time, the row must be complete \textit{before} the \register{MSIP} write. Software interrupts sent to a tile \textit{after} it has been loaded are handled by the loaded program's own vector table, so the same \peripheral{CLINT} mechanism serves both boot-time loading and run-time inter-processor interrupts.
 
-The release sequence for hart $h$ is: hart 0 writes the hart's entry point to \register{ENTRY[h]}, then writes the magic value to \register{GO[h]}; hart $h$ observes the magic value, jumps to the entry PC, and acknowledges by writing \register{DONE[h]}. Alternatively (and preferably, once the application is running), a parked hart can sleep via the custom \asminline{sleep} instruction and be woken with a \peripheral{CLINT} software interrupt instead of polling --- see the \peripheral{CLINT} chapter and Section \ref{ss:sleep}.
+\textbf{Stacks:} each hart needs its own stack in its own private TCM. When an interrupt is taken, the hardware pushes the return program counter at $\mathtt{sp}-4$ (see Section \ref{s:interrupts}), so every hart --- including a freshly loaded tile hart --- must have a valid stack pointer before enabling interrupts or sleeping. The boot ROM guarantees this for parked and freshly-entered tiles; application code keeps the convention of placing each hart's stack at the top of its TCM, growing downward.
 
 
 
@@ -112,6 +98,7 @@ Two rules apply to all of them:
 \begin{itemize}
 	\item \textbf{Never} use \texttt{LR}/\texttt{SC} or \texttt{AMO} instructions on \peripheral{MUTEX} bank addresses --- hardware mutexes are claimed with plain loads and released with plain stores only.
 	\item Under contention, spin with a \textit{hart-scaled backoff}: delay between retries by an amount proportional to \register{mhartid} (for example $\mathtt{delay} = k \cdot (\register{mhartid} + 1)$) and bound the retry count. Four harts hammering the arbiter in lockstep can otherwise livelock a naive retry loop.
+	\item Additionally, do not access the NPU staging RAM (\texttt{0xC000}--\texttt{0xFFFF}) while an NPU run may be active --- poll the NPU's busy flag first (see the \peripheral{NPU} chapter).
 \end{itemize}
 
 There are no data caches, so there is no cache-coherence protocol to consider: a shared-RAM write is globally visible as soon as the arbiter completes the transaction.

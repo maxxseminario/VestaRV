@@ -1,21 +1,19 @@
 -- =============================================================================
--- hart_tile.vhd  (M3b; M11 memory-map rework)
+-- hart_tile.vhd  (M3b; M11 memory-map rework; M12 single-ROM boot)
 -- =============================================================================
 -- One self-contained hart with PRIVATE memory: a vesta core + its own address
 -- decoder + private TCM (RAM0, 0x8000-0xBFFF). M11 retired the tile's dead
--- boot ROM (never fetched -- tiles boot at 0x8200 in preloaded TCM until the
--- M12 single-ROM boot) and its private RAM1 (0xC000 is now the SHARED NPU
--- staging RAM behind the arbiter); everything except the TCM and the private
--- ROM region reaches the MCU control plane through the shared-window master
--- port below.
+-- boot ROM and its private RAM1 (0xC000 is now the SHARED NPU staging RAM
+-- behind the arbiter); M12 retired the preloaded-TCM boot fiction: every
+-- hart resets to PC 0x0 and fetches the SHARED boot ROM through the
+-- arbiter (mhartid dispatch in the bootrom parks tiles until hart 0
+-- ignites them via CLINT msip). Everything except the TCM reaches the MCU
+-- control plane through the shared-window master port below.
 --
 -- This is the "private per-hart memory" building block for the 4-hart MCU_MP.
 -- Each tile replicates the *unchanged* single-core core<->adddec<->ROM/RAM path,
 -- so there is NO cross-hart grant-switching hazard on the fetch/load pipeline
 -- (see ~/vesta_docs/multicore_plan.md, "GRANT-SWITCHING HAZARD").
---
--- For M3b, harts 1-3 boot directly from preloaded RAM (PC_RST_VAL = 0x8200,
--- TCM preloaded via INIT_FILE) with NO SPI/flash boot.
 --
 -- M3c.4: the tile is a REAL master of the MCU-level shared window (behind
 -- mp_arbiter on the free-running mclk). This replicates hart 0's proven M3c
@@ -52,8 +50,10 @@ use work.MemoryMap.all;      -- NUM_IRQS
 entity hart_tile is
     generic (
         HARTID         : natural := 1;
-        PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00008200";
-        RAM0_INIT_FILE : string := "";   -- TCM 0x8000-0xBFFF preload image (4096-word .rcf)
+        -- M12: every hart resets to 0x0 = the shared boot ROM (the M3b-M11
+        -- preloaded-TCM boot at 0x8200, and its RAM0_INIT_FILE preload hook,
+        -- are retired -- nothing preloads RAM on silicon).
+        PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
         SH_AW          : natural := 15   -- shared-window word-address width (must match mp_arbiter; M11: covers 0x00000-0x1FFFF)
     );
     port (
@@ -193,8 +193,9 @@ architecture behav of hart_tile is
     -- M5b/M7a: per-hart CLINT + routed peripheral levels into this core's vector
     signal tile_irq_vec  : std_logic_vector(NUM_IRQS-1 downto 0);
 
-    -- M9b: delayed core reset release (see core_rst_stretch below)
-    signal resetn_core_sr : std_logic_vector(1 downto 0) := "00";
+    -- M9b/M12: delayed core reset release — held until the boot fetch has
+    -- landed in the clk_cpu consumption stage (see core_rst_stretch below)
+    signal boot_fetched   : std_logic := '0';
     signal resetn_core    : std_logic;
 
     -- core <-> adddec private bus
@@ -265,22 +266,30 @@ begin
 
     tile_irq_en <= irq_en_ext or tile_irq_hw_en;
 
-    -- M9b: adddec's bus staging now resets to INACTIVE (gate-sim X fix), so
-    -- the first fetch is no longer primed DURING reset. Release the core two
-    -- mclk rising edges after everything else: the staging loads the PC
-    -- decode on the first falling edge after release, the memory clocks the
-    -- fetch on the following rising edge, and the core then wakes with its
-    -- first instruction already stable on read_data — the same contract the
-    -- unified bus had when the staging free-ran through reset.
+    -- M9b/M12: the reset vector (0x0) is the SHARED boot ROM since M12 — the
+    -- first fetch is a multi-cycle arbiter transaction, so the M9b fixed
+    -- two-edge release can no longer guarantee a primed instruction bus.
+    -- Instead the core is held in reset until its boot fetch has LANDED in
+    -- the clk_cpu consumption stage: during reset the core presents
+    -- data_addr = PC_RST_VAL (pc_next_trad's reset arm; nop-forced decode
+    -- keeps everything defined), sh_req runs the fetch through the arbiter,
+    -- mem_ready stays low so clk_cpu's FIRST edge is the stall-ending edge
+    -- after the ack — which stages the fetched instruction into
+    -- sh_rdata_cpu and raises sh_dphase. sh_dphase='1' therefore means
+    -- "the boot instruction is on the core's read bus": the exact
+    -- private-ROM priming contract (M9b), replicated through the arbiter.
+    -- Sticky: releases once, stays released.
     core_rst_stretch: process(clk, resetn)
     begin
         if resetn = '0' then
-            resetn_core_sr <= (others => '0');
+            boot_fetched <= '0';
         elsif rising_edge(clk) then
-            resetn_core_sr <= resetn_core_sr(0) & '1';
+            if sh_dphase = '1' then
+                boot_fetched <= '1';
+            end if;
         end if;
     end process;
-    resetn_core <= resetn_core_sr(1);
+    resetn_core <= boot_fetched;
 
     core: vesta
         generic map (
@@ -353,14 +362,15 @@ begin
     -- M3c.4: shared-window master (hart 0's proven M3c wiring, tile-internal).
     -- See the header comment for the design rationale of every piece.
     -- =========================================================================
-    -- M11 decode: the three shared regions in 0x00000-0x1FFFF -- peripheral
-    -- window (bits 16:14 = 001), NPU staging RAM (011), bulk RAM (1xx) --
-    -- which is bit16 OR bit14 under an exact (31:17)=0 qualification. The
-    -- ROM region (000) stays PRIVATE until the M12 single-ROM boot; the TCM
-    -- (010) is private forever. adddec asserts no enable for any shared
+    -- M11/M12 decode: EVERYTHING in 0x00000-0x1FFFF except the private TCM
+    -- (region 010) is shared -- boot ROM (000, M12), peripheral window
+    -- (001), NPU staging RAM (011), bulk RAM (1xx) -- under an exact
+    -- (31:17)=0 qualification (a loose decode aliases >=0x20000 extended-
+    -- flash addresses back into the window - bug 2 class / the M3c.3
+    -- double-claim deadlock). adddec asserts no enable for any shared
     -- region, so the two decoders can never double-claim an address.
     sh_sel <= '1' when data_addr(31 downto 17) = "000000000000000"
-                   and (data_addr(16) = '1' or data_addr(14) = '1') else '0';
+                   and data_addr(16 downto 14) /= "010" else '0';
 
     -- one-shot handshake on the FREE-RUNNING clk (mclk): request until this
     -- access completes (done), then hold off re-request until the core steps
@@ -417,11 +427,13 @@ begin
     sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes
                       and sh_acked_addr = data_addr(SH_AW+1 downto 2) else '0';
 
-    -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
-    -- settle AND fetch-priming windows from the arbiter — sh_sel is a
-    -- combinational decode of data_addr and can carry X/garbage until the
-    -- core is released with a primed instruction bus.
-    sh_req   <= sh_sel and not sh_ack_ok and resetn_core;
+    -- M9b/M12: the chip resetn masks the power-on settle window from the
+    -- arbiter. During the stretched priming window (resetn high,
+    -- resetn_core still low) the request MUST flow — it IS the boot fetch —
+    -- and its inputs are defined there by construction: the nop-forced
+    -- read bus keeps the core's decode defined, and pc_next_trad's reset
+    -- arm pins data_addr at PC_RST_VAL (M9b round-2.5 analysis).
+    sh_req   <= sh_sel and not sh_ack_ok and resetn;
     sh_addr  <= data_addr(SH_AW+1 downto 2);
     sh_wdata <= write_word;
     sh_lrsc  <= lr_sc_bus when sh_sel = '1' else "00";
@@ -458,27 +470,17 @@ begin
     core_read_data <= nop          when resetn_core = '0' else
                       sh_rdata_cpu when sh_dphase = '1'   else read_data;
 
-    -- M11: the tile's dead boot ROM (mem_dout(0)) and private RAM1
-    -- (mem_dout(2)) are RETIRED. The ROM was never fetched (tiles boot at
-    -- 0x8200 in preloaded TCM; adddec still decodes region 000 but the read
-    -- returns zeros -- M12's single shared ROM takes over that region), and
-    -- 0xC000-0xFFFF is now the SHARED NPU staging RAM behind the arbiter
-    -- (reached via sh_sel like every other shared region). Saves 1 ROM +
-    -- 1 RAM macro per tile.
+    -- M11/M12: the tile's private memories besides the TCM are RETIRED —
+    -- region 000 is the SHARED boot ROM (M12) and 0xC000-0xFFFF the SHARED
+    -- NPU staging RAM (M11), both reached via sh_sel through the arbiter;
+    -- adddec asserts no enable for either, so its slots 0/2 read zeros.
     mem_dout(0) <= (others => '0');
     mem_dout(2) <= (others => '0');
 
-    -- Private TCM (RAM0, 0x8000-0xBFFF): IVT + code + data + stack, preloaded
-    -- from RAM0_INIT_FILE.
-    -- INIT_FILE is a sim-only preload hook on the ARM_IP_RAM model; the real
-    -- sram1p16k_hvt_pg is a .lib macro and cannot take generics, so hide the
-    -- generic map from synthesis.
+    -- Private TCM (RAM0, 0x8000-0xBFFF): IVT + code + data + stack. M12: NOT
+    -- preloaded — like silicon, the TCM powers up unknown, and software owns
+    -- write-before-read (the bootrom's tile loader fills it before use).
     ram0: entity work.sram1p16k_hvt_pg
-        -- synopsys translate_off
-        generic map (
-            INIT_FILE => RAM0_INIT_FILE
-        )
-        -- synopsys translate_on
         port map (
             Q     => mem_dout(1),
             CLK   => clk_mem(1),

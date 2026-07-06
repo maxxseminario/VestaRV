@@ -1,7 +1,14 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shlock.S  (M7c — LOCKING: the advisory-lock signature test)
+# shlock.S  (M7c — LOCKING: the advisory-lock signature test;
+#            M12 single-ROM boot rework)
+#-----------------------------------------------------------------------------
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches all three tiles into tile_entry through the bootrom loader
+# (mp_boot.h); each tile then parks on the test's OWN GO gate (0x10248) until
+# hart 0 has configured UART1, exactly as before. The GO gate is shlock's own
+# word (not a retired mailbox) and is unchanged.
 #-----------------------------------------------------------------------------
 # ADVISORY SOFTWARE LOCKS for shared-peripheral SESSIONS. Register-level
 # atomicity is free (whole-txn arbiter grant); session-level ownership is an
@@ -35,6 +42,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 #define SH_UART1   0x4500      /* +0 CR, +4 SR, +8 BR, +16 TX */
 #define LOCK       0x10240
@@ -54,6 +62,21 @@ RVTEST_CODE_BEGIN
     .option push
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
+    .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # into tile_entry (mp_boot.h). They park on GO just as the old preloaded
+    # tiles did.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
     .option pop
 
     li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
@@ -160,7 +183,8 @@ dw_loop:
     add  t1, t0, s4             # DONE[h]
     li   t2, 0x10CC0000
     add  t2, t2, s6
-    li   t6, 20000              # bounded (fits the 100ms watchdog)
+    li   t6, 100000             # bounded (M12: first wait covers 3 serialized
+                                # tile ROM-copies at launch; fits 100ms watchdog)
 dw_poll:
     lw   t3, 0(t1)
     beq  t3, t2, dw_ok

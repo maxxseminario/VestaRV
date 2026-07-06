@@ -1,10 +1,17 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shmem_mp.S  (M3c.4)
+# shmem_mp.S  (M3c.4; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
 # HART-GENERIC contention test for the MCU_MP shared-RAM window at 0x10000
 # (region 4, behind mp_arbiter on the free-running mclk).
+#
+# M12: this WAS the default tile-preload image (harts 1-3 hammered from t=0).
+# Nothing preloads the tiles now, so hart 0 stages this TCM image once and
+# launches all three tiles into tile_body through the bootrom loader
+# (mp_boot.h); each tile then runs the SAME hammer body it always did, and
+# hart 0 falls through to run it too. The "tiles hammer FOREVER after passing"
+# property is preserved — hart 0 always contends with three live masters.
 #
 # Each hart reads mhartid and hammers its OWN word at 0x10040 + 4*hartid —
 # DISJOINT per hart (shared-word atomicity needs the M4 resv_unit/byte lanes),
@@ -21,6 +28,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -30,6 +38,21 @@ RVTEST_CODE_BEGIN
     .option arch, +zicsr
     csrr t0, mhartid            # 0..3
     .option pop
+    bnez t0, tile_body          # M12: only hart 0 launches; tiles enter tile_body
+
+    # hart 0: stage this TCM image once, launch all three tiles into the SAME
+    # hammer body, then fall through and run it too (live 4-way contention).
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_body, 4096)
+    MP_LAUNCH_HART(2, tile_body, 4096)
+    MP_LAUNCH_HART(3, tile_body, 4096)
+
+tile_body:                      # entry ABI: only sp defined — re-derive mhartid
+    .option push
+    .option arch, +zicsr
+    csrr t0, mhartid            # 0..3
+    .option pop
+    li   sp, 0xBFF0             # test convention (bootrom left 0xBFFC)
     slli t1, t0, 2              # hartid * 4
     li   t2, 0x10040
     add  s2, t2, t1             # s2 = my disjoint shared word

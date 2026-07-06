@@ -1,9 +1,16 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shirq.S  (M7a)
+# shirq.S  (M7a; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
 # HART-GENERIC tile-IRQ-fan-out test — the M7a signature test.
+#
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches all three tiles into tile_entry through the bootrom loader
+# (mp_boot.h); each tile then parks on TURN just as before. The launch's msip
+# is the ROM loader's; the routed UART IRQ that later wakes each tile is taken
+# by the tile's OWN slot-15 ISR (copied into its TCM). TURN, the router
+# protocol, and the sleep/wake dance are all unchanged.
 #
 # Before M7a, peripheral IRQs terminated ONLY in hart 0's SYSTEM; tiles had
 # just the hardwired CLINT slots 83/84. M7a fans the deglitched peripheral
@@ -50,6 +57,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 #define SH_UART    0x4400
 #define SH_IRTR    0x7000
@@ -67,6 +75,21 @@ RVTEST_CODE_BEGIN
     .option push
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3 (the ISR reads it too — never clobber)
+    .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # into tile_entry (mp_boot.h). They park on TURN just as the old preloaded
+    # tiles did; hart 0 falls through to its UART setup + round loop.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (the ISR reads it too — never clobber)
     .option pop
 
     li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
@@ -134,7 +157,8 @@ round_loop:
     add  t1, t0, s4             # READY[h]
     li   t2, 0x4EAD0000
     add  t2, t2, s7
-    li   t6, 20000
+    li   t6, 100000             # M12: first round covers the tile's ROM copy
+                                # after launch (fits the 100ms watchdog)
 ready_wait:
     lw   t3, 0(t1)
     beq  t3, t2, is_ready
