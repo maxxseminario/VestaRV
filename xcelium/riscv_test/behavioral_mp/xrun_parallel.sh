@@ -38,6 +38,7 @@ TEST_FILES=(
     "../rcf/xxxxrv32ui-p-shi2c.rcf"
     "../rcf/xxxxrv32ui-p-shnpu.rcf"
     "../rcf/xxrv32ui-p-shmutex.rcf"
+    "../rcf/xxxrv32ui-p-shexec.rcf"
     "../rcf/xxxrv32ua-p-shspin.rcf"
     "../rcf/xxxrv32ua-p-shlock.rcf"
     "../rcf/xxxxrv32ua-p-shamo.rcf"
@@ -171,7 +172,7 @@ for rcf in "${TEST_FILES[@]}"; do
     base="$(sed 's/^x*//' <<< "$base")"          # strip the pad prefix
     extra_gen=""
     case "$base" in
-        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu)
+        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
             img="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/${base}"
             extra_gen=", HART_RAM0_INIT => \"${img}.ram0.rcf\", HART_RAM1_INIT => \"${img}.ram1.rcf\"" ;;
     esac

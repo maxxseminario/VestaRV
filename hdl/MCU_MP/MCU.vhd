@@ -1,3 +1,13 @@
+-- MCU.vhd
+-- Castalia MCU top-level integration layer (4 harts, MCU_MP)
+-- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
+-- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
+-- 	driven sections are generated from python/generate.py
+-- Generated on 2026/07/06 at 01:26:56 with the generate.py chip generator
+-- WARNING: Do not edit or modify this file!
+-- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
+-- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -726,9 +736,18 @@ architecture behav of MCU is
         signal sh_dphase        : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
         signal sh_acked         : std_logic := '0';
         signal sh_acked_we      : std_logic_vector(3 downto 0) := (others => '0'); -- lanes of acked txn (M4b)
+        signal sh_acked_addr    : std_logic_vector(SH_AW-1 downto 0) := (others => '0'); -- word addr of acked txn (M10)
         signal sh_ack_ok        : std_logic;         -- ack valid for the CURRENT access type
         signal sh_we_lanes0     : std_logic_vector(3 downto 0); -- hart 0 lane strobes
         signal sh_rdata_reg     : std_logic_vector(31 downto 0) := (others => '0');
+        -- M10: clk_cpu-STAGED copy of sh_rdata_reg — what the core actually
+        -- consumes. sh_rdata_reg is an mclk LANDING register: when executing
+        -- FROM the shared window the core is frozen in EXECUTE consuming it
+        -- as its INSTRUCTION while the next transaction completes and
+        -- overwrites it MID-CYCLE. The clk_cpu stage freezes with the core —
+        -- exactly the private RAM's Q contract. See hart_tile.vhd for the
+        -- full rationale (found by shexec, M10).
+        signal sh_rdata_cpu     : std_logic_vector(31 downto 0) := (others => '0');
         signal sh_scfail_reg    : std_logic := '0';  -- resv_unit SC verdict latch (M4b)
         signal lr_sc_bus_0      : std_logic_vector(1 downto 0);
         -- M4b: global LR/SC reservation unit
@@ -1538,13 +1557,17 @@ begin
     --
     -- M4b: ack is qualified by the txn's LANE STROBES (sh_ack_ok) — an SC holds
     -- data_addr across a read (EXECUTE) then a write (SC_CHECK); an address-only
-    -- ack would silently swallow the SC write. See hart_tile.vhd for the full
-    -- rationale (this block mirrors the tile).
+    -- ack would silently swallow the SC write. M10: ack is ALSO qualified by
+    -- the txn's WORD ADDRESS (sh_acked_addr) — executing FROM the shared
+    -- window produces back-to-back same-lane reads at different addresses
+    -- with sh_sel never dropping; every new word must re-arbitrate. See
+    -- hart_tile.vhd for the full rationale (this block mirrors the tile).
     sh_handshake: process(mclk, resetn)
     begin
         if resetn = '0' then
             sh_acked      <= '0';
             sh_acked_we   <= (others => '0');
+            sh_acked_addr <= (others => '0');
             sh_rdata_reg  <= (others => '0');
             sh_scfail_reg <= '0';
         elsif rising_edge(mclk) then
@@ -1554,6 +1577,7 @@ begin
             elsif arb_done(0) = '1' then
                 sh_acked      <= '1';
                 sh_acked_we   <= sh_we_lanes0;
+                sh_acked_addr <= data_addr(SH_AW+1 downto 2);
                 sh_rdata_reg  <= arb_rdata;      -- capture shared read data
                 sh_scfail_reg <= arb_scfail(0);  -- capture resv_unit SC verdict
             end if;
@@ -1566,7 +1590,8 @@ begin
     -- lane-positioned by the core's store extender, so sb/sh work directly.
     sh_we_lanes0 <= (not wen_re) when sh_sel = '1' else (others => '0');
     arb_we(3 downto 0) <= sh_we_lanes0;
-    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes0 else '0';
+    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes0
+                      and sh_acked_addr = data_addr(SH_AW+1 downto 2) else '0';
     -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
     -- settle AND fetch-priming windows from the arbiter (same qualifier as
     -- the tiles' sh_req in hart_tile.vhd).
@@ -1593,16 +1618,21 @@ begin
     sh_dphase_reg: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
-            sh_dphase <= '0';
+            sh_dphase    <= '0';
+            sh_rdata_cpu <= (others => '0');
         elsif rising_edge(clk_cpu) then
-            sh_dphase <= sh_sel;
+            sh_dphase    <= sh_sel;
+            -- M10 consumption stage (see the signal declaration): re-latching
+            -- a stale landing value is harmless; what matters is that this
+            -- register can NEVER change inside a stretched core cycle.
+            sh_rdata_cpu <= sh_rdata_reg;
         end if;
     end process;
 
     -- M9b: nop-force the instruction bus until the STRETCHED core reset
     -- releases (mirrors hart_tile.vhd — see the rationale there).
     core_read_data <= nop          when resetn_core = '0' else
-                      sh_rdata_reg when sh_dphase = '1'   else read_data;
+                      sh_rdata_cpu when sh_dphase = '1'   else read_data;
 
     mp_arb0: entity work.mp_arbiter
         generic map (N => 4, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)
