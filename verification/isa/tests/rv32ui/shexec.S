@@ -1,9 +1,15 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shexec.S  (M10)
+# shexec.S  (M10; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
 # EXECUTE-FROM-SHARED proof — instruction fetch THROUGH the mp_arbiter.
+#
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches all three tiles into tile_entry through the bootrom loader
+# (mp_boot.h); each tile then parks on TOKEN just as before. Hart 0 copies the
+# payload into shared RAM BEFORE releasing any tile (order unchanged), so the
+# tiles only ever execute a fully-written payload.
 #
 # The M12 boot rework (single shared boot ROM, all harts reset-fetch through
 # the arbiter) is only buildable if a core can EXECUTE from the shared window
@@ -30,7 +36,7 @@
 #     DONE[h] = 0x103D8 + 4*h     0xE0EC0000+h, h=1..3 (0x103DC/E0/E4)
 #     next free: 0x103E8 (6 words left)
 #
-# Harts 1-3 (preloaded, start at t=0): PARK polling TOKEN (reads only), then
+# Harts 1-3 (launched by hart 0 at tile_entry): PARK polling TOKEN (reads only), then
 # run the payload, check t1, write DONE[h], set a0 = PASS inline, verify DONE
 # forever (shboot pattern).
 # Hart 0 (SPI boot, arrives late): copy payload + CHK into shared RAM
@@ -41,6 +47,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 #define SH_CODE   0x103C0
 #define SH_CHK    0x103D4
@@ -56,6 +63,22 @@ RVTEST_CODE_BEGIN
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
     .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # into tile_entry (mp_boot.h). They park on TOKEN just as the old
+    # preloaded tiles did; hart 0 falls through to the orchestrator.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
+    .option pop
+    li   sp, 0xBFF0             # convention (loader left 0xBFFC)
 
     li   s2, SH_CODE            # payload entry
     li   s3, SH_TOKEN           # turn word (DONE base: TOKEN + 4*h)

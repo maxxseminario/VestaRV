@@ -1,9 +1,15 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shuart.S  (M6)
+# shuart.S  (M6; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
 # HART-GENERIC shared-UART0 test — the M6 signature test.
+#
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches harts 1-3 into tile_entry through the bootrom loader (mp_boot.h);
+# each tile then parks on the token exactly as before. The token ring itself
+# (0x10170) is unchanged — it is the message-ordering serializer, separate
+# from the one-time launch.
 #
 # M6 moved UART0 (the console UART) off hart 0's private peripheral bus and
 # onto the mp_arbiter; M11's map rework put it back at its ORIGINAL 0x4400
@@ -20,7 +26,7 @@
 #   shared window, program BR=1 + CR=EN through 0x4400, read both back,
 #   transmit 'A' + full UTCIF flag dance, TOKEN=1. Then bounded-wait
 #   TOKEN==4 and verify DONE[1..3].
-# Harts 1-3 (preloaded, parked on TOKEN reads): on TOKEN==h verify BR still
+# Harts 1-3 (launched by hart 0, then parked on TOKEN reads): on TOKEN==h verify BR still
 #   reads the hart-0 value (shared config really is shared), transmit 'A'+h,
 #   UTCIF flag dance, DONE[h], TOKEN=h+1, inline PASS + forever-verify.
 #
@@ -36,6 +42,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 #define SH_UART   0x4400
 #define TOKEN     0x10170
@@ -50,6 +57,21 @@ RVTEST_CODE_BEGIN
     .option push
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
+    .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, then launch all three
+    # tiles into tile_entry through the bootrom loader (mp_boot.h). They park
+    # on the token just as the old preloaded tiles did.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
     .option pop
 
     li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
@@ -124,7 +146,8 @@ hart0:
     li   t0, 1
     sw   t0, 0(s3)              # TOKEN = 1: release the ring
 
-    li   t6, 20000              # bounded-wait for the ring to come home
+    li   t6, 100000             # bounded-wait for the ring to come home (M12:
+                                # covers 3 serialized tile ROM-copies at launch)
 ring_wait:
     lw   t0, 0(s3)
     li   t1, 4

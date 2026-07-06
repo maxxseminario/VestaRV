@@ -1,7 +1,14 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shmutex.S  (M7c — LOCKING v2: the HW mutex bank signature test)
+# shmutex.S  (M7c — LOCKING v2: the HW mutex bank signature test;
+#             M12 single-ROM boot rework)
+#-----------------------------------------------------------------------------
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches all three tiles into tile_entry through the bootrom loader
+# (mp_boot.h), then falls through to run the same body. No software release
+# gate is needed (the mutex bank resets all-free) — the launch is the only
+# thing that gets the tiles running.
 #-----------------------------------------------------------------------------
 # HW MUTEX BANK @0x6000 (page-3 slot 0): READ = atomic return-old-and-claim
 # (0 = was free, you now own it; else the holder's hartid+1), WRITE 0 =
@@ -21,8 +28,9 @@
 # applies to ANY spin on the fair arbiter, HW mutex included), held-readback
 # check, NON-atomic lw/addi/sw of a shared counter + OWNER re-check inside.
 # Hart 0 requires CTR == EXACTLY 128 (4*32); a lost update or ownership
-# violation fails loudly. Harts 1-3 contend from t=0; hart 0 joins after SPI
-# boot — no release gate needed, the bank resets all-free.
+# violation fails loudly. Harts 1-3 contend once launched; hart 0 runs its
+# own body immediately after launching — no release gate, the bank resets
+# all-free.
 #
 # Shared words (>= 0x10380, clear of shlock's journal 0x10280-0x1037F):
 #     CTR      = 0x10380          must end EXACTLY 128
@@ -33,6 +41,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 #define MUTEX_BASE 0x6000      /* mutex i at +4*i; MUTEX0 = the contended one */
 #define CTR        0x10380
@@ -46,6 +55,20 @@ RVTEST_CODE_BEGIN
     .option push
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
+    .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # into tile_entry (mp_boot.h), then fall through and run the same body.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
     .option pop
 
     li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
@@ -125,7 +148,8 @@ dw_loop:
     add  t1, t0, s4             # DONE[h]
     li   t2, 0x40BE0000
     add  t2, t2, s6
-    li   t6, 20000              # bounded (fits the 100ms watchdog)
+    li   t6, 100000             # bounded (M12: first wait covers 3 serialized
+                                # tile ROM-copies at launch; fits 100ms watchdog)
 dw_poll:
     lw   t3, 0(t1)
     beq  t3, t2, dw_ok

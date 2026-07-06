@@ -16,12 +16,12 @@
 # deltas of riscv_test/genus/xrun_parallel.sh:
 #   * DUT = ../../../genus/out/MCU_MP.genus.v, SDF back-annotated at xmelab
 #     (MCU_MP.sdfcmd rescoped :dut → :uut:dut for the wrapper level).
-#   * The netlist MCU has no generics: the behavioral tile-preload generics are
-#     replaced by per-test xmsim DEPOSIT scripts into the tile SRAM macro
-#     models (make_ram_deposit.py; harts 1-3 TCM + zeroed shared macros; deposits at t=1ns and
-#     re-asserted at t=300ns inside the second reset pulse). The sh-protocol
-#     tests preload their own image; everything else gets shmem_mp contention
-#     tiles — same binding rule as every other flow.
+#   * The netlist MCU has no generics. M12: the tile-TCM preload is RETIRED —
+#     every hart boots from the shared ROM like silicon, so there are no
+#     per-hart TCM deposits. The only preload left is one xmsim DEPOSIT script
+#     that ZERO-INITS the shared SRAM macros (make_ram_deposit.py; shbank0-3 +
+#     npuram0), applied at t=1ns and re-asserted at t=300ns inside the second
+#     reset pulse. It is test-independent, so it is generated ONCE.
 #   * xmelab needs -ACCESS +rwc (deposits write into the models).
 #
 # Usage:
@@ -39,7 +39,6 @@ LIB_PATH="$RUN_DIR/xcelium.d"
 CELL_LIST="$RUN_DIR/cell_list_genus_mp.txt"
 SDF_CMD="$RUN_DIR/MCU_MP.sdfcmd"
 SDF_CMD_PAR="$RUN_DIR/MCU_MP.parallel.sdfcmd"
-IMG_DIR="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images"
 MAX_PARALLEL=${MAX_PARALLEL:-8}
 
 TEST_FILES=(
@@ -166,12 +165,16 @@ snap_name() {
     basename "$1" .rcf | sed 's/^x*//' | tr '-' '_' | sed 's/^/tb_/'
 }
 
-# ── 1. Generate wrappers + per-test preload/driver tcl ───────────────────────
-echo "=== [1/4] Generating per-test wrappers + preload scripts ==="
+# ── 1. Generate wrappers + per-test driver tcl ───────────────────────────────
+echo "=== [1/4] Generating per-test wrappers + driver scripts ==="
 mkdir -p "$WRAPPERS_DIR" "$LOG_PATH"
+# M12: the preload is now test-independent (shared-macro zero-deposit only —
+# tiles boot from the shared ROM), so generate it ONCE and let every driver
+# source it.
+python3 "$RUN_DIR/make_ram_deposit.py" ":uut:dut" \
+    > "$LOG_PATH/preload.tcl" || { echo "preload gen failed"; exit 1; }
 WRAPPER_FILES=()
 ENTITIES=()
-declare -A PRELOAD_DONE
 for rcf in "${TEST_FILES[@]}"; do
     entity=$(snap_name "$rcf")
     ENTITIES+=("$entity")
@@ -183,30 +186,16 @@ architecture behavioral of ${entity} is begin
     uut: entity work.riscv_tb generic map (TEST_FILE => "${rcf}");
 end architecture;
 VHDL
-    # Tile preload image: sh-protocol tests use their own image, the rest the
-    # shmem_mp contention tiles (same rule as behavioral_mp + xrun.sh here).
-    base="$(basename "$rcf" .rcf | sed 's/^x*//')"
-    case "$base" in
-        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu)
-            img="$base" ;;
-        *)  img="rv32ui-p-shmem_mp" ;;
-    esac
-    if [ -z "${PRELOAD_DONE[$img]:-}" ]; then
-        python3 "$RUN_DIR/make_ram_deposit.py" \
-            "$IMG_DIR/$img.ram0.rcf" ":uut:dut" \
-            > "$LOG_PATH/preload_$img.tcl" || { echo "preload gen failed: $img"; exit 1; }
-        PRELOAD_DONE[$img]=1
-    fi
     cat > "$LOG_PATH/driver_${entity}.tcl" <<EOF
 run 1 ns
-source $LOG_PATH/preload_$img.tcl
+source $LOG_PATH/preload.tcl
 run 299 ns
-source $LOG_PATH/preload_$img.tcl
+source $LOG_PATH/preload.tcl
 run
 exit
 EOF
 done
-echo "  ${#ENTITIES[@]} wrappers written to wrappers/ (+${#PRELOAD_DONE[@]} preload images)"
+echo "  ${#ENTITIES[@]} wrappers written to wrappers/ (+1 shared preload script)"
 
 # ── 2. Compile all HDL + wrappers ────────────────────────────────────────────
 echo ""

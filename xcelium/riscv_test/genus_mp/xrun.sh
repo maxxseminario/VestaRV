@@ -9,10 +9,12 @@
 # Headless twin: ./xrun_batch.sh [test]  (-> xrun.log)
 #
 # DUT = ../../../genus/out/MCU_MP.genus.v back-annotated via MCU_MP.sdfcmd
-# (MAXIMUM). The netlist's MCU has no generics, so the behavioral tile-preload
-# generics are replaced by xmsim deposits into the tile SRAM macro models
-# (make_ram_deposit.py; harts 1-3 TCM + zeroed shared macros). Deposits at t=1ns
-# (before the first fetch — tiles never execute X) and re-applied at t=300ns
+# (MAXIMUM). The netlist's MCU has no generics. M12: the tile-TCM preload is
+# RETIRED — every hart boots from the shared ROM like silicon (the gate ROM
+# macro holds the real M12 bootrom), so no per-hart TCM deposits. All that
+# remains is xmsim zero-deposits into the shared SRAM macro models
+# (make_ram_deposit.py; shbank0-3 + npuram0). Deposits at t=1ns (before the
+# first fetch — masters never read X shared words) and re-applied at t=300ns
 # (inside the second reset pulse, in case a settle-window X access nuked a
 # model's mem via its failedWrite task). Hart 0 SPI-boots like the real chip.
 # Gate sims are MUCH slower than behavioral — the 1-MINUTE RULE DOES NOT APPLY;
@@ -43,20 +45,10 @@ if [ ${#RCF} -ne 29 ]; then
 fi
 echo "Running gate-level test: $RCF  (mode: ${MODE:-batch})"
 
-# Same tile-image binding rule as the behavioral flow (xrun.sh there): the
-# sh-protocol tests preload harts 1-3 with their own image; everything else
-# uses the shmem_mp contention tiles. HART_IMG=<basename> overrides.
-IMG_DIR="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images"
-BASE="$(basename "$RCF" .rcf | sed 's/^x*//')"
-case "${HART_IMG:-$BASE}" in
-    *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
-        IMG="${HART_IMG:-$BASE}" ;;
-    *)  IMG="${HART_IMG:-rv32ui-p-shmem_mp}" ;;
-esac
-
+# M12: no tile-image binding — tiles boot from the shared ROM. The only preload
+# left is the shared-macro zero-deposit (shbank0-3 + npuram0).
 mkdir -p log
-echo "Tile preload image: $IMG"
-python3 make_ram_deposit.py "$IMG_DIR/$IMG.ram0.rcf" ":dut" \
+python3 make_ram_deposit.py ":dut" \
     > log/preload.tcl || { echo "preload generation failed"; exit 1; }
 
 # Driver tcl: preload before the first fetch, re-assert during the second
@@ -67,7 +59,6 @@ run 1 ns
 source log/preload.tcl
 run 299 ns
 source log/preload.tcl
-value :dut:hart1:ram0:mem[4]
 run
 exit
 EOF
@@ -77,7 +68,7 @@ run 1 ns
 source log/preload.tcl
 run 299 ns
 source log/preload.tcl
-puts "tiles preloaded; 'run' to continue"
+puts "shared macros zeroed; 'run' to continue"
 EOF
 fi
 

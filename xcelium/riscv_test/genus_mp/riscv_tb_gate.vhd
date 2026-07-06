@@ -14,11 +14,12 @@ use work.tb_defs.all;
 
 entity riscv_tb is
     generic (
-        TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf";
-        -- M5a: preload image for harts 1-3 (gate flow preloads via deposits;
-        -- this generic exists only for interface parity with the wrappers).
-        -- M11: single TCM per tile — the RAM1 generic is gone.
-        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf"
+        -- M12: the tile-TCM preload (HART_RAM0_INIT) is retired — every hart
+        -- boots from the shared ROM like silicon (the gate ROM macro holds the
+        -- real M12 bootrom); tiles load through the bootrom's msip loader
+        -- mailboxes. The only gate-flow deposit left is the shared-macro
+        -- zero-init (make_ram_deposit.py).
+        TEST_FILE : string(1 to 29) := "../rcf/xxxrv32ui-p-simple.rcf"
     );
 end riscv_tb;
 
@@ -158,7 +159,7 @@ end component;
     -- Testbench signals
     signal clk, resetn : std_logic := '1';
     signal a0 : std_logic_vector(31 downto 0);
-    -- M3b: a0 of the 3 private-memory harts (boot from preloaded RAM at 0x8200)
+    -- M3b/M12: a0 of the 3 tile harts (boot from the shared ROM and park in WFI)
     signal a0_1, a0_2, a0_3 : std_logic_vector(31 downto 0);
     signal spi_flash_din_sig, spi_flash_addr_sig : std_logic_vector(31 downto 0);
 
@@ -692,22 +693,23 @@ end component;
 
         wait until (a0_reached_fail or a0_reached_pass or simulation_timeout_flag);
 
-        -- M3b: report the private-memory harts (1-3). They run rv32ui-p-add from
-        -- their own preloaded RAM and normally reach the pass value well before
-        -- hart 0 (which pays the SPI-boot cost first).
-        report "HART1 (private-mem) pass=" & boolean'image(h1_pass) &
+        -- M12: report the tile harts (1-3). They boot from the SHARED ROM and
+        -- park in WFI; ordinary single-hart tests leave them parked (never pass
+        -- NOR fail — expected silence). Multi-hart tests ignite them via the
+        -- bootrom loader mailboxes; a tile FAIL always fails the run.
+        report "HART1 (tile) pass=" & boolean'image(h1_pass) &
                " fail=" & boolean'image(h1_fail) severity note;
-        report "HART2 (private-mem) pass=" & boolean'image(h2_pass) &
+        report "HART2 (tile) pass=" & boolean'image(h2_pass) &
                " fail=" & boolean'image(h2_fail) severity note;
-        report "HART3 (private-mem) pass=" & boolean'image(h3_pass) &
+        report "HART3 (tile) pass=" & boolean'image(h3_pass) &
                " fail=" & boolean'image(h3_fail) severity note;
         if h1_fail or h2_fail or h3_fail then
-            report "M3b: a private-memory hart FAILED" severity failure;
+            report "M12: a tile hart FAILED" severity failure;
         elsif not (h1_pass and h2_pass and h3_pass) then
-            report "M3b WARNING: not all private-memory harts reached PASS at hart-0 resolution"
-                severity warning;
+            report "M12 NOTE: tile hart(s) silent/parked (expected for single-hart tests)"
+                severity note;
         else
-            report "M3b: all 3 private-memory harts PASSED (concurrent w/ hart 0)" severity note;
+            report "M12: all 3 tile harts PASSED (concurrent w/ hart 0)" severity note;
         end if;
 
         if a0_reached_pass then
@@ -740,9 +742,9 @@ end component;
         end if;
     end process;
 
-    -- M3b: monitor the 3 private-memory harts. They boot at 0x8200 straight from
-    -- preloaded RAM (no SPI boot) and run concurrently with hart 0. Latched so the
-    -- end-of-test report can confirm all four harts reached the pass value.
+    -- M3b/M12: monitor the 3 tile harts. Since M12 they boot from the shared
+    -- ROM and park in WFI until ignited through the bootrom loader mailboxes.
+    -- Latched so the end-of-test report can confirm pass AND catch any fail.
     monitor_harts: process(resetn, clk)
     begin
         if resetn = '0' then

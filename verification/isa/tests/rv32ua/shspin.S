@@ -1,18 +1,22 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shspin.S  (M5a — the multi-core signature test)
+# shspin.S  (M5a — the multi-core signature test; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
-# 4-HART SPINLOCK: park/release (soft-CLINT mailboxes, as shboot.S) and then
-# ALL FOUR harts contend on one LR/SC spinlock, doing a NON-ATOMIC
-# read-modify-write of a shared counter inside the critical section. Any
-# mutual-exclusion violation loses an update (final count wrong) or trips the
-# owner-word check. Hart 0 releases harts 1-3 BACK-TO-BACK (max contention;
-# shboot covers the staggered/park-verified flow) and takes part itself.
+# 4-HART SPINLOCK: ALL FOUR harts contend on one LR/SC spinlock, doing a
+# NON-ATOMIC read-modify-write of a shared counter inside the critical
+# section. Any mutual-exclusion violation loses an update (final count wrong)
+# or trips the owner-word check.
+#
+# M12: the retired GO/ENTRY mailboxes (0x10100/0x10110) are gone. Hart 0
+# stages this TCM image once and launches all three tiles into tile_entry
+# through the bootrom loader (mp_boot.h); each tile falls straight into
+# lock_payload, and hart 0 falls through and contends too — all four hit the
+# lock together (max contention).
 #
 # Shared-window map (clear of shmem 0x10000-8, shlrsc 0x1000C/0x10010,
-# shmem_mp 0x10040+4*h, counter 0x10080; shboot mailboxes reused here):
-#     GO[h]/ENTRY[h]/DONE[h] = 0x10100/0x10110/0x10120 + 4*h
+# shmem_mp 0x10040+4*h, counter 0x10080):
+#     DONE[h] = 0x10120 + 4*h  (0x10100/0x10110 GO/ENTRY retired at M12)
 #     LOCK  = 0x10140   (0 free, 1 held)
 #     CTR   = 0x10144   (must end EXACTLY 4*32 = 128)
 #     OWNER = 0x10148   (holder writes hartid+1, re-checks before release)
@@ -25,6 +29,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -34,41 +39,27 @@ RVTEST_CODE_BEGIN
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
     .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
 
-    li   s2, 0x10100            # GO base
-    li   s3, 0x10110            # ENTRY base
+    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # into tile_entry (mp_boot.h), then fall through and run the same payload.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
+    .option pop
+    li   sp, 0xBFF0             # convention (loader left 0xBFFC)
+
     li   s4, 0x10120            # DONE base
-    li   s5, 0x600DB007         # GO release magic
     li   s7, 0x10140            # LOCK
     li   s8, 0x10144            # CTR
     li   s9, 0x10148            # OWNER
-
-    beqz s10, releaser
-
-    # ---- harts 1-3: park until released, then jump to ENTRY ----
-    slli t0, s10, 2
-    add  t1, s2, t0             # my GO word
-park_loop:
-    lw   t2, 0(t1)
-    bne  t2, s5, park_loop
-    add  t1, s3, t0
-    lw   t2, 0(t1)              # entry PC
-    jalr x0, t2, 0
-
-    # ---- hart 0: release ALL three back-to-back, then contend itself ----
-releaser:
-    li   s6, 1
-rel_loop:
-    slli t0, s6, 2
-    la   t3, lock_payload
-    add  t4, s3, t0             # ENTRY[h] first...
-    sw   t3, 0(t4)
-    add  t4, s2, t0             # ...then GO[h]
-    sw   s5, 0(t4)
-    addi s6, s6, 1
-    li   t0, 4
-    bne  s6, t0, rel_loop
-    # fall through — hart 0 runs the same payload
+    # fall through — every hart runs the same payload
 
 lock_payload:
     .option push
@@ -125,7 +116,8 @@ done_wait_loop:
     add  t1, s4, t0             # DONE[h]
     li   t2, 0xD00E0000
     add  t2, t2, s6
-    li   t6, 20000              # bounded wait budget (fits the 100ms watchdog)
+    li   t6, 100000             # bounded wait budget (M12: first wait covers 3
+                                # serialized tile ROM-copies; fits 100ms watchdog)
 done_wait:
     lw   t3, 0(t1)
     beq  t3, t2, done_ok

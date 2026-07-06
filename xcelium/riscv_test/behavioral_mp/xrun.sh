@@ -33,17 +33,11 @@ if [ ${#RCF} -ne 29 ]; then
 fi
 echo "Running test: $RCF  (mode: $MODE)"
 
-# M5a: park/release + lock-protocol tests (shboot/shspin) need harts 1-3
-# preloaded with the SAME hart-generic program as hart 0; every other test
-# keeps the default shmem_mp contention tiles (riscv_tb generic defaults).
-# Override explicitly with HART_IMG=<ram_images basename> if ever needed.
-IMG_DIR="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images"
-BASE="$(basename "$RCF" .rcf | sed 's/^x*//')"
+# M12: the tile-TCM preload (HART_RAM0_INIT) is RETIRED — every hart boots
+# from the shared ROM like silicon; sh tests load tiles through the bootrom's
+# msip loader mailboxes (see verification/env/p/mp_boot.h). ram_images/ and
+# the HART_IMG override are gone with it.
 TILE_GEN=()
-case "${HART_IMG:-$BASE}" in
-    *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
-        TILE_GEN=( -generic "HART_RAM0_INIT=>\"$IMG_DIR/${HART_IMG:-$BASE}.ram0.rcf\"" ) ;;
-esac
 
 LIB_PATH="xcelium.d"
 [ -d $LIB_PATH ] && rm -r $LIB_PATH

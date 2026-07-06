@@ -1,10 +1,14 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shnpu.S  (M7d)
+# shnpu.S  (M7d; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
 # HART-GENERIC shared-NPU test — the M7d signature test, reworked for the
 # M11 memory map (ALL peripherals are shared now; the private page is gone).
+#
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches harts 1-3 into tile_entry through the bootrom loader (mp_boot.h);
+# each tile then parks on the token. The token ring (0x10220) is unchanged.
 #
 # M7d moved the NPU's REGISTER bus onto the mp_arbiter; M11 put it back at
 # its original address:
@@ -48,6 +52,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 #define SH_NPU     0x4A00
 #define TOKEN      0x10220
@@ -70,6 +75,21 @@ RVTEST_CODE_BEGIN
     .option push
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3
+    .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher
+
+    # M12 single-ROM boot: stage this TCM image once, then launch all three
+    # tiles into tile_entry through the bootrom loader (mp_boot.h). They park
+    # on the token just as the old preloaded tiles did.
+    MP_STAGE_IMAGE(4096)
+    MP_LAUNCH_HART(1, tile_entry, 4096)
+    MP_LAUNCH_HART(2, tile_entry, 4096)
+    MP_LAUNCH_HART(3, tile_entry, 4096)
+
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (undefined for tiles until now)
     .option pop
 
     li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
@@ -166,7 +186,7 @@ hart0:
                                 # (M11: hart 0 no longer sleeps during NPU
                                 # runs — it just polls the token like any
                                 # other hart; runs are ~10 mclk anyway)
-    li   t6, 20000
+    li   t6, 100000             # M12: covers 3 serialized tile ROM-copies at launch
 ring_wait:
     lw   t0, 0(s3)
     li   t1, 4

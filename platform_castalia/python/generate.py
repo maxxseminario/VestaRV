@@ -16,11 +16,14 @@ from GpioConfigurator import GpioConfigurator
 
 ''' Create Memory Map
 
-Castalia: 4-hart multi-core VestaRV MCU (hdl/MCU_MP), M11 memory map.
-Per-hart PRIVATE view: boot ROM 0x0-0x3FFF (hart 0 only until the M12
-single-ROM boot) + 16 KiB TCM at 0x8000-0xBFFF (same local address in every
-tile). Everything else is the arbitrated SHARED window, reachable by ALL
-harts through the mp_arbiter:
+Castalia: 4-hart multi-core VestaRV MCU (hdl/MCU_MP), M11 memory map +
+M12 single-ROM boot. Per-hart PRIVATE view: ONLY the 16 KiB TCM at
+0x8000-0xBFFF (same local address in every tile). Everything else is the
+arbitrated SHARED window, reachable by ALL harts through the mp_arbiter:
+	0x00000-0x03FFF  THE shared boot ROM (one rom_hvt_pg, read-only; all
+	                 four harts reset to PC 0x0 and dispatch on mhartid --
+	                 tiles park in WFI until loaded/ignited through the
+	                 bootrom loader mailboxes at 0x10400 + CLINT msip)
 	0x04000-0x07FFF  shared peripheral window:
 	                 page 0 (0x4000-0x4FFF) = 16 x 256 B slots at the LEGACY
 	                     slot numbering -- every peripheral is back at its
@@ -30,8 +33,10 @@ harts through the mp_arbiter:
 	                 page 3 (0x7000) = IRQ router
 	0x0C000-0x0FFFF  NPU staging RAM (sram1p16k, NPU-port-muxed; was hart 0's
 	                 private RAM1 -- same addresses, now any hart can stage)
-	0x10000-0x1FFFF  shared bulk RAM, 64 KiB = 4 sram1p16k banks (boot
-	                 mailboxes at 0x10100+ keep their addresses)
+	0x10000-0x1FFFF  shared bulk RAM, 64 KiB = 4 sram1p16k banks (test/app
+	                 mailboxes at 0x10100+ keep their addresses; the M12
+	                 bootrom zeroes 0x10000-0x107FF before releasing tiles
+	                 and reads its loader rows SRC/LEN/ENTRY at 0x10400+16h)
 Extended SPI flash (XIP) begins at 0x20000 (hart 0's adddec decode).
 '''
 m = ChipGenerator(
@@ -88,7 +93,7 @@ m = ChipGenerator(
 # Extra memory sections: the multi-core shared regions (behind the mp_arbiter, all harts)
 m.ExtraMemorySections = [
 	('NPU_RAM (rwx)', ': ORIGIN = 0x0C000, LENGTH = 0x4000', '/* END = 0x0FFFF, SIZE = 16 KiB, NPU staging RAM (arbitrated; NPU-port-muxed during a THINK) */'),
-	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = 0x10000', '/* END = 0x1FFFF, SIZE = 64 KiB, arbitrated shared RAM (boot mailboxes at 0x10100+) */'),
+	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = 0x10000', '/* END = 0x1FFFF, SIZE = 64 KiB, arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */'),
 ]
 
 # Extra hand-written TRM chapters input by the master template (copied into latex/TRM/include/)

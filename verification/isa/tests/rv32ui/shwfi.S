@@ -1,9 +1,16 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# shwfi.S  (M5b)
+# shwfi.S  (M5b; M12 single-ROM boot rework)
 #-----------------------------------------------------------------------------
 # HART-GENERIC real-CLINT IPI + sleep/wake test — the M5b signature test.
+#
+# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
+# launches each tile into tile_entry through the bootrom loader — the FIRST
+# msip[h] is consumed by the ROM loader (the launch). The tile then advertises
+# READY and extinguishes; hart 0's SECOND msip[h] is the real test IPI, taken
+# by the tile's OWN msip ISR (slot 83, copied into its TCM). So the launch and
+# the wake are two successive msips per tile.
 #
 # Supersedes nothing: shboot.S (soft-CLINT poll-parking) stays. THIS test
 # parks harts 1-3 with the vesta SLEEP instruction (extinguish: clk_cpu gated
@@ -27,9 +34,10 @@
 # next instruction after its store releases. So msip[h] can never arrive
 # before hart h is asleep.
 #
-# Hart 0 (SPI boot) per hart 1..3 IN TURN: bounded-wait READY[h], verify
-# DONE[h]==0 (really parked), write msip[h]=1, bounded-wait DONE[h], verify
-# msip[h]==0 (the hart's ISR ran and cleared it). All three -> RVTEST_PASS.
+# Hart 0 (SPI boot) per hart 1..3 IN TURN: LAUNCH the tile (loader row + first
+# msip), bounded-wait READY[h], verify DONE[h]==0 (really parked, asleep),
+# write msip[h]=1 (the test IPI), bounded-wait DONE[h], verify msip[h]==0 (the
+# tile's ISR ran and cleared it). All three -> RVTEST_PASS.
 #
 # IVT: the env's DEFINE_IVT (inside RVTEST_CODE_BEGIN) emits slots 0-82; we
 # extend the SAME .ivt section with slots 83 (msip -> ISR) and 84 (mtip ->
@@ -42,6 +50,7 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -51,16 +60,28 @@ RVTEST_CODE_BEGIN
     .option arch, +zicsr
     csrr s10, mhartid           # 0..3 (ISR reads it too — do not clobber)
     .option pop
+    bnez s10, tile_entry        # M12: only hart 0 runs the launcher/waker
 
+    # hart 0: set up and go to the waker (the staged launch is done there)
     li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
-
     li   s2, 0x10150            # READY base
     li   s3, 0x10160            # DONE base
     li   s4, 0x5000            # CLINT MSIP base
     li   s5, 0x4EAD0000         # READY magic base
     li   s6, 0xD00E0000         # DONE magic base
+    j    waker
 
-    beqz s10, waker
+tile_entry:                     # tiles enter here (loader ABI: only sp defined)
+    .option push
+    .option arch, +zicsr
+    csrr s10, mhartid           # re-derive (ISR reads it too — do not clobber)
+    .option pop
+    li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
+    li   s2, 0x10150            # READY base
+    li   s3, 0x10160            # DONE base
+    li   s4, 0x5000            # CLINT MSIP base
+    li   s5, 0x4EAD0000         # READY magic base
+    li   s6, 0xD00E0000         # DONE magic base
 
     # ---- harts 1-3: advertise READY, then sleep on the NEXT instruction ----
     slli t0, s10, 2
@@ -79,14 +100,35 @@ wfi_verify:                     # forever: DONE must survive other traffic
     bne  t4, s6, shwfi_fail
     j    wfi_verify
 
-    # ---- hart 0: staggered — park proof, REAL IPI, wake proof -------------
+    # ---- hart 0: staggered — LAUNCH, park proof, REAL IPI, wake proof -----
 waker:
+    MP_STAGE_IMAGE(4096)        # stage the full TCM image once (0x18000)
     li   s7, 1
 waker_loop:
+    # M12 LAUNCH: write hart s7's loader row, then its FIRST msip. The bootrom
+    # loader consumes it (copies the image, enters tile_entry). The tile's
+    # own READY/extinguish follows; the SECOND msip (is_ready below) is the
+    # test IPI, taken by the tile's copied slot-83 ISR.
+    slli t0, s7, 4
+    li   t1, MP_BOOT_MB_BASE
+    add  t0, t0, t1             # loader row for hart s7
+    li   t1, MP_STAGE_BASE
+    sw   t1, 0(t0)              # SRC = the staged image
+    li   t1, 4096
+    sw   t1, 4(t0)              # LEN = full TCM
+    la   t1, tile_entry
+    sw   t1, 8(t0)              # ENTRY
+    slli t0, s7, 2
+    li   t1, MP_CLINT_MSIP
+    add  t0, t0, t1
+    li   t1, 1
+    sw   t1, 0(t0)              # msip[s7] = 1 — ignite the loader (the LAUNCH)
+
     slli t0, s7, 2
     add  t1, s2, t0             # READY[h]
     add  s8, s5, s7             # expected READY value
-    li   t6, 20000              # budgets must trip inside the 100ms watchdog
+    li   t6, 100000             # M12: this first wait covers the tile's ROM
+                                # copy after launch (fits the 100ms watchdog)
 ready_wait:
     lw   t2, 0(t1)
     beq  t2, s8, is_ready

@@ -62,10 +62,12 @@ SHSLV = {
 	'I2C1':      {'sel': 'i2c1',  'shim': 'i2c1',  'rdata': 'i2c1_sh_rdata'},
 }
 
-# M11 memory slaves (structural — SRAM macros, not description peripherals):
-# sel spelling -> the macro Q net that feeds sh_rdata_mux directly (the macro
-# IS the 1-cycle registered read).
+# M11/M12 memory slaves (structural — hard macros, not description
+# peripherals): sel spelling -> the macro Q net that feeds sh_rdata_mux
+# directly (the macro IS the 1-cycle registered read). 'rom' = the M12
+# shared boot ROM at page 000 (read-only rom_hvt_pg).
 MEMSLV = {
+	'rom': 'rom_q',
 	'npuram': 'npuram_q',
 	'bank0': 'bank0_q', 'bank1': 'bank1_q', 'bank2': 'bank2_q', 'bank3': 'bank3_q',
 }
@@ -87,7 +89,7 @@ MOVED_IN = {
 # then the slots.
 PG0_SEL_ORDER = ['GPIO0', 'GPIO1', 'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
 	'GPIO2', 'SYSTEM', 'NPU', 'SARADC', 'AFE', 'GPIO3', 'I2C0', 'I2C1']
-EN_ORDER = ['npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER'] + PG0_SEL_ORDER
+EN_ORDER = ['rom', 'npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER'] + PG0_SEL_ORDER
 RD_ORDER = list(EN_ORDER)
 
 # Polarity-shim groups: (transcribed comment lines, [peripheral names], name pad)
@@ -350,9 +352,10 @@ class McuVhdEmitter():
 		mtxBits = format((MUTEX_BASE >> 12) & 3, '02b')
 		irtrBits = format((IRQROUTER_BASE >> 12) & 3, '02b')
 		lines = []
-		lines.append(ind + '-- M11: page select on s_addr(14:12). Page 000 is the M12 boot-ROM')
-		lines.append(ind + '-- carve (no slave yet ' + EMDASH + ' reads return 0); 010 is the TCM region')
-		lines.append(ind + '-- (tile-private, never arrives here).')
+		lines.append(ind + '-- M11/M12: page select on s_addr(14:12). Page 000 is the shared boot')
+		lines.append(ind + '-- ROM (M12 ' + EMDASH + ' the single rom_hvt_pg all four harts reset into);')
+		lines.append(ind + '-- 010 is the TCM region (tile-private, never arrives here).')
+		lines.append(ind + 'shslv_rom_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "000" else \'0\';')
 		lines.append(ind + 'shslv_perwin_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "001" else \'0\';')
 		lines.append(ind + 'shslv_npuram_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "011" else \'0\';')
 		for b in range(4):
@@ -430,7 +433,7 @@ class McuVhdEmitter():
 		for i, key in enumerate(RD_ORDER):
 			row = self.rdataOf(key).ljust(14) + ' when ' + ('shslv_rd_' + self.selOf(key)).ljust(16) + " = '1' else"
 			lines.append((prefix if i == 0 else cont) + row)
-		lines.append(cont + "(others => '0');  -- no slave (M12 ROM page, TCM page, unmapped)")
+		lines.append(cont + "(others => '0');  -- no slave (TCM page, unmapped)")
 		return lines
 
 	def emitPolarityShims(self):

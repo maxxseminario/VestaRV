@@ -7,14 +7,6 @@ use work.constants.all;
 use work.MemoryMap.all;
 
 entity MCU is
-   generic (
-        -- M5a: preload image for harts 1-3 (all three tiles share one image;
-        -- tests are hart-generic via mhartid). Default = the M3c.4 shmem_mp
-        -- contention image, so every existing run is bit-identical.
-        -- M11: tiles have a single TCM (RAM0) — the RAM1 preload is gone with
-        -- the RAM1 macro (0xC000 is the shared NPU staging RAM now).
-        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf"
-   );
    port (
 
         -- Resetn Pad
@@ -634,7 +626,7 @@ architecture behav of MCU is
         signal clk_osc_dco0     : std_logic; -- DCO0 Clock directly from oscillator
         signal clk_osc_dco1     : std_logic; -- DCO1 Clock directly from oscillator
         signal clk_cpu          : std_logic; -- Gated cpu clock from system
-        signal resetn_core_sr   : std_logic_vector(1 downto 0) := "00"; -- M9b: delayed core release
+        signal boot_fetched     : std_logic := '0'; -- M9b/M12: core released once the boot fetch is staged
         signal resetn_core      : std_logic;
         signal core_mem_ready   : std_logic; -- M2: memory back-pressure to the core (from mp_wait_injector)
 
@@ -665,7 +657,8 @@ architecture behav of MCU is
         -- 12 -> 15 — the arbiter word address now covers ALL of
         -- 0x00000-0x1FFFF (word addr = data_addr(16:2)) and the slave
         -- sub-decode selects on s_addr(14:12):
-        --   000 = boot-ROM page   (no slave until the M12 single-ROM boot)
+        --   000 = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM — one
+        --         rom_hvt_pg, read-only slave; all four harts reset here)
         --   001 = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots
         --         at the LEGACY slot numbering, page 1 = CLINT @0x5000,
         --         page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)
@@ -719,6 +712,7 @@ architecture behav of MCU is
         -- s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY
         -- 0x4000 slot numbering (slot = s_addr(9:6)) — every peripheral is
         -- back at its original Myshkin address, now shared by all 4 harts.
+        signal shslv_rom_sel    : std_logic;   -- 000 -> shared boot ROM 0x0-0x3FFF (M12)
         signal shslv_perwin_sel : std_logic;   -- 001 -> peripheral window 0x4000-0x7FFF
         signal shslv_pg0_sel    : std_logic;   -- window page 0 -> the 16 slots
         signal shslv_npuram_sel : std_logic;   -- 011 -> NPU staging RAM 0xC000-0xFFFF
@@ -726,25 +720,29 @@ architecture behav of MCU is
         signal shslv_bank1_sel  : std_logic;   -- 101 -> bulk RAM bank 1 (0x14000)
         signal shslv_bank2_sel  : std_logic;   -- 110 -> bulk RAM bank 2 (0x18000)
         signal shslv_bank3_sel  : std_logic;   -- 111 -> bulk RAM bank 3 (0x1C000)
+        signal shslv_rom_en     : std_logic;
         signal shslv_npuram_en  : std_logic;
         signal shslv_bank0_en   : std_logic;
         signal shslv_bank1_en   : std_logic;
         signal shslv_bank2_en   : std_logic;
         signal shslv_bank3_en   : std_logic;
+        signal shslv_rd_rom     : std_logic := '0'; -- registered: last access was the boot ROM
         signal shslv_rd_npuram  : std_logic := '0'; -- registered: last access was the NPU RAM
         signal shslv_rd_bank0   : std_logic := '0';
         signal shslv_rd_bank1   : std_logic := '0';
         signal shslv_rd_bank2   : std_logic := '0';
         signal shslv_rd_bank3   : std_logic := '0';
-        -- bulk RAM banks + NPU staging RAM are sram1p16k macros: their Q is
-        -- the 1-cycle registered read the arbiter's slave model expects, so
-        -- the macro output IS the rdata (no extra register). Enables/WEN are
-        -- ACTIVE-LOW at the macro — shims below.
+        -- boot ROM + bulk RAM banks + NPU staging RAM are hard macros: their
+        -- Q is the 1-cycle registered read the arbiter's slave model
+        -- expects, so the macro output IS the rdata (no extra register).
+        -- Enables/WEN are ACTIVE-LOW at the macro — shims below.
+        signal rom_q            : std_logic_vector(31 downto 0);
         signal bank0_q          : std_logic_vector(31 downto 0);
         signal bank1_q          : std_logic_vector(31 downto 0);
         signal bank2_q          : std_logic_vector(31 downto 0);
         signal bank3_q          : std_logic_vector(31 downto 0);
         signal npuram_q         : std_logic_vector(31 downto 0);
+        signal rom_cen_n        : std_logic;
         signal npuram_cen_n     : std_logic;
         signal bank0_cen_n      : std_logic;
         signal bank1_cen_n      : std_logic;
@@ -1391,19 +1389,24 @@ begin
     -- accesses have arbiter back-pressure and "no 0xC000-0xFFFF access during
     -- a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
-    -- M9b: adddec's bus staging now resets to INACTIVE (gate-sim X fix), so
-    -- the first fetch is no longer primed DURING reset. Release the core two
-    -- mclk rising edges after everything else so the staging + ROM prime the
-    -- first instruction before the core consumes it (mirrors hart_tile.vhd).
+    -- M9b/M12: the reset vector (0x0) is the SHARED boot ROM since M12 — the
+    -- first fetch is a multi-cycle arbiter transaction, so the M9b fixed
+    -- two-edge release can no longer guarantee a primed instruction bus.
+    -- Hold the core in reset until its boot fetch has LANDED in the clk_cpu
+    -- consumption stage: sh_dphase='1' means "the boot instruction is on
+    -- the core's read bus" (see hart_tile.vhd for the full rationale — this
+    -- block mirrors the tile). Sticky: releases once, stays released.
     core_rst_stretch: process(mclk, resetn)
     begin
         if resetn = '0' then
-            resetn_core_sr <= (others => '0');
+            boot_fetched <= '0';
         elsif rising_edge(mclk) then
-            resetn_core_sr <= resetn_core_sr(0) & '1';
+            if sh_dphase = '1' then
+                boot_fetched <= '1';
+            end if;
         end if;
     end process;
-    resetn_core <= resetn_core_sr(1);
+    resetn_core <= boot_fetched;
 
     core: vesta
         generic map (
@@ -1457,17 +1460,16 @@ begin
     -- M3c.2: shared window behind mp_arbiter, on the free-running mclk.
     -- Hart 0 is arbiter master 0; masters 1-3 are the hart tiles.
     -- =========================================================================
-    -- M11 decode (mirrors hart_tile.vhd): the three shared regions in
-    -- 0x00000-0x1FFFF — peripheral window (bits 16:14 = 001), NPU staging
-    -- RAM (011), bulk RAM (1xx) — i.e. bit16 OR bit14 under an exact
-    -- (31:17)=0 qualification. The ROM region (000) stays hart-0-private
-    -- until the M12 single-ROM boot; the TCM (010) is private forever. The
-    -- exact upper-bit qualification keeps adddec's >=0x20000 extended-flash
-    -- decode the strict complement of this one — a loose decode would alias
-    -- flash addresses back into the window and re-create the double-claim
+    -- M11/M12 decode (mirrors hart_tile.vhd): EVERYTHING in 0x00000-0x1FFFF
+    -- except the private TCM (region 010) is shared — boot ROM (000, M12),
+    -- peripheral window (001), NPU staging RAM (011), bulk RAM (1xx) —
+    -- under an exact (31:17)=0 qualification. The exact upper-bit
+    -- qualification keeps adddec's >=0x20000 extended-flash decode the
+    -- strict complement of this one — a loose decode would alias flash
+    -- addresses back into the window and re-create the double-claim
     -- deadlock fixed in M3c.3.
     sh_sel <= '1' when data_addr(31 downto 17) = "000000000000000"
-                   and (data_addr(16) = '1' or data_addr(14) = '1') else '0';
+                   and data_addr(16 downto 14) /= "010" else '0';
 
     -- one-shot handshake: request until this access is granted (done), then hold
     -- off re-request until the core steps off the shared address (clk_cpu is gated
@@ -1510,10 +1512,12 @@ begin
     arb_we(3 downto 0) <= sh_we_lanes0;
     sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes0
                       and sh_acked_addr = data_addr(SH_AW+1 downto 2) else '0';
-    -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
-    -- settle AND fetch-priming windows from the arbiter (same qualifier as
-    -- the tiles' sh_req in hart_tile.vhd).
-    arb_req(0) <= sh_sel and not sh_ack_ok and resetn_core;
+    -- M9b/M12: the chip resetn masks the power-on settle window from the
+    -- arbiter. During the stretched priming window (resetn high,
+    -- resetn_core still low) the request MUST flow — it IS the boot fetch —
+    -- and its inputs are defined there by construction (same qualifier as
+    -- the tiles' sh_req in hart_tile.vhd; rationale there).
+    arb_req(0) <= sh_sel and not sh_ack_ok and resetn;
     arb_addr(SH_AW-1 downto 0) <= data_addr(SH_AW+1 downto 2);
     arb_wdata(31 downto 0)     <= write_word;
     arb_lrsc(1 downto 0)       <= lr_sc_bus_0 when sh_sel = '1' else "00";
@@ -1594,11 +1598,12 @@ begin
         );
 
     -- =========================================================================
-    -- M5b/M11: slave-side sub-decode of the shared window. The arbiter
+    -- M5b/M11/M12: slave-side sub-decode of the shared window. The arbiter
     -- serializes ALL masters onto ONE slave port; the 15-bit word address
     -- then selects which physical slave this transaction hits (s_addr(14:12)
     -- pages, see the SH_AW comment):
-    --   0x00000-0x03FFF -> no slave yet (M12's single boot ROM; reads 0)
+    --   0x00000-0x03FFF -> THE shared boot ROM (M12: one rom_hvt_pg,
+    --                      read-only — writes complete but are discarded)
     --   0x04000-0x07FFF -> peripheral window: page 0 = 16 x 256B slots at
     --                      the LEGACY slot numbering (every peripheral back
     --                      at its Myshkin address, shared by all 4 harts),
@@ -1691,6 +1696,7 @@ begin
     bank2_cen_n  <= not shslv_bank2_en;
     bank3_cen_n  <= not shslv_bank3_en;
     npuram_cen_n <= not shslv_npuram_en;
+    rom_cen_n    <= not shslv_rom_en;   -- M12: shared boot ROM (read-only, no WEN)
     shmem_gwen_n <= '0' when sh_we /= "0000" else '1';
 
     shbank0: entity work.sram1p16k_hvt_pg
@@ -1750,26 +1756,25 @@ begin
         );
 
     -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
-    -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000),
-    -- PRELOADED from a .rcf image with PC_RST_VAL set to 0x8200 -> they boot
-    -- directly from RAM with NO SPI/flash boot, and run concurrently with
-    -- hart 0. Distinct HARTID per core. No cross-hart hazard (each tile is
-    -- unchanged single-core logic). M11 retired the tiles' dead boot ROMs
-    -- and private RAM1s (0xC000 = the shared NPU staging RAM now).
+    -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
+    -- M12: tiles reset to PC 0x0 like hart 0 and fetch the SHARED boot ROM
+    -- through the arbiter — the M3b-M11 preloaded-TCM boot (PC_RST_VAL
+    -- 0x8200 + RAM0_INIT_FILE image) is retired; the bootrom's mhartid
+    -- dispatch parks them (WFI) until hart 0 loads/ignites them via the
+    -- CLINT msip + boot-mailbox protocol. Distinct HARTID per core. No
+    -- cross-hart hazard (each tile is unchanged single-core logic). M11
+    -- retired the tiles' dead boot ROMs and private RAM1s (0xC000 = the
+    -- shared NPU staging RAM now).
     --
     -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared
     -- window — its sh_* port maps straight onto that master's slice
-    -- of the flattened arb_* buses. All three run shmem_mp (hartid-indexed
-    -- DISJOINT shared words at 0x10040+4*hartid; shared-word atomicity = M4):
-    -- one verified sweep -> a0 = PASS, then hammer the window forever so every
-    -- regression test runs hart 0 against 3 live contending masters. Each
-    -- hart's a0 is brought out (a0_1/2/3); the tb latches pass AND fail, so a
-    -- post-PASS corruption still fails the run.
+    -- of the flattened arb_* buses. Each hart's a0 is brought out (a0_1/2/3);
+    -- the tb latches pass AND fail, so a post-PASS corruption still fails
+    -- the run.
     hart1: entity work.hart_tile
         generic map (
             HARTID         => 1,
-            PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => HART_RAM0_INIT,
+            PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW
         )
         port map (
@@ -1800,8 +1805,7 @@ begin
     hart2: entity work.hart_tile
         generic map (
             HARTID         => 2,
-            PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => HART_RAM0_INIT,
+            PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW
         )
         port map (
@@ -1829,8 +1833,7 @@ begin
     hart3: entity work.hart_tile
         generic map (
             HARTID         => 3,
-            PC_RST_VAL     => x"00008200",
-            RAM0_INIT_FILE => HART_RAM0_INIT,
+            PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW
         )
         port map (
@@ -2497,16 +2500,28 @@ begin
     -- =============================================================================
     -- Memory Blocks
     -- =============================================================================
+    -- M12: THE shared boot ROM (page 000, 0x0-0x3FFF) — hart 0's private
+    -- boot ROM promoted to an ARBITER SLAVE, like the bulk banks: CEN
+    -- sampled with the address at the s_en cycle's ending edge on the
+    -- free-running mclk, Q valid the next cycle (the macro IS the 1-cycle
+    -- registered read). Read-only: no WEN pin — a write transaction to this
+    -- page completes at the arbiter but is discarded. All four harts reset
+    -- to PC 0x0 and fetch their first instruction from here through the
+    -- arbiter (see core_rst_stretch). BLOCKPWR's ROMOFF bit keeps gating
+    -- the macro (pgen_mem(0)).
     rom0: entity work.rom_hvt_pg
         port map (
-            Q    => mem_dout(0),
-            CLK  => clk_mem(0),
-            CEN  => mem_en(0),
-            A    => mem_addr, 
+            Q    => rom_q,
+            CLK  => mclk,
+            CEN  => rom_cen_n,
+            A    => sh_addr(11 downto 0),
             EMA  => "000",
             PGEN => pgen_mem(0)
     );
 
+    -- M12: hart 0's adddec no longer has a memory behind its ROM slot (the
+    -- read mux lost that arm); keep its array input defined.
+    mem_dout(0) <= (others => '0');
 
     ram0: entity work.sram1p16k_hvt_pg
         port map (

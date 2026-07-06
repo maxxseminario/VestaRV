@@ -165,21 +165,14 @@ for rcf in "${TEST_FILES[@]}"; do
     WRAPPER_FILES+=("$wf")
     # Minimal wrapper: unique top-level entity that binds the test file generic.
     # No ports (riscv_tb is a testbench), no signal declarations needed.
-    # M5a: park/release + lock-protocol tests (shboot/shspin) need harts 1-3
-    # preloaded with the SAME hart-generic program as hart 0; every other test
-    # keeps the default shmem_mp contention tiles (generic defaults).
-    base="$(basename "$rcf" .rcf)"
-    base="$(sed 's/^x*//' <<< "$base")"          # strip the pad prefix
-    extra_gen=""
-    case "$base" in
-        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
-            img="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/${base}"
-            extra_gen=", HART_RAM0_INIT => \"${img}.ram0.rcf\"" ;;
-    esac
+    # M12: the tile-TCM preload (HART_RAM0_INIT) is RETIRED — every hart boots
+    # from the shared ROM like silicon, so the wrapper carries ONLY TEST_FILE.
+    # sh-protocol tests load their tiles at runtime through the bootrom's msip
+    # loader mailboxes; the old sh-glob case + ram_images/*.ram0.rcf are gone.
     cat > "$wf" <<VHDL
 entity ${entity} is end ${entity};
 architecture behavioral of ${entity} is begin
-    uut: entity work.riscv_tb generic map (TEST_FILE => "${rcf}"${extra_gen});
+    uut: entity work.riscv_tb generic map (TEST_FILE => "${rcf}");
 end architecture;
 VHDL
 done

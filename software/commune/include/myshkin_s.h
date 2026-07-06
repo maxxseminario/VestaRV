@@ -47,14 +47,21 @@ extern "C" {
 #define PERIPH_AFE0_BASE        0x4C00
 #define PERIPH_GPIO3_BASE       0x4D00
 
+// M11/M12 Castalia memory map: the boot ROM (0x0) is SHARED by all four
+// harts (M12 single-ROM boot); each hart's private RAM is ONLY the 16 KB
+// TCM at 0x8000-0xBFFF. 0xC000-0xFFFF is the shared NPU staging RAM and
+// 0x10000-0x1FFFF the shared bulk RAM (both behind the arbiter). The boot
+// LOAD WINDOW (flash segments) is still 0x8000-0xFFFC: TCM + staging RAM.
 #define ROM_BASE_ADDR           0x00000
 #define IVT_BASE_ADDR           0x08000
 #define RAM0_BASE_ADDR          0x08000
 #define PROG_BASE_ADDR          0x08200
-#define RAM1_BASE_ADDR          0x0C000
-#define RAM_END_ADDR            0x0FFFF
-#define RAM_SIZE                0x08000  
-#define SP_INIT_VAL             0x0FFFC  // Initial Stack Pointer Value (top of RAM)
+#define TCM_END_ADDR            0x0BFFF  // private TCM end (M11: RAM0 is the only private RAM)
+#define RAM1_BASE_ADDR          0x0C000  // M11: the shared NPU staging RAM (legacy name kept)
+#define RAM_END_ADDR            0x0FFFF  // end of the boot LOAD WINDOW (staging RAM top)
+#define RAM_SIZE                0x08000  // load-window size (TCM + staging RAM)
+#define SHARED_RAM_BASE_ADDR    0x10000  // 64 KB shared bulk RAM (mailboxes at 0x10000+)
+#define SP_INIT_VAL             0x0BFFC  // Initial Stack Pointer Value (top of the private TCM)
 
 //  ---------- GPIO Register Offsets ----------
 #define GPIO_PxIN               0x00      //  offset = 0 bytes

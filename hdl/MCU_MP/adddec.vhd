@@ -371,13 +371,14 @@ architecture Behavioral of adddec is
 
 begin
 
-    -- Memory map (M11 rework — this decoder now serves ONLY the tile-private
-    -- regions; everything else is the MCU-level shared window behind the
-    -- mp_arbiter, selected by the master-side sh_sel in hart_tile.vhd/MCU.vhd):
-    -- ROM0 - 0x00000 - 0x03FFF (16KB, hart 0 only until the M12 single-ROM boot)
+    -- Memory map (M11 rework; M12 single-ROM boot — this decoder now serves
+    -- ONLY the hart-private TCM; everything else is the MCU-level shared
+    -- window behind the mp_arbiter, selected by the master-side sh_sel in
+    -- hart_tile.vhd/MCU.vhd):
     -- TCM  - 0x08000 - 0x0BFFF (16KB private RAM0, one per tile)
-    -- Shared (NOT decoded here): 0x04000-0x07FFF peripheral window,
-    --   0x0C000-0x0FFFF NPU staging RAM, 0x10000-0x1FFFF shared bulk RAM.
+    -- Shared (NOT decoded here): 0x00000-0x03FFF boot ROM (M12),
+    --   0x04000-0x07FFF peripheral window, 0x0C000-0x0FFFF NPU staging RAM,
+    --   0x10000-0x1FFFF shared bulk RAM.
     -- Extended Memory (Flash): 0x20000 and above (when ENABLE_FLASH_EXTENDED_MEM = true)
 
     -- Extract address fields
@@ -416,17 +417,15 @@ begin
             -- Flash memory access
             mem_en_flash_sig <= '0';
         else
-            -- Normal memory map (M11: only the PRIVATE regions decode here.
-            -- Regions 001 (peripheral window), 011 (NPU staging RAM) and
-            -- 1xx (shared bulk RAM) are shared — the master-side sh_sel in
-            -- hart_tile.vhd/MCU.vhd claims them and no enable asserts here,
-            -- exactly like the pre-M11 region-4 carve-out.)
-            -- ROM : 0x00000 - 0x03FFF (bits 16:14 = 000)
+            -- Normal memory map (M11/M12: only the PRIVATE TCM decodes here.
+            -- Regions 000 (boot ROM, M12), 001 (peripheral window), 011 (NPU
+            -- staging RAM) and 1xx (shared bulk RAM) are shared — the
+            -- master-side sh_sel in hart_tile.vhd/MCU.vhd claims them and no
+            -- enable asserts here, exactly like the pre-M11 region-4
+            -- carve-out.)
             -- TCM : 0x08000 - 0x0BFFF (bits 16:14 = 010, private RAM0)
 
             case mem_region_sel is
-                when "000" =>
-                    mem_en_sig(MemSlotROM) <= '0';
                 when "010" =>
                     mem_en_sig(MemSlotRAM0) <= '0';
                 when others =>
@@ -487,21 +486,20 @@ begin
     end process;
 
     -- Output buffer selection using combinational assignments
-    -- (M11: the peripheral and RAM1 arms are gone — peripherals live behind
-    -- the arbiter and are consumed via the master-side sh_rdata_cpu mux, and
-    -- RAM1's region is the shared NPU staging RAM. Shared-region accesses
-    -- fall through to the safe default arm here, exactly like region 4 did.)
+    -- (M11/M12: the ROM, peripheral and RAM1 arms are gone — the boot ROM
+    -- and the peripherals live behind the arbiter and are consumed via the
+    -- master-side sh_rdata_cpu mux, and RAM1's region is the shared NPU
+    -- staging RAM. Shared-region accesses fall through to the safe default
+    -- arm here, exactly like region 4 did.)
     gen_flash_mux: if ENABLE_FLASH_EXTENDED_MEM generate
         out_buff <= nop                              when resetn = '0' else
                     flash_dout_reg                   when mem_sel_flash_int = '0' else  -- Flash
-                    mem_dout(MemSlotROM)             when mem_sel_int = "110" else  -- ROM
                     mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0 (TCM)
                     (others => '1');
     end generate;
 
     gen_no_flash_mux: if not ENABLE_FLASH_EXTENDED_MEM generate
         out_buff <= nop                              when resetn = '0' else
-                    mem_dout(MemSlotROM)             when mem_sel_int = "110" else  -- ROM
                     mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0 (TCM)
                     (others => '1');
     end generate;
