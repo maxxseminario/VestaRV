@@ -42,7 +42,6 @@
 ../../../hdl/MCU_MP/sim/ARM_IP_ROM.vhd
 ../../../hdl/MCU_MP/sim/ARM_IP_RAM.vhd
 ../../../hdl/MCU_MP/adddec.vhd
-../../../hdl/MCU_MP/mp_wait_injector.vhd
 ../../../hdl/MCU_MP/clint.vhd
 ../../../hdl/MCU_MP/irq_router.vhd
 ../../../hdl/MCU_MP/mp_arbiter.vhd

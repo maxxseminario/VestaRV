@@ -4,12 +4,13 @@ use IEEE.NUMERIC_STD.all;
 use work.constants.all;
 
 entity csr_unit is
-    generic (
-        HARTID : natural := 0                                  -- Value returned by mhartid (0xF14)
-    );
     port (
         clk              : in  std_logic;
         resetn           : in  std_logic;
+
+        -- M13: hart id is a PORT (was the HARTID generic) so all four hart
+        -- tiles share ONE netlist (tile hardening, M14); wired per instance.
+        hart_id          : in  std_logic_vector(31 downto 0) := (others => '0'); -- Value returned by mhartid (0xF14)
         
         -- CSR instruction interface
         csr_addr         : in  std_logic_vector(11 downto 0);  -- CSR address
@@ -46,11 +47,11 @@ begin
                                 else '0';
 
     -- CSR read process
-    process(csr_addr, mcycle, minstret)
+    process(csr_addr, mcycle, minstret, hart_id)
     begin
         case csr_addr is
             -- Machine Information Registers (Read-only)
-            when CSR_MHARTID   => csr_read_val <= std_logic_vector(to_unsigned(HARTID, 32));
+            when CSR_MHARTID   => csr_read_val <= hart_id;
 
             -- Machine Counters (Read/Write)
             when CSR_MCYCLE    => csr_read_val <= mcycle(31 downto 0);
