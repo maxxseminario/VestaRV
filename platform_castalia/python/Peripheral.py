@@ -102,7 +102,20 @@ class Peripheral():
 						# devices moved out of the page): the RTL still indexes periph_dout by these
 						# numbers (e.g. to zero a moved peripheral's dead legacy window)
 
-	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None, legacySlot=None):
+	# MCU_MP bus metadata (RTL-generation track Phase 2) — how the peripheral hangs off
+	# the chip's memory fabric; consumed by python/mcu_vhd.py to generate MCU.vhd
+	SharedBus = None	# None = hart-0-private legacy periph bus; 'periph' = standard periph
+						# register bus bridged onto the mp_arbiter slave port (active-low en/wen
+						# shim); 'native' = speaks the arbiter's active-high slave protocol
+						# directly (CLINT/MUTEX/IRQROUTER)
+	CombinationalRead = False	# True = the read path is COMBINATIONAL (collapses when en
+								# deasserts) and needs an MCU-side bridge register at the
+								# LATCH->DATA edge (I2C, NPU). Never stretch en instead!
+	ClockDomain = None	# Core clock domain: 'mclk', 'smclk' (SYS_CLK_CR=0 rule applies to
+						# software), or 'muxed' (TIMER's glitch-free clock mux)
+	StrobeNote = None	# Access side-effect software must know (e.g. SPIxRX read clears TCIF)
+
+	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None):
 		'''
 		@peripheralTemplate - The PeripheralTemplate type to bind this Peripheral to
 		@peripheralMemorySlot - The peripheral memory slot number that this peripheral will use
@@ -112,6 +125,10 @@ class Peripheral():
 		@interruptPriority - The value of the interrupt priority (range: [0, ∞), smaller is higher priority). Also the element number in the interrupt vector table. Set to None if there is no interrupt in this peripheral
 		@nameIndex - The index to replace the "x" character in the PeripheralTemplate and the RegisterTemplates
 		@legacySlot - The 0x4000-page slot number this peripheral owns or (for shared-window devices) used to own. Defaults to peripheralMemorySlot. Set explicitly for moved peripherals whose slot number still matters to the RTL; None for devices that never had one (e.g. CLINT)
+		@sharedBus - None (hart-0-private), 'periph' (register bus bridged onto the mp_arbiter) or 'native' (speaks the arbiter slave protocol directly)
+		@combinationalRead - True when the peripheral's register read is combinational and needs the MCU-side bridge register (I2C, NPU)
+		@clockDomain - 'mclk', 'smclk' or 'muxed'; software-visible clocking class of the peripheral core
+		@strobeNote - access side-effect note (e.g. reading SPIxRX auto-clears TCIF)
 		'''
 		# Check peripheralTemplate
 		if type(peripheralTemplate) != PeripheralTemplate:
@@ -204,6 +221,26 @@ class Peripheral():
 			if (self.PeripheralMemorySlot is not None) and (legacySlot != self.PeripheralMemorySlot):
 				raise Exception('legacySlot (' + str(legacySlot) + ') contradicts peripheralMemorySlot (' + str(self.PeripheralMemorySlot) + ')')
 			self.LegacySlot = legacySlot
+
+		# Set the MCU_MP bus metadata
+		if sharedBus not in (None, 'periph', 'native'):
+			raise Exception('sharedBus must be None, "periph" or "native", but its value is ' + str(sharedBus))
+		if (sharedBus is not None) and (self.PeripheralMemorySlot is not None):
+			raise Exception('a shared-window peripheral cannot own a private peripheral memory slot (' + self.Template.NameTemplate + ')')
+		if (sharedBus is None) and (absoluteBaseAddress is not None):
+			raise Exception('a peripheral outside the legacy slot space must declare its sharedBus class (' + self.Template.NameTemplate + ')')
+		self.SharedBus = sharedBus
+		if type(combinationalRead) != bool:
+			raise Exception('combinationalRead must be a bool')
+		if combinationalRead and sharedBus != 'periph':
+			raise Exception('combinationalRead only applies to sharedBus="periph" peripherals (the bridge register lives on the arbiter slave side)')
+		self.CombinationalRead = combinationalRead
+		if clockDomain not in (None, 'mclk', 'smclk', 'muxed'):
+			raise Exception('clockDomain must be None, "mclk", "smclk" or "muxed", but its value is ' + str(clockDomain))
+		self.ClockDomain = clockDomain
+		if (strobeNote is not None) and (type(strobeNote) != str):
+			raise Exception('strobeNote must be None or a string')
+		self.StrobeNote = strobeNote
 
 		# Create blank pins list
 		self.Pins = []

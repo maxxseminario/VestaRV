@@ -467,9 +467,9 @@ class ChipGenerator():
 		raise Exception('Could not find Peripheral "' + name + '"')
 		return
 	
-	def CreatePeripheral(self, nameTemplate, nameIndex, peripheralMemorySlot, interruptPriority, absoluteBaseAddress=None, legacySlot=None):
+	def CreatePeripheral(self, nameTemplate, nameIndex, peripheralMemorySlot, interruptPriority, absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None):
 		pt = self.FindPeripheralTemplate(nameTemplate)
-		p = Peripheral(peripheralTemplate=pt, peripheralMemorySlot=peripheralMemorySlot, peripheralMemorySlotCount=self.PeripheralMemorySlotCount, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterMemorySlotsPerPeripheralMemorySlot, peripheralMemoryStartAddress=self.PeripheralMemoryStartAddress, interruptPriority=interruptPriority, nameIndex=nameIndex, absoluteBaseAddress=absoluteBaseAddress, legacySlot=legacySlot)
+		p = Peripheral(peripheralTemplate=pt, peripheralMemorySlot=peripheralMemorySlot, peripheralMemorySlotCount=self.PeripheralMemorySlotCount, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterMemorySlotsPerPeripheralMemorySlot, peripheralMemoryStartAddress=self.PeripheralMemoryStartAddress, interruptPriority=interruptPriority, nameIndex=nameIndex, absoluteBaseAddress=absoluteBaseAddress, legacySlot=legacySlot, sharedBus=sharedBus, combinationalRead=combinationalRead, clockDomain=clockDomain, strobeNote=strobeNote)
 		p.Parent = self
 		self.Peripherals.append(p)
 		return p
@@ -667,6 +667,8 @@ class ChipGenerator():
 		memoryMapVHDPath =  self.ChipRootDirectory + '/out/hdl/MemoryMap.vhd'
 		latexUserGuidePath =  self.ChipRootDirectory + '/latex/TRM'
 		signalRoutingVHDPath =  self.ChipRootDirectory + '/out/hdl/MCU_routing_template.vhd'
+		mcuVHDTemplatePath =  self.ChipRootDirectory + '/hdl_templates/MCU.template.vhd'
+		mcuVHDPath =  self.ChipRootDirectory + '/out/hdl/MCU.vhd'
 		ramRomSizeDir =  self.ChipRootDirectory + '/out/linker-scripts'
 		chipConfigJsonPath =  self.ChipRootDirectory + '/config/MemoryMap.json'
 
@@ -705,6 +707,11 @@ class ChipGenerator():
 				# editing an existing MCU.vhd in place (keeps hdl/MCU_MP/ untouched)
 				self.generateSignalRoutingVHD(signalRoutingVHDPath, editFile=False)
 				self.generateRamRomSizeFiles(ramRomSizeDir)
+				# RTL-generation track Phase 2: golden-master-templated MCU.vhd (drop-in
+				# for hdl/MCU_MP/MCU.vhd; verify with python/check_mcu_vhd.py)
+				if (test is False) and (self.McuMpCompat is not None) and os.path.isfile(mcuVHDTemplatePath):
+					import mcu_vhd
+					mcu_vhd.generateMcuVhd(self, mcuVHDTemplatePath, mcuVHDPath)
 			
 			self.generateMemoryMapJson(chipConfigJsonPath)
 		else:

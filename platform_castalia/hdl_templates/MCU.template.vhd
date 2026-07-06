@@ -1,0 +1,2458 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_arith.all;
+use ieee.std_logic_unsigned.all;
+library work;
+use work.constants.all;
+use work.MemoryMap.all;
+
+entity MCU is
+   generic (
+        -- M5a: preload images for harts 1-3 (all three tiles share one image;
+        -- tests are hart-generic via mhartid). Defaults = the M3c.4 shmem_mp
+        -- contention images, so every existing run is bit-identical.
+        HART_RAM0_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram0.rcf";
+        HART_RAM1_INIT : string := "/home/mseminario2/vestarv/xcelium/riscv_test/ram_images/rv32ui-p-shmem_mp.ram1.rcf"
+   );
+   port (
+
+        -- Resetn Pad
+        resetn_in	: in	std_logic;	-- '0' <= resetn, '1' <= system running
+		resetn_out	: out	std_logic;	-- Don't care
+		resetn_dir	: out	std_logic;	-- Must be set to input mode
+		resetn_ren	: out	std_logic;	-- Set to enable pullup resistor
+
+        --GPIO0 Connections (SPI0, CLKHFXT, CLKLFXT, TRAP, BOOT)
+		prt1_in		    : in	std_logic_vector(7 downto 0);
+		prt1_out		: out	std_logic_vector(7 downto 0);
+		prt1_dir		: out	std_logic_vector(7 downto 0);
+		prt1_ren		: out	std_logic_vector(7 downto 0);
+
+        --GPIO1 Connections (SPI1, UART0, UART1)
+		prt2_in		    : in	std_logic_vector(7 downto 0);
+		prt2_out		: out	std_logic_vector(7 downto 0);
+		prt2_dir		: out	std_logic_vector(7 downto 0);
+		prt2_ren		: out	std_logic_vector(7 downto 0);
+
+        --GPIO2 Connections (TIMER0, TIMER1)
+		prt3_in		    : in	std_logic_vector(7 downto 0);
+		prt3_out		: out	std_logic_vector(7 downto 0);
+		prt3_dir		: out	std_logic_vector(7 downto 0);
+		prt3_ren		: out	std_logic_vector(7 downto 0);
+
+        --GPIO3 Connections (I2C0, I2C1, DTPs)
+        prt4_in		    : in	std_logic_vector(7 downto 0);
+		prt4_out		: out	std_logic_vector(7 downto 0);
+		prt4_dir		: out	std_logic_vector(7 downto 0);
+		prt4_ren		: out	std_logic_vector(7 downto 0);
+
+        -- AFE Connections
+        use_dac_glb_bias : out std_logic;
+        en_bias_buf      : out std_logic;
+        en_bias_gen      : out std_logic; -- For WideSwingCascBias
+
+        -- Biasing Connections
+        BIAS_ADJ		: out	std_logic_vector(5 downto 0);	
+        BIAS_DBP		: out	std_logic_vector(13 downto 0);
+        BIAS_DBN		: out	std_logic_vector(13 downto 0);
+        BIAS_DBPC		: out	std_logic_vector(13 downto 0);
+        BIAS_DBNC		: out	std_logic_vector(13 downto 0);
+
+        -- Potentiostat Biases
+        BIAS_TC_POT     : out   std_logic_vector(5 downto 0);
+        BIAS_LC_POT     : out   std_logic_vector(5 downto 0);
+        BIAS_TIA_G_POT  : out   std_logic_vector(16 downto 0); 
+        BIAS_REV_POT    : out   std_logic_vector(13 downto 0);
+
+        -- DSADC Biases
+        BIAS_TC_DSADC  : out   std_logic_vector(5 downto 0);
+        BIAS_LC_DSADC  : out   std_logic_vector(5 downto 0);
+        BIAS_RIN_DSADC : out   std_logic_vector(5 downto 0);     
+        BIAS_RFB_DSADC : out   std_logic_vector(5 downto 0);   
+        BIAS_DSADC_VCM : out   std_logic_vector(13 downto 0);
+
+        -- DSADC Connections
+        dsadc_conv_done : in std_logic; 
+        dsadc_en        : out std_logic;
+        dsadc_clk       : out std_logic;
+        dsadc_switch    : out std_logic_vector(2 downto 0);
+        dac_en_pot      : out std_logic; 
+        adc_ext_in      : out std_logic;
+        atp_en          : out std_logic;
+        atp_sel         : out std_logic;
+        adc_sel         : out std_logic;
+
+        -- SARADC Connections
+        saradc_clk      : out std_logic;
+        saradc_rdy      : in std_logic;
+        saradc_rst      : out std_logic;
+        saradc_data     : in std_logic_vector(9 downto 0); 
+
+        -- Testing Purposes Only
+        a0  : out std_logic_vector(31 downto 0);
+
+        -- M3b: per-hart pass/fail observation (a0 of the 3 private-memory harts)
+        a0_1 : out std_logic_vector(31 downto 0);
+        a0_2 : out std_logic_vector(31 downto 0);
+        a0_3 : out std_logic_vector(31 downto 0)
+
+    );
+end entity;
+
+architecture behav of MCU is
+
+    component vesta
+        generic (
+            PC_RST_VAL : std_logic_vector(31 downto 0);
+            NUM_IRQS  : natural;
+            HARTID    : natural := 0
+        );
+        port (
+            clk              : in  std_logic;
+            resetn           : in  std_logic;
+            sleep            : in  std_logic;
+            clk_cpu          : out std_logic;
+
+            data_addr        : out std_logic_vector(31 downto 0);
+            wen              : out std_logic_vector(3 downto 0);
+            write_data       : out std_logic_vector(31 downto 0);
+            read_data        : in  std_logic_vector(31 downto 0);
+            mask             : in  std_logic_vector(1 downto 0);
+            mem_ready        : in  std_logic := '1';
+
+            lr_sc_bus        : out std_logic_vector(1 downto 0);
+            sc_fail_ext      : in  std_logic := '0';
+            amo_lock         : out std_logic;
+
+            irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
+            irq_priority    : in  std_logic_vector(NUM_IRQS-1 downto 0);
+            irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);
+            irq_recursion_en: in  std_logic;
+            isr_ret         : out std_logic;
+
+            trap_flag        : out  std_logic;
+
+            a0               : out std_logic_vector(31 downto 0)
+
+        );
+    end component;
+
+
+
+    component adddec is
+        generic (
+            ENABLE_FLASH_EXTENDED_MEM : boolean := false
+        );
+        port (
+            clk               : in  std_logic;
+            resetn            : in  std_logic;
+
+            -- CPU interface
+            wen               : in  std_logic_vector(3 downto 0);
+            data_addr         : in  std_logic_vector(31 downto 0);
+            write_word        : in  std_logic_vector(31 downto 0);
+            mask              : out std_logic_vector(1 downto 0);
+            
+            -- Memory Bus 
+            write_data        : out std_logic_vector(31 downto 0); 
+            read_data         : out std_logic_vector(31 downto 0);
+            mem_addr          : out std_logic_vector(11 downto 0);  -- 12 bits for 16KB memory blocks
+            addr_periph       : out std_logic_vector(7 downto 2);
+            mab_out           : out std_logic_vector(31 downto 0);  -- Full address bus for flash
+            wen_fe        : out std_logic_vector(3 downto 0);
+            -- wen_mem           : out std_logic_vector(3 downto 0);
+            GWEN              : out std_logic;
+
+            -- Memory Control Signals
+            mem_en            : out std_logic_vector(2 downto 0); 
+            mem_en_periph     : out std_logic_vector(15 downto 0);
+            clk_mem           : out std_logic_vector(2 downto 0); 
+            clk_periph        : out std_logic_vector(15 downto 0);
+            
+            -- Flash Extended Memory Signals (when ENABLE_FLASH_EXTENDED_MEM = true)
+            mem_en_flash      : out std_logic;
+            clk_mem_flash     : out std_logic;
+            
+            -- Memory Inputs
+            mem_dout          : in word_array(0 to 2); 
+            periph_dout       : in word_array(0 to 15);
+            flash_dout        : in std_logic_vector(31 downto 0)  -- Flash data input
+        );
+    end component;
+
+
+
+    ----------------------------------- Peripherals --------------------------------------------------
+
+    -- SYSTEMx
+    component SYSTEM
+        generic (
+            NUM_IRQS    : natural := 32
+        );
+        port (
+            -- Clock Inputs 
+            clk_lfxt_in     : in  std_logic;
+            clk_hfxt_in     : in  std_logic;
+            clk_dco0_in     : in  std_logic;
+            clk_dco1_in     : in  std_logic;
+
+            -- Reset Inputs
+            resetn_in       : in  std_logic;
+            resetn_por      : in  std_logic;
+            resetn_sys      : out std_logic;
+
+            -- Interrupt Signals
+            irq             : in  std_logic_vector(NUM_IRQS -1 downto 0); 
+            isr_ret         : in  std_logic;
+            irq_en          : out std_logic_vector(NUM_IRQS -1 downto 0);
+            irq_priority    : out std_logic_vector(NUM_IRQS -1 downto 0);
+            irq_recursion_en: out std_logic;
+            irq_sys_wdt     : out std_logic;
+
+            -- Memory Bus
+            clk_mem         : in  std_logic;
+            en_mem          : in  std_logic;
+            wen             : in  std_logic_vector(3 downto 0);
+            addr_periph     : in  std_logic_vector(7 downto 2);
+            write_data      : in  std_logic_vector(31 downto 0);
+            read_data       : out std_logic_vector(31 downto 0);
+
+            -- Clock Outputs
+            mclk_out        : out std_logic;
+            smclk_out       : out std_logic;
+            clk_lfxt_out    : out std_logic;
+            clk_hfxt_out    : out std_logic;
+
+            -- DCO Signals 
+            en_dco0_out        : out std_logic;
+            DCO0_BIAS          : out std_logic_vector(11 downto 0);
+            en_dco1_out        : out std_logic;
+            DCO1_BIAS          : out std_logic_vector(11 downto 0);
+
+            --Memory Power 
+            PGEN_mem        : out std_logic_vector(2 downto 0) -- '0' mem on, '1' mem off
+        );
+    end component;
+
+    --GPIOx
+    component GPIO
+        generic (
+            num_pins        : natural;
+            PadOUTPosLogic  : boolean;
+            PadDIRPosLogic  : boolean;
+            PadRENPosLogic  : boolean;
+            RstValPxOUT     : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxDIR     : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxSEL		: std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxREN     : std_logic_vector(31 downto 0) := (others => '0')
+        );
+        port (
+            resetn           : in  std_logic;
+            irq              : out std_logic_vector(num_pins - 1 downto 0);	-- Interrupt request output signal, active high
+
+            clk_mem         : in  std_logic;
+            en              : in  std_logic;
+            wen             : in  std_logic_vector(3 downto 0);
+            write_data      : in  std_logic_vector(31 downto 0);
+            read_data       : out std_logic_vector(31 downto 0);
+            addr_periph     : in  std_logic_vector(7 downto 2);
+
+            prt_in          : in  std_logic_vector(num_pins - 1 downto 0);
+            prt_out_out     : out std_logic_vector(num_pins - 1 downto 0);
+            prt_dir_out     : out std_logic_vector(num_pins - 1 downto 0);
+            prt_ren_out     : out std_logic_vector(num_pins - 1 downto 0);
+
+            PxOUT_out		: out	std_logic_vector(num_pins - 1 downto 0);
+            PxDIR_out		: out	std_logic_vector(num_pins - 1 downto 0);
+            PxREN_out		: out	std_logic_vector(num_pins - 1 downto 0);
+
+            alt_func_out_in		: in	slv(num_pins - 1 downto 0);	
+            alt_func_dir_in		: in	slv(num_pins - 1 downto 0);	
+            alt_func_ren_in		: in	slv(num_pins - 1 downto 0)	
+        );
+    end component;
+
+    --SPIx
+    component SPI is
+        generic
+        (
+            ENABLE_EXTENDED_MEM : boolean := false  
+        );
+        port (
+            clk         : in  std_logic;
+            mclk        : in  std_logic;
+            -- clk_cpu     : in  std_logic;
+            resetn      : in  std_logic;
+            irq_tc      : out std_logic;
+            irq_te      : out std_logic;
+
+            clk_mem      : in  std_logic; -- Clock for Memory
+            en_mem       : in  std_logic; -- Enable Memory Peripheral
+            wen          : in  std_logic_vector(3 downto 0); -- Write Enable for Memory
+            write_data   : in  std_logic_vector(31 downto 0); -- Data to Write
+            read_data    : out std_logic_vector(31 downto 0); -- Data Read
+            addr_periph  : in  std_logic_vector(7 downto 2); -- Peripheral Address
+
+            cs_in        : in  std_logic;
+
+            sck_in       : in  std_logic;
+            sck_out      : out std_logic;
+            sck_dir      : out std_logic;
+            sck_ren      : out std_logic;
+            sck_ren_in   : in  std_logic;
+
+            mosi_in      : in  std_logic;
+            mosi_out     : out std_logic;
+            mosi_dir     : out std_logic;
+            mosi_ren     : out std_logic;
+            mosi_ren_in  : in  std_logic;
+
+            miso_in      : in  std_logic;
+            miso_out     : out std_logic;
+            miso_dir     : out std_logic;
+            miso_ren     : out std_logic;
+            miso_ren_in  : in  std_logic;
+
+            -- Flash Extended Memory Signals (only used when ENABLE_EXTENDED_MEM = true)
+            en_mem_flash    : in std_logic;
+            clk_mem_flash   : in std_logic;
+            mab             : in std_logic_vector(31 downto 0);
+            rdata_flash     : out std_logic_vector(31 downto 0);
+            disable_clk_cpu : out std_logic;
+            
+            cs_flash_out    : out std_logic;
+            cs_flash_dir    : out std_logic;
+            cs_flash_ren    : out std_logic
+
+        );
+    end component;
+
+    -- UARTx
+    component UART is
+        port (
+            -- System Signals
+            clk          : in  std_logic;    
+            resetn       : in  std_logic;    
+
+            -- Interrupt Outputs
+            irq_rc      : out std_logic;   
+            irq_te      : out std_logic; 
+            irq_tc      : out std_logic;  
+
+            -- Memory Bus
+            clk_mem     : in  std_logic;
+            en_mem      : in  std_logic;
+            wen         : in  std_logic_vector(3 downto 0);
+            addr_periph : in  std_logic_vector(7 downto 2);
+            write_data  : in  word;
+            read_data   : out word;
+
+            -- Pad Interface
+            TX_OUT      : out std_logic;
+            TX_DIR      : out std_logic;
+            TX_REN      : out std_logic;
+
+            RX_IN       : in  std_logic;
+            RX_OUT      : out std_logic;
+            RX_DIR      : out std_logic;
+            RX_REN      : out std_logic
+        );
+    end component;
+
+    -- I2Cx
+    component I2C is
+        generic (
+            default_SAD	: std_logic_vector(6 downto 0) := (others => '0')	-- The default slave address for this I2C peripheral
+        );
+        port
+        (
+            -- System Signals
+            smclk			: in	std_logic;	-- Sub-main clock
+            resetn			: in	std_logic;	-- System reset
+
+            irq_str 		: out std_logic;
+            irq_spr 		: out std_logic;
+            irq_msts 		: out std_logic;
+            irq_msps 		: out std_logic;
+            irq_marb 		: out std_logic;
+            irq_mtxe 		: out std_logic;
+            irq_mnr 		: out std_logic;
+            irq_mxc 		: out std_logic;
+            irq_sa 			: out std_logic;
+            irq_stxe 		: out std_logic;
+            irq_sovf 		: out std_logic;
+            irq_snr 		: out std_logic;
+            irq_sxc 		: out std_logic;
+
+            -- Memory Bus
+            ClkMem			: in	std_logic;
+            EnMemPeriph		: in	std_logic;
+            WEn				: in	std_logic_vector(3 downto 0);
+            MABPart			: in	std_logic_vector(7 downto 2);
+            wdata			: in	std_logic_vector(31 downto 0);
+            rdata_out		: out	std_logic_vector(31 downto 0);
+
+            -- Pin Inputs/Outputs
+            SDA_IN			: in	std_logic;
+            SDA_OUT			: out	std_logic;
+            SDA_DIR			: out	std_logic;
+            SDA_REN_in		: in	std_logic;
+            SDA_REN			: out	std_logic;
+
+            SCL_IN			: in	std_logic;
+            SCL_OUT			: out	std_logic;
+            SCL_DIR			: out	std_logic;
+            SCL_REN_in		: in	std_logic;
+            SCL_REN			: out	std_logic
+        );
+    end component;
+
+    -- TIMERx
+    component TIMER is
+        port (
+            -- System Signals
+            mclk         : in  std_logic;  -- Main clock
+            smclk        : in  std_logic;  -- Sub-main clock
+            clk_lfxt     : in  std_logic;  -- Low-frequency crystal clock
+            clk_hfxt     : in  std_logic;  -- High-frequency crystal clock
+            resetn       : in  std_logic;  -- System resetn 
+
+            -- IRQ Signals
+            irq_cap0    : out std_logic;  -- Capture 0 Interrupt
+            irq_cap1    : out std_logic;  -- Capture 1 Interrupt
+            irq_ovf     : out std_logic;  -- Overflow Interrupt
+            irq_cmp0    : out std_logic;  -- Compare 0 Interrupt
+            irq_cmp1    : out std_logic;  -- Compare 1 Interrupt
+            irq_cmp2    : out std_logic;  -- Compare 2 Interrupt
+
+            -- Memory Bus
+            clk_mem      : in  std_logic;
+            en_mem       : in  std_logic;
+            wen          : in  std_logic_vector(3 downto 0);
+            addr_periph  : in  std_logic_vector(7 downto 2);
+            write_data   : in  std_logic_vector(31 downto 0);
+            read_data    : out std_logic_vector(31 downto 0);
+
+            -- Pad Interface
+            cmp0_ren_in : in  std_logic;  -- Timer Compare 0 Pin
+            cmp0_out    : out std_logic;
+            cmp0_dir    : out std_logic;
+            cmp0_ren    : out std_logic;
+
+            cmp1_ren_in : in  std_logic;  -- Timer Compare 1 Pin
+            cmp1_out    : out std_logic;
+            cmp1_dir    : out std_logic;
+            cmp1_ren    : out std_logic;
+
+            cap0_ren_in : in  std_logic;  -- Timer Input Capture 0 Pin
+            cap0_ren    : out std_logic;
+            cap0_dir    : out std_logic;
+            cap0_in     : in  std_logic;  -- Timer Input Capture 0 Pin
+
+            cap1_ren_in : in  std_logic;  -- Timer Input Capture 1 Pin
+            cap1_ren    : out std_logic;
+            cap1_dir    : out std_logic;
+            cap1_in     : in  std_logic   -- Timer Input Capture 1 Pin
+        );
+    end component;
+
+    -- NPUx
+    component NPU is
+        generic(
+            -- Fixed-Point M and N Bits for inputs, weights, and outputs
+            -- Of note, Y bits also control size of accumulator
+            X_M_BITS		: integer := 0;
+            W_M_BITS		: integer := 3;
+            Y_M_BITS		: integer := 3;
+            N_BITS			: integer := 15;
+            -- RHO to be used with sigmoid approximation
+            RHO				: integer := 2
+        );
+        port(
+            -- System Signals
+            Clk				: in	std_logic;						-- NPU Main Clock
+            ResetN			: in	std_logic;						-- NPU Active-Low Reset
+
+            -- Memory Address Bus to Memory Mapped Registers Signals
+            MabMmrA			: in 	std_logic_vector(1 downto 0);	-- MCU To NPU MMR - Address
+            MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
+            MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
+            MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable
+            MabMmrWEN		: in	std_logic_vector(3 downto 0);	-- MCU To NPU MMR - Write Enable
+            MabMmrQ			: out 	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Output
+
+            -- Multiplexed SRAM Signals from MCU
+            SramQ_in		: in	std_logic_vector(31 downto 0);	-- MCU To NPU - Data Output
+            SramA_in 		: in	std_logic_vector(11 downto 0);	-- SRAM To NPU - Address
+            SramD_in 		: in	std_logic_vector(31 downto 0);	-- SRAM To NPU - Data Input
+            SramCLK_in 		: in	std_logic;						-- SRAM To NPU - Clock
+            SramCEN_in 		: in	std_logic;						-- SRAM To NPU - Chip Enable
+            SramGWEN_in 	: in	std_logic;						-- SRAM To NPU - Global Write Enable
+            SramWEN_in 		: in	std_logic_vector(3 downto 0);	-- SRAM To NPU - Write Enable
+        
+            -- NPU to SRAM Interface Signals
+            NpuSramA_out		: out	std_logic_vector(11 downto 0);	-- NPU To SRAM - Address 
+            NpuSramD_out		: out	std_logic_vector(31 downto 0);	-- NPU To SRAM - Data Input
+            NpuSramCLK_out		: out 	std_logic;						-- NPU To SRAM - Clock
+            NpuSramCEN_out		: out	std_logic;						-- NPU To SRAM - Chip Enable
+            NpuSramGWEN_out		: out 	std_logic;						-- NPU To SRAM - Global Write Enable
+            NpuSramWEN_out		: out 	std_logic_vector(3 downto 0);	-- NPU To SRAM - Write Enable
+
+            -- NPU Status Signal
+            NpuActive		: out	std_logic						-- NPU Active Signal for Arbitration
+        );
+    end component;
+
+    -- AFEx
+    component AFE is
+        port(
+            -- System Signals
+            clk          : in  std_logic;  
+            resetn       : in  std_logic;  
+            irq          : out std_logic;  
+
+            -- Memory Bus
+            clk_mem      : in  std_logic;
+            en_mem       : in  std_logic;
+            wen          : in  std_logic_vector(3 downto 0);
+            addr_periph  : in  std_logic_vector(7 downto 2);
+            write_data   : in  std_logic_vector(31 downto 0);
+            read_data    : out std_logic_vector(31 downto 0);
+
+            -- Digital Test Ports 
+            dtp0_ren_in : in std_logic;
+            dtp0_ren    : out std_logic;
+            dtp0_dir    : out std_logic;
+            dtp0_out    : out std_logic;
+
+            dtp1_ren_in : in std_logic;
+            dtp1_ren    : out std_logic;
+            dtp1_dir    : out std_logic;
+            dtp1_out    : out std_logic;
+
+            dtp2_ren_in : in std_logic;
+            dtp2_ren    : out std_logic;
+            dtp2_dir    : out std_logic;
+            dtp2_out    : out std_logic;
+
+            dtp3_ren_in : in std_logic;
+            dtp3_ren    : out std_logic;
+            dtp3_dir    : out std_logic;
+            dtp3_out    : out std_logic;
+
+            -- Bias Signals
+            use_bias_dac	: out	std_logic;	-- Switches between using the bias generator voltages or bias DACs for the global bias voltages. '0' <= Uses bias generator; '1' <= Uses DACs
+            en_bias_buf		: out	std_logic;	-- Enables/disables buffers on the internal global bias voltages. '0' <= Disabled; '1' <= Enabled
+            en_bias_gen		: out	std_logic;	-- Enables/disables the internal bias generator. '0' <= Disabled; '1' <= Enabled
+            en_dsadc_bias   : out std_logic; -- Enables biasing for the DSADC. This signal should be tied high if the DSADC is being used.
+            en_pot_re_bias  : out std_logic; -- Enables biasing for the potentiostat. This signal should be tied high if the potentiostat is being used.
+            
+            -- Central Bias Generator
+            BIAS_ADJ		: out	std_logic_vector(5 downto 0);	-- Internal bias generator adjustment vector. Higher vector codes produce smaller currents. The nominal vector is decimal 37.
+            BIAS_DBP		: out	std_logic_vector(13 downto 0);
+            BIAS_DBN		: out	std_logic_vector(13 downto 0);
+            BIAS_DBPC		: out	std_logic_vector(13 downto 0);
+            BIAS_DBNC		: out	std_logic_vector(13 downto 0);
+
+            -- Potentiostat Biases
+            BIAS_TC_POT      : out std_logic_vector(5 downto 0);    -- Bias Current BTS - Potentiostat
+            BIAS_LC_POT      : out std_logic_vector(5 downto 0);    -- LC Resistor      - Potentiostat
+            BIAS_TIA_G_POT   : out  std_logic_vector(16 downto 0);  -- TIA Gain Resistor - Potentiostat
+            BIAS_REV_POT     : out std_logic_vector(13 downto 0);   -- Potentiostat Reference Electrode Voltage (DAC)
+
+            -- DSADC Biases
+            BIAS_TC_DSADC   : out std_logic_vector(5 downto 0);     -- Bias Current BTS - DSADC
+            BIAS_LC_DSADC   : out std_logic_vector(5 downto 0);     -- LC Resistor      - DSADC
+            BIAS_RIN_DSADC  : out std_logic_vector(5 downto 0);     -- Input Resistor   - DSADC
+            BIAS_RFB_DSADC   : out std_logic_vector(5 downto 0);    -- Feedback Resistor- DSADC
+            BIAS_DSADC_VCM   : out std_logic_vector(13 downto 0);   -- DSADC VCM Voltage (DAC)
+
+            -- DSADC Outputs Signals 
+            adc_conv_done   : in std_logic;
+            adc_en          : out std_logic;
+            adc_clk         : out std_logic;
+            adc_switch      : out std_logic_vector(2 downto 0);
+            adc_ext_in      : out std_logic; -- '1' => adc's input is from potentiostat pad, '0' => external signal
+            atp_en          : out std_logic; -- '1' => enable ATP, '0' => disable ATP
+            atp_sel         : out std_logic; -- '1' => atp input is from DSADC, '0' => atp input is from Potentiostat
+            adc_sel         : out std_logic; -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
+            dac_en          : out std_logic -- DAC Enable
+        ); 
+    end component AFE;
+
+    -- SARADCx
+    component SARADC is
+        port (
+            -- System Signals
+            clk          : in  std_logic;  
+            resetn       : in  std_logic;  
+            irq          : out std_logic;  
+
+            -- Memory Bus (active low enables)
+            clk_mem      : in  std_logic;
+            en_mem       : in  std_logic;                       
+            wen          : in  std_logic_vector(3 downto 0); 
+            addr_periph  : in  std_logic_vector(7 downto 2);
+            write_data   : in  std_logic_vector(31 downto 0);
+            read_data    : out std_logic_vector(31 downto 0);
+
+            -- Digital Test Ports 
+            dtp0   : out std_logic;
+            dtp1   : out std_logic;
+
+            -- ADC Output Signals 
+            adc_sel      : out std_logic; -- '1' => adc's input is from external pad, '0' => internal signal
+
+            -- ADC Connection 
+            ADC_ready_i : in std_logic;
+            ADC_data_i  : in std_logic_vector(9 downto 0); 
+            ADC_reset  : out std_logic;
+            ADC_trigger_clock_o : out std_logic
+        );
+    end component;
+
+
+    -- MCU Block Level Signal Declarations --------------------------------------
+
+        -- System Signals 
+        signal resetn           : std_logic; 
+        signal resetn_por       : std_logic;
+        signal resetn_sys       : std_logic; 
+        signal irq_en           : std_logic_vector(NUM_IRQS-1 downto 0);
+        signal irq_priority     : std_logic_vector(NUM_IRQS-1 downto 0);
+        signal isr_ret          : std_logic; -- Interrupt Service Routine Return Signal
+        signal irq_recursion_en : std_logic; -- Allow Interrupt Recursion
+        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs 
+        signal sleep_cpu        : std_logic;
+        signal PGENROM          : std_logic; -- Active low power rom power gating
+        signal PGENSRAM         : std_logic; -- Active low power ram power gating
+        signal mclk             : std_logic;
+        signal smclk            : std_logic;
+        signal clk_lfxt         : std_logic; -- Gated lfxt clock from system
+        signal clk_hfxt         : std_logic; -- Gated hfxt clock from system
+        signal clk_osc_dco0     : std_logic; -- DCO0 Clock directly from oscillator
+        signal clk_osc_dco1     : std_logic; -- DCO1 Clock directly from oscillator
+        signal clk_cpu          : std_logic; -- Gated cpu clock from system
+        signal resetn_core_sr   : std_logic_vector(1 downto 0) := "00"; -- M9b: delayed core release
+        signal resetn_core      : std_logic;
+        signal core_mem_ready   : std_logic; -- M2: memory back-pressure to the core (from mp_wait_injector)
+
+        -- M3a: tie-offs for parked harts 1-3 (held in reset; no shared memory yet).
+        signal zero_word        : std_logic_vector(31 downto 0) := (others => '0');
+        signal zero_irq         : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
+
+        -- signal wen_mem        : std_logic_vector(3 downto 0);
+
+        -- IRQ Signal Declarations
+        --@GEN:irq-signal-decls@
+
+        signal irq_comb         : std_logic_vector(95 downto 0);
+        signal irq_deglitch     : std_logic_vector(NUM_IRQS -1 downto 0);
+        signal gf_out           : std_logic_vector(95 downto 0);
+        -- signal irq_cat          : std_logic_vector(95 downto NUM_IRQS);
+
+
+        -- RISCV Core Interface Signals 
+        signal read_data        : std_logic_vector(31 downto 0);
+        signal write_word       : std_logic_vector(31 downto 0);
+        signal data_addr        : std_logic_vector(31 downto 0);
+        signal wen_re           : std_logic_vector(3 downto 0);
+        signal wen_fe           : std_logic_vector(3 downto 0);
+
+        -- M3c.2: shared-RAM window (region 4 = 0x10000) behind mp_arbiter on mclk.
+        -- M5b: SH_AW widened 8 -> 12 so the arbiter address covers the WHOLE
+        -- region 4 (0x10000-0x13FFF, word addr = data_addr(13:2)) and slaves
+        -- decode their own sub-ranges (no more 0x10400+ aliasing back onto the
+        -- RAM words): RAM = 0x10000-0x103FF (256 words, unchanged), CLINT =
+        -- 0x11000-0x11FFF. 0x12000+ reserved for future shared peripherals.
+        constant SH_AW : natural := 12;                -- region-4 word-address width
+        signal core_read_data   : std_logic_vector(31 downto 0);  -- muxed into core
+        signal core_mem_ready_g : std_logic;                      -- injector AND shared_ok
+        signal sh_sel           : std_logic;
+        signal sh_dphase        : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
+        signal sh_acked         : std_logic := '0';
+        signal sh_acked_we      : std_logic_vector(3 downto 0) := (others => '0'); -- lanes of acked txn (M4b)
+        signal sh_ack_ok        : std_logic;         -- ack valid for the CURRENT access type
+        signal sh_we_lanes0     : std_logic_vector(3 downto 0); -- hart 0 lane strobes
+        signal sh_rdata_reg     : std_logic_vector(31 downto 0) := (others => '0');
+        signal sh_scfail_reg    : std_logic := '0';  -- resv_unit SC verdict latch (M4b)
+        signal lr_sc_bus_0      : std_logic_vector(1 downto 0);
+        -- M4b: global LR/SC reservation unit
+        signal arb_lrsc         : std_logic_vector(4*2-1 downto 0);
+        signal arb_scfail       : std_logic_vector(3 downto 0);
+        signal sh_we_raw        : std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating
+        -- arbiter master buses (master 0 = hart 0; masters 1-3 = hart tiles).
+        -- we = 4 active-high byte-lane strobes per master (M4a).
+        signal arb_req, arb_gnt, arb_done : std_logic_vector(3 downto 0);
+        -- M8: per-master grant-lock (cores' amo_lock) — pins the arbiter to a
+        -- master across its AMO read+write transaction pair (cross-hart AMO
+        -- atomicity).
+        signal arb_lock         : std_logic_vector(3 downto 0);
+        signal arb_we           : std_logic_vector(4*4-1 downto 0);
+        signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
+        signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
+        signal arb_rdata        : std_logic_vector(31 downto 0);
+        -- arbiter <-> shared slave side (RAM + CLINT sub-decoded below, M5b)
+        signal sh_en            : std_logic;
+        signal sh_we            : std_logic_vector(3 downto 0);
+        signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
+        signal sh_wdata         : std_logic_vector(31 downto 0);
+        signal sh_rdata         : std_logic_vector(31 downto 0);
+        -- shared RAM stays 256 WORDS (0x10000-0x103FF) regardless of SH_AW
+        type shram_t is array(0 to 255) of std_logic_vector(31 downto 0);
+        signal shram            : shram_t := (others => (others => '0'));
+        -- M5b: slave sub-decode within region 4 + real CLINT
+        signal shslv_ram_sel    : std_logic;   -- word addr 0x000-0x0FF -> RAM
+        signal shslv_clint_sel  : std_logic;   -- word addr 0x400-0x7FF -> CLINT (0x11000)
+        signal shslv_ram_en     : std_logic;
+        signal shslv_clint_en   : std_logic;
+        signal shslv_rd_clint   : std_logic := '0'; -- registered: last access was CLINT
+        signal sh_rdata_mux     : std_logic_vector(31 downto 0); -- into arbiter s_rdata
+        signal clint_rdata      : std_logic_vector(31 downto 0);
+        signal clint_msip       : std_logic_vector(3 downto 0);
+        signal clint_mtip       : std_logic_vector(3 downto 0);
+        -- M6: shared UART0 (console) = third region-4 slave at 0x12000
+        signal shslv_uart_sel   : std_logic;   -- word addr 0x800-0xBFF -> UART0 (0x12000)
+        signal shslv_uart_en    : std_logic;
+        signal shslv_rd_uart    : std_logic := '0'; -- registered: last access was UART0
+        signal uart0_sh_en_n    : std_logic;   -- UART bus is active-LOW en/wen
+        signal sh_wen_n   : std_logic_vector(3 downto 0);
+        signal uart0_sh_rdata   : std_logic_vector(31 downto 0);
+        -- M7a: shared-window page 0x13000-0x13FFF = 16 x 256B slots
+        -- (slot = sh_addr(9:6); numbering MIRRORS the legacy 0x4000 periph
+        -- page). Slot 9 (0x13900) = irq_router, the tile IRQ fan-out.
+        signal shslv_pg3_sel    : std_logic;   -- word addr 0xC00-0xFFF -> page 3
+        signal shslv_irtr_sel   : std_logic;   -- page-3 slot 9 -> irq_router
+        signal shslv_irtr_en    : std_logic;
+        signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
+        signal irtr_rdata       : std_logic_vector(31 downto 0);
+        signal tile_irq_en_flat : std_logic_vector(4*NUM_IRQS-1 downto 0);
+        -- M7b: shared TIMER0/1 + GPIO1/2/3 = page-3 slots 6/7/1/8/13 (the
+        -- legacy 0x4000 page's slot numbers -> 0x13600/0x13700/0x13100/
+        -- 0x13800/0x13D00). GPIO0 is NEVER shared: the ROM bootrom programs
+        -- its DIR/SEL and drives the flash CS through PxOUTS/PxOUTC on every
+        -- SPI boot — it stays private with SPI0/SYSTEM0.
+        signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
+        signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
+        signal shslv_gpio1_sel, shslv_gpio1_en  : std_logic;
+        signal shslv_gpio2_sel, shslv_gpio2_en  : std_logic;
+        signal shslv_gpio3_sel, shslv_gpio3_en  : std_logic;
+        signal shslv_rd_tim0    : std_logic := '0';
+        signal shslv_rd_tim1    : std_logic := '0';
+        signal shslv_rd_gpio1   : std_logic := '0';
+        signal shslv_rd_gpio2   : std_logic := '0';
+        signal shslv_rd_gpio3   : std_logic := '0';
+        signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen
+        signal tim1_sh_en_n     : std_logic;
+        signal gpio1_sh_en_n    : std_logic;
+        signal gpio2_sh_en_n    : std_logic;
+        signal gpio3_sh_en_n    : std_logic;
+        signal tim0_sh_rdata    : std_logic_vector(31 downto 0);
+        signal tim1_sh_rdata    : std_logic_vector(31 downto 0);
+        signal gpio1_sh_rdata   : std_logic_vector(31 downto 0);
+        signal gpio2_sh_rdata   : std_logic_vector(31 downto 0);
+        signal gpio3_sh_rdata   : std_logic_vector(31 downto 0);
+        -- M7c: shared SPI1 + UART1 = page-3 slots 3/5 (0x13300/0x13500).
+        -- SPI0 stays private forever (ROM bootrom boot path).
+        signal shslv_spi1_sel,  shslv_spi1_en   : std_logic;
+        signal shslv_uart1_sel, shslv_uart1_en  : std_logic;
+        signal shslv_rd_spi1    : std_logic := '0';
+        signal shslv_rd_uart1   : std_logic := '0';
+        signal spi1_sh_en_n     : std_logic;
+        signal uart1_sh_en_n    : std_logic;
+        signal spi1_sh_rdata    : std_logic_vector(31 downto 0);
+        signal uart1_sh_rdata   : std_logic_vector(31 downto 0);
+        -- M7c.2: shared I2C0/I2C1 = page-3 slots 14/15 (0x13E00/0x13F00).
+        -- I2C's register READ is COMBINATIONAL (unlike every other moved
+        -- peripheral): rdata_out collapses to register 0 the moment
+        -- EnMemPeriph deasserts, so the bridge REGISTERS it at the
+        -- LATCH->DATA edge (i2c*_sh_rdata below) — reproducing exactly the
+        -- old adddec timing the I2C.vhd comment assumes ("EnMemPeriph has a
+        -- leading edge exactly one clock cycle before rdata latches").
+        signal shslv_i2c0_sel,  shslv_i2c0_en   : std_logic;
+        signal shslv_i2c1_sel,  shslv_i2c1_en   : std_logic;
+        signal shslv_rd_i2c0    : std_logic := '0';
+        signal shslv_rd_i2c1    : std_logic := '0';
+        signal i2c0_sh_en_n     : std_logic;
+        signal i2c1_sh_en_n     : std_logic;
+        signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance
+        signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
+        signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
+        signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');
+        -- M7d: shared NPU = page-3 slot 10 (0x13A00). Register bus only —
+        -- the NPU still crunches vectors in HART 0's PRIVATE RAM1 (its SRAM
+        -- port mux + npu0_active -> hart-0 sleep are unchanged; NPU.vhd's
+        -- M7d mux-select register makes a cross-hart THINK safe). Its MMR
+        -- read is COMBINATIONAL like I2C's -> same bridge register. SARADC/
+        -- AFE stay hart-0-private (decided with the user).
+        signal shslv_npu_sel,   shslv_npu_en    : std_logic;
+        signal shslv_rd_npu     : std_logic := '0';
+        signal npu_sh_en_n      : std_logic;
+        signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
+        signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
+        -- M7c LOCKING: HW mutex bank = page-3 slot 0 (0x13000; GPIO0's legacy
+        -- slot number — free forever, GPIO0 is never shared). READ = atomic
+        -- return-old-and-claim, WRITE 0 = release; atomic because the arbiter
+        -- serializes whole transactions. sh_master is the arbiter's granted-
+        -- master index (new mp_arbiter s_master port) — attributes the
+        -- claim-read to a hart. Registered read, resv-gated we (contract).
+        signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
+        signal shslv_rd_mtx     : std_logic := '0';
+        signal mtx_rdata        : std_logic_vector(31 downto 0);
+        signal sh_master        : std_logic_vector(1 downto 0);
+        -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
+        -- signal mem_access       : std_logic; -- High when memory access is occurring
+
+        -- Memory and RAM Control Signals  
+        signal RAM_Dout         : std_logic_vector(31 downto 0);
+        signal write_data       : std_logic_vector(31 downto 0);
+        signal mask             : std_logic_vector(1 downto 0);
+        signal GWEN             : std_logic;
+        signal mem_addr         : std_logic_vector(11 downto 0); 
+        signal mem_dout         : word_array(0 to 2);
+        signal periph_dout      : word_array(0 to 15); 
+        signal pgen_mem         : std_logic_vector(2 downto 0);
+        signal addr_periph      : std_logic_vector(7 downto 2); 
+        signal mem_en           : std_logic_vector(2 downto 0);
+        signal mem_en_periph    : std_logic_vector(15 downto 0); 
+        signal clk_mem          : std_logic_vector(2 downto 0);
+        signal clk_periph       : std_logic_vector(15 downto 0); 
+        
+        -- Flash Extended Memory Signals
+        signal mem_en_flash    : std_logic;
+        signal clk_mem_flash   : std_logic;
+        signal mab_flash       : std_logic_vector(31 downto 0); 
+        signal flash_dout      : std_logic_vector(31 downto 0);
+        signal flash_ext_meming: std_logic;
+        signal mab_out         : std_logic_vector(31 downto 0); 
+
+        -- NPU0 Signals 
+        signal npu0_mux_ram_a       : std_logic_vector(11 downto 0);
+        signal npu0_mux_ram_d       : std_logic_vector(31 downto 0);
+        signal npu0_mux_ram_cen     : std_logic;
+        signal npu0_mux_ram_gwen    : std_logic;
+        signal npu0_mux_wen         : std_logic_vector(3 downto 0);
+        signal npu0_mux_ram_q       : std_logic_vector(31 downto 0);
+        signal npu0_mux_ram_clk     : std_logic;
+        signal npu0_active          : std_logic;
+
+        -- DCO Signals 
+        signal en_dco0          : std_logic;
+        signal en_dco1          : std_logic;
+        signal DCO0_BIAS        : std_logic_vector(11 downto 0);
+        signal DCO1_BIAS        : std_logic_vector(11 downto 0);
+        signal reset_dco       : std_logic; --special reset for DCO to ensure proper startup
+
+    -- GPIO0 Signals (Port 1) ------------------------------------------------------------
+        signal p1_out					: std_logic_vector(7 downto 0);
+        signal p1_dir					: std_logic_vector(7 downto 0);
+        signal p1_ren					: std_logic_vector(7 downto 0);
+        signal afunc1_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc1_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
+        signal afunc1_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+
+        -- -- P1.0: cs_flash (output only)
+        signal cs_flash_in              : std_logic;
+        signal cs_flash_ren_in         : std_logic; -- Read Enable for CS 
+        -- For extended flash memory support
+        signal cs_flash_out				: std_logic;
+        signal cs_flash_dir				: std_logic;
+        signal cs_flash_ren				: std_logic;
+
+        -- P1.1: miso_flash (input and output)
+        signal miso_flash_in			: std_logic;
+        signal miso_flash_out			: std_logic;
+        signal miso_flash_dir			: std_logic;
+        signal miso_flash_ren			: std_logic;
+        signal miso_flash_ren_in        : std_logic; -- Read Enable for MISO
+        
+        -- P1.2: mosoi_flash (output only)
+        signal mosi_flash_in			: std_logic;
+        signal mosi_flash_out			: std_logic;
+        signal mosi_flash_dir			: std_logic;
+        signal mosi_flash_ren			: std_logic;
+        signal mosi_flash_ren_in        : std_logic; -- Read Enable for MOSI
+
+        -- P1.3: sck_flash (output only)
+        signal sck_flash_out		    : std_logic;
+        signal sck_flash_dir	        : std_logic;
+        signal sck_flash_ren	        : std_logic;
+        signal sck_flash_in             : std_logic;
+        signal sck_flash_ren_in        : std_logic; -- Read Enable for SCK
+
+        -- P1.4 lfxt (input and output)
+        signal lfxt_in              : std_logic;
+        signal lfxt_out             : std_logic;
+        signal lfxt_dir             : std_logic;
+        signal lfxt_ren             : std_logic;
+        signal lfxt_ren_in         : std_logic;
+
+        -- P1.5 hfxt (input and output)
+        signal hfxt_in              : std_logic;
+        signal hfxt_out             : std_logic;
+        signal hfxt_dir             : std_logic;
+        signal hfxt_ren             : std_logic;
+        signal hfxt_ren_in         : std_logic;
+
+        -- P1.6 TRAP (Output Only) 
+        signal trap_out             : std_logic;
+        signal trap_dir             : std_logic;
+        signal trap_ren             : std_logic;
+        signal trap_ren_in          : std_logic;
+
+
+        
+        -- P1.7 Boot Mode Select (should be reset to input)
+
+
+
+    -- GPIO1 Signals (Port 2) ------------------------------------------------------------
+        signal p2_out					: std_logic_vector(7 downto 0);
+        signal p2_dir					: std_logic_vector(7 downto 0);
+        signal p2_ren					: std_logic_vector(7 downto 0);
+        signal afunc2_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc2_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
+        signal afunc2_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+
+        -- P2.0: cs1 
+        signal cs1_in                : std_logic;
+        signal cs1_ren_in           : std_logic;
+
+        -- P2.1: miso1 
+        signal miso1_in              : std_logic;
+        signal miso1_out             : std_logic;
+        signal miso1_dir             : std_logic;
+        signal miso1_ren             : std_logic;
+        signal miso1_ren_in         : std_logic;
+
+        -- P2.2: mosi1
+        signal mosi1_in              : std_logic;
+        signal mosi1_out             : std_logic;
+        signal mosi1_dir             : std_logic;
+        signal mosi1_ren             : std_logic;
+        signal mosi1_ren_in         : std_logic;
+
+        -- P2.3: sck1
+        signal sck1_in               : std_logic;
+        signal sck1_out              : std_logic;
+        signal sck1_dir              : std_logic;
+        signal sck1_ren              : std_logic;
+        signal sck1_ren_in          : std_logic;
+
+        -- P2.4: TX0
+        signal tx0_out              : std_logic;
+        signal tx0_dir              : std_logic;
+        signal tx0_ren              : std_logic;
+        signal tx0_ren_in          : std_logic;
+        
+        -- P2.5: RX0
+        signal rx0_in               : std_logic;
+        signal rx0_out              : std_logic;
+        signal rx0_dir              : std_logic;
+        signal rx0_ren              : std_logic;
+        signal rx0_ren_in          : std_logic;
+
+        -- P2.6: TX1
+        signal tx1_out              : std_logic;
+        signal tx1_dir              : std_logic;
+        signal tx1_ren              : std_logic;
+        signal tx1_ren_in          : std_logic;
+
+        -- P2.7: RX1
+        signal rx1_in               : std_logic;
+        signal rx1_out              : std_logic;
+        signal rx1_dir              : std_logic;
+        signal rx1_ren              : std_logic;
+        signal rx1_ren_in           : std_logic;
+    
+    -- GPIO2 Signals (Port 3) ------------------------------------------------------------
+        signal p3_out					: std_logic_vector(7 downto 0);
+        signal p3_dir					: std_logic_vector(7 downto 0);
+        signal p3_ren					: std_logic_vector(7 downto 0);
+        signal afunc3_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc3_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
+        signal afunc3_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+
+        -- P3.0: T0_CMP0 (output)
+        signal t0_cmp0_out           : std_logic;
+        signal t0_cmp0_dir           : std_logic;
+        signal t0_cmp0_ren           : std_logic;
+        signal t0_cmp0_ren_in       : std_logic;
+
+        -- P3.1: T0_CMP1 (output)
+        signal t0_cmp1_out           : std_logic;
+        signal t0_cmp1_dir           : std_logic;
+        signal t0_cmp1_ren           : std_logic;
+        signal t0_cmp1_ren_in       : std_logic;
+
+        -- P3.2: T0_CAP0 (input)
+        signal t0_cap0_in            : std_logic;
+        signal t0_cap0_dir           : std_logic;
+        signal t0_cap0_ren           : std_logic;
+        signal t0_cap0_ren_in       : std_logic;
+
+        -- P3.3: T0_CAP1 (input and output (double as dtp for SARADC))
+        signal t0_cap1_in            : std_logic;
+        signal t0_cap1_dir           : std_logic;
+        signal t0_cap1_ren           : std_logic;
+        signal t0_cap1_ren_in       : std_logic;
+        signal t0_cap1_out           : std_logic;
+
+
+        -- P3.4: T1_CMP0 (output)
+        signal t1_cmp0_out           : std_logic;
+        signal t1_cmp0_dir           : std_logic;
+        signal t1_cmp0_ren           : std_logic;
+        signal t1_cmp0_ren_in        : std_logic;
+
+        -- P3.5: T1_CMP1 (output)
+        signal t1_cmp1_out           : std_logic;
+        signal t1_cmp1_dir           : std_logic;
+        signal t1_cmp1_ren           : std_logic;
+        signal t1_cmp1_ren_in       : std_logic;
+
+        -- P3.6: T1_CAP0 (input)
+        signal t1_cap0_in            : std_logic;
+        signal t1_cap0_dir           : std_logic;
+        signal t1_cap0_ren           : std_logic;
+        signal t1_cap0_ren_in       : std_logic;
+
+        -- P3.7: T1_CAP1 (input and output (double as dtp for SARADC))
+        signal t1_cap1_in            : std_logic;
+        signal t1_cap1_dir           : std_logic;
+        signal t1_cap1_ren           : std_logic;
+        signal t1_cap1_ren_in        : std_logic;
+        signal t1_cap1_out           : std_logic;
+
+
+    -- GPIO3 Signals (Port 4) ------------------------------------------------------------
+        signal p4_out					: std_logic_vector(7 downto 0);
+        signal p4_dir					: std_logic_vector(7 downto 0);
+        signal p4_ren					: std_logic_vector(7 downto 0);
+        signal afunc4_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc4_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
+        signal afunc4_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+
+        -- P4.0: SDA0 (input and output)
+        signal sda0_in               : std_logic;
+        signal sda0_out              : std_logic;
+        signal sda0_dir              : std_logic;
+        signal sda0_ren              : std_logic;
+        signal sda0_ren_in          : std_logic;
+
+        -- P4.1: SCL0 (input and output)
+        signal scl0_in               : std_logic;
+        signal scl0_out              : std_logic;
+        signal scl0_dir              : std_logic;
+        signal scl0_ren              : std_logic;
+        signal scl0_ren_in          : std_logic;
+
+        -- P4.2: SDA1 (input and output)
+        signal sda1_in               : std_logic;
+        signal sda1_out              : std_logic;
+        signal sda1_dir              : std_logic;
+        signal sda1_ren              : std_logic;
+        signal sda1_ren_in          : std_logic;
+        
+        -- P4.3: SCL1 (input and output)
+        signal scl1_in               : std_logic;
+        signal scl1_out              : std_logic;
+        signal scl1_dir              : std_logic;
+        signal scl1_ren              : std_logic;
+        signal scl1_ren_in          : std_logic;
+
+        -- P4.4: DTP0 (output only)
+        signal dtp0_out               : std_logic;
+        signal dtp0_dir               : std_logic;
+        signal dtp0_ren               : std_logic;
+        signal dtp0_ren_in           : std_logic;
+
+        -- P4.5: DTP1 (output only)
+        signal dtp1_out               : std_logic;
+        signal dtp1_dir               : std_logic;
+        signal dtp1_ren               : std_logic;
+        signal dtp1_ren_in           : std_logic;
+
+        -- P4.6: DTP2 (output only)
+        signal dtp2_out               : std_logic;
+        signal dtp2_dir               : std_logic;
+        signal dtp2_ren               : std_logic;
+        signal dtp2_ren_in           : std_logic;
+
+        -- P4.7: DTP3 (output only)
+        signal dtp3_out               : std_logic;
+        signal dtp3_dir               : std_logic;
+        signal dtp3_ren               : std_logic;
+        signal dtp3_ren_in           : std_logic;
+        
+begin
+
+    --Signal Routing 
+    -- NOTE: These are raw signals going to pads, not configured in the same manner as GPIO dir, ren, and out signals.
+    resetn_out <= '1'; -- NA
+    resetn_dir <= PAD_DIR_INPUT_LEVEL; -- DO NOT TOUCH - KEEP AT 1 - Must be set to input mode 
+    resetn_ren <= PAD_REN_ENABLE_LEVEL; -- Enable pullup resistor
+
+    lfxt_out <= '1'; --NA
+    lfxt_dir <= PAD_DIR_INPUT_LEVEL; --input
+    lfxt_ren <= PAD_REN_DISABLE_LEVEL; --disable 
+
+    hfxt_out <= '1'; --NA
+    hfxt_dir <= PAD_DIR_INPUT_LEVEL; --input
+    hfxt_ren <= PAD_REN_DISABLE_LEVEL; --disable
+
+    trap_dir <= PAD_DIR_OUTPUT_LEVEL; --output
+
+    
+    -- GPIO0 Connections (SPI0, CLKLFXT, CLKHFXT, TRAP, BOOT) -----------------------------------------
+        cs_flash_in <= prt1_in(pnum_gpio0_cs_flash);
+        miso_flash_in <= prt1_in(pnum_gpio0_miso); -- MISO is input to core
+        mosi_flash_in <= prt1_in(pnum_gpio0_mosi); -- MOSI is output from core
+        sck_flash_in <= prt1_in(pnum_gpio0_spi_clk); -- SCK is output from core
+        sck_flash_ren_in <= p1_ren(pnum_gpio0_spi_clk); -- SCK read enable
+        mosi_flash_ren_in <= p1_ren(pnum_gpio0_mosi); -- MOSI read enable
+        miso_flash_ren_in <= p1_ren(pnum_gpio0_miso);
+        lfxt_in <= prt1_in(pnum_gpio0_lfxt);
+        lfxt_ren_in <= p1_ren(pnum_gpio0_lfxt);
+        hfxt_in <= prt1_in(pnum_gpio0_hfxt);
+        hfxt_ren_in <= p1_ren(pnum_gpio0_hfxt);
+        trap_ren_in <= p1_ren(pnum_gpio0_trap); 
+
+
+        afunc1_out <= (
+            7 => p1_out(7), -- GPIO0 pin 7
+            pnum_gpio0_trap => trap_out, -- GPIO0 pin 6
+            pnum_gpio0_hfxt => hfxt_out, -- GPIO0 pin 5
+            pnum_gpio0_lfxt => lfxt_out, -- GPIO0 pin 4
+            pnum_gpio0_spi_clk => sck_flash_out, -- GPIO0 pin 3
+            pnum_gpio0_mosi => mosi_flash_out, -- GPIO0 pin 2
+            pnum_gpio0_miso => miso_flash_out, -- GPIO0 pin 1
+            pnum_gpio0_cs_flash => cs_flash_out -- GPIO0 pin 0
+        );
+
+        afunc1_dir <= (
+            7 => p1_dir(7),                 -- GPIO0 pin 7
+            pnum_gpio0_trap => not trap_dir,        -- GPIO0 pin 6
+            pnum_gpio0_hfxt => not hfxt_dir,    -- GPIO0 pin 5 (Invert once more because of configured logic level of GPIO0)
+            pnum_gpio0_lfxt => not lfxt_dir,    -- GPIO0 pin 4 (Invert once more because of configured logic level of GPIO0)
+            pnum_gpio0_spi_clk => sck_flash_dir, -- GPIO0 pin 3
+            pnum_gpio0_mosi => mosi_flash_dir, -- GPIO0 pin 2
+            pnum_gpio0_miso => miso_flash_dir, -- GPIO0 pin 1
+            pnum_gpio0_cs_flash => cs_flash_dir -- GPIO0 pin 0
+        );
+
+        afunc1_ren <= (
+            7 => p1_ren(7), -- GPIO0 pin 7
+            pnum_gpio0_trap => trap_ren_in, -- GPIO0 pin 6
+            pnum_gpio0_hfxt => hfxt_ren, -- GPIO0 pin 5
+            pnum_gpio0_lfxt => lfxt_ren, -- GPIO0 pin 4
+            pnum_gpio0_spi_clk => sck_flash_ren, -- GPIO0 pin 3
+            pnum_gpio0_mosi => mosi_flash_ren, -- GPIO0 pin 2
+            pnum_gpio0_miso => miso_flash_ren, -- GPIO0 pin 1
+            pnum_gpio0_cs_flash => cs_flash_ren -- GPIO0 pin 0
+
+        );
+
+    -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
+        cs1_in   <= prt2_in(pnum_gpio1_cs1);
+        miso1_in <= prt2_in(pnum_gpio1_miso1);
+        mosi1_in <= prt2_in(pnum_gpio1_mosi1);
+        sck1_in  <= prt2_in(pnum_gpio1_sck1);
+        sck1_ren_in <= p2_ren(pnum_gpio1_sck1);
+        mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);
+        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);
+        -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
+
+        -- GPIO1 Connections (UART0)
+        tx0_ren_in <= p2_ren(pnum_gpio1_tx0);
+        rx0_ren_in <= p2_ren(pnum_gpio1_rx0);
+        rx0_in <= prt2_in(pnum_gpio1_rx0);
+
+        -- GPIO1 Connections (UART1)
+        tx1_ren_in <= p2_ren(pnum_gpio1_tx1);
+        rx1_ren_in <= p2_ren(pnum_gpio1_rx1);
+        rx1_in <= prt2_in(pnum_gpio1_rx1);
+
+
+        afunc2_out <= (
+            pnum_gpio1_rx1 => rx1_out,      -- GPIO1 pin 7
+            pnum_gpio1_tx1 => tx1_out,      -- GPIO1 pin 6
+            pnum_gpio1_rx0 => rx0_out,      -- GPIO1 pin 5
+            pnum_gpio1_tx0 => tx0_out,      -- GPIO1 pin 4
+            pnum_gpio1_sck1 => sck1_out,    -- GPIO1 pin 3
+            pnum_gpio1_mosi1 => mosi1_out,  -- GPIO1 pin 2
+            pnum_gpio1_miso1 => miso1_out,  -- GPIO1 pin 1
+            0 => p2_out(0)                  -- CS1 line manually toggled with GPIO1
+        );
+        afunc2_dir <= (
+            pnum_gpio1_rx1 => rx1_dir,      -- GPIO1 pin 7
+            pnum_gpio1_tx1 => tx1_dir,      -- GPIO1 pin 6
+            pnum_gpio1_rx0 => rx0_dir,      -- GPIO1 pin 5
+            pnum_gpio1_tx0 => tx0_dir,      -- GPIO1 pin 4
+            pnum_gpio1_sck1 => sck1_dir,    -- GPIO1 pin 3
+            pnum_gpio1_mosi1 => mosi1_dir,  -- GPIO1 pin 2
+            pnum_gpio1_miso1 => miso1_dir,  -- GPIO1 pin 1
+            0 => p2_dir(0)
+        );
+        afunc2_ren <= (
+            pnum_gpio1_rx1 => rx1_ren,      -- GPIO1 pin 7
+            pnum_gpio1_tx1 => tx1_ren,      -- GPIO1 pin 6
+            pnum_gpio1_rx0 => rx0_ren,      -- GPIO1 pin 5
+            pnum_gpio1_tx0 => tx0_ren,      -- GPIO1 pin 4
+            pnum_gpio1_sck1 => sck1_ren,    -- GPIO1 pin 3
+            pnum_gpio1_mosi1 => mosi1_ren,  -- GPIO1 pin 2
+            pnum_gpio1_miso1 => miso1_ren,  -- GPIO1 pin 1
+            0 => p2_ren(0)
+        );
+
+    -- GPIO2 Connections (TIMER0, TIMER1) -------------------------------------------------
+        t0_cmp0_ren_in  <= p3_ren(pnum_gpio2_t0_cmp0);
+        t0_cmp1_ren_in  <= p3_ren(pnum_gpio2_t0_cmp1);
+        t0_cap0_in      <= prt3_in(pnum_gpio2_t0_cap0);
+        t0_cap1_in      <= prt3_in(pnum_gpio2_t0_cap1);
+        t1_cmp0_ren_in  <= p3_ren(pnum_gpio2_t1_cmp0);
+        t1_cmp1_ren_in  <= p3_ren(pnum_gpio2_t1_cmp1);
+        t1_cap0_in      <= prt3_in(pnum_gpio2_t1_cap0);
+        t1_cap1_in      <= prt3_in(pnum_gpio2_t1_cap1);
+        t0_cap0_ren_in  <= p3_ren(pnum_gpio2_t0_cap0);
+        t1_cap0_ren_in  <= p3_ren(pnum_gpio2_t1_cap0);
+        t0_cap1_ren_in  <= p3_ren(pnum_gpio2_t0_cap1);
+        t1_cap1_ren_in  <= p3_ren(pnum_gpio2_t1_cap1);
+        
+
+        afunc3_out <= (
+            pnum_gpio2_t1_cap1 => t1_cap1_out,                  -- GPIO2 pin 7
+            pnum_gpio2_t1_cap0 => p3_out(pnum_gpio2_t1_cap0),   -- GPIO2 pin 6
+            pnum_gpio2_t1_cmp1 => t1_cmp1_out,                  -- GPIO2 pin 5
+            pnum_gpio2_t1_cmp0 => t1_cmp0_out,                  -- GPIO2 pin 4
+            pnum_gpio2_t0_cap1 => t0_cap1_out,                  -- GPIO2 pin 3
+            pnum_gpio2_t0_cap0 => p3_out(pnum_gpio2_t0_cap0),   -- GPIO2 pin 2
+            pnum_gpio2_t0_cmp1 => t0_cmp1_out,                  -- GPIO2 pin 1
+            pnum_gpio2_t0_cmp0 => t0_cmp0_out                   -- GPIO2 pin 0
+        );
+        afunc3_dir <= (
+            pnum_gpio2_t1_cap1 => t1_cap1_dir, -- GPIO2 pin 7
+            pnum_gpio2_t1_cap0 => t1_cap0_dir, -- GPIO2 pin 6
+            pnum_gpio2_t1_cmp1 => t1_cmp1_dir, -- GPIO2 pin 5
+            pnum_gpio2_t1_cmp0 => t1_cmp0_dir, -- GPIO2 pin 4
+            pnum_gpio2_t0_cap1 => t0_cap1_dir, -- GPIO2 pin 3
+            pnum_gpio2_t0_cap0 => t0_cap0_dir, -- GPIO2 pin 2
+            pnum_gpio2_t0_cmp1 => t0_cmp1_dir, -- GPIO2 pin 1
+            pnum_gpio2_t0_cmp0 => t0_cmp0_dir  -- GPIO2 pin 0
+        );
+        afunc3_ren <= (
+            pnum_gpio2_t1_cap1 => t1_cap1_ren, -- GPIO2 pin 7
+            pnum_gpio2_t1_cap0 => t1_cap0_ren, -- GPIO2 pin 6
+            pnum_gpio2_t1_cmp1 => t1_cmp1_ren, -- GPIO2 pin 5
+            pnum_gpio2_t1_cmp0 => t1_cmp0_ren, -- GPIO2 pin 4
+            pnum_gpio2_t0_cap1 => t0_cap1_ren, -- GPIO2 pin 3
+            pnum_gpio2_t0_cap0 => t0_cap0_ren, -- GPIO2 pin 2
+            pnum_gpio2_t0_cmp1 => t0_cmp1_ren, -- GPIO2 pin 1
+            pnum_gpio2_t0_cmp0 => t0_cmp0_ren  -- GPIO2 pin 0
+        );
+
+
+
+    -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
+
+        -- Resistor Enables
+        dtp0_ren_in <= p4_ren(pnum_gpio3_dtp0);
+        dtp1_ren_in <= p4_ren(pnum_gpio3_dtp1);
+        dtp2_ren_in <= p4_ren(pnum_gpio3_dtp2);
+        dtp3_ren_in <= p4_ren(pnum_gpio3_dtp3);
+        sda0_ren_in <= p4_ren(pnum_gpio3_sda0);
+        scl0_ren_in <= p4_ren(pnum_gpio3_scl0);
+        sda1_ren_in <= p4_ren(pnum_gpio3_sda1);
+        scl1_ren_in <= p4_ren(pnum_gpio3_scl1);
+
+        -- Inputs
+        sda0_in <= prt4_in(pnum_gpio3_sda0);
+        scl0_in <= prt4_in(pnum_gpio3_scl0);
+        sda1_in <= prt4_in(pnum_gpio3_sda1);
+        scl1_in <= prt4_in(pnum_gpio3_scl1);
+
+        afunc4_out <= (
+            pnum_gpio3_dtp3     => dtp3_out,  -- GPIO3 pin 7
+            pnum_gpio3_dtp2     => dtp2_out,  -- GPIO3 pin 6
+            pnum_gpio3_dtp1     => dtp1_out,  -- GPIO3 pin 5
+            pnum_gpio3_dtp0     => dtp0_out,  -- GPIO3 pin 4
+            pnum_gpio3_scl1     => scl1_out,  -- GPIO3 pin 3
+            pnum_gpio3_sda1     => sda1_out,  -- GPIO3 pin 2
+            pnum_gpio3_scl0     => scl0_out,  -- GPIO3 pin 1
+            pnum_gpio3_sda0     => sda0_out   -- GPIO3 pin 0
+        );
+        afunc4_dir <= (
+            pnum_gpio3_dtp3 => dtp3_dir,      -- GPIO3 pin 7
+            pnum_gpio3_dtp2 => dtp2_dir,      -- GPIO3 pin 6
+            pnum_gpio3_dtp1 => dtp1_dir,      -- GPIO3 pin 5
+            pnum_gpio3_dtp0 => dtp0_dir,      -- GPIO3 pin 4
+            pnum_gpio3_scl1 => scl1_dir,      -- GPIO3 pin 3
+            pnum_gpio3_sda1 => sda1_dir,      -- GPIO3 pin 2
+            pnum_gpio3_scl0 => scl0_dir,      -- GPIO3 pin 1
+            pnum_gpio3_sda0 => sda0_dir       -- GPIO3 pin 0
+        );
+        afunc4_ren <= (
+            pnum_gpio3_dtp3 => dtp3_ren,      -- GPIO3 pin 7
+            pnum_gpio3_dtp2 => dtp2_ren,      -- GPIO3 pin 6
+            pnum_gpio3_dtp1 => dtp1_ren,      -- GPIO3 pin 5
+            pnum_gpio3_dtp0 => dtp0_ren,      -- GPIO3 pin 4
+            pnum_gpio3_scl1 => scl1_ren,      -- GPIO3 pin 3
+            pnum_gpio3_sda1 => sda1_ren,      -- GPIO3 pin 2
+            pnum_gpio3_scl0 => scl0_ren,      -- GPIO3 pin 1
+            pnum_gpio3_sda0 => sda0_ren       -- GPIO3 pin 0
+        );
+
+
+    -- =============================================================================
+    -- IRQ Signal Assignments
+    -- =============================================================================
+        --@GEN:irq-comb@
+
+
+
+    -- =============================================================================
+    -- Component Instantiations
+    -- =============================================================================
+    sleep_cpu <= npu0_active or flash_ext_meming; -- Sleep when either NPU is active or external flash memory access is occurring
+    -- M9b: adddec's bus staging now resets to INACTIVE (gate-sim X fix), so
+    -- the first fetch is no longer primed DURING reset. Release the core two
+    -- mclk rising edges after everything else so the staging + ROM prime the
+    -- first instruction before the core consumes it (mirrors hart_tile.vhd).
+    core_rst_stretch: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            resetn_core_sr <= (others => '0');
+        elsif rising_edge(mclk) then
+            resetn_core_sr <= resetn_core_sr(0) & '1';
+        end if;
+    end process;
+    resetn_core <= resetn_core_sr(1);
+
+    core: vesta
+        generic map (
+            PC_RST_VAL     => x"00000000",
+            NUM_IRQS       => NUM_IRQS,
+            HARTID         => 0
+        )
+        port map (
+            clk         => mclk,
+            resetn      => resetn_core,   -- M9b: delayed release (fetch priming)
+            sleep       => sleep_cpu,
+            clk_cpu     => clk_cpu,
+
+            data_addr    => data_addr,
+            wen          => wen_re,
+            write_data   => write_word,
+            read_data    => core_read_data,   -- M3c.2: adddec data, or shared-window data on region-4 access
+            mask         => mask,
+            mem_ready    => core_mem_ready_g, -- M2 injector AND M3c.2 shared back-pressure
+            lr_sc_bus    => lr_sc_bus_0,
+            sc_fail_ext  => sh_scfail_reg,
+            amo_lock     => arb_lock(0),      -- M8: grant-lock the arbiter across this hart's AMO RMW pair
+
+            irq_vector   => irq_deglitch,
+            irq_priority => irq_priority,
+            irq_recursion_en => irq_recursion_en,
+            irq_en       => irq_en,
+            isr_ret      => isr_ret,
+
+            trap_flag    => trap_out,
+
+            a0           => a0
+
+    );
+
+    -- M2 stall exerciser: drives the core's mem_ready with repeating wait states
+    -- on the free-running mclk (see hdl/MCU_MP/mp_wait_injector.vhd). Replaced by
+    -- mp_arbiter in M3. Set STALL_CYCLES=0 to make it a no-op (always ready).
+    wait_inj0: entity work.mp_wait_injector
+        generic map (
+            RUN_CYCLES   => 4,
+            STALL_CYCLES => 2
+        )
+        port map (
+            mclk      => mclk,
+            resetn    => resetn,
+            mem_ready => core_mem_ready
+        );
+
+    -- =========================================================================
+    -- M3c.2: shared-RAM window (0x10000, region 4) behind mp_arbiter, on the
+    -- free-running mclk. Hart 0 is arbiter master 0; masters 1-3 are reserved
+    -- for the private-memory tiles / future shared access. The ISA regression
+    -- never addresses region 4, so sh_sel stays '0' and this whole subsystem is
+    -- a PROVEN NO-OP: core_mem_ready_g == core_mem_ready and core_read_data ==
+    -- read_data. Real transaction-aware shared loads/stores are exercised in M4.
+    -- =========================================================================
+    -- EXACT decode of 0x10000-0x13FFF (data_addr(31:14) = 4), the complement of
+    -- adddec's extended-flash decode (>= 0x14000). A bits-16:14-only decode would
+    -- alias higher flash addresses (e.g. 0x30000) back into the shared window and
+    -- re-create the double-claim deadlock fixed in M3c.3.
+    sh_sel <= '1' when data_addr(31 downto 14) = "000000000000000100" else '0';
+
+    -- one-shot handshake: request until this access is granted (done), then hold
+    -- off re-request until the core steps off the shared address (clk_cpu is gated
+    -- while stalled, so data_addr/wen/write_word are stable across the wait).
+    --
+    -- M4b: ack is qualified by the txn's LANE STROBES (sh_ack_ok) — an SC holds
+    -- data_addr across a read (EXECUTE) then a write (SC_CHECK); an address-only
+    -- ack would silently swallow the SC write. See hart_tile.vhd for the full
+    -- rationale (this block mirrors the tile).
+    sh_handshake: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            sh_acked      <= '0';
+            sh_acked_we   <= (others => '0');
+            sh_rdata_reg  <= (others => '0');
+            sh_scfail_reg <= '0';
+        elsif rising_edge(mclk) then
+            if sh_sel = '0' then
+                sh_acked      <= '0';
+                sh_scfail_reg <= '0';
+            elsif arb_done(0) = '1' then
+                sh_acked      <= '1';
+                sh_acked_we   <= sh_we_lanes0;
+                sh_rdata_reg  <= arb_rdata;      -- capture shared read data
+                sh_scfail_reg <= arb_scfail(0);  -- capture resv_unit SC verdict
+            end if;
+        end if;
+    end process;
+
+    -- hart 0 -> arbiter master 0
+    -- wen is ACTIVE-LOW per byte lane (adddec writes lane i when wen(i)='0');
+    -- arbiter we is active-high per lane (M4a) — write_word is already
+    -- lane-positioned by the core's store extender, so sb/sh work directly.
+    sh_we_lanes0 <= (not wen_re) when sh_sel = '1' else (others => '0');
+    arb_we(3 downto 0) <= sh_we_lanes0;
+    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes0 else '0';
+    -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
+    -- settle AND fetch-priming windows from the arbiter (same qualifier as
+    -- the tiles' sh_req in hart_tile.vhd).
+    arb_req(0) <= sh_sel and not sh_ack_ok and resetn_core;
+    arb_addr(SH_AW-1 downto 0) <= data_addr(SH_AW+1 downto 2);
+    arb_wdata(31 downto 0)     <= write_word;
+    arb_lrsc(1 downto 0)       <= lr_sc_bus_0 when sh_sel = '1' else "00";
+    -- masters 1-3: driven by the hart_tile shared-window ports (M3c.4) — see
+    -- the hart1/2/3 instances below, which map sh_* straight onto these slices.
+
+    -- back-pressure into the core (identity while sh_sel='0')
+    core_mem_ready_g <= core_mem_ready and ((not sh_sel) or sh_ack_ok);
+
+    -- Read-data mux, DATA-PHASE ONLY. vesta's unified bus uses read_data as the
+    -- INSTRUCTION during decode (EXECUTE), and data_addr/sh_sel derive
+    -- combinationally from that instruction — muxing on raw sh_sel therefore
+    -- creates a zero-delay oscillation (instr->mem_access->data_addr->sh_sel->
+    -- instr), which was the M3c.3 "hang" (sim time frozen at the first shared
+    -- access). sh_dphase registers sh_sel on clk_cpu: it freezes with the core,
+    -- so it is '1' during exactly the MEMORY_WAIT cycle after a shared access —
+    -- where instr comes from the held instr_curr_prev and read_data is consumed
+    -- as LOAD DATA. Registered select => no combinational feedback, loop broken.
+    -- (Also means the shared window is DATA-only: no instruction fetch from it.)
+    sh_dphase_reg: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            sh_dphase <= '0';
+        elsif rising_edge(clk_cpu) then
+            sh_dphase <= sh_sel;
+        end if;
+    end process;
+
+    -- M9b: nop-force the instruction bus until the STRETCHED core reset
+    -- releases (mirrors hart_tile.vhd — see the rationale there).
+    core_read_data <= nop          when resetn_core = '0' else
+                      sh_rdata_reg when sh_dphase = '1'   else read_data;
+
+    mp_arb0: entity work.mp_arbiter
+        generic map (N => 4, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            req    => arb_req,
+            we     => arb_we,
+            addr   => arb_addr,
+            wdata  => arb_wdata,
+            lock   => arb_lock,   -- M8: grant-locking (AMO RMW atomicity)
+            gnt    => arb_gnt,
+            done   => arb_done,
+            rdata  => arb_rdata,
+            s_en    => sh_en,
+            s_master => sh_master,
+            s_we    => sh_we_raw,
+            s_addr  => sh_addr,
+            s_wdata => sh_wdata,
+            s_rdata => sh_rdata_mux
+        );
+
+    -- M4b: global LR/SC reservation unit — snoops every granted shared txn,
+    -- places reservations on LR reads, kills them on writes, adjudicates SC
+    -- writes IN THE ARBITER'S SERIALIZATION ORDER (a dead SC's write is
+    -- suppressed via sh_we and its fail verdict returns with done). This is
+    -- what makes cross-hart LR/SC sound: two harts SC-ing the same word both
+    -- pass their core-LOCAL checks, and only this unit can order them.
+    resv0: entity work.resv_unit
+        generic map (N => 4, ADDR_WIDTH => SH_AW)
+        port map (
+            clk        => mclk,
+            resetn     => resetn,
+            lr_sc      => arb_lrsc,
+            gnt        => arb_gnt,
+            s_en       => sh_en,
+            s_we       => sh_we_raw,
+            s_addr     => sh_addr,
+            s_we_gated => sh_we,
+            sc_fail    => arb_scfail
+        );
+
+    -- =========================================================================
+    -- M5b: slave-side sub-decode of region 4. The arbiter serializes ALL
+    -- masters onto ONE slave port; the 12-bit word address then selects which
+    -- physical slave this transaction hits:
+    --   0x10000-0x103FF (word 0x000-0x0FF) -> shared RAM (256 words, as ever)
+    --   0x11000-0x11FFF (word 0x400-0x7FF) -> CLINT (msip/mtime/mtimecmp)
+    --   0x12000-0x12FFF (word 0x800-0xBFF) -> UART0 (M6: the console UART is
+    --                                         now SHARED by all 4 harts; its
+    --                                         old private window at 0x4400 is
+    --                                         dead — hart 0 reads 0 there)
+    --   everything else                    -> no slave (reads return 0)
+    -- Both slaves obey the same 1-cycle registered-read contract, so the
+    -- arbiter's IDLE->LATCH->DATA timing is untouched; shslv_rd_clint is
+    -- registered at the access cycle and steers s_rdata during DATA.
+    -- resv_unit still snoops every transaction (its s_we_gated drives BOTH
+    -- slaves: a suppressed SC write must not touch the CLINT either); CLINT
+    -- word addresses can never match a RAM reservation (disjoint ranges).
+    -- =========================================================================
+    --@GEN:shslv-subdecode@
+
+    --@GEN:shslv-rd-sel@
+
+    --@GEN:rdata-bridge@
+
+    --@GEN:sh-rdata-mux@
+
+    --@GEN:polarity-shims@
+
+    clint0: entity work.clint
+        generic map (NHARTS => 4)
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            en     => shslv_clint_en,
+            we     => sh_we,
+            addr   => sh_addr(3 downto 0),
+            wdata  => sh_wdata,
+            rdata  => clint_rdata,
+            msip   => clint_msip,
+            mtip   => clint_mtip
+        );
+
+    -- M7a: tile IRQ fan-out — per-hart peripheral-IRQ enable rows, written by
+    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows
+    -- 1-3 feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's
+    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,
+    -- so this block is a provable NO-OP until software routes an IRQ.
+    irtr0: entity work.irq_router
+        generic map (NHARTS => 4, NUM_IRQS => NUM_IRQS)
+        port map (
+            clk        => mclk,
+            resetn     => resetn,
+            en         => shslv_irtr_en,
+            we         => sh_we,
+            addr       => sh_addr(3 downto 0),
+            wdata      => sh_wdata,
+            rdata      => irtr_rdata,
+            irq_en_out => tile_irq_en_flat
+        );
+
+    -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
+    -- return-old-and-claim (1-instruction acquire; the arbiter's whole-txn
+    -- serialization IS the atomicity), WRITE 0 = release. sh_master tells it
+    -- WHICH hart's claim-read this is. Resets all-free -> provable NO-OP.
+    -- ADVISORY by design decision: no bus-enforced locking (no core bus-error
+    -- path; stall-until-release would be a deadlock generator).
+    mtx0: entity work.mutex_bank
+        generic map (NMUTEX => 16)
+        port map (
+            clk    => mclk,
+            resetn => resetn,
+            en     => shslv_mtx_en,
+            we     => sh_we,
+            addr   => sh_addr(3 downto 0),
+            wdata  => sh_wdata,
+            master => sh_master,
+            rdata  => mtx_rdata
+        );
+
+    -- shared single-port RAM window (behavioral; 1-cycle registered read, active-
+    -- high enables to match mp_arbiter's slave model; per-byte-lane writes, M4a —
+    -- invert sh_we for the active-low WEN if this is ever replaced by the macro)
+    sh_ram: process(mclk)
+        variable merged : std_logic_vector(31 downto 0);
+    begin
+        if rising_edge(mclk) then
+            if shslv_ram_en = '1' then
+                merged := shram(conv_integer(sh_addr(7 downto 0)));
+                for l in 0 to 3 loop
+                    if sh_we(l) = '1' then
+                        merged((l+1)*8-1 downto l*8) := sh_wdata((l+1)*8-1 downto l*8);
+                    end if;
+                end loop;
+                shram(conv_integer(sh_addr(7 downto 0))) <= merged;
+                sh_rdata <= merged;
+            end if;
+        end if;
+    end process;
+
+    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
+    -- tile is a full vesta + its own adddec + private ROM/RAM0/RAM1, with RAM0
+    -- (0x8000) and RAM1 (0xC000) PRELOADED from .rcf images and PC_RST_VAL set to
+    -- 0x8200 -> they boot directly from RAM with NO SPI/flash boot, and run
+    -- concurrently with hart 0. Distinct HARTID per core. No cross-hart hazard
+    -- (each tile is unchanged single-core logic).
+    --
+    -- M3c.4: each tile is now also a REAL arbiter master (1-3) of the shared-RAM
+    -- window at 0x10000 — its sh_* port maps straight onto that master's slice
+    -- of the flattened arb_* buses. All three run shmem_mp (hartid-indexed
+    -- DISJOINT shared words at 0x10040+4*hartid; shared-word atomicity = M4):
+    -- one verified sweep -> a0 = PASS, then hammer the window forever so every
+    -- regression test runs hart 0 against 3 live contending masters. Each
+    -- hart's a0 is brought out (a0_1/2/3); the tb latches pass AND fail, so a
+    -- post-PASS corruption still fails the run.
+    hart1: entity work.hart_tile
+        generic map (
+            HARTID         => 1,
+            PC_RST_VAL     => x"00008200",
+            RAM0_INIT_FILE => HART_RAM0_INIT,
+            RAM1_INIT_FILE => HART_RAM1_INIT,
+            SH_AW          => SH_AW
+        )
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            sleep     => '0',
+            msip_in   => clint_msip(1),
+            mtip_in   => clint_mtip(1),
+            -- M7a: deglitched peripheral levels fan out to every tile; the
+            -- tile's row of the irq_router gates them (slots 83/84 are
+            -- overridden/hardwired inside the tile)
+            irq_ext    => irq_deglitch,
+            irq_en_ext => tile_irq_en_flat(2*NUM_IRQS-1 downto 1*NUM_IRQS),
+            sh_req    => arb_req(1),
+            sh_we     => arb_we(7 downto 4),
+            sh_addr   => arb_addr(2*SH_AW-1 downto SH_AW),
+            sh_wdata  => arb_wdata(2*32-1 downto 32),
+            sh_gnt    => arb_gnt(1),
+            sh_done   => arb_done(1),
+            sh_rdata  => arb_rdata,
+            sh_lrsc   => arb_lrsc(3 downto 2),
+            sh_scfail => arb_scfail(1),
+            sh_lock   => arb_lock(1),
+            trap_flag => open,
+            a0        => a0_1
+        );
+
+    hart2: entity work.hart_tile
+        generic map (
+            HARTID         => 2,
+            PC_RST_VAL     => x"00008200",
+            RAM0_INIT_FILE => HART_RAM0_INIT,
+            RAM1_INIT_FILE => HART_RAM1_INIT,
+            SH_AW          => SH_AW
+        )
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            sleep     => '0',
+            msip_in   => clint_msip(2),
+            mtip_in   => clint_mtip(2),
+            irq_ext    => irq_deglitch,
+            irq_en_ext => tile_irq_en_flat(3*NUM_IRQS-1 downto 2*NUM_IRQS),
+            sh_req    => arb_req(2),
+            sh_we     => arb_we(11 downto 8),
+            sh_addr   => arb_addr(3*SH_AW-1 downto 2*SH_AW),
+            sh_wdata  => arb_wdata(3*32-1 downto 2*32),
+            sh_gnt    => arb_gnt(2),
+            sh_done   => arb_done(2),
+            sh_rdata  => arb_rdata,
+            sh_lrsc   => arb_lrsc(5 downto 4),
+            sh_scfail => arb_scfail(2),
+            sh_lock   => arb_lock(2),
+            trap_flag => open,
+            a0        => a0_2
+        );
+
+    hart3: entity work.hart_tile
+        generic map (
+            HARTID         => 3,
+            PC_RST_VAL     => x"00008200",
+            RAM0_INIT_FILE => HART_RAM0_INIT,
+            RAM1_INIT_FILE => HART_RAM1_INIT,
+            SH_AW          => SH_AW
+        )
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            sleep     => '0',
+            msip_in   => clint_msip(3),
+            mtip_in   => clint_mtip(3),
+            irq_ext    => irq_deglitch,
+            irq_en_ext => tile_irq_en_flat(4*NUM_IRQS-1 downto 3*NUM_IRQS),
+            sh_req    => arb_req(3),
+            sh_we     => arb_we(15 downto 12),
+            sh_addr   => arb_addr(4*SH_AW-1 downto 3*SH_AW),
+            sh_wdata  => arb_wdata(4*32-1 downto 3*32),
+            sh_gnt    => arb_gnt(3),
+            sh_done   => arb_done(3),
+            sh_rdata  => arb_rdata,
+            sh_lrsc   => arb_lrsc(7 downto 6),
+            sh_scfail => arb_scfail(3),
+            sh_lock   => arb_lock(3),
+            trap_flag => open,
+            a0        => a0_3
+        );
+
+    -- System Peripheral
+    system0: SYSTEM
+        generic map (
+            NUM_IRQS => NUM_IRQS 
+        )
+        port map (
+            clk_lfxt_in   => lfxt_in,
+            clk_hfxt_in   => hfxt_in,
+            clk_dco0_in   => clk_osc_dco0,
+            clk_dco1_in   => clk_osc_dco1,
+
+            resetn_in      => resetn_in,
+            resetn_por     => resetn_por,
+            resetn_sys     => resetn, 
+
+            irq           => irq_deglitch,
+            isr_ret       => isr_ret,
+            irq_en        => irq_en,
+            irq_priority  => irq_priority,
+            irq_recursion_en => irq_recursion_en,
+            irq_sys_wdt   => irq_sys_wdt,
+
+            --@GEN:bus:system0@
+
+            mclk_out      => mclk,
+            smclk_out     => smclk,
+            clk_lfxt_out  => clk_lfxt,
+            clk_hfxt_out  => clk_hfxt,
+
+            en_dco0_out   => en_dco0,
+            DCO0_BIAS     => DCO0_BIAS,
+
+            en_dco1_out   => en_dco1,
+            DCO1_BIAS     => DCO1_BIAS,
+
+            PGEN_mem      => pgen_mem
+    );
+
+
+    adddec0: adddec
+        generic map (
+            ENABLE_FLASH_EXTENDED_MEM => true
+        )
+        port map (
+            clk             => clk_cpu,
+            resetn          => resetn,
+
+            wen             => wen_re,
+            data_addr       => data_addr,
+            write_word      => write_word,
+            mask            => mask,
+        
+            write_data      => write_data,
+            read_data       => read_data,
+            mem_addr        => mem_addr, 
+            addr_periph     => addr_periph(7 downto 2),
+            mab_out         => mab_flash, 
+            wen_fe          => wen_fe,
+            GWEN            => GWEN,
+
+            mem_en          => mem_en,
+            mem_en_periph   => mem_en_periph,
+            clk_mem         => clk_mem,
+            clk_periph      => clk_periph,
+
+            mem_en_flash    => mem_en_flash,
+            clk_mem_flash   => clk_mem_flash,
+
+            mem_dout       => mem_dout,
+            periph_dout    => periph_dout,
+            flash_dout     => flash_dout   
+    );
+
+    -- GPIO0 (SPI0, CLKLFXT, CLKHFXT, TRAP, BOOT)
+    gpio0: GPIO
+        generic map (
+            num_pins        => 8,
+            PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
+            PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
+            PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
+            RstValPxOUT     => RstValP1OUT,
+            RstValPxDIR     => RstValP1DIR, 
+            RstValPxSEL		=> RstValP1SEL,
+            RstValPxREN     => RstValP1REN
+        )
+        port map (
+            resetn           => resetn, 
+            irq              => irq_gpio0,
+
+            --@GEN:bus:gpio0@
+
+            prt_in          => prt1_in,
+            prt_out_out     => prt1_out,
+            prt_dir_out     => prt1_dir,
+            prt_ren_out     => prt1_ren, 
+
+            -- Register Outputs
+            PxOUT_out		=> p1_out,
+            PxDIR_out		=> p1_dir,
+            PxREN_out		=> p1_ren,
+
+            alt_func_out_in	=>	afunc1_out,
+            alt_func_dir_in	=>	afunc1_dir,
+            alt_func_ren_in	=>	afunc1_ren	
+    );
+
+    -- GPIO1 (SPI1, UART0, UART1)
+    -- M7b: register bus moved onto the mp_arbiter (page-3 slot 1 @0x13100,
+    -- all 4 harts); pads/alt-func/IRQ wiring unchanged. Old 0x4100 reads 0.
+    gpio1: GPIO
+        generic map (
+            num_pins        => 8,
+            PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
+            PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
+            PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
+            RstValPxOUT     => RstValP2OUT,
+            RstValPxDIR     => RstValP2DIR,  -- Pins default to output
+            RstValPxSEL		=> RstValP2SEL,
+            RstValPxREN     => RstValP2REN
+        )
+        port map (
+            resetn           => resetn,
+            irq              => irq_gpio1,
+
+            --@GEN:bus:gpio1@
+
+            prt_in          => prt2_in,
+            prt_out_out     => prt2_out,
+            prt_dir_out     => prt2_dir,
+            prt_ren_out     => prt2_ren,
+
+            -- Register Outputs
+            PxOUT_out		=> p2_out,
+            PxDIR_out		=> p2_dir,
+            PxREN_out		=> p2_ren,
+
+            alt_func_out_in	=>	afunc2_out,
+            alt_func_dir_in	=>	afunc2_dir,
+            alt_func_ren_in	=>	afunc2_ren	
+    );
+
+    -- GPIO2 (TIMER0, TIMER1)
+    gpio2: GPIO 
+        generic map (
+            num_pins        => 8,
+            PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
+            PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
+            PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
+            RstValPxOUT     => RstValP3OUT,
+            RstValPxDIR     => RstValP3DIR,  -- Pins default to output
+            RstValPxSEL		=> RstValP3SEL,
+            RstValPxREN     => RstValP3REN
+        )
+        port map (
+            resetn           => resetn, 
+            irq              => irq_gpio2,
+
+            --@GEN:bus:gpio2@
+
+            prt_in          => prt3_in,
+            prt_out_out     => prt3_out,
+            prt_dir_out     => prt3_dir,
+            prt_ren_out     => prt3_ren,
+
+            -- Register Outputs
+            PxOUT_out		=> p3_out,
+            PxDIR_out		=> p3_dir,
+            PxREN_out		=> p3_ren,
+
+            alt_func_out_in	=>	afunc3_out,
+            alt_func_dir_in	=>	afunc3_dir,
+            alt_func_ren_in	=>	afunc3_ren	
+    );
+
+    -- GPIO3 (I2C0, I2C1, DTP)
+    gpio3: GPIO 
+        generic map (
+            num_pins        => 8,
+            PadOUTPosLogic  => true, -- Configured such that setting PxOUT to '1' will drive the output of the pad HIGH
+            PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
+            PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
+            RstValPxOUT     => RstValP4OUT,
+            RstValPxDIR     => RstValP4DIR,  -- Pins default to output
+            RstValPxSEL		=> RstValP4SEL,
+            RstValPxREN     => RstValP4REN
+        )
+        port map (
+            resetn          => resetn, 
+            irq             => irq_gpio3,
+
+            --@GEN:bus:gpio3@
+
+            prt_in          => prt4_in,
+            prt_out_out     => prt4_out,
+            prt_dir_out     => prt4_dir,
+            prt_ren_out     => prt4_ren,
+
+            -- Register Outputs
+            PxOUT_out		=> p4_out,
+            PxDIR_out		=> p4_dir,
+            PxREN_out		=> p4_ren,
+
+            alt_func_out_in	=>	afunc4_out,
+            alt_func_dir_in	=>	afunc4_dir,
+            alt_func_ren_in	=>	afunc4_ren	
+    );
+
+    spi0: SPI
+        generic map (
+            ENABLE_EXTENDED_MEM => true
+        )
+        port map (
+            clk             => smclk,
+            mclk            => mclk,
+            resetn          => resetn,
+            irq_tc          => irq_spi0_tc,
+            irq_te          => irq_spi0_te,
+
+            --@GEN:bus:spi0@
+
+            cs_in       => cs_flash_in,
+
+            sck_in      => sck_flash_in,
+            sck_out     => sck_flash_out,
+            sck_dir     => sck_flash_dir,
+            sck_ren     => sck_flash_ren,
+            sck_ren_in  => sck_flash_ren_in,
+
+            mosi_in     => mosi_flash_in,
+            mosi_out    => mosi_flash_out,
+            mosi_dir    => mosi_flash_dir,
+            mosi_ren    => mosi_flash_ren,
+            mosi_ren_in => mosi_flash_ren_in,
+
+            miso_in     => miso_flash_in,
+            miso_out    => miso_flash_out,
+            miso_dir    => miso_flash_dir,
+            miso_ren    => miso_flash_ren,
+            miso_ren_in => miso_flash_ren_in,
+
+            en_mem_flash    => mem_en_flash,
+            clk_mem_flash   => clk_mem_flash,
+            mab             => mab_flash,
+            rdata_flash      => flash_dout,
+            disable_clk_cpu => flash_ext_meming,
+
+            cs_flash_out   => cs_flash_out,
+            cs_flash_dir   => cs_flash_dir,
+            cs_flash_ren   => cs_flash_ren
+
+
+        );
+
+    spi1: SPI
+        generic map (
+            ENABLE_EXTENDED_MEM => false
+        )
+        port map (
+
+            clk             => smclk,
+            mclk            => mclk,
+            resetn          => resetn,
+            irq_tc          => irq_spi1_tc,
+            irq_te          => irq_spi1_te,
+
+            --@GEN:bus:spi1@
+
+            cs_in       => cs1_in,
+
+            sck_in      => sck1_in,
+            sck_out     => sck1_out,
+            sck_dir     => sck1_dir,
+            sck_ren     => sck1_ren,
+            sck_ren_in  => sck1_ren_in,
+
+            mosi_in     => mosi1_in,
+            mosi_out    => mosi1_out,
+            mosi_dir    => mosi1_dir,
+            mosi_ren    => mosi1_ren,
+            mosi_ren_in => mosi1_ren_in,
+
+            miso_in     => miso1_in,
+            miso_out    => miso1_out,
+            miso_dir    => miso1_dir,
+            miso_ren    => miso1_ren,
+            miso_ren_in => miso1_ren_in, 
+
+            en_mem_flash    => '1', 
+            clk_mem_flash   => '1',
+            mab             => (others => '1'),
+            rdata_flash     => open,
+            disable_clk_cpu => open,
+            
+            cs_flash_out   => open,
+            cs_flash_dir   => open,
+            cs_flash_ren   => open
+
+    );
+
+    -- M6: UART0 is the SHARED console UART. Its register bus now hangs off the
+    -- mp_arbiter slave port (region-4 sub-decode @0x12000, all 4 harts) instead
+    -- of hart 0's private periph bus @0x4400. Core clock (smclk), pads and IRQ
+    -- wiring (-> hart 0's SYSTEM only) are unchanged.
+    uart0: UART
+        port map (
+            -- System Signals
+            clk         => smclk,
+            resetn       => resetn,
+
+            -- Interrupt Signals
+            irq_rc       => irq_uart0_rc,
+            irq_te       => irq_uart0_te,
+            irq_tc       => irq_uart0_tc,
+
+            --@GEN:bus:uart0@
+
+            -- Pad Interface
+            TX_OUT      => tx0_out,
+            TX_DIR      => tx0_dir,
+            TX_REN      => tx0_ren,
+
+            RX_IN       => rx0_in,
+            RX_OUT      => rx0_out,
+            RX_DIR      => rx0_dir,
+            RX_REN      => rx0_ren
+    );
+
+    --@GEN:dead-window-zero@
+
+    uart1: UART
+        port map (
+            -- System Signals
+            clk         => smclk,
+            resetn       => resetn,
+
+            -- Interrupt Signals
+            irq_rc       => irq_uart1_rc,
+            irq_te       => irq_uart1_te,
+            irq_tc       => irq_uart1_tc,
+
+            --@GEN:bus:uart1@
+
+            -- Pad Interface
+            TX_OUT      => tx1_out,
+            TX_DIR      => tx1_dir,
+            TX_REN      => tx1_ren,
+
+            RX_IN       => rx1_in,
+            RX_OUT      => rx1_out,
+            RX_DIR      => rx1_dir,
+            RX_REN      => rx1_ren
+    );
+
+    i2c0: I2C
+        generic map (
+            default_SAD => i2c0_default_SAD
+        )
+        port map
+        (
+            -- System Signals
+            smclk			=> smclk,	
+            resetn			=> resetn,	
+
+            irq_str			=> irq_i2c0_str,
+            irq_spr			=> irq_i2c0_spr,
+            irq_msts		=> irq_i2c0_msts,
+            irq_msps		=> irq_i2c0_msps,
+            irq_marb		=> irq_i2c0_marb,
+            irq_mtxe		=> irq_i2c0_mtxe,
+            irq_mnr			=> irq_i2c0_mnr,
+            irq_mxc			=> irq_i2c0_mxc,
+            irq_sa			=> irq_i2c0_sa,
+            irq_stxe		=> irq_i2c0_stxe,
+            irq_sovf		=> irq_i2c0_sovf,
+            irq_snr			=> irq_i2c0_snr,
+            irq_sxc			=> irq_i2c0_sxc,
+            
+            --@GEN:bus:i2c0@
+            
+            -- Pin Inputs/Outputs
+            SCL_IN			=> scl0_in,
+            SCL_OUT			=> scl0_out,
+            SCL_DIR			=> scl0_dir,
+            SCL_REN_in		=> scl0_ren_in,
+            SCL_REN			=> scl0_ren,
+            
+            SDA_IN			=> sda0_in,
+            SDA_OUT			=> sda0_out,
+            SDA_DIR			=> sda0_dir,
+            SDA_REN_in		=> sda0_ren_in,
+            SDA_REN			=> sda0_ren
+	);
+
+    i2c1: I2C
+        generic map (
+            default_SAD => i2c1_default_SAD
+        )
+        port map
+        (
+            -- System Signals
+            smclk			=> smclk,	
+            resetn			=> resetn,	
+
+            irq_str			=> irq_i2c1_str,
+            irq_spr			=> irq_i2c1_spr,
+            irq_msts		=> irq_i2c1_msts,
+            irq_msps		=> irq_i2c1_msps,
+            irq_marb		=> irq_i2c1_marb,
+            irq_mtxe		=> irq_i2c1_mtxe,
+            irq_mnr			=> irq_i2c1_mnr,
+            irq_mxc			=> irq_i2c1_mxc,
+            irq_sa			=> irq_i2c1_sa,
+            irq_stxe		=> irq_i2c1_stxe,
+            irq_sovf		=> irq_i2c1_sovf,
+            irq_snr			=> irq_i2c1_snr,
+            irq_sxc			=> irq_i2c1_sxc,
+            
+            --@GEN:bus:i2c1@
+
+            -- Pin Inputs/Outputs
+            SCL_IN			=> scl1_in,
+            SCL_OUT			=> scl1_out,
+            SCL_DIR			=> scl1_dir,
+            SCL_REN_in		=> scl1_ren_in,
+            SCL_REN			=> scl1_ren,
+            
+            SDA_IN			=> sda1_in,
+            SDA_OUT			=> sda1_out,
+            SDA_DIR			=> sda1_dir,
+            SDA_REN_in		=> sda1_ren_in,
+            SDA_REN			=> sda1_ren
+	);
+
+    timer0 : TIMER
+        port map (
+            -- System Signals
+            mclk         => mclk,
+            smclk        => smclk,
+            clk_lfxt     => clk_lfxt,
+            clk_hfxt     => clk_hfxt,
+            resetn       => resetn,
+
+            -- IRQ Signals  
+            irq_cap0     => irq_tim0_cap0,
+            irq_cap1     => irq_tim0_cap1,
+            irq_ovf      => irq_tim0_ovf,
+            irq_cmp0     => irq_tim0_cmp0,
+            irq_cmp1     => irq_tim0_cmp1,
+            irq_cmp2     => irq_tim0_cmp2,
+
+            --@GEN:bus:timer0@
+
+            -- Pad Interface
+            cmp0_ren_in  => t0_cmp0_ren_in,
+            cmp0_out     => t0_cmp0_out,
+            cmp0_dir     => t0_cmp0_dir,
+            cmp0_ren     => t0_cmp0_ren,
+
+            cmp1_ren_in  => t0_cmp1_ren_in,
+            cmp1_out     => t0_cmp1_out,
+            cmp1_dir     => t0_cmp1_dir,
+            cmp1_ren     => t0_cmp1_ren,
+
+            cap0_ren_in  => t0_cap0_ren_in,
+            cap0_ren     => t0_cap0_ren,
+            cap0_dir     => t0_cap0_dir,
+            cap0_in      => t0_cap0_in,
+
+            cap1_ren_in  => t0_cap1_ren_in,
+            cap1_ren     => t0_cap1_ren,
+            cap1_dir     => t0_cap1_dir,
+            cap1_in      => t0_cap1_in
+    );
+
+    timer1 : TIMER
+        port map (
+            -- System Signals
+            mclk         => mclk,
+            smclk        => smclk,
+            clk_lfxt     => clk_lfxt,
+            clk_hfxt     => clk_hfxt,
+            resetn       => resetn,
+
+            -- IRQ Signals  
+            irq_cap0     => irq_tim1_cap0,
+            irq_cap1     => irq_tim1_cap1,
+            irq_ovf      => irq_tim1_ovf,
+            irq_cmp0     => irq_tim1_cmp0,
+            irq_cmp1     => irq_tim1_cmp1,
+            irq_cmp2     => irq_tim1_cmp2,
+
+            --@GEN:bus:timer1@
+
+            -- Pad Interface
+            cmp0_ren_in  => t1_cmp0_ren_in,
+            cmp0_out     => t1_cmp0_out,
+            cmp0_dir     => t1_cmp0_dir,
+            cmp0_ren     => t1_cmp0_ren,
+
+            cmp1_ren_in  => t1_cmp1_ren_in,
+            cmp1_out     => t1_cmp1_out,
+            cmp1_dir     => t1_cmp1_dir,
+            cmp1_ren     => t1_cmp1_ren,
+
+            cap0_ren_in  => t1_cap0_ren_in,
+            cap0_ren     => t1_cap0_ren,
+            cap0_dir     => t1_cap0_dir,
+            cap0_in      => t1_cap0_in,
+
+            cap1_ren_in  => t1_cap1_ren_in,
+            cap1_ren     => t1_cap1_ren,
+            cap1_dir     => t1_cap1_dir,
+            cap1_in      => t1_cap1_in
+    );
+
+    npu0: entity work.NPU
+        generic map(
+            X_M_BITS => 0,
+            W_M_BITS => 7,
+            Y_M_BITS => 7,
+            N_BITS   => 24,
+            RHO      => 2
+        )
+        port map (
+            -- System Signals
+            clk         => mclk,  
+            resetn      => resetn,
+
+            --@GEN:bus:npu0@
+
+            -- MUXed SRAM Inputs (connect directly to address decoder outputs)
+            SramQ_in      => mem_dout(2),
+            SramA_in      => mem_addr,
+            SramD_in      => write_data,
+            SramCLK_in    => clk_mem(2),
+            SramCEN_in    => mem_en(2),
+            SramGWEN_in   => GWEN,
+            SramWEN_in    => wen_fe,
+
+            -- SRAM Interface (connect directly to SRAM blocks without going through address decoder)
+            NpuSramA_out    => npu0_mux_ram_a,
+            NpuSramD_out    => npu0_mux_ram_d,
+            NpuSramCLK_out  => npu0_mux_ram_clk,
+            NpuSramCEN_out  => npu0_mux_ram_cen,
+            NpuSramGWEN_out => npu0_mux_ram_gwen,
+            NpuSramWEN_out  => npu0_mux_wen,
+
+            NpuActive       => npu0_active -- Make irq
+    );
+
+    afe0: entity work.AFE
+        port map (
+            clk         => smclk,
+            resetn      => resetn,
+            irq         => irq_afe0_rc, 
+
+            --@GEN:bus:afe0@
+
+            dtp0_ren_in  => dtp0_ren_in,
+            dtp0_ren     => dtp0_ren,
+            dtp0_dir     => dtp0_dir,
+            dtp0_out     => dtp0_out,
+
+            dtp1_ren_in  => dtp1_ren_in,
+            dtp1_ren     => dtp1_ren,
+            dtp1_dir     => dtp1_dir,
+            dtp1_out     => dtp1_out,
+
+            dtp2_ren_in  => dtp2_ren_in,
+            dtp2_ren     => dtp2_ren,
+            dtp2_dir     => dtp2_dir,
+            dtp2_out     => dtp2_out,
+
+            dtp3_ren_in  => dtp3_ren_in,
+            dtp3_ren     => dtp3_ren,
+            dtp3_dir     => dtp3_dir,
+            dtp3_out     => dtp3_out,
+
+            --Bias Signals 
+            use_bias_dac => use_dac_glb_bias,
+            en_bias_buf  => en_bias_buf,
+            en_bias_gen  => en_bias_gen,
+
+            -- Central Bias Generator
+            BIAS_ADJ    => BIAS_ADJ,
+            BIAS_DBP    => BIAS_DBP,
+            BIAS_DBN    => BIAS_DBN,
+            BIAS_DBPC   => BIAS_DBPC,
+            BIAS_DBNC   => BIAS_DBNC,
+
+            -- TIA Biases
+            BIAS_TC_POT     => BIAS_TC_POT,
+            BIAS_LC_POT     => BIAS_LC_POT,
+            BIAS_TIA_G_POT  => BIAS_TIA_G_POT,
+            BIAS_REV_POT    => BIAS_REV_POT,
+
+            -- DSADC Biases
+            BIAS_TC_DSADC  => BIAS_TC_DSADC,
+            BIAS_LC_DSADC  => BIAS_LC_DSADC,
+            BIAS_RIN_DSADC => BIAS_RIN_DSADC,
+            BIAS_RFB_DSADC => BIAS_RFB_DSADC,
+            BIAS_DSADC_VCM => BIAS_DSADC_VCM,
+
+            -- DSADC Output Signals 
+            adc_conv_done   => dsadc_conv_done,
+            adc_en          => dsadc_en,
+            adc_clk         => dsadc_clk,
+            adc_switch      => dsadc_switch,
+            adc_ext_in      => adc_ext_in,  -- '1' => adc's input is from potentiostat pad, '0' => external signal
+            atp_en          => atp_en,      -- '1' => ATP is enabled, '0' => ATP is disabled
+            atp_sel         => atp_sel,     -- '1' => ATP to use is DSADC, '0' => ATP is Potentiostat
+            adc_sel         => adc_sel,     -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
+            dac_en          => dac_en_pot
+        );
+
+    saradc0: entity work.SARADC
+        port map (
+            clk         => smclk,
+            resetn      => resetn,
+
+            irq         => irq_sar0_rc,
+
+            --@GEN:bus:saradc0@
+
+            dtp0         => t0_cap1_out, -- Alternate Function as DTP
+            dtp1         => t1_cap1_out, -- Alternate Function as DTP
+
+            ADC_ready_i     => saradc_rdy,
+            ADC_data_i      => saradc_data,
+            ADC_reset       => saradc_rst,
+            ADC_trigger_clock_o =>saradc_clk
+    );
+
+    -- =============================================================================
+    -- Memory Blocks
+    -- =============================================================================
+    rom0: entity work.rom_hvt_pg
+        port map (
+            Q    => mem_dout(0),
+            CLK  => clk_mem(0),
+            CEN  => mem_en(0),
+            A    => mem_addr, 
+            EMA  => "000",
+            PGEN => pgen_mem(0)
+    );
+
+
+    ram0: entity work.sram1p16k_hvt_pg
+        port map (
+            Q     => mem_dout(1),
+            CLK   => clk_mem(1),
+            CEN   => mem_en(1),
+            WEN   => wen_fe,
+            A     => mem_addr,
+            D     => write_data,
+            EMA   => "000",
+            GWEN  => GWEN,
+            RETN  => '1',
+            PGEN  => pgen_mem(1)
+    );
+
+    -- NPU SRAM Interface
+    ram1: entity work.sram1p16k_hvt_pg
+        port map (
+            Q     => mem_dout(2),
+            CLK   => npu0_mux_ram_clk,
+            CEN   => npu0_mux_ram_cen,
+            WEN   => npu0_mux_wen,
+            A     => npu0_mux_ram_a,
+            D     => npu0_mux_ram_d,
+            EMA   => "000",
+            GWEN  => npu0_mux_ram_gwen,
+            RETN  => '1',
+            PGEN  => pgen_mem(2)
+    );
+
+
+    -- =============================================================================
+    -- Abstract Blocks 
+    -- =============================================================================
+
+    -- Power-on resetn Circuit
+	por: entity work.PowerOnResetCheng
+        port map
+        (
+            resetn_in	=> resetn_in,
+            resetn_out	=> resetn_por
+	);
+
+    -- Glitch Filter for IRQ signals
+    irq_gf0 : entity work.GlitchFilter
+        port map
+        (
+            IrqGlitchy		=> irq_comb(31 downto 0),
+            IrqDeglitched	=> gf_out(31 downto 0)
+	);
+    irq_gf1 : entity work.GlitchFilter
+        port map
+        (
+            IrqGlitchy		=> irq_comb(63 downto 32),
+            IrqDeglitched	=> gf_out(63 downto 32)
+	);
+    irq_gf2 : entity work.GlitchFilter
+        port map
+        (
+            IrqGlitchy		=> irq_comb(95 downto 64),
+            IrqDeglitched	=> gf_out(95 downto 64)
+	);
+    irq_deglitch <= gf_out(NUM_IRQS-1 downto 0);
+
+    -- This tie-low cell is instantiated because, for some reason, Genus won't route tie cells to any of the analog blocks, instead directly connecting the pins to VSS (or VDD)
+	-- This tie-low cell buries a constant 0 one level down in the hierarchy, which tricks Genus into using an actual tie-low cell from the standard cell library and connecting it to all the constant '0' inputs to the glitch filter
+	-- WARNING: The fan-out for the tie cell should be checked
+	IrqGlitchyZeroTieLow: entity work.TieLow
+	port map
+	(
+		Zero	=> irq_tielow
+	);
+
+
+
+    -- Current Starved Oscillators for MCLK and SMCLK
+    reset_dco <= not resetn_por;  -- DCO reset is active high
+	dco0: entity work.OscillatorCurrentStarved
+	port map
+	(
+		Reset	=> reset_dco,
+		En		=> en_dco0,
+		Freq	=> DCO0_BIAS,
+		ClkOut	=> clk_osc_dco0
+	);
+
+	dco1: entity work.OscillatorCurrentStarved
+	port map
+	(
+		Reset	=> reset_dco,
+		En		=> en_dco1,
+		Freq	=> DCO1_BIAS,
+		ClkOut	=> clk_osc_dco1
+	);
+
+
+end architecture behav;
+
+
+
