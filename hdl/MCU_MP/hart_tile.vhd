@@ -223,10 +223,25 @@ architecture behav of hart_tile is
     signal sh_dphase      : std_logic := '0';  -- clk_cpu-domain: shared access in data phase
     signal sh_acked       : std_logic := '0';
     signal sh_acked_we    : std_logic_vector(3 downto 0) := (others => '0'); -- lanes of the acked txn (M4b)
+    signal sh_acked_addr  : std_logic_vector(SH_AW-1 downto 0) := (others => '0'); -- word addr of the acked txn (M10)
     signal sh_ack_ok      : std_logic;          -- ack valid FOR THE CURRENT ACCESS TYPE
     signal sh_we_lanes    : std_logic_vector(3 downto 0);
     signal sh_rdata_reg   : std_logic_vector(31 downto 0) := (others => '0');
+    -- M10: clk_cpu-STAGED copy of sh_rdata_reg — the value the core actually
+    -- consumes. sh_rdata_reg is an mclk landing register: when the core
+    -- EXECUTES FROM the shared window it is frozen in EXECUTE consuming
+    -- sh_rdata_reg as its INSTRUCTION while the next transaction (data load
+    -- or next fetch) completes and overwrites it MID-CYCLE — the executing
+    -- instruction flips under the core's feet (found by shexec; the private
+    -- RAM never does this because its Q only updates at the core's own gated
+    -- memory-clock edges). The clk_cpu stage replicates exactly that Q
+    -- contract: it freezes with the core and picks up the landed value at
+    -- the stall-ending edge — cycle-identical to the old direct consumption
+    -- for all data-only traffic (one completion per stretched cycle).
+    signal sh_rdata_cpu   : std_logic_vector(31 downto 0) := (others => '0');
     signal sh_scfail_reg  : std_logic := '0';   -- resv_unit SC verdict, latched at done (M4b)
+                                                -- (NOT staged: SC_CHECK consumes the verdict
+                                                -- in its own stretched cycle, at the end edge)
     signal core_read_data : std_logic_vector(31 downto 0);
     signal mem_ready_sh   : std_logic;
     signal lr_sc_bus      : std_logic_vector(1 downto 0);
@@ -352,11 +367,24 @@ begin
     -- address-only ack the write would never issue (silently lost SC). The
     -- lane change drops sh_ack_ok inside the SC_CHECK cycle => the core
     -- re-stalls and the write runs as a fresh arbiter transaction.
+    --
+    -- M10: the ack also remembers the WORD ADDRESS (sh_acked_addr) and only
+    -- satisfies an access to the SAME word. WHY: executing FROM the shared
+    -- window (the M12 boot shape) produces back-to-back same-lane READS at
+    -- DIFFERENT addresses with sh_sel never dropping — sequential fetches,
+    -- and the fetch after a shared load. The lanes-only ack absorbed them
+    -- all into one stale sh_rdata_reg (the core re-executed instruction k
+    -- forever). Address change now drops sh_ack_ok => every new word
+    -- re-arbitrates. Same-word re-access still holds the ack — a compressed
+    -- pair in one word or a `j .` self-loop correctly re-uses the held word,
+    -- and repeated-identical-access absorption (AMO_READ consuming its
+    -- EXECUTE-cycle read) is unchanged.
     sh_handshake: process(clk, resetn)
     begin
         if resetn = '0' then
             sh_acked      <= '0';
             sh_acked_we   <= (others => '0');
+            sh_acked_addr <= (others => '0');
             sh_rdata_reg  <= (others => '0');
             sh_scfail_reg <= '0';
         elsif rising_edge(clk) then
@@ -366,6 +394,7 @@ begin
             elsif sh_done = '1' then
                 sh_acked      <= '1';
                 sh_acked_we   <= sh_we_lanes;
+                sh_acked_addr <= data_addr(SH_AW+1 downto 2);
                 sh_rdata_reg  <= sh_rdata;   -- capture shared read data
                 sh_scfail_reg <= sh_scfail;  -- capture resv_unit SC verdict
             end if;
@@ -377,7 +406,8 @@ begin
     sh_we_lanes <= (not wen_re) when sh_sel = '1' else (others => '0');
     sh_we       <= sh_we_lanes;
 
-    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes else '0';
+    sh_ack_ok <= '1' when sh_acked = '1' and sh_acked_we = sh_we_lanes
+                      and sh_acked_addr = data_addr(SH_AW+1 downto 2) else '0';
 
     -- M9b: resetn_core (the STRETCHED core reset) masks the power-on/reset
     -- settle AND fetch-priming windows from the arbiter — sh_sel is a
@@ -399,9 +429,14 @@ begin
     sh_dphase_reg: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
-            sh_dphase <= '0';
+            sh_dphase   <= '0';
+            sh_rdata_cpu <= (others => '0');
         elsif rising_edge(clk_cpu) then
-            sh_dphase <= sh_sel;
+            sh_dphase   <= sh_sel;
+            -- M10 consumption stage (see the signal declaration): re-latching
+            -- a stale landing value is harmless; what matters is that this
+            -- register can NEVER change inside a stretched core cycle.
+            sh_rdata_cpu <= sh_rdata_reg;
         end if;
     end process;
 
@@ -413,7 +448,7 @@ begin
     -- self-sustaining X loop on the unified bus. A defined nop keeps
     -- pc_next/data_addr/decode defined while the fetch pipeline primes.
     core_read_data <= nop          when resetn_core = '0' else
-                      sh_rdata_reg when sh_dphase = '1'   else read_data;
+                      sh_rdata_cpu when sh_dphase = '1'   else read_data;
 
     -- Private ROM (0x0000). Never fetched in M3b (harts boot at 0x8200 in RAM0),
     -- present only to satisfy the decoder's mem_dout(0) region.

@@ -194,3 +194,6 @@ xcelium/**/xrun.history
 xcelium/**/sig_approx_fp.txt
 xcelium/**/output_results.txt
 xcelium/**/*_actual_*.txt
+
+# Local engineering changelog (not for the repo)
+.devlog/

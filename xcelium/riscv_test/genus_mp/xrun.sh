@@ -49,7 +49,7 @@ echo "Running gate-level test: $RCF  (mode: ${MODE:-batch})"
 IMG_DIR="/home/mseminario2/vestarv/xcelium/riscv_test/ram_images"
 BASE="$(basename "$RCF" .rcf | sed 's/^x*//')"
 case "${HART_IMG:-$BASE}" in
-    *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu)
+    *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
         IMG="${HART_IMG:-$BASE}" ;;
     *)  IMG="${HART_IMG:-rv32ui-p-shmem_mp}" ;;
 esac

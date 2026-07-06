@@ -177,7 +177,7 @@ VHDL
     # shmem_mp contention tiles (same rule as behavioral_mp + xrun.sh here).
     base="$(basename "$rcf" .rcf | sed 's/^x*//')"
     case "$base" in
-        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu)
+        *-shboot|*-shspin|*-shlock|*-shmutex|*-shamo|*-shwfi|*-shuart|*-shirq|*-shtimer|*-shperiph|*-shi2c|*-shnpu|*-shexec)
             img="$base" ;;
         *)  img="rv32ui-p-shmem_mp" ;;
     esac

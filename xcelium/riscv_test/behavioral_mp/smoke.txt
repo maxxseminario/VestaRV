@@ -24,3 +24,4 @@
 ../rcf/xxxrv32ua-p-shlock.rcf
 ../rcf/xxrv32ui-p-shmutex.rcf
 ../rcf/xxxxrv32ua-p-shamo.rcf
+../rcf/xxxrv32ui-p-shexec.rcf

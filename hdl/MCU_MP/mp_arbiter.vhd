@@ -102,19 +102,24 @@ architecture behav of mp_arbiter is
     signal cur    : natural range 0 to N-1 := 0;   -- currently granted master
     signal rr_ptr : natural range 0 to N-1 := 0;   -- round-robin start pointer
 
-    -- M5a GHOST-TXN FIX: req(i) is HELD until done(i), and the master's ack
-    -- flop (sh_acked) only clears req one mclk AFTER the done cycle — so at
-    -- the IDLE pick edge immediately following DATA, the just-served master's
-    -- req is still (stalely) '1'. Picking it re-runs a GHOST transaction with
-    -- whatever addr/lanes the now-unstalling core happens to present, and the
-    -- ghost's done collides with (and swallows) that master's NEXT real access
-    -- — back-to-back shared mem instructions then consume stale rdata (found
-    -- by shspin's owner re-check; masked under heavy contention, which is why
-    -- shmem_mp's sw/lw hammer never hit it). Fix: mask the served master for
-    -- exactly ONE pick cycle. A legitimate re-request can't arrive earlier
-    -- than two cycles after done, so this can never starve anyone.
-    signal mask_last : std_logic := '0';           -- valid for one pick only
-    signal last_m    : natural range 0 to N-1 := 0;
+    -- M5a GHOST-TXN FIX, M10 latency-insensitive form: req(i) is HELD until
+    -- done(i), and the master's ack flop (sh_acked) only clears req one mclk
+    -- AFTER the done cycle — so after DATA the just-served master's req is
+    -- still (stalely) '1' at the pick edge. Picking it re-runs a GHOST
+    -- transaction whose done collides with (and swallows) that master's NEXT
+    -- real access — back-to-back shared mem instructions then consume stale
+    -- rdata (found by shspin's owner re-check in M5a). The original fix
+    -- masked the served master for exactly ONE pick cycle (mask_last) —
+    -- correct ONLY at zero boundary latency: with N register stages on the
+    -- tile boundary (M13) the stale window is 1+2N pick cycles and the
+    -- one-shot mask leaks ghosts (proven by arb_lat_tb at N_DELAY>=1).
+    -- M10 fix: WAIT-FOR-RELEASE — a served master stays masked until its req
+    -- is OBSERVED low ('served, awaiting release'), which is latency-
+    -- insensitive for ANY symmetric boundary depth and cycle-identical to
+    -- mask_last at depth 0. A legitimate re-request always follows an
+    -- observed-low window (the ack flop drops req for >=1 cycle between
+    -- transactions), so this can never starve anyone.
+    signal need_release : std_logic_vector(N-1 downto 0) := (others => '0');
 
     -- M8: shadow of the granted transaction's lane strobes (s_we is an out
     -- port, unreadable in -V200X) — LOCKED is entered only after a READ
@@ -157,22 +162,32 @@ begin
             cur_we  <= (others => '0');
             s_addr  <= (others => '0');
             s_wdata <= (others => '0');
+            need_release <= (others => '0');
         elsif rising_edge(clk) then
             -- defaults (single-cycle strobes clear themselves)
             done <= (others => '0');
             s_en <= '0';
 
+            -- wait-for-release bookkeeping: a served master becomes eligible
+            -- again only after its req has been OBSERVED low (see above).
+            -- Runs before the FSM so DATA's set of need_release(cur) wins the
+            -- edge (req(cur) is still held high there anyway).
+            for k in 0 to N-1 loop
+                if req(k) = '0' then
+                    need_release(k) <= '0';
+                end if;
+            end loop;
+
             case state is
                 when IDLE =>
                     gnt <= (others => '0');
-                    mask_last <= '0';   -- the mask covers only this pick
                     -- round-robin winner: first requester at or after rr_ptr
-                    -- (skipping the just-served master's stale req, see above)
+                    -- (skipping served-awaiting-release stale reqs, see above)
                     winner := -1;
                     for k in 0 to N-1 loop
                         idx := (rr_ptr + k) mod N;
                         if winner = -1 and req(idx) = '1'
-                           and not (mask_last = '1' and idx = last_m) then
+                           and need_release(idx) = '0' then
                             winner := idx;
                         end if;
                     end loop;
@@ -211,8 +226,9 @@ begin
                     end if;
                     gnt   <= (others => '0');
                     gnt(cur) <= '1';   -- hold grant through its done cycle
-                    last_m    <= cur;  -- ghost-txn fix: mask cur's stale req
-                    mask_last <= '1';  --   for the pick at the next edge
+                    -- ghost-txn fix: cur is served — mask its stale req until
+                    -- it is observed low (latency-insensitive, see above)
+                    need_release(cur) <= '1';
                     -- M8: a completed READ by a lock-holding master opens its
                     -- RMW critical section — pin the arbiter to cur until its
                     -- write lands. A completed WRITE (locked or not) closes
@@ -226,17 +242,17 @@ begin
                 when LOCKED =>
                     -- Wait for the locked master's follow-up write, serving
                     -- NO ONE ELSE. The ghost-txn rule still applies here:
-                    -- cur's req is stale-high for the first LOCKED cycle
-                    -- (its ack flop clears one mclk after done), so the same
-                    -- one-pick mask covers it before a fresh req is honored.
-                    gnt       <= (others => '0');
-                    mask_last <= '0';   -- consumed on this first pass
+                    -- cur's req is stale-high after its locked READ's done
+                    -- (for 1+2N cycles under an N-deep boundary), so the same
+                    -- wait-for-release mask gates the re-entry — only a FRESH
+                    -- req (one that followed an observed-low window) is
+                    -- honored as the follow-up write.
+                    gnt <= (others => '0');
                     if lock(cur) = '0' then
                         -- release valve: the AMO flow ended without a write
                         -- (trap/IRQ divert) — never deadlock the bus.
                         state <= IDLE;
-                    elsif req(cur) = '1'
-                          and not (mask_last = '1' and cur = last_m) then
+                    elsif req(cur) = '1' and need_release(cur) = '0' then
                         gnt(cur) <= '1';
                         s_en     <= '1';
                         s_master <= conv_std_logic_vector(cur, 2);
