@@ -6,19 +6,18 @@
 # HART-GENERIC shared TIMER0/1 + GPIO1/2/3 test — the M7b signature test.
 #
 # M7b moved TIMER0/TIMER1/GPIO1/GPIO2/GPIO3 off hart 0's private peripheral
-# bus and onto the mp_arbiter in the 0x13000 page, whose 16 x 256B slots
-# MIRROR the legacy 0x4000 page's slot numbering:
-#     GPIO1  0x4100 -> 0x13100      TIMER0 0x4600 -> 0x13600
-#     TIMER1 0x4700 -> 0x13700      GPIO2  0x4800 -> 0x13800
-#     GPIO3  0x4D00 -> 0x13D00      (irq_router = slot 9, 0x13900, M7a)
+# bus and onto the mp_arbiter in the 0x6000 page, whose 16 x 256B slots
+# M11 map rework: the shared window slots ARE the legacy addresses now:
+#     GPIO1 0x4100   TIMER0 0x4600   TIMER1 0x4700   GPIO2 0x4800
+#     GPIO3 0x4D00   (irq_router @0x7000, window page 3)
 # Register offsets unchanged. The old private windows read zeros. GPIO0
-# (0x4000) is NEVER shared: the ROM bootrom drives the flash CS through its
+# (0x4000) is SHARED since M11 like everything else; the ROM bootrom still
 # PxOUTS/PxOUTC and programs its DIR/SEL on every SPI boot (same class as
 # SPI0/SYSTEM0).
 #
 # Token ring (deterministic, shuart pattern): hart 0 checks the old windows
 # are dead + GPIO0 old window is ALIVE + GPIO1's reset config reads back at
-# 0x13100 (read-only: its PxSEL routes the UART0/UART1 pads — do not write),
+# 0x4100 (read-only: its PxSEL routes the UART0/UART1 pads — do not write),
 # then runs the full timer dance on TIMER1; hart 1 runs it on TIMER0 (a TILE
 # hart owning a shared timer) and checks TIMER1's CMP0 still holds hart 0's
 # value (cross-hart config visibility); harts 2/3 run the GPIO register
@@ -44,11 +43,11 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_TIMER0  0x13600
-#define SH_TIMER1  0x13700
-#define SH_GPIO1   0x13100
-#define SH_GPIO2   0x13800
-#define SH_GPIO3   0x13D00
+#define SH_TIMER0  0x4600
+#define SH_TIMER1  0x4700
+#define SH_GPIO1   0x4100
+#define SH_GPIO2   0x4800
+#define SH_GPIO3   0x4D00
 #define TOKEN      0x101C0
 #define DONE_BASE  0x101D0
 #define TIM_CR_EN_MCLK 0x140     /* clock source 01 = mclk, timer enable */
@@ -63,7 +62,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s3, TOKEN
     li   s4, DONE_BASE
@@ -126,20 +125,22 @@ hart0:
     li   t0, 0x4900             # SYSTEM0: SYS_CLK_CR at +0
     sw   zero, 0(t0)
 
-    li   t0, 0x4600             # OLD private TIMER0 window: dead, reads 0
+    # M11: these are the LIVE shared windows (peripherals back at their
+    # original addresses) — reset-value proofs through the arbiter:
+    li   t0, 0x4600             # TIMER0 CR resets 0
     lw   t1, 0(t0)
     bnez t1, shtimer_fail
-    li   t0, 0x4700             # OLD TIMER1 window
+    li   t0, 0x4700             # TIMER1 CMP0 resets 0
     lw   t1, 12(t0)
     bnez t1, shtimer_fail
-    li   t0, 0x4800             # OLD GPIO2 window
+    li   t0, 0x4800             # GPIO2 P3DIR resets 0
     lw   t1, 20(t0)
     bnez t1, shtimer_fail
-    li   t0, 0x4D00             # OLD GPIO3 window
+    li   t0, 0x4D00             # GPIO3 P4OUT resets 0
     lw   t1, 4(t0)
     bnez t1, shtimer_fail
 
-    li   t0, 0x4000             # GPIO0 did NOT move (bootrom's port):
+    li   t0, 0x4000             # GPIO0 (shared since M11; bootrom's port):
     lw   t1, 20(t0)             # P1DIR = 0x41 (bootrom writes it every boot)
     li   t2, 0x41
     bne  t1, t2, shtimer_fail

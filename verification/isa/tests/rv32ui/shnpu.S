@@ -3,27 +3,24 @@
 #*****************************************************************************
 # shnpu.S  (M7d)
 #-----------------------------------------------------------------------------
-# HART-GENERIC shared-NPU test — the M7d signature test (and the LAST
-# peripheral move: SARADC/AFE stay hart-0-private by decision, with the
-# never-shared SYSTEM0/SPI0/GPIO0).
+# HART-GENERIC shared-NPU test — the M7d signature test, reworked for the
+# M11 memory map (ALL peripherals are shared now; the private page is gone).
 #
-# M7d moved the NPU's REGISTER bus onto the mp_arbiter at its mirror slot:
-#     NPU 0x4A00 -> 0x13A00 (slot 10)   (NPUCR/IVSAR/WVSAR/OVSAR at +0/4/8/C)
-# The DATA PATH is unchanged: the NPU crunches vectors in HART 0's PRIVATE
-# RAM1 through the in-NPU SRAM-port mux, and npu0_active sleeps hart 0 for
-# the duration. So "shared" means shared CONTROL: any hart may configure and
-# start the accelerator and poll NPUCR.THINK for completion; the DATA is
-# staged in hart 0's RAM1 (by hart 0, or via shared-RAM handoff — software's
-# job, this test has hart 0 stage it).
+# M7d moved the NPU's REGISTER bus onto the mp_arbiter; M11 put it back at
+# its original address:
+#     NPU = 0x4A00 (slot 10)   (NPUCR/IVSAR/WVSAR/OVSAR at +0/4/8/C)
+# M11 also promoted the DATA PATH: the vectors live in the SHARED NPU
+# staging RAM at 0xC000-0xFFFF (hart 0's retired private RAM1 — same
+# addresses, now an arbiter slave). ANY hart can stage vectors, configure,
+# start the accelerator and poll NPUCR.THINK for completion. hart 0 no
+# longer sleeps during a THINK (the sleep protected its un-stallable
+# private-RAM1 port; shared accesses have arbiter back-pressure) — the
+# contract is: NEVER touch 0xC000-0xFFFF while a THINK may be active, poll
+# NPUCR bit 16 first (the in-NPU port mux owns the RAM during the run).
 #
-# TWO RTL FIXES THIS TEST GUARDS (see plan doc M7d):
-#  * NPU.vhd's RAM1-port mux now switches on NPUTHINK REGISTERED on mclk
-#    (NpuMuxSel), and NpuActive = raw-OR-delayed — hart 0 is asleep one full
-#    cycle BEFORE the port switches and wakes one full cycle AFTER it
-#    returns. With the raw bit, a CROSS-HART THINK write could flip the port
-#    while hart 0 had a RAM1 access in flight (corrupted load/dropped store);
-#    with hart-0-only control that race was unreachable, which is why it
-#    never bit before.
+# RTL FIXES THIS TEST GUARDS (see plan doc M7d):
+#  * NPU.vhd's staging-RAM port mux switches on NPUTHINK REGISTERED on mclk
+#    (NpuMuxSel) — a clean-cycle handover of the RAM port.
 #  * The NPU's MMR read is COMBINATIONAL (collapses when CEN deasserts) and
 #    its CEN was HARDWIRED asserted on the old gated bus — the bridge gives
 #    it the real one-cycle strobe and registers the readback (I2C rule).
@@ -32,15 +29,16 @@
 # pass-through MAC) => OUT = X * W exactly.
 #   Fixed-point formats (MCU generics): X = sfixed(0,-24), W/OUT = sfixed(7,-24)
 #   X @0xC100 = 0x00800000 (0.5)     W @0xC104 = 0x02000000 (2.0)
-#   OUT = 0x01000000 (1.0) -> written by the NPU to hart 0's RAM1
+#   OUT = 0x01000000 (1.0) -> written by the NPU to the staging RAM
 # Run 1 (hart 1): OVSAR=0x42 -> 0xC108. Run 2 (hart 3, after hart 2
 # retargets OVSAR=0x43): -> 0xC10C. Hart 0 verifies BOTH words afterward —
-# the end-to-end proof that a tile-hart-started NPU really computed into
-# hart 0's private RAM1, twice, with hart 0 sleeping through each run.
-# (Hart 0's token/poll loops freeze while it sleeps — iterations don't burn.)
+# the end-to-end proof that a tile-hart-started NPU really computed into the
+# shared staging RAM, twice.
 #
-# RAM1 vector addresses (word index = (addr-0xC000)/4): clear of the stack
-# top (0xFFF0), the .isr_* linker sections (0xED00+), and all image data.
+# Staging-RAM vector addresses (word index = (addr-0xC000)/4): clear of the
+# bootrom's residual stack words at the very top of the staging RAM
+# (0xFF00+, the unrebuilt M11 bootrom still stacks at 0xFFFC via the
+# arbiter) and all image data.
 #
 # Shared words (>= 0x10220, clear of all earlier tests' words):
 #     TOKEN    = 0x10220          whose turn (shram zero-init => hart 0)
@@ -51,17 +49,17 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_NPU     0x13A00
+#define SH_NPU     0x4A00
 #define TOKEN      0x10220
 #define DONE_BASE  0x10230
 #define X_ADDR     0xC100
 #define X_VAL      0x00800000   /* 0.5  in sfixed(0,-24)  */
 #define W_VAL      0x02000000   /* 2.0  in sfixed(7,-24)  */
 #define OUT_VAL    0x01000000   /* 1.0  in sfixed(7,-24)  */
-#define IV_WORD    0x40         /* RAM1 word of X   (0xC100) */
-#define WV_WORD    0x41         /* RAM1 word of W   (0xC104) */
-#define OV1_WORD   0x42         /* RAM1 word of OUT1 (0xC108) */
-#define OV2_WORD   0x43         /* RAM1 word of OUT2 (0xC10C) */
+#define IV_WORD    0x40         /* staging-RAM word of X   (0xC100) */
+#define WV_WORD    0x41         /* staging-RAM word of W   (0xC104) */
+#define OV1_WORD   0x42         /* staging-RAM word of OUT1 (0xC108) */
+#define OV2_WORD   0x43         /* staging-RAM word of OUT2 (0xC10C) */
 #define CR_THINK   0x10000      /* THINK=1, NI=0 (1 input), NN=0 (1 neuron),
                                    BEN=0, AEN=0 (pass-through) */
 
@@ -74,7 +72,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s2, SH_NPU             # +0 CR, +4 IVSAR, +8 WVSAR, +12 OVSAR
     li   s3, TOKEN
@@ -147,13 +145,15 @@ tile_verify:                    # forever: DONE must survive other traffic
 
     # ---- hart 0 -------------------------------------------------------------
 hart0:
-    li   t0, 0x4A00             # OLD private NPU window: dead, reads 0
-    lw   t1, 0(t0)
+    # M11: 0x4A00 is the LIVE shared NPU register window. Reset proof:
+    li   t0, 0x4A00
+    lw   t1, 0(t0)              # NPUCR resets 0
     bnez t1, shnpu_fail
-    lw   t1, 4(t0)
+    lw   t1, 4(t0)              # IVSAR resets 0
     bnez t1, shnpu_fail
 
-    li   t0, X_ADDR             # stage the vectors in MY private RAM1
+    li   t0, X_ADDR             # stage the vectors in the SHARED staging RAM
+                                # (0xC000 page, via the arbiter — M11)
     li   t1, X_VAL
     sw   t1, 0(t0)              # X   @0xC100
     li   t1, W_VAL
@@ -163,9 +163,9 @@ hart0:
 
     li   t0, 1
     sw   t0, 0(s3)              # TOKEN = 1: release the ring
-                                # (hart 0 now SLEEPS through each NPU run —
-                                # the poll below freezes with it, so the
-                                # budget only burns while awake)
+                                # (M11: hart 0 no longer sleeps during NPU
+                                # runs — it just polls the token like any
+                                # other hart; runs are ~10 mclk anyway)
     li   t6, 20000
 ring_wait:
     lw   t0, 0(s3)
@@ -187,7 +187,7 @@ done_check:
     bne  t3, t0, done_check
 
     li   t0, X_ADDR             # THE END-TO-END PROOF: both outputs landed
-    lw   t1, 8(t0)              # in MY private RAM1 with the exact product
+    lw   t1, 8(t0)              # in the shared staging RAM: exact product
     li   t2, OUT_VAL
     bne  t1, t2, shnpu_fail     # OUT1 = 0.5 * 2.0 = 1.0
     lw   t1, 12(t0)

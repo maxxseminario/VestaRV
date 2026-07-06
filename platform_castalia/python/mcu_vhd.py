@@ -5,10 +5,11 @@
 # replaced by "--@GEN:<name>@" marker lines; this module regenerates those
 # regions from python/generate.py's peripheral description:
 #   - irq-signal-decls / irq-comb    : per-vector IRQ signals + the irq_comb aggregate
-#   - shslv-subdecode / shslv-rd-sel : region-4 slave decode + registered read-select
+#   - shslv-subdecode / shslv-rd-sel : shared-window slave decode + registered read-select
+#                                      (M11 map: pages on s_addr(14:12), window slots on
+#                                      s_addr(9:6) at the legacy numbering)
 #   - rdata-bridge                   : bridge registers for COMBINATIONAL-read slaves
 #   - sh-rdata-mux / polarity-shims  : slave read mux + active-low en/wen shims
-#   - dead-window-zero               : moved peripherals' legacy 0x4000 windows read 0
 #   - bus:<instance>                 : each peripheral instance's memory-bus port map
 #
 # Division of truth (mirrors Phase 1's McuMpCompat rules):
@@ -41,19 +42,32 @@ EMDASH = '—'
 #   rdata = the signal the slave drives into sh_rdata_mux
 SHSLV = {
 	'CLINT':     {'sel': 'clint', 'shim': None,    'rdata': 'clint_rdata'},
-	'UART0':     {'sel': 'uart',  'shim': 'uart0', 'rdata': 'uart0_sh_rdata'},
+	'MUTEX':     {'sel': 'mtx',   'shim': None,    'rdata': 'mtx_rdata'},
 	'IRQROUTER': {'sel': 'irtr',  'shim': None,    'rdata': 'irtr_rdata'},
+	'GPIO0':     {'sel': 'gpio0', 'shim': 'gpio0', 'rdata': 'gpio0_sh_rdata'},
 	'GPIO1':     {'sel': 'gpio1', 'shim': 'gpio1', 'rdata': 'gpio1_sh_rdata'},
-	'GPIO2':     {'sel': 'gpio2', 'shim': 'gpio2', 'rdata': 'gpio2_sh_rdata'},
-	'GPIO3':     {'sel': 'gpio3', 'shim': 'gpio3', 'rdata': 'gpio3_sh_rdata'},
+	'SPI0':      {'sel': 'spi0',  'shim': 'spi0',  'rdata': 'spi0_sh_rdata'},
 	'SPI1':      {'sel': 'spi1',  'shim': 'spi1',  'rdata': 'spi1_sh_rdata'},
+	'UART0':     {'sel': 'uart0', 'shim': 'uart0', 'rdata': 'uart0_sh_rdata'},
 	'UART1':     {'sel': 'uart1', 'shim': 'uart1', 'rdata': 'uart1_sh_rdata'},
 	'TIMER0':    {'sel': 'tim0',  'shim': 'tim0',  'rdata': 'tim0_sh_rdata'},
 	'TIMER1':    {'sel': 'tim1',  'shim': 'tim1',  'rdata': 'tim1_sh_rdata'},
+	'GPIO2':     {'sel': 'gpio2', 'shim': 'gpio2', 'rdata': 'gpio2_sh_rdata'},
+	'SYSTEM':    {'sel': 'sys',   'shim': 'sys',   'rdata': 'sys_sh_rdata'},
+	'NPU':       {'sel': 'npu',   'shim': 'npu',   'rdata': 'npu_sh_rdata'},
+	'SARADC':    {'sel': 'sar',   'shim': 'sar',   'rdata': 'sar_sh_rdata'},
+	'AFE':       {'sel': 'afe',   'shim': 'afe',   'rdata': 'afe_sh_rdata'},
+	'GPIO3':     {'sel': 'gpio3', 'shim': 'gpio3', 'rdata': 'gpio3_sh_rdata'},
 	'I2C0':      {'sel': 'i2c0',  'shim': 'i2c0',  'rdata': 'i2c0_sh_rdata'},
 	'I2C1':      {'sel': 'i2c1',  'shim': 'i2c1',  'rdata': 'i2c1_sh_rdata'},
-	'NPU':       {'sel': 'npu',   'shim': 'npu',   'rdata': 'npu_sh_rdata'},
-	'MUTEX':     {'sel': 'mtx',   'shim': None,    'rdata': 'mtx_rdata'},
+}
+
+# M11 memory slaves (structural — SRAM macros, not description peripherals):
+# sel spelling -> the macro Q net that feeds sh_rdata_mux directly (the macro
+# IS the 1-cycle registered read).
+MEMSLV = {
+	'npuram': 'npuram_q',
+	'bank0': 'bank0_q', 'bank1': 'bank1_q', 'bank2': 'bank2_q', 'bank3': 'bank3_q',
 }
 
 # Milestone each peripheral moved onto the shared window (RTL history; used in
@@ -64,13 +78,17 @@ MOVED_IN = {
 	'SPI1': 'M7c', 'UART1': 'M7c',
 	'I2C0': 'M7c.2', 'I2C1': 'M7c.2',
 	'NPU': 'M7d',
+	'SYSTEM': 'M11', 'GPIO0': 'M11', 'SPI0': 'M11', 'SARADC': 'M11', 'AFE': 'M11',
 }
 
-# List orders transcribed from the RTL (they follow milestone history, not any
-# sortable rule — do NOT "clean up")
-PG3_SEL_ORDER = ['GPIO1', 'SPI1', 'UART1', 'TIMER0', 'TIMER1', 'GPIO2', 'GPIO3', 'I2C0', 'I2C1', 'NPU']
-EN_ORDER = ['ram', 'CLINT', 'UART0', 'IRQROUTER', 'GPIO1', 'SPI1', 'UART1', 'TIMER0', 'TIMER1', 'GPIO2', 'GPIO3', 'I2C0', 'I2C1', 'NPU', 'MUTEX']
-RD_ORDER = ['CLINT', 'UART0', 'IRQROUTER', 'GPIO1', 'TIMER0', 'TIMER1', 'GPIO2', 'GPIO3', 'SPI1', 'UART1', 'I2C0', 'I2C1', 'NPU', 'MUTEX']
+# M11 canon: page-0 slot decode in slot-numeric order (new RTL authored by
+# the M11 rework — the milestone-history ordering of the pre-M11 fabric is
+# retired with it). EN/RD run memory slaves first, then the window pages,
+# then the slots.
+PG0_SEL_ORDER = ['GPIO0', 'GPIO1', 'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
+	'GPIO2', 'SYSTEM', 'NPU', 'SARADC', 'AFE', 'GPIO3', 'I2C0', 'I2C1']
+EN_ORDER = ['npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER'] + PG0_SEL_ORDER
+RD_ORDER = list(EN_ORDER)
 
 # Polarity-shim groups: (transcribed comment lines, [peripheral names], name pad)
 SHIM_GROUPS = [
@@ -105,25 +123,13 @@ SHIM_GROUPS = [
 	  '-- bus ' + EMDASH + ' the clk_periph pulse was the only write qualifier; on the',
 	  '-- free-running mclk this strobe IS the qualifier)'],
 	 ['NPU'], 14),
-]
-
-# Dead-window zeroing groups: (transcribed comment lines, [peripheral names], pad)
-DEAD_GROUPS = [
-	(["-- M6: hart 0's old private UART0 slot reads as zeros (slot 4 decode in",
-	  '-- adddec is untouched; there is just no peripheral behind it any more)'],
-	 ['UART0'], 29),
-	(['-- M7b: same for the moved TIMER0/1 + GPIO1/2/3 ' + EMDASH + ' their old private slots',
-	  '-- read zeros (the adddec slot decode is untouched; nothing is behind it).',
-	  '-- GPIO0 (PeriphSlotGPIO0) deliberately stays on the private bus: the ROM',
-	  '-- bootrom programs it on every SPI boot.'],
-	 ['TIMER0', 'TIMER1', 'GPIO1', 'GPIO2', 'GPIO3'], 30),
-	(['-- M7c: SPI1 + UART1 moved too (SPI0 stays ' + EMDASH + ' bootrom boot path)'],
-	 ['SPI1', 'UART1'], 30),
-	(['-- M7c.2: I2C0 + I2C1 moved (slots 14/15)'],
-	 ['I2C0', 'I2C1'], 30),
-	(['-- M7d: NPU register bus moved (slot 10). SARADC0/AFE0 stay hart-0-private',
-	  '-- BY DECISION (with SYSTEM0/SPI0/GPIO0 they close the private set).'],
-	 ['NPU'], 30),
+	(['-- M11: the last five private peripherals join the window (the private',
+	  '-- peripheral page is GONE). Audited: all five register their reads on',
+	  '-- clk_mem ' + EMDASH + ' UART-class movers, plain shims, no bridge. SYSTEM0 note:',
+	  '-- SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF ' + EMDASH + ' reconfiguring',
+	  '-- with other masters mid-transaction is a software-contract violation',
+	  '-- (management hart quiesces the others first).'],
+	 ['SYSTEM', 'GPIO0', 'SPI0', 'SARADC', 'AFE'], 14),
 ]
 
 # I2C interrupt-declaration comments, transcribed verbatim (the RTL wording is
@@ -156,26 +162,31 @@ BUS_ORDER_A = ['clk_mem', 'en_mem', 'wen', 'addr_periph', 'write_data', 'read_da
 BUS_ORDER_B = ['clk_mem', 'en', 'wen', 'write_data', 'read_data', 'addr_periph']	# GPIO
 BUS_ORDER_C = ['clk_mem', 'en_mem', 'wen', 'write_data', 'read_data', 'addr_periph']	# SPI
 BUS_SPECS = {
-	'system0': {'periph': 'SYSTEM', 'ports': BUS_ORDER_A, 'width': 14, 'trailing': None, 'comment': None},
-	'gpio0':   {'periph': 'GPIO0', 'ports': BUS_ORDER_B, 'width': 16, 'trailing': [1, 1, 1, 1, 1, 1], 'comment': None},
+	'system0': {'periph': 'SYSTEM', 'ports': BUS_ORDER_A, 'width': 14, 'trailing': None, 'comment': 'slot'},
+	'gpio0':   {'periph': 'GPIO0', 'ports': BUS_ORDER_B, 'width': 16, 'trailing': None, 'comment': 'slot'},
 	'gpio1':   {'periph': 'GPIO1', 'ports': BUS_ORDER_B, 'width': 16, 'trailing': None, 'comment': None},
 	'gpio2':   {'periph': 'GPIO2', 'ports': BUS_ORDER_B, 'width': 16, 'trailing': None, 'comment': None},
 	'gpio3':   {'periph': 'GPIO3', 'ports': BUS_ORDER_B, 'width': 16, 'trailing': None, 'comment': None},
-	'spi0':    {'periph': 'SPI0', 'ports': BUS_ORDER_C, 'width': 16, 'trailing': None, 'comment': None},
+	'spi0':    {'periph': 'SPI0', 'ports': BUS_ORDER_C, 'width': 16, 'trailing': None, 'comment': 'slot'},
 	'spi1':    {'periph': 'SPI1', 'ports': BUS_ORDER_C, 'width': 16, 'trailing': None, 'comment': 'slot'},
-	'uart0':   {'periph': 'UART0', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'plain'},
+	'uart0':   {'periph': 'UART0', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'slot'},
 	'uart1':   {'periph': 'UART1', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'slot'},
 	'i2c0':    {'periph': 'I2C0', 'ports': None, 'width': None, 'trailing': None, 'comment': 'i2c'},
 	'i2c1':    {'periph': 'I2C1', 'ports': None, 'width': None, 'trailing': None, 'comment': 'i2c'},
 	'timer0':  {'periph': 'TIMER0', 'ports': BUS_ORDER_A, 'width': 13, 'trailing': None, 'comment': 'slot'},
 	'timer1':  {'periph': 'TIMER1', 'ports': BUS_ORDER_A, 'width': 13, 'trailing': None, 'comment': 'slot'},
 	'npu0':    {'periph': 'NPU', 'ports': None, 'width': None, 'trailing': None, 'comment': 'npu'},
-	'afe0':    {'periph': 'AFE', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': [0, 0, 1, 0, 0, 0], 'comment': None},
-	'saradc0': {'periph': 'SARADC', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': None},
+	'afe0':    {'periph': 'AFE', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'slot'},
+	'saradc0': {'periph': 'SARADC', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'slot'},
 }
 
-SHARED_PAGE3_BASE = 0x13000
-SHARED_PAGE3_SLOT_SIZE = 0x100
+# M11 shared-window geometry (the peripheral window at 0x4000; page 0 = the
+# 16 legacy-numbered slots, pages 1-3 = CLINT / MUTEX / IRQROUTER)
+SHARED_WINDOW_BASE = 0x4000
+SHARED_SLOT_SIZE = 0x100
+CLINT_BASE = 0x5000
+MUTEX_BASE = 0x6000
+IRQROUTER_BASE = 0x7000
 
 
 class McuVhdEmitter():
@@ -211,22 +222,24 @@ class McuVhdEmitter():
 			raise Exception('MCU.vhd emitter: sharedBus=native peripherals ' + str(sorted(descNative))
 				+ ' do not match the transcribed RTL fabric ' + str(sorted(rtlNative)))
 
-		# 2. Page-3 slots must mirror the legacy slot numbers; UART0 owns the 0x12000 window
-		for name in rtlShared | rtlNative:
+		# 2. M11 window geometry: the three native MP blocks own pages 1-3;
+		# every shared peripheral sits in page 0 at its LEGACY slot number.
+		if self.periph('CLINT').BaseAddress != CLINT_BASE:
+			raise Exception('MCU.vhd emitter: CLINT base address ' + hex(self.periph('CLINT').BaseAddress)
+				+ ' != ' + hex(CLINT_BASE))
+		if self.periph('MUTEX').BaseAddress != MUTEX_BASE:
+			raise Exception('MCU.vhd emitter: MUTEX base address ' + hex(self.periph('MUTEX').BaseAddress)
+				+ ' != ' + hex(MUTEX_BASE))
+		if self.periph('IRQROUTER').BaseAddress != IRQROUTER_BASE:
+			raise Exception('MCU.vhd emitter: IRQROUTER base address ' + hex(self.periph('IRQROUTER').BaseAddress)
+				+ ' != ' + hex(IRQROUTER_BASE))
+		for name in rtlShared:
 			p = self.periph(name)
-			if name == 'UART0':
-				if p.BaseAddress != 0x12000:
-					raise Exception('MCU.vhd emitter: UART0 base address ' + hex(p.BaseAddress) + ' != 0x12000')
-				continue
-			if name == 'CLINT':
-				if p.BaseAddress != 0x11000:
-					raise Exception('MCU.vhd emitter: CLINT base address ' + hex(p.BaseAddress) + ' != 0x11000')
-				continue
-			slot = self.pg3Slot(name)
-			expected = SHARED_PAGE3_BASE + SHARED_PAGE3_SLOT_SIZE * slot
+			slot = self.winSlot(name)
+			expected = SHARED_WINDOW_BASE + SHARED_SLOT_SIZE * slot
 			if p.BaseAddress != expected:
 				raise Exception('MCU.vhd emitter: ' + name + ' base address ' + hex(p.BaseAddress)
-					+ ' does not match page-3 slot ' + str(slot) + ' (' + hex(expected) + ')')
+					+ ' does not match window slot ' + str(slot) + ' (' + hex(expected) + ')')
 
 		# 3. Bridge membership == combinationalRead metadata
 		descComb = set(p.Name for p in self.gen.Peripherals if getattr(p, 'CombinationalRead', False))
@@ -235,34 +248,42 @@ class McuVhdEmitter():
 				+ ' do not match the transcribed rdata-bridge membership (I2C0, I2C1, NPU)')
 
 		# 4. Order lists must cover the shared set exactly
-		if set(PG3_SEL_ORDER) | set(['MUTEX', 'IRQROUTER']) != (rtlShared - set(['UART0'])) | set(['MUTEX', 'IRQROUTER']):
-			raise Exception('MCU.vhd emitter: PG3_SEL_ORDER does not cover the page-3 shared peripherals')
-		if set(RD_ORDER) != rtlShared | rtlNative:
+		if set(PG0_SEL_ORDER) != rtlShared:
+			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER does not cover the window-slot peripherals')
+		if len(PG0_SEL_ORDER) != 16 or sorted(self.winSlot(n) for n in PG0_SEL_ORDER) != list(range(16)):
+			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER slots are not exactly 0..15')
+		if set(RD_ORDER) != rtlShared | rtlNative | set(MEMSLV):
 			raise Exception('MCU.vhd emitter: RD_ORDER does not cover the shared slaves')
-		if set(EN_ORDER) != rtlShared | rtlNative | set(['ram']):
+		if set(EN_ORDER) != rtlShared | rtlNative | set(MEMSLV):
 			raise Exception('MCU.vhd emitter: EN_ORDER does not cover the shared slaves')
 		shimAll = set()
 		for _, names, _ in SHIM_GROUPS:
 			shimAll |= set(names)
 		if shimAll != rtlShared:
 			raise Exception('MCU.vhd emitter: SHIM_GROUPS do not cover the shared peripherals')
-		deadAll = set()
-		for _, names, _ in DEAD_GROUPS:
-			deadAll |= set(names)
-		if deadAll != rtlShared:
-			raise Exception('MCU.vhd emitter: DEAD_GROUPS do not cover the moved peripherals')
 
-	def pg3Slot(self, name):
+	def winSlot(self, name):
+		'''Peripheral-window page-0 slot (the LEGACY 0x4000-page slot number).'''
 		p = self.periph(name)
-		if name == 'MUTEX':
-			slot = (p.BaseAddress - SHARED_PAGE3_BASE) // SHARED_PAGE3_SLOT_SIZE
-		elif name == 'IRQROUTER':
-			slot = (p.BaseAddress - SHARED_PAGE3_BASE) // SHARED_PAGE3_SLOT_SIZE
-		else:
-			slot = p.LegacySlot
+		slot = p.LegacySlot
 		if slot is None or slot < 0 or slot > 15:
-			raise Exception('MCU.vhd emitter: ' + name + ' has no valid page-3 slot')
+			raise Exception('MCU.vhd emitter: ' + name + ' has no valid window slot')
 		return slot
+
+	def selOf(self, key):
+		'''EN/RD_ORDER key -> shslv_<sel> spelling (peripheral or memory slave).'''
+		if key in MEMSLV:
+			return key
+		return SHSLV[key]['sel']
+
+	def rdataOf(self, key):
+		'''EN/RD_ORDER key -> the rdata net muxed into sh_rdata_mux.'''
+		if key in MEMSLV:
+			return MEMSLV[key]
+		sig = SHSLV[key]['rdata']
+		if getattr(self.periph(key), 'CombinationalRead', False):
+			pass	# the bridge-registered net keeps the plain name
+		return sig
 
 	def rdataSignal(self, name):
 		'''Signal the instance drives: bridge slaves drive the _c (combinational) net.'''
@@ -325,31 +346,34 @@ class McuVhdEmitter():
 
 	def emitShslvSubdecode(self):
 		ind = ' ' * 4
-		clintBits = format((self.periph('CLINT').BaseAddress >> 12) & 3, '02b')
-		uartBits = format((self.periph('UART0').BaseAddress >> 12) & 3, '02b')
+		clintBits = format((CLINT_BASE >> 12) & 3, '02b')
+		mtxBits = format((MUTEX_BASE >> 12) & 3, '02b')
+		irtrBits = format((IRQROUTER_BASE >> 12) & 3, '02b')
 		lines = []
-		lines.append(ind + 'shslv_ram_sel'.ljust(15) + ' <= \'1\' when sh_addr(11 downto 8) = "0000" else \'0\';')
-		lines.append(ind + 'shslv_clint_sel'.ljust(15) + ' <= \'1\' when sh_addr(11 downto 10) = "' + clintBits + '"  else \'0\';')
-		lines.append(ind + 'shslv_uart_sel'.ljust(15) + ' <= \'1\' when sh_addr(11 downto 10) = "' + uartBits + '"  else \'0\';')
-		lines.append(ind + '-- M7a: page 3 (0x13000-0x13FFF) sub-decodes into 16 x 256B slots')
-		lines.append(ind + "-- (slot = sh_addr(9:6), mirroring the legacy 0x4000 periph page's slot")
-		lines.append(ind + "-- numbering). Slot 9 = irq_router @0x13900 (SYSTEM0's slot number there " + EMDASH)
-		lines.append(ind + '-- this is the MP system-control block). Remaining slots = M7b+ shared')
-		lines.append(ind + '-- peripherals.')
-		lines.append(ind + 'shslv_pg3_sel'.ljust(15) + ' <= \'1\' when sh_addr(11 downto 10) = "11"  else \'0\';')
-		lines.append(ind + 'shslv_irtr_sel'.ljust(15) + ' <= shslv_pg3_sel when sh_addr(9 downto 6) = "'
-			+ format(self.pg3Slot('IRQROUTER'), '04b') + '" else \'0\';')
-		lines.append(ind + '-- M7b: page-3 peripheral slots (numbers mirror the legacy 0x4000 page)')
-		for name in PG3_SEL_ORDER:
+		lines.append(ind + '-- M11: page select on s_addr(14:12). Page 000 is the M12 boot-ROM')
+		lines.append(ind + '-- carve (no slave yet ' + EMDASH + ' reads return 0); 010 is the TCM region')
+		lines.append(ind + '-- (tile-private, never arrives here).')
+		lines.append(ind + 'shslv_perwin_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "001" else \'0\';')
+		lines.append(ind + 'shslv_npuram_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "011" else \'0\';')
+		for b in range(4):
+			lines.append(ind + ('shslv_bank' + str(b) + '_sel').ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "1'
+				+ format(b, '02b') + '" else \'0\';')
+		lines.append(ind + '-- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots,')
+		lines.append(ind + '-- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router')
+		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
+		lines.append(ind + 'shslv_clint_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + clintBits + '" else \'0\';')
+		lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" else \'0\';')
+		lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
+		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering ' + EMDASH)
+		lines.append(ind + '-- every peripheral back at its original Myshkin address, shared by')
+		lines.append(ind + '-- all 4 harts')
+		for name in PG0_SEL_ORDER:
 			selName = 'shslv_' + SHSLV[name]['sel'] + '_sel'
-			lines.append(ind + selName.ljust(15) + ' <= shslv_pg3_sel when sh_addr(9 downto 6) = "'
-				+ format(self.pg3Slot(name), '04b') + '" else \'0\';')
-		lines.append(ind + '-- M7c LOCKING: slot 0 = HW mutex bank (0x13000)')
-		lines.append(ind + 'shslv_mtx_sel'.ljust(15) + ' <= shslv_pg3_sel when sh_addr(9 downto 6) = "'
-			+ format(self.pg3Slot('MUTEX'), '04b') + '" else \'0\';')
+			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
+				+ format(self.winSlot(name), '04b') + '" else \'0\';')
 		for key in EN_ORDER:
-			sel = 'ram' if key == 'ram' else SHSLV[key]['sel']
-			lines.append(ind + ('shslv_' + sel + '_en').ljust(15) + ' <= sh_en and shslv_' + sel + '_sel;')
+			sel = self.selOf(key)
+			lines.append(ind + ('shslv_' + sel + '_en').ljust(16) + ' <= sh_en and shslv_' + sel + '_sel;')
 		return lines
 
 	def emitShslvRdSel(self):
@@ -358,13 +382,13 @@ class McuVhdEmitter():
 		lines.append(ind + 'shslv_rd_sel: process(mclk, resetn)')
 		lines.append(ind + 'begin')
 		lines.append(ind * 2 + "if resetn = '0' then")
-		for name in RD_ORDER:
-			lines.append(ind * 3 + ('shslv_rd_' + SHSLV[name]['sel']).ljust(14) + " <= '0';")
+		for key in RD_ORDER:
+			lines.append(ind * 3 + ('shslv_rd_' + self.selOf(key)).ljust(16) + " <= '0';")
 		lines.append(ind * 2 + 'elsif rising_edge(mclk) then')
 		lines.append(ind * 3 + "if sh_en = '1' then")
-		for name in RD_ORDER:
-			sel = SHSLV[name]['sel']
-			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(14) + ' <= shslv_' + sel + '_sel;')
+		for key in RD_ORDER:
+			sel = self.selOf(key)
+			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
 		lines.append(ind * 3 + 'end if;')
 		lines.append(ind * 2 + 'end if;')
 		lines.append(ind + 'end process;')
@@ -403,10 +427,10 @@ class McuVhdEmitter():
 		lines = []
 		prefix = ' ' * 4 + 'sh_rdata_mux <= '
 		cont = ' ' * len(prefix)
-		for i, name in enumerate(RD_ORDER):
-			row = SHSLV[name]['rdata'].ljust(14) + ' when ' + ('shslv_rd_' + SHSLV[name]['sel']).ljust(14) + " = '1' else"
+		for i, key in enumerate(RD_ORDER):
+			row = self.rdataOf(key).ljust(14) + ' when ' + ('shslv_rd_' + self.selOf(key)).ljust(16) + " = '1' else"
 			lines.append((prefix if i == 0 else cont) + row)
-		lines.append(cont + 'sh_rdata;')
+		lines.append(cont + "(others => '0');  -- no slave (M12 ROM page, TCM page, unmapped)")
 		return lines
 
 	def emitPolarityShims(self):
@@ -423,19 +447,6 @@ class McuVhdEmitter():
 				lines.append('')
 		return lines
 
-	def emitDeadWindowZero(self):
-		ind = ' ' * 4
-		lines = []
-		for gi, (comment, names, pad) in enumerate(DEAD_GROUPS):
-			for c in comment:
-				lines.append(ind + c)
-			for name in names:
-				lhs = 'periph_dout(' + self.slotName(name) + ')'
-				lines.append(ind + lhs.ljust(pad) + "<= (others => '0');")
-			if gi == 0:
-				lines.append('')
-		return lines
-
 	def busComment(self, instKey, spec):
 		name = spec['periph']
 		ind = ' ' * 12
@@ -444,18 +455,18 @@ class McuVhdEmitter():
 		if spec['comment'] == 'plain':
 			return [ind + '-- Memory Bus (arbiter slave side, ' + MOVED_IN[name] + ')']
 		p = self.periph(name)
-		slot = self.pg3Slot(name)
+		slot = self.winSlot(name)
 		addr = '0x%05X' % p.BaseAddress
 		if spec['comment'] == 'slot':
 			return [ind + '-- Memory Bus (arbiter slave side, ' + MOVED_IN[name] + ' ' + EMDASH
-				+ ' page-3 slot ' + str(slot) + ' @' + addr + ')']
+				+ ' window slot ' + str(slot) + ' @' + addr + ')']
 		if spec['comment'] == 'i2c':
 			return [ind + '-- Memory Bus (arbiter slave side, ' + MOVED_IN[name] + ' ' + EMDASH
-					+ ' page-3 slot ' + str(slot) + ' @' + addr + ';',
+					+ ' window slot ' + str(slot) + ' @' + addr + ';',
 				ind + '-- rdata_out is COMBINATIONAL, registered by i2c_rdata_bridge)']
 		if spec['comment'] == 'npu':
 			return [ind + '-- Memory Bus Signals (arbiter slave side, ' + MOVED_IN[name] + ' ' + EMDASH
-					+ ' page-3 slot ' + str(slot),
+					+ ' window slot ' + str(slot),
 				ind + '-- @' + addr + '; MabMmrQ is COMBINATIONAL, registered by the bridge)']
 		raise Exception('unknown bus comment kind ' + str(spec['comment']))
 
@@ -534,8 +545,6 @@ class McuVhdEmitter():
 			return self.emitShRdataMux()
 		if name == 'polarity-shims':
 			return self.emitPolarityShims()
-		if name == 'dead-window-zero':
-			return self.emitDeadWindowZero()
 		if name.startswith('bus:'):
 			instKey = name[len('bus:'):]
 			if instKey not in BUS_SPECS:
@@ -578,7 +587,7 @@ def generateMcuVhd(gen, templatePath, outPath):
 		out.extend(emitter.emitRegion(name))
 
 	expected = set(['irq-signal-decls', 'irq-comb', 'shslv-subdecode', 'shslv-rd-sel', 'rdata-bridge',
-		'sh-rdata-mux', 'polarity-shims', 'dead-window-zero'] + ['bus:' + k for k in BUS_SPECS])
+		'sh-rdata-mux', 'polarity-shims'] + ['bus:' + k for k in BUS_SPECS])
 	if seen != expected:
 		raise Exception('MCU.vhd emitter: template regions ' + str(sorted(seen))
 			+ ' do not match the expected set ' + str(sorted(expected)))

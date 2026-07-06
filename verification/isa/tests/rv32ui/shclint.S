@@ -8,10 +8,10 @@
 # shared window throughout — every CLINT access below rides the arbiter
 # under real 4-way contention).
 #
-# CLINT map (shared window, 0x11000):
-#     MSIP[h]        = 0x11000 + 4*h      (bit 0, level IRQ)
-#     MTIME  lo/hi   = 0x11010 / 0x11014  (free-running, +1 per mclk, writable)
-#     MTIMECMP[0] lo = 0x11020, hi = 0x11024  (resets ALL-ONES -> mtip quiet)
+# CLINT map (shared window, 0x5000):
+#     MSIP[h]        = 0x5000 + 4*h      (bit 0, level IRQ)
+#     MTIME  lo/hi   = 0x5010 / 0x5014  (free-running, +1 per mclk, writable)
+#     MTIMECMP[0] lo = 0x5020, hi = 0x11024  (resets ALL-ONES -> mtip quiet)
 #
 # Checks:
 #   1. mtime ticks: two reads (separate arbiter txns) strictly increase.
@@ -38,8 +38,8 @@
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
 
-    li   sp, 0xFFF0             # private RAM1 top; IRQ_SV pushes PC at sp-4
-    li   s2, 0x11000            # CLINT base
+    li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
+    li   s2, 0x5000            # CLINT base
     la   s3, isr_flags
     sw   x0, 0(s3)
 
@@ -104,7 +104,7 @@ msip_isr:
     sw   t0, 0(sp)
     sw   t1, 4(sp)
     sw   t2, 8(sp)
-    li   t0, 0x11000
+    li   t0, 0x5000
     sw   x0, 0(t0)              # clear MSIP[0]
     la   t1, isr_flags
     lw   t2, 0(t1)
@@ -121,7 +121,7 @@ mtip_isr:
     sw   t0, 0(sp)
     sw   t1, 4(sp)
     sw   t2, 8(sp)
-    li   t0, 0x11000
+    li   t0, 0x5000
     li   t1, -1
     sw   t1, 0x24(t0)           # MTIMECMP[0] hi = all-ones: level drops
     la   t1, isr_flags

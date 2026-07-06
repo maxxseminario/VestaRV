@@ -15,10 +15,10 @@
 # Checks:
 #   1. SAVE-TO-RAM: the push slot (0xFFEC) is pre-poisoned; after the IRQ it
 #      must hold a PC inside the triggering spin loop, and the SAME value the
-#      ISR captured from 0(sp)+its-frame. The word AT sp (0xFFF0) keeps its
+#      ISR captured from 0(sp)+its-frame. The word AT sp (0xBFF0) keeps its
 #      poison -- hardware wrote only mem[sp-4].
 #   2. SP DISCIPLINE: the ISR records its entry sp; it must be exactly
-#      0xFFF0-4. After iret, main-line sp must be back to 0xFFF0.
+#      0xBFF0-4. After iret, main-line sp must be back to 0xBFF0.
 #   3. REGISTER TRANSPARENCY: 27 GPRs (all but sp and the spin loop's
 #      s3/t0/t6) hold per-register patterns across the whole IRQ round trip
 #      -- hardware saves ONLY the PC, and the ISR's own save/restore of what
@@ -38,7 +38,7 @@
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
 
-    li   sp, 0xFFF0             # private RAM1 top; IRQ_SV pushes PC at sp-4
+    li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
     la   s3, isr_flags
     sw   x0, 0(s3)
 
@@ -46,7 +46,7 @@ RVTEST_CODE_BEGIN
     li   t0, 0x55AA55AA
     sw   t0, -4(sp)             # 0xFFEC: hardware MUST overwrite this
     li   t0, 0x0BADF00D
-    sw   t0, 0(sp)              # 0xFFF0: hardware must NOT touch this
+    sw   t0, 0(sp)              # 0xBFF0: hardware must NOT touch this
 
     # ---- unmask CLINT msip on hart 0 (SYSTEM regs) -------------------------
     # SYS_IRQ_ENU write packing QUIRK: EN bit 83 (msip) = write_data bit 27
@@ -88,7 +88,7 @@ RVTEST_CODE_BEGIN
 
     # ---- 1st self-IPI: IRQ lands somewhere in [ipi1_go, spin_done] ---------
 ipi1_go:
-    li   t0, 0x11000            # CLINT base
+    li   t0, 0x5000            # CLINT base
     li   t6, 1
     sw   t6, 0(t0)              # MSIP[0] = 1
     li   t6, 20000
@@ -159,11 +159,11 @@ spin_done:
     bne  s3, t0, irqctx_fail
 
     # ---- 2. sp discipline ---------------------------------------------------
-    li   t0, 0xFFF0
+    li   t0, 0xBFF0
     bne  sp, t0, irqctx_fail    # iret restored sp (+4 after the -4 push)
     la   t1, ctx_sp
     lw   t1, 0(t1)
-    li   t2, 0xFFF0 - 4
+    li   t2, 0xBFF0 - 4
     bne  t1, t2, irqctx_fail    # ISR-entry sp was exactly sp-4
 
     # ---- 1. the saved PC landed in RAM, inside the trigger window ----------
@@ -181,7 +181,7 @@ spin_done:
 
     # ---- 4. iret takes the PC from RAM: doctored return ---------------------
     # isr_flags is now 1, so the ISR takes its redirect path this time.
-    li   t0, 0x11000
+    li   t0, 0x5000
     li   t1, 1
     sw   t1, 0(t0)              # 2nd MSIP[0] = 1
     li   t6, 20000
@@ -195,7 +195,7 @@ redirect_target:
     lw   t0, 0(s3)
     li   t1, 2
     bne  t0, t1, irqctx_fail    # redirect path really ran
-    li   t1, 0xFFF0
+    li   t1, 0xBFF0
     bne  sp, t1, irqctx_fail    # sp discipline held through the redirect too
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin
 
@@ -208,7 +208,7 @@ msip_isr:
     addi sp, sp, -8
     sw   t0, 0(sp)
     sw   t1, 4(sp)
-    li   t0, 0x11000
+    li   t0, 0x5000
     sw   x0, 0(t0)              # clear MSIP[0] (the level) before iret
     la   t0, isr_flags
     lw   t1, 0(t0)

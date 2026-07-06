@@ -1,8 +1,13 @@
 -- =============================================================================
--- hart_tile.vhd  (M3b)
+-- hart_tile.vhd  (M3b; M11 memory-map rework)
 -- =============================================================================
 -- One self-contained hart with PRIVATE memory: a vesta core + its own address
--- decoder + private ROM + private RAM0 (0x8000) + private RAM1 (0xC000).
+-- decoder + private TCM (RAM0, 0x8000-0xBFFF). M11 retired the tile's dead
+-- boot ROM (never fetched -- tiles boot at 0x8200 in preloaded TCM until the
+-- M12 single-ROM boot) and its private RAM1 (0xC000 is now the SHARED NPU
+-- staging RAM behind the arbiter); everything except the TCM and the private
+-- ROM region reaches the MCU control plane through the shared-window master
+-- port below.
 --
 -- This is the "private per-hart memory" building block for the 4-hart MCU_MP.
 -- Each tile replicates the *unchanged* single-core core<->adddec<->ROM/RAM path,
@@ -10,17 +15,17 @@
 -- (see ~/vesta_docs/multicore_plan.md, "GRANT-SWITCHING HAZARD").
 --
 -- For M3b, harts 1-3 boot directly from preloaded RAM (PC_RST_VAL = 0x8200,
--- RAM0/RAM1 preloaded via INIT_FILE) with NO SPI/flash boot, and they do NOT
--- touch peripherals -- so the decoder's peripheral- and flash-facing buses are
--- tied off internally here.
+-- TCM preloaded via INIT_FILE) with NO SPI/flash boot.
 --
--- M3c.4: the tile is a REAL master of the MCU-level shared-RAM window
--- (0x10000-0x13FFF, region 4, behind mp_arbiter on the free-running mclk).
--- This replicates hart 0's proven M3c wiring (see MCU.vhd + the M3c.3
--- post-mortem in ~/vesta_docs/multicore_plan.md):
---   * sh_sel   = EXACT 18-bit decode of 0x10000-0x13FFF (complement of the
---                >=0x14000 extended-flash decode; a bits-16:14-only decode
---                aliases higher addresses back into the window - bug 2).
+-- M3c.4: the tile is a REAL master of the MCU-level shared window (behind
+-- mp_arbiter on the free-running mclk). This replicates hart 0's proven M3c
+-- wiring (see MCU.vhd + the M3c.3 post-mortem in ~/vesta_docs/multicore_plan.md):
+--   * sh_sel   = decode of the three SHARED regions (M11): the peripheral
+--                window 0x4000-0x7FFF, the NPU staging RAM 0xC000-0xFFFF and
+--                the bulk RAM 0x10000-0x1FFFF = addr(31:17)=0 AND (bit16 OR
+--                bit14). Exact upper-bit qualification (31:17)=0 keeps
+--                >=0x20000 extended-flash addresses OUT of the window (a
+--                loose decode aliases flash back into it - bug 2 class).
 --   * sh_acked = one-shot handshake flop on MCLK (the stall source must run
 --                free; a hart gated off can't clock its own release).
 --   * sh_dphase= sh_sel registered on the tile's own gated clk_cpu - BY
@@ -48,9 +53,8 @@ entity hart_tile is
     generic (
         HARTID         : natural := 1;
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00008200";
-        RAM0_INIT_FILE : string := "";   -- 0x8000-0xBFFF preload image (first 4096 words of build .rcf)
-        RAM1_INIT_FILE : string := "";   -- 0xC000-0xFFFF preload image (next 4096 words)
-        SH_AW          : natural := 12   -- shared-window word-address width (must match mp_arbiter)
+        RAM0_INIT_FILE : string := "";   -- TCM 0x8000-0xBFFF preload image (4096-word .rcf)
+        SH_AW          : natural := 15   -- shared-window word-address width (must match mp_arbiter; M11: covers 0x00000-0x1FFFF)
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
@@ -349,10 +353,14 @@ begin
     -- M3c.4: shared-window master (hart 0's proven M3c wiring, tile-internal).
     -- See the header comment for the design rationale of every piece.
     -- =========================================================================
-    -- EXACT decode of 0x10000-0x13FFF (data_addr(31:14) = 4). adddec (flash
-    -- disabled here) asserts no memory/peripheral enable for region 4, same as
-    -- hart 0's <0x14000 carve-out.
-    sh_sel <= '1' when data_addr(31 downto 14) = "000000000000000100" else '0';
+    -- M11 decode: the three shared regions in 0x00000-0x1FFFF -- peripheral
+    -- window (bits 16:14 = 001), NPU staging RAM (011), bulk RAM (1xx) --
+    -- which is bit16 OR bit14 under an exact (31:17)=0 qualification. The
+    -- ROM region (000) stays PRIVATE until the M12 single-ROM boot; the TCM
+    -- (010) is private forever. adddec asserts no enable for any shared
+    -- region, so the two decoders can never double-claim an address.
+    sh_sel <= '1' when data_addr(31 downto 17) = "000000000000000"
+                   and (data_addr(16) = '1' or data_addr(14) = '1') else '0';
 
     -- one-shot handshake on the FREE-RUNNING clk (mclk): request until this
     -- access completes (done), then hold off re-request until the core steps
@@ -450,19 +458,18 @@ begin
     core_read_data <= nop          when resetn_core = '0' else
                       sh_rdata_cpu when sh_dphase = '1'   else read_data;
 
-    -- Private ROM (0x0000). Never fetched in M3b (harts boot at 0x8200 in RAM0),
-    -- present only to satisfy the decoder's mem_dout(0) region.
-    rom0: entity work.rom_hvt_pg
-        port map (
-            Q    => mem_dout(0),
-            CLK  => clk_mem(0),
-            CEN  => mem_en(0),
-            A    => mem_addr,
-            EMA  => "000",
-            PGEN => '0'
-        );
+    -- M11: the tile's dead boot ROM (mem_dout(0)) and private RAM1
+    -- (mem_dout(2)) are RETIRED. The ROM was never fetched (tiles boot at
+    -- 0x8200 in preloaded TCM; adddec still decodes region 000 but the read
+    -- returns zeros -- M12's single shared ROM takes over that region), and
+    -- 0xC000-0xFFFF is now the SHARED NPU staging RAM behind the arbiter
+    -- (reached via sh_sel like every other shared region). Saves 1 ROM +
+    -- 1 RAM macro per tile.
+    mem_dout(0) <= (others => '0');
+    mem_dout(2) <= (others => '0');
 
-    -- Private RAM0 (0x8000-0xBFFF): code + IVT, preloaded from RAM0_INIT_FILE.
+    -- Private TCM (RAM0, 0x8000-0xBFFF): IVT + code + data + stack, preloaded
+    -- from RAM0_INIT_FILE.
     -- INIT_FILE is a sim-only preload hook on the ARM_IP_RAM model; the real
     -- sram1p16k_hvt_pg is a .lib macro and cannot take generics, so hide the
     -- generic map from synthesis.
@@ -476,27 +483,6 @@ begin
             Q     => mem_dout(1),
             CLK   => clk_mem(1),
             CEN   => mem_en(1),
-            WEN   => wen_fe,
-            A     => mem_addr,
-            D     => write_data,
-            EMA   => "000",
-            GWEN  => GWEN,
-            RETN  => '1',
-            PGEN  => '0'
-        );
-
-    -- Private RAM1 (0xC000-0xFFFF): stack + ISR vectors + data, preloaded from
-    -- RAM1_INIT_FILE. Plain (no NPU mux) -- harts 1-3 have no NPU in M3b.
-    ram1: entity work.sram1p16k_hvt_pg
-        -- synopsys translate_off
-        generic map (
-            INIT_FILE => RAM1_INIT_FILE
-        )
-        -- synopsys translate_on
-        port map (
-            Q     => mem_dout(2),
-            CLK   => clk_mem(2),
-            CEN   => mem_en(2),
             WEN   => wen_fe,
             A     => mem_addr,
             D     => write_data,

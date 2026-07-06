@@ -8,8 +8,8 @@
 # Before M7a, peripheral IRQs terminated ONLY in hart 0's SYSTEM; tiles had
 # just the hardwired CLINT slots 83/84. M7a fans the deglitched peripheral
 # levels out to every tile, gated per hart by the shared-window IRQ ROUTER at
-# 0x13900 (page-0x13000 slot 9): per hart h, HhENL/HhENM/HhENU at
-# 0x13900 + 0x10*h + 0/4/8 = irq_en[31:0]/[63:32]/[84:64], contiguous packing
+# 0x7000 (page-0x6000 slot 9): per hart h, HhENL/HhENM/HhENU at
+# 0x7000 + 0x10*h + 0/4/8 = irq_en[31:0]/[63:32]/[84:64], contiguous packing
 # both directions (deliberately NOT SYSTEM0's ENU write quirk). Reset = all
 # masked.
 #
@@ -17,7 +17,7 @@
 # (slot IRQB_UART0_TC = 15 -> HhENL bit 15) to THEMSELVES through the
 # arbiter, then SLEEP (extinguish, clk_cpu off). Hart 0 transmits a byte on
 # the shared UART0; the UTCIF level wakes the routed hart, whose ISR (at the
-# fixed IVT-slot-15 target 0xF800, section .isr_uart0_tc) clears the UART
+# fixed IVT-slot-15 target 0xB700 (M11 TCM ISR bank), section .isr_uart0_tc) clears the UART
 # level THROUGH THE ARBITER, un-routes itself, ignites, and irets; the woken
 # mainline reports DONE. Hart 0 then verifies UTCIF==0 and the router row
 # ==0 (the ISR really ran on the other hart), and moves to the next hart.
@@ -51,8 +51,8 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_UART    0x12000
-#define SH_IRTR    0x13900
+#define SH_UART    0x4400
+#define SH_IRTR    0x7000
 #define TURN       0x10190
 #define READY_BASE 0x101A0
 #define DONE_BASE  0x101B0
@@ -69,7 +69,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3 (the ISR reads it too — never clobber)
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top; IRQ_SV pushes PC at sp-4
+    li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
 
     li   s2, SH_UART            # +0 CR, +4 SR, +8 BR, +16 TX
     li   s3, TURN
@@ -86,7 +86,7 @@ turn_wait:
     bne  t0, s10, turn_wait
 
     slli t1, s10, 4
-    add  t1, t1, s6             # my router row: HhENL @ 0x13900 + 0x10*h
+    add  t1, t1, s6             # my router row: HhENL @ 0x7000 + 0x10*h
     li   t0, ENL_UART0_TC
     sw   t0, 0(t1)              # route UART0_TC to ME...
     lw   t2, 0(t1)              # ...and prove the write landed (readback)
@@ -177,7 +177,7 @@ woke:
 shirq_fail:
     RVTEST_FAIL                 # a0 = 0xDEADBEEF, spin
 
-    # ---- UART0_TC ISR (fixed IVT slot-15 target 0xF800; runs on the woken
+    # ---- UART0_TC ISR (fixed IVT slot-15 target 0xB700 (M11); runs on the woken
     # ---- tile hart). Clears the UART LEVEL through the arbiter, un-routes
     # ---- itself, ignites (iret must resume MAINLINE, not sleep). Only t0/t1
     # ---- used, stack-saved; s10 = my hartid from mainline. ------------------

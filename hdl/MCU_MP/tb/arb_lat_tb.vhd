@@ -319,7 +319,11 @@ end entity;
 architecture sim of arb_lat_tb is
 
     constant N   : natural := 4;
-    constant AW  : natural := 12;
+    constant AW  : natural := 12;  -- BFM-internal width. The MCU is at SH_AW=15 since M11; the
+                                   -- protocol properties proven here (wait-for-release masking,
+                                   -- LOCKED pairs, LR/SC ordering) are ADDRESS-WIDTH-INDEPENDENT
+                                   -- and the arbiter/resv_unit are generic — 12 keeps the
+                                   -- hand-built 12-bit BFMs/checkers intact.
     constant DW  : natural := 32;
     constant NTX : natural := 4;
     constant N_RND  : natural := 24;

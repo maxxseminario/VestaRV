@@ -3,7 +3,7 @@
 #*****************************************************************************
 # shmutex.S  (M7c — LOCKING v2: the HW mutex bank signature test)
 #-----------------------------------------------------------------------------
-# HW MUTEX BANK @0x13000 (page-3 slot 0): READ = atomic return-old-and-claim
+# HW MUTEX BANK @0x6000 (page-3 slot 0): READ = atomic return-old-and-claim
 # (0 = was free, you now own it; else the holder's hartid+1), WRITE 0 =
 # release, nonzero writes ignored. Atomicity comes from the arbiter's
 # whole-transaction serialization — 1-INSTRUCTION ACQUIRE, NO LR/SC — which
@@ -34,7 +34,7 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define MUTEX_BASE 0x13000      /* mutex i at +4*i; MUTEX0 = the contended one */
+#define MUTEX_BASE 0x6000      /* mutex i at +4*i; MUTEX0 = the contended one */
 #define CTR        0x10380
 #define OWNER      0x10384
 #define DONE_BASE  0x10390
@@ -48,7 +48,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s7, MUTEX_BASE         # MUTEX0 (the contended mutex)
     li   s8, CTR

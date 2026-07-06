@@ -41,6 +41,19 @@ program_start_address=0x8000
 # Convert to decimal
 program_start_dec=$((program_start_address))
 
+# 32-bit binary conversion in PURE BASH. This used to shell out to
+# `python3 -c "print(format(N, '032b'))"`, but EDA environments (Calibre's
+# aoj_cal wrapper) can shadow python3 with a script that re-evals its
+# arguments, stripping the inner quotes -> SyntaxError -> EMPTY segment-
+# address lines silently corrupting every image. No interpreter, no problem.
+to_bin32() {
+    local n=$1 out="" k
+    for ((k = 31; k >= 0; k--)); do
+        out+=$(( (n >> k) & 1 ))
+    done
+    printf '%s\n' "$out"
+}
+
 shopt -s nullglob
 for file in $filter; do
     [ -e "$file" ] || continue
@@ -148,8 +161,8 @@ for file in $filter; do
                 # Calculate addresses based on program starting at 0x8200
                 seg_start_dec=$((program_start_dec + 4 * region_start))
                 seg_end_dec=$((program_start_dec + 4 * (region_end + 1))) # not inclusive
-                seg_start_bin=$(python3 -c "print(format($seg_start_dec, '032b'))")
-                seg_end_bin=$(python3 -c "print(format($seg_end_dec, '032b'))")
+                seg_start_bin=$(to_bin32 "$seg_start_dec")
+                seg_end_bin=$(to_bin32 "$seg_end_dec")
 
                 # Write loadSegment command
                 echo "$line1" >> "$tmpfile"

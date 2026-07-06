@@ -5,20 +5,21 @@
 #-----------------------------------------------------------------------------
 # HART-GENERIC shared-UART0 test — the M6 signature test.
 #
-# M6 moved UART0 (the console UART) off hart 0's private peripheral bus
-# (0x4400, now reads zeros) and onto the mp_arbiter as the THIRD region-4
-# slave: all 4 harts reach its registers at 0x12000 (CR/SR/BR/RX/TX at
-# +0x0/4/8/C/10, same offsets as ever). The arbiter's whole-transaction grant
-# serializes register accesses; MESSAGE-level ownership is software's job —
-# here a token ring (deterministic order 0->1->2->3).
+# M6 moved UART0 (the console UART) off hart 0's private peripheral bus and
+# onto the mp_arbiter; M11's map rework put it back at its ORIGINAL 0x4400
+# (shared window page 0, slot 4): all 4 harts reach its registers there
+# (CR/SR/BR/RX/TX at +0x0/4/8/C/10, same offsets as ever). The arbiter's
+# whole-transaction grant serializes register accesses; MESSAGE-level
+# ownership is software's job — here a token ring (order 0->1->2->3).
 #
 # Shared words (>= 0x10170, clear of all earlier tests' words):
 #     TOKEN    = 0x10170          whose turn it is (shram zero-init => hart 0)
 #     DONE[h]  = 0x10180 + 4*h    0xC0DE0000+h after hart h transmitted
 #
-# Hart 0 (SPI boot):  verify the OLD 0x4400 window reads 0, program BR=1 +
-#   CR=EN through 0x12000, read both back, transmit 'A' + full UTCIF flag
-#   dance, TOKEN=1. Then bounded-wait TOKEN==4 and verify DONE[1..3].
+# Hart 0 (SPI boot):  verify CR/TX read their reset zeros through the live
+#   shared window, program BR=1 + CR=EN through 0x4400, read both back,
+#   transmit 'A' + full UTCIF flag dance, TOKEN=1. Then bounded-wait
+#   TOKEN==4 and verify DONE[1..3].
 # Harts 1-3 (preloaded, parked on TOKEN reads): on TOKEN==h verify BR still
 #   reads the hart-0 value (shared config really is shared), transmit 'A'+h,
 #   UTCIF flag dance, DONE[h], TOKEN=h+1, inline PASS + forever-verify.
@@ -36,7 +37,7 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_UART   0x12000
+#define SH_UART   0x4400
 #define TOKEN     0x10170
 #define DONE_BASE 0x10180
 #define BR_VAL    1
@@ -51,7 +52,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s2, SH_UART            # shared UART0: +0 CR, +4 SR, +8 BR, +16 TX
     li   s3, TOKEN
@@ -99,10 +100,12 @@ hart0:
     li   t0, 0x4900             # SYSTEM0: SYS_CLK_CR at +0
     sw   zero, 0(t0)
 
-    li   t0, 0x4400             # OLD private UART0 window: M6 tied it to 0
-    lw   t1, 0(t0)              # (was CR)
+    # M11: 0x4400 is the LIVE shared window (UART0 back at its original
+    # address). Reset proof through the arbiter before programming it:
+    li   t0, 0x4400
+    lw   t1, 0(t0)              # CR resets 0
     bnez t1, shuart_fail
-    lw   t1, 16(t0)             # (was TX)
+    lw   t1, 16(t0)             # TX resets 0
     bnez t1, shuart_fail
 
     li   t0, BR_VAL

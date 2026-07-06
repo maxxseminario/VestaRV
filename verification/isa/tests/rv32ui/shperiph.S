@@ -6,8 +6,9 @@
 # HART-GENERIC shared SPI1 + UART1 test — the M7c signature test.
 #
 # M7c moved the two remaining session peripherals with clean buses onto the
-# mp_arbiter, at their mirror slots in the 0x13000 page:
-#     SPI1  0x4300 -> 0x13300 (slot 3)      UART1 0x4500 -> 0x13500 (slot 5)
+# mp_arbiter, at their mirror slots in the 0x6000 page:
+#     SPI1 = 0x4300 (slot 3)      UART1 = 0x4500 (slot 5)   (M11: the
+#     shared window slots ARE the legacy addresses again)
 # Register offsets unchanged; old windows read zeros. SPI1's flash FSM is
 # compiled out (ENABLE_EXTENDED_MEM=false). SPI0 stays private FOREVER (the
 # ROM bootrom's boot path), as do SYSTEM0 and GPIO0.
@@ -42,8 +43,8 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 
-#define SH_SPI1    0x13300
-#define SH_UART1   0x13500
+#define SH_SPI1    0x4300
+#define SH_UART1   0x4500
 #define TOKEN      0x101E0
 #define DONE_BASE  0x101F0
 #define UART_BR    1
@@ -59,7 +60,7 @@ RVTEST_CODE_BEGIN
     csrr s10, mhartid           # 0..3
     .option pop
 
-    li   sp, 0xFFF0             # private RAM1 top (IRQ_SV contract)
+    li   sp, 0xBFF0             # private TCM top (IRQ_SV contract)
 
     li   s2, SH_UART1           # +0 CR, +4 SR, +8 BR, +16 TX
     li   s3, TOKEN
@@ -124,14 +125,15 @@ hart0:
     li   t0, 0x4900             # SYSTEM0: SYS_CLK_CR at +0
     sw   zero, 0(t0)            # SMCLK -> HFXT (both cores are smclk-domain)
 
-    li   t0, 0x4300             # OLD private SPI1 window: dead, reads 0
+    # M11: live shared windows — reset-value proofs through the arbiter:
+    li   t0, 0x4300             # SPI1 CR resets 0
     lw   t1, 0(t0)
     bnez t1, shperiph_fail
-    li   t0, 0x4500             # OLD UART1 window
+    li   t0, 0x4500             # UART1 CR resets 0
     lw   t1, 8(t0)
     bnez t1, shperiph_fail
 
-    li   t0, UART_BR            # UART1 config with readback via 0x13500
+    li   t0, UART_BR            # UART1 config with readback via 0x4500
     sw   t0, 8(s2)
     lw   t1, 8(s2)
     bne  t1, t0, shperiph_fail
@@ -142,7 +144,7 @@ hart0:
     li   t2, 0x42               # 'B'
     jal  ra, uart_send
 
-    li   t0, SPI_CR_CFG         # SPI1 config with readback via 0x13300
+    li   t0, SPI_CR_CFG         # SPI1 config with readback via 0x4300
     sw   t0, 0(s5)
     lw   t1, 0(s5)
     bne  t1, t0, shperiph_fail
