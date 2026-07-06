@@ -6,8 +6,15 @@
 
 PUBLISH_PDF = ../implementations/asic/castalia/docs/TRM.pdf
 
-# Default: regenerate the chip artifacts, then build the TRM PDF
-all: chip pdf
+# pdflatex: PATH first, then any user-local TeX Live install
+PDFLATEX := $(shell command -v pdflatex 2>/dev/null || ls $(HOME)/texlive/*/bin/*/pdflatex 2>/dev/null | head -1)
+
+# Optional chip-name override for the whole configuration (TRM title page/prose,
+# generated file headers): make chip CHIP_NAME=MyChip
+CHIP_NAME ?=
+
+# Default: 'make chip' regenerates the artifacts AND builds the TRM PDF
+all: chip
 
 help:
 	@echo "=========================================="
@@ -15,10 +22,11 @@ help:
 	@echo "=========================================="
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make              - chip + pdf (everything)"
-	@echo "  make chip         - Regenerate all chip artifacts from python/generate.py"
-	@echo "                      (headers, linker scripts, HDL templates, JSON, TRM LaTeX)"
-	@echo "  make pdf          - Compile the Technical Reference Manual PDF"
+	@echo "  make chip         - Generate the full chip configuration AND its TRM PDF:"
+	@echo "                      headers, linker scripts, drop-in HDL, JSON, TRM LaTeX + PDF"
+	@echo "                      (optional: CHIP_NAME=MyChip renames the chip everywhere)"
+	@echo "  make generate     - Chip artifacts only (no PDF)"
+	@echo "  make pdf          - Compile the Technical Reference Manual PDF only"
 	@echo "  make publish      - Copy the built TRM.pdf to implementations/asic/castalia/docs/"
 	@echo "                      (then review + commit it yourself)"
 	@echo "  make show         - Show current MCU configuration"
@@ -30,34 +38,42 @@ help:
 	@echo "=========================================="
 
 # ---------------------------------------------------------------------------
-# Chip generation (memory map -> headers, linker scripts, HDL, JSON, TRM LaTeX)
+# Chip artifact generation (memory map -> headers, linker scripts, HDL, JSON, TRM LaTeX)
 # ---------------------------------------------------------------------------
-chip generate:
-	@echo "Generating Castalia chip artifacts from python/generate.py..."
-	@cd python && python3 generate.py
+generate:
+	@echo "Generating chip artifacts from python/generate.py..."
+	@cd python && CHIP_NAME='$(CHIP_NAME)' python3 generate.py
 	@echo ""
 	@echo "✅ Generation complete. Outputs:"
 	@echo "  • out/software/include/MemoryMap.h, periph.S"
 	@echo "  • out/linker-scripts/memory.x, periph.x, *.txt"
-	@echo "  • out/hdl/MemoryMap.vhd, MCU_routing_template.vhd  (reference only)"
+	@echo "  • out/hdl/MCU.vhd, MemoryMap.vhd, MCU_routing_template.vhd"
 	@echo "  • config/MemoryMap.json"
-	@echo "  • latex/TRM/  (run 'make pdf' next)"
+	@echo "  • latex/TRM/  (LaTeX sources)"
+
+# The full chip: artifacts + the Technical Reference Manual PDF for exactly this
+# configuration (chapters, register tables, memory map, and feature list are all
+# derived from what python/generate.py instantiates)
+chip: generate
+	@$(MAKE) --no-print-directory pdf
+	@echo ""
+	@echo "✅ Chip generation complete — RTL in out/hdl/, TRM at latex/TRM/TRM.pdf"
 
 # ---------------------------------------------------------------------------
-# TRM PDF (requires pdflatex, e.g. the user-local TeX Live in ~/texlive)
+# TRM PDF (requires pdflatex; auto-detected from PATH or ~/texlive)
 # ---------------------------------------------------------------------------
 pdf:
-	@command -v pdflatex >/dev/null 2>&1 || { \
-		echo "❌ pdflatex not found on PATH."; \
+	@if [ -z "$(PDFLATEX)" ]; then \
+		echo "❌ pdflatex not found on PATH or in ~/texlive."; \
 		echo "   Try: export PATH=\$$HOME/texlive/2026/bin/x86_64-linux:\$$PATH"; \
-		exit 1; }
+		exit 1; fi
 	@if [ ! -f latex/TRM/TRM.tex ]; then \
 		echo "❌ latex/TRM/TRM.tex not generated yet. Run 'make chip' first."; \
 		exit 1; fi
 	@echo "Compiling TRM (two pdflatex passes)..."
 	@cd latex/TRM && \
-		pdflatex -interaction=nonstopmode TRM.tex > build.log 2>&1 && \
-		pdflatex -interaction=nonstopmode TRM.tex > build.log 2>&1 || \
+		'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 && \
+		'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 || \
 		{ echo "❌ pdflatex failed — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }
 	@grep -E "Output written|^!" latex/TRM/build.log | head -3
 	@echo "✅ latex/TRM/TRM.pdf"
@@ -96,8 +112,8 @@ install-deps:
 	@echo "Python 3 (>= 3.6):"
 	@command -v python3 >/dev/null && python3 --version || echo "  ❌ python3 not found"
 	@echo "pdflatex (TeX Live):"
-	@command -v pdflatex >/dev/null && pdflatex --version | head -1 || \
-		echo "  ❌ not on PATH — try: export PATH=\$$HOME/texlive/2026/bin/x86_64-linux:\$$PATH"
+	@if [ -n "$(PDFLATEX)" ]; then '$(PDFLATEX)' --version | head -1; else \
+		echo "  ❌ not found — try: export PATH=\$$HOME/texlive/2026/bin/x86_64-linux:\$$PATH"; fi
 	@echo "Figure tools (only needed when editing latex/figures/*.svg):"
 	@command -v soffice >/dev/null && echo "  ✅ soffice" || echo "  ⚠️  soffice (LibreOffice) not found"
 	@command -v gs >/dev/null && echo "  ✅ ghostscript" || echo "  ⚠️  ghostscript not found"

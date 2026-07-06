@@ -54,7 +54,7 @@
 
 % System configuration
 \section{System Configuration} \label{s:config}
-The microcontroller (MCU) described in this document is a four-hart (four-core) multiprocessor built from four identical VestaRV CPU cores, a custom 32-bit RISC-V processor. The microcontroller is composed of the four VestaRV harts, a ROM that contains boot software and a Forth interpreter, private RAM memory cells per hart, an arbitrated shared memory window for inter-hart communication, and several peripherals. The multi-core architecture is described in Section~\ref{s:multicore}. The modular architecture enables customization of the peripheral set, memory configuration, and system features to match specific application requirements.
+The microcontroller (MCU) described in this document is a \NumHartsWord-hart (\NumHartsWord-core) multiprocessor built from \NumHartsWord{} identical VestaRV CPU cores, a custom 32-bit RISC-V processor. The microcontroller is composed of the \NumHartsWord{} VestaRV harts, a ROM that contains boot software and a Forth interpreter, private RAM memory cells per hart, an arbitrated shared memory window for inter-hart communication, and several peripherals. The multi-core architecture is described in Section~\ref{s:multicore}. The modular architecture enables customization of the peripheral set, memory configuration, and system features to match specific application requirements.
 
 % TODO: add Castalia layout/bonding figures once the chip has been laid out
 %\begin{figure}[h]
@@ -67,19 +67,8 @@ The microcontroller (MCU) described in this document is a four-hart (four-core) 
 The following list details the MCU configuration:
 \begin{itemize}
 	\input{include/SystemConfigurationList_man.tex}
-	\item 4$\times$ VestaRV harts (RV32IMAC + Zba/Zbb/Zbc/Zbs), each with private RAM; hart ID readable via the \register{mhartid} CSR
-	\item Arbitrated shared memory window with 1 KiB shared RAM, a CLINT (inter-processor and timer interrupts), 16 hardware mutexes, and a per-hart peripheral interrupt router
-	\item 32$\times$ GPIO pins with edge-triggered interrupts and multiplexed peripheral functions
-	\item 2$\times$ SPI interfaces (one with flash memory access and one without flash memory access)
-	\item 2$\times$ UART interfaces
-	\item 2$\times$ 32-bit timers with pulse-width modulation outputs and input capture units
-	\item 2$\times$ I$^2$C interfaces (both master and slave mode)
-	\item A neural processing unit (NPU) co-processor for hardware acceleration of machine learning tasks
-	\item A CRC calculation engine
-	\item 2$\times$ internal digitally controllable oscillator
-	\item 2$\times$ external clock pins for clock generation and accurate timing
-	\item A 10-bit, SAR ADC
-	\item A 12-bit, dual-slope DAC
+	% Feature bullets are generated from the instantiated peripheral set (make chip)
+	\input{include/FeaturesList.tex}
 \end{itemize}
 
 \newpage
@@ -89,7 +78,7 @@ The following list details the MCU configuration:
 % Pin configuration
 \section{Packaging and Pins Configuration} \label{s:pinsConfig}
 
-\textbf{Preliminary:} the package and pinout in this section are inherited from the single-core Myshkin MCU and have not yet been finalized for Castalia. Pin assignments, package type, and pin count are subject to change.
+\textbf{Preliminary:} the package and pinout in this section are inherited from the single-core Myshkin MCU and have not yet been finalized for \AsicNameForUserGuide. Pin assignments, package type, and pin count are subject to change.
 
 \begin{figure}[h]
 	\begin{tikzpicture}[x=12mm, y=12mm]
@@ -159,7 +148,7 @@ The ROM cell contains boot code, which is read-only. Each SRAM cell can be read 
 
 The interrupt vector table (IVT) begins at address \texttt{\VectorsStartAddress} and contains jump instructions to the interrupt service routines (ISRs). When an interrupt occurs, the CPU directly vectors to the corresponding entry in the IVT, which then jumps to the appropriate ISR. Each IVT entry is 4 bytes and typically contains a RISC-V jump instruction (e.g., \asminline{j handler}). The IVT can be initialized and configured in software, allowing flexible interrupt routing and handler assignment at runtime.
 
-The address space above is the view from hart 0. Harts 1--3 see their own private RAM at the same addresses (\texttt{0x8000} and \texttt{0xC000}) and share the window at \texttt{0x10000}--\texttt{0x13FFF} with all other harts; see Section~\ref{s:multicore}.
+The address space above is the view from hart 0. Harts 1--\MaxHartIndex{} see their own private RAM at the same addresses and share the window at \texttt{\SharedWindowStartAddress}--\texttt{\SharedWindowEndAddress} with all other harts; see Section~\ref{s:multicore}.
 
 \newpage
 
@@ -168,7 +157,7 @@ The address space above is the view from hart 0. Harts 1--3 see their own privat
 % Multi-core architecture
 \section{Multi-Core Architecture} \label{s:multicore}
 
-\input{include/MULTICORE-intro-castalia-2026-07.tex}
+\input{include/ExtraIntroChapters.tex}
 
 \newpage
 
@@ -182,7 +171,7 @@ When the MCU is first powered up, a power-on reset (POR) circuit resets the MCU.
 
 When the MCU comes out of reset, it immediately begins to execute the bootloader stored in the ROM, setting the program counter to address \texttt{0x0000}. If the \pin{BOOT} pin is LOW, the bootloader launches a Forth interpreter which communicates over \peripheral{UART0} at 115,200 baud (see Section \ref{s:forth} for details concerning the Forth interpreter). If the \pin{BOOT} pin is HIGH, the bootloader reads and executes the program stored on an external SPI flash on \peripheral{SPI0} (see Section \ref{s:programming} for details on how to program the MCU). When the bootloader reads the program stored in the SPI flash, it dumps the contents of the SPI flash directly into RAM, completely filling the RAM from beginning to end using an address-to-address copy. After the bootloader has copied the program stored in the SPI flash into RAM, it jumps (moves the program counter) to address \texttt{\RamProgramStartAddress} and begins executing the code.
 
-Only hart 0 executes the boot ROM and the SPI-flash boot sequence described above. Harts 1--3 come out of reset executing from their private RAM and park until hart 0 releases them through the boot mailboxes in shared RAM; see Section \ref{ss:multicore-boot}.
+Only hart 0 executes the boot ROM and the SPI-flash boot sequence described above. Harts 1--\MaxHartIndex{} come out of reset executing from their private RAM and park until hart 0 releases them through the boot mailboxes in shared RAM; see Section \ref{ss:multicore-boot}.
 
 Note that the boot ROM reprograms the clock system during boot, so the SMCLK source at application entry is a boot-ROM implementation detail --- in particular, it may be left on the slow LFXT (32.768~\si{\kilo\hertz}) source. Applications that use SMCLK-domain peripherals (the UARTs, SPIs, I\textsuperscript{2}Cs, or a timer clock-source switch) should therefore always select their desired SMCLK source in the \peripheral{SYSTEM} peripheral first, rather than relying on the boot-time clock state; see Section \ref{ss:clocks} and the clock handoff note in the \peripheral{TIMERx} chapter.
 
@@ -195,7 +184,7 @@ Note that the boot ROM reprograms the clock system during boot, so the SMCLK sou
 
 \input{include/InterruptsTable_man.tex}
 
-The VestaRV CPU implements a priority-based interrupt system supporting 85 distinct interrupt sources as enumerated in the table above: the 83 peripheral and system vectors, plus the two \peripheral{CLINT} vectors (83, software/inter-processor interrupt; 84, timer interrupt) added for multi-core operation. For hart 0, each interrupt can be individually enabled or disabled through the \texttt{SYS\_IRQ\_EN} register in the \peripheral{SYSTEM} peripheral, where setting a bit to 1 enables the corresponding interrupt and clearing it to 0 disables the interrupt. For harts 1--3, peripheral interrupts are enabled per hart through the \peripheral{IRQROUTER} peripheral in the shared window (the \peripheral{CLINT} vectors are hardwired to every hart and cannot be masked in the router). All interrupts are disabled by default upon MCU reset and must be explicitly enabled in software before use. Additionally, peripherals generating interrupts must be configured to enable interrupt generation at the peripheral level.
+The VestaRV CPU implements a priority-based interrupt system supporting \VectorsCount{} distinct interrupt sources as enumerated in the table above: the \PeriphVectorsCount{} peripheral and system vectors, plus the two \peripheral{CLINT} vectors (\ClintMsipVector, software/inter-processor interrupt; \ClintMtipVector, timer interrupt) added for multi-core operation. For hart 0, each interrupt can be individually enabled or disabled through the \texttt{SYS\_IRQ\_EN} register in the \peripheral{SYSTEM} peripheral, where setting a bit to 1 enables the corresponding interrupt and clearing it to 0 disables the interrupt. For harts 1--\MaxHartIndex, peripheral interrupts are enabled per hart through the \peripheral{IRQROUTER} peripheral in the shared window (the \peripheral{CLINT} vectors are hardwired to every hart and cannot be masked in the router). All interrupts are disabled by default upon MCU reset and must be explicitly enabled in software before use. Additionally, peripherals generating interrupts must be configured to enable interrupt generation at the peripheral level.
 
 \subsection{Interrupt Vector Table}
 
@@ -224,7 +213,7 @@ Clock and power management, including sleep mode configuration, are controlled t
 % Assembly
 \section{CPU Instructions and Assembly} \label{s:cpu-instructions}
 
-The Castalia MCU integrates the VestaRV CPU core, a custom 32-bit RISC-V processor implementing the RV32IMAC instruction set with bit manipulation extensions (Zba, Zbb, Zbc, Zbs). This configuration provides integer arithmetic (I), hardware multiplication and division (M), atomic operations (A), compressed 16-bit instructions (C), and enhanced bit manipulation capabilities. The RISC-V instruction set architecture (ISA) defines the binary encoding of machine instructions, their operational semantics, and the register architecture used for computation and control flow.
+The \AsicNameForUserGuide{} MCU integrates the VestaRV CPU core, a custom 32-bit RISC-V processor implementing the RV32IMAC instruction set with bit manipulation extensions (Zba, Zbb, Zbc, Zbs). This configuration provides integer arithmetic (I), hardware multiplication and division (M), atomic operations (A), compressed 16-bit instructions (C), and enhanced bit manipulation capabilities. The RISC-V instruction set architecture (ISA) defines the binary encoding of machine instructions, their operational semantics, and the register architecture used for computation and control flow.
 
 \subsection{CPU Registers}
 
@@ -349,7 +338,7 @@ The jump and link instructions write the address of the next consecutive instruc
 
 \subsection{Atomic Memory Operations (A Extension)}
 
-The VestaRV core implements the RISC-V Atomic (A) extension, providing atomic read-modify-write operations for multiprocessor synchronization. On the Castalia MCU these instructions are the standard way to build locks and shared counters in the arbitrated shared RAM: an \asminline{AMO} instruction holds the shared-window arbiter grant across its whole read-modify-write pair, and a failed \asminline{sc.w} has its write suppressed by the reservation unit, so both are atomic with respect to all four harts (see Section \ref{ss:multicore-sync}). Do not use atomic instructions on hardware mutex addresses (see the \peripheral{MUTEX} peripheral chapter). All atomic memory operations operate on 32-bit words and take 5 MCLK cycles to execute.
+The VestaRV core implements the RISC-V Atomic (A) extension, providing atomic read-modify-write operations for multiprocessor synchronization. On the \AsicNameForUserGuide{} MCU these instructions are the standard way to build locks and shared counters in the arbitrated shared RAM: an \asminline{AMO} instruction holds the shared-window arbiter grant across its whole read-modify-write pair, and a failed \asminline{sc.w} has its write suppressed by the reservation unit, so both are atomic with respect to all \NumHartsWord{} harts (see Section \ref{ss:multicore-sync}). Do not use atomic instructions on hardware mutex addresses (see the \peripheral{MUTEX} peripheral chapter). All atomic memory operations operate on 32-bit words and take 5 MCLK cycles to execute.
 
 \begin{itemize}
 	\item Load Reserved: \asminlinehl{lr.w rd, (rs1)}: Loads a 32-bit word from memory address in \asminline{rs1} into \asminline{rd} and reserves the memory location for atomic access.
@@ -512,7 +501,7 @@ Below is an example Forth program that prints the numbers from 0 to 9 using a \f
 \subsection{The RISC-V Toolchain and its Extensions}
 To compile software for the VestaRV CPU core, you will need the RISC-V GNU toolchain, an open source compiler suite supporting multiple programming languages. The base instruction set, RV32I (Integer), provides fundamental integer arithmetic operations, excluding multiplication, division, and modulo. All RV32I instructions are 32 bits in length without exception.
 
-The Castalia MCU's VestaRV core implements several standard and extended instruction sets beyond the base RV32I:
+The \AsicNameForUserGuide{} MCU's VestaRV core implements several standard and extended instruction sets beyond the base RV32I:
 
 \begin{itemize}
 	\item \textbf{M Extension (Integer Multiplication and Division):} Adds hardware multiply (\asminline{mul}), divide (\asminline{div}), and modulo/remainder (\asminline{rem}) instructions with both signed and unsigned variants. Without this extension, the compiler must emulate these operations in software, significantly impacting performance.
@@ -530,7 +519,7 @@ The Castalia MCU's VestaRV core implements several standard and extended instruc
 	\item \textbf{Zbs Extension (Single-Bit Manipulation):} Offers single-bit set, clear, invert, and extract operations (\asminline{bset}, \asminline{bclr}, \asminline{binv}, \asminline{bext}) with both register and immediate variants, facilitating efficient manipulation of bit fields and flags.
 \end{itemize}
 
-When compiling for the Castalia MCU, specify the complete architecture string \\ \bashinline{-march=rv32imac\_zba\_zbb\_zbc\_zbs} to enable all supported extensions. Individual extensions may be selectively disabled by omitting them from the \bashinline{-march} flag if desired for compatibility testing or code size optimization.
+When compiling for the \AsicNameForUserGuide{} MCU, specify the complete architecture string \\ \bashinline{-march=rv32imac\_zba\_zbb\_zbc\_zbs} to enable all supported extensions. Individual extensions may be selectively disabled by omitting them from the \bashinline{-march} flag if desired for compatibility testing or code size optimization.
 
 \subsection{Getting the RISC-V Toolchain on Linux} \label{ss:linuxinstall}
 There are two primary methods for obtaining the RISC-V toolchain on Linux: installing a prebuilt binary distribution or building from source. For most users, the prebuilt xPack distribution is recommended due to its simplicity and time savings.
@@ -642,7 +631,7 @@ The RISC-V toolchain includes a GCC compiler. Thus, the compilation process is s
 
 There are several compilation flags that are suggested:
 \begin{itemize}
-\item \bashinlinehl{-march=rv32imac\_zba\_zbb\_zbc\_zbs} Architecture flag. This specifies which ISA extensions are enabled during compilation. For the Castalia MCU with full VestaRV capabilities, use the complete architecture string as shown to enable the base integer instructions (I), hardware multiplication/division (M), atomic operations (A), compressed instructions (C), and all bit manipulation extensions (Zba, Zbb, Zbc, Zbs). Individual extensions may be selectively disabled by omitting them from the string (e.g., \bashinline{-march=rv32imc} for basic support without atomics or bit manipulation, or \bashinline{-march=rv32imac} to include atomics but exclude bit manipulation extensions).
+\item \bashinlinehl{-march=rv32imac\_zba\_zbb\_zbc\_zbs} Architecture flag. This specifies which ISA extensions are enabled during compilation. For the \AsicNameForUserGuide{} MCU with full VestaRV capabilities, use the complete architecture string as shown to enable the base integer instructions (I), hardware multiplication/division (M), atomic operations (A), compressed instructions (C), and all bit manipulation extensions (Zba, Zbb, Zbc, Zbs). Individual extensions may be selectively disabled by omitting them from the string (e.g., \bashinline{-march=rv32imc} for basic support without atomics or bit manipulation, or \bashinline{-march=rv32imac} to include atomics but exclude bit manipulation extensions).
 
 \item \bashinlinehl{-mabi=ilp32} Application Binary Interface (ABI) flag. Specifies the calling convention and data model. Use \bashinline{ilp32} for integer-only ABI without floating point support, which is appropriate for the VestaRV core.
 
@@ -657,7 +646,7 @@ There are several compilation flags that are suggested:
 \item \bashinlinehl{-Wall -Wextra} Warning flags. Enable comprehensive compiler warnings to catch potential issues during development. The \bashinline{-Wall} flag enables common warnings, while \bashinline{-Wextra} adds additional checks.
 \end{itemize}
 
-\textbf{Example compilation command for Castalia MCU:}
+\textbf{Example compilation command for the \AsicNameForUserGuide{} MCU:}
 
 \begin{lstlisting}[language=bash]
 riscv-none-elf-gcc -c \

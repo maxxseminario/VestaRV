@@ -10,10 +10,11 @@ class PeripheralTemplate():
 	BitFieldPrefix = None
 	RegisterTemplates = None
 	LatexIntroFileName = None
-	
+	LatexFeatureSummary = None	# str or [str, ...] — TRM System Configuration feature bullet(s). '{count}' is replaced with 'N$\times$' (N = instantiated count); without it a 'N$\times$ ' prefix is added when N > 1. None = not listed (shared-window infrastructure is covered by the generated multi-core bullet instead).
+
 	Parent = None
-	
-	def __init__(self, nameTemplate, description='', registerPrefix=None, bitFieldPrefix=None, registerTemplates=None, latexIntroFileName=None):
+
+	def __init__(self, nameTemplate, description='', registerPrefix=None, bitFieldPrefix=None, registerTemplates=None, latexIntroFileName=None, latexFeatureSummary=None):
 		# Check nameTemplate
 		if type(nameTemplate) != str:
 			raise Exception('nameTemplate must be a string')
@@ -47,7 +48,15 @@ class PeripheralTemplate():
 		# Add the latex introduction, if one is given
 		if type(latexIntroFileName) == str:
 			self.LatexIntroFileName = latexIntroFileName
-		
+
+		# Add the TRM feature-list bullet(s), if given
+		if latexFeatureSummary is not None:
+			if type(latexFeatureSummary) == str:
+				latexFeatureSummary = [latexFeatureSummary]
+			if type(latexFeatureSummary) != list or any(type(s) != str for s in latexFeatureSummary):
+				raise Exception('latexFeatureSummary must be a string or a list of strings')
+			self.LatexFeatureSummary = latexFeatureSummary
+
 		return
 	
 	def AddRegisterTemplate(self, registerTemplate):

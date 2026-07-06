@@ -54,6 +54,8 @@ class LatexUserGuide():
 		self.CopyTemplateTexFiles()
 		self.GenerateDefinesFile()
 		self.GenerateSystemConfigurationListFile()
+		self.GenerateFeaturesList()
+		self.GenerateExtraIntroChapters()
 		self.GenerateAddressSpaceDiagram()
 		self.GenerateInterruptsTable()
 		self.GeneratePackagePinsConfigurationTable()
@@ -153,6 +155,27 @@ class LatexUserGuide():
 			'SpiFlashProgramAddress': fmthex(self.Gen.SpiFlashProgramAddress),
 		}
 
+		# Configuration-driven defines: hart count, vector counts, shared-window bounds.
+		# The master template selected by the chip config references only the defines its
+		# configuration provides (e.g. a single-core template never uses \SharedWindow*).
+		hartWords = {1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight'}
+		defines['NumHarts'] = str(self.Gen.NumHarts)
+		defines['NumHartsWord'] = hartWords.get(self.Gen.NumHarts, str(self.Gen.NumHarts))
+		defines['MaxHartIndex'] = str(self.Gen.NumHarts - 1)
+		defines['VectorsCount'] = str(self.Gen.VectorsCount)
+		if self.Gen.SharedWindowSections:
+			defines['SharedWindowStartAddress'] = fmthex(min(sec[1] for sec in self.Gen.SharedWindowSections))
+			defines['SharedWindowEndAddress'] = fmthex(max(sec[2] for sec in self.Gen.SharedWindowSections))
+		clint = None
+		for p in self.Gen.Peripherals:
+			if p.Name == 'CLINT':
+				clint = p
+		if clint is not None and clint.InterruptPriority is not None:
+			# CLINT owns the last two vectors: msip at its interruptPriority, mtip right after
+			defines['ClintMsipVector'] = str(clint.InterruptPriority)
+			defines['ClintMtipVector'] = str(clint.InterruptPriority + 1)
+			defines['PeriphVectorsCount'] = str(clint.InterruptPriority)
+
 		s = ''
 		for item in defines:
 			s += '\\newcommand{\\' + item + '}{' + defines[item] + '}\n'
@@ -228,6 +251,101 @@ class LatexUserGuide():
 		
 		return
 	
+	def GenerateFeaturesList(self):
+		# Build the System Configuration feature bullets from what the chip description
+		# actually instantiates, so the TRM tracks the configuration (cores, peripherals,
+		# shared-window blocks) instead of repeating a hand-maintained list.
+		bullets = []
+
+		# Multi-core bullets (hart count + the shared-window infrastructure blocks)
+		if self.Gen.NumHarts > 1:
+			bullets.append(str(self.Gen.NumHarts) + '$\\times$ VestaRV harts (cores), each with private RAM; hart ID readable via the \\register{mhartid} CSR')
+			parts = []
+			sharedRamBytes = 0
+			if self.Gen.SharedWindowSections is not None:
+				for sec in self.Gen.SharedWindowSections:
+					if 'RAM' in sec[0].upper():
+						sharedRamBytes += sec[2] - sec[1] + 1
+			if sharedRamBytes > 0:
+				if sharedRamBytes % 1024 == 0:
+					parts.append(str(sharedRamBytes // 1024) + ' KiB of shared RAM')
+				else:
+					parts.append(str(sharedRamBytes) + ' bytes of shared RAM')
+			clint = None
+			mutex = None
+			irqRouter = None
+			for p in self.Gen.Peripherals:
+				if p.Name == 'CLINT':
+					clint = p
+				elif p.Name == 'MUTEX':
+					mutex = p
+				elif p.Name == 'IRQROUTER':
+					irqRouter = p
+			if clint is not None:
+				parts.append('a CLINT (inter-processor and per-hart timer interrupts)')
+			if mutex is not None:
+				parts.append(str(len(mutex.Registers)) + ' hardware mutexes')
+			if irqRouter is not None:
+				parts.append('a per-hart peripheral interrupt router')
+			if len(parts) > 0:
+				if len(parts) > 1:
+					joined = ', '.join(parts[:-1]) + ', and ' + parts[-1]
+				else:
+					joined = parts[0]
+				bullets.append('An arbitrated shared memory window with ' + joined)
+
+		# One bullet (or bullet group) per instantiated peripheral template, in
+		# description order, with the instance count folded in
+		templates = []
+		for p in self.Gen.Peripherals:
+			if p.Template not in templates:
+				templates.append(p.Template)
+		for pt in templates:
+			if pt.LatexFeatureSummary is None:
+				continue
+			count = 0
+			for p in self.Gen.Peripherals:
+				if p.Template == pt:
+					count += 1
+			for summary in pt.LatexFeatureSummary:
+				if '{count}' in summary:
+					bullets.append(summary.replace('{count}', str(count) + '$\\times$'))
+				elif count > 1:
+					bullets.append(str(count) + '$\\times$ ' + summary)
+				else:
+					bullets.append(summary)
+
+		s = ''
+		for b in bullets:
+			s += '\\item ' + b + '\n'
+
+		if not os.path.isdir(self.IncludeDirectory):
+			os.makedirs(self.IncludeDirectory)
+
+		path = self.IncludeDirectory + '/FeaturesList.tex'
+		with open(path, 'w') as f:
+			f.write(s)
+
+		return
+
+	def GenerateExtraIntroChapters(self):
+		# Input list for the hand-written extra chapters (ChipGenerator.ExtraLatexIntroFiles,
+		# e.g. the Multi-Core Architecture chapter). The master template inputs this file so
+		# chapter filenames/revisions live in the chip description, not in the template.
+		s = '% Generated from ChipGenerator.ExtraLatexIntroFiles — do not edit\n'
+		if self.Gen.ExtraLatexIntroFiles is not None:
+			for fileName in self.Gen.ExtraLatexIntroFiles:
+				s += '\\input{include/' + fileName + '}\n'
+
+		if not os.path.isdir(self.IncludeDirectory):
+			os.makedirs(self.IncludeDirectory)
+
+		path = self.IncludeDirectory + '/ExtraIntroChapters.tex'
+		with open(path, 'w') as f:
+			f.write(s)
+
+		return
+
 	def GenerateAddressSpaceDiagram(self):
 		# (Slot name (None if unused section), SRAM slot number (None if not SRAM), start address, end address)
 		slots = [('ROM', None, self.Gen.RomStartAddress, self.Gen.RomEndAddress)]
