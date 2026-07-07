@@ -1,0 +1,24 @@
+// M14 hierarchical SDF annotation: the top-level P&R SDF covers the control
+// plane (tile instances are ILM/LEF leaves there -- no interior arcs), and
+// the tile harden's SDF is applied once per hart instance. The runner
+// rescopes every :dut to :uut:dut for the wrapper level.
+SDF_FILE = "../../../genus/out/MCU_MP_hier.genus.sdf",
+LOG_FILE = "./log/sdf_top.log",
+SCOPE = :dut,
+MTM_CONTROL = "MAXIMUM"; // innovus SDF only contains min/max
+SDF_FILE = "../../../genus/out/hart_tile.genus.sdf",
+LOG_FILE = "./log/sdf_hart0.log",
+SCOPE = :dut:hart0,
+MTM_CONTROL = "MAXIMUM";
+SDF_FILE = "../../../genus/out/hart_tile.genus.sdf",
+LOG_FILE = "./log/sdf_hart1.log",
+SCOPE = :dut:hart1,
+MTM_CONTROL = "MAXIMUM";
+SDF_FILE = "../../../genus/out/hart_tile.genus.sdf",
+LOG_FILE = "./log/sdf_hart2.log",
+SCOPE = :dut:hart2,
+MTM_CONTROL = "MAXIMUM";
+SDF_FILE = "../../../genus/out/hart_tile.genus.sdf",
+LOG_FILE = "./log/sdf_hart3.log",
+SCOPE = :dut:hart3,
+MTM_CONTROL = "MAXIMUM";
