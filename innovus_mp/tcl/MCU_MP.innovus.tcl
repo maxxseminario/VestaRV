@@ -1,21 +1,37 @@
 ################################################################################
-# Innovus script -- MCU_MP TOP-LEVEL ASSEMBLY (M14 physical flow)
+# Innovus script -- MCU_MP TOP-LEVEL ASSEMBLY (M14 physical flow; M16 rework)
 #
 # Hierarchical assembly: the four hart instances (hart0-3) are the HARDENED
-# hart_tile block -- physical footprint from out/hart_tile.lef, timing from
-# the ILM out/hart_tile.ilm (specifyIlm; super-commands flatten it
-# internally). Control plane (arbiter/CLINT/router/mutex/periph/system0 +
-# rom0 + npuram0 + shbank0-3 + analog blocks) is placed and routed here, and
-# top-level CTS balances the clock into the four tile clk pins.
+# U-shaped hart_tile block (660 x 850 bbox, top-center 500 x 350 analog
+# notch) -- physical footprint from out/hart_tile.lef, timing from the
+# per-corner ETMs out/hart_tile.etm_{ss,ff}.lib. Control plane (arbiter/
+# CLINT/router/mutex/periph/system0 + rom0 + analog blocks) is placed and
+# routed here, and top-level CTS balances the clock into the four tile clk
+# pins.
 #
 # Netlist: in/MCU_MP_hier.pnr.v = out-of-genus MCU_MP_hier.genus.v with any
 # empty `module hart_tile` blackbox stub STRIPPED (prep_top_netlist.sh) so
-# innovus binds hart_tile to the LEF macro + ILM, not to an empty module.
+# innovus binds hart_tile to the LEF macro, not to an empty module.
 #
-# Floorplan (die 1400 x 2160): a column of 4 tiles (1146x280, pins on each
-# tile's top edge) with 50 um escape channels between them and a ~250 um
-# vertical routing channel on the right; control plane above the column
-# (5 shared sram1p16k strips, then the boot ROM + analog + logic strip).
+# Floorplan (die 2840 x 1710), the potentiostat-array arrangement:
+#   TOP:    a row of 4 U-tiles, mirror-symmetric about the chip's vertical
+#           centerline (hart0/1 R0, hart2/3 MY), tile tops flush with the
+#           die top so each tile's analog notch opens onto the TOP edge --
+#           the analog pads live there at Virtuoso chip assembly. The 4
+#           notch windows are hard placement + full-stack routing keep-outs
+#           up to the die edge. Analog-facing MCU pins (BIAS_*, dsadc_*,
+#           saradc_*, atp_*, adc_*, dac/bias enables) are placed on the top
+#           edge over the 3 inter-tile gaps + 2 die margins -- the only
+#           vertical channels past the tile row -- and drop straight to the
+#           control plane.
+#   MIDDLE: control-plane band (rows) with the boot ROM + POR/DCO/glitch-
+#           filter analog blocks; all digital chip pins on the BOTTOM edge.
+#   BOTTOM: the shared RAM -- shbank0-3 + npuram0, five near-square
+#           AREA-OPTIMIZED mux-8 sram1p16k macros (319.65 x 383.085) in a
+#           centered row at the very bottom of the die.
+# Top power ring side is SKIPPED (analog windows must stay metal-free);
+# left/right M7 + bottom M8 ring segments + the M7/M8 stripe grid power the
+# core, and the tile/SRAM PG pins are strapped by sroute as in M14.
 ################################################################################
 
 source tcl/constants.tcl
@@ -24,8 +40,8 @@ source $SCRIPT_DIR/procedures.tcl
 set DESIGN_NAME MCU
 set BASENAME    MCU_MP
 
-set DESIGN_WIDTH  1400
-set DESIGN_HEIGHT 2160
+set DESIGN_WIDTH  2840
+set DESIGN_HEIGHT 1710
 
 set POWER_RING_PATH_WIDTH	10.0
 set POWER_RING_PATH_SPACING	4.0
@@ -91,72 +107,192 @@ floorPlan \
     -site TSMC65ADV10TSITE \
     -s $CORE_WIDTH $CORE_HEIGHT $CORE_SPACING $CORE_SPACING $CORE_SPACING $CORE_SPACING
 
-# --- The tile column: 4x hart_tile, 50 um escape channel between tiles ---
-set TILE_W       1146
-set TILE_H       280
-set TILE_X       10
-set TILE_GAP     50
+# --- Tile geometry (must match tcl/hart_tile.innovus.tcl) ---
+set TILE_W        660
+set TILE_H        850
+set TILE_NOTCH_X0 80
+set TILE_NOTCH_X1 580
+set TILE_NOTCH_Y0 500
+
+# --- The tile row: 4x U-shaped hart_tile flush with the die top, mirror-
+# symmetric about x = DIE_W/2 (hart0/1 R0, hart2/3 MY; the notch is centered
+# in the tile so the mirrored windows stay put). 40 um channels between
+# tiles: these gaps (+ the two die margins) are the ONLY vertical paths past
+# the tile row (the hardened tile obstructs M1-M6 and M7/M8 are power-
+# reserved), so they carry ALL the analog-pin drops -- 20 um proved too
+# narrow (202 routing shorts among the analog nets, first run). ---
+set TILE_GAP     40
+set TILE_X0      40
+set TILE_PITCH   [expr {$TILE_W + $TILE_GAP}]
+set TILE_Y       [expr {$DESIGN_HEIGHT - $CORE_SPACING - $TILE_H}]
 for {set h 0} {$h < 4} {incr h} {
-	set TILE_Y [expr {10 + $h * ($TILE_H + $TILE_GAP)}]
-	placeInstance hart$h $TILE_X $TILE_Y R0
+	set TILE_X [expr {$TILE_X0 + $h * $TILE_PITCH}]
+	set ORIENT [expr {$h < 2 ? "R0" : "MY"}]
+	placeInstance hart$h $TILE_X $TILE_Y $ORIENT
 	addHaloToBlock 10 10 10 10 hart$h
 }
-cutRow
-# column top = 10 + 3*330 + 280 = 1280
+printStatus "Placed tile row (tops flush with die top)"
 
-# --- Shared memories: 5 sram1p16k strips (shbank0-3 + npuram0) ---
-set SRAM16K_WIDTH		1126.050
-set SRAM16K_HEIGHT		121.470
-set SH_X 10
-set SH_Y0 1340
-set SH_PITCH [expr {$SRAM16K_HEIGHT + 10}]
+# --- Analog notch windows: per tile, keep-out from the notch floor to the
+# die top edge. Hard placement blockage + all-layer route blockage; rows cut
+# below. The analog potentiostat chains drop in here at Virtuoso assembly. ---
+set WINDOW_BOXES {}
+for {set h 0} {$h < 4} {incr h} {
+	set TILE_X [expr {$TILE_X0 + $h * $TILE_PITCH}]
+	set WX0 [expr {$TILE_X + $TILE_NOTCH_X0}]
+	set WX1 [expr {$TILE_X + $TILE_NOTCH_X1}]
+	set WY0 [expr {$TILE_Y + $TILE_NOTCH_Y0}]
+	set WY1 $DESIGN_HEIGHT
+	lappend WINDOW_BOXES [list $WX0 $WY0 $WX1 $WY1]
+	createPlaceBlockage -type hard -name analog_win$h \
+		-box [list $WX0 $WY0 $WX1 $WY1]
+	createRouteBlk -name analog_win_rt$h \
+		-box [list $WX0 $WY0 $WX1 $WY1] \
+		-layer {1 2 3 4 5 6 7 8}
+	cutRow -area [list $WX0 $WY0 $WX1 $WY1]
+}
+cutRow
+printStatus "Reserved 4 analog notch windows (500 x 351 to the die edge)"
+
+# --- Above the notch-floor line the only routable silicon is the gap/margin
+# channels; keep it cell-free (wires only) so nothing needs power there and
+# no rail stubs orphan. Analog-net buffering happens below this line. ---
+set NOTCH_FLOOR_Y [expr {$TILE_Y + $TILE_NOTCH_Y0}]
+createPlaceBlockage -type hard -name top_band \
+	-box [list 0 $NOTCH_FLOOR_Y $DESIGN_WIDTH $DESIGN_HEIGHT]
+cutRow -area [list 0 $NOTCH_FLOOR_Y $DESIGN_WIDTH $DESIGN_HEIGHT]
+
+# --- The channel columns BESIDE the tiles must be wire-only too: no
+# vertical PG exists in a 40 um slot walled by tile M1-M6 OBS, so any row
+# there gets a FLOATING follow-pin rail (v3: 1276 orphaned VSS/VDD pieces,
+# 12k cells incl. analog-net opt buffers on dead rails). Cut the rows from
+# the tile-halo bottom up to the notch floor; opt buffers these nets in the
+# control band instead. ---
+set CH_Y0 [expr {$TILE_Y - 10}]
+set CH_COLS [list [list 0 $TILE_X0] \
+	[list [expr {$DESIGN_WIDTH - $TILE_X0}] $DESIGN_WIDTH]]
+for {set g 1} {$g < 4} {incr g} {
+	set gx0 [expr {$TILE_X0 + $g * $TILE_PITCH - $TILE_GAP}]
+	lappend CH_COLS [list $gx0 [expr {$gx0 + $TILE_GAP}]]
+}
+set ci 0
+foreach col $CH_COLS {
+	createPlaceBlockage -type hard -name channel$ci \
+		-box [list [lindex $col 0] $CH_Y0 [lindex $col 1] $NOTCH_FLOOR_Y]
+	cutRow -area [list [lindex $col 0] $CH_Y0 [lindex $col 1] $NOTCH_FLOOR_Y]
+	incr ci
+}
+
+# --- Shared RAM: shbank0-3 + npuram0, five square sram1p16k in a centered
+# row at the very bottom of the die ---
+set SRAM16K_WIDTH		319.650
+set SRAM16K_HEIGHT		383.085
+set SH_GAP   20
+set SH_Y     40
+set SH_SPAN  [expr {5 * $SRAM16K_WIDTH + 4 * $SH_GAP}]
+set SH_X0    [expr {($DESIGN_WIDTH - $SH_SPAN) / 2.0}]
 set i 0
 foreach m {shbank0 shbank1 shbank2 shbank3 npuram0} {
-	placeInstance $m $SH_X [expr {$SH_Y0 + $i * $SH_PITCH}] MX
+	placeInstance $m [expr {$SH_X0 + $i * ($SRAM16K_WIDTH + $SH_GAP)}] $SH_Y R0
 	addHaloToBlock 4 4 4 4 $m
 	incr i
 }
 cutRow
-# memory stack top = 1340 + 5*131.47 = ~1998
+# shared RAM row top = 40 + 383.085 = ~423
+# The 12 um placeable slivers between adjacent RAM macros only meet a
+# vertical M7 stripe by 50 um-pitch luck -- rows there otherwise carry
+# FLOATING follow-pin rails (v4: 481 orphaned PG pieces, with live sh_wdata
+# buffers on dead rails). Wire-only, like the tile channels.
+for {set g 0} {$g < 4} {incr g} {
+	set gx0 [expr {$SH_X0 + ($g + 1) * $SRAM16K_WIDTH + $g * $SH_GAP}]
+	createPlaceBlockage -type hard -name ramgap$g \
+		-box [list $gx0 [expr {$SH_Y - 4}] [expr {$gx0 + $SH_GAP}] [expr {$SH_Y + $SRAM16K_HEIGHT + 4}]]
+	cutRow -area [list $gx0 [expr {$SH_Y - 4}] [expr {$gx0 + $SH_GAP}] [expr {$SH_Y + $SRAM16K_HEIGHT + 4}]]
+}
 
-# --- Boot ROM (R90: 325.055 wide x 156.525 tall) ---
-set ROM_X 10
-set ROM_Y 2010
+# --- Control-plane band (rows y ~448..~848): boot ROM (R90: 325.055 wide x
+# 156.525 tall) + POR, 2x DCO, 3x IRQ glitch filter ---
+set ROM_X 60
+set ROM_Y 470
 placeInstance rom0 $ROM_X $ROM_Y R90
 addHaloToBlock 9 4 4 9 rom0
-cutRow
-
-# --- Analog blocks (POR, 2x DCO, 3x IRQ glitch filter) in the top strip ---
-placeInstance por     420 2010 R0
+placeInstance por     450 470 R0
 addHaloToBlock 4 4 4 4 por
-placeInstance dco0    520 2010 R0
+placeInstance dco0    550 470 R0
 addHaloToBlock 4 4 4 4 dco0
-placeInstance dco1    640 2010 R0
+placeInstance dco1    670 470 R0
 addHaloToBlock 4 4 4 4 dco1
-placeInstance irq_gf0 760 2010 R0
+placeInstance irq_gf0 790 470 R0
 addHaloToBlock 4 4 4 4 irq_gf0
-placeInstance irq_gf1 850 2010 R0
+placeInstance irq_gf1 880 470 R0
 addHaloToBlock 4 4 4 4 irq_gf1
-placeInstance irq_gf2 940 2010 R0
+placeInstance irq_gf2 970 470 R0
 addHaloToBlock 4 4 4 4 irq_gf2
 cutRow
 
-printStatus "Placed tiles + memories + ROM + analog blocks"
+printStatus "Placed tiles + shared RAM row + ROM + analog blocks"
 
-# --- Chip pins: spread along the TOP edge (control-plane side), M4 ---
-set ALL_PINS [dbGet top.terms.name]
-puts "Assigning [llength $ALL_PINS] pins to the top edge"
-editPin -pin $ALL_PINS -side Top -layer 4 -spreadType side -spacing 2 -fixOverlap 1
-printStatus "Placed chip pins"
+# --- Chip pins. Analog-facing pins on the TOP edge in the 5 segments
+# between/beside the notch windows (they connect to the potentiostat chains
+# and analog pads at Virtuoso assembly); every other (digital) pin on the
+# BOTTOM edge. editPin has no wildcards, so classify via string match. ---
+set ANALOG_PIN_PATTERNS {BIAS_* dsadc_* saradc_* atp_* adc_* dac_en_pot use_dac_glb_bias en_bias_*}
+set ANALOG_PINS {}
+set DIGITAL_PINS {}
+foreach p [dbGet top.terms.name] {
+	set hit 0
+	foreach pat $ANALOG_PIN_PATTERNS {
+		if {[string match $pat $p]} { set hit 1; break }
+	}
+	if {$hit} { lappend ANALOG_PINS $p } else { lappend DIGITAL_PINS $p }
+}
+puts "Pin split: [llength $ANALOG_PINS] analog-facing (top), [llength $DIGITAL_PINS] digital (bottom)"
+
+# Top-edge segments over the REAL vertical channels only: the two die
+# margins and the three inter-tile gaps. Everything else on the top edge
+# sits over a tile finger (M1-M6 obstructed) or an analog window --
+# unroutable (the first run put pins there: 202 shorts).
+set TOP_SEGS [list [list 30 [expr {$TILE_X0 - 2}]]]
+for {set g 1} {$g < 4} {incr g} {
+	set gx0 [expr {$TILE_X0 + $g * $TILE_PITCH - $TILE_GAP}]
+	lappend TOP_SEGS [list [expr {$gx0 + 4}] [expr {$gx0 + $TILE_GAP - 4}]]
+}
+lappend TOP_SEGS [list [expr {$DESIGN_WIDTH - $TILE_X0 + 2}] [expr {$DESIGN_WIDTH - 30}]]
+
+set total_len 0
+foreach s $TOP_SEGS { set total_len [expr {$total_len + [lindex $s 1] - [lindex $s 0]}] }
+set n_analog [llength $ANALOG_PINS]
+set assigned 0
+for {set s 0} {$s < [llength $TOP_SEGS]} {incr s} {
+	set seg [lindex $TOP_SEGS $s]
+	set len [expr {[lindex $seg 1] - [lindex $seg 0]}]
+	if {$s == [llength $TOP_SEGS] - 1} {
+		set share [expr {$n_analog - $assigned}]
+	} else {
+		set share [expr {int(round(double($n_analog) * $len / $total_len))}]
+	}
+	if {$share <= 0} { continue }
+	set chunk [lrange $ANALOG_PINS $assigned [expr {$assigned + $share - 1}]]
+	set assigned [expr {$assigned + $share}]
+	editPin -pin $chunk -side Top -layer 4 -spreadType range \
+		-start [list [lindex $seg 0] $DESIGN_HEIGHT] \
+		-end   [list [lindex $seg 1] $DESIGN_HEIGHT] \
+		-fixOverlap 1
+	puts "  top segment $s ([lindex $seg 0]..[lindex $seg 1]): [llength $chunk] pins"
+}
+editPin -pin $DIGITAL_PINS -side Bottom -layer 4 -spreadType side -spacing 2 -fixOverlap 1
+printStatus "Placed chip pins (analog top / digital bottom)"
 
 ################################################################################
-# Power
+# Power. NO top ring segment -- it would cross the analog windows; the
+# left/right M7 + bottom M8 segments and the stripe grid carry the current.
 ################################################################################
 printStatus "Adding power ring/stripes"
 addRing \
     -nets {VDD VSS} \
     -type core_rings \
     -follow io \
+    -skip_side {top} \
     -layer {top M8 bottom M8 left M7 right M7} \
     -width $POWER_RING_PATH_WIDTH \
     -spacing $POWER_RING_PATH_SPACING \
@@ -164,6 +300,11 @@ addRing \
     -center 0 -extend_corner {} -threshold 0 -jog_distance 0 \
     -snap_wire_center_to_grid None
 
+# Stripe grid stops at the notch-floor line: above it live only the analog
+# windows, the tile fingers (powered by the tile's own closed U-ring) and
+# the pin channels. Stripes crossing that strip get chopped against the
+# window blockages into ORPHANED pieces (first run: 1248 disconnected VSS/
+# VDD special-wire fragments + a VSS open over hart0) -- so don't draw them.
 setAddStripeMode \
     -remove_floating_stripe_over_block true \
     -trim_antenna_back_to_shape core_ring \
@@ -174,6 +315,7 @@ addStripe \
 	-nets {VDD VSS} \
 	-direction horizontal \
 	-start_from left \
+	-area [list 0 0 $DESIGN_WIDTH $NOTCH_FLOOR_Y] \
 	-set_to_set_distance $POWER_STRIPE_SET_TO_SET \
 	-spacing $POWER_STRIPE_PATH_SPACING \
 	-width $POWER_STRIPE_PATH_WIDTH \
@@ -184,8 +326,8 @@ addStripe \
 	-layer M7 \
 	-nets {VDD VSS} \
 	-direction vertical \
-	-extend_to design_boundary \
 	-start_from bottom \
+	-area [list 0 0 $DESIGN_WIDTH $NOTCH_FLOOR_Y] \
 	-set_to_set_distance $POWER_STRIPE_SET_TO_SET \
 	-spacing $POWER_STRIPE_PATH_SPACING \
 	-width $POWER_STRIPE_PATH_WIDTH \
@@ -252,8 +394,7 @@ printStatus "Placement done"
 
 ################################################################################
 # Clock tree synthesis -- balances into the four tile clk pins (identical
-# hardened tiles => identical internal insertion delay; the ILM carries the
-# tile clock interface)
+# hardened tiles => identical internal insertion delay)
 ################################################################################
 add_ndr -name CTS_2W2S -width {M2:M6 0.4} -generate_via -spacing {M2:M6 0.42}
 add_ndr -name CTS_2W1S -width {M2:M6 0.4} -generate_via -spacing {M2:M6 0.21}
@@ -303,6 +444,16 @@ setNanoRouteMode \
 routeDesign
 
 optDesign -postRoute -setup -hold
+# SI-aware hold cleanup -- the M14-proven remedy for the few-ps SI hold
+# violations at the tile clk pins (first run here: -0.002 ns at hart3/clk).
+# NB: 'optDesign -postRoute -si -hold' is OBSOLETE in 20.12 (IMPOPT-7016
+# aborts the script); the M14 ECO form is SIAware delaycal + plain hold opt.
+setDelayCalMode -SIAware true
+# +10 ps hold target: without it the ECO converges to -0.000 (sub-ps
+# VIOLATED at a tile clk pin) instead of inserting the final delay cell.
+setOptMode -holdTargetSlack 0.01
+optDesign -postRoute -hold
+setOptMode -holdTargetSlack 0
 
 verifyGeometry \
     -error 10000 \
