@@ -1,5 +1,5 @@
 ################################################################################
-# Innovus script -- hart_tile TILE HARDEN (M14 physical flow)
+# Innovus script -- hart_tile TILE HARDEN (M14 physical flow; M16 U-shape rework)
 #
 # Derived from the frozen Myshkin ~/vestarv/innovus/tcl/MCU.innovus.tcl, cut
 # down to a single-tile block harden and made BATCH-SAFE (no suspend, no GUI
@@ -7,13 +7,32 @@
 # with the M13 depth-1 registered boundary. All four MCU_MP hart instances
 # place THIS one hardened block 4x at top level.
 #
-# Floorplan: the sram1p16k compiled macro is 1126.05 x 121.47 (wide strip) --
-# it sits at the bottom of the tile, logic strip above it (~63k um2 of std
-# cells in ~163k um2 of rows, ~40% util). All tile pins on the TOP edge (M4,
-# vertical-preferred) so a column of 4 tiles faces the control plane.
+# Floorplan: 'U'-SHAPED rectilinear die (setObjFPlanPolygon). The base of the
+# U holds the near-square AREA-OPTIMIZED mux-8 sram1p16k TCM (319.65 x
+# 383.085, bottom-left corner) plus all the tile logic; the top-center NOTCH
+# is a keep-out reserved for a per-tile analog potentiostat signal chain,
+# dropped in at Virtuoso chip assembly. Notch budget (educated guess, 65nm):
+#   potentiostat control amp + electrode drivers   ~100 x 150
+#   TIA + multi-decade current-mirror gain ranging ~200 x 150
+#   bias generators + DAC arrays (BIAS_DB*/ADJ)    ~150 x 150
+#   SAR ADC (10b) + dsADC front half               ~250 x 250
+#   guard rings / decap / analog routing margin    remainder
+#   => 500 x 350 um = 0.175 mm^2 cutout.
+# The two fingers of the U (80 um wide each) exist to close the tile power
+# ring around the notch -- ring band = offset 4 + 2x(width 10) + spacing 4 =
+# 28 um per boundary, leaving a ~24 um tap/decap column per finger. They are
+# deliberately no wider: their only other job is abutting the analog block.
+#
+# Tile outline (die coords, 660 x 850 bbox):
+#   (0,0)-(660,0)-(660,850)-(580,850)-(580,500)-(80,500)-(80,850)-(0,850)
+#
+# All tile pins on the BOTTOM edge (M4): at Castalia top level the four
+# tiles sit in a row at the TOP of the chip (notches opening onto the
+# analog pad edge), control plane below them.
 #
 # Outputs (out/): hart_tile.{gds2,sdf,xsim.v,lef} + hart_tile.ilm/ (ILM) and
-# hart_tile.etm.lib (ETM, best-effort catch -- ILM is the primary abstraction).
+# hart_tile.etm_{ss,ff}.lib (per-corner ETM, both-views-active recipe --
+# these feed viewdefinition_top.tcl at the assembly level).
 ################################################################################
 
 source tcl/constants.tcl
@@ -21,9 +40,15 @@ source $SCRIPT_DIR/procedures.tcl
 
 set DESIGN_NAME hart_tile
 
-# Tile die. SRAM strip 1126.05 wide + 10 um margins each side.
-set DESIGN_WIDTH  1146
-set DESIGN_HEIGHT 280
+# U-shape geometry. BASE_H sizes the row budget: base = 660x500 = 330k um2
+# minus the halo'd TCM (~125k) = ~205k um2 of rows for ~163k um2 of std
+# cells at the M14-proven region-to-rows ratio (util margin ~125%).
+set DESIGN_WIDTH  660
+set DESIGN_HEIGHT 850
+set NOTCH_W       500
+set NOTCH_D       350
+set FINGER_W      80
+set BASE_H        [expr {$DESIGN_HEIGHT - $NOTCH_D}]
 
 # Power ring / stripe geometry (Myshkin values).
 set POWER_RING_PATH_WIDTH	10.0
@@ -69,14 +94,28 @@ globalNetConnect VDD -type pgpin -pin VDD -inst * -module {} -autoTie -verbose
 globalNetConnect VSS -type pgpin -pin VSS -inst * -module {} -autoTie -verbose
 
 ################################################################################
-# Floorplan: rectangle, TCM strip at the bottom, pins on the top edge
+# Floorplan: U-shaped rectilinear die -- rect first, then carve the notch.
+# TCM macro in the bottom-left of the base, pins on the bottom edge.
 ################################################################################
 floorPlan \
     -site TSMC65ADV10TSITE \
     -s $CORE_WIDTH $CORE_HEIGHT $CORE_SPACING $CORE_SPACING $CORE_SPACING $CORE_SPACING
 
-set SRAM16K_WIDTH		1126.050
-set SRAM16K_HEIGHT		121.470
+# Carve the top-center analog notch: 8-vertex U polygon (die coords).
+# Without EnableRectilinearDesign, setObjFPlanPolygon on the top cell is
+# REJECTED (IMPSYT-40516) and the die silently stays rectangular.
+setPreference EnableRectilinearDesign 1
+set NOTCH_X0 $FINGER_W
+set NOTCH_X1 [expr {$DESIGN_WIDTH - $FINGER_W}]
+set U_POLY "0 0 $DESIGN_WIDTH 0 $DESIGN_WIDTH $DESIGN_HEIGHT $NOTCH_X1 $DESIGN_HEIGHT $NOTCH_X1 $BASE_H $NOTCH_X0 $BASE_H $NOTCH_X0 $DESIGN_HEIGHT 0 $DESIGN_HEIGHT"
+eval "setObjFPlanPolygon Cell $DESIGN_NAME $U_POLY"
+initCoreRow
+# Defensive: no rows may survive inside the notch (analog keep-out).
+cutRow -area [list $NOTCH_X0 $BASE_H $NOTCH_X1 $DESIGN_HEIGHT]
+printStatus "Carved U-shape notch ($NOTCH_W x $NOTCH_D) at top center"
+
+set SRAM16K_WIDTH		319.650
+set SRAM16K_HEIGHT		383.085
 
 set TCM_X	10
 set TCM_Y	10
@@ -90,15 +129,17 @@ addHaloToBlock \
 cutRow
 printStatus "Placed TCM macro"
 
-# All tile pins spread along the TOP edge on M4 (vertical-preferred). The
-# top-level floorplan stacks tiles in a column below the control plane.
+# All tile pins spread along the BOTTOM edge on M4 (vertical-preferred):
+# the Castalia floorplan puts the tile row at the chip top, control plane
+# below, so every digital connection leaves through the base of the U.
 set ALL_PINS [dbGet top.terms.name]
-puts "Assigning [llength $ALL_PINS] pins to the top edge"
-editPin -pin $ALL_PINS -side Top -layer 4 -spreadType side -spacing 2 -fixOverlap 1
+puts "Assigning [llength $ALL_PINS] pins to the bottom edge"
+editPin -pin $ALL_PINS -side Bottom -layer 4 -spreadType side -spacing 1 -fixOverlap 1
 printStatus "Placed tile pins"
 
 ################################################################################
-# Power: ring + stripes on M7/M8 (reserved for power via route blockages)
+# Power: rectilinear ring following the U boundary (incl. both fingers) +
+# stripes on M7/M8 (reserved for power via route blockages)
 ################################################################################
 printStatus "Adding power ring/stripes"
 addRing \
@@ -111,6 +152,10 @@ addRing \
     -offset $POWER_RING_PATH_SPACING \
     -center 0 -extend_corner {} -threshold 0 -jog_distance 0 \
     -snap_wire_center_to_grid None
+
+# No keep-out blockage needed for the notch: it is OUTSIDE the rectilinear
+# die boundary, so place/route/stripe engines cannot touch it (a routeBlk
+# there is even rejected -- IMPFP-184, "cut against design boundary").
 
 setAddStripeMode \
     -remove_floating_stripe_over_block true \
@@ -289,7 +334,7 @@ summaryReport \
 saveDesign $DATABASE_DIR/$DESIGN_NAME.signoff.innovus -def -netlist -rc -tcon
 
 ################################################################################
-# Output files: GDS, SDF, sim netlist, ILM, LEF abstract, ETM (best-effort)
+# Output files: GDS, SDF, sim netlist, ILM, LEF abstract, per-corner ETMs
 ################################################################################
 streamOut \
     $OUTPUT_DIR/$DESIGN_NAME.gds2 \
@@ -308,8 +353,8 @@ saveNetlist \
     $OUTPUT_DIR/$DESIGN_NAME.xsim.v \
     -excludeCellInst ANTENNA2A10TH
 
-# ILM -- the primary tile abstraction for the top-level flow (interface logic
-# + clock interface with real post-route timing).
+# ILM -- interface logic + clock interface with real post-route timing
+# (secondary abstraction; the assembly flow of record is ETM+LEF).
 printStatus "Writing ILM"
 createInterfaceLogic \
     -hold \
@@ -325,14 +370,26 @@ lefOut \
     -specifyTopLayer 8 \
     $OUTPUT_DIR/$DESIGN_NAME.lef
 
-# ETM (.lib) -- best-effort extra; ILM is the flow of record. If the command
-# is unavailable/fails in this Innovus build, the flow proceeds.
-printStatus "Attempting ETM extraction (best-effort)"
-if {[catch {do_extract_model -view setup_analysis_view $OUTPUT_DIR/$DESIGN_NAME.etm.lib} etm_err]} {
-	puts "ETM extraction FAILED (non-fatal): $etm_err"
+# Per-corner ETMs (.lib) -- THE M14 recipe: do_extract_model characterizes
+# only the corner whose view is active for BOTH setup and hold, so force
+# each corner in turn. These feed viewdefinition_top.tcl (etm_ss in the
+# max+typ library sets, etm_ff in min).
+printStatus "Extracting per-corner ETMs (both-views-active recipe)"
+set_analysis_view -setup [list setup_analysis_view] -hold [list setup_analysis_view]
+# NOTE: -view is REQUIRED in MMMC (TAMODEL-313 otherwise -- and innovus only
+# PRINTS the error without throwing, so a missing -view fails SILENTLY).
+if {[catch {do_extract_model -view setup_analysis_view $OUTPUT_DIR/$DESIGN_NAME.etm_ss.lib} etm_err]} {
+	puts "ETM ss extraction FAILED: $etm_err"
 } else {
-	puts "ETM written to $OUTPUT_DIR/$DESIGN_NAME.etm.lib"
+	puts "ETM written to $OUTPUT_DIR/$DESIGN_NAME.etm_ss.lib"
 }
+set_analysis_view -setup [list hold_analysis_view] -hold [list hold_analysis_view]
+if {[catch {do_extract_model -view hold_analysis_view $OUTPUT_DIR/$DESIGN_NAME.etm_ff.lib} etm_err]} {
+	puts "ETM ff extraction FAILED: $etm_err"
+} else {
+	puts "ETM written to $OUTPUT_DIR/$DESIGN_NAME.etm_ff.lib"
+}
+set_analysis_view -setup [list setup_analysis_view] -hold [list hold_analysis_view]
 
 saveDesign $DATABASE_DIR/$DESIGN_NAME.final.innovus -def -netlist -rc -tcon
 toc
