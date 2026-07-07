@@ -39,7 +39,16 @@ architecture behavioral of serial_flash is
 	signal bitcount : natural range 0 to 8;
 	signal RXSr : std_logic_vector(7 downto 0);
 	signal TXSr : std_logic_vector(7 downto 0);
+	-- Power-state model of the AT45DB021E (DataFlash family). The device is
+	-- modeled as starting in deep power-down, forcing the boot code to issue a
+	-- correctly framed ABh wake-up. On the real chip the ABh (resume) and B9h
+	-- (deep power-down) opcodes take effect only on the RISING edge of CSb after
+	-- the opcode is shifted in; the wake-up timer (tRDPD) starts at that CSb
+	-- edge. The pre-2026-07 model woke up as soon as the 8th bit of ABh arrived,
+	-- which hid the CS-framing bug in the myshkin-2025-11 boot ROM.
 	signal PowerOn : boolean := false;
+	signal WakePending : boolean := false;
+	signal SleepPending : boolean := false;
 	signal ReadyBit : std_logic := '0';
 begin
 
@@ -114,16 +123,32 @@ end process read_file;
 				bitcount <= bitcount + 1;
 				RXSr <= RXSr(6 downto 0) & MOSI;
 
-				if state = Idle and bitcount = 7 then
+				-- Once a power-mode opcode has been latched, the real device
+				-- ignores everything else on the bus until CSb is deasserted.
+				if state = Idle and bitcount = 7 and (WakePending or SleepPending) then
+					if RXSr(6 downto 0) & MOSI = X"03" or RXSr(6 downto 0) & MOSI = X"0B"
+							or RXSr(6 downto 0) & MOSI = X"D7" then
+						report "serial_flash: opcode ignored - an ABh/B9h power-mode command is still " &
+							"pending in this CSb frame. The host must DEASSERT CSb after ABh/B9h for it " &
+							"to take effect (this is the myshkin-2025-11 boot ROM bug)."
+							severity warning;
+					end if;
+				elsif state = Idle and bitcount = 7 then
 					if RXSr(6 downto 0) & MOSI = X"AB" then
-						-- The power-on command
-						PowerOn <= true;
+						-- Resume from Deep Power-Down. Takes effect only after
+						-- CSb deassertion (see the CSb = '1' branch below).
+						WakePending <= true;
 					elsif RXSr(6 downto 0) & MOSI = X"B9" then
-						-- The power-off command
-						PowerOn <= false;
+						-- Deep Power-Down. Also deferred until CSb deassertion.
+						SleepPending <= true;
 					elsif RXSr(6 downto 0) & MOSI = X"D7" and PowerOn then
 						-- This is the status register read command
 						state <= ReadStatus;
+					elsif (RXSr(6 downto 0) & MOSI = X"03" or RXSr(6 downto 0) & MOSI = X"0B"
+							or RXSr(6 downto 0) & MOSI = X"D7") and not PowerOn then
+						report "serial_flash: read/status opcode ignored - device is in deep power-down. " &
+							"The ABh wake-up takes effect only after CSb is deasserted (tRDPD)."
+							severity warning;
 					end if;
 				end if;
 			elsif falling_edge(SPCLK) then
@@ -177,6 +202,16 @@ end process read_file;
 				end if;
 			end if;
 		else
+			-- CSb deasserted: a pending power-mode opcode takes effect NOW.
+			-- For a wake-up this is the point where the real part starts its
+			-- tRDPD timer (the ReadyBit process below adds that delay).
+			if WakePending then
+				PowerOn <= true;
+				WakePending <= false;
+			elsif SleepPending then
+				PowerOn <= false;
+				SleepPending <= false;
+			end if;
 			state <= Idle;
 			TXSr <= "00000000";
 			bitcount <= 0;
@@ -188,7 +223,7 @@ end process read_file;
 	begin
 		ReadyBit <= '0';
 		wait until PowerOn = true;
-		wait for 30 us;
+		wait for 35 us;	-- AT45DB021E tRDPD max: exit-deep-power-down time, measured from CSb deassertion
 		if PowerOn = true then
 			ReadyBit <= '1';
 			wait until PowerOn = false;

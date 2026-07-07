@@ -17,7 +17,7 @@
 #define FLASH_SLAVE_PU          0xAB // Flash Slave Power Up Command
 #define FLASH_SLAVE_SRREAD      0xD7 // Flash Slave Status Register Read Command
 #define FLASH_SLAVE_HFREAD      0x0B // Flash Slave High Frequency Read Command
-#define FLASH_SLAVE_PU_DELAY    4000 // at least 30 us delay (in cycles) (40 us with 100MHz clock)
+#define FLASH_SLAVE_PU_DELAY    4000 // loop count; must cover AT45DB021E tRDPD = 35 us max from CS deassertion (4000 x 2-insn loop >= 40 us at 100MHz)
 #define FLASH_SLAVE_PD          0xB9 // Flash Slave Power Down Command
 
 # For dir, '1' means input on xcelium, write '1' in assembly for output 
@@ -106,11 +106,11 @@ zero_mailboxes:
     li a2, P1_SEL_BOOT      // Set GPIO PSEL for boot mode
     sb a2, GPIO_PxSEL(a1)   // Set GPIO Select Register for boot mode
 
-    //Load Constants 
-    li a2, RAM0_BASE_ADDR   //Start of RAM
-    li a3, RAM0_BASE_ADDR + RAM_SIZE - 4 //End of RAM
-    li a4, GPIO0_CS_PIN // Load CS Flash mask 
-
+    // (myshkin-2025-11 lesson: no "preloaded constants" here. A stale
+    // li a2, RAM0_BASE_ADDR in this spot leaked into the "deassert CS"
+    // store below, so CS never rose after the ABh wake-up and the
+    // AT45DB021E never left deep power-down on silicon. Every CS store
+    // now loads its mask explicitly.)
 
 check_boot_mode:
     lw a4, GPIO_PxIN(a1) // Read GPIO0 Input Register
@@ -143,11 +143,15 @@ SPI_FlashSetup:
     //Wait for PU command to send
     jal ra, spi0_wait_until_tx_complete // Wait until SPI transfer is complete
 
-    //Deassert CS
-    sw a2, GPIO_PxOUTS(a1) // Set GPIO Output Register to set (deassert) CS bit
+    //Deassert CS - REQUIRED by the AT45DB021E: the ABh opcode only takes
+    //effect on the rising edge of CS, which is what starts the tRDPD
+    //wake-up timer. (Fixed 2026-07: this store used to write a2, which
+    //held RAM0_BASE_ADDR, so bit 0 (CS) never rose - the myshkin-2025-11
+    //flash boot failure.)
+    sw a4, GPIO_PxOUTS(a1) // Set GPIO Output Register to set (deassert) CS bit
 
-    //Wait for Flash Slave to power up (at least 30 us)
-    jal ra, flash_slave_power_up_delay 
+    //Wait for Flash Slave to power up (tRDPD = 35 us max, measured from CS deassertion)
+    jal ra, flash_slave_power_up_delay
 
     //Assert CS
     sw a4, GPIO_PxOUTC(a1) // Clear GPIO Output Register to clear (assert) CS bit
@@ -218,9 +222,11 @@ getNextProgramWord:
     addi a2, a2, 4 // Increment address by 4 bytes (next word)
     bltu a2, a3, getNextProgramWord // If not reached end address, continue reading words
 
-    // Deassert CS
-    sw a2, GPIO_PxOUTS(a1) // Set GPIO Output Register to set (deassert) CS bit
-    j getCommandWord // Go back to get next command word 
+    // CS stays asserted: the whole RCF stream is ONE continuous-read frame
+    // and getCommandWord just keeps clocking it. (The old "deassert CS"
+    // here wrote the RAM end pointer to PxOUTS - a no-op on the CS bit,
+    // and deasserting for real would kill the read in progress.)
+    j getCommandWord // Go back to get next command word
 
 eraseSegmentFromRAM:
     // Erase segment from RAM
