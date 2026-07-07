@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/06 at 15:29:25 with the generate.py chip generator
+-- Generated on 2026/07/06 at 20:07:30 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -1933,6 +1933,11 @@ begin
             hart_id   => x"00000001",
             msip_in   => clint_msip(1),
             mtip_in   => clint_mtip(1),
+            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
+            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
+            -- as a VERILOG netlist (no port defaults), and the open pin was tied
+            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
+            hw_clint_en => '1',
             -- M7a: deglitched peripheral levels fan out to every tile; the
             -- tile's row of the irq_router gates them (slots 83/84 are
             -- overridden/hardwired inside the tile)
@@ -1964,6 +1969,11 @@ begin
             hart_id   => x"00000002",
             msip_in   => clint_msip(2),
             mtip_in   => clint_mtip(2),
+            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
+            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
+            -- as a VERILOG netlist (no port defaults), and the open pin was tied
+            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
+            hw_clint_en => '1',
             irq_ext    => irq_deglitch,
             irq_en_ext => tile_irq_en_flat(3*NUM_IRQS-1 downto 2*NUM_IRQS),
             sh_req    => arb_req(2),
@@ -1992,6 +2002,11 @@ begin
             hart_id   => x"00000003",
             msip_in   => clint_msip(3),
             mtip_in   => clint_mtip(3),
+            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
+            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
+            -- as a VERILOG netlist (no port defaults), and the open pin was tied
+            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
+            hw_clint_en => '1',
             irq_ext    => irq_deglitch,
             irq_en_ext => tile_irq_en_flat(4*NUM_IRQS-1 downto 3*NUM_IRQS),
             sh_req    => arb_req(3),
