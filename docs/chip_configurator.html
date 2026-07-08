@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Castalia — Chip Configurator · make chip</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --panel:#11161d; --line:#30363d;
+    --txt:#e6edf3; --dim:#8b949e; --accent:#58a6ff;
+    --rtl:#58a6ff; --tb:#3fb950; --feat:#bc8cff; --bug:#f85149;
+    --phys:#d29922; --tool:#39c5cf; --fw:#ff9f45; --docs:#8b98a5;
+    --ok:#3fb950; --warn:#d29922; --err:#f85149;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+  }
+  html[data-theme="light"]{
+    --bg:#f6f8fa; --bg2:#fff; --panel:#fff; --line:#d0d7de;
+    --txt:#1f2328; --dim:#636c76; --accent:#0969da;
+    --shadow:0 6px 20px rgba(140,149,159,.25);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  code,.mono{font-family:var(--mono)}
+
+  /* ---- top bar ---- */
+  header{
+    position:sticky;top:0;z-index:50;background:var(--bg2);
+    border-bottom:1px solid var(--line);padding:12px 22px;backdrop-filter:blur(6px);
+  }
+  .title-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{font-size:20px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+  .brand .dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,var(--rtl),var(--feat));box-shadow:0 0 10px var(--feat)}
+  .sub{color:var(--dim);font-size:13px}
+  .spacer{flex:1}
+  .btn{background:var(--panel);border:1px solid var(--line);color:var(--txt);
+    padding:6px 12px;border-radius:7px;font-size:13px;cursor:pointer;font-family:var(--font);transition:.15s}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#0a0d12;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.08);color:#0a0d12}
+
+  /* ---- layout ---- */
+  main{max-width:1280px;margin:0 auto;padding:22px 20px 120px;display:grid;
+    grid-template-columns:1fr 480px;gap:26px;align-items:start}
+  @media(max-width:1080px){main{grid-template-columns:1fr}}
+
+  .col-left{min-width:0}
+  .col-right{position:sticky;top:78px}
+  @media(max-width:1080px){.col-right{position:static}}
+
+  /* ---- config groups ---- */
+  .group{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+  .ghead{display:flex;align-items:center;gap:11px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .ghead .gi{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+    font-size:14px;background:var(--bg2);border:1px solid var(--line);flex-shrink:0}
+  .ghead h2{margin:0;font-size:15px}
+  .ghead .gd{color:var(--dim);font-size:12px;margin-left:auto;text-align:right;max-width:52%}
+  .gbody{padding:16px 18px}
+
+  .field{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px dashed var(--line)}
+  .field:last-child{border-bottom:none}
+  .field .flabel{flex:1;min-width:0}
+  .field .flabel .fn{font-size:13.5px;font-weight:550}
+  .field .flabel .fh{color:var(--dim);font-size:11.5px;margin-top:1px}
+  .field .fctl{flex-shrink:0;display:flex;align-items:center;gap:8px}
+
+  input[type=text]{background:var(--bg2);border:1px solid var(--line);color:var(--txt);
+    padding:6px 10px;border-radius:7px;font-size:13px;font-family:var(--mono);width:170px}
+  input[type=text]:focus{outline:none;border-color:var(--accent)}
+  select{background:var(--bg2);border:1px solid var(--line);color:var(--txt);
+    padding:6px 9px;border-radius:7px;font-size:13px;font-family:var(--mono);cursor:pointer}
+  select:focus{outline:none;border-color:var(--accent)}
+
+  /* stepper */
+  .step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg2)}
+  .step button{background:none;border:none;color:var(--txt);width:30px;height:30px;font-size:16px;cursor:pointer;line-height:1}
+  .step button:hover{color:var(--accent);background:var(--panel)}
+  .step .val{min-width:34px;text-align:center;font-family:var(--mono);font-size:14px;font-weight:600}
+  .step button:disabled{opacity:.3;cursor:not-allowed}
+
+  /* toggle switch */
+  .sw{position:relative;width:42px;height:23px;flex-shrink:0}
+  .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw .track{position:absolute;inset:0;background:var(--line);border-radius:20px;transition:.2s;cursor:pointer}
+  .sw .track::before{content:"";position:absolute;width:17px;height:17px;left:3px;top:3px;
+    background:#fff;border-radius:50%;transition:.2s}
+  .sw input:checked+.track{background:var(--ok)}
+  .sw input:checked+.track::before{transform:translateX(19px)}
+  .sw.warnsw input:checked+.track{background:var(--accent)}
+
+  /* peripheral pills */
+  .peris{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .peri{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:var(--bg2);transition:.15s}
+  .peri.on{border-color:var(--periph,var(--tb));box-shadow:inset 0 0 0 1px rgba(63,185,80,.25)}
+  .peri .pt{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .peri .pn{font-weight:600;font-size:13.5px}
+  .peri .pd{color:var(--dim);font-size:11px;margin-top:5px;min-height:26px}
+  .peri .cnt{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;color:var(--dim)}
+  .peri.locked{opacity:.72}
+  .peri .lockbadge{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);
+    border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-family:var(--mono)}
+
+  /* ISA badges */
+  .isastr{font-family:var(--mono);font-size:19px;font-weight:700;letter-spacing:.5px;
+    padding:12px 16px;background:var(--bg2);border:1px solid var(--line);border-radius:9px;
+    display:flex;flex-wrap:wrap;gap:2px;align-items:baseline}
+  .isastr .ext{transition:.15s}
+  .isastr .off{opacity:.22;text-decoration:line-through}
+  .isastr .base{color:var(--accent)}
+
+  /* ---- output panel ---- */
+  .out{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  .out h3{margin:0;padding:13px 16px;font-size:14px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:9px}
+  .out h3 .tag{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tabs button{flex:1;background:none;border:none;border-bottom:2px solid transparent;
+    color:var(--dim);padding:9px 8px;font-size:12.5px;cursor:pointer;font-family:var(--font)}
+  .tabs button.on{color:var(--txt);border-bottom-color:var(--accent)}
+  .tabs button:hover{color:var(--txt)}
+  .pane{display:none}
+  .pane.on{display:block}
+  pre{margin:0;padding:14px 16px;font-family:var(--mono);font-size:12px;line-height:1.6;
+    overflow-x:auto;background:var(--bg);white-space:pre;max-height:440px;overflow-y:auto}
+  pre .c{color:var(--dim)}          /* comment */
+  pre .k{color:var(--feat)}          /* keyword/field */
+  pre .v{color:var(--tb)}            /* value */
+  pre .s{color:var(--fw)}            /* string */
+  pre .cmd{color:var(--accent)}
+  .outbar{display:flex;gap:8px;padding:11px 16px;border-top:1px solid var(--line);align-items:center}
+  .outbar .hint{color:var(--dim);font-size:11.5px;flex:1}
+
+  /* summary chips */
+  .sumrow{display:flex;flex-wrap:wrap;gap:7px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .sc{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:20px;
+    background:var(--bg2);border:1px solid var(--line);color:var(--dim)}
+  .sc b{color:var(--txt);font-weight:600}
+
+  /* warnings */
+  .warns{padding:6px 16px 14px}
+  .warns:empty{display:none}
+  .wn{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;padding:8px 11px;border-radius:8px;
+    margin-top:8px;border:1px solid transparent}
+  .wn.warn{background:rgba(210,153,34,.10);border-color:rgba(210,153,34,.35)}
+  .wn.err{background:rgba(248,81,73,.10);border-color:rgba(248,81,73,.35)}
+  .wn.info{background:rgba(88,166,255,.09);border-color:rgba(88,166,255,.30)}
+  .wn .ic{flex-shrink:0}
+  .wn code{background:var(--bg2);padding:0 4px;border-radius:4px;font-size:11px}
+
+  /* mem map bars */
+  .memmap{padding:12px 16px}
+  .mmrow{display:flex;align-items:center;gap:10px;font-size:12px;margin:5px 0}
+  .mmrow .addr{font-family:var(--mono);font-size:11px;color:var(--dim);width:150px;flex-shrink:0}
+  .mmrow .bar{height:20px;border-radius:5px;flex:1;position:relative;overflow:hidden;
+    border:1px solid var(--line);min-width:40px}
+  .mmrow .bar span{position:absolute;inset:0;display:flex;align-items:center;padding:0 8px;
+    font-size:10.5px;font-weight:600;color:#0a0d12;white-space:nowrap}
+
+  footer{max-width:1280px;margin:0 auto;padding:0 20px 60px;color:var(--dim);font-size:12px;text-align:center}
+  .legend-note{margin-top:6px;padding:16px;border:1px dashed var(--line);border-radius:11px;
+    color:var(--dim);font-size:12.5px;line-height:1.7;text-align:left}
+  /* usage strip */
+  .howbar{max-width:1280px;margin:14px auto 0;padding:11px 18px;display:flex;align-items:center;
+    gap:9px;flex-wrap:wrap;font-size:13px;color:var(--dim);
+    background:var(--bg2);border:1px solid var(--line);border-radius:11px}
+  .howbar b{color:var(--txt);font-weight:600}
+  .howbar code{font-family:var(--mono);font-size:12px;background:var(--panel);padding:1px 6px;
+    border-radius:5px;border:1px solid var(--line)}
+  .howbar code.cmdlike{color:var(--accent)}
+  .howbar .step-n{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+    background:var(--accent);color:#0a0d12;font-weight:700;font-size:12px;flex-shrink:0}
+  .howbar .arw{color:var(--accent);font-weight:700;margin:0 2px}
+  .kbd{font-family:var(--mono);font-size:11px;background:var(--panel);border:1px solid var(--line);padding:0 5px;border-radius:4px}
+  .preview-note{margin-top:10px;padding:9px 12px;border:1px dashed var(--line);border-radius:8px;
+    color:var(--dim);font-size:11.5px;line-height:1.5}
+  .preview-note b{color:var(--warn)}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ok);color:#0a0d12;padding:9px 18px;border-radius:9px;font-size:13px;font-weight:600;
+    opacity:0;pointer-events:none;transition:.25s;z-index:100}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<header>
+  <div class="title-row">
+    <div class="brand"><span class="dot"></span>Chip Configurator</div>
+    <span class="sub">interactive front-end for <code style="color:var(--accent)">make&nbsp;chip</code> · VestaRV / Castalia · TSMC&nbsp;65&nbsp;nm</span>
+    <span class="spacer"></span>
+    <button class="btn" id="reset">Reset defaults</button>
+    <button class="btn" id="theme">◐ Theme</button>
+  </div>
+</header>
+
+<div class="howbar">
+  <span class="step-n">1</span><b>Adjust the knobs</b> below (steppers <span class="kbd">− +</span>, toggles, dropdowns) — everything updates live.
+  <span class="arw">→</span>
+  <span class="step-n">2</span><b>Download <code>config.json</code></b> from the panel on the right.
+  <span class="arw">→</span>
+  <span class="step-n">3</span>Run <code class="cmdlike">make chip CONFIG=config.json</code> in <code>platform_castalia/</code>.
+</div>
+
+<main>
+  <!-- ============ LEFT : the knobs ============ -->
+  <div class="col-left">
+
+    <!-- Identity -->
+    <div class="group">
+      <div class="ghead"><span class="gi">🏷️</span><h2>Chip identity</h2>
+        <span class="gd">the only knob wired straight to the Makefile</span></div>
+      <div class="gbody">
+        <div class="field">
+          <div class="flabel"><div class="fn">Chip name</div>
+            <div class="fh">Renames the chip in the TRM &amp; generated headers (docs-only; RTL stays byte-identical). Passed as <code>CHIP_NAME=</code>.</div></div>
+          <div class="fctl"><input type="text" id="chipName" value="Castalia" spellcheck="false"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cores -->
+    <div class="group">
+      <div class="ghead"><span class="gi">🧩</span><h2>Cores &amp; harts</h2>
+        <span class="gd">drives <code>numHarts</code>, the shared arbiter fabric &amp; the multi-core TRM chapter</span></div>
+      <div class="gbody">
+        <div class="field">
+          <div class="flabel"><div class="fn">Number of harts</div>
+            <div class="fh">Each hart is an identical VestaRV tile with a private 16&nbsp;KiB TCM. &gt;1 instantiates the round-robin arbiter, CLINT, mutex bank &amp; IRQ router.</div></div>
+          <div class="fctl"><div class="step" id="stepHarts"></div></div>
+        </div>
+        <div class="field">
+          <div class="flabel"><div class="fn">Register file</div>
+            <div class="fh">Dual-port regfile (ASIC synthesis). Single-port for Spartan-6 FPGA targets.</div></div>
+          <div class="fctl">
+            <select id="regport">
+              <option value="true">Dual-port (ASIC)</option>
+              <option value="false">Single-port (FPGA)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ISA -->
+    <div class="group">
+      <div class="ghead"><span class="gi">⚙️</span><h2>ISA extensions</h2>
+        <span class="gd">real hardware knobs — disabled arms are pruned at elaboration &amp; trap as illegal instructions</span></div>
+      <div class="gbody">
+        <div class="isastr" id="isaStr"></div>
+        <div id="isaFields" style="margin-top:6px"></div>
+      </div>
+    </div>
+
+    <!-- Memory -->
+    <div class="group">
+      <div class="ghead"><span class="gi">🧠</span><h2>Memory</h2>
+        <span class="gd">ROM, per-tile TCM, shared bulk RAM &amp; NPU staging</span></div>
+      <div class="gbody" id="memFields"></div>
+    </div>
+
+    <!-- Peripherals -->
+    <div class="group">
+      <div class="ghead"><span class="gi">🔌</span><h2>Peripherals</h2>
+        <span class="gd">the shared 0x4000 peripheral window (all harts, behind the arbiter)</span></div>
+      <div class="gbody"><div class="peris" id="peris"></div>
+        <div class="preview-note"><b>Preview / planning only.</b> The peripheral set is fixed RTL template content —
+          <code>make chip</code> does <b>not</b> add or remove peripherals from a config file (yet). These counts
+          shape the summary &amp; memory picture; they are recorded in <code>config.json</code> under <code>peripheralsPreview</code>
+          but ignored by the generator. Cores, ISA, register file &amp; RAM sizes <i>are</i> applied.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ RIGHT : the output ============ -->
+  <div class="col-right">
+    <div class="out">
+      <h3>📦 Configuration<span class="tag" id="isaTag"></span></h3>
+
+      <div class="sumrow" id="summary"></div>
+      <div class="warns" id="warns"></div>
+
+      <div class="memmap" id="memmap"></div>
+
+      <div class="tabs">
+        <button data-pane="json" class="on">config.json</button>
+        <button data-pane="cmd">make command</button>
+        <button data-pane="py">generate.py (manual)</button>
+      </div>
+
+      <div class="pane on" id="pane-json"><pre id="outJson"></pre></div>
+      <div class="pane" id="pane-cmd"><pre id="outCmd"></pre></div>
+      <div class="pane" id="pane-py"><pre id="outPy"></pre></div>
+
+      <div class="outbar">
+        <span class="hint" id="obHint">Copy the active panel</span>
+        <button class="btn" id="copyBtn">⧉ Copy</button>
+        <button class="btn primary" id="dlBtn">⭳ Download</button>
+      </div>
+    </div>
+
+    <div class="legend-note">
+      <b style="color:var(--txt)">How this works.</b> Download <code>config.json</code> and run
+      <code>make chip CONFIG=config.json</code> from <code>platform_castalia/</code>.
+      <code>generate.py</code> reads the file (via the <code>CHIP_CONFIG</code> env the Makefile passes) and
+      applies its knobs — <b>chip name, hart count, register file, ISA generics, RAM-region sizes</b> — over the
+      Castalia defaults; missing keys keep their default, so a partial file is fine. The peripheral set and the
+      hart/arbiter instances are fixed RTL template content and are <b>not</b> changed by a config file.
+      The <b>make command</b> and <b>generate.py (manual)</b> tabs are there if you'd rather not use a file.
+      With the default config, <code>check_mcu_vhd.py</code> stays byte-identical to <code>hdl/MCU_MP</code>.
+    </div>
+  </div>
+</main>
+
+<footer>
+  Castalia chip generator · source of truth <code>platform_castalia/python/generate.py</code> · outputs stay inside <code>platform_castalia/</code>
+</footer>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/*  Model — defaults transcribed from generate.py (2026-07-08)         */
+/* ------------------------------------------------------------------ */
+const DEFAULTS = {
+  chipName: "Castalia",
+  numHarts: 4,
+  ENABLE_REGS_DUALPORT: true,
+  // ISA
+  COMPRESSED_ISA: true,
+  ENABLE_MUL: true,
+  ENABLE_DIV: true,
+  ENABLE_ATOMICS: true,
+  ENABLE_BITMANIP: true,
+  ENABLE_FAST_MUL: true,
+  ENABLE_COUNTERS: false,
+  ENABLE_COUNTERS64: false,
+  // Memory (bytes)
+  romSize: 16384,
+  tcmSize: 16384,        // ramMemorySlotSize — private per-tile TCM
+  sharedRamSize: 65536,  // SHARED_RAM ExtraMemorySection length (0x10000)
+  npuRamSize: 16384,     // NPU staging RAM (0x4000)
+  // Peripherals: instance counts / enable
+  gpio: 4, uart: 2, spi: 2, timer: 2, i2c: 2,
+  npu: true,
+};
+
+const ISA_EXTS = [
+  {key:"ENABLE_MUL",     letter:"M", name:"Integer multiply",   hint:"MUL/MULH — single-cycle combinational multiplier"},
+  {key:"ENABLE_DIV",     letter:"M", name:"Integer divide",     hint:"DIV/REM — shares the M letter with multiply"},
+  {key:"ENABLE_ATOMICS", letter:"A", name:"Atomics (A)",        hint:"LR/SC + AMO — the multi-hart lock infrastructure needs this"},
+  {key:"COMPRESSED_ISA", letter:"C", name:"Compressed (C)",     hint:"16-bit RVC encodings"},
+  {key:"ENABLE_BITMANIP",letter:"B", name:"Bit-manip (B)",      hint:"Zba/Zbb/Zbs arms; advertised as the B letter in misa"},
+  {key:"ENABLE_COUNTERS",letter:"",  name:"Cycle/instret counters", hint:"Zicntr — mcycle/minstret CSRs"},
+  {key:"ENABLE_COUNTERS64",letter:"",name:"64-bit counters",    hint:"High halves of the counters (needs counters on)"},
+  {key:"ENABLE_FAST_MUL",letter:"",  name:"Fast multiplier",    hint:"Docs-only on vesta (multiplier is already single-cycle)"},
+];
+
+const PERIPHS = [
+  {key:"gpio", name:"GPIO",  base:"0x4000", max:4, unit:"8-pin port",  desc:"General-purpose I/O; GPIO0 also drives the SPI-flash CS at boot."},
+  {key:"spi",  name:"SPI",   base:"0x4200", max:2, unit:"interface",   desc:"SPI0 is the boot-flash / XIP master (≥0x20000); SMCLK domain."},
+  {key:"uart", name:"UART",  base:"0x4400", max:2, unit:"interface",   desc:"UART0 = shared console UART. HW parity; SMCLK domain."},
+  {key:"timer",name:"TIMER", base:"0x4600", max:2, unit:"32-bit timer",desc:"PWM outputs + input capture; glitch-free clock mux."},
+  {key:"i2c",  name:"I²C",   base:"0x4E00", max:2, unit:"interface",   desc:"Master + slave mode; combinational read (bridged)."},
+];
+
+const FIXED_PERIPHS = [
+  {name:"SYSTEM", desc:"Clock/power monarch: DCOs, XTALs, dividers, WDT, CRC16.", why:"structural — clocking &amp; reset"},
+  {name:"NPU",    desc:"Fixed-point MAC engine; data staged in 0xC000 RAM.", why:"toggle", key:"npu"},
+  {name:"CLINT",  desc:"msip IPIs + mtime/mtimecmp (vectors 83/84).", why:"multi-core"},
+  {name:"Mutex bank", desc:"16 word-mapped HW mutexes, claim-on-read.", why:"multi-core"},
+  {name:"IRQ router", desc:"Per-hart peripheral-IRQ enable rows.", why:"multi-core"},
+];
+
+// deep-clone helper (DEFAULTS is pure data) — avoids structuredClone, which is
+// absent on older browsers and would abort the whole script at load if missing.
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+let cfg = clone(DEFAULTS);
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+const $ = s => document.querySelector(s);
+const hex = n => "0x" + n.toString(16).toUpperCase();
+const kib = b => (b % 1024 === 0 ? (b/1024) + " KiB" : (b/1024).toFixed(1) + " KiB");
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+/* ------------------------------------------------------------------ */
+/*  Render controls                                                    */
+/* ------------------------------------------------------------------ */
+function renderStepper(el, val, min, max, onChange){
+  el.innerHTML = "";
+  const dec = document.createElement("button"); dec.textContent="−";
+  const v = document.createElement("span"); v.className="val"; v.textContent=val;
+  const inc = document.createElement("button"); inc.textContent="+";
+  dec.disabled = val<=min; inc.disabled = val>=max;
+  dec.onclick=()=>onChange(Math.max(min,val-1));
+  inc.onclick=()=>onChange(Math.min(max,val+1));
+  el.append(dec,v,inc);
+}
+
+function toggleField(container, label, hint, checked, warnStyle, onChange){
+  const f = document.createElement("div"); f.className="field";
+  f.innerHTML = `<div class="flabel"><div class="fn">${label}</div><div class="fh">${hint}</div></div>`;
+  const ctl = document.createElement("div"); ctl.className="fctl";
+  const sw = document.createElement("label"); sw.className="sw"+(warnStyle?" warnsw":"");
+  const inp = document.createElement("input"); inp.type="checkbox"; inp.checked=checked;
+  const tr = document.createElement("span"); tr.className="track";
+  inp.onchange=()=>onChange(inp.checked);
+  sw.append(inp,tr); ctl.append(sw); f.append(ctl); container.append(f);
+}
+
+function memField(container, label, hint, key, options){
+  const f = document.createElement("div"); f.className="field";
+  f.innerHTML = `<div class="flabel"><div class="fn">${label}</div><div class="fh">${hint}</div></div>`;
+  const ctl = document.createElement("div"); ctl.className="fctl";
+  const sel = document.createElement("select");
+  options.forEach(o=>{
+    const opt=document.createElement("option"); opt.value=o; opt.textContent=kib(o);
+    if(o===cfg[key]) opt.selected=true; sel.append(opt);
+  });
+  sel.onchange=()=>{cfg[key]=parseInt(sel.value,10); render();};
+  ctl.append(sel); f.append(ctl); container.append(f);
+}
+
+function render(){
+  /* Cores */
+  renderStepper($("#stepHarts"), cfg.numHarts, 1, 4, v=>{cfg.numHarts=v; render();});
+  $("#regport").value = String(cfg.ENABLE_REGS_DUALPORT);
+
+  /* ISA string */
+  const mOn = cfg.ENABLE_MUL || cfg.ENABLE_DIV;
+  const s = `<span class="ext base">rv32i</span>`
+    + `<span class="ext ${mOn?"":"off"}">m</span>`
+    + `<span class="ext ${cfg.ENABLE_ATOMICS?"":"off"}">a</span>`
+    + `<span class="ext ${cfg.COMPRESSED_ISA?"":"off"}">c</span>`
+    + (cfg.ENABLE_BITMANIP?`<span class="ext">_zba_zbb_zbs</span>`:``)
+    + (cfg.ENABLE_COUNTERS?`<span class="ext">_zicntr</span>`:``);
+  $("#isaStr").innerHTML = s;
+
+  /* ISA toggles */
+  const isaBox = $("#isaFields"); isaBox.innerHTML="";
+  ISA_EXTS.forEach(e=>{
+    const warnStyle = (e.key==="ENABLE_ATOMICS" && cfg.numHarts>1);
+    toggleField(isaBox, e.name + (e.letter?` <span style="font-family:var(--mono);color:var(--accent)">(${e.letter})</span>`:""),
+      e.hint, cfg[e.key], false, v=>{cfg[e.key]=v; render();});
+  });
+
+  /* Memory */
+  const memBox = $("#memFields"); memBox.innerHTML="";
+  memField(memBox, "Boot ROM", "Shared boot ROM at 0x0. Region ceiling 0x4000 — peripherals start at 0x4000.", "romSize", [4096,8192,16384]);
+  memField(memBox, "Private TCM / hart", "Tightly-coupled memory, one per tile at 0x8000 (the only private RAM). Region ceiling 0x4000 — NPU RAM starts at 0xC000.", "tcmSize", [4096,8192,16384]);
+  memField(memBox, "Shared bulk RAM", "Arbitrated shared RAM at 0x10000. Region ceiling 0x10000 — extended flash starts at 0x20000.", "sharedRamSize", [16384,32768,65536]);
+  memField(memBox, "NPU staging RAM", "NPU vector staging RAM at 0xC000. Region ceiling 0x4000 — shared RAM starts at 0x10000.", "npuRamSize", [8192,16384]);
+
+  /* Peripherals */
+  const pbox = $("#peris"); pbox.innerHTML="";
+  PERIPHS.forEach(p=>{
+    const n = cfg[p.key];
+    const el = document.createElement("div"); el.className="peri"+(n>0?" on":"");
+    el.innerHTML = `<div class="pt"><span class="pn">${p.name}</span></div>
+      <div class="pd">${p.desc}</div>`;
+    const cnt = document.createElement("div"); cnt.className="cnt";
+    const step = document.createElement("div"); step.className="step";
+    renderStepper(step, n, 0, p.max, v=>{cfg[p.key]=v; render();});
+    cnt.append(step); const lbl=document.createElement("span");
+    lbl.textContent = `${n}× ${p.unit}${n===1?"":"s"} · base ${p.base}`;
+    cnt.append(lbl); el.append(cnt); pbox.append(el);
+  });
+  FIXED_PERIPHS.forEach(p=>{
+    const isTog = p.why==="toggle";
+    const on = isTog ? cfg[p.key] : (p.why==="multi-core" ? cfg.numHarts>1 : true);
+    const el = document.createElement("div"); el.className="peri"+(on?" on":"")+(isTog?"":" locked");
+    el.innerHTML = `<div class="pt"><span class="pn">${p.name}</span>
+      ${isTog?"":`<span class="lockbadge">${p.why}</span>`}</div>
+      <div class="pd">${p.desc}</div>`;
+    if(isTog){
+      const cnt=document.createElement("div"); cnt.className="cnt";
+      const sw=document.createElement("label"); sw.className="sw";
+      const inp=document.createElement("input"); inp.type="checkbox"; inp.checked=on;
+      const tr=document.createElement("span"); tr.className="track";
+      inp.onchange=()=>{cfg[p.key]=inp.checked; render();};
+      sw.append(inp,tr); cnt.append(sw);
+      const lbl=document.createElement("span"); lbl.textContent = on?"enabled":"disabled"; cnt.append(lbl);
+      el.append(cnt);
+    } else if(p.why==="multi-core"){
+      const cnt=document.createElement("div"); cnt.className="cnt";
+      const lbl=document.createElement("span");
+      lbl.textContent = on ? "auto (harts > 1)" : "n/a (single-core)";
+      cnt.append(lbl); el.append(cnt);
+    }
+    pbox.append(el);
+  });
+
+  renderOutputs();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Output panels                                                      */
+/* ------------------------------------------------------------------ */
+function isaString(){
+  const mOn = cfg.ENABLE_MUL || cfg.ENABLE_DIV;
+  let s = "rv32i" + (mOn?"m":"") + (cfg.ENABLE_ATOMICS?"a":"") + (cfg.COMPRESSED_ISA?"c":"");
+  if(cfg.ENABLE_BITMANIP) s += "_zba_zbb_zbs";
+  if(cfg.ENABLE_COUNTERS) s += "_zicntr";
+  return s;
+}
+
+function summaryChips(){
+  const el=$("#summary"); el.innerHTML="";
+  const sram = cfg.numHarts*cfg.tcmSize + cfg.sharedRamSize + cfg.npuRamSize;
+  const pcount = PERIPHS.reduce((a,p)=>a+cfg[p.key],0) + (cfg.npu?1:0) + 1 /*SYSTEM*/
+    + (cfg.numHarts>1?3:0);
+  const chips=[
+    ["harts", cfg.numHarts],
+    ["ISA", isaString()],
+    ["ROM", kib(cfg.romSize)],
+    ["total SRAM", kib(sram)],
+    ["peripherals", pcount],
+  ];
+  chips.forEach(([k,v])=>{
+    const c=document.createElement("span"); c.className="sc";
+    c.innerHTML = `${k} <b>${v}</b>`; el.append(c);
+  });
+  $("#isaTag").textContent = isaString();
+}
+
+function warnings(){
+  const w=[]; const mOn = cfg.ENABLE_MUL || cfg.ENABLE_DIV;
+  if(cfg.numHarts>1 && !cfg.ENABLE_ATOMICS)
+    w.push(["err","Atomics (A) off on a multi-hart chip breaks the LR/SC + AMO + mutex lock infrastructure the shared-memory tests rely on. generate.py warns against this explicitly."]);
+  if(cfg.ENABLE_DIV && !cfg.ENABLE_MUL)
+    w.push(["warn","Divide on without multiply: both share the RISC-V M letter. Usually you enable or disable them together."]);
+  if(cfg.ENABLE_COUNTERS64 && !cfg.ENABLE_COUNTERS)
+    w.push(["warn","64-bit counters need the base cycle/instret counters enabled first."]);
+  if(cfg.numHarts>1 && cfg.spi===0)
+    w.push(["warn","SPI0 is the boot-flash master. With 0 SPI interfaces hart 0 has no flash to boot from (the ROM SPI-copy path is dead)."]);
+  if(cfg.uart===0)
+    w.push(["info","UART0 is the shared console. With 0 UARTs there is no console output for printf-style debug."]);
+  if(cfg.numHarts===1)
+    w.push(["info","Single-core: the arbiter, CLINT, mutex bank and IRQ router collapse away — this is the Myshkin-class configuration."]);
+  if(cfg.chipName.trim()!=="Castalia" && cfg.chipName.trim()!=="")
+    w.push(["info",`CHIP_NAME renames the chip in docs only — the RTL stays byte-identical to Castalia (verify with check_mcu_vhd.py).`]);
+  const el=$("#warns"); el.innerHTML="";
+  w.forEach(([lvl,msg])=>{
+    const icon = lvl==="err"?"⛔":lvl==="warn"?"⚠️":"ℹ️";
+    const d=document.createElement("div"); d.className="wn "+lvl;
+    d.innerHTML=`<span class="ic">${icon}</span><span>${msg}</span>`; el.append(d);
+  });
+}
+
+function memMap(){
+  const rows=[
+    ["Boot ROM",      0x0,     cfg.romSize,        "var(--rtl)"],
+    ["Peripherals",   0x4000,  0x4000,             "var(--tb)"],
+    ["Private TCM",   0x8000,  cfg.tcmSize,        "var(--feat)"],
+    ["NPU staging",   0xC000,  cfg.npuRamSize,     "var(--tool)"],
+    ["Shared bulk RAM",0x10000,cfg.sharedRamSize,  "var(--fw)"],
+    ["Extended flash",0x20000, 0,                  "var(--phys)"],
+  ];
+  const el=$("#memmap"); el.innerHTML="";
+  const max = 0x20000;
+  rows.forEach(([name,base,size,col])=>{
+    const r=document.createElement("div"); r.className="mmrow";
+    const end = size>0 ? base+size-1 : null;
+    const addr = end!==null ? `${hex(base)}–${hex(end)}` : `${hex(base)}+`;
+    const pct = size>0 ? Math.max(6, Math.min(100, size/max*100)) : 100;
+    r.innerHTML = `<span class="addr">${addr}</span>
+      <div class="bar" style="max-width:${size>0?pct+'%':'100%'};background:${col}22;border-color:${col}">
+        <span style="color:${col}">${name}${size>0?" · "+kib(size):""}</span></div>`;
+    el.append(r);
+  });
+}
+
+function outCommand(){
+  const L = [];
+  L.push(`<span class="c"># 1. download config.json (button below) into platform_castalia/</span>`);
+  L.push(`<span class="c"># 2. from platform_castalia/, feed it to the generator:</span>`);
+  L.push(`<span class="cmd">make chip</span> <span class="s">CONFIG=config.json</span>`);
+  L.push(``);
+  L.push(`<span class="c"># regenerates: headers, linker scripts, drop-in HDL, JSON map, TRM PDF</span>`);
+  L.push(`<span class="c"># applied from the file: chip name, hart count, register file,</span>`);
+  L.push(`<span class="c">#                        ISA generics, and the RAM-region sizes.</span>`);
+  L.push(``);
+  L.push(`<span class="c"># faster iterations:</span>`);
+  L.push(`<span class="cmd">make generate</span> <span class="s">CONFIG=config.json</span>  <span class="c"># artifacts only, skip the PDF</span>`);
+  L.push(`<span class="cmd">make show</span>                        <span class="c"># dump the resolved configuration</span>`);
+  L.push(``);
+  L.push(`<span class="c"># CHIP_NAME= still works and overrides the file's chipName:</span>`);
+  L.push(`<span class="cmd">make chip</span> <span class="s">CONFIG=config.json CHIP_NAME=Foo</span>`);
+  $("#outCmd").innerHTML = L.join("\n");
+}
+
+function outPython(){
+  const b = v => `<span class="v">${v?"True":"False"}</span>`;
+  const name = cfg.chipName.trim() || "Castalia";
+  const L=[];
+  L.push(`<span class="c"># platform_castalia/python/generate.py  →  m = ChipGenerator(</span>`);
+  L.push(`<span class="c"># set these fields, then run  make chip</span>`);
+  L.push(``);
+  L.push(`<span class="k">asicName</span>=<span class="s">'${esc(name)}'</span>,  <span class="c"># or pass CHIP_NAME=${esc(name)} on the make line</span>`);
+  L.push(`<span class="k">numHarts</span>=<span class="v">${cfg.numHarts}</span>,`);
+  L.push(`<span class="k">ENABLE_REGS_DUALPORT</span>=${b(cfg.ENABLE_REGS_DUALPORT)},`);
+  L.push(`<span class="k">romSize</span>=<span class="v">${cfg.romSize}</span>,          <span class="c"># ${kib(cfg.romSize)}</span>`);
+  L.push(`<span class="k">ramMemorySlotSize</span>=<span class="v">${cfg.tcmSize}</span>, <span class="c"># private TCM/hart, ${kib(cfg.tcmSize)}</span>`);
+  L.push(`<span class="k">lastRamMemorySlotSize</span>=<span class="v">${cfg.tcmSize}</span>,`);
+  L.push(``);
+  L.push(`<span class="c"># --- Core ISA feature switches ---</span>`);
+  L.push(`<span class="k">COMPRESSED_ISA</span>=${b(cfg.COMPRESSED_ISA)},`);
+  L.push(`<span class="k">ENABLE_MUL</span>=${b(cfg.ENABLE_MUL)},`);
+  L.push(`<span class="k">ENABLE_FAST_MUL</span>=${b(cfg.ENABLE_FAST_MUL)},`);
+  L.push(`<span class="k">ENABLE_DIV</span>=${b(cfg.ENABLE_DIV)},`);
+  L.push(`<span class="k">ENABLE_ATOMICS</span>=${b(cfg.ENABLE_ATOMICS)},`);
+  L.push(`<span class="k">ENABLE_BITMANIP</span>=${b(cfg.ENABLE_BITMANIP)},`);
+  L.push(`<span class="k">ENABLE_COUNTERS</span>=${b(cfg.ENABLE_COUNTERS)},`);
+  L.push(`<span class="k">ENABLE_COUNTERS64</span>=${b(cfg.ENABLE_COUNTERS64)},`);
+  L.push(``);
+  L.push(`<span class="c"># --- Shared regions:  m.ExtraMemorySections = [ ... ] ---</span>`);
+  L.push(`(<span class="s">'NPU_RAM (rwx)'</span>,    <span class="s">': ORIGIN = 0x0C000, LENGTH = ${hex(cfg.npuRamSize)}'</span>, ...),`);
+  L.push(`(<span class="s">'SHARED_RAM (rwx)'</span>, <span class="s">': ORIGIN = 0x10000, LENGTH = ${hex(cfg.sharedRamSize)}'</span>, ...),`);
+  L.push(``);
+  L.push(`<span class="c"># --- Peripherals: m.CreatePeripheral(...) instances ---</span>`);
+  PERIPHS.forEach(p=>{
+    L.push(`<span class="c">#</span> <span class="k">${p.name}</span> × <span class="v">${cfg[p.key]}</span>  <span class="c"># nameIndex 0..${cfg[p.key]-1} (0 = remove all instances)</span>`);
+  });
+  L.push(`<span class="c">#</span> <span class="k">NPU</span>   ${cfg.npu?"<span class=\"v\">kept</span>":"<span class=\"v\">removed</span>"}`);
+  L.push(`<span class="c">#</span> <span class="k">SYSTEM</span> always present · <span class="k">CLINT/MUTEX/IRQROUTER</span> ${cfg.numHarts>1?"present (harts>1)":"omitted (single-core)"}`);
+  $("#outPy").innerHTML = L.join("\n");
+}
+
+/* The AUTHORITATIVE schema consumed by platform_castalia/python/generate.py.
+   Every key is optional there; keys generate.py doesn't know (peripheralsPreview,
+   _comment) are simply ignored. Keep these key names in sync with generate.py's _cfg() calls. */
+function configObject(){
+  return {
+    _comment: "Castalia chip config — feed to: make chip CONFIG=config.json  (from platform_castalia/). Applied knobs: chipName, numHarts, registerFileDualPort, isa.*, memory.*.",
+    chipName: cfg.chipName.trim() || "Castalia",
+    numHarts: cfg.numHarts,
+    registerFileDualPort: cfg.ENABLE_REGS_DUALPORT,
+    isa: {
+      mul: cfg.ENABLE_MUL, fastMul: cfg.ENABLE_FAST_MUL, div: cfg.ENABLE_DIV,
+      atomics: cfg.ENABLE_ATOMICS, compressed: cfg.COMPRESSED_ISA, bitmanip: cfg.ENABLE_BITMANIP,
+      counters: cfg.ENABLE_COUNTERS, counters64: cfg.ENABLE_COUNTERS64,
+    },
+    memory: {
+      romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
+      sharedBulkRamSize: cfg.sharedRamSize, npuStagingRamSize: cfg.npuRamSize,
+    },
+    peripheralsPreview: {
+      _note: "planning only — not applied by make chip (peripheral set is fixed RTL)",
+      gpio: cfg.gpio, spi: cfg.spi, uart: cfg.uart, timer: cfg.timer, i2c: cfg.i2c,
+      npu: cfg.npu, system: true,
+      clint: cfg.numHarts>1, mutexBank: cfg.numHarts>1, irqRouter: cfg.numHarts>1,
+    },
+  };
+}
+function outJson(){
+  const j = JSON.stringify(configObject(), null, 2);
+  $("#outJson").innerHTML = esc(j);
+}
+
+function renderOutputs(){
+  cfg.chipName = $("#chipName").value;
+  summaryChips(); warnings(); memMap();
+  outCommand(); outPython(); outJson();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Wiring                                                             */
+/* ------------------------------------------------------------------ */
+$("#chipName").addEventListener("input", ()=>{cfg.chipName=$("#chipName").value; renderOutputs();});
+$("#regport").addEventListener("change", e=>{cfg.ENABLE_REGS_DUALPORT = e.target.value==="true"; render();});
+
+document.querySelectorAll(".tabs button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".pane").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); $("#pane-"+b.dataset.pane).classList.add("on");
+  };
+});
+
+function activePaneText(){
+  const on = document.querySelector(".pane.on pre");
+  return on.textContent;
+}
+$("#copyBtn").onclick=()=>{
+  const text = activePaneText();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>toast("Copied to clipboard"),()=>copyFallback(text));
+  } else { copyFallback(text); }
+};
+function copyFallback(text){
+  const ta=document.createElement("textarea"); ta.value=text;
+  ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand("copy"); toast("Copied to clipboard"); }
+  catch(e){ toast("Select the text and copy manually"); }
+  document.body.removeChild(ta);
+}
+$("#dlBtn").onclick=()=>{
+  const which = document.querySelector(".tabs button.on").dataset.pane;
+  let blob, fn;
+  if(which==="json"){ blob=JSON.stringify(configObject(),null,2); fn="config.json"; }
+  else if(which==="py"){ blob=$("#outPy").textContent; fn="chip_config.generate.py.txt"; }
+  else { blob=$("#outCmd").textContent; fn="make_chip.sh"; }
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([blob],{type:"text/plain"}));
+  a.download=fn; a.click(); toast("Downloaded "+fn);
+};
+$("#reset").onclick=()=>{ cfg=clone(DEFAULTS); $("#chipName").value=cfg.chipName; render(); toast("Reset to Castalia defaults"); };
+
+let toastT;
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1600);
+}
+
+/* theme */
+(function(){
+  const saved = localStorage.getItem("vesta-theme");
+  if(saved) document.documentElement.setAttribute("data-theme",saved);
+  $("#theme").onclick=()=>{
+    const cur = document.documentElement.getAttribute("data-theme")==="light"?"":"light";
+    if(cur) document.documentElement.setAttribute("data-theme","light");
+    else document.documentElement.removeAttribute("data-theme");
+    localStorage.setItem("vesta-theme",cur);
+  };
+})();
+
+render();
+</script>
+</body>
+</html>
