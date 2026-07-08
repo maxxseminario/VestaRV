@@ -3,6 +3,16 @@ use IEEE.STD_LOGIC_1164.all;
 use work.constants.all;
 
 entity maindec is
+    generic (
+        -- Core ISA feature switches (config-driven from generate.py; defaults =
+        -- the full RV32IMAC+Zba/Zbb/Zbs/Zbc core, so existing instantiations are
+        -- unchanged). A disabled extension's encodings fall out of
+        -- valid_opcode/valid_funct and take the illegal-instruction trap path.
+        ENABLE_MUL      : boolean := true;
+        ENABLE_DIV      : boolean := true;
+        ENABLE_ATOMICS  : boolean := true;
+        ENABLE_BITMANIP : boolean := true
+    );
     port (
         resetn           : in  STD_LOGIC;
         op               : in  STD_LOGIC_VECTOR(6 downto 0);
@@ -74,19 +84,19 @@ begin
     -- Helper Signals
     -- ==========================================
     
-    is_mul_div <= '1' when (op = R_OPCODE and funct7 = MULT_FN7) else '0';
+    is_mul_div <= '1' when ((ENABLE_MUL or ENABLE_DIV) and op = R_OPCODE and funct7 = MULT_FN7) else '0';
     is_custom_instr <= '1' when (op = CUSTOM_OPCODE) else '0';
-    is_amo_instr <= '1' when (op = AMO_OPCODE) else '0';
+    is_amo_instr <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE) else '0';
     is_fence <= '1' when (op = FENCE_OPCODE and funct3 = FENCE_FN3) else '0';
     funct5 <= funct7(6 downto 2);
     rtype_sub <= funct7(5) and op(5);  -- TRUE for R-type subtract
 
 
-    is_zba_instr <= '1' when (op = R_OPCODE and funct7 = ZBA_FN7 and
+    is_zba_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and funct7 = ZBA_FN7 and
                               (funct3 = SH1ADD_FN3 or funct3 = SH2ADD_FN3 or funct3 = SH3ADD_FN3)) else '0';
 
 
-    is_zbb_r_instr <= '1' when (op = R_OPCODE and (
+    is_zbb_r_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and (
         -- ANDN, ORN, XNOR
         (funct7 = ANDN_FN7 and (funct3 = "111" or funct3 = "110" or funct3 = "100")) or
         -- MIN, MINU, MAX, MAXU
@@ -98,7 +108,7 @@ begin
     )) else '0';
 
 
-    is_zbb_i_instr <= '1' when (op = I_ARITH_OPCODE and (
+    is_zbb_i_instr <= '1' when (ENABLE_BITMANIP and op = I_ARITH_OPCODE and (
         -- RORI 
         (funct3 = "101" and funct7 = RORI_FN7) or
         -- CLZ, CTZ, CPOP, SEXT.B, SEXT.H, ORC.B, REV8 
@@ -110,7 +120,7 @@ begin
     )) else '0';
 
 
-    is_zbs_r_instr <= '1' when (op = R_OPCODE and (
+    is_zbs_r_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and (
         -- BCLR, BEXT (same funct7, different funct3)
         (funct7 = BCLR_FN7 and (funct3 = "001" or funct3 = "101")) or
         -- BINV
@@ -119,7 +129,7 @@ begin
         (funct7 = BSET_FN7 and funct3 = "001")
     )) else '0';
 
-    is_zbs_i_instr <= '1' when (op = I_ARITH_OPCODE and (
+    is_zbs_i_instr <= '1' when (ENABLE_BITMANIP and op = I_ARITH_OPCODE and (
         -- BCLRI, BEXTI (same funct7, different funct3)
         (funct3 = "001" and funct7 = BCLRI_FN7) or
         (funct3 = "101" and funct7 = BEXTI_FN7) or
@@ -129,7 +139,7 @@ begin
         (funct3 = "001" and funct7 = BSETI_FN7 and funct7(6) = '0')
     )) else '0';
 
-    is_zbc_instr <= '1' when (op = R_OPCODE and funct7 = CLMUL_FN7 and 
+    is_zbc_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and funct7 = CLMUL_FN7 and
                             (funct3 = CLMUL_FN3 or funct3 = CLMULH_FN3 or funct3 = CLMULR_FN3)) else '0';
 
     is_csr_instr <= '1' when (op = SYSTEM_OPCODE and 
@@ -146,13 +156,13 @@ begin
     -- RV32A Atomic Operation Signals
     -- ==========================================
     -- Load-Reserved operation
-    lr_op <= '1' when (op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = LR_FN5) else '0';
-    
+    lr_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = LR_FN5) else '0';
+
     -- Store-Conditional operation
-    sc_op <= '1' when (op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = SC_FN5) else '0';
-    
+    sc_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = SC_FN5) else '0';
+
     -- Atomic Memory Operation (excluding LR/SC)
-    amo_op <= '1' when (op = AMO_OPCODE and funct3 = AMO_WIDTH_W and 
+    amo_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and
                         funct5 /= LR_FN5 and funct5 /= SC_FN5) else '0';
 
     fence_op <= is_fence;
@@ -171,7 +181,7 @@ begin
         op = U_AUIPC_OPCODE  or  -- AUIPC
         op = U_LUI_OPCODE    or  -- LUI
         op = I_JALR_OPCODE   or  -- JALR
-        op = AMO_OPCODE      or  -- RV32A Atomic operations
+        (ENABLE_ATOMICS and op = AMO_OPCODE) or  -- RV32A Atomic operations
         op = CUSTOM_OPCODE   or  -- Custom Vesta instructions
         op = FENCE_OPCODE    or  -- FENCE instruction
         op = SYSTEM_OPCODE     -- SYSTEM instruction
@@ -185,10 +195,12 @@ begin
             case op is
                 when R_OPCODE =>
                     if funct7 = MULT_FN7 then
-                        if not (funct3 = MUL_FN3 or funct3 = MULH_FN3 or 
-                               funct3 = MULHSU_FN3 or funct3 = MULHU_FN3 or
-                               funct3 = DIV_FN3 or funct3 = DIVU_FN3 or 
-                               funct3 = REM_FN3 or funct3 = REMU_FN3) then
+                        -- MUL* legal only with ENABLE_MUL, DIV*/REM* only with
+                        -- ENABLE_DIV; anything else on MULT_FN7 traps.
+                        if not ((ENABLE_MUL and (funct3 = MUL_FN3 or funct3 = MULH_FN3 or
+                                                 funct3 = MULHSU_FN3 or funct3 = MULHU_FN3)) or
+                                (ENABLE_DIV and (funct3 = DIV_FN3 or funct3 = DIVU_FN3 or
+                                                 funct3 = REM_FN3 or funct3 = REMU_FN3))) then
                             valid_funct <= '0';
                         end if;
                     elsif is_zba_instr = '1' then
@@ -224,13 +236,21 @@ begin
                     elsif is_zbs_i_instr = '1' then
                         valid_funct <= '1';
                     elsif funct3 = SRL_FN3 then
-                        if funct7 = RORI_FN7 then
+                        if ENABLE_BITMANIP and funct7 = RORI_FN7 then
                             valid_funct <= '1';
+                        elsif (not ENABLE_BITMANIP) and not (funct7 = "0000000" or funct7 = "0100000") then
+                            -- Without Zb*, only exact SRLI/SRAI encodings are
+                            -- legal (RORI etc. must trap, not alias to SRAI).
+                            valid_funct <= '0';
                         elsif not (funct7(6 downto 5) = "00" or funct7(6 downto 5) = "01") then
                             valid_funct <= '0';
                         end if;
                     elsif funct3 = SLL_FN3 then
-                        if funct7(6 downto 5) /= "00" and is_zbb_i_instr = '0' and is_zbs_i_instr = '0' then
+                        if (not ENABLE_BITMANIP) and funct7 /= "0000000" then
+                            -- Without Zb*, only the exact SLLI encoding is legal
+                            -- (BSETI/BINVI/CLZ-class encodings must trap).
+                            valid_funct <= '0';
+                        elsif funct7(6 downto 5) /= "00" and is_zbb_i_instr = '0' and is_zbs_i_instr = '0' then
                             valid_funct <= '0';
                         end if;
                     end if;
@@ -320,8 +340,8 @@ begin
                  '1' when op = U_AUIPC_OPCODE   else  -- AUIPC
                  '1' when op = U_LUI_OPCODE     else  -- LUI
                  '1' when op = I_JALR_OPCODE    else  -- JALR
-                 '1' when (op = AMO_OPCODE and funct5 /= SC_FN5) else -- All AMO except SC (SC writes conditionally)
-                 '1' when (op = AMO_OPCODE and funct5 = SC_FN5)  else -- SC also writes (success/fail flag)
+                 '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct5 /= SC_FN5) else -- All AMO except SC (SC writes conditionally)
+                 '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct5 = SC_FN5)  else -- SC also writes (success/fail flag)
                  '1' when is_csr_instr = '1'    else 
                  '0' when (op = FENCE_OPCODE)        else  -- FENCE instruction
                  '0';  -- No write for stores, branches, custom instructions
@@ -423,7 +443,7 @@ begin
     -- ==========================================
     read_data_flag <= '1' when op = I_LOAD_OPCODE else
                       '1' when (op = CUSTOM_OPCODE and funct3 = "000" and funct7 = "0000000") else
-                      '1' when (op = AMO_OPCODE) else  -- All AMO operations read memory
+                      '1' when (ENABLE_ATOMICS and op = AMO_OPCODE) else  -- All AMO operations read memory
                       '0';
 
     write_data_flag <= '1' when op = S_OPCODE else 
@@ -435,8 +455,8 @@ begin
     -- ==========================================
     -- Division Operation Flag
     -- ==========================================
-    div_op <= '1' when (op = R_OPCODE and funct7 = MULT_FN7 and 
-                       (funct3 = DIV_FN3 or funct3 = DIVU_FN3 or 
+    div_op <= '1' when (ENABLE_DIV and op = R_OPCODE and funct7 = MULT_FN7 and
+                       (funct3 = DIV_FN3 or funct3 = DIVU_FN3 or
                         funct3 = REM_FN3 or funct3 = REMU_FN3)) else '0';
 
     -- ==========================================

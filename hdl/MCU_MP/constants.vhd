@@ -30,8 +30,7 @@ package constants is
     -- constant IVT_BASE_ADDR  : integer := 16#a000#;
     constant cafebabe       : std_logic_vector(31 downto 0) := x"CAFEBABE";
     constant four           : std_logic_vector(31 downto 0) := x"00000004";
-    constant MEM_ADDR_WIDTH : integer := 17; 
-    constant N_SARADC_CHANNELS : integer := 4;
+    constant MEM_ADDR_WIDTH : integer := 17;
     constant nop          : std_logic_vector(31 downto 0) := x"00000013"; -- ADDI x0, x0, 0
 
 	constant DCO0_BIAS_DEFAULT : std_logic_vector(11 downto 0) := "100000000000"; 
@@ -178,6 +177,7 @@ package constants is
     -- Minimal CSR addresses - only performance counters
     -- Machine Information Registers (Read-only)
     constant CSR_MHARTID    : std_logic_vector(11 downto 0) := x"F14"; -- Hart ID (0 in single-core; unique per hart in MCU_MP)
+    constant CSR_MISA       : std_logic_vector(11 downto 0) := x"301"; -- ISA and extensions (read-only; reflects the ENABLE_* generics)
     -- Machine Counter/Timers (Read/Write)
     constant CSR_MCYCLE     : std_logic_vector(11 downto 0) := x"B00"; -- Machine cycle counter low
     constant CSR_MINSTRET   : std_logic_vector(11 downto 0) := x"B02"; -- Machine instructions retired low

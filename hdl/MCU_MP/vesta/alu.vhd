@@ -3,6 +3,16 @@ use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
 
 entity alu is
+    generic (
+        -- Core ISA feature switches. Decode already traps disabled extensions
+        -- upstream (maindec); these additionally prune the execution hardware
+        -- (multipliers, the iterative divider, AMO min/max, Zb* logic) so a
+        -- disabled extension costs no area at synthesis.
+        ENABLE_MUL      : boolean := true;
+        ENABLE_DIV      : boolean := true;
+        ENABLE_ATOMICS  : boolean := true;
+        ENABLE_BITMANIP : boolean := true
+    );
     port (
         resetn      : in  std_logic;
         clk         : in  std_logic;
@@ -248,24 +258,34 @@ begin
                 -- RV32M Multiply/Divide Extensions (6-bit encoding)
                 -- ==========================================
                 when "001100" => -- MUL (signed * signed, low 32 bits)
-                    mult_result := std_logic_vector(signed(a)*signed(b));
-                    ResultSignal <= mult_result(31 downto 0);
+                    if ENABLE_MUL then
+                        mult_result := std_logic_vector(signed(a)*signed(b));
+                        ResultSignal <= mult_result(31 downto 0);
+                    end if;
                 when "001101" => -- MULH (signed * signed, high 32 bits)
-                    mult_result := std_logic_vector(signed(a)*signed(b));
-                    ResultSignal <= mult_result(63 downto 32);
+                    if ENABLE_MUL then
+                        mult_result := std_logic_vector(signed(a)*signed(b));
+                        ResultSignal <= mult_result(63 downto 32);
+                    end if;
                 when "001110" => -- MULHU (unsigned * unsigned, high 32 bits)
-                    mult_result := std_logic_vector(unsigned(a)*unsigned(b));
-                    ResultSignal <= mult_result(63 downto 32);
-                when "001111" => -- MULHSU 
-                    mult_result := std_logic_vector(resize(signed(a) * signed('0' & b), 64)); 
-                    ResultSignal <= mult_result(63 downto 32);
+                    if ENABLE_MUL then
+                        mult_result := std_logic_vector(unsigned(a)*unsigned(b));
+                        ResultSignal <= mult_result(63 downto 32);
+                    end if;
+                when "001111" => -- MULHSU
+                    if ENABLE_MUL then
+                        mult_result := std_logic_vector(resize(signed(a) * signed('0' & b), 64));
+                        ResultSignal <= mult_result(63 downto 32);
+                    end if;
                 when "010000" | "010001" | "010010" | "010011" => -- Division operations
-                    div_start_rq <= '1';
-                    if alu_state = ALU_DIV_WAIT or alu_state = ALU_DIV_DONE then 
-                        div_start_rq <= '0';
-                        if div_complete = '1' then
-                            ResultSignal <= div_result;
+                    if ENABLE_DIV then
+                        div_start_rq <= '1';
+                        if alu_state = ALU_DIV_WAIT or alu_state = ALU_DIV_DONE then
                             div_start_rq <= '0';
+                            if div_complete = '1' then
+                                ResultSignal <= div_result;
+                                div_start_rq <= '0';
+                            end if;
                         end if;
                     end if;
                     
@@ -273,44 +293,58 @@ begin
                 -- RV32A Atomic MIN/MAX operations (6-bit encoding)
                 -- ==========================================
                 when "010100" => -- AMOMIN (signed)
-                    if signed(a) < signed(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_ATOMICS then
+                        if signed(a) < signed(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
-                    
+
                 when "010101" => -- AMOMAX (signed)
-                    if signed(a) > signed(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_ATOMICS then
+                        if signed(a) > signed(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
-                    
+
                 when "010110" => -- AMOMINU (unsigned)
-                    if unsigned(a) < unsigned(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_ATOMICS then
+                        if unsigned(a) < unsigned(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
-                    
+
                 when "010111" => -- AMOMAXU (unsigned)
-                    if unsigned(a) > unsigned(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_ATOMICS then
+                        if unsigned(a) > unsigned(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
 
                 -- ==========================================
                 -- RV32 Zba Shift-and-Add Instructions
                 -- ==========================================
                 when "011000" => -- SH1ADD: rd = (rs1 << 1) + rs2
-                    ResultSignal <= std_logic_vector(unsigned(a(30 downto 0) & '0') + unsigned(b));
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= std_logic_vector(unsigned(a(30 downto 0) & '0') + unsigned(b));
+                    end if;
+
                 when "011001" => -- SH2ADD: rd = (rs1 << 2) + rs2
-                    ResultSignal <= std_logic_vector(unsigned(a(29 downto 0) & "00") + unsigned(b));
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= std_logic_vector(unsigned(a(29 downto 0) & "00") + unsigned(b));
+                    end if;
+
                 when "011010" => -- SH3ADD: rd = (rs1 << 3) + rs2
-                    ResultSignal <= std_logic_vector(unsigned(a(28 downto 0) & "000") + unsigned(b));
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= std_logic_vector(unsigned(a(28 downto 0) & "000") + unsigned(b));
+                    end if;
 
                 -- ==========================================
                 -- RV32 Zbb Basic Bit-manipulation Instructions
@@ -318,41 +352,55 @@ begin
                 
                 -- Logical operations with complement
                 when "011011" => -- ANDN: rd = rs1 & ~rs2
-                    ResultSignal <= a and (not b);
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= a and (not b);
+                    end if;
+
                 when "011100" => -- ORN: rd = rs1 | ~rs2
-                    ResultSignal <= a or (not b);
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= a or (not b);
+                    end if;
+
                 when "011101" => -- XNOR: rd = ~(rs1 ^ rs2)
-                    ResultSignal <= not (a xor b);
-                
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= not (a xor b);
+                    end if;
+
                 -- Min/Max operations (Zbb versions)
                 when "011110" => -- MIN (signed)
-                    if signed(a) < signed(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_BITMANIP then
+                        if signed(a) < signed(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
-                    
+
                 when "011111" => -- MINU (unsigned)
-                    if unsigned(a) < unsigned(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_BITMANIP then
+                        if unsigned(a) < unsigned(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
-                    
+
                 when "100000" => -- MAX (signed)
-                    if signed(a) > signed(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_BITMANIP then
+                        if signed(a) > signed(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
-                    
+
                 when "100001" => -- MAXU (unsigned)
-                    if unsigned(a) > unsigned(b) then
-                        ResultSignal <= a;
-                    else
-                        ResultSignal <= b;
+                    if ENABLE_BITMANIP then
+                        if unsigned(a) > unsigned(b) then
+                            ResultSignal <= a;
+                        else
+                            ResultSignal <= b;
+                        end if;
                     end if;
                 
                 -- Rotate operations
@@ -365,89 +413,123 @@ begin
                 --     ResultSignal <= ror32(a, shift_amount);
                 -- In the rotate operations section:
                 when "100010" => -- ROL: rotate left
-                    shift_amount := to_integer(unsigned(b(4 downto 0)));
-                    ResultSignal <= std_logic_vector(rotate_left(unsigned(a), shift_amount)); -- ieee_numeric_std has rotate_left function
-                    
+                    if ENABLE_BITMANIP then
+                        shift_amount := to_integer(unsigned(b(4 downto 0)));
+                        ResultSignal <= std_logic_vector(rotate_left(unsigned(a), shift_amount)); -- ieee_numeric_std has rotate_left function
+                    end if;
+
                 when "100011" => -- ROR/RORI: rotate right
-                    shift_amount := to_integer(unsigned(b(4 downto 0)));
-                    ResultSignal <= std_logic_vector(rotate_right(unsigned(a), shift_amount));
-                
+                    if ENABLE_BITMANIP then
+                        shift_amount := to_integer(unsigned(b(4 downto 0)));
+                        ResultSignal <= std_logic_vector(rotate_right(unsigned(a), shift_amount));
+                    end if;
+
                 -- Bit counting operations
                 when "100100" => -- CLZ: count leading zeros
-                    ResultSignal <= std_logic_vector(to_unsigned(count_leading_zeros(a), 32));
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= std_logic_vector(to_unsigned(count_leading_zeros(a), 32));
+                    end if;
+
                 when "100101" => -- CTZ: count trailing zeros
-                    ResultSignal <= std_logic_vector(to_unsigned(count_trailing_zeros(a), 32));
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= std_logic_vector(to_unsigned(count_trailing_zeros(a), 32));
+                    end if;
+
                 when "100110" => -- CPOP: population count (count ones)
-                    ResultSignal <= std_logic_vector(to_unsigned(count_ones(a), 32));
-                
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= std_logic_vector(to_unsigned(count_ones(a), 32));
+                    end if;
+
                 -- Sign/Zero extension
                 when "100111" => -- SEXT.B: sign extend byte
-                    ResultSignal <= (31 downto 8 => a(7)) & a(7 downto 0);
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= (31 downto 8 => a(7)) & a(7 downto 0);
+                    end if;
+
                 when "101000" => -- SEXT.H: sign extend halfword
-                    ResultSignal <= (31 downto 16 => a(15)) & a(15 downto 0);
-                    
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= (31 downto 16 => a(15)) & a(15 downto 0);
+                    end if;
+
                 when "101001" => -- ZEXT.H: zero extend halfword
-                    ResultSignal <= x"0000" & a(15 downto 0);
-                
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= x"0000" & a(15 downto 0);
+                    end if;
+
                 -- Byte operations
                 when "101010" => -- ORC.B
-                    for i in 0 to 3 loop
-                        if a(i*8+7 downto i*8) /= x"00" then
-                            ResultSignal(i*8+7 downto i*8) <= (others => '1');
-                        else
-                            ResultSignal(i*8+7 downto i*8) <= (others => '0');
-                        end if;
-                    end loop;
-                    
+                    if ENABLE_BITMANIP then
+                        for i in 0 to 3 loop
+                            if a(i*8+7 downto i*8) /= x"00" then
+                                ResultSignal(i*8+7 downto i*8) <= (others => '1');
+                            else
+                                ResultSignal(i*8+7 downto i*8) <= (others => '0');
+                            end if;
+                        end loop;
+                    end if;
+
                 when "101011" => -- REV8: byte reverse (endianness swap)
-                    ResultSignal <= a(7 downto 0) & a(15 downto 8) & a(23 downto 16) & a(31 downto 24);
+                    if ENABLE_BITMANIP then
+                        ResultSignal <= a(7 downto 0) & a(15 downto 8) & a(23 downto 16) & a(31 downto 24);
+                    end if;
 
 
                 -- ==========================================
                 -- RV32 Zbs Single-bit Instructions
                 -- ==========================================
                 when "101100" => -- BCLR/BCLRI: Bit clear (rd = rs1 & ~(1 << rs2))
-                    bit_index := to_integer(unsigned(b(4 downto 0)));
-                    bit_mask := (others => '1');
-                    bit_mask(bit_index) := '0';
-                    ResultSignal <= a and bit_mask;
-                    
+                    if ENABLE_BITMANIP then
+                        bit_index := to_integer(unsigned(b(4 downto 0)));
+                        bit_mask := (others => '1');
+                        bit_mask(bit_index) := '0';
+                        ResultSignal <= a and bit_mask;
+                    end if;
+
                 when "101101" => -- BEXT/BEXTI: Bit extract (rd = (rs1 >> rs2) & 1)
-                    bit_index := to_integer(unsigned(b(4 downto 0)));
-                    ResultSignal <= (others => '0');
-                    ResultSignal(0) <= a(bit_index);
-                    
+                    if ENABLE_BITMANIP then
+                        bit_index := to_integer(unsigned(b(4 downto 0)));
+                        ResultSignal <= (others => '0');
+                        ResultSignal(0) <= a(bit_index);
+                    end if;
+
                 when "101110" => -- BINV/BINVI: Bit invert (rd = rs1 ^ (1 << rs2))
-                    bit_index := to_integer(unsigned(b(4 downto 0)));
-                    bit_mask := (others => '0');
-                    bit_mask(bit_index) := '1';
-                    ResultSignal <= a xor bit_mask;
-                    
+                    if ENABLE_BITMANIP then
+                        bit_index := to_integer(unsigned(b(4 downto 0)));
+                        bit_mask := (others => '0');
+                        bit_mask(bit_index) := '1';
+                        ResultSignal <= a xor bit_mask;
+                    end if;
+
                 when "101111" => -- BSET/BSETI: Bit set (rd = rs1 | (1 << rs2))
-                    bit_index := to_integer(unsigned(b(4 downto 0)));
-                    bit_mask := (others => '0');
-                    bit_mask(bit_index) := '1';
-                    ResultSignal <= a or bit_mask;
+                    if ENABLE_BITMANIP then
+                        bit_index := to_integer(unsigned(b(4 downto 0)));
+                        bit_mask := (others => '0');
+                        bit_mask(bit_index) := '1';
+                        ResultSignal <= a or bit_mask;
+                    end if;
 
 
                 -- ==========================================
                 -- RV32 Zbc Carry-less Multiplication Instructions
                 -- ==========================================
                 when "110000" => -- CLMUL: Carry-less multiply (low part)
-                    mult_result := clmul_64(a, b);
-                    ResultSignal <= mult_result(31 downto 0);
-                    
+                    if ENABLE_BITMANIP then
+                        mult_result := clmul_64(a, b);
+                        ResultSignal <= mult_result(31 downto 0);
+                    end if;
+
                 when "110001" => -- CLMULH: Carry-less multiply (high part)
-                    mult_result := clmul_64(a, b);
-                    ResultSignal <= mult_result(63 downto 32);
-                    
+                    if ENABLE_BITMANIP then
+                        mult_result := clmul_64(a, b);
+                        ResultSignal <= mult_result(63 downto 32);
+                    end if;
+
                 when "110010" => -- CLMULR: Carry-less multiply (reversed)
                     -- Reverse operand order for polynomial reduction
-                    mult_result := clmul_64(a, b);
-                    ResultSignal <= mult_result(62 downto 31);
+                    if ENABLE_BITMANIP then
+                        mult_result := clmul_64(a, b);
+                        ResultSignal <= mult_result(62 downto 31);
+                    end if;
 
 
                 when others =>
@@ -456,19 +538,30 @@ begin
         end if;
     end process;
 
-    divider : div
-    port map (
-        resetn     => resetn,
-        clk        => clk,
-        start      => div_start,
-        a          => a,
-        b          => b,
-        sel_signed => div_sel_signed,
-        sel_rem    => div_sel_rem,
-        result     => div_result,
-        complete   => div_complete,
-        rdy        => div_rdy
-    );
+    -- The iterative divider only exists when the DIV feature is enabled; with
+    -- it disabled the decode traps DIV/DIVU/REM/REMU upstream and these ports
+    -- are tied to benign idle values (rdy='1' keeps the ALU FSM sane).
+    gen_div: if ENABLE_DIV generate
+        divider : div
+        port map (
+            resetn     => resetn,
+            clk        => clk,
+            start      => div_start,
+            a          => a,
+            b          => b,
+            sel_signed => div_sel_signed,
+            sel_rem    => div_sel_rem,
+            result     => div_result,
+            complete   => div_complete,
+            rdy        => div_rdy
+        );
+    end generate;
+
+    gen_no_div: if not ENABLE_DIV generate
+        div_result   <= (others => '0');
+        div_complete <= '0';
+        div_rdy      <= '1';
+    end generate;
 
     ALU_result <= ResultSignal; 
     

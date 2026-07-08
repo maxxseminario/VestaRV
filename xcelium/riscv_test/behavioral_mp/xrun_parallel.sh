@@ -137,6 +137,15 @@ TEST_FILES=(
     "../rcf/xxxrv32uzbs-p-bext.rcf"
     "../rcf/xxxrv32uzbs-p-binv.rcf"
     "../rcf/xxxrv32uzbs-p-bset.rcf"
+    # core-features (ENABLE_* generics): misa + per-extension adaptive probes.
+    # On this full build every one PASSES; the same images double as the
+    # stripped-build trap controls (behavioral_mp_stripped/run_extoff.sh).
+    "../rcf/xrv32ua-p-extprobe.rcf"
+    "../rcf/xxxrv32ua-p-extmul.rcf"
+    "../rcf/xxxrv32ua-p-extdiv.rcf"
+    "../rcf/xxxrv32ua-p-extamo.rcf"
+    "../rcf/xxxrv32ua-p-extrvc.rcf"
+    "../rcf/xxxxrv32ua-p-extzb.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

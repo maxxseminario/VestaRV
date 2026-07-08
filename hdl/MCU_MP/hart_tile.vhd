@@ -82,7 +82,19 @@ entity hart_tile is
     generic (
         -- M12: every hart resets to 0x0 = the shared boot ROM.
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
-        SH_AW          : natural := 15   -- shared-window word-address width (must match mp_arbiter; M11: covers 0x00000-0x1FFFF)
+        SH_AW          : natural := 15;  -- shared-window word-address width (must match mp_arbiter; M11: covers 0x00000-0x1FFFF)
+
+        -- Core ISA feature switches, passed straight down to vesta (see
+        -- vesta.vhd). Config-driven from generate.py via the MemoryMap
+        -- package constants in the hartN generic maps; defaults keep every
+        -- existing instantiation (testbenches, genus tile hardening) on the
+        -- full RV32IMAC+Zb* core. NOTE: all four tile instances must get the
+        -- SAME values — the tile is hardened once (M14, one netlist).
+        ENABLE_MUL        : boolean := true;
+        ENABLE_DIV        : boolean := true;
+        ENABLE_ATOMICS    : boolean := true;
+        ENABLE_COMPRESSED : boolean := true;
+        ENABLE_BITMANIP   : boolean := true
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
@@ -166,7 +178,12 @@ architecture behav of hart_tile is
     component vesta
         generic (
             PC_RST_VAL : std_logic_vector(31 downto 0);
-            NUM_IRQS  : natural
+            NUM_IRQS  : natural;
+            ENABLE_MUL        : boolean := true;
+            ENABLE_DIV        : boolean := true;
+            ENABLE_ATOMICS    : boolean := true;
+            ENABLE_COMPRESSED : boolean := true;
+            ENABLE_BITMANIP   : boolean := true
         );
         port (
             clk              : in  std_logic;
@@ -451,7 +468,12 @@ begin
     core: vesta
         generic map (
             PC_RST_VAL => PC_RST_VAL,
-            NUM_IRQS   => NUM_IRQS
+            NUM_IRQS   => NUM_IRQS,
+            ENABLE_MUL        => ENABLE_MUL,
+            ENABLE_DIV        => ENABLE_DIV,
+            ENABLE_ATOMICS    => ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => ENABLE_BITMANIP
         )
         port map (
             clk         => clk,
