@@ -197,3 +197,16 @@ xcelium/**/*_actual_*.txt
 
 # Local engineering changelog (not for the repo)
 .devlog/
+
+# Interactive history/roadmap page (local, not for the repo for now)
+vestarv_roadmap.html
+
+# Publications / conference materials copied in for local reference (not for the repo)
+docs/publications/
+
+# Interactive block diagrams (local, not for the repo for now)
+castalia_soc.html
+vestarv_core.html
+
+# Combined SoC + core-callout diagram (local)
+castalia_full.html

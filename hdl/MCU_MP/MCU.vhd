@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/06 at 20:07:30 with the generate.py chip generator
+-- Generated on 2026/07/08 at 02:31:02 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -49,47 +49,6 @@ entity MCU is
 		prt4_dir		: out	std_logic_vector(7 downto 0);
 		prt4_ren		: out	std_logic_vector(7 downto 0);
 
-        -- AFE Connections
-        use_dac_glb_bias : out std_logic;
-        en_bias_buf      : out std_logic;
-        en_bias_gen      : out std_logic; -- For WideSwingCascBias
-
-        -- Biasing Connections
-        BIAS_ADJ		: out	std_logic_vector(5 downto 0);	
-        BIAS_DBP		: out	std_logic_vector(13 downto 0);
-        BIAS_DBN		: out	std_logic_vector(13 downto 0);
-        BIAS_DBPC		: out	std_logic_vector(13 downto 0);
-        BIAS_DBNC		: out	std_logic_vector(13 downto 0);
-
-        -- Potentiostat Biases
-        BIAS_TC_POT     : out   std_logic_vector(5 downto 0);
-        BIAS_LC_POT     : out   std_logic_vector(5 downto 0);
-        BIAS_TIA_G_POT  : out   std_logic_vector(16 downto 0); 
-        BIAS_REV_POT    : out   std_logic_vector(13 downto 0);
-
-        -- DSADC Biases
-        BIAS_TC_DSADC  : out   std_logic_vector(5 downto 0);
-        BIAS_LC_DSADC  : out   std_logic_vector(5 downto 0);
-        BIAS_RIN_DSADC : out   std_logic_vector(5 downto 0);     
-        BIAS_RFB_DSADC : out   std_logic_vector(5 downto 0);   
-        BIAS_DSADC_VCM : out   std_logic_vector(13 downto 0);
-
-        -- DSADC Connections
-        dsadc_conv_done : in std_logic; 
-        dsadc_en        : out std_logic;
-        dsadc_clk       : out std_logic;
-        dsadc_switch    : out std_logic_vector(2 downto 0);
-        dac_en_pot      : out std_logic; 
-        adc_ext_in      : out std_logic;
-        atp_en          : out std_logic;
-        atp_sel         : out std_logic;
-        adc_sel         : out std_logic;
-
-        -- SARADC Connections
-        saradc_clk      : out std_logic;
-        saradc_rdy      : in std_logic;
-        saradc_rst      : out std_logic;
-        saradc_data     : in std_logic_vector(9 downto 0); 
 
         -- Testing Purposes Only
         a0  : out std_logic_vector(31 downto 0);
@@ -435,113 +394,7 @@ architecture behav of MCU is
         );
     end component;
 
-    -- AFEx
-    component AFE is
-        port(
-            -- System Signals
-            clk          : in  std_logic;  
-            resetn       : in  std_logic;  
-            irq          : out std_logic;  
 
-            -- Memory Bus
-            clk_mem      : in  std_logic;
-            en_mem       : in  std_logic;
-            wen          : in  std_logic_vector(3 downto 0);
-            addr_periph  : in  std_logic_vector(7 downto 2);
-            write_data   : in  std_logic_vector(31 downto 0);
-            read_data    : out std_logic_vector(31 downto 0);
-
-            -- Digital Test Ports 
-            dtp0_ren_in : in std_logic;
-            dtp0_ren    : out std_logic;
-            dtp0_dir    : out std_logic;
-            dtp0_out    : out std_logic;
-
-            dtp1_ren_in : in std_logic;
-            dtp1_ren    : out std_logic;
-            dtp1_dir    : out std_logic;
-            dtp1_out    : out std_logic;
-
-            dtp2_ren_in : in std_logic;
-            dtp2_ren    : out std_logic;
-            dtp2_dir    : out std_logic;
-            dtp2_out    : out std_logic;
-
-            dtp3_ren_in : in std_logic;
-            dtp3_ren    : out std_logic;
-            dtp3_dir    : out std_logic;
-            dtp3_out    : out std_logic;
-
-            -- Bias Signals
-            use_bias_dac	: out	std_logic;	-- Switches between using the bias generator voltages or bias DACs for the global bias voltages. '0' <= Uses bias generator; '1' <= Uses DACs
-            en_bias_buf		: out	std_logic;	-- Enables/disables buffers on the internal global bias voltages. '0' <= Disabled; '1' <= Enabled
-            en_bias_gen		: out	std_logic;	-- Enables/disables the internal bias generator. '0' <= Disabled; '1' <= Enabled
-            en_dsadc_bias   : out std_logic; -- Enables biasing for the DSADC. This signal should be tied high if the DSADC is being used.
-            en_pot_re_bias  : out std_logic; -- Enables biasing for the potentiostat. This signal should be tied high if the potentiostat is being used.
-            
-            -- Central Bias Generator
-            BIAS_ADJ		: out	std_logic_vector(5 downto 0);	-- Internal bias generator adjustment vector. Higher vector codes produce smaller currents. The nominal vector is decimal 37.
-            BIAS_DBP		: out	std_logic_vector(13 downto 0);
-            BIAS_DBN		: out	std_logic_vector(13 downto 0);
-            BIAS_DBPC		: out	std_logic_vector(13 downto 0);
-            BIAS_DBNC		: out	std_logic_vector(13 downto 0);
-
-            -- Potentiostat Biases
-            BIAS_TC_POT      : out std_logic_vector(5 downto 0);    -- Bias Current BTS - Potentiostat
-            BIAS_LC_POT      : out std_logic_vector(5 downto 0);    -- LC Resistor      - Potentiostat
-            BIAS_TIA_G_POT   : out  std_logic_vector(16 downto 0);  -- TIA Gain Resistor - Potentiostat
-            BIAS_REV_POT     : out std_logic_vector(13 downto 0);   -- Potentiostat Reference Electrode Voltage (DAC)
-
-            -- DSADC Biases
-            BIAS_TC_DSADC   : out std_logic_vector(5 downto 0);     -- Bias Current BTS - DSADC
-            BIAS_LC_DSADC   : out std_logic_vector(5 downto 0);     -- LC Resistor      - DSADC
-            BIAS_RIN_DSADC  : out std_logic_vector(5 downto 0);     -- Input Resistor   - DSADC
-            BIAS_RFB_DSADC   : out std_logic_vector(5 downto 0);    -- Feedback Resistor- DSADC
-            BIAS_DSADC_VCM   : out std_logic_vector(13 downto 0);   -- DSADC VCM Voltage (DAC)
-
-            -- DSADC Outputs Signals 
-            adc_conv_done   : in std_logic;
-            adc_en          : out std_logic;
-            adc_clk         : out std_logic;
-            adc_switch      : out std_logic_vector(2 downto 0);
-            adc_ext_in      : out std_logic; -- '1' => adc's input is from potentiostat pad, '0' => external signal
-            atp_en          : out std_logic; -- '1' => enable ATP, '0' => disable ATP
-            atp_sel         : out std_logic; -- '1' => atp input is from DSADC, '0' => atp input is from Potentiostat
-            adc_sel         : out std_logic; -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
-            dac_en          : out std_logic -- DAC Enable
-        ); 
-    end component AFE;
-
-    -- SARADCx
-    component SARADC is
-        port (
-            -- System Signals
-            clk          : in  std_logic;  
-            resetn       : in  std_logic;  
-            irq          : out std_logic;  
-
-            -- Memory Bus (active low enables)
-            clk_mem      : in  std_logic;
-            en_mem       : in  std_logic;                       
-            wen          : in  std_logic_vector(3 downto 0); 
-            addr_periph  : in  std_logic_vector(7 downto 2);
-            write_data   : in  std_logic_vector(31 downto 0);
-            read_data    : out std_logic_vector(31 downto 0);
-
-            -- Digital Test Ports 
-            dtp0   : out std_logic;
-            dtp1   : out std_logic;
-
-            -- ADC Output Signals 
-            adc_sel      : out std_logic; -- '1' => adc's input is from external pad, '0' => internal signal
-
-            -- ADC Connection 
-            ADC_ready_i : in std_logic;
-            ADC_data_i  : in std_logic_vector(9 downto 0); 
-            ADC_reset  : out std_logic;
-            ADC_trigger_clock_o : out std_logic
-        );
-    end component;
 
 
     -- MCU Block Level Signal Declarations --------------------------------------
@@ -597,8 +450,6 @@ architecture behav of MCU is
         signal irq_uart1_rc     : std_logic;  -- UART1 Receive Complete Interrupt
         signal irq_uart1_te     : std_logic;  -- UART1 Transmission Buffer Empty Interrupt
         signal irq_uart1_tc     : std_logic;  -- UART1 Transmission Complete Interrupt
-        signal irq_afe0_rc      : std_logic;  -- AFE0 Receive Complete Interrupt
-        signal irq_sar0_rc      : std_logic;  -- SARADC0 Conversion Complete Interrupt
         signal irq_i2c0_str    : std_logic;  -- I2C0 Start Received Interrupt
         signal irq_i2c0_spr    : std_logic;  -- I2C0 Stop Received Interrupt
         signal irq_i2c0_msts   : std_logic;  -- I2C0 Master Mode Start Condition Sent Interrupt
@@ -795,10 +646,10 @@ architecture behav of MCU is
         signal npu_sh_en_n      : std_logic;
         signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
         signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
-        -- M11 movers: the last five private peripherals join the window —
+        -- M11 movers: the last three private peripherals join the window —
         -- SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000), SPI0 (slot 2
-        -- @0x4200), SARADC0 (slot 11 @0x4B00), AFE0 (slot 12 @0x4C00). All
-        -- five register their reads on clk_mem (M11 audit) -> plain polarity
+        -- @0x4200). All
+        -- three register their reads on clk_mem (M11 audit) -> plain polarity
         -- shims, no bridge. The private peripheral page is GONE — hart 0's
         -- adddec no longer decodes region 001 at all. NOTE the SYSTEM0
         -- clock-reconfig contract: SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure
@@ -809,23 +660,15 @@ architecture behav of MCU is
         signal shslv_sys_sel,   shslv_sys_en    : std_logic;
         signal shslv_gpio0_sel, shslv_gpio0_en  : std_logic;
         signal shslv_spi0_sel,  shslv_spi0_en   : std_logic;
-        signal shslv_sar_sel,   shslv_sar_en    : std_logic;
-        signal shslv_afe_sel,   shslv_afe_en    : std_logic;
         signal shslv_rd_sys     : std_logic := '0';
         signal shslv_rd_gpio0   : std_logic := '0';
         signal shslv_rd_spi0    : std_logic := '0';
-        signal shslv_rd_sar     : std_logic := '0';
-        signal shslv_rd_afe     : std_logic := '0';
         signal sys_sh_en_n      : std_logic;
         signal gpio0_sh_en_n    : std_logic;
         signal spi0_sh_en_n     : std_logic;
-        signal sar_sh_en_n      : std_logic;
-        signal afe_sh_en_n      : std_logic;
         signal sys_sh_rdata     : std_logic_vector(31 downto 0);
         signal gpio0_sh_rdata   : std_logic_vector(31 downto 0);
         signal spi0_sh_rdata    : std_logic_vector(31 downto 0);
-        signal sar_sh_rdata     : std_logic_vector(31 downto 0);
-        signal afe_sh_rdata     : std_logic_vector(31 downto 0);
         -- M7c LOCKING: HW mutex bank (M11: window page 2 @0x6000). READ =
         -- atomic return-old-and-claim, WRITE 0 = release; atomic because the
         -- arbiter serializes whole transactions. sh_master is the arbiter's
@@ -1092,25 +935,21 @@ architecture behav of MCU is
         signal dtp0_out               : std_logic;
         signal dtp0_dir               : std_logic;
         signal dtp0_ren               : std_logic;
-        signal dtp0_ren_in           : std_logic;
 
         -- P4.5: DTP1 (output only)
         signal dtp1_out               : std_logic;
         signal dtp1_dir               : std_logic;
         signal dtp1_ren               : std_logic;
-        signal dtp1_ren_in           : std_logic;
 
         -- P4.6: DTP2 (output only)
         signal dtp2_out               : std_logic;
         signal dtp2_dir               : std_logic;
         signal dtp2_ren               : std_logic;
-        signal dtp2_ren_in           : std_logic;
 
         -- P4.7: DTP3 (output only)
         signal dtp3_out               : std_logic;
         signal dtp3_dir               : std_logic;
         signal dtp3_ren               : std_logic;
-        signal dtp3_ren_in           : std_logic;
         
 begin
 
@@ -1283,10 +1122,6 @@ begin
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
         -- Resistor Enables
-        dtp0_ren_in <= p4_ren(pnum_gpio3_dtp0);
-        dtp1_ren_in <= p4_ren(pnum_gpio3_dtp1);
-        dtp2_ren_in <= p4_ren(pnum_gpio3_dtp2);
-        dtp3_ren_in <= p4_ren(pnum_gpio3_dtp3);
         sda0_ren_in <= p4_ren(pnum_gpio3_sda0);
         scl0_ren_in <= p4_ren(pnum_gpio3_scl0);
         sda1_ren_in <= p4_ren(pnum_gpio3_sda1);
@@ -1389,8 +1224,6 @@ begin
             IRQB_UART1_RC   => irq_uart1_rc,
             IRQB_UART1_TE   => irq_uart1_te,
             IRQB_UART1_TC   => irq_uart1_tc,
-            IRQB_AFE0_RC    => irq_afe0_rc,
-            IRQB_SAR0_RC    => irq_sar0_rc,
             IRQB_I2C0_STR   => irq_i2c0_str,
             IRQB_I2C0_spr   => irq_i2c0_spr,
             IRQB_I2C0_msts  => irq_i2c0_msts,
@@ -1457,7 +1290,14 @@ begin
     hart0: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW
+            SH_AW          => SH_AW,
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be
+            -- identical on all four tiles -- one hardened netlist)
+            ENABLE_MUL        => CORE_ENABLE_MUL,
+            ENABLE_DIV        => CORE_ENABLE_DIV,
+            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
         )
         port map (
             clk       => mclk,
@@ -1583,8 +1423,6 @@ begin
     shslv_gpio2_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "1000" else '0';
     shslv_sys_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1001" else '0';
     shslv_npu_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1010" else '0';
-    shslv_sar_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1011" else '0';
-    shslv_afe_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else '0';
     shslv_gpio3_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "1101" else '0';
     shslv_i2c0_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "1110" else '0';
     shslv_i2c1_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "1111" else '0';
@@ -1608,8 +1446,6 @@ begin
     shslv_gpio2_en   <= sh_en and shslv_gpio2_sel;
     shslv_sys_en     <= sh_en and shslv_sys_sel;
     shslv_npu_en     <= sh_en and shslv_npu_sel;
-    shslv_sar_en     <= sh_en and shslv_sar_sel;
-    shslv_afe_en     <= sh_en and shslv_afe_sel;
     shslv_gpio3_en   <= sh_en and shslv_gpio3_sel;
     shslv_i2c0_en    <= sh_en and shslv_i2c0_sel;
     shslv_i2c1_en    <= sh_en and shslv_i2c1_sel;
@@ -1637,8 +1473,6 @@ begin
             shslv_rd_gpio2   <= '0';
             shslv_rd_sys     <= '0';
             shslv_rd_npu     <= '0';
-            shslv_rd_sar     <= '0';
-            shslv_rd_afe     <= '0';
             shslv_rd_gpio3   <= '0';
             shslv_rd_i2c0    <= '0';
             shslv_rd_i2c1    <= '0';
@@ -1664,8 +1498,6 @@ begin
                 shslv_rd_gpio2   <= shslv_gpio2_sel;
                 shslv_rd_sys     <= shslv_sys_sel;
                 shslv_rd_npu     <= shslv_npu_sel;
-                shslv_rd_sar     <= shslv_sar_sel;
-                shslv_rd_afe     <= shslv_afe_sel;
                 shslv_rd_gpio3   <= shslv_gpio3_sel;
                 shslv_rd_i2c0    <= shslv_i2c0_sel;
                 shslv_rd_i2c1    <= shslv_i2c1_sel;
@@ -1718,8 +1550,6 @@ begin
                     gpio2_sh_rdata when shslv_rd_gpio2   = '1' else
                     sys_sh_rdata   when shslv_rd_sys     = '1' else
                     npu_sh_rdata   when shslv_rd_npu     = '1' else
-                    sar_sh_rdata   when shslv_rd_sar     = '1' else
-                    afe_sh_rdata   when shslv_rd_afe     = '1' else
                     gpio3_sh_rdata when shslv_rd_gpio3   = '1' else
                     i2c0_sh_rdata  when shslv_rd_i2c0    = '1' else
                     i2c1_sh_rdata  when shslv_rd_i2c1    = '1' else
@@ -1764,7 +1594,7 @@ begin
     -- bus — the clk_periph pulse was the only write qualifier; on the
     -- free-running mclk this strobe IS the qualifier)
     npu_sh_en_n   <= not shslv_npu_en;
-    -- M11: the last five private peripherals join the window (the private
+    -- M11: the last three private peripherals join the window (the private
     -- peripheral page is GONE). Audited: all five register their reads on
     -- clk_mem — UART-class movers, plain shims, no bridge. SYSTEM0 note:
     -- SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF — reconfiguring
@@ -1773,8 +1603,6 @@ begin
     sys_sh_en_n   <= not shslv_sys_en;
     gpio0_sh_en_n <= not shslv_gpio0_en;
     spi0_sh_en_n  <= not shslv_spi0_en;
-    sar_sh_en_n   <= not shslv_sar_en;
-    afe_sh_en_n   <= not shslv_afe_en;
 
     clint0: entity work.clint
         generic map (NHARTS => 4)
@@ -1924,7 +1752,14 @@ begin
     hart1: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW
+            SH_AW          => SH_AW,
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be
+            -- identical on all four tiles -- one hardened netlist)
+            ENABLE_MUL        => CORE_ENABLE_MUL,
+            ENABLE_DIV        => CORE_ENABLE_DIV,
+            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
         )
         port map (
             clk       => mclk,
@@ -1960,7 +1795,14 @@ begin
     hart2: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW
+            SH_AW          => SH_AW,
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be
+            -- identical on all four tiles -- one hardened netlist)
+            ENABLE_MUL        => CORE_ENABLE_MUL,
+            ENABLE_DIV        => CORE_ENABLE_DIV,
+            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
         )
         port map (
             clk       => mclk,
@@ -1993,7 +1835,14 @@ begin
     hart3: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW
+            SH_AW          => SH_AW,
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be
+            -- identical on all four tiles -- one hardened netlist)
+            ENABLE_MUL        => CORE_ENABLE_MUL,
+            ENABLE_DIV        => CORE_ENABLE_DIV,
+            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
         )
         port map (
             clk       => mclk,
@@ -2627,100 +2476,18 @@ begin
             NpuActive       => npu0_active -- Make irq
     );
 
-    afe0: entity work.AFE
-        port map (
-            clk         => smclk,
-            resetn      => resetn,
-            irq         => irq_afe0_rc, 
-
-            -- Memory Bus (arbiter slave side, M11 — window slot 12 @0x04C00)
-            clk_mem     => mclk,
-            en_mem      => afe_sh_en_n,
-            wen         => sh_wen_n,
-            addr_periph => sh_addr(5 downto 0),
-            write_data  => sh_wdata,
-            read_data   => afe_sh_rdata,
-
-            dtp0_ren_in  => dtp0_ren_in,
-            dtp0_ren     => dtp0_ren,
-            dtp0_dir     => dtp0_dir,
-            dtp0_out     => dtp0_out,
-
-            dtp1_ren_in  => dtp1_ren_in,
-            dtp1_ren     => dtp1_ren,
-            dtp1_dir     => dtp1_dir,
-            dtp1_out     => dtp1_out,
-
-            dtp2_ren_in  => dtp2_ren_in,
-            dtp2_ren     => dtp2_ren,
-            dtp2_dir     => dtp2_dir,
-            dtp2_out     => dtp2_out,
-
-            dtp3_ren_in  => dtp3_ren_in,
-            dtp3_ren     => dtp3_ren,
-            dtp3_dir     => dtp3_dir,
-            dtp3_out     => dtp3_out,
-
-            --Bias Signals 
-            use_bias_dac => use_dac_glb_bias,
-            en_bias_buf  => en_bias_buf,
-            en_bias_gen  => en_bias_gen,
-
-            -- Central Bias Generator
-            BIAS_ADJ    => BIAS_ADJ,
-            BIAS_DBP    => BIAS_DBP,
-            BIAS_DBN    => BIAS_DBN,
-            BIAS_DBPC   => BIAS_DBPC,
-            BIAS_DBNC   => BIAS_DBNC,
-
-            -- TIA Biases
-            BIAS_TC_POT     => BIAS_TC_POT,
-            BIAS_LC_POT     => BIAS_LC_POT,
-            BIAS_TIA_G_POT  => BIAS_TIA_G_POT,
-            BIAS_REV_POT    => BIAS_REV_POT,
-
-            -- DSADC Biases
-            BIAS_TC_DSADC  => BIAS_TC_DSADC,
-            BIAS_LC_DSADC  => BIAS_LC_DSADC,
-            BIAS_RIN_DSADC => BIAS_RIN_DSADC,
-            BIAS_RFB_DSADC => BIAS_RFB_DSADC,
-            BIAS_DSADC_VCM => BIAS_DSADC_VCM,
-
-            -- DSADC Output Signals 
-            adc_conv_done   => dsadc_conv_done,
-            adc_en          => dsadc_en,
-            adc_clk         => dsadc_clk,
-            adc_switch      => dsadc_switch,
-            adc_ext_in      => adc_ext_in,  -- '1' => adc's input is from potentiostat pad, '0' => external signal
-            atp_en          => atp_en,      -- '1' => ATP is enabled, '0' => ATP is disabled
-            atp_sel         => atp_sel,     -- '1' => ATP to use is DSADC, '0' => ATP is Potentiostat
-            adc_sel         => adc_sel,     -- '1' => adc to use is SARADC, '0' => adc input is from DSADC
-            dac_en          => dac_en_pot
-        );
-
-    saradc0: entity work.SARADC
-        port map (
-            clk         => smclk,
-            resetn      => resetn,
-
-            irq         => irq_sar0_rc,
-
-            -- Memory Bus (arbiter slave side, M11 — window slot 11 @0x04B00)
-            clk_mem     => mclk,
-            en_mem      => sar_sh_en_n,
-            wen         => sh_wen_n,
-            addr_periph => sh_addr(5 downto 0),
-            write_data  => sh_wdata,
-            read_data   => sar_sh_rdata,
-
-            dtp0         => t0_cap1_out, -- Alternate Function as DTP
-            dtp1         => t1_cap1_out, -- Alternate Function as DTP
-
-            ADC_ready_i     => saradc_rdy,
-            ADC_data_i      => saradc_data,
-            ADC_reset       => saradc_rst,
-            ADC_trigger_clock_o =>saradc_clk
-    );
+    -- AFE / SARADC removed (digital-only Castalia). Peripheral-window slots
+    -- 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0,
+    -- tied low). Tie off the GPIO alt-function outputs the two analog blocks
+    -- used to drive so those pins act as plain GPIO:
+    --   GPIO2 pins 3/7 (T0/T1 CAP1 out, formerly SARADC DTP0/1)
+    --   GPIO3 pins 4-7 (formerly AFE DTP0-3)
+    t0_cap1_out <= '0';
+    t1_cap1_out <= '0';
+    dtp0_out <= '0';  dtp0_dir <= '0';  dtp0_ren <= '0';
+    dtp1_out <= '0';  dtp1_dir <= '0';  dtp1_ren <= '0';
+    dtp2_out <= '0';  dtp2_dir <= '0';  dtp2_ren <= '0';
+    dtp3_out <= '0';  dtp3_dir <= '0';  dtp3_ren <= '0';
 
     -- =============================================================================
     -- Memory Blocks

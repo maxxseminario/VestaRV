@@ -55,8 +55,6 @@ SHSLV = {
 	'GPIO2':     {'sel': 'gpio2', 'shim': 'gpio2', 'rdata': 'gpio2_sh_rdata'},
 	'SYSTEM':    {'sel': 'sys',   'shim': 'sys',   'rdata': 'sys_sh_rdata'},
 	'NPU':       {'sel': 'npu',   'shim': 'npu',   'rdata': 'npu_sh_rdata'},
-	'SARADC':    {'sel': 'sar',   'shim': 'sar',   'rdata': 'sar_sh_rdata'},
-	'AFE':       {'sel': 'afe',   'shim': 'afe',   'rdata': 'afe_sh_rdata'},
 	'GPIO3':     {'sel': 'gpio3', 'shim': 'gpio3', 'rdata': 'gpio3_sh_rdata'},
 	'I2C0':      {'sel': 'i2c0',  'shim': 'i2c0',  'rdata': 'i2c0_sh_rdata'},
 	'I2C1':      {'sel': 'i2c1',  'shim': 'i2c1',  'rdata': 'i2c1_sh_rdata'},
@@ -80,7 +78,7 @@ MOVED_IN = {
 	'SPI1': 'M7c', 'UART1': 'M7c',
 	'I2C0': 'M7c.2', 'I2C1': 'M7c.2',
 	'NPU': 'M7d',
-	'SYSTEM': 'M11', 'GPIO0': 'M11', 'SPI0': 'M11', 'SARADC': 'M11', 'AFE': 'M11',
+	'SYSTEM': 'M11', 'GPIO0': 'M11', 'SPI0': 'M11',
 }
 
 # M11 canon: page-0 slot decode in slot-numeric order (new RTL authored by
@@ -88,7 +86,7 @@ MOVED_IN = {
 # retired with it). EN/RD run memory slaves first, then the window pages,
 # then the slots.
 PG0_SEL_ORDER = ['GPIO0', 'GPIO1', 'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
-	'GPIO2', 'SYSTEM', 'NPU', 'SARADC', 'AFE', 'GPIO3', 'I2C0', 'I2C1']
+	'GPIO2', 'SYSTEM', 'NPU', 'GPIO3', 'I2C0', 'I2C1']
 EN_ORDER = ['rom', 'npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER'] + PG0_SEL_ORDER
 RD_ORDER = list(EN_ORDER)
 
@@ -125,13 +123,13 @@ SHIM_GROUPS = [
 	  '-- bus ' + EMDASH + ' the clk_periph pulse was the only write qualifier; on the',
 	  '-- free-running mclk this strobe IS the qualifier)'],
 	 ['NPU'], 14),
-	(['-- M11: the last five private peripherals join the window (the private',
+	(['-- M11: the last three private peripherals join the window (the private',
 	  '-- peripheral page is GONE). Audited: all five register their reads on',
 	  '-- clk_mem ' + EMDASH + ' UART-class movers, plain shims, no bridge. SYSTEM0 note:',
 	  '-- SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK ITSELF ' + EMDASH + ' reconfiguring',
 	  '-- with other masters mid-transaction is a software-contract violation',
 	  '-- (management hart quiesces the others first).'],
-	 ['SYSTEM', 'GPIO0', 'SPI0', 'SARADC', 'AFE'], 14),
+	 ['SYSTEM', 'GPIO0', 'SPI0'], 14),
 ]
 
 # I2C interrupt-declaration comments, transcribed verbatim (the RTL wording is
@@ -160,7 +158,7 @@ I2C_DECL_COMMENTS = {
 #   trailing : per-line trailing-space flags (RTL formatting quirks), or None
 #   comment  : 'slot' (derived page-3 comment), 'plain' (window comment, no slot),
 #              'i2c'/'npu' (two-line combinational-read comments), or None
-BUS_ORDER_A = ['clk_mem', 'en_mem', 'wen', 'addr_periph', 'write_data', 'read_data']	# SYSTEM/UART/TIMER/AFE/SARADC
+BUS_ORDER_A = ['clk_mem', 'en_mem', 'wen', 'addr_periph', 'write_data', 'read_data']	# SYSTEM/UART/TIMER
 BUS_ORDER_B = ['clk_mem', 'en', 'wen', 'write_data', 'read_data', 'addr_periph']	# GPIO
 BUS_ORDER_C = ['clk_mem', 'en_mem', 'wen', 'write_data', 'read_data', 'addr_periph']	# SPI
 BUS_SPECS = {
@@ -178,8 +176,6 @@ BUS_SPECS = {
 	'timer0':  {'periph': 'TIMER0', 'ports': BUS_ORDER_A, 'width': 13, 'trailing': None, 'comment': 'slot'},
 	'timer1':  {'periph': 'TIMER1', 'ports': BUS_ORDER_A, 'width': 13, 'trailing': None, 'comment': 'slot'},
 	'npu0':    {'periph': 'NPU', 'ports': None, 'width': None, 'trailing': None, 'comment': 'npu'},
-	'afe0':    {'periph': 'AFE', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'slot'},
-	'saradc0': {'periph': 'SARADC', 'ports': BUS_ORDER_A, 'width': 12, 'trailing': None, 'comment': 'slot'},
 }
 
 # M11 shared-window geometry (the peripheral window at 0x4000; page 0 = the
@@ -252,8 +248,9 @@ class McuVhdEmitter():
 		# 4. Order lists must cover the shared set exactly
 		if set(PG0_SEL_ORDER) != rtlShared:
 			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER does not cover the window-slot peripherals')
-		if len(PG0_SEL_ORDER) != 16 or sorted(self.winSlot(n) for n in PG0_SEL_ORDER) != list(range(16)):
-			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER slots are not exactly 0..15')
+		slots = [self.winSlot(n) for n in PG0_SEL_ORDER]
+		if len(set(slots)) != len(slots) or any(s < 0 or s > 15 for s in slots):
+			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER slots must be unique and within 0..15 (reserved gaps allowed)')
 		if set(RD_ORDER) != rtlShared | rtlNative | set(MEMSLV):
 			raise Exception('MCU.vhd emitter: RD_ORDER does not cover the shared slaves')
 		if set(EN_ORDER) != rtlShared | rtlNative | set(MEMSLV):
@@ -311,6 +308,8 @@ class McuVhdEmitter():
 		for irqbName, desc in self.irqVectors:
 			if irqbName.startswith('IRQB_CLINT_'):
 				continue	# CLINT levels are clint_msip/mtip, declared with the fabric
+			if irqbName.startswith('IRQB_RSVD'):
+				continue	# reserved vector gap (removed peripheral) — tied low via 'others'
 			m = re.match(r'^IRQB_GPIO(\d)_B\d$', irqbName)
 			if m:
 				# One vector declaration per GPIO port, grouped where GPIO0 appears
@@ -338,6 +337,8 @@ class McuVhdEmitter():
 		for irqbName, desc in self.irqVectors:
 			if irqbName.startswith('IRQB_CLINT_'):
 				continue	# emitted below with the M5b comment
+			if irqbName.startswith('IRQB_RSVD'):
+				continue	# reserved vector gap — falls through to 'others => irq_tielow'
 			lines.append(' ' * 12 + irqbName.ljust(16) + '=> ' + self.irqSignalName(irqbName) + ',')
 		lines.append(' ' * 12 + "-- M5b: hart 0's CLINT levels (harts 1-3 get theirs via tile ports)")
 		lines.append(' ' * 12 + 'IRQB_CLINT_MSIP => clint_msip(0),')

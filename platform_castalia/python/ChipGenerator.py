@@ -81,6 +81,8 @@ class ChipGenerator():
 	ENABLE_MUL = None			# Enables/disables the hardware multiplier
 	ENABLE_FAST_MUL = None		# Enables/disables the fast hardware multiplier. If both ENABLE_FAST_MUL and ENABLE_MUL are enabled, the ENABLE_MUL is ignored and the fast hardware multiplier is instantiated
 	ENABLE_DIV = None			# Enables/disables the hardware divider and remainder calculator
+	ENABLE_ATOMICS = None		# Enables/disables the RV32A atomic extension (LR/SC + AMOs) in the vesta core
+	ENABLE_BITMANIP = None		# Enables/disables the Zba/Zbb/Zbs/Zbc bit-manipulation extensions in the vesta core
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
 	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
 	MASKED_IRQ = None			# Any '1' bit corresponds to a permenantely disabled IRQ
@@ -130,7 +132,9 @@ class ChipGenerator():
 		MASKED_IRQ:int,
 		PROGADDR_IRQ:int,
 		lastRamMemorySlotSize:int=None,
-		numHarts:int=1):
+		numHarts:int=1,
+		ENABLE_ATOMICS:bool=True,
+		ENABLE_BITMANIP:bool=True):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -375,6 +379,8 @@ class ChipGenerator():
 		self.ENABLE_MUL = ENABLE_MUL
 		self.ENABLE_FAST_MUL = ENABLE_FAST_MUL
 		self.ENABLE_DIV = ENABLE_DIV
+		self.ENABLE_ATOMICS = ENABLE_ATOMICS
+		self.ENABLE_BITMANIP = ENABLE_BITMANIP
 		self.ENABLE_IRQ_FAST_CONTEXT_SWITCHING = ENABLE_IRQ_FAST_CONTEXT_SWITCHING
 		self.ENABLE_IRQ_QREGS = ENABLE_IRQ_QREGS
 		self.ENABLE_IRQ_TIMER = ENABLE_IRQ_TIMER
@@ -917,6 +923,18 @@ class ChipGenerator():
 			t.AddRow(['#define ENABLE_COUNTERS'])
 		if self.ENABLE_COUNTERS64:
 			t.AddRow(['#define ENABLE_COUNTERS64'])
+		# Core ISA features (the vesta core's ENABLE_* generics; also readable at
+		# run time through the read-only misa CSR, 0x301)
+		if self.ENABLE_MUL:
+			t.AddRow(['#define CORE_ENABLE_MUL'])
+		if self.ENABLE_DIV:
+			t.AddRow(['#define CORE_ENABLE_DIV'])
+		if self.ENABLE_ATOMICS:
+			t.AddRow(['#define CORE_ENABLE_ATOMICS'])
+		if self.COMPRESSED_ISA:
+			t.AddRow(['#define CORE_ENABLE_COMPRESSED'])
+		if self.ENABLE_BITMANIP:
+			t.AddRow(['#define CORE_ENABLE_BITMANIP'])
 		
 		t.AddBlankLines(3)
 		
@@ -2027,6 +2045,18 @@ class ChipGenerator():
 		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
 		t.AddBlankLine()
 
+		# Core ISA feature switches (config-driven): consumed by MCU.vhd's hart_tile
+		# generic maps and threaded down to the vesta core (decode gating + hardware
+		# pruning + the read-only misa CSR). All four tiles MUST get the same values —
+		# the tile is hardened once (M14, one netlist).
+		t.AddLine('-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)', prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_MUL', ': boolean := ' + str(bool(self.ENABLE_MUL)).lower() + ';', '-- M: MUL/MULH/MULHU/MULHSU'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_DIV', ': boolean := ' + str(bool(self.ENABLE_DIV)).lower() + ';', '-- M: DIV/DIVU/REM/REMU + the iterative divider'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ATOMICS', ': boolean := ' + str(bool(self.ENABLE_ATOMICS)).lower() + ';', '-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_COMPRESSED', ': boolean := ' + str(bool(self.COMPRESSED_ISA)).lower() + ';', '-- C: 16-bit instructions'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP)).lower() + ';', '-- Zba/Zbb/Zbs/Zbc'], prefixTabs=1)
+		t.AddBlankLine()
+
 		# GPIO pin-number constants in the RTL's pnum_* spelling
 		for groupComment, portNumber, pins in c['pnums']:
 			t.AddLine('-- ' + groupComment, prefixTabs=1)
@@ -2325,6 +2355,8 @@ class ChipGenerator():
 		chip['ENABLE_MUL'] = self.ENABLE_MUL
 		chip['ENABLE_FAST_MUL'] = self.ENABLE_FAST_MUL
 		chip['ENABLE_DIV'] = self.ENABLE_DIV
+		chip['ENABLE_ATOMICS'] = self.ENABLE_ATOMICS
+		chip['ENABLE_BITMANIP'] = self.ENABLE_BITMANIP
 		chip['ENABLE_IRQ_QREGS'] = self.ENABLE_IRQ_QREGS
 		chip['MASKED_IRQ'] = self.MASKED_IRQ
 		chip['PROGADDR_IRQ'] = self.PROGADDR_IRQ

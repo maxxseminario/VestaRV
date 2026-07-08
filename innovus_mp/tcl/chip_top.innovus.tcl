@@ -36,7 +36,15 @@ set IO_PAD_LEF "/opt/design_kits/TSMC65-IP/tsmc/digital/Back_End/lef/tphn65gpgv2
 set DIE   3000.0   ;# square die edge (Myshkin 3x3 mm reference)
 set RING  135.0    ;# pad depth (pad-cell height, from LEF)
 set PADW   25.0    ;# signal/supply pad width along the row (from LEF)
-set SPAN  [expr {$DIE - 2*$RING}]   ;# usable pad span per side (between corners)
+# Seal-ring zone: Myshkin's pad band is 155 um and PDUW16SDGZ_G is 135 um deep,
+# so the pad outer edge sits 20 um inside the die edge -- that band holds the
+# chip seal ring (SEALRING_3mm, csr_cmn65gp; CORNER_B is in Myshkin's tapeout
+# GDS). Here it is RESERVED (place+route keep-out) + drawn; the real seal-ring
+# metal is GDS-merged from the OA cell at chip assembly (Virtuoso), not placeable
+# as a LEF macro in Innovus.
+set OFF    20.0    ;# die edge -> pad outer edge (Myshkin: 155 - 135)
+set SEALW  10.0    ;# drawn seal-ring band width (representative; inside OFF)
+set SPAN  [expr {$DIE - 2*($OFF + $RING)}]   ;# pad span between inset corners
 
 # --- Reserved core area (M14 assembly is 1400 x 2160), centered ---
 set CORE_W 1400.0
@@ -84,17 +92,19 @@ printStatus "Die [expr {$DIE/1000.0}] x [expr {$DIE/1000.0}] mm, pad ring depth 
 ################################################################################
 
 # Place one pad instance in slot i of n on a given side (block centered on side).
+# Pads are inset by OFF from the die edge (seal-ring zone lives in that band).
 proc place_pad {inst side i n} {
-    global DIE RING PADW SPAN
+    global DIE RING PADW SPAN OFF
     set block [expr {$n * $PADW}]
-    set start [expr {$RING + ($SPAN - $block) / 2.0}]
+    set start [expr {$OFF + $RING + ($SPAN - $block) / 2.0}]
     set lo    [expr {$start + $i * $PADW}]
-    set far   [expr {$DIE - $RING}]
+    set near  $OFF                          ;# outer edge of the pad row
+    set far   [expr {$DIE - $OFF - $RING}]   ;# inner origin for top/right rows
     switch -- $side {
-        bottom { placeInstance $inst $lo  0.0  R0   -fixed }
-        top    { placeInstance $inst $lo  $far R180 -fixed }
-        left   { placeInstance $inst 0.0  $lo  R270 -fixed }
-        right  { placeInstance $inst $far $lo  R90  -fixed }
+        bottom { placeInstance $inst $lo   $near R0   -fixed }
+        top    { placeInstance $inst $lo   $far  R180 -fixed }
+        left   { placeInstance $inst $near $lo   R270 -fixed }
+        right  { placeInstance $inst $far  $lo   R90  -fixed }
         default { error "bad side $side" }
     }
 }
@@ -110,12 +120,13 @@ proc place_side {side padlist} {
     printStatus "Placed $n pads on $side edge"
 }
 
-# --- Corners (PCORNER_G is 135x135; bbox LL at origin) ---
-set far [expr {$DIE - $RING}]
-placeInstance PAD_CORNER_BL 0.0   0.0   R0   -fixed
-placeInstance PAD_CORNER_BR $far  0.0   R90  -fixed
+# --- Corners (PCORNER_G is 135x135; bbox LL at origin; inset by OFF) ---
+set near $OFF
+set far  [expr {$DIE - $OFF - $RING}]
+placeInstance PAD_CORNER_BL $near $near R0   -fixed
+placeInstance PAD_CORNER_BR $far  $near R90  -fixed
 placeInstance PAD_CORNER_TR $far  $far  R180 -fixed
-placeInstance PAD_CORNER_TL 0.0   $far  R270 -fixed
+placeInstance PAD_CORNER_TL $near $far  R270 -fixed
 
 # --- Ordered pad lists per side (analog isolated on the bottom edge) ---
 set BOTTOM [list PAD_avss \
@@ -155,6 +166,30 @@ if {[catch {
     catch {addIoFiller -cell {PFILLER20_G PFILLER10_G PFILLER5_G PFILLER1_G PFILLER05_G PFILLER0005_G} -prefix IOFILL}
 }
 printStatus "IO fillers added"
+
+################################################################################
+# Chip seal ring (representation)
+#
+# The real seal ring is the SEALRING_3mm OA cell (csr_cmn65gp) -- corner +
+# edge-segment structures on every metal + via, GDS-merged at chip assembly
+# (Myshkin's tapeout GDS carries its CORNER_B). It is not a placeable Innovus
+# LEF macro, so here the OFF-wide die-edge band is RESERVED with place + route
+# keep-outs (the correct P&R-side representation: nothing places or routes in
+# the seal-ring zone) and the seal metal itself is drawn in the visualization.
+################################################################################
+set frames [list \
+    [list 0.0            0.0            $DIE           $OFF] \
+    [list 0.0            [expr {$DIE-$OFF}] $DIE        $DIE] \
+    [list 0.0            0.0            $OFF           $DIE] \
+    [list [expr {$DIE-$OFF}] 0.0        $DIE           $DIE]]
+set i 0
+foreach f $frames {
+    lassign $f x0 y0 x1 y1
+    catch {createPlaceBlockage -box $x0 $y0 $x1 $y1 -name SEALRING_$i}
+    catch {createRouteBlk -box $x0 $y0 $x1 $y1 -layer {1 2 3 4 5 6 7 8}}
+    incr i
+}
+printStatus "Seal-ring zone reserved: outer $OFF um band (real cell = SEALRING_3mm, GDS-merge)"
 
 ################################################################################
 # Reserve the core area (M14 assembly footprint), centered
