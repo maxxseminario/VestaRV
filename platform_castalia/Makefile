@@ -13,6 +13,13 @@ PDFLATEX := $(shell command -v pdflatex 2>/dev/null || ls $(HOME)/texlive/*/bin/
 # generated file headers): make chip CHIP_NAME=MyChip
 CHIP_NAME ?=
 
+# Optional configuration file (JSON) produced by docs/chip_configurator.html or
+# written by hand: make chip CONFIG=path/to/config.json
+# It overrides the scalar knobs in python/generate.py (chip name, hart count,
+# register file, ISA generics, memory-region sizes). CHIP_NAME still wins over
+# the file's chipName. See docs/chip_configurator.html for the schema.
+CONFIG ?=
+
 # Default: 'make chip' regenerates the artifacts AND builds the TRM PDF
 all: chip
 
@@ -24,7 +31,8 @@ help:
 	@echo "Available targets:"
 	@echo "  make chip         - Generate the full chip configuration AND its TRM PDF:"
 	@echo "                      headers, linker scripts, drop-in HDL, JSON, TRM LaTeX + PDF"
-	@echo "                      (optional: CHIP_NAME=MyChip renames the chip everywhere)"
+	@echo "                      (optional: CHIP_NAME=MyChip renames the chip everywhere;"
+	@echo "                       CONFIG=cfg.json feeds a docs/chip_configurator.html export)"
 	@echo "  make generate     - Chip artifacts only (no PDF)"
 	@echo "  make pdf          - Compile the Technical Reference Manual PDF only"
 	@echo "  make publish      - Copy the built TRM.pdf to implementations/asic/castalia/docs/"
@@ -42,7 +50,8 @@ help:
 # ---------------------------------------------------------------------------
 generate:
 	@echo "Generating chip artifacts from python/generate.py..."
-	@cd python && CHIP_NAME='$(CHIP_NAME)' python3 generate.py
+	@if [ -n "$(CONFIG)" ]; then echo "  • using config file: $(CONFIG)"; fi
+	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' python3 generate.py
 	@echo ""
 	@echo "✅ Generation complete. Outputs:"
 	@echo "  • out/software/include/MemoryMap.h, periph.S"

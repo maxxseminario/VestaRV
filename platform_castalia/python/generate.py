@@ -13,6 +13,39 @@ from Register import RegisterTemplate, Register
 from BitField import BitField
 from GpioConfigurator import GpioConfigurator
 
+# ---------------------------------------------------------------------------
+# Optional configuration file:  make chip CONFIG=path/to/config.json
+# A small JSON document (produced by docs/chip_configurator.html, or written by
+# hand). EVERY key is OPTIONAL and falls back to the Castalia default in the
+# ChipGenerator(...) call below. Only the documented SCALAR knobs are honored:
+# chip name, hart count, register file, the ISA generics, and the memory-region
+# sizes. The peripheral SET and the hart/arbiter/CLINT INSTANCES are fixed RTL
+# template content (see platform_castalia/CLAUDE.md) and are NOT overridden here
+# — a config that changes them only affects the TRM/headers, never the drop-in
+# RTL. Precedence for the name:  CHIP_NAME env var  >  config file  >  default.
+# ---------------------------------------------------------------------------
+import json
+_CHIP_CONFIG = {}
+_cfgPath = os.environ.get('CHIP_CONFIG', '').strip()
+if _cfgPath:
+	with open(_cfgPath) as _f:
+		_CHIP_CONFIG = json.load(_f)
+	print('[generate] loaded chip configuration from ' + _cfgPath)
+
+def _cfg(dottedKey, default):
+	'''Dotted-path lookup into the loaded JSON config, e.g. _cfg('isa.mul', True).
+	   Returns `default` for any missing key so partial configs are fine.'''
+	node = _CHIP_CONFIG
+	for part in dottedKey.split('.'):
+		if not isinstance(node, dict) or part not in node:
+			return default
+		node = node[part]
+	return node
+
+def _hexLen(nBytes):
+	'''0x-prefixed uppercase-digit length string for a linker-script LENGTH field.'''
+	return '0x' + format(int(nBytes), 'X')
+
 
 ''' Create Memory Map
 
@@ -43,17 +76,17 @@ m = ChipGenerator(
 	chipRootDirectory=chipRootDirectory,
 	# CHIP_NAME env var overrides the chip name everywhere it appears (TRM title page,
 	# headers, prose, generated file headers): `make chip CHIP_NAME=MyChip`
-	asicName=(os.environ.get('CHIP_NAME') or 'Castalia'),
-	asicNameForUserGuide=(os.environ.get('CHIP_NAME') or 'Castalia'),
+	asicName=(os.environ.get('CHIP_NAME') or _cfg('chipName', None) or 'Castalia'),
+	asicNameForUserGuide=(os.environ.get('CHIP_NAME') or _cfg('chipName', None) or 'Castalia'),
 	mcuUserGuideLatexTemplateFileName='TRM.template.tex',
-	numHarts=4,	# 4-hart multiprocessor — drives the TRM's \NumHarts/\NumHartsWord defines and the multi-core feature bullets
+	numHarts=_cfg('numHarts', 4),	# 4-hart multiprocessor — drives the TRM's \NumHarts/\NumHartsWord defines and the multi-core feature bullets
 	romStartAddress=0x0000,
-	romSize=16384,	# 16 KiB
+	romSize=_cfg('memory.romSize', 16384),	# 16 KiB (region 0x0-0x3FFF; do not exceed 0x4000)
 	peripheralMemoryStartAddress=0x4000,
 	peripheralMemorySlotCount=16,
 	registerMemorySlotsPerPeripheralMemorySlot=64, #Bytes between each peripheral's register memory slots.
 	ramStartAddress=0x8000,
-	ramMemorySlotSize=16384,	# 16 KiB
+	ramMemorySlotSize=_cfg('memory.tcmSizePerHart', 16384),	# 16 KiB private TCM/tile (region 0x8000-0xBFFF; do not exceed 0x4000)
 	# Neither 0 nor 1 may be in ramMemorySlotsAvailable. This is because the ROM and the peripheral memory technically take slots 0 and 1.
 	# M11: ONE private TCM per tile (slot 2 = 0x8000-0xBFFF). The old RAM1
 	# slot is the shared NPU staging RAM (an ExtraMemorySection below), and
@@ -70,9 +103,9 @@ m = ChipGenerator(
 	padOutPosLogic=True,
 	padDIRPosLogic=False,
 	padRENPosLogic=False,
-	ENABLE_COUNTERS=False,
-	ENABLE_COUNTERS64=False,
-	ENABLE_REGS_DUALPORT=True,	# TODO: Enable for ASIC synthesis if using a dual port register file, disable for Xilinx Spartan 6 FPGAs
+	ENABLE_COUNTERS=_cfg('isa.counters', False),
+	ENABLE_COUNTERS64=_cfg('isa.counters64', False),
+	ENABLE_REGS_DUALPORT=_cfg('registerFileDualPort', True),	# TODO: Enable for ASIC synthesis if using a dual port register file, disable for Xilinx Spartan 6 FPGAs
 	LATCHED_MEM_RDATA=False,
 	TWO_STAGE_SHIFT=False,
 	BARREL_SHIFTER=False,
@@ -85,26 +118,28 @@ m = ChipGenerator(
 	# vesta's multiplier is single-cycle combinational and its shifter is fixed).
 	# WARNING: disabling ENABLE_ATOMICS on a multi-hart chip breaks the LR/SC +
 	# AMO + (never-LR/SC-a-mutex aside) lock infrastructure the sh tests rely on.
-	COMPRESSED_ISA=True,
-	ENABLE_MUL=True,
-	ENABLE_FAST_MUL=True,
-	ENABLE_DIV=True,
-	ENABLE_ATOMICS=True,
-	ENABLE_BITMANIP=True,
+	COMPRESSED_ISA=_cfg('isa.compressed', True),
+	ENABLE_MUL=_cfg('isa.mul', True),
+	ENABLE_FAST_MUL=_cfg('isa.fastMul', True),
+	ENABLE_DIV=_cfg('isa.div', True),
+	ENABLE_ATOMICS=_cfg('isa.atomics', True),
+	ENABLE_BITMANIP=_cfg('isa.bitmanip', True),
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,
 	MASKED_IRQ=0x00000000,	# 32-bit IRQ mask. Any bit that is a '1' is a permanently disabled interrupt vector
 	PROGADDR_IRQ=0x9000,	# TODO: Set this as the address of the master IRQ handling function (this is NOT the interrupt vector table!!! This is the function that is called whenever ANY interrupt occurs)
-	lastRamMemorySlotSize=16384
+	lastRamMemorySlotSize=_cfg('memory.tcmSizePerHart', 16384)
 )
 
 
 
 # Extra memory sections: the multi-core shared regions (behind the mp_arbiter, all harts)
+_npuRamLen = _cfg('memory.npuStagingRamSize', 0x4000)   # region 0xC000-0xFFFF; do not exceed 0x4000
+_sharedRamLen = _cfg('memory.sharedBulkRamSize', 0x10000)  # region 0x10000-0x1FFFF; do not exceed 0x10000 (extended flash begins at 0x20000)
 m.ExtraMemorySections = [
-	('NPU_RAM (rwx)', ': ORIGIN = 0x0C000, LENGTH = 0x4000', '/* END = 0x0FFFF, SIZE = 16 KiB, NPU staging RAM (arbitrated; NPU-port-muxed during a THINK) */'),
-	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = 0x10000', '/* END = 0x1FFFF, SIZE = 64 KiB, arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */'),
+	('NPU_RAM (rwx)', ': ORIGIN = 0x0C000, LENGTH = ' + _hexLen(_npuRamLen), '/* NPU staging RAM (arbitrated; NPU-port-muxed during a THINK) */'),
+	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = ' + _hexLen(_sharedRamLen), '/* arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */'),
 ]
 
 # Extra hand-written TRM chapters input by the master template (copied into latex/TRM/include/)
