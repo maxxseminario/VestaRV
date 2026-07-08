@@ -3,6 +3,13 @@ use IEEE.std_logic_1164.all;
 use work.constants.all;
 
 entity controller is
+    generic (
+        -- Core ISA feature switches — passed straight through to maindec.
+        ENABLE_MUL      : boolean := true;
+        ENABLE_DIV      : boolean := true;
+        ENABLE_ATOMICS  : boolean := true;
+        ENABLE_BITMANIP : boolean := true
+    );
     port(
         -- ==========================================
         -- System Control
@@ -74,6 +81,12 @@ architecture struct of controller is
     
     -- Main instruction decoder
     component maindec
+        generic (
+            ENABLE_MUL      : boolean := true;
+            ENABLE_DIV      : boolean := true;
+            ENABLE_ATOMICS  : boolean := true;
+            ENABLE_BITMANIP : boolean := true
+        );
         port(
             resetn           : in  std_logic;
             op               : in  std_logic_vector(6 downto 0);
@@ -138,6 +151,12 @@ begin
     -- ==========================================
     -- Decodes instruction opcode and function fields to generate control signals
     md: maindec
+        generic map(
+            ENABLE_MUL      => ENABLE_MUL,
+            ENABLE_DIV      => ENABLE_DIV,
+            ENABLE_ATOMICS  => ENABLE_ATOMICS,
+            ENABLE_BITMANIP => ENABLE_BITMANIP
+        )
         port map(
             resetn           => resetn,
             op               => op,

@@ -4,6 +4,15 @@ use IEEE.NUMERIC_STD.all;
 use work.constants.all;
 
 entity csr_unit is
+    generic (
+        -- Core ISA feature switches — advertised through the read-only misa
+        -- CSR (0x301) so software can probe what this chip was built with.
+        ENABLE_MUL        : boolean := true;
+        ENABLE_DIV        : boolean := true;
+        ENABLE_ATOMICS    : boolean := true;
+        ENABLE_COMPRESSED : boolean := true;
+        ENABLE_BITMANIP   : boolean := true
+    );
     port (
         clk              : in  std_logic;
         resetn           : in  std_logic;
@@ -25,6 +34,30 @@ entity csr_unit is
 end csr_unit;
 
 architecture behave of csr_unit is
+
+    function b2sl(b : boolean) return std_logic is
+    begin
+        if b then
+            return '1';
+        else
+            return '0';
+        end if;
+    end function;
+
+    -- misa: MXL=01 (RV32) in bits 31:30; extension letters A(0), B(1), C(2),
+    -- I(8), M(12). M is advertised only when BOTH mul and div are present
+    -- (the M extension is all-or-nothing per the spec). B (ratified 2024) =
+    -- Zba+Zbb+Zbs, all of which this core implements when ENABLE_BITMANIP
+    -- (Zbc rides the same switch but has no misa letter). Read-only — writes
+    -- are ignored like the other fixed CSRs.
+    constant MISA_VALUE : std_logic_vector(31 downto 0) := (
+        30 => '1',                                -- MXL = 01 (RV32)
+        12 => b2sl(ENABLE_MUL and ENABLE_DIV),    -- M
+        8  => '1',                                -- I (always)
+        2  => b2sl(ENABLE_COMPRESSED),            -- C
+        1  => b2sl(ENABLE_BITMANIP),              -- B = Zba/Zbb/Zbs
+        0  => b2sl(ENABLE_ATOMICS),               -- A
+        others => '0');
 
     -- Performance counters (64-bit)
     signal mcycle     : std_logic_vector(63 downto 0);
@@ -52,6 +85,7 @@ begin
         case csr_addr is
             -- Machine Information Registers (Read-only)
             when CSR_MHARTID   => csr_read_val <= hart_id;
+            when CSR_MISA      => csr_read_val <= MISA_VALUE;
 
             -- Machine Counters (Read/Write)
             when CSR_MCYCLE    => csr_read_val <= mcycle(31 downto 0);

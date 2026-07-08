@@ -6,7 +6,19 @@ use IEEE.NUMERIC_STD.all;
 entity vesta is
     generic (
         PC_RST_VAL : std_logic_vector(31 downto 0) := (others => '0');
-        NUM_IRQS   : natural := 16
+        NUM_IRQS   : natural := 16;
+
+        -- Core ISA feature switches (config-driven via make chip; defaults =
+        -- the full RV32IMAC+Zba/Zbb/Zbs/Zbc core so existing instantiations
+        -- are unchanged). A disabled extension's instructions take the
+        -- illegal-instruction trap path and its hardware (multiplier, the
+        -- iterative divider, c_dec, Zb* ALU logic) is pruned at elaboration.
+        -- The read-only misa CSR (0x301) advertises the enabled set.
+        ENABLE_MUL        : boolean := true;   -- M: MUL/MULH/MULHU/MULHSU
+        ENABLE_DIV        : boolean := true;   -- M: DIV/DIVU/REM/REMU + div unit
+        ENABLE_ATOMICS    : boolean := true;   -- A: LR/SC + AMOs
+        ENABLE_COMPRESSED : boolean := true;   -- C: 16-bit instructions (c_dec)
+        ENABLE_BITMANIP   : boolean := true    -- Zba/Zbb/Zbs/Zbc
     );
     port (
         clk        : in  std_logic;
@@ -68,6 +80,12 @@ architecture struct of vesta is
     -- ==========================================
     
     component controller
+        generic (
+            ENABLE_MUL      : boolean := true;
+            ENABLE_DIV      : boolean := true;
+            ENABLE_ATOMICS  : boolean := true;
+            ENABLE_BITMANIP : boolean := true
+        );
         port (
             resetn           : in  std_logic;
             op               : in  std_logic_vector(6 downto 0);
@@ -107,6 +125,12 @@ architecture struct of vesta is
     end component;
 
     component datapath
+        generic (
+            ENABLE_MUL      : boolean := true;
+            ENABLE_DIV      : boolean := true;
+            ENABLE_ATOMICS  : boolean := true;
+            ENABLE_BITMANIP : boolean := true
+        );
         port (
             clk          : in  std_logic;
             resetn       : in  std_logic;
@@ -175,6 +199,13 @@ architecture struct of vesta is
     end component;
     
     component csr_unit is
+        generic (
+            ENABLE_MUL        : boolean := true;
+            ENABLE_DIV        : boolean := true;
+            ENABLE_ATOMICS    : boolean := true;
+            ENABLE_COMPRESSED : boolean := true;
+            ENABLE_BITMANIP   : boolean := true
+        );
         port (
             clk            : in  std_logic;
             resetn         : in  std_logic;
@@ -717,7 +748,16 @@ architecture struct of vesta is
                 -- EXECUTE State - Main instruction execution
                 -- ==========================================
                 when EXECUTE =>
-                    if pc(1) = '1' then
+                    -- With the C extension disabled a halfword-aligned PC is an
+                    -- instruction-address-misaligned condition (only reachable
+                    -- via a jump/branch to a non-word boundary) — trap instead
+                    -- of decoding garbage instruction halves. The condition is
+                    -- static-false when ENABLE_COMPRESSED, so the default
+                    -- build's FSM is untouched.
+                    if (not ENABLE_COMPRESSED) and pc(1) = '1' then
+                        next_state <= TRAP_STATE;
+                        pc_en <= '0';
+                    elsif pc(1) = '1' then
                         -- Current instruction on half-word boundary
                         if quadrant_upper = "11" or repeat_if = '1' then
                             -- Instruction not compressed or fetching upper half
@@ -1150,6 +1190,12 @@ architecture struct of vesta is
     -- Controller Instance
     -- ==========================================
     controller_inst: controller
+        generic map (
+            ENABLE_MUL      => ENABLE_MUL,
+            ENABLE_DIV      => ENABLE_DIV,
+            ENABLE_ATOMICS  => ENABLE_ATOMICS,
+            ENABLE_BITMANIP => ENABLE_BITMANIP
+        )
         port map (
             resetn           => resetn,
             op               => instr_curr(6 downto 0),
@@ -1206,6 +1252,12 @@ architecture struct of vesta is
     -- Component Instantiations
     -- ==========================================
     datapath_inst: datapath
+        generic map (
+            ENABLE_MUL      => ENABLE_MUL,
+            ENABLE_DIV      => ENABLE_DIV,
+            ENABLE_ATOMICS  => ENABLE_ATOMICS,
+            ENABLE_BITMANIP => ENABLE_BITMANIP
+        )
         port map (
             clk         => clk_cpu,
             resetn      => resetn,
@@ -1261,18 +1313,37 @@ architecture struct of vesta is
             ivt_entry       => ivt_entry
         );
 
-    c_dec_inst: c_dec
-        port map (
-            resetn        => resetn,
-            instr_in      => instr_to_decomp,
-            instr_out     => instr_decomp,
-            is_compressed => is_compressed_cdec
-        );
+    -- The decompressor only exists when the C extension is enabled. Without
+    -- it, instr_decomp is tied to all-zeros — opcode "0000000" is not in
+    -- valid_opcode, so any 16-bit encoding reaching decode traps as an
+    -- illegal instruction (the EXECUTE-state misaligned-PC check catches the
+    -- halfword-aligned fetch case before it gets this far).
+    gen_cdec: if ENABLE_COMPRESSED generate
+        c_dec_inst: c_dec
+            port map (
+                resetn        => resetn,
+                instr_in      => instr_to_decomp,
+                instr_out     => instr_decomp,
+                is_compressed => is_compressed_cdec
+            );
+    end generate;
+
+    gen_no_cdec: if not ENABLE_COMPRESSED generate
+        instr_decomp       <= (others => '0');
+        is_compressed_cdec <= '0';
+    end generate;
 
  
     csr_addr <= instr_curr(31 downto 20);
 
     csr_unit_inst : csr_unit
+        generic map (
+            ENABLE_MUL        => ENABLE_MUL,
+            ENABLE_DIV        => ENABLE_DIV,
+            ENABLE_ATOMICS    => ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => ENABLE_BITMANIP
+        )
         port map (
             clk            => clk,
             resetn         => resetn,

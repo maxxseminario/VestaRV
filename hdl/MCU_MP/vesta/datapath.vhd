@@ -5,6 +5,13 @@ library work;
 use work.constants.ALL;
 
 entity datapath is
+    generic (
+        -- Core ISA feature switches — passed straight through to the ALU.
+        ENABLE_MUL      : boolean := true;
+        ENABLE_DIV      : boolean := true;
+        ENABLE_ATOMICS  : boolean := true;
+        ENABLE_BITMANIP : boolean := true
+    );
     port (
         clk          : in  std_logic;
         resetn       : in  std_logic;
@@ -101,6 +108,12 @@ architecture struct of datapath is
     end component;
 
     component alu
+        generic (
+            ENABLE_MUL      : boolean := true;
+            ENABLE_DIV      : boolean := true;
+            ENABLE_ATOMICS  : boolean := true;
+            ENABLE_BITMANIP : boolean := true
+        );
         port (
             resetn      : in  std_logic;
             clk         : in  std_logic;
@@ -259,6 +272,12 @@ begin
     -- ==========================================
     -- Performs all arithmetic and logical operations including multiply/divide
     mainalu: alu
+        generic map (
+            ENABLE_MUL      => ENABLE_MUL,
+            ENABLE_DIV      => ENABLE_DIV,
+            ENABLE_ATOMICS  => ENABLE_ATOMICS,
+            ENABLE_BITMANIP => ENABLE_BITMANIP
+        )
         port map (
             resetn      => resetn,
             clk         => clk,
