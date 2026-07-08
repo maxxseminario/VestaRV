@@ -57,48 +57,6 @@ architecture behavioral of riscv_tb is
             prt4_dir		: out	std_logic_vector(7 downto 0);
             prt4_ren		: out	std_logic_vector(7 downto 0);
 
-            -- AFE Connections
-            use_dac_glb_bias : out std_logic;
-            -- afe_dac_bias : out std_logic;  -- renamed from use_dac_glb_bias to avoid confusion with DAC global bias
-            en_bias_buf  : out std_logic;
-            en_bias_gen  : out std_logic;
-
-            -- Biasing Connections
-            BIAS_ADJ		: out	std_logic_vector(5 downto 0);	
-            BIAS_DBP		: out	std_logic_vector(13 downto 0);
-            BIAS_DBN		: out	std_logic_vector(13 downto 0);
-            BIAS_DBPC		: out	std_logic_vector(13 downto 0);
-            BIAS_DBNC		: out	std_logic_vector(13 downto 0);
-
-            -- Potentiostat Biases
-            BIAS_TC_POT     : out   std_logic_vector(5 downto 0);
-            BIAS_LC_POT     : out   std_logic_vector(5 downto 0);
-            BIAS_TIA_G_POT  : out   std_logic_vector(16 downto 0); 
-            BIAS_REV_POT    : out   std_logic_vector(13 downto 0);
-
-            -- DSADC Biases
-            BIAS_TC_DSADC  : out   std_logic_vector(5 downto 0);
-            BIAS_LC_DSADC  : out   std_logic_vector(5 downto 0);
-            BIAS_RIN_DSADC : out   std_logic_vector(5 downto 0);
-            BIAS_RFB_DSADC : out   std_logic_vector(5 downto 0);
-            BIAS_DSADC_VCM : out   std_logic_vector(13 downto 0);
-
-            -- DSADC Connections
-            dsadc_conv_done : in std_logic;
-            dsadc_en        : out std_logic;
-            dsadc_clk       : out std_logic;
-            dsadc_switch    : out std_logic_vector(2 downto 0);
-            dac_en_pot      : out std_logic;
-            adc_ext_in      : out std_logic;
-            atp_en          : out std_logic;
-            atp_sel         : out std_logic;
-            adc_sel         : out std_logic;
-
-            -- SARADC Connections
-            saradc_clk      : out std_logic;
-            saradc_rdy      : in std_logic;
-            saradc_rst      : out std_logic;
-            saradc_data     : in std_logic_vector(9 downto 0); 
 
             -- Test Port
             a0  : out std_logic_vector(31 downto 0);
@@ -242,44 +200,6 @@ end component;
     signal cs_flash : std_logic;
 
 
-    -- AFE Connections
-    signal afe_dac_bias :  std_logic;
-    signal use_dac_glb_bias :  std_logic;
-    signal en_bias_buf  :  std_logic;
-    signal en_bias_gen  :  std_logic;
-
-    -- Biasing Signals
-    signal BIAS_ADJ    : std_logic_vector(5 downto 0);
-    signal BIAS_DBP    : std_logic_vector(13 downto 0);
-    signal BIAS_DBN    : std_logic_vector(13 downto 0);
-    signal BIAS_DBPC   : std_logic_vector(13 downto 0);
-    signal BIAS_DBNC   : std_logic_vector(13 downto 0);
-    signal BIAS_TC_POT    : std_logic_vector(5 downto 0);
-    signal BIAS_LC_POT : std_logic_vector(5 downto 0);
-    signal BIAS_TIA_G_POT: std_logic_vector(16 downto 0);
-    signal BIAS_DSADC_VCM : std_logic_vector(13 downto 0);
-    signal BIAS_REV_POT: std_logic_vector(13 downto 0);
-    signal BIAS_TC_DSADC : std_logic_vector(5 downto 0);
-    signal BIAS_LC_DSADC : std_logic_vector(5 downto 0);
-    signal BIAS_RIN_DSADC : std_logic_vector(5 downto 0);
-    signal BIAS_RFB_DSADC : std_logic_vector(5 downto 0);
-
-    -- DSADC Output signals
-    signal dsadc_conv_done : std_logic;
-    signal dsadc_en       : std_logic;
-    signal dsadc_clk      : std_logic;
-    signal dsadc_switch    : std_logic_vector(2 downto 0);
-    signal dac_en_pot      : std_logic;
-    signal adc_ext_in      : std_logic;
-    signal adc_sel         : std_logic;
-    signal atp_en         : std_logic;
-    signal atp_sel        : std_logic;
-
-    -- ADC Output signals 
-    signal saradc_rdy   : std_logic;
-    signal saradc_rst   : std_logic;
-    signal saradc_data  : std_logic_vector(9 downto 0);
-    signal saradc_clk   : std_logic;
 
     
     begin
@@ -322,44 +242,6 @@ end component;
         prt4_dir	=> prt4_dir,
         prt4_ren	=> prt4_ren,
 
-        -- AFE Connections
-        use_dac_glb_bias => use_dac_glb_bias,
-        -- afe_dac_bias => afe_dac_bias,
-        en_bias_buf  => en_bias_buf,
-        en_bias_gen  => en_bias_gen,
-
-        -- Biasing Connections
-        BIAS_ADJ    => BIAS_ADJ,
-        BIAS_DBP    => BIAS_DBP,
-        BIAS_DBN    => BIAS_DBN,
-        BIAS_DBPC   => BIAS_DBPC,
-        BIAS_DBNC   => BIAS_DBNC,
-        BIAS_TC_POT    => BIAS_TC_POT,
-        BIAS_LC_POT => BIAS_LC_POT,
-        BIAS_TIA_G_POT=> BIAS_TIA_G_POT,
-        BIAS_REV_POT=> BIAS_REV_POT,
-        BIAS_TC_DSADC => BIAS_TC_DSADC,
-        BIAS_LC_DSADC => BIAS_LC_DSADC,
-        BIAS_RIN_DSADC => BIAS_RIN_DSADC,
-        BIAS_RFB_DSADC => BIAS_RFB_DSADC,
-        BIAS_DSADC_VCM => BIAS_DSADC_VCM,
-
-        -- DSADC Connections
-        dsadc_conv_done => dsadc_conv_done,
-        dsadc_en        => dsadc_en,
-        dsadc_clk       => dsadc_clk,
-        dsadc_switch    => dsadc_switch,
-        dac_en_pot      => dac_en_pot,
-        adc_ext_in      => adc_ext_in,
-        atp_en          => atp_en,
-        atp_sel         => atp_sel,
-        adc_sel         => adc_sel,
-
-        -- SARADC Connections
-        saradc_clk      => saradc_clk,
-        saradc_rdy      => saradc_rdy,
-        saradc_rst      => saradc_rst,
-        saradc_data     => saradc_data,
 
 
         -- Test Port

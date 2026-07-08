@@ -76,10 +76,21 @@ m = ChipGenerator(
 	LATCHED_MEM_RDATA=False,
 	TWO_STAGE_SHIFT=False,
 	BARREL_SHIFTER=False,
+	# Core ISA feature switches. Since the core-features work (2026-07-08) these are
+	# REAL hardware knobs: they drive the vesta core's ENABLE_* generics through
+	# MemoryMap.vhd's CORE_ENABLE_* constants (decode-gated to the illegal-instruction
+	# trap when off, hardware pruned at elaboration, advertised in the read-only misa
+	# CSR) — as well as the TRM feature list and MemoryMap.h defines, as before.
+	# ENABLE_FAST_MUL/BARREL_SHIFTER/TWO_STAGE_SHIFT remain docs-only (picorv32-era;
+	# vesta's multiplier is single-cycle combinational and its shifter is fixed).
+	# WARNING: disabling ENABLE_ATOMICS on a multi-hart chip breaks the LR/SC +
+	# AMO + (never-LR/SC-a-mutex aside) lock infrastructure the sh tests rely on.
 	COMPRESSED_ISA=True,
 	ENABLE_MUL=True,
 	ENABLE_FAST_MUL=True,
 	ENABLE_DIV=True,
+	ENABLE_ATOMICS=True,
+	ENABLE_BITMANIP=True,
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,
@@ -644,57 +655,16 @@ r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vecto
 
 
 
-''' SARADC '''
-p = PeripheralTemplate(nameTemplate='SARADC', description='10-bit capacitive-DAC (CAPDAC) successive-approximation register analog-to-digital converter', registerPrefix='SARADC', bitFieldPrefix='SARADC', latexIntroFileName='SARADC-intro-myshkin-2025-11.tex', latexFeatureSummary='A 10-bit successive-approximation (SAR) ADC')
-m.AddPeripheralTemplate(p)
-
-# SARADC_CR
-r = RegisterTemplate(nameTemplate='SARADC_CR', registerMemorySlot=0, description='SAR ADC control register', size=16)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=9, unused=True))
-r.AddBitField(BitField(name='SARADCCONTMEAS', msb=8, description='Continuous measurement mode enable', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
-r.AddBitField(BitField(name='SARADCDATAIE', msb=7, description='Data valid interrupt enable', accessibility='rw', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
-r.AddBitField(BitField(name='SARADCDEBUG', msb=6, description='Debug mode', accessibility='rw', valueDescriptions=[(0b0, 'Normal operation'), (0b1, 'Debug mode')]))
-r.AddBitField(BitField(name='SARADCEN', msb=5, description='ADC enable', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
-r.AddBitField(BitField(name='SARADCSAMPLESTEP', msb=4, lsb=1, description='Initial value of the 4-bit sample-phase countdown counter. 0 gives the minimum sample time; larger values extend the sample phase by the corresponding number of clock cycles.', accessibility='rw'))
-r.AddBitField(BitField(name='SARADCRESET', msb=0, description='ADC reset', accessibility='rw', valueDescriptions=[(0b0, 'Normal operation'), (0b1, 'Reset')]))
-
-# SARADC_CDIV
-r = RegisterTemplate(nameTemplate='SARADC_CDIV', registerMemorySlot=1, description='Reserved. This register slot is allocated in the memory map but is not implemented in hardware. Writes are ignored and reads return 0.', size=8)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SARADCCDIV', msb=7, lsb=0, description='Reserved. Not implemented; reads as 0.', accessibility='rw'))
-
-# SARADC_SR
-r = RegisterTemplate(nameTemplate='SARADC_SR', registerMemorySlot=2, description='SAR ADC status register', size=8)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=4, unused=True))
-r.AddBitField(BitField(name='SARADCRDY', msb=3, description='ADC ready', accessibility='r', valueDescriptions=[(0b0, 'ADC not ready'), (0b1, 'ADC ready')]))
-r.AddBitField(BitField(name='SARADCOVF', msb=2, description='ADC overflow interrupt flag', accessibility='rw1', valueDescriptions=[(0b0, 'No overflow'), (0b1, 'Overflow occurred')]))
-r.AddBitField(BitField(name='SARADCDATAVALID', msb=1, description='Data valid flag. Set by hardware when a conversion result is available. Write 1 to clear.', accessibility='rw1', valueDescriptions=[(0b0, 'Data not valid'), (0b1, 'Data valid')]))
-r.AddBitField(BitField(name='SARADCBUSY', msb=0, description='Conversion busy', accessibility='r', valueDescriptions=[(0b0, 'Idle'), (0b1, 'Busy')]))
-
-# SARADC_DATA
-r = RegisterTemplate(nameTemplate='SARADC_DATA', registerMemorySlot=3, description='SAR ADC data register. Holds the most recent 10-bit conversion result. Bits 15:10 read as zero.', size=16)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=10, unused=True))
-r.AddBitField(BitField(name='SARADCDATA', msb=9, lsb=0, description='ADC conversion result (10-bit)', accessibility='r'))
-
-# SARADC_TPR
-r = RegisterTemplate(nameTemplate='SARADC_TPR', registerMemorySlot=4, description='SAR ADC test port register. Selects which internal debug signal is routed to each digital test port when debug mode (DEBUG) is enabled. DTP0SEL (bits 3:0) controls DTP0; DTP1SEL (bits 7:4) controls DTP1. Both outputs are driven to 0 when DEBUG = 0. See the Digital Test Ports section for the full signal index table.', size=8)
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SARADCDTP1SEL', msb=7, lsb=4, description='Digital test port 1 select', accessibility='rw'))
-r.AddBitField(BitField(name='SARADCDTP0SEL', msb=3, lsb=0, description='Digital test port 0 select', accessibility='rw'))
+''' SARADC (REMOVED) '''
+# SARADC removed from Castalia (digital-only chip). Peripheral window slot 11
+# (0x4B00) and IRQ vector 56 are left as RESERVED GAPS — no other peripheral
+# address or vector number moves.
 
 
 
 ''' Opamp (NOT INCLUDED IN VESTARV - REMOVED) '''
 # Removed DAC, Opamp, PCT peripherals - not present in vestarv chip
-# AFE peripheral IS included in vestarv
+# AFE/SARADC removed from Castalia (digital-only) — see the reserved-gap notes above
 
 
 
@@ -742,164 +712,10 @@ r.AddBitField(BitField(name='PCTCNT3', msb=31, lsb=0, accessibility='r'))
 
 
 
-''' AFE '''
-p = PeripheralTemplate(nameTemplate='AFE', description='Dual-slope integrating ADC (DSADC) and potentiostat analog front end with programmable bias generation.', registerPrefix='AFE', bitFieldPrefix='AFE_', latexIntroFileName='AFE-intro-myshkin-2025-11.tex', latexFeatureSummary='A dual-slope integrating ADC and potentiostat analog front end with programmable bias generation')
-m.AddPeripheralTemplate(p)
-
-# AFE_CR
-r = RegisterTemplate(nameTemplate='AFE_CR', registerMemorySlot=0, size=32, description='AFE control register. Controls the DSADC, potentiostat, and analog test port. Bits 7:5 are not routed to any internal signal and should be written 0.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=31, lsb=24, unused=True))
-r.AddBitField(BitField(name='AFE_RAMPNUM', msb=23, lsb=12, description='Number of DSADC ramp cycles per conversion (12-bit). Larger values give longer integration time and increased sensitivity at the cost of conversion speed.', accessibility='rw'))
-r.AddBitField(BitField(name='AFE_ADCSEL', msb=11, description='ADC output multiplexer select.', accessibility='rw', valueDescriptions=[(0b0, 'DSADC result'), (0b1, 'SARADC result')]))
-r.AddBitField(BitField(name='AFE_ATPSEL', msb=10, description='Analog test port signal select.', accessibility='rw', valueDescriptions=[(0b0, 'Potentiostat output'), (0b1, 'DSADC output')]))
-r.AddBitField(BitField(name='AFE_ATPEN', msb=9, description='Analog test port enable.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
-r.AddBitField(BitField(name='AFE_ADCEXTIN', msb=8, description='DSADC input source select.', accessibility='rw', valueDescriptions=[(0b0, 'External pin'), (0b1, 'Potentiostat output pad')]))
-r.AddBitField(BitField(msb=7, lsb=5, unused=True))
-r.AddBitField(BitField(name='AFE_CONTMEAS', msb=4, description='Continuous measurement mode. When set, the DSADC restarts automatically after each conversion without a software trigger.', accessibility='rw', valueDescriptions=[(0b0, 'Single conversion (triggered by writing AFE_ADC_VAL)'), (0b1, 'Continuous')]))
-r.AddBitField(BitField(name='AFE_DACEN', msb=3, description='Enable the bias DACs for DSADC common-mode voltage (BIAS_DSADC_VCM) and potentiostat reference electrode voltage (BIAS_REV_POT). Must be set before starting a conversion.', accessibility='rw', valueDescriptions=[(0b0, 'DACs disabled'), (0b1, 'DACs enabled')]))
-r.AddBitField(BitField(name='AFE_DATARDYIE', msb=2, description='Data-ready interrupt enable. When 1, an IRQ is generated when DATARDYIF is set.', accessibility='rw', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
-r.AddBitField(BitField(name='AFE_EN', msb=1, description='AFE enable. Gates the AFE peripheral clock. Must be 1 for any AFE operation.', accessibility='rw', valueDescriptions=[(0b0, 'AFE clock disabled'), (0b1, 'AFE clock enabled')]))
-r.AddBitField(BitField(name='AFE_ADCEN', msb=0, description='DSADC enable. Must be 1 before triggering a conversion.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
-
-# AFE_TPR
-r = RegisterTemplate(nameTemplate='AFE_TPR', registerMemorySlot=1, size=32, description='AFE test port register. Four 5-bit fields select which internal debug signal is driven onto each of the four digital test ports DTP0-DTP3. See the Digital Test Ports section for the full signal index table.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=31, lsb=20, unused=True))
-r.AddBitField(BitField(name='AFE_DTP3SEL', msb=19, lsb=15, description='Digital test port 3 signal select (5-bit index into the debug vector)', accessibility='rw'))
-r.AddBitField(BitField(name='AFE_DTP2SEL', msb=14, lsb=10, description='Digital test port 2 signal select', accessibility='rw'))
-r.AddBitField(BitField(name='AFE_DTP1SEL', msb=9, lsb=5, description='Digital test port 1 signal select', accessibility='rw'))
-r.AddBitField(BitField(name='AFE_DTP0SEL', msb=4, lsb=0, description='Digital test port 0 signal select', accessibility='rw'))
-
-# AFE_SR
-r = RegisterTemplate(nameTemplate='AFE_SR', registerMemorySlot=2, size=8, description='AFE status register.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=3, unused=True))
-r.AddBitField(BitField(name='AFE_OVFIF', msb=2, description='Overflow interrupt flag. Set when a conversion completes while DATARDYIF is still set. Write 1 to clear.', accessibility='rw1', valueDescriptions=[(0b0, 'No overflow'), (0b1, 'Overflow: previous result was not read before new conversion completed')]))
-r.AddBitField(BitField(name='AFE_DATARDYIF', msb=1, description='Data-ready interrupt flag. Set by hardware when a DSADC conversion completes. Write 1 to clear.', accessibility='rw1', valueDescriptions=[(0b0, 'No data ready'), (0b1, 'Conversion result available in AFE_ADC_VAL')]))
-r.AddBitField(BitField(name='AFE_ADCACTIVE', msb=0, description='ADC active flag. High while the DSADC FSM is running a conversion.', accessibility='r', valueDescriptions=[(0b0, 'Idle'), (0b1, 'Conversion in progress')]))
-
-# AFE_ADC_VAL
-r = RegisterTemplate(nameTemplate='AFE_ADC_VAL', registerMemorySlot=3, size=16, description='DSADC result register. Reading returns the 12-bit result of the most recent conversion in bits 11:0; bits 15:12 read as zero. Writing any value to this register (when ADCEN = 1 and CONTMEAS = 0) triggers a new single-shot conversion.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=12, unused=True))
-r.AddBitField(BitField(name='AFE_ADCVAL', msb=11, lsb=0, description='12-bit DSADC conversion result. Represents the number of ramp clock cycles counted before the comparator fired.', accessibility='r'))
-
-# BIAS_CR
-r = RegisterTemplate(nameTemplate='BIAS_CR', registerMemorySlot=4, size=8, description='Bias control register. Selects the bias source (internal generator or DACs) and enables the generator and its output buffers.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=5, unused=True))
-r.AddBitField(BitField(name='USEDAC', msb=4, description='Bias source select.', accessibility='rw', valueDescriptions=[(0b0, 'Internal bias generator (use BIAS_ADJ to trim)'), (0b1, 'Bias DACs (BIAS_DBP/DBPC/DBN/DBNC)')]))
-r.AddBitField(BitField(name='BUFEN', msb=3, description='Bias voltage buffer enable. Enables the output buffers on the internal global bias voltages.', accessibility='rw', valueDescriptions=[(0b0, 'Buffers disabled'), (0b1, 'Buffers enabled')]))
-r.AddBitField(BitField(name='EN', msb=2, description='Internal bias generator enable.', accessibility='rw', valueDescriptions=[(0b0, 'Generator disabled'), (0b1, 'Generator enabled')]))
-r.AddBitField(BitField(msb=1, lsb=0, unused=True))
-
-# BIAS_ADJ
-r = RegisterTemplate(nameTemplate='BIAS_ADJ', registerMemorySlot=5, size=8, description='Wide-swing cascode bias generator adjustment register. Higher codes produce smaller bias currents (smaller voltage across the bias resistor). Used when BIAS_USEDAC = 0. The nominal trim code depends on process corner; see characterization data.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='ADJ', msb=5, lsb=0, description='6-bit bias generator trim code (nominal = 37).', accessibility='rw'))
-
-# BIAS_DBP
-r = RegisterTemplate(nameTemplate='BIAS_DBP', registerMemorySlot=6, size=16, description='P-branch bias DAC register. Sets the global V_bp voltage for PMOS current sources when BIAS_USEDAC = 1.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=14, unused=True))
-r.AddBitField(BitField(name='DBP', msb=13, lsb=0, description='14-bit P bias DAC code.', accessibility='rw'))
-
-# BIAS_DBPC
-r = RegisterTemplate(nameTemplate='BIAS_DBPC', registerMemorySlot=7, size=16, description='P-cascode bias DAC register. Sets the global V_bpc voltage for PMOS cascode transistors when BIAS_USEDAC = 1.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=14, unused=True))
-r.AddBitField(BitField(name='DBPC', msb=13, lsb=0, description='14-bit P cascode bias DAC code.', accessibility='rw'))
-
-# BIAS_DBNC
-r = RegisterTemplate(nameTemplate='BIAS_DBNC', registerMemorySlot=8, size=16, description='N-cascode bias DAC register. Sets the global V_bnc voltage for NMOS cascode transistors when BIAS_USEDAC = 1.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=14, unused=True))
-r.AddBitField(BitField(name='DBNC', msb=13, lsb=0, description='14-bit N cascode bias DAC code.', accessibility='rw'))
-
-# BIAS_DBN
-r = RegisterTemplate(nameTemplate='BIAS_DBN', registerMemorySlot=9, size=16, description='N-branch bias DAC register. Sets the global V_bn voltage for NMOS current sources when BIAS_USEDAC = 1.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=14, unused=True))
-r.AddBitField(BitField(name='DBN', msb=13, lsb=0, description='14-bit N bias DAC code.', accessibility='rw'))
-
-# BIAS_TC_POT
-r = RegisterTemplate(nameTemplate='BIAS_TC_POT', registerMemorySlot=10, size=8, description='Potentiostat TIA tail-current bias trim register. Sets the quiescent current in the two-stage op-amp (A2) used as the transimpedance amplifier. Larger codes produce smaller currents.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='TC_POT', msb=5, lsb=0, description='6-bit tail-current trim code for the potentiostat TIA amplifier (A2).', accessibility='rw'))
-
-# BIAS_LC_POT
-r = RegisterTemplate(nameTemplate='BIAS_LC_POT', registerMemorySlot=11, size=8, description='Potentiostat TIA Miller lead-compensation resistor trim register. The two-stage op-amp (A2) uses a Miller capacitor with a series resistor Rc to improve phase margin. This register trims Rc to cancel right-half-plane zeros introduced by process variation.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='LC_POT', msb=5, lsb=0, description='6-bit Miller lead-compensation resistor Rc trim code for the potentiostat TIA (A2).', accessibility='rw'))
-
-# BIAS_TIA_G_POT
-r = RegisterTemplate(nameTemplate='BIAS_TIA_G_POT', registerMemorySlot=12, size=32, description='Potentiostat TIA feedback resistor Rf register. Encoded as a 17-bit thermometer code controlling 16 series 60 kohm resistors plus one 1 Mohm resistor; each bit closes a parallel analog switch that shorts the corresponding resistor. Asserting more bits reduces Rf and therefore lowers TIA gain, increasing the measurable current range. Maximum gain (Rf = ~2 Mohm, sensitivity = ~56 pA) requires all bits clear (0x00000); minimum gain requires all bits set (0x1FFFF, reset value).')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=31, lsb=17, unused=True))
-r.AddBitField(BitField(name='TIA_G_POT', msb=16, lsb=0, description='17-bit TIA gain resistance DAC code.', accessibility='rw'))
-
-# BIAS_DSADC_VCM
-r = RegisterTemplate(nameTemplate='BIAS_DSADC_VCM', registerMemorySlot=13, size=16, description='Analog common-mode voltage (v_cm) DAC register. The generated voltage is applied to the non-inverting inputs of both the control amplifier (A1) and the TIA (A2), centring the output swing at V_DD/2 for single-supply operation. Midscale code 8192 produces V_DD/2. Must be enabled via DACEN (AFE_CR bit 3) before starting a conversion.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=14, unused=True))
-r.AddBitField(BitField(name='DSADC_VCM', msb=13, lsb=0, description='14-bit v_cm R-2R DAC code. Midscale = 8192 gives V_DD/2.', accessibility='rw'))
-
-# BIAS_REV_POT
-r = RegisterTemplate(nameTemplate='BIAS_REV_POT', registerMemorySlot=14, size=16, description='Potentiostat excitation voltage (v_pattern) DAC register. The generated voltage is applied to the non-inverting input of the folded-cascode control amplifier (A1), which drives the counter electrode such that V_RE = v_pattern. Programming this register sets the working-to-reference electrode potential. For cyclic voltammetry, firmware increments or decrements this register over time; for chronoamperometry, it is stepped once to the desired overpotential. Must be enabled via DACEN (AFE_CR bit 3).')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=15, lsb=14, unused=True))
-r.AddBitField(BitField(name='REV_POT', msb=13, lsb=0, description='14-bit v_pattern R-2R DAC code. Sets the WE-RE electrode potential.', accessibility='rw'))
-
-# BIAS_TC_DSADC
-r = RegisterTemplate(nameTemplate='BIAS_TC_DSADC', registerMemorySlot=15, size=8, description='DSADC bias current source (BTS) trim register.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='TC_DSADC', msb=5, lsb=0, description='6-bit tail-current trim code for the DSADC integrating amplifier.', accessibility='rw'))
-
-# BIAS_LC_DSADC
-r = RegisterTemplate(nameTemplate='BIAS_LC_DSADC', registerMemorySlot=16, size=8, description='DSADC integrating amplifier Miller lead-compensation resistor trim register. Adjusts the Rc zero-placement for proper phase margin in the two-stage integrator op-amp.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='LC_DSADC', msb=5, lsb=0, description='6-bit Miller lead-compensation resistor Rc trim code for the DSADC integrating amplifier.', accessibility='rw'))
-
-# BIAS_RIN_DSADC
-r = RegisterTemplate(nameTemplate='BIAS_RIN_DSADC', registerMemorySlot=17, size=8, description='DSADC integration resistor R1 trim register. R1 and the integration capacitor C1 define the ramp slope during the integration phase. On-chip resistors can vary up to +/-20% from nominal; this 6-bit trim code corrects the R1 value to maintain the desired R1*C1 time constant.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='RIN_DSADC', msb=5, lsb=0, description='6-bit R1 trim code for the DSADC integration resistor.', accessibility='rw'))
-
-# BIAS_RFB_DSADC
-r = RegisterTemplate(nameTemplate='BIAS_RFB_DSADC', registerMemorySlot=18, size=8, description='DSADC lead-compensation resistor R2 trim register. R2 is placed in series with the integration capacitor C1 to mitigate integrator output overshoot at the transition from integration to deintegration phase. On-chip resistors can vary up to +/-20% from nominal; this 6-bit trim code corrects R2 accordingly.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(msb=7, lsb=6, unused=True))
-r.AddBitField(BitField(name='RFB_DSADC', msb=5, lsb=0, description='6-bit R2 lead-compensation resistor trim code for the DSADC.', accessibility='rw'))
-
-
-
-
+''' AFE (REMOVED) '''
+# AFE (DSADC + potentiostat analog front end) removed from Castalia
+# (digital-only chip). Peripheral window slot 12 (0x4C00) and IRQ vector 55
+# are left as RESERVED GAPS — no other peripheral address or vector moves.
 
 
 ''' CLINT (multi-core core-local interruptor, shared window at 0x11000) '''
@@ -996,8 +812,8 @@ m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=None
 GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=None, interruptPriority=36, absoluteBaseAddress=0x4800, legacySlot=8, sharedBus='periph', clockDomain='mclk')	# GPIO2 shared (slot 8)
 m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=None, interruptPriority=0, absoluteBaseAddress=0x4900, legacySlot=9, sharedBus='periph', clockDomain='mclk', strobeNote='SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK itself: quiesce the other harts before clock reconfiguration (software contract)')	# SYSTEM (M11 shared; clock/power/WDT monarch — hart-0 management by convention)
 m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='vectors live in the shared NPU staging RAM at 0xC000; do not touch 0xC000-0xFFFF during a THINK — poll NPUCR bit 16')	# NPU register bus shared (slot 10); data path = the 0xC000 staging RAM
-m.CreatePeripheral(nameTemplate='SARADC', nameIndex='', peripheralMemorySlot=None, interruptPriority=56, absoluteBaseAddress=0x4B00, legacySlot=11, sharedBus='periph', clockDomain='smclk')	# SARADC (M11 shared; analog stays in the control plane per user decision)
-m.CreatePeripheral(nameTemplate='AFE', nameIndex='', peripheralMemorySlot=None, interruptPriority=55, absoluteBaseAddress=0x4C00, legacySlot=12, sharedBus='periph', clockDomain='smclk')	# AFE (M11 shared; analog stays in the control plane per user decision)
+# SARADC removed (slot 11 / vector 56 reserved gap)
+# AFE removed (slot 12 / vector 55 reserved gap)
 GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=None, interruptPriority=44, absoluteBaseAddress=0x4D00, legacySlot=13, sharedBus='periph', clockDomain='mclk')	# GPIO3 shared (slot 13)
 m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=57, absoluteBaseAddress=0x4E00, legacySlot=14, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C0 shared (slot 14)
 m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=70, absoluteBaseAddress=0x4F00, legacySlot=15, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C1 shared (slot 15)
@@ -1176,8 +992,6 @@ GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3
 _mcuMpPeriphSlotSpelling = {
 	'SYSTEM': 'System0',
 	'NPU': 'NPU0',
-	'SARADC': 'SARADC0',
-	'AFE': 'AFE0',
 }
 
 # Memory block slot assignments (hdl/MCU_MP/MemoryMap.vhd "Memory Block Memory Slot
@@ -1259,8 +1073,8 @@ for _p in (1, 2, 3):
 _mcuMpIrqVectors.append(('IRQB_UART1_RC', 'UART1 Receive Complete Interrupt'))
 _mcuMpIrqVectors.append(('IRQB_UART1_TE', 'UART1 Transmission Buffer Empty Interrupt'))
 _mcuMpIrqVectors.append(('IRQB_UART1_TC', 'UART1 Transmission Complete Interrupt'))
-_mcuMpIrqVectors.append(('IRQB_AFE0_RC', 'AFE0 Receive Complete Interrupt'))
-_mcuMpIrqVectors.append(('IRQB_SAR0_RC', 'SARADC0 Conversion Complete Interrupt'))
+_mcuMpIrqVectors.append(('IRQB_RSVD55', 'Reserved (vector 55; formerly AFE0 Receive Complete)'))
+_mcuMpIrqVectors.append(('IRQB_RSVD56', 'Reserved (vector 56; formerly SARADC0 Conversion Complete)'))
 # I2C vector suffixes are lowercase in the RTL except STR — copied verbatim
 for _i in (0, 1):
 	for _sfx, _desc in [
@@ -1291,8 +1105,6 @@ _mcuMpIrqFirstVector = {
 	'UART1': 'IRQB_UART1_RC',
 	'TIMER0': 'IRQB_TIM0_CAP0',
 	'TIMER1': 'IRQB_TIM1_CAP0',
-	'AFE': 'IRQB_AFE0_RC',
-	'SARADC': 'IRQB_SAR0_RC',
 	'I2C0': 'IRQB_I2C0_STR',
 	'I2C1': 'IRQB_I2C1_STR',
 	'CLINT': 'IRQB_CLINT_MSIP',

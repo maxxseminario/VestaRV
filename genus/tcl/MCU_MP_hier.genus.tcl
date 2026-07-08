@@ -134,9 +134,6 @@ read_hdl -vhdl -library work $MP/periph/I2C.vhd
 read_hdl -vhdl -library work $MP/periph/TIMER.vhd
 read_hdl -vhdl -library work $MP/periph/SYSTEM.vhd
 read_hdl -vhdl -library work $MP/periph/NPU.vhd
-read_hdl -vhdl -library work $MP/periph/SARADC.vhd
-read_hdl -vhdl -library work $MP/periph/AFE_FSM.vhd
-read_hdl -vhdl -library work $MP/periph/AFE.vhd
 
 # --- Multi-core infrastructure (control plane only -- NO vesta, NO adddec,
 # NO hart_tile: the tile is the hardened block) ---

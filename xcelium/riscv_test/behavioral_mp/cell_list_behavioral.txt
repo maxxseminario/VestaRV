@@ -22,9 +22,6 @@
 ../../../hdl/MCU_MP/periph/TIMER.vhd
 ../../../hdl/MCU_MP/periph/SYSTEM.vhd
 ../../../hdl/MCU_MP/periph/NPU.vhd
-../../../hdl/MCU_MP/periph/SARADC.vhd
-../../../hdl/MCU_MP/periph/AFE_FSM.vhd 
-../../../hdl/MCU_MP/periph/AFE.vhd
 ../../../hdl/MCU_MP/vesta/div.vhd
 ../../../hdl/MCU_MP/vesta/alu.vhd
 ../../../hdl/MCU_MP/vesta/extend.vhd
