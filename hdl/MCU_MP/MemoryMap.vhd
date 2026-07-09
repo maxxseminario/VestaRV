@@ -87,6 +87,14 @@ package MemoryMap is
 	constant RegSlotPxIE			: natural := 08;	-- offset = 32 bytes
 	constant RegSlotPxSEL			: natural := 09;	-- offset = 36 bytes
 	constant RegSlotPxREN			: natural := 10;	-- offset = 40 bytes
+	constant RegSlotPxAFS			: natural := 11;	-- offset = 44 bytes
+
+	-- Number of alternate-function planes per GPIO pin (AF0..AF7). PxSEL picks
+	-- GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low
+	-- 3 bits used) picks WHICH alternate function drives the pad. AF0 is the
+	-- legacy single alternate function, so PxAFS=0 reproduces the historic
+	-- behavior and PxSEL-only software is unaffected.
+	constant GPIO_NUM_AFS			: natural := 8;
 
 	-- SPIx
 	constant RegSlotSPIxCR			: natural := 00;	-- offset = 0 bytes
@@ -252,24 +260,28 @@ package MemoryMap is
 	constant RstValP1DIR	: std_logic_vector(31 downto 0) := X"00000041";	-- only cs0, and trap is an output
 	constant RstValP1SEL	: std_logic_vector(31 downto 0) := X"0000004E";	-- all alt fn except boot, cs0
 	constant RstValP1REN	: std_logic_vector(31 downto 0) := X"00000080";	-- only boot has pullup/pulldown - should default to '1' to load from flash
+	constant RstValP1AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (legacy alternate function) at reset
 
 	-- GPIO1
 	constant RstValP2OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
 	constant RstValP2DIR	: std_logic_vector(31 downto 0) := X"00000010";	-- tx0 is output
 	constant RstValP2SEL	: std_logic_vector(31 downto 0) := X"00000030";	-- uart0 default to alt fn
 	constant RstValP2REN	: std_logic_vector(31 downto 0) := X"00000000";	-- disable rens
+	constant RstValP2AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (legacy alternate function) at reset
 
 	-- GPIO2
 	constant RstValP3OUT	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP3DIR	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP3SEL	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP3REN	: std_logic_vector(31 downto 0) := X"00000000";
+	constant RstValP3AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (legacy alternate function) at reset
 
 	-- GPIO3
 	constant RstValP4OUT	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4DIR	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4SEL	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4REN	: std_logic_vector(31 downto 0) := X"00000000";
+	constant RstValP4AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (legacy alternate function) at reset
 
 
 
@@ -1073,6 +1085,36 @@ package MemoryMap is
 	constant pnum_gpio3_dtp1		: natural := 05;						-- P4.5
 	constant pnum_gpio3_dtp2		: natural := 06;						-- P4.6
 	constant pnum_gpio3_dtp3		: natural := 07;						-- P4.7
+
+	-- AF1 Pin Assignments (multi-AF planes; the constants above are AF0).
+	-- A pin drives its AF<k> function when PxSEL(pin)='1' and the pin's PxAFS
+	-- field = k. Unassigned AF slots behave as high-impedance inputs.
+	-- GPIO0 (P1) deliberately has no AF1+ functions (flash/clock/boot straps).
+	-- GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation
+	constant pnum_gpio1_af1_t0_cmp0	: natural := 00;						-- P2.0
+	constant pnum_gpio1_af1_t0_cmp1	: natural := 01;						-- P2.1
+	constant pnum_gpio1_af1_t1_cmp0	: natural := 02;						-- P2.2
+	constant pnum_gpio1_af1_t1_cmp1	: natural := 03;						-- P2.3
+	constant pnum_gpio1_af1_sda0	: natural := 06;						-- P2.6
+	constant pnum_gpio1_af1_scl0	: natural := 07;						-- P2.7
+
+	-- GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations
+	constant pnum_gpio2_af1_tx1		: natural := 00;						-- P3.0
+	constant pnum_gpio2_af1_rx1		: natural := 01;						-- P3.1
+	constant pnum_gpio2_af1_sda1	: natural := 02;						-- P3.2
+	constant pnum_gpio2_af1_scl1	: natural := 03;						-- P3.3
+	constant pnum_gpio2_af1_tx0		: natural := 04;						-- P3.4
+	constant pnum_gpio2_af1_rx0		: natural := 05;						-- P3.5
+
+	-- GPIO3 (P4) AF1: TIMER capture + compare relocations
+	constant pnum_gpio3_af1_t0_cap0	: natural := 00;						-- P4.0
+	constant pnum_gpio3_af1_t0_cap1	: natural := 01;						-- P4.1
+	constant pnum_gpio3_af1_t1_cap0	: natural := 02;						-- P4.2
+	constant pnum_gpio3_af1_t1_cap1	: natural := 03;						-- P4.3
+	constant pnum_gpio3_af1_t0_cmp0	: natural := 04;						-- P4.4
+	constant pnum_gpio3_af1_t0_cmp1	: natural := 05;						-- P4.5
+	constant pnum_gpio3_af1_t1_cmp0	: natural := 06;						-- P4.6
+	constant pnum_gpio3_af1_t1_cmp1	: natural := 07;						-- P4.7
 
 
 

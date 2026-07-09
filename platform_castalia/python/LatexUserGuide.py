@@ -541,17 +541,17 @@ class LatexUserGuide():
 				gpioPeripherals.append(p)
 		
 		# Create the GPIO pins configuration table
-		s = '\\begin{longtable}[c]{ l l l l l l l }\n'
+		s = '\\begin{longtable}[c]{ l l l l l l l l }\n'
 		s += '\\caption{GPIO Pins} \\label{t:gpio-pins} \\\\ \n'
 
-		s += '\\hline & \\textbf{Primary} & \\textbf{Secondary} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{4-7}\n'
-		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\  \\hline \\endfirsthead\n'
+		s += '\\hline & \\textbf{Primary} & \\textbf{Alternate} & \\textbf{Additional Alternate} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{5-8}\n'
+		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function (AF0)} & \\textbf{Functions (PxAFS)} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\  \\hline \\endfirsthead\n'
 
-		s += '\\multicolumn{7}{c}{\\textit{\\tablename\ \\thetable\ continued from previous page}} \\\\ \\hline\n'
-		s += ' & \\textbf{Primary} & \\textbf{Secondary} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{4-7}\n'
-		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\ \\hline \\endhead\n'
+		s += '\\multicolumn{8}{c}{\\textit{\\tablename\ \\thetable\ continued from previous page}} \\\\ \\hline\n'
+		s += ' & \\textbf{Primary} & \\textbf{Alternate} & \\textbf{Additional Alternate} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{5-8}\n'
+		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function (AF0)} & \\textbf{Functions (PxAFS)} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\ \\hline \\endhead\n'
 
-		s += '\\hline \\multicolumn{7}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
+		s += '\\hline \\multicolumn{8}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
 
 		thisRowColored = False
 
@@ -562,19 +562,24 @@ class LatexUserGuide():
 				if thisRowColored:
 					s += '\\rowcolor{tablehighlightcolor} '
 				s += 'P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber) + ' & '
-				
+
 				if len(pin.PrimaryName) > 0:
 					s += '\\pin{' + fmttex(pin.PrimaryName) + '} & '
 				else:
 					s += '-- & '
-				
+
 				if len(pin.FuncName) > 0:
 					s += '\\pin{' + fmttex(pin.FuncName) + '} & '
 				else:
 					s += '-- & '
-				
+
+				if len(pin.AltFuncs) > 0:
+					s += ', '.join(['AF' + str(af.Index) + ': \\pin{' + fmttex(af.Name) + '}' for af in pin.AltFuncs]) + ' & '
+				else:
+					s += '-- & '
+
 				if pin.RstSEL == 1:
-					s += '1 \\textit{(Secondary)} & '
+					s += '1 \\textit{(Alternate)} & '
 				else:
 					s += '0 \\textit{(Primary)} & '
 				

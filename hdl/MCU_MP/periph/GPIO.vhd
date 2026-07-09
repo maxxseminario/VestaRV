@@ -20,8 +20,9 @@ entity GPIO is
 		-- While these all must be 32-bits wide, if your GPIO port is smaller than 32-bits, you only need to set the LSB bits that correspond to how many bits you're actually using. For instance, if you set num_pins to 8, you only need to set RstVal*(7 downto 0) with values. All remaining bits (others) are don't cares, but need to be set to something (presumably '0's)
 		RstValPxOUT		: 		std_logic_vector(31 downto 0) := (others => '0');
 		RstValPxDIR		: 		std_logic_vector(31 downto 0) := (others => '0');
-		RstValPxSEL		: 		std_logic_vector(31 downto 0) := (others => '0');	
-		RstValPxREN		: 		std_logic_vector(31 downto 0) := (others => '0')
+		RstValPxSEL		: 		std_logic_vector(31 downto 0) := (others => '0');
+		RstValPxREN		: 		std_logic_vector(31 downto 0) := (others => '0');
+		RstValPxAFS		: 		std_logic_vector(31 downto 0) := (others => '0')	-- One nibble per pin (low 3 bits used): which alt-function plane the pin selects at reset
 	);
 	port
 	(
@@ -45,11 +46,16 @@ entity GPIO is
 		PxOUT_out		: out	std_logic_vector(num_pins - 1 downto 0);
 		PxDIR_out		: out	std_logic_vector(num_pins - 1 downto 0);
 		PxREN_out		: out	std_logic_vector(num_pins - 1 downto 0);
+		PxSEL_out		: out	std_logic_vector(num_pins - 1 downto 0);	-- Exported so the SoC can route relocated peripheral INPUTS
+		PxAFS_out		: out	std_logic_vector(3 * num_pins - 1 downto 0);	-- Exported AF select, 3 bits per pin (packed, no reserved nibble bit)
 
         -- Alternate Function Pin Signals
-		alt_func_out_in		: in	std_logic_vector(num_pins - 1 downto 0);	-- The alt func's desired output signals
-		alt_func_dir_in		: in	std_logic_vector(num_pins - 1 downto 0);	-- The alt func's desired data direction
-		alt_func_ren_in		: in	std_logic_vector(num_pins - 1 downto 0)	-- The alt func's desired resistor enable state
+        -- GPIO_NUM_AFS planes, flattened: plane k, pin i lives at bit (k * num_pins + i).
+        -- Plane 0 (AF0) is the legacy single alternate function; a pin in alternate
+        -- mode (PxSEL(i)='1') drives the plane selected by its PxAFS field.
+		alt_func_out_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt funcs' desired output signals
+		alt_func_dir_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt funcs' desired data direction
+		alt_func_ren_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0)	-- The alt funcs' desired resistor enable state
 
     );
 end GPIO;
@@ -62,6 +68,14 @@ architecture behavioral of GPIO is
     signal PxDIR	: std_logic_vector(num_pins - 1 downto 0);	-- Pin direction register. '0' = input, '1' = output
 	signal PxSEL	: std_logic_vector(num_pins - 1 downto 0);	-- Peripheral select register. '0' = GPIO, '1' = alt. function
 	signal PxREN	: std_logic_vector(num_pins - 1 downto 0);	-- Resistor enable register. '0' = disabled, '1' = enabled
+	signal PxAFS	: std_logic_vector(3 * num_pins - 1 downto 0);	-- Alternate function select register, 3 bits per pin: which AF plane drives the pad when PxSEL = '1'
+	signal PxAFS_nib : std_logic_vector(31 downto 0);	-- Nibble-per-pin readback image of PxAFS (bit 3 of each nibble reserved, reads '0')
+
+	-- Plane-muxed alternate function signals (the pin's PxAFS field selects
+	-- which of the GPIO_NUM_AFS planes reaches the PxSEL pad mux below)
+	signal af_out	: std_logic_vector(num_pins - 1 downto 0);
+	signal af_dir	: std_logic_vector(num_pins - 1 downto 0);
+	signal af_ren	: std_logic_vector(num_pins - 1 downto 0);
     
     -- New IF registers 
     signal PxIES    : std_logic_vector(num_pins - 1 downto 0);	-- Interrupt edge select. '0' = low-to-high, '1' = high-to-low
@@ -83,29 +97,60 @@ begin
 	PxOUT_out <= PxOUT;
 	PxDIR_out <= PxDIR;
 	PxREN_out <= PxREN;
+	PxSEL_out <= PxSEL;
+	PxAFS_out <= PxAFS;
+
+	-- The nibble-per-pin PxAFS register layout only fits 8 pins in one 32-bit
+	-- register; larger ports would need a second AFS register (not needed —
+	-- every port in the SoC is 8 pins).
+	assert num_pins <= 8
+		report "GPIO: PxAFS multi-AF support requires num_pins <= 8 (one nibble per pin in a 32-bit register)"
+		severity failure;
+
+	-- Alternate-function plane mux: each pin's PxAFS field picks which of the
+	-- GPIO_NUM_AFS flattened planes reaches the PxSEL pad mux below.
+	af_plane_mux: process(PxAFS, alt_func_out_in, alt_func_dir_in, alt_func_ren_in)
+		variable k : natural range 0 to GPIO_NUM_AFS - 1;
+	begin
+		for i in 0 to num_pins - 1 loop
+			k := to_integer(unsigned(PxAFS((3 * i) + 2 downto 3 * i)));
+			af_out(i) <= alt_func_out_in((k * num_pins) + i);
+			af_dir(i) <= alt_func_dir_in((k * num_pins) + i);
+			af_ren(i) <= alt_func_ren_in((k * num_pins) + i);
+		end loop;
+	end process;
+
+	-- Nibble-per-pin readback image of PxAFS (bit 3 of each nibble reserved)
+	gen_afs_nib: for i in 0 to num_pins - 1 generate
+		PxAFS_nib((4 * i) + 2 downto 4 * i) <= PxAFS((3 * i) + 2 downto 3 * i);
+		PxAFS_nib((4 * i) + 3) <= '0';
+	end generate;
+	gen_afs_nib_msbs: if (4 * num_pins) < 32 generate
+		PxAFS_nib(31 downto 4 * num_pins) <= (others => '0');
+	end generate;
 
     -- Drive outputs with pos/neg logic
     gen_port_logic: for i in 0 to num_pins - 1 generate
 		gen_prt_out_pos: if PadOUTPosLogic = true generate
-			prt_out_out(i) <= PxOUT(i) when PxSEL(i) = '0' else alt_func_out_in(i);
+			prt_out_out(i) <= PxOUT(i) when PxSEL(i) = '0' else af_out(i);
 		end generate;
 		gen_prt_out_neg: if PadOUTPosLogic = false generate
-			prt_out_out(i) <= not PxOUT(i) when PxSEL(i) = '0' else not alt_func_out_in(i);
+			prt_out_out(i) <= not PxOUT(i) when PxSEL(i) = '0' else not af_out(i);
 		end generate;
 
 		gen_prt_dir_pos: if PadDIRPosLogic = true generate
-			prt_dir_out(i) <= PxDIR(i) when PxSEL(i) = '0' else alt_func_dir_in(i);
+			prt_dir_out(i) <= PxDIR(i) when PxSEL(i) = '0' else af_dir(i);
 		end generate;
-        
+
 		gen_prt_dir_neg: if PadDIRPosLogic = false generate
-			prt_dir_out(i) <= not PxDIR(i) when PxSEL(i) = '0' else not alt_func_dir_in(i);
+			prt_dir_out(i) <= not PxDIR(i) when PxSEL(i) = '0' else not af_dir(i);
 		end generate;
 
 		gen_prt_ren_pos: if PadRENPosLogic = true generate
-			prt_ren_out(i) <= PxREN(i) when PxSEL(i) = '0' else alt_func_ren_in(i);
+			prt_ren_out(i) <= PxREN(i) when PxSEL(i) = '0' else af_ren(i);
 		end generate;
 		gen_prt_ren_neg: if PadRENPosLogic = false generate
-			prt_ren_out(i) <= not PxREN(i) when PxSEL(i) = '0' else not alt_func_ren_in(i);
+			prt_ren_out(i) <= not PxREN(i) when PxSEL(i) = '0' else not af_ren(i);
 		end generate;
 	end generate;
 
@@ -160,6 +205,9 @@ begin
             PxDIR <= RstValPxDIR(num_pins - 1 downto 0);
             PxSEL <= RstValPxSEL(num_pins - 1 downto 0);
             PxREN <= RstValPxREN(num_pins - 1 downto 0);
+            for i in 0 to num_pins - 1 loop -- RstValPxAFS is nibble-packed like the register image
+                PxAFS((3 * i) + 2 downto 3 * i) <= RstValPxAFS((4 * i) + 2 downto 4 * i);
+            end loop;
             PxIES <= (others => '0');
             PxIE  <= (others => '0');
         elsif rising_edge(clk_mem) then
@@ -216,8 +264,14 @@ begin
                         end loop;
                     when RegSlotPxREN  => --resistor enable (TODO: Check this: Writing '1' disables res, writing '0' has enables res)
                         for i in 0 to (num_pins / 8) - 1 loop
-                            if wen(i) = '0' then 
-                                PxREN((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
+                            if wen(i) = '0' then
+                                PxREN((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8));
+                            end if;
+                        end loop;
+                    when RegSlotPxAFS => --alternate function select, one nibble per pin (low 3 bits used, nibble bit 3 reserved)
+                        for i in 0 to num_pins - 1 loop
+                            if wen(i / 2) = '0' then -- byte lane i/2 covers pins 2i and 2i+1
+                                PxAFS((3 * i) + 2 downto 3 * i) <= write_data((4 * i) + 2 downto 4 * i);
                             end if;
                         end loop;
                     when RegSlotPxIF => --interrupt flag
@@ -274,7 +328,8 @@ begin
             (not PxIF_ltch)	when RegSlotPxIF,
             PxIES			when RegSlotPxIES,
             PxIE			when RegSlotPxIE,
-            (others => '0') when others;    
+            PxAFS_nib(num_pins - 1 downto 0)	when RegSlotPxAFS,
+            (others => '0') when others;
 
 
     -- Process to latch read data output
@@ -291,7 +346,11 @@ begin
 
 
     gen_read_data_MSBs : if num_pins /= 32 generate
-		read_data_buff(31 downto num_pins) <= (others => '0');
+		-- PxAFS is the one register wider than the pin count (a nibble per
+		-- pin): its upper readback bits ride the otherwise-zero MSB lanes.
+		read_data_buff(31 downto num_pins) <=
+			PxAFS_nib(31 downto num_pins) when en_addr_periph = RegSlotPxAFS
+			else (others => '0');
 	end generate;
 
 end behavioral;

@@ -1,4 +1,4 @@
-import pathlib, os, json, datetime
+import pathlib, os, json, datetime, re
 from shutil import ExecError
 
 from Peripheral import PeripheralTemplate, Peripheral
@@ -69,6 +69,8 @@ class ChipGenerator():
 	PadDIRPosLogic = None
 	PadRENPosLogic = None
 	#PadOCENPosLogic = None
+
+	GpioNumAfs = 8	# Alternate-function planes per GPIO pin (AF0..AF7, selected per pin by the 3-bit PxAFS field; fixed by the PxAFS register layout)
 
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING = None	# Enables/disables fast IRQ context switching. When enabled, entering interrupt-handling mode will automatically save the CPU registers to a register file. When the retirq instruction is called, the CPU registers will be restored to their saved values
 	ENABLE_COUNTERS = None		# Enables/disables support for the RDCYCLE[H], RDTIME[H], and RDINSTRET[H] instructions. If disabled, these instructions will cause a hardware trap like any other unsupported instruction
@@ -1228,6 +1230,14 @@ class ChipGenerator():
 		t = TabbedTable()
 		t.AddLine('/********** GPIO Pins **********/')
 		t.AddBlankLine()
+		t.AddLine('// PxAFS field helpers: pin y\'s alternate-function-select field occupies')
+		t.AddLine('// bits [4y+2:4y] of PxAFS (nibble bit 3 is reserved). A pin drives AF<n>')
+		t.AddLine('// when its PxSEL bit is 1 and its PxAFS field is n; field 0 = AF0 (the')
+		t.AddLine('// legacy secondary function, the reset state).')
+		t.AddRow(['#define PxAFS_SHIFT(pin)', '((pin) * 4)'])
+		t.AddRow(['#define PxAFS_MASK(pin)', '(0x7UL << PxAFS_SHIFT(pin))'])
+		t.AddRow(['#define PxAFS_VAL(pin, af)', '(((uint32_t)(af) & 0x7UL) << PxAFS_SHIFT(pin))'])
+		t.AddBlankLine()
 		for p in self.Peripherals:
 			if p.IsGPIO():
 				if len(p.Pins) < 1:
@@ -1251,7 +1261,7 @@ class ChipGenerator():
 						t.AddBlankLine()
 					
 					if len(pin.FuncName) > 0:
-						t.AddLine('// P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber) + ' secondary function (when P' + p.GetGPIOPortLabel() + 'SEL(' + str(pin.BitNumber) + ') = \'1\'): ' + pin.FuncName)
+						t.AddLine('// P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber) + ' alternate function 0 (when P' + p.GetGPIOPortLabel() + 'SEL(' + str(pin.BitNumber) + ') = \'1\' and the pin\'s P' + p.GetGPIOPortLabel() + 'AFS field = 0, the reset state): ' + pin.FuncName)
 						t.AddRow(['#define ' + pin.FuncBitName, '(BIT' + str(pin.BitNumber) + ')'])
 						t.AddRow(['#define ' + pin.FuncPxINName, '(P' + p.GetGPIOPortLabel() + 'IN)'])
 						t.AddRow(['#define ' + pin.FuncPxSELName, '(P' + p.GetGPIOPortLabel() + 'SEL)'])
@@ -1261,6 +1271,19 @@ class ChipGenerator():
 						t.AddRow(['#define ' + pin.FuncPxIEName, '(P' + p.GetGPIOPortLabel() + 'IE)'])
 						t.AddRow(['#define ' + pin.FuncPxIESName, '(P' + p.GetGPIOPortLabel() + 'IES)'])
 						t.AddRow(['#define ' + pin.FuncPxIFGName, '(P' + p.GetGPIOPortLabel() + 'IFG)'])
+						t.AddBlankLine()
+
+					# Additional alternate functions (AF1..AF7): location-qualified
+					# names, since a relocated function also keeps its home-pin
+					# defines (which stay unqualified for compatibility)
+					for af in pin.AltFuncs:
+						locName = af.Name + '_P' + p.GetGPIOPortLabel() + '_' + str(pin.BitNumber)
+						t.AddLine('// P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber) + ' alternate function ' + str(af.Index) + ' (when P' + p.GetGPIOPortLabel() + 'SEL(' + str(pin.BitNumber) + ') = \'1\' and the pin\'s P' + p.GetGPIOPortLabel() + 'AFS field = ' + str(af.Index) + '): ' + af.Name)
+						t.AddRow(['#define ' + locName + '_AF', '(' + str(af.Index) + ')'])
+						t.AddRow(['#define ' + locName + '_BIT', '(BIT' + str(pin.BitNumber) + ')'])
+						t.AddRow(['#define ' + locName + '_PxAFS', '(P' + p.GetGPIOPortLabel() + 'AFS)'])
+						t.AddRow(['#define ' + locName + '_PxSEL', '(P' + p.GetGPIOPortLabel() + 'SEL)'])
+						t.AddRow(['#define ' + locName + '_AFS_VAL', 'PxAFS_VAL(' + str(pin.BitNumber) + ', ' + str(af.Index) + ')'])
 						t.AddBlankLine()
 				t.AddBlankLines(2)
 		
@@ -1738,6 +1761,14 @@ class ChipGenerator():
 			t.AddLine('-- ' + pt.NameTemplate, prefixTabs=1)
 			for rt in pt.RegisterTemplates:
 				t.AddRow(['constant RegSlot' + rt.NameTemplate, ': natural := ' + self.fmtint(rt.RegisterMemorySlot) + ';', '-- offset = ' + str(rt.RegisterMemorySlot * 4) + ' bytes'], prefixTabs=1)
+			if pt.NameTemplate == 'GPIOx':
+				t.AddBlankLine()
+				t.AddLine('-- Number of alternate-function planes per GPIO pin (AF0..AF' + str(self.GpioNumAfs - 1) + '). PxSEL picks', prefixTabs=1)
+				t.AddLine('-- GPIO vs alternate mode; the pin\'s PxAFS field (one nibble per pin, low', prefixTabs=1)
+				t.AddLine('-- 3 bits used) picks WHICH alternate function drives the pad. AF0 is the', prefixTabs=1)
+				t.AddLine('-- legacy single alternate function, so PxAFS=0 reproduces the historic', prefixTabs=1)
+				t.AddLine('-- behavior and PxSEL-only software is unaffected.', prefixTabs=1)
+				t.AddRow(['constant GPIO_NUM_AFS', ': natural := ' + str(self.GpioNumAfs) + ';'], prefixTabs=1)
 			t.AddBlankLine()
 		t.AddBlankLines(2)
 		
@@ -1781,7 +1812,7 @@ class ChipGenerator():
 			# Cross-check against the description's per-pin reset attributes
 			for gpioName, entries in self.McuMpCompat['rstVals']:
 				p = self.FindPeripheral(gpioName)
-				derived = {'OUT': 0, 'DIR': 0, 'SEL': 0, 'REN': 0}
+				derived = {'OUT': 0, 'DIR': 0, 'SEL': 0, 'REN': 0, 'AFS': 0}
 				for pin in p.Pins:
 					if pin.NoConnect:
 						continue
@@ -1789,8 +1820,9 @@ class ChipGenerator():
 					derived['DIR'] |= pin.RstDIR << pin.BitNumber
 					derived['SEL'] |= pin.RstSEL << pin.BitNumber
 					derived['REN'] |= pin.RstREN << pin.BitNumber
+					derived['AFS'] |= pin.RstAFS << (4 * pin.BitNumber)	# nibble-packed
 				for name, value, comment in entries:
-					reg = name[-3:]	# OUT/DIR/SEL/REN
+					reg = name[-3:]	# OUT/DIR/SEL/REN/AFS
 					if derived[reg] != value:
 						print('***')
 						print('WARNING: ' + gpioName + ' pin reset attributes derive ' + name + ' = ' + self.fmthex(derived[reg], 8) + ', but the RTL (' + self.McuMpCompat['sourceFile'] + ') says ' + self.fmthex(value, 8) + '. Emitting the RTL value; the description\'s pin rstOUT/rstDIR/rstSEL/rstREN attributes (and the TRM pin tables) need review.')
@@ -2057,13 +2089,47 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP)).lower() + ';', '-- Zba/Zbb/Zbs/Zbc'], prefixTabs=1)
 		t.AddBlankLine()
 
-		# GPIO pin-number constants in the RTL's pnum_* spelling
+		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names
+		# (pnum_gpio<N>_af<K>_<func>) are cross-checked against the description's
+		# altFuncs metadata: the named GPIO's pin at that bit must declare an
+		# alternate function at plane K whose name matches <func> (both sides
+		# lowercased with underscores stripped). Build fails on disagreement.
+		afPnumKeys = set()
 		for groupComment, portNumber, pins in c['pnums']:
 			t.AddLine('-- ' + groupComment, prefixTabs=1)
 			for name, bit in pins:
+				mAf = re.match(r'^pnum_gpio(\d+)_af(\d+)_(\w+)$', name)
+				if mAf is not None:
+					gpioP = self.FindPeripheral('GPIO' + mAf.group(1))
+					afIndex = int(mAf.group(2))
+					funcKey = mAf.group(3).replace('_', '').lower()
+					afPnumKeys.add((int(mAf.group(1)), afIndex, bit, funcKey))
+					found = False
+					for pin in gpioP.Pins:
+						if pin.NoConnect or pin.BitNumber != bit:
+							continue
+						for af in pin.AltFuncs:
+							if af.Index == afIndex and af.Name.replace('_', '').lower() == funcKey:
+								found = True
+								break
+					if not found:
+						raise Exception('MCU_MP compat: ' + name + ' (bit ' + str(bit) + ') has no matching altFuncs entry on GPIO' + mAf.group(1) + ' — the RTL transcription and the description AF metadata disagree')
 				t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(bit, 2) + ';', '-- P' + str(portNumber) + '.' + str(bit)], prefixTabs=1)
 			t.AddBlankLine()
 		t.AddBlankLines(2)
+
+		# Reverse check: every description altFuncs entry must have a pnum_* row
+		for p in self.Peripherals:
+			if not p.IsGPIO():
+				continue
+			gpioIndex = int(p.Name[len('GPIO'):])
+			for pin in p.Pins:
+				if pin.NoConnect:
+					continue
+				for af in pin.AltFuncs:
+					key = (gpioIndex, af.Index, pin.BitNumber, af.Name.replace('_', '').lower())
+					if key not in afPnumKeys:
+						raise Exception('MCU_MP compat: ' + p.Name + ' pin ' + str(pin.BitNumber) + ' declares AF' + str(af.Index) + ' ' + af.Name + ' but the pnums transcription has no matching pnum_gpio' + str(gpioIndex) + '_af' + str(af.Index) + '_* constant')
 
 		return t.ToString()
 

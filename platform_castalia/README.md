@@ -128,12 +128,13 @@ Known TODOs:
   (same figures are also unresolved in `platform/`).
 - Package/pinout is inherited from Myshkin unchanged (§2 carries a "preliminary" note) —
   revisit when Castalia gets a package.
-- Remaining intros not yet reviewed for Castalia: AFE, SARADC, SPI, GPIO (their filenames
+- Remaining intros not yet reviewed for Castalia: AFE, SARADC, SPI (their filenames
   keep the inherited `-myshkin-`/undated suffixes until reviewed; see CLAUDE.md).
+  GPIO was rewritten 2026-07-09 with the multi-alternate-function (PxAFS) work.
 - ~~Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map~~ DONE
   (M12): the multicore bootrom (`software/bootrom_mp/`) implements the single-ROM boot —
   mhartid dispatch, shared-RAM mailbox zeroing, WFI tile park, and the msip tile loader.
 - The description's WDT register order (WDTCR=12/WDTSR=13/WDTPASS=14) contradicts the RTL
   (WDT_PASS=12/WDT_CR=13/WDT_SR=14) — the TRM and `MemoryMap.h` document these offsets
-  wrong. Same for the GPIO0/GPIO1 pin reset attributes (trap DIR, lfxt/hfxt SEL, tx0 DIR).
-  `make chip` warns about both; the generated VHDL emits the RTL truth.
+  wrong. `make chip` warns; the generated VHDL emits the RTL truth. (The matching GPIO
+  pin-reset-attribute discrepancy was FIXED 2026-07-09 with the multi-AF work.)
