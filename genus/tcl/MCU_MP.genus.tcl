@@ -196,9 +196,10 @@ read_hdl -vhdl -library work $MP/periph/I2C.vhd
 read_hdl -vhdl -library work $MP/periph/TIMER.vhd
 read_hdl -vhdl -library work $MP/periph/SYSTEM.vhd
 read_hdl -vhdl -library work $MP/periph/NPU.vhd
-read_hdl -vhdl -library work $MP/periph/SARADC.vhd
-read_hdl -vhdl -library work $MP/periph/AFE_FSM.vhd
-read_hdl -vhdl -library work $MP/periph/AFE.vhd
+# SARADC/AFE removed (digital-only Castalia, M16+): the entity no longer
+# instantiates them, so these files are not read. Kept on disk only for the
+# standalone SARADC_tb/AFE_tb; the frozen single-core hdl/MCU flow still uses
+# its own copies.
 
 # --- Vesta core ---
 read_hdl -vhdl -library work $MP/vesta/div.vhd
@@ -223,6 +224,7 @@ read_hdl -vhdl -library work $MP/clint.vhd
 read_hdl -vhdl -library work $MP/irq_router.vhd
 read_hdl -vhdl -library work $MP/mp_arbiter.vhd
 read_hdl -vhdl -library work $MP/mutex_bank.vhd
+read_hdl -vhdl -library work $MP/pwr_ctrl.vhd
 read_hdl -vhdl -library work $MP/resv_unit.vhd
 read_hdl -vhdl -library work $MP/hart_tile.vhd
 

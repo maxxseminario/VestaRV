@@ -2,18 +2,27 @@
 # Innovus script -- MCU_MP TOP-LEVEL ASSEMBLY (M14 physical flow; M16 rework)
 #
 # Hierarchical assembly: the four hart instances (hart0-3) are the HARDENED
-# U-shaped hart_tile block (660 x 850 bbox, top-center 500 x 350 analog
+# U-shaped hart_tile block (660 x 1050 bbox, top-center 500 x 450 analog
 # notch) -- physical footprint from out/hart_tile.lef, timing from the
 # per-corner ETMs out/hart_tile.etm_{ss,ff}.lib. Control plane (arbiter/
 # CLINT/router/mutex/periph/system0 + rom0 + analog blocks) is placed and
 # routed here, and top-level CTS balances the clock into the four tile clk
 # pins.
 #
+# M17 rework: SARADC/AFE are gone from the design (digital-only), so NO analog
+# signal pins exist -- EVERY chip pin lands on the BOTTOM edge and the north
+# face is signal-free. That frees the tile row to pack tight: 3 um inter-tile
+# gaps (was 40 um, only ever wide for the retired analog-pin channels) and
+# 20 um die margins shrink the die to 2689 x 1700 (fits the M15 pad-ring
+# interior of 2690). The 500 x 450 notch windows are kept as pure analog
+# reserve (potentiostat drop-in at Virtuoso); taller tiles absorb the old
+# dead band between the RAM row and the tile bottoms.
+#
 # Netlist: in/MCU_MP_hier.pnr.v = out-of-genus MCU_MP_hier.genus.v with any
 # empty `module hart_tile` blackbox stub STRIPPED (prep_top_netlist.sh) so
 # innovus binds hart_tile to the LEF macro, not to an empty module.
 #
-# Floorplan (die 2840 x 1710), the potentiostat-array arrangement:
+# Floorplan (die 2689 x 1700), the potentiostat-array arrangement:
 #   TOP:    a row of 4 U-tiles, mirror-symmetric about the chip's vertical
 #           centerline (hart0/1 R0, hart2/3 MY), tile tops flush with the
 #           die top so each tile's analog notch opens onto the TOP edge --
@@ -40,8 +49,8 @@ source $SCRIPT_DIR/procedures.tcl
 set DESIGN_NAME MCU
 set BASENAME    MCU_MP
 
-set DESIGN_WIDTH  2840
-set DESIGN_HEIGHT 1710
+set DESIGN_WIDTH  2689
+set DESIGN_HEIGHT 1700
 
 set POWER_RING_PATH_WIDTH	10.0
 set POWER_RING_PATH_SPACING	4.0
@@ -109,20 +118,21 @@ floorPlan \
 
 # --- Tile geometry (must match tcl/hart_tile.innovus.tcl) ---
 set TILE_W        660
-set TILE_H        850
+set TILE_H        1050
 set TILE_NOTCH_X0 80
 set TILE_NOTCH_X1 580
-set TILE_NOTCH_Y0 500
+set TILE_NOTCH_Y0 600
 
 # --- The tile row: 4x U-shaped hart_tile flush with the die top, mirror-
 # symmetric about x = DIE_W/2 (hart0/1 R0, hart2/3 MY; the notch is centered
-# in the tile so the mirrored windows stay put). 40 um channels between
-# tiles: these gaps (+ the two die margins) are the ONLY vertical paths past
-# the tile row (the hardened tile obstructs M1-M6 and M7/M8 are power-
-# reserved), so they carry ALL the analog-pin drops -- 20 um proved too
-# narrow (202 routing shorts among the analog nets, first run). ---
-set TILE_GAP     40
-set TILE_X0      40
+# in the tile so the mirrored windows stay put). M17: 3 um inter-tile gaps
+# (was 40 um). The 40 um only ever existed to route the analog pins down past
+# the tile row; those pins are gone (SARADC/AFE removed, north face empty), so
+# nothing needs a vertical channel here. 3 um just clears tile-to-tile spacing
+# DRC -- the 10 um tile halos already overlap the gap, so no cells place in
+# it. 20 um die margins clear the left/right M7 power ring. ---
+set TILE_GAP     3
+set TILE_X0      20
 set TILE_PITCH   [expr {$TILE_W + $TILE_GAP}]
 set TILE_Y       [expr {$DESIGN_HEIGHT - $CORE_SPACING - $TILE_H}]
 for {set h 0} {$h < 4} {incr h} {
@@ -152,36 +162,22 @@ for {set h 0} {$h < 4} {incr h} {
 	cutRow -area [list $WX0 $WY0 $WX1 $WY1]
 }
 cutRow
-printStatus "Reserved 4 analog notch windows (500 x 351 to the die edge)"
+printStatus "Reserved 4 analog notch windows (500 x 451 to the die edge)"
 
-# --- Above the notch-floor line the only routable silicon is the gap/margin
-# channels; keep it cell-free (wires only) so nothing needs power there and
-# no rail stubs orphan. Analog-net buffering happens below this line. ---
+# --- Above the notch-floor line the die holds only the 4 notch windows, the
+# tile fingers (tile macro) and the 3 um inter-tile gaps -- none placeable.
+# Keep it cell-free with a full-width blockage so no stray row survives beside
+# a window and orphans a follow-pin rail. ---
 set NOTCH_FLOOR_Y [expr {$TILE_Y + $TILE_NOTCH_Y0}]
 createPlaceBlockage -type hard -name top_band \
 	-box [list 0 $NOTCH_FLOOR_Y $DESIGN_WIDTH $DESIGN_HEIGHT]
 cutRow -area [list 0 $NOTCH_FLOOR_Y $DESIGN_WIDTH $DESIGN_HEIGHT]
 
-# --- The channel columns BESIDE the tiles must be wire-only too: no
-# vertical PG exists in a 40 um slot walled by tile M1-M6 OBS, so any row
-# there gets a FLOATING follow-pin rail (v3: 1276 orphaned VSS/VDD pieces,
-# 12k cells incl. analog-net opt buffers on dead rails). Cut the rows from
-# the tile-halo bottom up to the notch floor; opt buffers these nets in the
-# control band instead. ---
-set CH_Y0 [expr {$TILE_Y - 10}]
-set CH_COLS [list [list 0 $TILE_X0] \
-	[list [expr {$DESIGN_WIDTH - $TILE_X0}] $DESIGN_WIDTH]]
-for {set g 1} {$g < 4} {incr g} {
-	set gx0 [expr {$TILE_X0 + $g * $TILE_PITCH - $TILE_GAP}]
-	lappend CH_COLS [list $gx0 [expr {$gx0 + $TILE_GAP}]]
-}
-set ci 0
-foreach col $CH_COLS {
-	createPlaceBlockage -type hard -name channel$ci \
-		-box [list [lindex $col 0] $CH_Y0 [lindex $col 1] $NOTCH_FLOOR_Y]
-	cutRow -area [list [lindex $col 0] $CH_Y0 [lindex $col 1] $NOTCH_FLOOR_Y]
-	incr ci
-}
+# M17: the per-channel row cuts BESIDE the tiles are retired. At 40 um the
+# inter-tile gaps held rows on floating rails (v3: 1276 orphaned PG pieces);
+# at 3 um the 10 um tile halos overlap the gap entirely and the 20 um margins
+# are all power ring + halo -- there is no placeable silicon beside the tiles
+# to cut. Nothing to route down here either (north face is signal-free).
 
 # --- Shared RAM: shbank0-3 + npuram0, five square sram1p16k in a centered
 # row at the very bottom of the die ---
@@ -232,56 +228,17 @@ cutRow
 
 printStatus "Placed tiles + shared RAM row + ROM + analog blocks"
 
-# --- Chip pins. Analog-facing pins on the TOP edge in the 5 segments
-# between/beside the notch windows (they connect to the potentiostat chains
-# and analog pads at Virtuoso assembly); every other (digital) pin on the
-# BOTTOM edge. editPin has no wildcards, so classify via string match. ---
-set ANALOG_PIN_PATTERNS {BIAS_* dsadc_* saradc_* atp_* adc_* dac_en_pot use_dac_glb_bias en_bias_*}
-set ANALOG_PINS {}
-set DIGITAL_PINS {}
-foreach p [dbGet top.terms.name] {
-	set hit 0
-	foreach pat $ANALOG_PIN_PATTERNS {
-		if {[string match $pat $p]} { set hit 1; break }
-	}
-	if {$hit} { lappend ANALOG_PINS $p } else { lappend DIGITAL_PINS $p }
-}
-puts "Pin split: [llength $ANALOG_PINS] analog-facing (top), [llength $DIGITAL_PINS] digital (bottom)"
-
-# Top-edge segments over the REAL vertical channels only: the two die
-# margins and the three inter-tile gaps. Everything else on the top edge
-# sits over a tile finger (M1-M6 obstructed) or an analog window --
-# unroutable (the first run put pins there: 202 shorts).
-set TOP_SEGS [list [list 30 [expr {$TILE_X0 - 2}]]]
-for {set g 1} {$g < 4} {incr g} {
-	set gx0 [expr {$TILE_X0 + $g * $TILE_PITCH - $TILE_GAP}]
-	lappend TOP_SEGS [list [expr {$gx0 + 4}] [expr {$gx0 + $TILE_GAP - 4}]]
-}
-lappend TOP_SEGS [list [expr {$DESIGN_WIDTH - $TILE_X0 + 2}] [expr {$DESIGN_WIDTH - 30}]]
-
-set total_len 0
-foreach s $TOP_SEGS { set total_len [expr {$total_len + [lindex $s 1] - [lindex $s 0]}] }
-set n_analog [llength $ANALOG_PINS]
-set assigned 0
-for {set s 0} {$s < [llength $TOP_SEGS]} {incr s} {
-	set seg [lindex $TOP_SEGS $s]
-	set len [expr {[lindex $seg 1] - [lindex $seg 0]}]
-	if {$s == [llength $TOP_SEGS] - 1} {
-		set share [expr {$n_analog - $assigned}]
-	} else {
-		set share [expr {int(round(double($n_analog) * $len / $total_len))}]
-	}
-	if {$share <= 0} { continue }
-	set chunk [lrange $ANALOG_PINS $assigned [expr {$assigned + $share - 1}]]
-	set assigned [expr {$assigned + $share}]
-	editPin -pin $chunk -side Top -layer 4 -spreadType range \
-		-start [list [lindex $seg 0] $DESIGN_HEIGHT] \
-		-end   [list [lindex $seg 1] $DESIGN_HEIGHT] \
-		-fixOverlap 1
-	puts "  top segment $s ([lindex $seg 0]..[lindex $seg 1]): [llength $chunk] pins"
-}
-editPin -pin $DIGITAL_PINS -side Bottom -layer 4 -spreadType side -spacing 2 -fixOverlap 1
-printStatus "Placed chip pins (analog top / digital bottom)"
+# --- Chip pins. M17: SARADC/AFE are gone, so there are NO analog-facing pins
+# and nothing that must reach the top edge. EVERY pin lands on the BOTTOM
+# edge -- the north face is signal-free, which is exactly what lets the tile
+# row pack to 3 um gaps (no inter-tile routing channels needed). The only
+# top-facing outputs left, DCO0/1_BIAS, are clock-oscillator bias words that
+# drive the DCO blocks in the control band below -- they belong on the bottom
+# edge with everything else. ---
+set ALL_PINS [dbGet top.terms.name]
+puts "Assigning [llength $ALL_PINS] pins to the bottom edge (north face empty)"
+editPin -pin $ALL_PINS -side Bottom -layer 4 -spreadType side -spacing 2 -fixOverlap 1
+printStatus "Placed chip pins (all bottom; north face signal-free)"
 
 ################################################################################
 # Power. NO top ring segment -- it would cross the analog windows; the
