@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/08 at 20:29:35 with the generate.py chip generator
+-- Generated on 2026/07/09 at 02:33:22 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -135,7 +135,8 @@ architecture behav of MCU is
             RstValPxOUT     : std_logic_vector(31 downto 0) := (others => '0');
             RstValPxDIR     : std_logic_vector(31 downto 0) := (others => '0');
             RstValPxSEL		: std_logic_vector(31 downto 0) := (others => '0');
-            RstValPxREN     : std_logic_vector(31 downto 0) := (others => '0')
+            RstValPxREN     : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxAFS     : std_logic_vector(31 downto 0) := (others => '0')
         );
         port (
             resetn           : in  std_logic;
@@ -156,10 +157,14 @@ architecture behav of MCU is
             PxOUT_out		: out	std_logic_vector(num_pins - 1 downto 0);
             PxDIR_out		: out	std_logic_vector(num_pins - 1 downto 0);
             PxREN_out		: out	std_logic_vector(num_pins - 1 downto 0);
+            PxSEL_out		: out	std_logic_vector(num_pins - 1 downto 0);
+            PxAFS_out		: out	std_logic_vector(3 * num_pins - 1 downto 0);
 
-            alt_func_out_in		: in	slv(num_pins - 1 downto 0);	
-            alt_func_dir_in		: in	slv(num_pins - 1 downto 0);	
-            alt_func_ren_in		: in	slv(num_pins - 1 downto 0)	
+            -- GPIO_NUM_AFS flattened alternate-function planes: plane k, pin i
+            -- at bit (k * num_pins + i). Plane 0 = the legacy AF0 functions.
+            alt_func_out_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
+            alt_func_dir_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
+            alt_func_ren_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0)
         );
     end component;
 
@@ -756,13 +761,25 @@ architecture behav of MCU is
         signal DCO1_BIAS        : std_logic_vector(11 downto 0);
         signal reset_dco       : std_logic; --special reset for DCO to ensure proper startup
 
+    -- Multi-AF plumbing (shared by all four ports) ---------------------------------------
+        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function
+        -- planes (plane k, pin i at bit k*8+i). The per-plane afuncN_* /
+        -- afuncN_afK_* vectors below are concatenated into afuncN_all_*.
+        -- An unassigned plane slice behaves as a high-impedance input:
+        -- out='0', dir='0' (input), ren='0' (pull disabled) — pre-polarity.
+        constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
+
     -- GPIO0 Signals (Port 1) ------------------------------------------------------------
         signal p1_out					: std_logic_vector(7 downto 0);
         signal p1_dir					: std_logic_vector(7 downto 0);
         signal p1_ren					: std_logic_vector(7 downto 0);
-        signal afunc1_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc1_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc1_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc1_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- GPIO0 deliberately has no AF1+ functions (flash/clock/boot straps)
+        signal afunc1_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc1_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc1_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
 
         -- -- P1.0: cs_flash (output only)
         signal cs_flash_in              : std_logic;
@@ -823,9 +840,17 @@ architecture behav of MCU is
         signal p2_out					: std_logic_vector(7 downto 0);
         signal p2_dir					: std_logic_vector(7 downto 0);
         signal p2_ren					: std_logic_vector(7 downto 0);
-        signal afunc2_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc2_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc2_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc2_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- AF1 plane: TIMER compare (PWM) relocations on P2.0-3, I2C0 on P2.6/7
+        signal afunc2_af1_out			: std_logic_vector(7 downto 0);
+        signal afunc2_af1_dir			: std_logic_vector(7 downto 0);
+        signal afunc2_af1_ren			: std_logic_vector(7 downto 0);
+        signal afunc2_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc2_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc2_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal p2_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
         -- P2.0: cs1 
         signal cs1_in                : std_logic;
@@ -882,9 +907,17 @@ architecture behav of MCU is
         signal p3_out					: std_logic_vector(7 downto 0);
         signal p3_dir					: std_logic_vector(7 downto 0);
         signal p3_ren					: std_logic_vector(7 downto 0);
-        signal afunc3_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc3_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc3_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc3_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- AF1 plane: UART1 on P3.0/1, I2C1 on P3.2/3, UART0 on P3.4/5
+        signal afunc3_af1_out			: std_logic_vector(7 downto 0);
+        signal afunc3_af1_dir			: std_logic_vector(7 downto 0);
+        signal afunc3_af1_ren			: std_logic_vector(7 downto 0);
+        signal afunc3_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc3_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc3_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal p3_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
         -- P3.0: T0_CMP0 (output)
         signal t0_cmp0_out           : std_logic;
@@ -942,9 +975,17 @@ architecture behav of MCU is
         signal p4_out					: std_logic_vector(7 downto 0);
         signal p4_dir					: std_logic_vector(7 downto 0);
         signal p4_ren					: std_logic_vector(7 downto 0);
-        signal afunc4_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc4_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc4_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc4_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- AF1 plane: TIMER capture relocations on P4.0-3, TIMER compares on P4.4-7
+        signal afunc4_af1_out			: std_logic_vector(7 downto 0);
+        signal afunc4_af1_dir			: std_logic_vector(7 downto 0);
+        signal afunc4_af1_ren			: std_logic_vector(7 downto 0);
+        signal afunc4_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc4_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc4_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal p4_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
         -- P4.0: SDA0 (input and output)
         signal sda0_in               : std_logic;
@@ -1062,6 +1103,12 @@ begin
 
         );
 
+        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the
+        -- boot/flash/clock port keeps exactly one alternate function per pin.
+        afunc1_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_out;
+        afunc1_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_dir;
+        afunc1_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_ren;
+
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         cs1_in   <= prt2_in(pnum_gpio1_cs1);
         miso1_in <= prt2_in(pnum_gpio1_miso1);
@@ -1073,14 +1120,31 @@ begin
         -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
 
         -- GPIO1 Connections (UART0)
-        tx0_ren_in <= p2_ren(pnum_gpio1_tx0);
-        rx0_ren_in <= p2_ren(pnum_gpio1_rx0);
-        rx0_in <= prt2_in(pnum_gpio1_rx0);
+        -- Multi-AF input routing: a relocated function reads its alternate pad
+        -- when that pin's PxAFS field selects the function's plane (keyed on
+        -- PxAFS only — peripheral inputs stay always-visible, like the direct
+        -- taps they replace); otherwise it reads its home pad. The peripheral
+        -- ren_in (user pull preference) follows the same selection.
+        tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
+                      when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
+                      else p2_ren(pnum_gpio1_tx0);
+        rx0_ren_in <= p3_ren(pnum_gpio2_af1_rx0)
+                      when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
+                      else p2_ren(pnum_gpio1_rx0);
+        rx0_in <= prt3_in(pnum_gpio2_af1_rx0)
+                  when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
+                  else prt2_in(pnum_gpio1_rx0);
 
         -- GPIO1 Connections (UART1)
-        tx1_ren_in <= p2_ren(pnum_gpio1_tx1);
-        rx1_ren_in <= p2_ren(pnum_gpio1_rx1);
-        rx1_in <= prt2_in(pnum_gpio1_rx1);
+        tx1_ren_in <= p3_ren(pnum_gpio2_af1_tx1)
+                      when p3_afs((3 * pnum_gpio2_af1_tx1) + 2 downto 3 * pnum_gpio2_af1_tx1) = "001"
+                      else p2_ren(pnum_gpio1_tx1);
+        rx1_ren_in <= p3_ren(pnum_gpio2_af1_rx1)
+                      when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"
+                      else p2_ren(pnum_gpio1_rx1);
+        rx1_in <= prt3_in(pnum_gpio2_af1_rx1)
+                  when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"
+                  else prt2_in(pnum_gpio1_rx1);
 
 
         afunc2_out <= (
@@ -1114,20 +1178,95 @@ begin
             0 => p2_ren(0)
         );
 
+        -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),
+        -- I2C0 relocation on P2.6/7 (the UART1 pins). P2.4/5 have no AF1.
+        afunc2_af1_out <= (
+            pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7
+            pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6
+            5 => '0',                               -- GPIO1 pin 5: unassigned (hi-Z input)
+            4 => '0',                               -- GPIO1 pin 4: unassigned (hi-Z input)
+            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3
+            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2
+            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1
+            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_out   -- GPIO1 pin 0
+        );
+        afunc2_af1_dir <= (
+            pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7
+            pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6
+            5 => '0',                               -- GPIO1 pin 5: unassigned (input)
+            4 => '0',                               -- GPIO1 pin 4: unassigned (input)
+            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3
+            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2
+            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1
+            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_dir   -- GPIO1 pin 0
+        );
+        afunc2_af1_ren <= (
+            pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7
+            pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6
+            5 => '0',                               -- GPIO1 pin 5: unassigned (pull disabled)
+            4 => '0',                               -- GPIO1 pin 4: unassigned (pull disabled)
+            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3
+            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2
+            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1
+            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_ren   -- GPIO1 pin 0
+        );
+
+        -- Flattened AF planes (7 downto 2 unassigned)
+        afunc2_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_out & afunc2_out;
+        afunc2_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_dir & afunc2_dir;
+        afunc2_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_ren & afunc2_ren;
+
     -- GPIO2 Connections (TIMER0, TIMER1) -------------------------------------------------
-        t0_cmp0_ren_in  <= p3_ren(pnum_gpio2_t0_cmp0);
-        t0_cmp1_ren_in  <= p3_ren(pnum_gpio2_t0_cmp1);
-        t0_cap0_in      <= prt3_in(pnum_gpio2_t0_cap0);
-        t0_cap1_in      <= prt3_in(pnum_gpio2_t0_cap1);
-        t1_cmp0_ren_in  <= p3_ren(pnum_gpio2_t1_cmp0);
-        t1_cmp1_ren_in  <= p3_ren(pnum_gpio2_t1_cmp1);
-        t1_cap0_in      <= prt3_in(pnum_gpio2_t1_cap0);
-        t1_cap1_in      <= prt3_in(pnum_gpio2_t1_cap1);
-        t0_cap0_ren_in  <= p3_ren(pnum_gpio2_t0_cap0);
-        t1_cap0_ren_in  <= p3_ren(pnum_gpio2_t1_cap0);
-        t0_cap1_ren_in  <= p3_ren(pnum_gpio2_t0_cap1);
-        t1_cap1_ren_in  <= p3_ren(pnum_gpio2_t1_cap1);
-        
+        -- Compare (PWM) outputs are available at three locations (home P3.0/1/4/5,
+        -- AF1 on P2.0-3, AF1 on P4.4-7): the peripheral ren_in follows the
+        -- selection with fixed priority P2 > P4 > home.
+        t0_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp0)
+                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp0) + 2 downto 3 * pnum_gpio1_af1_t0_cmp0) = "001"
+                           else p4_ren(pnum_gpio3_af1_t0_cmp0)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp0) + 2 downto 3 * pnum_gpio3_af1_t0_cmp0) = "001"
+                           else p3_ren(pnum_gpio2_t0_cmp0);
+        t0_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp1)
+                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp1) + 2 downto 3 * pnum_gpio1_af1_t0_cmp1) = "001"
+                           else p4_ren(pnum_gpio3_af1_t0_cmp1)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp1) + 2 downto 3 * pnum_gpio3_af1_t0_cmp1) = "001"
+                           else p3_ren(pnum_gpio2_t0_cmp1);
+        t1_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp0)
+                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp0) + 2 downto 3 * pnum_gpio1_af1_t1_cmp0) = "001"
+                           else p4_ren(pnum_gpio3_af1_t1_cmp0)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp0) + 2 downto 3 * pnum_gpio3_af1_t1_cmp0) = "001"
+                           else p3_ren(pnum_gpio2_t1_cmp0);
+        t1_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp1)
+                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp1) + 2 downto 3 * pnum_gpio1_af1_t1_cmp1) = "001"
+                           else p4_ren(pnum_gpio3_af1_t1_cmp1)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp1) + 2 downto 3 * pnum_gpio3_af1_t1_cmp1) = "001"
+                           else p3_ren(pnum_gpio2_t1_cmp1);
+
+        -- Capture inputs relocate to P4.0-3 (AF1); home pads stay the default
+        t0_cap0_in      <= prt4_in(pnum_gpio3_af1_t0_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"
+                           else prt3_in(pnum_gpio2_t0_cap0);
+        t0_cap1_in      <= prt4_in(pnum_gpio3_af1_t0_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"
+                           else prt3_in(pnum_gpio2_t0_cap1);
+        t1_cap0_in      <= prt4_in(pnum_gpio3_af1_t1_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"
+                           else prt3_in(pnum_gpio2_t1_cap0);
+        t1_cap1_in      <= prt4_in(pnum_gpio3_af1_t1_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"
+                           else prt3_in(pnum_gpio2_t1_cap1);
+        t0_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"
+                           else p3_ren(pnum_gpio2_t0_cap0);
+        t1_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"
+                           else p3_ren(pnum_gpio2_t1_cap0);
+        t0_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"
+                           else p3_ren(pnum_gpio2_t0_cap1);
+        t1_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"
+                           else p3_ren(pnum_gpio2_t1_cap1);
+
 
         afunc3_out <= (
             pnum_gpio2_t1_cap1 => t1_cap1_out,                  -- GPIO2 pin 7
@@ -1160,21 +1299,76 @@ begin
             pnum_gpio2_t0_cmp0 => t0_cmp0_ren  -- GPIO2 pin 0
         );
 
+        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,
+        -- UART0 relocation on P3.4/5. P3.6/7 have no AF1.
+        afunc3_af1_out <= (
+            7 => '0',                           -- GPIO2 pin 7: unassigned (hi-Z input)
+            6 => '0',                           -- GPIO2 pin 6: unassigned (hi-Z input)
+            pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5
+            pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4
+            pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3
+            pnum_gpio2_af1_sda1 => sda1_out,    -- GPIO2 pin 2
+            pnum_gpio2_af1_rx1  => rx1_out,     -- GPIO2 pin 1
+            pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0
+        );
+        afunc3_af1_dir <= (
+            7 => '0',                           -- GPIO2 pin 7: unassigned (input)
+            6 => '0',                           -- GPIO2 pin 6: unassigned (input)
+            pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5
+            pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4
+            pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3
+            pnum_gpio2_af1_sda1 => sda1_dir,    -- GPIO2 pin 2
+            pnum_gpio2_af1_rx1  => rx1_dir,     -- GPIO2 pin 1
+            pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0
+        );
+        afunc3_af1_ren <= (
+            7 => '0',                           -- GPIO2 pin 7: unassigned (pull disabled)
+            6 => '0',                           -- GPIO2 pin 6: unassigned (pull disabled)
+            pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5
+            pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4
+            pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3
+            pnum_gpio2_af1_sda1 => sda1_ren,    -- GPIO2 pin 2
+            pnum_gpio2_af1_rx1  => rx1_ren,     -- GPIO2 pin 1
+            pnum_gpio2_af1_tx1  => tx1_ren      -- GPIO2 pin 0
+        );
+
+        -- Flattened AF planes (7 downto 2 unassigned)
+        afunc3_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_out & afunc3_out;
+        afunc3_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_dir & afunc3_dir;
+        afunc3_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_ren & afunc3_ren;
+
 
 
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
-        -- Resistor Enables
-        sda0_ren_in <= p4_ren(pnum_gpio3_sda0);
-        scl0_ren_in <= p4_ren(pnum_gpio3_scl0);
-        sda1_ren_in <= p4_ren(pnum_gpio3_sda1);
-        scl1_ren_in <= p4_ren(pnum_gpio3_scl1);
+        -- Resistor Enables (I2C0 relocates to P2.6/7, I2C1 to P3.2/3 — the
+        -- peripheral ren_in follows the same AF selection as the inputs below)
+        sda0_ren_in <= p2_ren(pnum_gpio1_af1_sda0)
+                       when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
+                       else p4_ren(pnum_gpio3_sda0);
+        scl0_ren_in <= p2_ren(pnum_gpio1_af1_scl0)
+                       when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
+                       else p4_ren(pnum_gpio3_scl0);
+        sda1_ren_in <= p3_ren(pnum_gpio2_af1_sda1)
+                       when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
+                       else p4_ren(pnum_gpio3_sda1);
+        scl1_ren_in <= p3_ren(pnum_gpio2_af1_scl1)
+                       when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
+                       else p4_ren(pnum_gpio3_scl1);
 
-        -- Inputs
-        sda0_in <= prt4_in(pnum_gpio3_sda0);
-        scl0_in <= prt4_in(pnum_gpio3_scl0);
-        sda1_in <= prt4_in(pnum_gpio3_sda1);
-        scl1_in <= prt4_in(pnum_gpio3_scl1);
+        -- Inputs (relocated pad wins, home pad is the default)
+        sda0_in <= prt2_in(pnum_gpio1_af1_sda0)
+                   when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
+                   else prt4_in(pnum_gpio3_sda0);
+        scl0_in <= prt2_in(pnum_gpio1_af1_scl0)
+                   when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
+                   else prt4_in(pnum_gpio3_scl0);
+        sda1_in <= prt3_in(pnum_gpio2_af1_sda1)
+                   when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
+                   else prt4_in(pnum_gpio3_sda1);
+        scl1_in <= prt3_in(pnum_gpio2_af1_scl1)
+                   when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
+                   else prt4_in(pnum_gpio3_scl1);
 
         afunc4_out <= (
             pnum_gpio3_dtp3     => dtp3_out,  -- GPIO3 pin 7
@@ -1206,6 +1400,45 @@ begin
             pnum_gpio3_scl0 => scl0_ren,      -- GPIO3 pin 1
             pnum_gpio3_sda0 => sda0_ren       -- GPIO3 pin 0
         );
+
+        -- AF1 plane: TIMER0/1 capture inputs relocate to P4.0-3 (the I2C pins),
+        -- TIMER0/1 compare (PWM) outputs relocate to P4.4-7 (the dead DTP pins).
+        -- Captures are inputs: out slice '0', dir/ren from the timer.
+        afunc4_af1_out <= (
+            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO3 pin 7
+            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO3 pin 6
+            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO3 pin 5
+            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_out,  -- GPIO3 pin 4
+            pnum_gpio3_af1_t1_cap1 => '0',          -- GPIO3 pin 3
+            pnum_gpio3_af1_t1_cap0 => '0',          -- GPIO3 pin 2
+            pnum_gpio3_af1_t0_cap1 => '0',          -- GPIO3 pin 1
+            pnum_gpio3_af1_t0_cap0 => '0'           -- GPIO3 pin 0
+        );
+        afunc4_af1_dir <= (
+            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO3 pin 7
+            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO3 pin 6
+            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO3 pin 5
+            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_dir,  -- GPIO3 pin 4
+            pnum_gpio3_af1_t1_cap1 => t1_cap1_dir,  -- GPIO3 pin 3
+            pnum_gpio3_af1_t1_cap0 => t1_cap0_dir,  -- GPIO3 pin 2
+            pnum_gpio3_af1_t0_cap1 => t0_cap1_dir,  -- GPIO3 pin 1
+            pnum_gpio3_af1_t0_cap0 => t0_cap0_dir   -- GPIO3 pin 0
+        );
+        afunc4_af1_ren <= (
+            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO3 pin 7
+            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO3 pin 6
+            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO3 pin 5
+            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_ren,  -- GPIO3 pin 4
+            pnum_gpio3_af1_t1_cap1 => t1_cap1_ren,  -- GPIO3 pin 3
+            pnum_gpio3_af1_t1_cap0 => t1_cap0_ren,  -- GPIO3 pin 2
+            pnum_gpio3_af1_t0_cap1 => t0_cap1_ren,  -- GPIO3 pin 1
+            pnum_gpio3_af1_t0_cap0 => t0_cap0_ren   -- GPIO3 pin 0
+        );
+
+        -- Flattened AF planes (7 downto 2 unassigned)
+        afunc4_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_out & afunc4_out;
+        afunc4_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_dir & afunc4_dir;
+        afunc4_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_ren & afunc4_ren;
 
 
     -- =============================================================================
@@ -2072,9 +2305,10 @@ begin
             PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
             PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
             RstValPxOUT     => RstValP1OUT,
-            RstValPxDIR     => RstValP1DIR, 
+            RstValPxDIR     => RstValP1DIR,
             RstValPxSEL		=> RstValP1SEL,
-            RstValPxREN     => RstValP1REN
+            RstValPxREN     => RstValP1REN,
+            RstValPxAFS     => RstValP1AFS
         )
         port map (
             resetn           => resetn, 
@@ -2097,10 +2331,12 @@ begin
             PxOUT_out		=> p1_out,
             PxDIR_out		=> p1_dir,
             PxREN_out		=> p1_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> open,	-- no relocated inputs source from port 1
 
-            alt_func_out_in	=>	afunc1_out,
-            alt_func_dir_in	=>	afunc1_dir,
-            alt_func_ren_in	=>	afunc1_ren	
+            alt_func_out_in	=>	afunc1_all_out,
+            alt_func_dir_in	=>	afunc1_all_dir,
+            alt_func_ren_in	=>	afunc1_all_ren
     );
 
     -- GPIO1 (SPI1, UART0, UART1)
@@ -2115,7 +2351,8 @@ begin
             RstValPxOUT     => RstValP2OUT,
             RstValPxDIR     => RstValP2DIR,  -- Pins default to output
             RstValPxSEL		=> RstValP2SEL,
-            RstValPxREN     => RstValP2REN
+            RstValPxREN     => RstValP2REN,
+            RstValPxAFS     => RstValP2AFS
         )
         port map (
             resetn           => resetn,
@@ -2137,10 +2374,12 @@ begin
             PxOUT_out		=> p2_out,
             PxDIR_out		=> p2_dir,
             PxREN_out		=> p2_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> p2_afs,
 
-            alt_func_out_in	=>	afunc2_out,
-            alt_func_dir_in	=>	afunc2_dir,
-            alt_func_ren_in	=>	afunc2_ren	
+            alt_func_out_in	=>	afunc2_all_out,
+            alt_func_dir_in	=>	afunc2_all_dir,
+            alt_func_ren_in	=>	afunc2_all_ren
     );
 
     -- GPIO2 (TIMER0, TIMER1)
@@ -2153,7 +2392,8 @@ begin
             RstValPxOUT     => RstValP3OUT,
             RstValPxDIR     => RstValP3DIR,  -- Pins default to output
             RstValPxSEL		=> RstValP3SEL,
-            RstValPxREN     => RstValP3REN
+            RstValPxREN     => RstValP3REN,
+            RstValPxAFS     => RstValP3AFS
         )
         port map (
             resetn           => resetn, 
@@ -2175,10 +2415,12 @@ begin
             PxOUT_out		=> p3_out,
             PxDIR_out		=> p3_dir,
             PxREN_out		=> p3_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> p3_afs,
 
-            alt_func_out_in	=>	afunc3_out,
-            alt_func_dir_in	=>	afunc3_dir,
-            alt_func_ren_in	=>	afunc3_ren	
+            alt_func_out_in	=>	afunc3_all_out,
+            alt_func_dir_in	=>	afunc3_all_dir,
+            alt_func_ren_in	=>	afunc3_all_ren
     );
 
     -- GPIO3 (I2C0, I2C1, DTP)
@@ -2191,7 +2433,8 @@ begin
             RstValPxOUT     => RstValP4OUT,
             RstValPxDIR     => RstValP4DIR,  -- Pins default to output
             RstValPxSEL		=> RstValP4SEL,
-            RstValPxREN     => RstValP4REN
+            RstValPxREN     => RstValP4REN,
+            RstValPxAFS     => RstValP4AFS
         )
         port map (
             resetn          => resetn, 
@@ -2213,10 +2456,12 @@ begin
             PxOUT_out		=> p4_out,
             PxDIR_out		=> p4_dir,
             PxREN_out		=> p4_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> p4_afs,
 
-            alt_func_out_in	=>	afunc4_out,
-            alt_func_dir_in	=>	afunc4_dir,
-            alt_func_ren_in	=>	afunc4_ren	
+            alt_func_out_in	=>	afunc4_all_out,
+            alt_func_dir_in	=>	afunc4_all_dir,
+            alt_func_ren_in	=>	afunc4_all_ren
     );
 
     spi0: SPI

@@ -348,7 +348,7 @@ r.AddBitField(BitField(name='SPIFOS', msb=23, lsb=0, accessibility='rw'))
 
 
 ''' GPIOx '''
-p = PeripheralTemplate(nameTemplate='GPIOx', description='General Purpose Input Output', registerPrefix='Px', bitFieldPrefix='Px', latexIntroFileName='GPIO-intro-2025-11.tex', latexFeatureSummary='{count} 8-pin general purpose I/O (GPIO) ports with edge-triggered interrupts and multiplexed peripheral functions')
+p = PeripheralTemplate(nameTemplate='GPIOx', description='General Purpose Input Output', registerPrefix='Px', bitFieldPrefix='Px', latexIntroFileName='GPIO-intro-castalia-2026-07.tex', latexFeatureSummary='{count} 8-pin general purpose I/O (GPIO) ports with edge-triggered interrupts and per-pin multiplexed alternate functions (GPIO + up to 8 alternate functions per pin)')
 m.AddPeripheralTemplate(p)
 
 # PxIN
@@ -406,7 +406,7 @@ p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='PxIE', msb=31, lsb=0, accessibility='rw'))
 
 # PxSEL
-r = RegisterTemplate(nameTemplate='PxSEL', registerMemorySlot=9, description='GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to secondary function (peripheral) mode. When a pin is in secondary function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. Pin interrupts remain available when in secondary function (peripheral) mode in addition to any interrupts the secondary function/peripheral may generate. If a pin has no secondary function defined, setting PxSEL to 1 will configure the pin as a high-impedance input.', size=32)
+r = RegisterTemplate(nameTemplate='PxSEL', registerMemorySlot=9, description='GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin\'s field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='PxSEL', msb=31, lsb=0, accessibility='rw'))
@@ -416,6 +416,14 @@ r = RegisterTemplate(nameTemplate='PxREN', registerMemorySlot=10, description='G
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='PxREN', msb=31, lsb=0, accessibility='rw'))
+
+# PxAFS
+r = RegisterTemplate(nameTemplate='PxAFS', registerMemorySlot=11, description='GPIO alternate function select register. One 4-bit field per pin (pin y occupies bits 4y+3 downto 4y; only the low 3 bits of each field are implemented, the top bit is reserved and reads 0). When a pin is in alternate function (peripheral) mode (PxSEL bit = 1), the value of its PxAFS field selects WHICH alternate function (AF0-AF7) controls the pin. Each pin\'s available alternate functions are listed in the pin configuration table in Section \\ref{s:pinsConfig}. The register resets to 0, so every pin comes out of reset selecting its AF0 (legacy) function. Selecting an AF plane with no function defined for the pin configures the pin as a high-impedance input. While a pin is in GPIO (primary) mode its PxAFS field has no effect on the pad, but it still routes relocatable peripheral INPUTS: a peripheral input function relocated to this pin (e.g. a UART receiver or timer capture) observes the pin whenever the PxAFS field selects it, regardless of PxSEL.', size=32)
+p.AddRegisterTemplate(r)
+
+for _pin in range(8):
+	r.AddBitField(BitField(name='PxAFS' + str(_pin), msb=(4 * _pin) + 2, lsb=4 * _pin, accessibility='rw', description='Alternate function select for pin ' + str(_pin) + ' (0 = AF0 ... 7 = AF7)'))
+	r.AddBitField(BitField(msb=(4 * _pin) + 3, lsb=(4 * _pin) + 3, unused=True))
 
 ## PxOCEN
 #r = RegisterTemplate(nameTemplate='PxOCEN', registerMemorySlot=10, description='GPIO open collector register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin open-collector mode; write a 1 to enable the pin open-collector mode.', size=32)
@@ -993,46 +1001,46 @@ GPIO0.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO0', funcName='CS_FL
 GPIO0.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO1', funcName='MISO0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 Master In Slave Out (connected to SPI flash memory)'), packagePinNumber=30) # necessary
 GPIO0.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO2', funcName='MOSI0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 Master Out Slave In (connected to SPI flash memory)'), packagePinNumber=29) # necessary
 GPIO0.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO3', funcName='SCK0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 serial clock (connected to SPI flash memory)'), packagePinNumber=28) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO4', funcName='LFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='Low frequency external clock'), packagePinNumber=27) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO5', funcName='HFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='High frequency external clock'), packagePinNumber=26) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO6', funcName='TRAP', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='CPU trap state'), packagePinNumber=25) # necessary
+GPIO0.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO4', funcName='LFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Low frequency external clock'), packagePinNumber=27) # necessary; rstSEL=0 matches the RTL (RstValP1SEL=0x4E)
+GPIO0.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO5', funcName='HFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='High frequency external clock'), packagePinNumber=26) # necessary; rstSEL=0 matches the RTL (RstValP1SEL=0x4E)
+GPIO0.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO6', funcName='TRAP', funcIOType='o',	rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='CPU trap state'), packagePinNumber=25) # necessary; rstDIR=1 matches the RTL (RstValP1DIR=0x41)
 GPIO0.AddGpio(GpioConfigurator(bitNumber=7, primaryName='BOOT', funcName='', funcIOType='',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=1, description='Boot select pin (Boots to forth interpreter when LOW, boots from SPI flash when HIGH)'), packagePinNumber=24) # necessary
 
 # GPIO1 (P2.0-P2.7)
 GPIO1.ChangeGPIOPortSize(8)
 
-GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName='CS1', funcIOType='i',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 chip select'), packagePinNumber=20) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName='MISO1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 Master In Slave Out'), packagePinNumber=19) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName='MOSI1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 Master Out Slave In'), packagePinNumber=18) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName='SCK1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 serial clock'), packagePinNumber=17) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 transmitter'), packagePinNumber=16) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName='CS1', funcIOType='i',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 chip select', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=20) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName='MISO1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 Master In Slave Out', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=19) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName='MOSI1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 Master Out Slave In', altFuncs=[(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')]), packagePinNumber=18) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName='SCK1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 serial clock', altFuncs=[(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')]), packagePinNumber=17) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='UART0 transmitter'), packagePinNumber=16) # necessary; rstDIR=1 matches the RTL (RstValP2DIR=0x10)
 GPIO1.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO13', funcName='RX0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 receiver'), packagePinNumber=15) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName='TX1', funcIOType='o',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='UART1 transmitter'), packagePinNumber=14) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName='RX1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='UART1 receiver'), packagePinNumber=13) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName='TX1', funcIOType='o',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='UART1 transmitter', altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (alternate location)')]), packagePinNumber=14) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName='RX1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='UART1 receiver', altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (alternate location)')]), packagePinNumber=13) # necessary
 
 # GPIO2 (P3.0-P3.7)
 GPIO2.ChangeGPIOPortSize(8)
 
-GPIO2.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO16', funcName='T0CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 0'), packagePinNumber=9) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO17', funcName='T0CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 1'), packagePinNumber=8) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 0'), packagePinNumber=7) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1'), packagePinNumber=6) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName='T1CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Compare 0'), packagePinNumber=5) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName='T1CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Compare 1'), packagePinNumber=4) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO16', funcName='T0CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 0', altFuncs=[(1, 'TX1', 'o', 'UART1 transmitter (alternate location)')]), packagePinNumber=9) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO17', funcName='T0CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 1', altFuncs=[(1, 'RX1', 'io', 'UART1 receiver (alternate location)')]), packagePinNumber=8) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 0', altFuncs=[(1, 'SDA1', 'io', 'I2C1 serial data (alternate location)')]), packagePinNumber=7) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1', altFuncs=[(1, 'SCL1', 'io', 'I2C1 serial clock (alternate location)')]), packagePinNumber=6) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName='T1CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Compare 0', altFuncs=[(1, 'TX0', 'o', 'UART0 transmitter (alternate location)')]), packagePinNumber=5) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName='T1CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Compare 1', altFuncs=[(1, 'RX0', 'io', 'UART0 receiver (alternate location)')]), packagePinNumber=4) # necessary
 GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName='T1CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Capture 0'), packagePinNumber=3) # necessary
 GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName='T1CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Capture 1'), packagePinNumber=2) # necessary
 
 # GPIO3 (P4.0-P4.7)
 GPIO3.ChangeGPIOPortSize(8)
 
-GPIO3.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO24', funcName='SDA0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial data'), packagePinNumber=1) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO25', funcName='SCL0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial clock'), packagePinNumber=44) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO26', funcName='SDA1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C1 serial data'), packagePinNumber=43) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName='SCL1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C1 serial clock'), packagePinNumber=42) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 0'), packagePinNumber=41) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1'), packagePinNumber=40) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2'), packagePinNumber=39) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3'), packagePinNumber=38) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO24', funcName='SDA0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial data', altFuncs=[(1, 'T0CAP0', 'i', 'TIMER0 Capture 0 (alternate location)')]), packagePinNumber=1) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO25', funcName='SCL0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial clock', altFuncs=[(1, 'T0CAP1', 'i', 'TIMER0 Capture 1 (alternate location)')]), packagePinNumber=44) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO26', funcName='SDA1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C1 serial data', altFuncs=[(1, 'T1CAP0', 'i', 'TIMER1 Capture 0 (alternate location)')]), packagePinNumber=43) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName='SCL1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C1 serial clock', altFuncs=[(1, 'T1CAP1', 'i', 'TIMER1 Capture 1 (alternate location)')]), packagePinNumber=42) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 0', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=41) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=40) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=[(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')]), packagePinNumber=39) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=[(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')]), packagePinNumber=38) # necessary
 
 
 ''' MCU_MP drop-in compatibility facts (RTL-generation track Phase 1, 2026-07-04) '''
@@ -1180,24 +1188,28 @@ _mcuMpRstVals = [
 		('RstValP1DIR', 0x00000041, 'only cs0, and trap is an output'),
 		('RstValP1SEL', 0x0000004E, 'all alt fn except boot, cs0'),
 		('RstValP1REN', 0x00000080, "only boot has pullup/pulldown - should default to '1' to load from flash"),
+		('RstValP1AFS', 0x00000000, 'all pins select AF0 (legacy alternate function) at reset'),
 	]),
 	('GPIO1', [
 		('RstValP2OUT', 0x00000000, 'all pads output low'),
 		('RstValP2DIR', 0x00000010, 'tx0 is output'),
 		('RstValP2SEL', 0x00000030, 'uart0 default to alt fn'),
 		('RstValP2REN', 0x00000000, 'disable rens'),
+		('RstValP2AFS', 0x00000000, 'all pins select AF0 (legacy alternate function) at reset'),
 	]),
 	('GPIO2', [
 		('RstValP3OUT', 0x00000000, ''),
 		('RstValP3DIR', 0x00000000, ''),
 		('RstValP3SEL', 0x00000000, ''),
 		('RstValP3REN', 0x00000000, ''),
+		('RstValP3AFS', 0x00000000, 'all pins select AF0 (legacy alternate function) at reset'),
 	]),
 	('GPIO3', [
 		('RstValP4OUT', 0x00000000, ''),
 		('RstValP4DIR', 0x00000000, ''),
 		('RstValP4SEL', 0x00000000, ''),
 		('RstValP4REN', 0x00000000, ''),
+		('RstValP4AFS', 0x00000000, 'all pins select AF0 (legacy alternate function) at reset'),
 	]),
 ]
 
@@ -1225,6 +1237,25 @@ _mcuMpPnums = [
 		('pnum_gpio3_sda0', 0), ('pnum_gpio3_scl0', 1), ('pnum_gpio3_sda1', 2),
 		('pnum_gpio3_scl1', 3), ('pnum_gpio3_dtp0', 4), ('pnum_gpio3_dtp1', 5),
 		('pnum_gpio3_dtp2', 6), ('pnum_gpio3_dtp3', 7),
+	]),
+	# Multi-AF (AF1) pin assignments — plane-1 positions inside the flattened
+	# alt_func vectors (the groups above are plane 0 / AF0). Cross-checked
+	# against each pin's altFuncs metadata by generateMemoryMapVHD.
+	('GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation', 2, [
+		('pnum_gpio1_af1_t0_cmp0', 0), ('pnum_gpio1_af1_t0_cmp1', 1),
+		('pnum_gpio1_af1_t1_cmp0', 2), ('pnum_gpio1_af1_t1_cmp1', 3),
+		('pnum_gpio1_af1_sda0', 6), ('pnum_gpio1_af1_scl0', 7),
+	]),
+	('GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations', 3, [
+		('pnum_gpio2_af1_tx1', 0), ('pnum_gpio2_af1_rx1', 1),
+		('pnum_gpio2_af1_sda1', 2), ('pnum_gpio2_af1_scl1', 3),
+		('pnum_gpio2_af1_tx0', 4), ('pnum_gpio2_af1_rx0', 5),
+	]),
+	('GPIO3 (P4) AF1: TIMER capture + compare relocations', 4, [
+		('pnum_gpio3_af1_t0_cap0', 0), ('pnum_gpio3_af1_t0_cap1', 1),
+		('pnum_gpio3_af1_t1_cap0', 2), ('pnum_gpio3_af1_t1_cap1', 3),
+		('pnum_gpio3_af1_t0_cmp0', 4), ('pnum_gpio3_af1_t0_cmp1', 5),
+		('pnum_gpio3_af1_t1_cmp0', 6), ('pnum_gpio3_af1_t1_cmp1', 7),
 	]),
 ]
 
