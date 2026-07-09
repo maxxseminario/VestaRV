@@ -86,15 +86,20 @@ set_db init_lib_search_path [list \
 	$IP_DIR/rom_hvt_pg \
 	$IP_DIR/sram1p16k_hvt_pg \
 	$INPUT_DIR/ \
-	/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/ ]
+	/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/ \
+	/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/synopsys/ ]
 
 set_db init_hdl_search_path [list \
 	$HDL_DIR ]
 
+# M17: the pmk NLDM joins the list — the tile gate netlist read as source
+# below now contains HEADBUF16MA10TH power switches, which must resolve
+# against a library like every other tile cell.
 set_db library [list \
 	rom_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib \
 	sram1p16k_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib \
-	scadv10_cln65gp_hvt_tt_1p0v_25c.lib]
+	scadv10_cln65gp_hvt_tt_1p0v_25c.lib \
+	scadv10pmk_tsmc65gp_hvt_tt_1p0v_25c.lib]
 
 set_db tns_opto true
 set_db auto_ungroup none
@@ -141,6 +146,7 @@ read_hdl -vhdl -library work $MP/clint.vhd
 read_hdl -vhdl -library work $MP/irq_router.vhd
 read_hdl -vhdl -library work $MP/mp_arbiter.vhd
 read_hdl -vhdl -library work $MP/mutex_bank.vhd
+read_hdl -vhdl -library work $MP/pwr_ctrl.vhd
 read_hdl -vhdl -library work $MP/resv_unit.vhd
 
 # --- The tile: its HARDENED GATE NETLIST as verilog source ---
@@ -160,15 +166,28 @@ read_hdl -vhdl -library work $MP/resv_unit.vhd
 # (CDFG-214). Inject matching dummy verilog parameters into the module header
 # (generated copy -- the tile-only outputs stay pristine). Values = the one
 # real configuration; all four instances bind identically.
+# (M17 note: the post-M14 core ISA-extension generics ENABLE_* must be
+# injected too — the generated MCU.vhd passes them in every hart generic
+# map, and elaboration dies with CDFG-200 on the first missing one.)
 exec bash -c "mkdir -p $INPUT_DIR && awk '
 	/^module hart_tile\\(/ { inhdr=1 }
 	{ print }
-	inhdr && /\\);\$/ { print \"  parameter PC_RST_VAL = 32'\\''h00000000;\"; print \"  parameter SH_AW = 15;\"; inhdr=0 }
+	inhdr && /\\);\$/ { print \"  parameter PC_RST_VAL = 32'\\''h00000000;\"; print \"  parameter SH_AW = 15;\"; print \"  parameter ENABLE_MUL = 1;\"; print \"  parameter ENABLE_DIV = 1;\"; print \"  parameter ENABLE_ATOMICS = 1;\"; print \"  parameter ENABLE_COMPRESSED = 1;\"; print \"  parameter ENABLE_BITMANIP = 1;\"; inhdr=0 }
 ' $OUTPUT_DIR/hart_tile.genus.v > $INPUT_DIR/hart_tile_top.gen.v"
 read_hdl $INPUT_DIR/hart_tile_top.gen.v
 
 # --- Top level ---
-read_hdl -vhdl -library work $MP/MCU.vhd
+# M17: genus 19 CANNOT bind a VHDL BOOLEAN generic to a verilog parameter
+# (CDFG-200 on 'CORE_ENABLE_MUL'), so the hier flow reads a GENERATED copy
+# of MCU.vhd with the five ENABLE_* associations stripped from every hart
+# generic map (they pass the entity defaults = the one real configuration;
+# the tile netlist was synthesized with exactly those values). The SH_AW
+# line loses its now-trailing comma. MCU.vhd itself stays pristine (it is
+# the make-chip product).
+exec bash -c "sed -e '/=> CORE_ENABLE_/d' \
+	-e 's/SH_AW          => SH_AW,/SH_AW          => SH_AW/' \
+	$MP/MCU.vhd > $INPUT_DIR/MCU_top.gen.vhd"
+read_hdl -vhdl -library work $INPUT_DIR/MCU_top.gen.vhd
 
 ################################################################################
 # Elaboration

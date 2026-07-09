@@ -39,6 +39,7 @@ TEST_FILES=(
     "../rcf/xxxxrv32ui-p-shnpu.rcf"
     "../rcf/xxrv32ui-p-shmutex.rcf"
     "../rcf/xxxrv32ui-p-shexec.rcf"
+    "../rcf/xxxxrv32ui-p-shpwr.rcf"
     "../rcf/xxxrv32ua-p-shspin.rcf"
     "../rcf/xxxrv32ua-p-shlock.rcf"
     "../rcf/xxxxrv32ua-p-shamo.rcf"

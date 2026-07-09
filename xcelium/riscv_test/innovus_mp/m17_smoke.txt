@@ -1,0 +1,5 @@
+../rcf/xxxrv32ui-p-simple.rcf
+../rcf/xxxrv32ui-p-shexec.rcf
+../rcf/xxxxrv32ui-p-shwfi.rcf
+../rcf/xxxrv32ui-p-shboot.rcf
+../rcf/xxxxrv32ui-p-shpwr.rcf

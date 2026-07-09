@@ -43,6 +43,7 @@
 ../../../hdl/MCU_MP/irq_router.vhd
 ../../../hdl/MCU_MP/mp_arbiter.vhd
 ../../../hdl/MCU_MP/mutex_bank.vhd
+../../../hdl/MCU_MP/pwr_ctrl.vhd
 ../../../hdl/MCU_MP/resv_unit.vhd
 ../../../hdl/MCU_MP/hart_tile.vhd
 ../../../hdl/MCU_MP/MCU.vhd

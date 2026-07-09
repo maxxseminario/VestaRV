@@ -20,6 +20,7 @@ rv32ui_sc_tests = \
 	shmutex \
 	shexec \
 	shfault \
+	shpwr \
 	add addi \
 	and andi \
 	auipc \

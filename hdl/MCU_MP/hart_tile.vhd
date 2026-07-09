@@ -38,6 +38,9 @@
 --                    semantics are preserved exactly.
 --   * tcm_pgen     — hart 0's TCM keeps its BLOCKPWR software power gating
 --                    (pgen_mem(1)); tiles tie '0'.
+--   * pd_sleep/pd_iso_en (M17) — MTCMOS power-gating controls from pwr_ctrl
+--                    for tiles 1-3; hart 0 ties both '0' (always-on). CPF
+--                    hooks only — see the port comment.
 -- The M2 wait_inj0 stall exerciser on hart 0's mem_ready is RETIRED here:
 -- its latency-tolerance job is done (M10 proved the protocol at boundary
 -- depths 0/1/2; the M12 boot fetch exercises it every run).
@@ -166,6 +169,24 @@ entity hart_tile is
         -- M13: TCM macro power gate. Hart 0: BLOCKPWR's RAMOFF via
         -- pgen_mem(1) (software power gating preserved); tiles: '0'.
         tcm_pgen  : in  std_logic := '0';
+
+        -- M17: MTCMOS domain controls — no tile RTL logic consumes them.
+        -- pd_sleep is the CPF hook (cpf/hart_tile.cpf): it drives the HEAD
+        -- switch fabric's SLEEP daisy chain (pmk sense: ACTIVE-HIGH =
+        -- switched rail OFF). pd_iso_en is RESERVED at tile level (in-tile
+        -- iso is the M17b option): the M17a output clamps are EXPLICIT RTL
+        -- AND gates on the ALWAYS-ON MCU side of the boundary (genus cannot
+        -- insert location-to iso for a block whose 'to' domain is the
+        -- outside world — CPI-319), keyed by the same pwr_ctrl row. Driven
+        -- per tile by pwr_ctrl (slot 11, 0x4B00); hart 0 ties both '0'
+        -- (always-on) — all four instances stay ONE netlist (M13 wiring-only
+        -- rule). NOT boundary-registered: always-on-domain controls must
+        -- stay valid while every flop in the switched domain is dark. The
+        -- accompanying cold-gate reset arrives through the ordinary resetn
+        -- port (pwr_ctrl's pd_rstn ANDed in at the top), which is what makes
+        -- reset values == clamp-0 values on every outbound signal.
+        pd_sleep  : in  std_logic := '0';
+        pd_iso_en : in  std_logic := '0';
 
         trap_flag : out std_logic;
         a0        : out std_logic_vector(31 downto 0)
