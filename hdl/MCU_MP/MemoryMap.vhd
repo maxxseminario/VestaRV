@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/08 at 02:31:02 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/08 at 19:59:12 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -137,6 +137,10 @@ package MemoryMap is
 	constant RegSlotNPUIVSAR		: natural := 01;	-- offset = 4 bytes
 	constant RegSlotNPUWVSAR		: natural := 02;	-- offset = 8 bytes
 	constant RegSlotNPUOVSAR		: natural := 03;	-- offset = 12 bytes
+
+	-- PWRCTRL
+	constant RegSlotPWRCR			: natural := 00;	-- offset = 0 bytes
+	constant RegSlotPWRSR			: natural := 01;	-- offset = 4 bytes
 
 	-- I2Cx
 	constant RegSlotI2CxCR			: natural := 00;	-- offset = 0 bytes
@@ -593,6 +597,23 @@ package MemoryMap is
 	constant NPUOVSAR_LSB			: natural := 00;
 
 
+	------ PWRCTRL
+	-- PWRCR
+	constant PWRGATE_MSB			: natural := 03;
+	constant PWRGATE_LSB			: natural := 01;
+	constant PWRH0_LSB				: natural := 00;
+
+	-- PWRSR
+	constant PWRST3_MSB				: natural := 15;
+	constant PWRST3_LSB				: natural := 12;
+	constant PWRST2_MSB				: natural := 11;
+	constant PWRST2_LSB				: natural := 08;
+	constant PWRST1_MSB				: natural := 07;
+	constant PWRST1_LSB				: natural := 04;
+	constant PWRST0_MSB				: natural := 03;
+	constant PWRST0_LSB				: natural := 00;
+
+
 	------ I2Cx
 	-- I2CxCR
 	constant I2CMEN_LSB				: natural := 21;
@@ -860,6 +881,7 @@ package MemoryMap is
 	constant PeriphSlotGPIO2		: natural := 08;						-- base address = 0x4800 (legacy; peripheral now at 0x4800)
 	constant PeriphSlotSystem0		: natural := 09;						-- base address = 0x4900 (legacy; peripheral now at 0x4900)
 	constant PeriphSlotNPU0			: natural := 10;						-- base address = 0x4A00 (legacy; peripheral now at 0x4A00)
+	constant PeriphSlotPWRCTRL		: natural := 11;						-- base address = 0x4B00 (legacy; peripheral now at 0x4B00)
 	constant PeriphSlotGPIO3		: natural := 13;						-- base address = 0x4D00 (legacy; peripheral now at 0x4D00)
 	constant PeriphSlotI2C0			: natural := 14;						-- base address = 0x4E00 (legacy; peripheral now at 0x4E00)
 	constant PeriphSlotI2C1			: natural := 15;						-- base address = 0x4F00 (legacy; peripheral now at 0x4F00)
@@ -876,6 +898,7 @@ package MemoryMap is
 	constant GPIO2_MASK				: natural := 2 ** PeriphSlotGPIO2;
 	constant SYSTEM0_MASK			: natural := 2 ** PeriphSlotSystem0;
 	constant NPU0_MASK				: natural := 2 ** PeriphSlotNPU0;
+	constant PWRCTRL_MASK			: natural := 2 ** PeriphSlotPWRCTRL;
 	constant GPIO3_MASK				: natural := 2 ** PeriphSlotGPIO3;
 	constant I2C0_MASK				: natural := 2 ** PeriphSlotI2C0;
 	constant I2C1_MASK				: natural := 2 ** PeriphSlotI2C1;

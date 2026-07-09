@@ -17,14 +17,17 @@
 #   bias generators + DAC arrays (BIAS_DB*/ADJ)    ~150 x 150
 #   SAR ADC (10b) + dsADC front half               ~250 x 250
 #   guard rings / decap / analog routing margin    remainder
-#   => 500 x 350 um = 0.175 mm^2 cutout.
+#   => 500 x 450 um = 0.225 mm^2 cutout (M17: deepened +100 um for a roomier
+#      potentiostat drop-in; SARADC/AFE shared peripherals are gone entirely,
+#      so NO digital signal ever leaves for this window -- it is pure analog
+#      reserve, wired only at Virtuoso chip assembly).
 # The two fingers of the U (80 um wide each) exist to close the tile power
 # ring around the notch -- ring band = offset 4 + 2x(width 10) + spacing 4 =
 # 28 um per boundary, leaving a ~24 um tap/decap column per finger. They are
 # deliberately no wider: their only other job is abutting the analog block.
 #
-# Tile outline (die coords, 660 x 850 bbox):
-#   (0,0)-(660,0)-(660,850)-(580,850)-(580,500)-(80,500)-(80,850)-(0,850)
+# Tile outline (die coords, 660 x 1050 bbox):
+#   (0,0)-(660,0)-(660,1050)-(580,1050)-(580,600)-(80,600)-(80,1050)-(0,1050)
 #
 # All tile pins on the BOTTOM edge (M4): at Castalia top level the four
 # tiles sit in a row at the TOP of the chip (notches opening onto the
@@ -40,13 +43,14 @@ source $SCRIPT_DIR/procedures.tcl
 
 set DESIGN_NAME hart_tile
 
-# U-shape geometry. BASE_H sizes the row budget: base = 660x500 = 330k um2
-# minus the halo'd TCM (~125k) = ~205k um2 of rows for ~163k um2 of std
-# cells at the M14-proven region-to-rows ratio (util margin ~125%).
+# U-shape geometry (M17: tile grown taller). BASE_H sizes the row budget:
+# base = 660x600 = 396k um2 minus the halo'd TCM (~125k) = ~271k um2 of rows
+# for ~66k um2 of std cells -- the base was only ~25% utilised at 500 tall, so
+# the +100 um digital extension is pure breathing room (easier place/route).
 set DESIGN_WIDTH  660
-set DESIGN_HEIGHT 850
+set DESIGN_HEIGHT 1050
 set NOTCH_W       500
-set NOTCH_D       350
+set NOTCH_D       450
 set FINGER_W      80
 set BASE_H        [expr {$DESIGN_HEIGHT - $NOTCH_D}]
 
@@ -74,24 +78,55 @@ set init_mmmc_file           "$SCRIPT_DIR/viewdefinition_tile.tcl"
 
 set init_lef_file	"$STD_CELL_DIR/lef/tsmc_cln65_a10_6X1Z_tech.lef  \
 					$STD_CELL_DIR/lef/tsmc65_hvt_sc_adv10_macro.lef \
+					/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/lef/tsmc65hvt_adv10pmk_macro.lef \
 					$IP_DIR/sram1p16k_hvt_pg/sram1p16k_hvt_pg.vclef"
 
 set init_design_uniquify 1
 init_design
 
+################################################################################
+# M17 power intent: the tile CPF (PD_GATED default/shutoff=pd_sleep + PD_AO
+# for the ports/iso cells; VDD = always-on, VDD_SW = the switched follow-pin
+# net produced by the HEADBUF header fabric). Genus already INSERTED the
+# A2ISO clamps (iso_* instances) — Innovus re-reads the same intent for the
+# domain/net/switch data and must RECOGNIZE the existing cells, not
+# re-insert.
+################################################################################
+read_power_intent -cpf ../cpf/hart_tile.cpf
+commit_power_intent
+printStatus "Power intent committed (PD_GATED/PD_AO, switched net VDD_SW)"
+
 setDesignMode -process 65 -flowEffort standard -powerEffort low
 printStatus "Preparing 8 CPU cores..."
 setMultiCpuUsage -acquireLicense 8 -localCpu 8
 
+# M17: NO FILLTIE fillers — a rail-tied well tap inside a gated row
+# back-feeds the dead VDD_SW rail through the n-well (see the addWellTap
+# note). Well-tap duty is carried entirely by the FILLBIAS addWellTap pass;
+# fillers are the plain (tapless) FILL cells only.
 setFillerMode \
     -corePrefix FILLER \
-    -core {FILLTIE128A10TH FILLTIE64A10TH FILLTIE32A10TH FILLTIE16A10TH FILLTIE8A10TH FILLTIE4A10TH FILLTIE2A10TH FILL128A10TH FILL64A10TH FILL32A10TH FILL16A10TH FILL8A10TH FILL4A10TH FILL2A10TH FILL1A10TH}
+    -core {FILL128A10TH FILL64A10TH FILL32A10TH FILL16A10TH FILL8A10TH FILL4A10TH FILL2A10TH FILL1A10TH}
 
 setAnalysisMode -analysisType onChipVariation -cppr both
 
+# M17 domain-aware global nets. Follow-pin rails: PD_GATED rows carry the
+# SWITCHED net VDD_SW; the PD_AO band carries always-on VDD. ram0 (the TCM)
+# stays in PD_GATED logically but its VDD pin ties to the ALWAYS-ON net —
+# it self-gates through its native PGEN (pd_sleep is mirrored onto tcm_pgen
+# at MCU level), so it needs no share of the switch fabric. Secondary pins:
+# every pmk VDDG (HEADBUF supply-in, GPG always-on buffers) ties to VDD;
+# the FILLBIAS well taps bias the gated region's wells from the AO rails
+# (VNW->VDD, VPW->VSS) so a sleeping row's n-well never back-feeds the dead
+# VDD_SW rail through a rail-tied tap (the FILLTIE hazard).
 clearGlobalNets
-globalNetConnect VDD -type pgpin -pin VDD -inst * -module {} -autoTie -verbose
-globalNetConnect VSS -type pgpin -pin VSS -inst * -module {} -autoTie -verbose
+# NOTE -powerDomain is a SCOPE and cannot combine with -inst (IMPSYC-957)
+globalNetConnect VDD_SW -type pgpin -pin VDD  -powerDomain PD_GATED -autoTie -verbose
+globalNetConnect VDD    -type pgpin -pin VDD  -powerDomain PD_AO    -verbose
+globalNetConnect VDD    -type pgpin -pin VDD  -singleInstance ram0 -override -verbose
+globalNetConnect VSS    -type pgpin -pin VSS  -inst * -module {} -autoTie -verbose
+# (the pmk secondary pins — VDDG/VNW/VPW — are connected AFTER the switch
+# and well-tap cells exist; a rule with zero matching pins is IMPDB-1221)
 
 ################################################################################
 # Floorplan: U-shaped rectilinear die -- rect first, then carve the notch.
@@ -117,7 +152,9 @@ printStatus "Carved U-shape notch ($NOTCH_W x $NOTCH_D) at top center"
 set SRAM16K_WIDTH		319.650
 set SRAM16K_HEIGHT		383.085
 
-set TCM_X	10
+# M17: TCM centered in the tile's X (was jammed at x=10). Sits at the base
+# bottom (y=10, MX); the notch floor is at BASE_H=600 so there is no overlap.
+set TCM_X	[expr {($DESIGN_WIDTH - $SRAM16K_WIDTH) / 2.0}]
 set TCM_Y	10
 placeInstance ram0 $TCM_X $TCM_Y MX
 addHaloToBlock \
@@ -136,6 +173,12 @@ set ALL_PINS [dbGet top.terms.name]
 puts "Assigning [llength $ALL_PINS] pins to the bottom edge"
 editPin -pin $ALL_PINS -side Bottom -layer 4 -spreadType side -spacing 1 -fixOverlap 1
 printStatus "Placed tile pins"
+
+# M17: NO PD_AO fence — PD_AO holds only the boundary PORTS (isolation is
+# explicit RTL AND-clamps on the MCU side of the boundary, and the TCM
+# macro is AO by pin connection). Every row in the tile is PD_GATED =
+# VDD_SW rails; the always-on presence inside the tile is just the VDD
+# ring/stripe grid, the switches' VDDG pins, and the FILLBIAS well bias.
 
 ################################################################################
 # Power: rectilinear ring following the U boundary (incl. both fingers) +
@@ -189,14 +232,88 @@ addStripe \
 editTrim -all
 setCheckMode -globalNet true -io true -route true -tapeOut true
 
+################################################################################
+# M17: the MTCMOS header fabric. HEADBUF16M columns inside PD_GATED — only
+# the HEADBUF cells have SLEEPOUT and can daisy-chain (plain HEADs cannot,
+# M17 recon), and the chain IS the rush-current stagger (~60-90 ps/stage;
+# the databook has no explicit inrush rule — pwr_ctrl's T_RAIL=256 mclk
+# wake settle covers the whole chain with orders of magnitude to spare).
+# VDDG pin (always-on IN) strapped to the VDD grid by the secondary sroute
+# below; VDD pin (switched OUT) abuts the row rails = VDD_SW.
+################################################################################
+printStatus "Inserting MTCMOS header switch columns (HEADBUF16MA10TH)"
+# -area is REQUIRED here: PD_GATED is the DEFAULT domain (no fence box), and
+# without an explicit area the column engine dies on the empty domain box
+# ("can't use non-numeric string as operand of *" — M17 lesson). Columns
+# every 80 um with a switch in EVERY row: VDD_SW is a follow-pin-only net
+# (no stripe grid), so a row with no switch has a FLOATING rail — IMPPSO-306
+# flagged exactly that under -skipRows (the M16 floating-rail lesson, power-
+# switch edition). ~1000 HEADBUF16 ≈ 8.5k um² in a 271k um² row budget.
+# -skipRows is REQUIRED (omitting it is the "non-numeric operand" abort —
+# the option has no sane default in this build); 0 = a switch in every row.
+addPowerSwitch -column -powerDomain PD_GATED \
+	-globalSwitchCellName {HEADBUF16MA10TH} \
+	-area [list $CORE_SPACING $CORE_SPACING [expr {$DESIGN_WIDTH - $CORE_SPACING}] [expr {$DESIGN_HEIGHT - $CORE_SPACING}]] \
+	-leftOffset 30 \
+	-horizontalPitch 80 \
+	-skipRows 0 \
+	-checkerBoard true \
+	-enableNetIn pd_sleep \
+	-enableNetOut pd_sleep_chain_out
+
+# addPowerSwitch FAILS SOFT (IMPPSO-109 and the script rolls on) — a
+# zero-switch tile would sail to signoff with an unpowered VDD_SW net and
+# only die at the assembly gate sim. Refuse to continue without a fabric.
+set NSW [llength [dbGet -p top.insts.cell.name HEADBUF16MA10TH]]
+puts "### UNL STATUS ### : $NSW HEADBUF16MA10TH power switches inserted"
+if {$NSW == 0} {
+	puts "FATAL (M17): addPowerSwitch inserted ZERO switches — aborting"
+	exit 1
+}
+
+# M17: well taps move UP here (they lived in the placement section as
+# FILLTIE) so their bias pins exist before the secondary sroute. FILLBIAS
+# instead of FILLTIE: a rail-tied tap in a gated row ties the n-well — held
+# at VDD by the header cells' body ties — to the dead VDD_SW rail and
+# back-feeds it through the well, defeating the shutoff.
+addWellTap \
+    -cell FILLBIASA10TH \
+    -cellInterval 24 \
+    -fixedGap \
+    -checkerBoard \
+    -prefix WELLTAP
+
+# pmk secondary pins, now that the switch + tap instances exist. NOTE
+# -type net, NOT pgpin: the pmk LEF gives VDDG/VNW/VPW no USE power/ground
+# class (plain INOUT signal pins), so a pgpin rule matches nothing
+# (IMPDB-1221 — M17 lesson).
+globalNetConnect VDD -type net -pin VDDG -inst * -module {} -verbose
+globalNetConnect VDD -type net -pin VNW  -inst * -module {} -verbose
+globalNetConnect VSS -type net -pin VPW  -inst * -module {} -verbose
+
 printStatus "Routing power rails"
 setSrouteMode -corePinMaxViaScale "100 10"
+# M17: three follow-pin nets now — VDD_SW rails in PD_GATED rows, VDD rails
+# in the PD_AO band, VSS everywhere. The M7/M8 stripe grid stays VDD/VSS
+# (always-on): VDD stripes drop onto VDD rails and the switches' VDDG pins
+# ONLY — the VDD_SW rails are fed exclusively by the switch outputs.
 sroute \
-	-nets { VSS VDD } \
+	-nets { VSS VDD VDD_SW } \
 	-allowLayerChange 0 \
 	-allowJogging 0 \
 	-connect corePin \
     -corePinWidth 0.3
+
+# M17: secondary PG pins — HEADBUF/GPG VDDG and the FILLBIAS well-bias pins
+# (VNW->VDD, VPW->VSS; the taps come from addWellTap below).
+printStatus "Routing secondary power pins (VDDG / VNW / VPW)"
+sroute \
+	-nets { VDD VSS } \
+	-connect { secondaryPowerPin } \
+	-secondaryPinNet { VDD VSS } \
+	-allowLayerChange 1 \
+	-allowJogging 1 \
+	-layerChangeRange { M1(1) M4(4) }
 
 verifyGeometry \
     -error 10000 \
@@ -213,12 +330,8 @@ createRouteBlk -box 0 0 $DESIGN_WIDTH $DESIGN_HEIGHT -layer 8
 ################################################################################
 # Placement
 ################################################################################
-addWellTap \
-    -cell FILLTIE2A10TH \
-    -cellInterval 24 \
-    -fixedGap \
-    -checkerBoard \
-    -prefix WELLTAP
+# (M17: the addWellTap pass moved UP before the power routing — FILLBIAS
+# taps must exist when the secondary sroute runs. See the power section.)
 
 place_opt_design
 printStatus "Placement done"

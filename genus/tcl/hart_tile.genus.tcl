@@ -96,15 +96,22 @@ set_db hdl_parameter_naming_style ""
 set_db init_lib_search_path [list \
 	$IP_DIR/sram1p16k_hvt_pg \
 	$INPUT_DIR/ \
-	/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/ ]
+	/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/ecsm-timing/ \
+	/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/synopsys/ ]
 
 set_db init_hdl_search_path [list \
 	$HDL_DIR ]
 
 # Tile macros: only the TCM SRAM (no ROM in a tile).
+# M17: the ARM Power Management Kit (sc-ad10-pmk) joins the always-on kit —
+# HEAD switches / A2ISO clamps / GPG always-on buffers for the CPF flow.
+# NOTE the pmk view is NLDM (no ECSM exists for it in any Vt flavor — M17
+# recon); mixing NLDM pmk + ECSM core in one library list is accepted, at
+# some SI-accuracy cost on the handful of pmk instances.
 set_db library [list \
 	sram1p16k_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib \
-	scadv10_cln65gp_hvt_tt_1p0v_25c.lib]
+	scadv10_cln65gp_hvt_tt_1p0v_25c.lib \
+	scadv10pmk_tsmc65gp_hvt_tt_1p0v_25c.lib]
 
 set_db tns_opto true
 set_db auto_ungroup none
@@ -168,6 +175,16 @@ set_db [get_db modules] .boundary_opto false
 puts "boundary_opto disabled on [llength [get_db modules]] modules"
 
 ################################################################################
+# Power intent (M17 MTCMOS) — the tile CPF: PD_GATED (default, shutoff =
+# pd_sleep) + PD_AO (ram0 + ports + iso). Genus inserts the A2ISO output
+# clamps and marks the domains; the switch fabric itself is Innovus's job.
+################################################################################
+read_power_intent -cpf ../cpf/hart_tile.cpf -module hart_tile
+apply_power_intent -summary
+commit_power_intent
+puts "### UNL STATUS ### : power intent committed (PD_GATED/PD_AO)"
+
+################################################################################
 # Constraints
 ################################################################################
 
@@ -204,8 +221,10 @@ set_input_delay  -clock [get_db clocks mclk] $SLEEP_EXT     [get_db ports sleep]
 set_input_delay  -clock [get_db clocks mclk] $FLASH_IN_EXT  [get_db ports {flash_dout[*]}]
 set_output_delay -clock [get_db clocks mclk] $FLASH_OUT_EXT [get_db ports {flash_mem_en flash_mab[*]}]
 
-# Static straps and quasi-static observation pins.
-set_false_path -from [get_db ports {hart_id[*] hw_clint_en tcm_pgen}]
+# Static straps and quasi-static observation pins. M17: pd_sleep/pd_iso_en
+# are quasi-static domain controls — they only transition while the domain
+# is quiesced (pwr_ctrl sequencing), never against live logic.
+set_false_path -from [get_db ports {hart_id[*] hw_clint_en tcm_pgen pd_sleep pd_iso_en}]
 set_false_path -to   [get_db ports {trap_flag a0[*]}]
 # Async reset: deassertion is synchronized externally by the POR/reset fabric;
 # recovery has huge margin at 25 MHz (same treatment the flat flow gave it by

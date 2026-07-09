@@ -1,5 +1,6 @@
 /home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
 /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/verilog/tsmc65_hvt_sc_adv10.v
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/verilog/tsmc65_hvt_sc_adv10_pmk.v
 /home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.v
 /home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.v
 ../../../genus/out/hart_tile.genus.v

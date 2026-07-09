@@ -44,6 +44,7 @@ SHSLV = {
 	'CLINT':     {'sel': 'clint', 'shim': None,    'rdata': 'clint_rdata'},
 	'MUTEX':     {'sel': 'mtx',   'shim': None,    'rdata': 'mtx_rdata'},
 	'IRQROUTER': {'sel': 'irtr',  'shim': None,    'rdata': 'irtr_rdata'},
+	'PWRCTRL':   {'sel': 'pwr',   'shim': None,    'rdata': 'pwr_rdata'},
 	'GPIO0':     {'sel': 'gpio0', 'shim': 'gpio0', 'rdata': 'gpio0_sh_rdata'},
 	'GPIO1':     {'sel': 'gpio1', 'shim': 'gpio1', 'rdata': 'gpio1_sh_rdata'},
 	'SPI0':      {'sel': 'spi0',  'shim': 'spi0',  'rdata': 'spi0_sh_rdata'},
@@ -87,7 +88,11 @@ MOVED_IN = {
 # then the slots.
 PG0_SEL_ORDER = ['GPIO0', 'GPIO1', 'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
 	'GPIO2', 'SYSTEM', 'NPU', 'GPIO3', 'I2C0', 'I2C1']
-EN_ORDER = ['rom', 'npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER'] + PG0_SEL_ORDER
+# M17: NATIVE slaves living IN a page-0 slot (slot-decoded like the shim
+# peripherals above, but speaking the arbiter protocol directly — no shim).
+# PWRCTRL took slot 11 (0x4B00), vacated by SARADC0 in the digital-only respin.
+PG0_NATIVE_ORDER = ['PWRCTRL']
+EN_ORDER = ['rom', 'npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] + PG0_SEL_ORDER
 RD_ORDER = list(EN_ORDER)
 
 # Polarity-shim groups: (transcribed comment lines, [peripheral names], name pad)
@@ -248,9 +253,17 @@ class McuVhdEmitter():
 		# 4. Order lists must cover the shared set exactly
 		if set(PG0_SEL_ORDER) != rtlShared:
 			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER does not cover the window-slot peripherals')
-		slots = [self.winSlot(n) for n in PG0_SEL_ORDER]
+		slots = [self.winSlot(n) for n in PG0_SEL_ORDER + PG0_NATIVE_ORDER]
 		if len(set(slots)) != len(slots) or any(s < 0 or s > 15 for s in slots):
-			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER slots must be unique and within 0..15 (reserved gaps allowed)')
+			raise Exception('MCU.vhd emitter: page-0 slots must be unique and within 0..15 (reserved gaps allowed)')
+		# M17: native page-0 slaves (PWRCTRL) must be native AND sit at their slot address
+		for name in PG0_NATIVE_ORDER:
+			if name not in rtlNative:
+				raise Exception('MCU.vhd emitter: ' + name + ' must be sharedBus=native (page-0 native slave)')
+			expected = SHARED_WINDOW_BASE + SHARED_SLOT_SIZE * self.winSlot(name)
+			if self.periph(name).BaseAddress != expected:
+				raise Exception('MCU.vhd emitter: ' + name + ' base address ' + hex(self.periph(name).BaseAddress)
+					+ ' does not match window slot ' + str(self.winSlot(name)) + ' (' + hex(expected) + ')')
 		if set(RD_ORDER) != rtlShared | rtlNative | set(MEMSLV):
 			raise Exception('MCU.vhd emitter: RD_ORDER does not cover the shared slaves')
 		if set(EN_ORDER) != rtlShared | rtlNative | set(MEMSLV):
@@ -372,6 +385,13 @@ class McuVhdEmitter():
 		lines.append(ind + '-- every peripheral back at its original Myshkin address, shared by')
 		lines.append(ind + '-- all 4 harts')
 		for name in PG0_SEL_ORDER:
+			selName = 'shslv_' + SHSLV[name]['sel'] + '_sel'
+			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
+				+ format(self.winSlot(name), '04b') + '" else \'0\';')
+		lines.append(ind + '-- M17: the power controller is a NATIVE slave IN a page-0 slot (11,')
+		lines.append(ind + '-- 0x4B00 ' + EMDASH + ' vacated by SARADC0): slot-decoded like the peripherals')
+		lines.append(ind + '-- above, but it speaks the arbiter protocol directly (no shim).')
+		for name in PG0_NATIVE_ORDER:
 			selName = 'shslv_' + SHSLV[name]['sel'] + '_sel'
 			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
 				+ format(self.winSlot(name), '04b') + '" else \'0\';')
