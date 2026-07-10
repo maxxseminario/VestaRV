@@ -60,6 +60,7 @@ class LatexUserGuide():
 		self.GenerateInterruptsTable()
 		self.GeneratePackagePinsConfigurationTable()
 		self.GenerateGpioPinsConfigurationTable()
+		self.GenerateGpioAltFunctionMatrixTable()
 		self.GenerateForthCommandsItemized()
 		self.GeneratePeripheralSections()
 		self.GeneratePeripheralAndRegistersList()
@@ -614,9 +615,107 @@ class LatexUserGuide():
 		path = self.IncludeDirectory + '/GpioPinsConfigurationTable.tex'
 		with open(path, 'w') as f:
 			f.write(s)
-		
+
 		return
-	
+
+
+	def GenerateGpioAltFunctionMatrixTable(self):
+		# One row per GPIO pin, one column per PxAFS field value (0..7): the exact
+		# function driven onto (or read from) the pad when the pin is in alternate
+		# function mode (PxSEL = 1) and its PxAFS field selects that plane. Plane 0
+		# is the pin's AF0 (legacy secondary) function; planes 1..7 come from the
+		# pin's additional alternate functions. A plane with no function assigned is
+		# a high-impedance input.
+		gpioPeripherals = []
+		for p in self.Gen.Peripherals:
+			if p.IsGPIO():
+				gpioPeripherals.append(p)
+
+		# Compact superscript tag for the plane's I/O direction ('I'/'O'/'IO'/'')
+		def ioTag(ioType):
+			if ioType == 'I':
+				return '\\textsuperscript{\\scriptsize in}'
+			if ioType == 'O':
+				return '\\textsuperscript{\\scriptsize out}'
+			if ioType == 'IO':
+				return '\\textsuperscript{\\scriptsize io}'
+			return ''
+
+		# Render a single plane cell. A dagger marks the pin's reset plane (PxAFS
+		# reset value); an unassigned plane renders as a high-impedance input.
+		def planeCell(name, ioType, isReset):
+			if name is None or len(name) < 1:
+				cell = '\\textit{\\color{lightgray}Hi-Z}'
+			else:
+				cell = '\\pin{' + fmttex(name) + '}' + ioTag(ioType)
+			if isReset:
+				cell += '\\textsuperscript{$\\dagger$}'
+			return cell
+
+		# The matrix is 9 columns wide; shrink the font and column padding so it fits
+		# the text block, and wrap in a group so those changes are local.
+		s = '{\\footnotesize\\setlength{\\tabcolsep}{3pt}\n'
+		s += '\\begin{longtable}[c]{ l | c c c c c c c c }\n'
+		s += '\\caption{GPIO Alternate Function Selection (\\register{PxAFS})} \\label{t:gpio-afs} \\\\ \n'
+
+		topSpan = '\\hline & \\multicolumn{8}{c}{\\textbf{\\textit{\\register{PxAFS} field value (selected AF plane)}}} \\\\ \\cline{2-9}\n'
+		header = '\\textbf{Pin} & \\textbf{0 (AF0)} & \\textbf{1} & \\textbf{2} & \\textbf{3} & \\textbf{4} & \\textbf{5} & \\textbf{6} & \\textbf{7} \\\\'
+
+		s += topSpan
+		s += header + ' \\hline \\endfirsthead\n'
+
+		s += '\\multicolumn{9}{c}{\\textit{\\tablename\ \\thetable\ continued from previous page}} \\\\ \\hline\n'
+		s += topSpan
+		s += header + ' \\hline \\endhead\n'
+
+		s += '\\hline \\multicolumn{9}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
+
+		thisRowColored = False
+		for i, p in enumerate(gpioPeripherals):
+			for j, pin in enumerate(p.Pins):
+				if pin.NoConnect:
+					continue
+				if thisRowColored:
+					s += '\\rowcolor{tablehighlightcolor} '
+				s += 'P' + p.GetGPIOPortLabel() + '.' + str(pin.BitNumber) + ' & '
+
+				cells = []
+				# Plane 0 is AF0 (the pin's primary secondary/peripheral function)
+				cells.append(planeCell(pin.FuncName, pin.FuncIOType, pin.RstAFS == 0))
+				# Planes 1..7 are drawn from the pin's additional alternate functions
+				for planeIdx in range(1, 8):
+					af = None
+					for a in pin.AltFuncs:
+						if a.Index == planeIdx:
+							af = a
+							break
+					if af is None:
+						cells.append(planeCell(None, None, pin.RstAFS == planeIdx))
+					else:
+						cells.append(planeCell(af.Name, af.IOType, pin.RstAFS == planeIdx))
+
+				s += ' & '.join(cells) + ' \\\\'
+
+				if ((i + 1) < len(gpioPeripherals)) and ((j + 1) == len(p.Pins)):
+					# Not the last GPIO port, but the last pin in this port
+					s += ' \\hline'
+				s += '\n'
+				thisRowColored = not thisRowColored
+
+		# Remove the \\ from the final entry and add an ending horizontal line
+		s = s[:-3] + r'\\' + '\n' + r'\hline' + '\n'
+		s += '\\end{longtable}\n'
+		s += '}\n'
+
+		if not os.path.isdir(self.IncludeDirectory):
+			os.makedirs(self.IncludeDirectory)
+
+		path = self.IncludeDirectory + '/GpioAltFunctionMatrixTable.tex'
+		with open(path, 'w') as f:
+			f.write(s)
+
+		return
+
 	def GenerateForthCommandsItemized(self):
 		s = '\\subsection{Memory Access Functions}\n'
 		s += '\\begin{itemize}\n'
