@@ -26,3 +26,4 @@
 ../rcf/xxxxrv32ua-p-shamo.rcf
 ../rcf/xxxrv32ui-p-shexec.rcf
 ../rcf/xxxxrv32ui-p-shpwr.rcf
+../rcf/xxxxrv32ui-p-afsel.rcf

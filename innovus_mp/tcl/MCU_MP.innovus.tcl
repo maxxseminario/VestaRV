@@ -218,11 +218,18 @@ placeInstance dco0    550 470 R0
 addHaloToBlock 4 4 4 4 dco0
 placeInstance dco1    670 470 R0
 addHaloToBlock 4 4 4 4 dco1
+# GlitchFilter PG pins are full-width M3 strips (VSS y 1.23-2.23, VDD y
+# 16.105-17.105) — they connect ONLY where a vertical M7 stripe pair crosses
+# the macro (the Myshkin script carries the same warning and centers each
+# irq_gf on a SET_TO_SET multiple). gf0/gf1 at 790/880 straddle the pairs at
+# ~800/~900; gf2 at 970 (span 970-1001) missed the ~1000-1014 pair by 8 um —
+# unconnected VSS terminal at signoff (M17b). 991 centers it on that pair.
+# The jogging block-pin sroute pass below is the belt-and-braces backstop.
 placeInstance irq_gf0 790 470 R0
 addHaloToBlock 4 4 4 4 irq_gf0
 placeInstance irq_gf1 880 470 R0
 addHaloToBlock 4 4 4 4 irq_gf1
-placeInstance irq_gf2 970 470 R0
+placeInstance irq_gf2 991 470 R0
 addHaloToBlock 4 4 4 4 irq_gf2
 cutRow
 
@@ -257,11 +264,50 @@ addRing \
     -center 0 -extend_corner {} -threshold 0 -jog_distance 0 \
     -snap_wire_center_to_grid None
 
+# M17b: -skip_side {top} skips only the DIE-top segments -- the ring engine
+# still CLOSES the loop by detouring under each analog window: four M8
+# segments per net at y ~1227/1241 straight across the tiles, 0.5 um from
+# the tile M7/M8 LEF blockage (= the long-standing "20 SameNet" signoff
+# viols; their corner via7Arrays are the M7 ones). Neither the stripe area
+# nor an sroute -area cap touches these -- they are RING shapes. Delete
+# every VDD/VSS special shape lying ENTIRELY above y=1213: the 8 detour
+# segments + their via stacks + the window-side legs. The main side legs
+# (boxes start at y 4/18) are spared -- lly-based whole-shape criterion --
+# and the ring stays powered via bottom + side legs + the full stripe grid.
+# NB sViaInst objects have NO box_lly — only pt (placement point). A
+# box_lly filter on them SILENTLY matches nothing (first attempt deleted
+# the 8 wires but left all 104 detour via arrays: 96 fresh M8 via-vs-
+# blockage viols). Wires filter on box_lly, vias on pt_y.
+set __nuked 0
+foreach __n {VDD VSS} {
+	set __net [dbGet -p top.nets.name $__n]
+	foreach __w [dbGet $__net.sWires] {
+		if {[dbGet $__w.box_lly] >= 1213} { dbDeleteObj $__w; incr __nuked }
+	}
+	foreach __v [dbGet $__net.sVias] {
+		if {[dbGet $__v.pt_y] >= 1213} { dbDeleteObj $__v; incr __nuked }
+	}
+}
+puts "### UNL STATUS ### : deleted $__nuked ring-detour shapes above y=1213"
+
 # Stripe grid stops at the notch-floor line: above it live only the analog
 # windows, the tile fingers (powered by the tile's own closed U-ring) and
 # the pin channels. Stripes crossing that strip get chopped against the
 # window blockages into ORPHANED pieces (first run: 1248 disconnected VSS/
 # VDD special-wire fragments + a VSS open over hart0) -- so don't draw them.
+# M17b, learned the hard way across three runs:
+#  * X stays 0..W. Trimming x to 30..W-30 to kill the die-edge stub
+#    fragments detaches EVERY horizontal stripe from the rings instead
+#    (-extend_to_closest_target respects the -area bound, so no extension
+#    happens) -- VDD opens went 26 -> 313.
+#  * Y ceiling is NOTCH_FLOOR_Y - 39 = below the tiles' notch-floor ring
+#    band (tile-local y 572..600 = global 1221..1249). The last M8 stripe
+#    pair otherwise lands at y ~1228..1246.5 inside that band = SameNet
+#    ParallelRun spacing viols against the tile M7/M8 blockage. This is
+#    HALF the fix -- the blockPin sroute straps hit the same band from the
+#    other side (see the sroute -area cap below); both are needed, they
+#    produce byte-identical violation bounds and masked each other.
+set STRIPE_TOP_Y [expr {$NOTCH_FLOOR_Y - 39}]
 setAddStripeMode \
     -remove_floating_stripe_over_block true \
     -trim_antenna_back_to_shape core_ring \
@@ -272,7 +318,7 @@ addStripe \
 	-nets {VDD VSS} \
 	-direction horizontal \
 	-start_from left \
-	-area [list 0 0 $DESIGN_WIDTH $NOTCH_FLOOR_Y] \
+	-area [list 0 0 $DESIGN_WIDTH $STRIPE_TOP_Y] \
 	-set_to_set_distance $POWER_STRIPE_SET_TO_SET \
 	-spacing $POWER_STRIPE_PATH_SPACING \
 	-width $POWER_STRIPE_PATH_WIDTH \
@@ -284,7 +330,7 @@ addStripe \
 	-nets {VDD VSS} \
 	-direction vertical \
 	-start_from bottom \
-	-area [list 0 0 $DESIGN_WIDTH $NOTCH_FLOOR_Y] \
+	-area [list 0 0 $DESIGN_WIDTH $STRIPE_TOP_Y] \
 	-set_to_set_distance $POWER_STRIPE_SET_TO_SET \
 	-spacing $POWER_STRIPE_PATH_SPACING \
 	-width $POWER_STRIPE_PATH_WIDTH \
@@ -297,13 +343,40 @@ setCheckMode -globalNet true -io true -route true -tapeOut true
 
 printStatus "Routing power rails"
 setSrouteMode -corePinMaxViaScale "100 10"
+# M17b: -area caps the strapping BELOW the tiles' notch-floor ring band
+# (tile-local y 572..600 = global 1221..1249). Without it, blockPin sroute
+# straps the tiles' notch-floor-ring PG pins and its M8 jumpers + M7 stack
+# vias run 0.5 um from the tile LEF blockage = the 20 SameNet ParallelRun
+# viols at signoff (5 per tile, identical bounds every run). The tile U-ring
+# is a closed loop -- the dozens of straps onto the tile base's pins below
+# 1220 power all of it; the skipped top-leg pins are redundancy only.
+# (No rows exist above the tile bottoms either -- cutRow took them -- so
+# the cap costs zero corePin rails.)
 sroute \
 	-nets { VSS VDD } \
 	-allowLayerChange 0 \
 	-allowJogging 0 \
 	-connect {blockPin corePin} \
 	-blockPin useLef \
+	-area [list 0 0 $DESIGN_WIDTH 1220] \
     -corePinWidth 0.3
+
+# M17b: second, JOGGING block-pin pass over the control-band analog macros
+# only (por / dco0/1 / irq_gf0-2). The straight-line pass above connects a
+# macro's full-width M3 PG strips only where an M7 stripe happens to cross
+# it -- irq_gf2 missed by 8 um and sailed to signoff with an unconnected VSS
+# terminal. The macros are placed on the stripe grid (straight vias remain
+# the primary connection); this pass exists so a macro nudge can never
+# silently strand a PG pin again. Area = the analog band, nothing else.
+printStatus "Routing analog-macro PG pins (jogging backstop pass)"
+sroute \
+	-nets { VSS VDD } \
+	-connect { blockPin } \
+	-blockPin useLef \
+	-allowLayerChange 1 \
+	-allowJogging 1 \
+	-layerChangeRange { M3(3) M7(7) } \
+	-area { 440 460 1035 515 }
 
 verifyGeometry \
     -error 10000 \
