@@ -43,10 +43,7 @@ entity MCU is
         -- Testing Purposes Only
         a0  : out std_logic_vector(31 downto 0);
 
-        -- M3b: per-hart pass/fail observation (a0 of the 3 private-memory harts)
-        a0_1 : out std_logic_vector(31 downto 0);
-        a0_2 : out std_logic_vector(31 downto 0);
-        a0_3 : out std_logic_vector(31 downto 0)
+        --@GEN:a0-ports@
 
     );
 end entity;
@@ -448,20 +445,7 @@ architecture behav of MCU is
         -- sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile — all four
         -- masters now carry identical tile-internal copies of it.
         -- M4b: global LR/SC reservation unit
-        signal arb_lrsc         : std_logic_vector(4*2-1 downto 0);
-        signal arb_scfail       : std_logic_vector(3 downto 0);
-        signal sh_we_raw        : std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating
-        -- arbiter master buses (master 0 = hart 0; masters 1-3 = hart tiles).
-        -- we = 4 active-high byte-lane strobes per master (M4a).
-        signal arb_req, arb_gnt, arb_done : std_logic_vector(3 downto 0);
-        -- M8: per-master grant-lock (cores' amo_lock) — pins the arbiter to a
-        -- master across its AMO read+write transaction pair (cross-hart AMO
-        -- atomicity).
-        signal arb_lock         : std_logic_vector(3 downto 0);
-        signal arb_we           : std_logic_vector(4*4-1 downto 0);
-        signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
-        signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
-        signal arb_rdata        : std_logic_vector(31 downto 0);
+        --@GEN:arb-fabric-decls@
         -- arbiter <-> shared slave side (RAM + CLINT sub-decoded below, M5b)
         signal sh_en            : std_logic;
         signal sh_we            : std_logic_vector(3 downto 0);
@@ -515,8 +499,7 @@ architecture behav of MCU is
         signal shslv_rd_clint   : std_logic := '0'; -- registered: last access was CLINT
         signal sh_rdata_mux     : std_logic_vector(31 downto 0); -- into arbiter s_rdata
         signal clint_rdata      : std_logic_vector(31 downto 0);
-        signal clint_msip       : std_logic_vector(3 downto 0);
-        signal clint_mtip       : std_logic_vector(3 downto 0);
+        --@GEN:clint-irq-decls@
         -- M6: shared UART0 (console) — M11: window slot 4 @0x4400 (its
         -- ORIGINAL private address, live again for all 4 harts)
         signal shslv_uart0_sel  : std_logic;
@@ -530,7 +513,7 @@ architecture behav of MCU is
         signal shslv_irtr_en    : std_logic;
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
-        signal tile_irq_en_flat : std_logic_vector(4*NUM_IRQS-1 downto 0);
+        --@GEN:tile-irq-en-flat-decl@
         -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
         -- window slot 11 @0x4B00 (vacated by SARADC0). Its pd_* rows drive
         -- the tile power domains: pd_rstn folds into each tile's resetn
@@ -542,10 +525,7 @@ architecture behav of MCU is
         signal shslv_pwr_en     : std_logic;
         signal shslv_rd_pwr     : std_logic := '0'; -- registered: last access was pwr_ctrl
         signal pwr_rdata        : std_logic_vector(31 downto 0);
-        signal pd_iso_en        : std_logic_vector(3 downto 1);
-        signal pd_sleep         : std_logic_vector(3 downto 1);
-        signal pd_rstn          : std_logic_vector(3 downto 1);
-        signal tile_rstn        : std_logic_vector(3 downto 1);
+        --@GEN:pd-decls@
         -- M17 isolation: the tile outputs land on these _raw nets and are
         -- AND-clamped LOW onto the arbiter/observation buses by pd_iso_en —
         -- the EXPLICIT always-on-side isolation cells (electrically the
@@ -553,27 +533,7 @@ architecture behav of MCU is
         -- possibly-floating tile pin on one input). Clamp-low == the
         -- boundary registers' reset values, so a clamped master looks
         -- exactly like a reset one to the arbiter (no M5a-class hazard).
-        signal tile1_req_raw    : std_logic;
-        signal tile2_req_raw    : std_logic;
-        signal tile3_req_raw    : std_logic;
-        signal tile1_we_raw     : std_logic_vector(3 downto 0);
-        signal tile2_we_raw     : std_logic_vector(3 downto 0);
-        signal tile3_we_raw     : std_logic_vector(3 downto 0);
-        signal tile1_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
-        signal tile2_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
-        signal tile3_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
-        signal tile1_wdata_raw  : std_logic_vector(31 downto 0);
-        signal tile2_wdata_raw  : std_logic_vector(31 downto 0);
-        signal tile3_wdata_raw  : std_logic_vector(31 downto 0);
-        signal tile1_lrsc_raw   : std_logic_vector(1 downto 0);
-        signal tile2_lrsc_raw   : std_logic_vector(1 downto 0);
-        signal tile3_lrsc_raw   : std_logic_vector(1 downto 0);
-        signal tile1_lock_raw   : std_logic;
-        signal tile2_lock_raw   : std_logic;
-        signal tile3_lock_raw   : std_logic;
-        signal a0_1_raw         : std_logic_vector(31 downto 0);
-        signal a0_2_raw         : std_logic_vector(31 downto 0);
-        signal a0_3_raw         : std_logic_vector(31 downto 0);
+        --@GEN:tile-raw-decls@
         -- M7b movers: TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)
         signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
         signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
@@ -663,7 +623,7 @@ architecture behav of MCU is
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
-        signal sh_master        : std_logic_vector(1 downto 0);
+        --@GEN:sh-master-decl@
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -1397,74 +1357,10 @@ begin
     -- a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
 
-    -- =========================================================================
-    -- M13 TILE EXTRACTION: hart 0 is the SAME hart_tile as harts 1-3 — the
-    -- inline core/adddec/TCM/shared-window machinery that used to live here
-    -- (and that hart_tile mirrored since M3c) is folded into the tile. The
-    -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the
-    -- M10 clk_cpu-staged consumption register and the M9b nop-force all
-    -- live in hart_tile.vhd now — see the rationale there. Hart 0's
-    -- remaining specials are pure WIRING on the identical tile:
-    --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),
-    --   * irq_en_ext/irq_prio_ext/irq_recursion_en/isr_ret -> SYSTEM0
-    --     (hw_clint_en='0': SYS_IRQ_EN's reset-all-masked semantics kept;
-    --     tiles hardwire CLINT slots 83/84 instead and take the router row),
-    --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),
-    --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.
-    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency
-    -- insensitivity at boundary depths 0/1/2; the boot fetch through the
-    -- arbiter exercises the stall path on every run).
-    -- =========================================================================
-    hart0: entity work.hart_tile
-        generic map (
-            PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
-            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
-            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
-        )
-        port map (
-            clk       => mclk,
-            resetn    => resetn,
-            sleep     => sleep_cpu,
-            hart_id   => x"00000000",
-            msip_in   => clint_msip(0),
-            mtip_in   => clint_mtip(0),
-            irq_ext    => irq_deglitch,
-            irq_en_ext => irq_en,
-            irq_prio_ext     => irq_priority,
-            irq_recursion_en => irq_recursion_en,
-            isr_ret          => isr_ret,
-            hw_clint_en      => '0',
-            flash_mem_en  => mem_en_flash,
-            flash_clk_mem => clk_mem_flash,
-            flash_mab     => mab_flash,
-            flash_dout    => flash_dout,
-            sh_req    => arb_req(0),
-            sh_we     => arb_we(3 downto 0),
-            sh_addr   => arb_addr(SH_AW-1 downto 0),
-            sh_wdata  => arb_wdata(31 downto 0),
-            sh_gnt    => arb_gnt(0),
-            sh_done   => arb_done(0),
-            sh_rdata  => arb_rdata,
-            sh_lrsc   => arb_lrsc(1 downto 0),
-            sh_scfail => arb_scfail(0),
-            sh_lock   => arb_lock(0),
-            tcm_pgen  => pgen_mem(1),
-            -- M17: hart 0 is ALWAYS-ON — its domain controls are strapped
-            -- inactive (explicit, per the M14 netlist-boundary rule)
-            pd_sleep  => '0',
-            pd_iso_en => '0',
-            trap_flag => trap_out,
-            a0        => a0
-        );
+    --@GEN:hart0-instance@
 
     mp_arb0: entity work.mp_arbiter
-        generic map (N => 4, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)
+        --@GEN:arb-generic@
         port map (
             clk    => mclk,
             resetn => resetn,
@@ -1491,7 +1387,7 @@ begin
     -- what makes cross-hart LR/SC sound: two harts SC-ing the same word both
     -- pass their core-LOCAL checks, and only this unit can order them.
     resv0: entity work.resv_unit
-        generic map (N => 4, ADDR_WIDTH => SH_AW)
+        --@GEN:resv-generic@
         port map (
             clk        => mclk,
             resetn     => resetn,
@@ -1535,37 +1431,9 @@ begin
 
     --@GEN:polarity-shims@
 
-    clint0: entity work.clint
-        generic map (NHARTS => 4)
-        port map (
-            clk    => mclk,
-            resetn => resetn,
-            en     => shslv_clint_en,
-            we     => sh_we,
-            addr   => sh_addr(3 downto 0),
-            wdata  => sh_wdata,
-            rdata  => clint_rdata,
-            msip   => clint_msip,
-            mtip   => clint_mtip
-        );
+    --@GEN:clint-instance@
 
-    -- M7a: tile IRQ fan-out — per-hart peripheral-IRQ enable rows, written by
-    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows
-    -- 1-3 feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's
-    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,
-    -- so this block is a provable NO-OP until software routes an IRQ.
-    irtr0: entity work.irq_router
-        generic map (NHARTS => 4, NUM_IRQS => NUM_IRQS)
-        port map (
-            clk        => mclk,
-            resetn     => resetn,
-            en         => shslv_irtr_en,
-            we         => sh_we,
-            addr       => sh_addr(3 downto 0),
-            wdata      => sh_wdata,
-            rdata      => irtr_rdata,
-            irq_en_out => tile_irq_en_flat
-        );
+    --@GEN:irq-router-instance@
 
     -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
     -- return-old-and-claim (1-instruction acquire; the arbiter's whole-txn
@@ -1613,37 +1481,13 @@ begin
     -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
     -- which is also what keeps it bus-silent at the arbiter (sh_req is
     -- qualified by the tile's resetn since M12).
-    tile_rstn(1) <= resetn and pd_rstn(1);
-    tile_rstn(2) <= resetn and pd_rstn(2);
-    tile_rstn(3) <= resetn and pd_rstn(3);
+    --@GEN:tile-rstn@
 
     -- M17 isolation clamps (see the _raw signal comment): every outbound
     -- tile signal is forced to its reset value while pd_iso_en(h) is high,
     -- so the arbiter and the tb never sample a floating pin of a dark
     -- domain. These gates synthesize into the ALWAYS-ON control plane.
-    arb_req(1)              <= tile1_req_raw   when pd_iso_en(1) = '0' else '0';
-    arb_we(7 downto 4)      <= tile1_we_raw    when pd_iso_en(1) = '0' else (others => '0');
-    arb_addr(2*SH_AW-1 downto SH_AW) <= tile1_addr_raw when pd_iso_en(1) = '0' else (others => '0');
-    arb_wdata(2*32-1 downto 32)      <= tile1_wdata_raw when pd_iso_en(1) = '0' else (others => '0');
-    arb_lrsc(3 downto 2)    <= tile1_lrsc_raw  when pd_iso_en(1) = '0' else "00";
-    arb_lock(1)             <= tile1_lock_raw  when pd_iso_en(1) = '0' else '0';
-    a0_1                    <= a0_1_raw        when pd_iso_en(1) = '0' else (others => '0');
-
-    arb_req(2)              <= tile2_req_raw   when pd_iso_en(2) = '0' else '0';
-    arb_we(11 downto 8)     <= tile2_we_raw    when pd_iso_en(2) = '0' else (others => '0');
-    arb_addr(3*SH_AW-1 downto 2*SH_AW) <= tile2_addr_raw when pd_iso_en(2) = '0' else (others => '0');
-    arb_wdata(3*32-1 downto 2*32)      <= tile2_wdata_raw when pd_iso_en(2) = '0' else (others => '0');
-    arb_lrsc(5 downto 4)    <= tile2_lrsc_raw  when pd_iso_en(2) = '0' else "00";
-    arb_lock(2)             <= tile2_lock_raw  when pd_iso_en(2) = '0' else '0';
-    a0_2                    <= a0_2_raw        when pd_iso_en(2) = '0' else (others => '0');
-
-    arb_req(3)              <= tile3_req_raw   when pd_iso_en(3) = '0' else '0';
-    arb_we(15 downto 12)    <= tile3_we_raw    when pd_iso_en(3) = '0' else (others => '0');
-    arb_addr(4*SH_AW-1 downto 3*SH_AW) <= tile3_addr_raw when pd_iso_en(3) = '0' else (others => '0');
-    arb_wdata(4*32-1 downto 3*32)      <= tile3_wdata_raw when pd_iso_en(3) = '0' else (others => '0');
-    arb_lrsc(7 downto 6)    <= tile3_lrsc_raw  when pd_iso_en(3) = '0' else "00";
-    arb_lock(3)             <= tile3_lock_raw  when pd_iso_en(3) = '0' else '0';
-    a0_3                    <= a0_3_raw        when pd_iso_en(3) = '0' else (others => '0');
+    --@GEN:iso-clamps@
 
     -- =========================================================================
     -- M11: shared bulk RAM = 4 x sram1p16k macros (64 KB, 0x10000-0x1FFFF),
@@ -1739,158 +1583,7 @@ begin
     -- the tb latches pass AND fail, so a post-PASS corruption still fails
     -- the run. M13: sleep/flash/tcm_pgen and the SYSTEM0-side IRQ ports ride
     -- their entity defaults here — only hart 0 wires them.
-    hart1: entity work.hart_tile
-        generic map (
-            PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
-            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
-            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
-        )
-        port map (
-            clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
-            resetn    => tile_rstn(1),
-            sleep     => '0',
-            hart_id   => x"00000001",
-            msip_in   => clint_msip(1),
-            mtip_in   => clint_mtip(1),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            -- M7a: deglitched peripheral levels fan out to every tile; the
-            -- tile's row of the irq_router gates them (slots 83/84 are
-            -- overridden/hardwired inside the tile)
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(2*NUM_IRQS-1 downto 1*NUM_IRQS),
-            -- M17: outbound signals land on _raw and pass the iso clamps
-            sh_req    => tile1_req_raw,
-            sh_we     => tile1_we_raw,
-            sh_addr   => tile1_addr_raw,
-            sh_wdata  => tile1_wdata_raw,
-            sh_gnt    => arb_gnt(1),
-            sh_done   => arb_done(1),
-            sh_rdata  => arb_rdata,
-            sh_lrsc   => tile1_lrsc_raw,
-            sh_scfail => arb_scfail(1),
-            sh_lock   => tile1_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
-            tcm_pgen  => pd_sleep(1),
-            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
-            pd_sleep  => pd_sleep(1),
-            pd_iso_en => pd_iso_en(1),
-            trap_flag => open,
-            a0        => a0_1_raw
-        );
-
-    hart2: entity work.hart_tile
-        generic map (
-            PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
-            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
-            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
-        )
-        port map (
-            clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
-            resetn    => tile_rstn(2),
-            sleep     => '0',
-            hart_id   => x"00000002",
-            msip_in   => clint_msip(2),
-            mtip_in   => clint_mtip(2),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(3*NUM_IRQS-1 downto 2*NUM_IRQS),
-            -- M17: outbound signals land on _raw and pass the iso clamps
-            sh_req    => tile2_req_raw,
-            sh_we     => tile2_we_raw,
-            sh_addr   => tile2_addr_raw,
-            sh_wdata  => tile2_wdata_raw,
-            sh_gnt    => arb_gnt(2),
-            sh_done   => arb_done(2),
-            sh_rdata  => arb_rdata,
-            sh_lrsc   => tile2_lrsc_raw,
-            sh_scfail => arb_scfail(2),
-            sh_lock   => tile2_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
-            tcm_pgen  => pd_sleep(2),
-            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
-            pd_sleep  => pd_sleep(2),
-            pd_iso_en => pd_iso_en(2),
-            trap_flag => open,
-            a0        => a0_2_raw
-        );
-
-    hart3: entity work.hart_tile
-        generic map (
-            PC_RST_VAL     => x"00000000",
-            SH_AW          => SH_AW,
-            -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
-            ENABLE_MUL        => CORE_ENABLE_MUL,
-            ENABLE_DIV        => CORE_ENABLE_DIV,
-            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
-            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
-        )
-        port map (
-            clk       => mclk,
-            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
-            -- and pd_rstn) — a gated/waking tile is held in reset
-            resetn    => tile_rstn(3),
-            sleep     => '0',
-            hart_id   => x"00000003",
-            msip_in   => clint_msip(3),
-            mtip_in   => clint_mtip(3),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(4*NUM_IRQS-1 downto 3*NUM_IRQS),
-            -- M17: outbound signals land on _raw and pass the iso clamps
-            sh_req    => tile3_req_raw,
-            sh_we     => tile3_we_raw,
-            sh_addr   => tile3_addr_raw,
-            sh_wdata  => tile3_wdata_raw,
-            sh_gnt    => arb_gnt(3),
-            sh_done   => arb_done(3),
-            sh_rdata  => arb_rdata,
-            sh_lrsc   => tile3_lrsc_raw,
-            sh_scfail => arb_scfail(3),
-            sh_lock   => tile3_lock_raw,
-            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
-            -- its own native PGEN power-down whenever the domain gates —
-            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
-            tcm_pgen  => pd_sleep(3),
-            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
-            pd_sleep  => pd_sleep(3),
-            pd_iso_en => pd_iso_en(3),
-            trap_flag => open,
-            a0        => a0_3_raw
-        );
+    --@GEN:tile-instances@
 
     -- System Peripheral
     system0: SYSTEM
