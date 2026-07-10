@@ -133,6 +133,10 @@ Many of the digital I/O pins are GPIO pins. These pins can be in either primary/
 
 \input{include/GpioPinsConfigurationTable.tex}
 
+When a pin is in alternate function (peripheral) mode (its \register{PxSEL} bit = 1), its 3-bit \register{PxAFS} field selects which of up to eight alternate functions (AF0--AF7) drives the pad. Table \ref{t:gpio-afs} lists, for every GPIO pin, the exact function selected by each \register{PxAFS} value. Plane 0 is the pin's AF0 (legacy secondary) function and is the reset selection; planes marked \textbf{Hi-Z} have no function assigned for that pin and configure the pad as a high-impedance input. The superscript on each function denotes its direction (\textsuperscript{\scriptsize in} input, \textsuperscript{\scriptsize out} output, \textsuperscript{\scriptsize io} bidirectional), and a \textsuperscript{$\dagger$} marks each pin's reset plane (its \register{PxAFS} reset value). While a pin is in GPIO (primary) mode the selected plane has no effect on the pad, but it still routes relocatable peripheral \emph{inputs} (see the \peripheral{GPIOx} chapter, Section \ref{peripheralGPIOx}).
+
+\input{include/GpioAltFunctionMatrixTable.tex}
+
 \newpage
 
 
