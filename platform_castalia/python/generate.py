@@ -19,10 +19,14 @@ from GpioConfigurator import GpioConfigurator
 # hand). EVERY key is OPTIONAL and falls back to the Castalia default in the
 # ChipGenerator(...) call below. Only the documented SCALAR knobs are honored:
 # chip name, hart count, register file, the ISA generics, and the memory-region
-# sizes. The peripheral SET and the hart/arbiter/CLINT INSTANCES are fixed RTL
-# template content (see platform_castalia/CLAUDE.md) and are NOT overridden here
-# — a config that changes them only affects the TRM/headers, never the drop-in
-# RTL. Precedence for the name:  CHIP_NAME env var  >  config file  >  default.
+# sizes. The peripheral SET is fixed RTL template content (see
+# platform_castalia/CLAUDE.md). Since A1 (Argus N-hart generalization,
+# 2026-07-10) numHarts ALSO drives the generated MCU.vhd regions (hart-tile
+# instances, arbiter/fabric widths, CLINT layout) — but only numHarts=4 is
+# verified drop-in RTL today (check_mcu_vhd.py STRICT); other hart counts
+# need the A2/A3 RTL generalizations (s_master width, irq_router/pwr_ctrl
+# regrow, sh_sel/flash move) before the emitted MCU.vhd elaborates.
+# Precedence for the name:  CHIP_NAME env var  >  config file  >  default.
 # ---------------------------------------------------------------------------
 import json
 _CHIP_CONFIG = {}
@@ -45,6 +49,18 @@ def _cfg(dottedKey, default):
 def _hexLen(nBytes):
 	'''0x-prefixed uppercase-digit length string for a linker-script LENGTH field.'''
 	return '0x' + format(int(nBytes), 'X')
+
+# Hart count, hoisted so the per-hart register loops below (CLINT, IRQROUTER)
+# and the ChipGenerator call share ONE value (A1 N-hart generalization).
+numHarts = _cfg('numHarts', 4)
+
+# CLINT register-layout formula (A0/A1; must match hdl/MCU_MP/clint.vhd):
+# msip[h] at word h; mtime lo at word roundup16(4*numHarts)/4; mtimecmp[h]
+# lo/hi at mtime word + 4 + 2h. At numHarts=4 this reproduces the original
+# M5b layout EXACTLY (msip 0-3, mtime 4/5, mtimecmp 8+2h) — that identity is
+# the A1 no-op gate.
+clintMtimeSlot = ((4 * numHarts + 15) // 16) * 4
+clintMtimecmpSlot = clintMtimeSlot + 4
 
 
 ''' Create Memory Map
@@ -79,7 +95,7 @@ m = ChipGenerator(
 	asicName=(os.environ.get('CHIP_NAME') or _cfg('chipName', None) or 'Castalia'),
 	asicNameForUserGuide=(os.environ.get('CHIP_NAME') or _cfg('chipName', None) or 'Castalia'),
 	mcuUserGuideLatexTemplateFileName='TRM.template.tex',
-	numHarts=_cfg('numHarts', 4),	# 4-hart multiprocessor — drives the TRM's \NumHarts/\NumHartsWord defines and the multi-core feature bullets
+	numHarts=numHarts,	# multiprocessor hart count (default 4) — drives the TRM's \NumHarts/\NumHartsWord defines, the multi-core feature bullets, AND (since A1) the per-hart generated MCU.vhd regions + CLINT/IRQROUTER register loops below
 	romStartAddress=0x0000,
 	romSize=_cfg('memory.romSize', 16384),	# 16 KiB (region 0x0-0x3FFF; do not exceed 0x4000)
 	peripheralMemoryStartAddress=0x4000,
@@ -765,29 +781,29 @@ r.AddBitField(BitField(name='PCTCNT3', msb=31, lsb=0, accessibility='r'))
 p = PeripheralTemplate(nameTemplate='CLINT', description='Core-local interruptor for the four harts. Provides per-hart software interrupts (msip, the inter-processor interrupt mechanism) and a shared free-running 64-bit mtime counter with one 64-bit mtimecmp compare register per hart (timer interrupts). Lives in the shared window behind the multi-core arbiter, so any hart can raise or clear any hart\'s interrupts. The msip and mtip outputs are level interrupts into each hart\'s interrupt vector (vectors 83 and 84); the interrupt service routine must clear the level (write 0 to its MSIP register, or advance its MTIMECMP past mtime) before returning, or the interrupt re-triggers. The block decodes only its low address bits, so its registers alias every 64 bytes throughout 0x11000-0x11FFF.', bitFieldPrefix='CLINT', latexIntroFileName='CLINT-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
-# MSIP0-MSIP3
-for h in range(4):
+# MSIP0..MSIP(numHarts-1)
+for h in range(numHarts):
 	r = RegisterTemplate(nameTemplate='MSIP' + str(h), registerMemorySlot=h, size=32, description='Hart ' + str(h) + ' software interrupt (IPI) register. Any hart may write it through the shared window: writing 1 raises the software interrupt level into hart ' + str(h) + ' (interrupt vector 83); writing 0 clears it. The interrupt is level-sensitive, so hart ' + str(h) + '\'s service routine must write 0 here before returning.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(unused=True, msb=31, lsb=1))
 	r.AddBitField(BitField(name='CLINTMSIPH' + str(h), msb=0, accessibility='rw', description='Software interrupt (IPI) level for hart ' + str(h) + '.', valueDescriptions=[(0b0, 'No software interrupt pending'), (0b1, 'Software interrupt raised')]))
 
-# MTIMEL / MTIMEH
-r = RegisterTemplate(nameTemplate='MTIMEL', registerMemorySlot=4, size=32, description='Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all four harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.')
+# MTIMEL / MTIMEH (word slot = clintMtimeSlot, the A0/A1 layout formula)
+r = RegisterTemplate(nameTemplate='MTIMEL', registerMemorySlot=clintMtimeSlot, size=32, description='Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all four harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.')
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='CLINTMTIMEL', msb=31, lsb=0, accessibility='rw', description='mtime bits 31:0.'))
 
-r = RegisterTemplate(nameTemplate='MTIMEH', registerMemorySlot=5, size=32, description='Machine time counter, upper 32 bits. Read MTIMEH, then MTIMEL, then MTIMEH again (retry if the two MTIMEH reads differ) to obtain a coherent 64-bit time value.')
+r = RegisterTemplate(nameTemplate='MTIMEH', registerMemorySlot=clintMtimeSlot + 1, size=32, description='Machine time counter, upper 32 bits. Read MTIMEH, then MTIMEL, then MTIMEH again (retry if the two MTIMEH reads differ) to obtain a coherent 64-bit time value.')
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='CLINTMTIMEH', msb=31, lsb=0, accessibility='rw', description='mtime bits 63:32.'))
 
-# MTIMECMP0-3 (lo/hi pairs at word slots 8+2h / 9+2h)
-for h in range(4):
-	r = RegisterTemplate(nameTemplate='MTIMECMP' + str(h) + 'L', registerMemorySlot=8 + 2 * h, size=32, description='Hart ' + str(h) + ' timer compare register, lower 32 bits. The timer interrupt level for hart ' + str(h) + ' (interrupt vector 84) is raised while mtime >= mtimecmp' + str(h) + '. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP' + str(h) + 'H, then the new lower half, then the real upper half.')
+# MTIMECMP0..(numHarts-1) (lo/hi pairs at word slots clintMtimecmpSlot+2h / +2h+1)
+for h in range(numHarts):
+	r = RegisterTemplate(nameTemplate='MTIMECMP' + str(h) + 'L', registerMemorySlot=clintMtimecmpSlot + 2 * h, size=32, description='Hart ' + str(h) + ' timer compare register, lower 32 bits. The timer interrupt level for hart ' + str(h) + ' (interrupt vector 84) is raised while mtime >= mtimecmp' + str(h) + '. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP' + str(h) + 'H, then the new lower half, then the real upper half.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(name='CLINTMTIMECMP' + str(h) + 'L', msb=31, lsb=0, accessibility='rw', description='mtimecmp' + str(h) + ' bits 31:0.'))
 
-	r = RegisterTemplate(nameTemplate='MTIMECMP' + str(h) + 'H', registerMemorySlot=9 + 2 * h, size=32, description='Hart ' + str(h) + ' timer compare register, upper 32 bits.')
+	r = RegisterTemplate(nameTemplate='MTIMECMP' + str(h) + 'H', registerMemorySlot=clintMtimecmpSlot + 2 * h + 1, size=32, description='Hart ' + str(h) + ' timer compare register, upper 32 bits.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(name='CLINTMTIMECMP' + str(h) + 'H', msb=31, lsb=0, accessibility='rw', description='mtimecmp' + str(h) + ' bits 63:32.'))
 
@@ -808,7 +824,7 @@ for i in range(16):
 p = PeripheralTemplate(nameTemplate='IRQROUTER', description='Peripheral interrupt router: per-hart interrupt enable registers programmable by any hart through the shared window. Every peripheral interrupt line fans out to all four harts; each hart\'s tile ANDs the vector with its row of this register bank (ORed with its hardwired CLINT vectors 83 and 84, which therefore cannot be masked here). This lets software route any peripheral\'s interrupt to whichever hart currently owns that peripheral. All registers reset to 0 (everything masked), so the router is inert until software programs it. Row 0 exists for symmetry and debug but is not wired to hart 0, whose interrupt enables come from the SYSTEM peripheral as on the single-core chip.', bitFieldPrefix='IRQR', latexIntroFileName='IRQROUTER-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
-for h in range(4):
+for h in range(numHarts):
 	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENL', registerMemorySlot=4 * h, size=32, description='Hart ' + str(h) + ' interrupt enable register, vectors 31:0. Each bit enables routing of the corresponding interrupt vector to hart ' + str(h) + '.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENL', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 31:0, routed to hart ' + str(h) + '.'))

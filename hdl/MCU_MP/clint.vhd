@@ -13,14 +13,22 @@
 -- window master ports -- no new interconnect. Runs on the free-running mclk
 -- (same clock as the arbiter and every vesta's irq_handler -> no CDC).
 --
--- REGISTER MAP (byte address = 0x11000 + 4*word; only addr(3:0) decoded,
--- so the block aliases every 16 words through 0x11FFF):
---   word 0-3   : msip[h], bit 0 (write 1 = raise IPI to hart h, 0 = clear)
---   word 4/5   : mtime lo/hi   (free-running +1 per mclk; writable, lo then
---                               hi -- a write to either lane-merges that half)
---   word 6/7   : reserved (read 0)
---   word 8+2h  : mtimecmp[h] lo   } mtip(h) = (mtime >= mtimecmp[h]),
---   word 9+2h  : mtimecmp[h] hi   } registered. Resets ALL-ONES -> mtip=0.
+-- REGISTER MAP (byte address = block base + 4*word; only addr(ADDR_W-1:0)
+-- decoded, so the block aliases every 2**ADDR_W words through its page).
+-- A1 N-HART FORMULA (Argus generalization; see ~/vesta_docs/argus): with
+--   MTIME_W = roundup16(4*NHARTS)/4   (mtime word index)
+--   CMP_W   = MTIME_W + 4             (first mtimecmp word index)
+--   word 0..NHARTS-1      : msip[h], bit 0 (1 = raise IPI to hart h, 0 = clear)
+--   word MTIME_W/+1       : mtime lo/hi (free-running +1 per mclk; writable,
+--                           a write to either lane-merges that half)
+--   word MTIME_W+2..CMP_W-1 : reserved (read 0)
+--   word CMP_W+2h         : mtimecmp[h] lo  } mtip(h) = (mtime >= mtimecmp[h]),
+--   word CMP_W+2h+1       : mtimecmp[h] hi  } registered. Resets ALL-ONES -> mtip=0.
+-- At NHARTS=4 / ADDR_W=4 this reproduces the original M5b layout EXACTLY
+-- (msip words 0-3, mtime 4/5, reserved 6/7, mtimecmp 8+2h/9+2h, aliasing
+-- every 16 words) -- proven byte-identical decode, the Castalia shape.
+-- ADDR_W must satisfy 2**ADDR_W >= CMP_W + 2*NHARTS (asserted below);
+-- the chip generator (platform_castalia/python/mcu_vhd.py) computes it.
 --
 -- IRQ OUTPUTS: msip(h)/mtip(h) are level signals into hart h's irq_vector
 -- (slots IRQB_CLINT_MSIP / IRQB_CLINT_MTIP, MemoryMap.vhd). The ISR clears
@@ -40,7 +48,10 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity clint is
     generic (
-        NHARTS : natural := 4
+        NHARTS : natural := 4;
+        -- word-address width; must cover the whole register file (see the
+        -- formula in the header). 4 = the Castalia NHARTS=4 shape.
+        ADDR_W : natural := 4
     );
     port (
         clk    : in  std_logic;   -- free-running mclk
@@ -49,7 +60,7 @@ entity clint is
         -- slave port (behind mp_arbiter; enables active-high)
         en     : in  std_logic;
         we     : in  std_logic_vector(3 downto 0);
-        addr   : in  std_logic_vector(3 downto 0);   -- word offset within block
+        addr   : in  std_logic_vector(ADDR_W-1 downto 0);   -- word offset within block
         wdata  : in  std_logic_vector(31 downto 0);
         rdata  : out std_logic_vector(31 downto 0);
 
@@ -60,6 +71,11 @@ entity clint is
 end entity;
 
 architecture behav of clint is
+
+    -- A1 layout formula (header): mtime lo at MTIME_W, mtimecmp[0] lo at
+    -- CMP_W. At NHARTS=4 these are 4 and 8 -- the original M5b layout.
+    constant MTIME_W : natural := ((4*NHARTS + 15) / 16) * 4;
+    constant CMP_W   : natural := MTIME_W + 4;
 
     type cmp_t is array(0 to NHARTS-1) of std_logic_vector(63 downto 0);
 
@@ -87,12 +103,17 @@ architecture behav of clint is
 
 begin
 
+    -- the address port must reach every register of the parameterized layout
+    assert 2**ADDR_W >= CMP_W + 2*NHARTS
+        report "clint: ADDR_W too small for NHARTS (see the layout formula)"
+        severity failure;
+
     msip  <= msip_reg;
     mtip  <= mtip_reg;
     rdata <= rdata_reg;
 
     clint_proc: process(clk, resetn)
-        variable widx   : integer range 0 to 15;
+        variable widx   : integer range 0 to 2**ADDR_W - 1;
         variable hidx   : integer range 0 to NHARTS-1;
         variable rd     : std_logic_vector(31 downto 0);
         variable mtime_next : std_logic_vector(63 downto 0);
@@ -114,12 +135,12 @@ begin
                 -- ---- read mux (registered; valid next cycle, arbiter DATA) --
                 if widx < NHARTS then                                -- msip[h]
                     rd(0) := msip_reg(widx);
-                elsif widx = 4 then                                  -- mtime lo
+                elsif widx = MTIME_W then                            -- mtime lo
                     rd := mtime(31 downto 0);
-                elsif widx = 5 then                                  -- mtime hi
+                elsif widx = MTIME_W + 1 then                        -- mtime hi
                     rd := mtime(63 downto 32);
-                elsif widx >= 8 and widx < 8 + 2*NHARTS then         -- mtimecmp
-                    hidx := (widx - 8) / 2;
+                elsif widx >= CMP_W and widx < CMP_W + 2*NHARTS then -- mtimecmp
+                    hidx := (widx - CMP_W) / 2;
                     if (widx mod 2) = 0 then
                         rd := mtimecmp(hidx)(31 downto 0);
                     else
@@ -134,14 +155,14 @@ begin
                         if we(0) = '1' then          -- msip is bit 0 (lane 0)
                             msip_reg(widx) <= wdata(0);
                         end if;
-                    elsif widx = 4 then
+                    elsif widx = MTIME_W then
                         mtime_next(31 downto 0) :=
                             lane_merge(mtime(31 downto 0), wdata, we);
-                    elsif widx = 5 then
+                    elsif widx = MTIME_W + 1 then
                         mtime_next(63 downto 32) :=
                             lane_merge(mtime(63 downto 32), wdata, we);
-                    elsif widx >= 8 and widx < 8 + 2*NHARTS then
-                        hidx := (widx - 8) / 2;
+                    elsif widx >= CMP_W and widx < CMP_W + 2*NHARTS then
+                        hidx := (widx - CMP_W) / 2;
                         if (widx mod 2) = 0 then
                             mtimecmp(hidx)(31 downto 0) <=
                                 lane_merge(mtimecmp(hidx)(31 downto 0), wdata, we);

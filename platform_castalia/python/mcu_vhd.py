@@ -12,6 +12,22 @@
 #   - sh-rdata-mux / polarity-shims  : slave read mux + active-low en/wen shims
 #   - bus:<instance>                 : each peripheral instance's memory-bus port map
 #
+# A1 (Argus N-hart generalization, 2026-07-10) adds the numHarts-driven regions:
+#   - a0-ports                       : per-tile-hart a0 observation ports (entity)
+#   - arb-fabric-decls / clint-irq-decls / tile-irq-en-flat-decl / pd-decls /
+#     tile-raw-decls / sh-master-decl : the per-hart fabric signal widths
+#   - hart0-instance / tile-instances : the hart_tile instances (hart 0's
+#     special wiring vs the tiles' router rows — per-instance WIRING only)
+#   - arb-generic / resv-generic     : mp_arbiter / resv_unit N generics
+#   - clint-instance                 : NHARTS + the A0 layout-formula ADDR_W
+#   - irq-router-instance / tile-rstn / iso-clamps
+# At numHarts=4 every one of these reproduces the golden master BYTE-
+# IDENTICALLY (check_mcu_vhd.py STRICT is the gate). Other hart counts emit
+# well-formed VHDL, but the RTL only elaborates after the A2/A3 platform
+# generalizations (mp_arbiter s_master width, mutex_bank master port,
+# irq_router/pwr_ctrl regrow, sh_sel/SH_AW/flash move) — pwr0's instance and
+# the pd_* hookup stay 4-hart RTL until pwr_ctrl regrows at A2.
+#
 # Division of truth (mirrors Phase 1's McuMpCompat rules):
 #   - generate.py owns the per-peripheral FACTS (slots, base addresses, sharedBus
 #     class, combinationalRead, clock domain) — change the chip there.
@@ -31,6 +47,20 @@ import os
 import re
 
 EMDASH = '—'
+
+
+def _clog2(n):
+	'''Smallest w with 2**w >= n.'''
+	w = 0
+	while (1 << w) < n:
+		w += 1
+	return w
+
+
+# Prose spelling of small hart counts ("identical on all four tiles"); larger
+# counts fall back to digits ("identical on all 18 tiles").
+_HARTS_WORD = {2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven',
+	8: 'eight', 9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve'}
 
 # ---------------------------------------------------------------------------
 # Transcribed RTL structure (spellings + orders from hdl/MCU_MP/MCU.vhd)
@@ -471,6 +501,330 @@ class McuVhdEmitter():
 				lines.append('')
 		return lines
 
+	# ------------------------------------------------------------------
+	# A1 (Argus): N-hart region emitters. Every emitter reproduces the golden
+	# master BYTE-IDENTICALLY at numHarts=4 (check_mcu_vhd.py STRICT); the
+	# per-hart digits, widths, slice bounds and count prose are computed from
+	# numHarts. Alignment paddings are the golden master's columns, widened
+	# only when a longer name (h >= 10) forces it.
+	# ------------------------------------------------------------------
+
+	def nHarts(self):
+		n = self.gen.NumHarts
+		if type(n) != int or n < 2:
+			raise Exception('MCU.vhd emitter: numHarts must be an int >= 2 for the MCU_MP template, got ' + str(n))
+		return n
+
+	def hartsWord(self):
+		'''Count prose for "identical on all <N> tiles".'''
+		return _HARTS_WORD.get(self.nHarts(), str(self.nHarts()))
+
+	def sigDecl(self, name, rest):
+		'''Architecture signal declaration at the golden master's name pad.'''
+		return ' ' * 8 + 'signal ' + name.ljust(max(17, len(name) + 1)) + ': ' + rest
+
+	def clintAddrW(self):
+		'''CLINT word-address width from the description's register slots,
+		cross-checked against the A0/A1 layout formula (mtime lo at word
+		roundup16(4N)/4, mtimecmp pairs at +4; hdl/MCU_MP/clint.vhd implements
+		the same formula). RAISES if generate.py's CLINT layout drifts.'''
+		n = self.nHarts()
+		mtimeSlot = ((4 * n + 15) // 16) * 4
+		slots = {}
+		maxSlot = 0
+		for r in self.periph('CLINT').Registers:
+			slots[r.Name] = r.RegisterMemorySlot
+			if r.RegisterMemorySlot > maxSlot:
+				maxSlot = r.RegisterMemorySlot
+		if slots.get('MTIMEL') != mtimeSlot or slots.get('MTIMECMP0L') != mtimeSlot + 4 \
+				or maxSlot != mtimeSlot + 4 + 2 * n - 1:
+			raise Exception('MCU.vhd emitter: CLINT register layout does not match the A0/A1 formula '
+				+ '(mtime lo at word ' + str(mtimeSlot) + ', mtimecmp at +4 .. +4+2N-1) '
+				+ EMDASH + ' generate.py and clint.vhd must agree')
+		return _clog2(maxSlot + 1)
+
+	def emitA0Ports(self):
+		n = self.nHarts()
+		lines = [' ' * 8 + '-- M3b: per-hart pass/fail observation (a0 of the ' + str(n - 1) + ' private-memory harts)']
+		for h in range(1, n):
+			lines.append(' ' * 8 + 'a0_' + str(h) + ' : out std_logic_vector(31 downto 0)' + (';' if h != n - 1 else ''))
+		return lines
+
+	def emitArbFabricDecls(self):
+		n = self.nHarts()
+		nm1 = str(n - 1)
+		lines = []
+		lines.append(self.sigDecl('arb_lrsc', 'std_logic_vector(' + str(n) + '*2-1 downto 0);'))
+		lines.append(self.sigDecl('arb_scfail', 'std_logic_vector(' + nm1 + ' downto 0);'))
+		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
+		lines.append(' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles).')
+		lines.append(' ' * 8 + '-- we = 4 active-high byte-lane strobes per master (M4a).')
+		lines.append(' ' * 8 + 'signal arb_req, arb_gnt, arb_done : std_logic_vector(' + nm1 + ' downto 0);')
+		lines.append(' ' * 8 + "-- M8: per-master grant-lock (cores' amo_lock) " + EMDASH + ' pins the arbiter to a')
+		lines.append(' ' * 8 + '-- master across its AMO read+write transaction pair (cross-hart AMO')
+		lines.append(' ' * 8 + '-- atomicity).')
+		lines.append(self.sigDecl('arb_lock', 'std_logic_vector(' + nm1 + ' downto 0);'))
+		lines.append(self.sigDecl('arb_we', 'std_logic_vector(' + str(n) + '*4-1 downto 0);'))
+		lines.append(self.sigDecl('arb_addr', 'std_logic_vector(' + str(n) + '*SH_AW-1 downto 0);'))
+		lines.append(self.sigDecl('arb_wdata', 'std_logic_vector(' + str(n) + '*32-1 downto 0);'))
+		lines.append(self.sigDecl('arb_rdata', 'std_logic_vector(31 downto 0);'))
+		return lines
+
+	def emitClintIrqDecls(self):
+		nm1 = str(self.nHarts() - 1)
+		return [self.sigDecl('clint_msip', 'std_logic_vector(' + nm1 + ' downto 0);'),
+			self.sigDecl('clint_mtip', 'std_logic_vector(' + nm1 + ' downto 0);')]
+
+	def emitTileIrqEnFlatDecl(self):
+		return [self.sigDecl('tile_irq_en_flat', 'std_logic_vector(' + str(self.nHarts()) + '*NUM_IRQS-1 downto 0);')]
+
+	def emitPdDecls(self):
+		rng = 'std_logic_vector(' + str(self.nHarts() - 1) + ' downto 1);'
+		return [self.sigDecl(nm, rng) for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn', 'tile_rstn')]
+
+	def emitTileRawDecls(self):
+		n = self.nHarts()
+		lines = []
+		for kind, rng in [('req', 'std_logic;'), ('we', 'std_logic_vector(3 downto 0);'),
+				('addr', 'std_logic_vector(SH_AW-1 downto 0);'), ('wdata', 'std_logic_vector(31 downto 0);'),
+				('lrsc', 'std_logic_vector(1 downto 0);'), ('lock', 'std_logic;')]:
+			for h in range(1, n):
+				lines.append(self.sigDecl('tile' + str(h) + '_' + kind + '_raw', rng))
+		for h in range(1, n):
+			lines.append(self.sigDecl('a0_' + str(h) + '_raw', 'std_logic_vector(31 downto 0);'))
+		return lines
+
+	def emitShMasterDecl(self):
+		w = max(1, _clog2(self.nHarts()))
+		return [self.sigDecl('sh_master', 'std_logic_vector(' + str(w - 1) + ' downto 0);')]
+
+	def emitHart0Instance(self):
+		nm1 = str(self.nHarts() - 1)
+		lines = []
+		lines.append('    -- =========================================================================')
+		lines.append('    -- M13 TILE EXTRACTION: hart 0 is the SAME hart_tile as harts 1-' + nm1 + ' ' + EMDASH + ' the')
+		lines.append('    -- inline core/adddec/TCM/shared-window machinery that used to live here')
+		lines.append('    -- (and that hart_tile mirrored since M3c) is folded into the tile. The')
+		lines.append('    -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the')
+		lines.append('    -- M10 clk_cpu-staged consumption register and the M9b nop-force all')
+		lines.append('    -- live in hart_tile.vhd now ' + EMDASH + " see the rationale there. Hart 0's")
+		lines.append('    -- remaining specials are pure WIRING on the identical tile:')
+		lines.append('    --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),')
+		lines.append('    --   * irq_en_ext/irq_prio_ext/irq_recursion_en/isr_ret -> SYSTEM0')
+		lines.append("    --     (hw_clint_en='0': SYS_IRQ_EN's reset-all-masked semantics kept;")
+		lines.append('    --     tiles hardwire CLINT slots 83/84 instead and take the router row),')
+		lines.append('    --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),')
+		lines.append('    --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.')
+		lines.append('    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency')
+		lines.append('    -- insensitivity at boundary depths 0/1/2; the boot fetch through the')
+		lines.append('    -- arbiter exercises the stall path on every run).')
+		lines.append('    -- =========================================================================')
+		lines.append('    hart0: entity work.hart_tile')
+		lines.append('        generic map (')
+		lines.append('            PC_RST_VAL     => x"00000000",')
+		lines.append('            SH_AW          => SH_AW,')
+		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be')
+		lines.append('            -- identical on all ' + self.hartsWord() + ' tiles -- one hardened netlist)')
+		lines.append('            ENABLE_MUL        => CORE_ENABLE_MUL,')
+		lines.append('            ENABLE_DIV        => CORE_ENABLE_DIV,')
+		lines.append('            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,')
+		lines.append('            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,')
+		lines.append('            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP')
+		lines.append('        )')
+		lines.append('        port map (')
+		lines.append('            clk       => mclk,')
+		lines.append('            resetn    => resetn,')
+		lines.append('            sleep     => sleep_cpu,')
+		lines.append('            hart_id   => x"00000000",')
+		lines.append('            msip_in   => clint_msip(0),')
+		lines.append('            mtip_in   => clint_mtip(0),')
+		lines.append('            irq_ext    => irq_deglitch,')
+		lines.append('            irq_en_ext => irq_en,')
+		lines.append('            irq_prio_ext     => irq_priority,')
+		lines.append('            irq_recursion_en => irq_recursion_en,')
+		lines.append('            isr_ret          => isr_ret,')
+		lines.append("            hw_clint_en      => '0',")
+		lines.append('            flash_mem_en  => mem_en_flash,')
+		lines.append('            flash_clk_mem => clk_mem_flash,')
+		lines.append('            flash_mab     => mab_flash,')
+		lines.append('            flash_dout    => flash_dout,')
+		lines.append('            sh_req    => arb_req(0),')
+		lines.append('            sh_we     => arb_we(3 downto 0),')
+		lines.append('            sh_addr   => arb_addr(SH_AW-1 downto 0),')
+		lines.append('            sh_wdata  => arb_wdata(31 downto 0),')
+		lines.append('            sh_gnt    => arb_gnt(0),')
+		lines.append('            sh_done   => arb_done(0),')
+		lines.append('            sh_rdata  => arb_rdata,')
+		lines.append('            sh_lrsc   => arb_lrsc(1 downto 0),')
+		lines.append('            sh_scfail => arb_scfail(0),')
+		lines.append('            sh_lock   => arb_lock(0),')
+		lines.append('            tcm_pgen  => pgen_mem(1),')
+		lines.append('            -- M17: hart 0 is ALWAYS-ON ' + EMDASH + ' its domain controls are strapped')
+		lines.append('            -- inactive (explicit, per the M14 netlist-boundary rule)')
+		lines.append("            pd_sleep  => '0',")
+		lines.append("            pd_iso_en => '0',")
+		lines.append('            trap_flag => trap_out,')
+		lines.append('            a0        => a0')
+		lines.append('        );')
+		return lines
+
+	def emitArbGeneric(self):
+		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)']
+
+	def emitResvGeneric(self):
+		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW)']
+
+	def emitClintInstance(self):
+		n = self.nHarts()
+		addrW = self.clintAddrW()
+		# the clint.vhd ADDR_W generic default (4) IS the Castalia shape; only
+		# non-default widths are passed explicitly (N=4 byte-identity)
+		gm = 'generic map (NHARTS => ' + str(n) + (')' if addrW == 4 else ', ADDR_W => ' + str(addrW) + ')')
+		lines = []
+		lines.append('    clint0: entity work.clint')
+		lines.append(' ' * 8 + gm)
+		lines.append('        port map (')
+		lines.append('            clk    => mclk,')
+		lines.append('            resetn => resetn,')
+		lines.append('            en     => shslv_clint_en,')
+		lines.append('            we     => sh_we,')
+		lines.append('            addr   => sh_addr(' + str(addrW - 1) + ' downto 0),')
+		lines.append('            wdata  => sh_wdata,')
+		lines.append('            rdata  => clint_rdata,')
+		lines.append('            msip   => clint_msip,')
+		lines.append('            mtip   => clint_mtip')
+		lines.append('        );')
+		return lines
+
+	def emitIrqRouterInstance(self):
+		n = self.nHarts()
+		nm1 = str(n - 1)
+		# rows at +0x10*h -> 4 words per hart; 4-bit floor is the golden
+		# master's sh_addr(3 downto 0) (irq_router.vhd regrows at A2 for N>4)
+		addrW = max(4, _clog2(4 * n))
+		lines = []
+		lines.append('    -- M7a: tile IRQ fan-out ' + EMDASH + ' per-hart peripheral-IRQ enable rows, written by')
+		lines.append('    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows')
+		lines.append('    -- 1-' + nm1 + " feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's")
+		lines.append('    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,')
+		lines.append('    -- so this block is a provable NO-OP until software routes an IRQ.')
+		lines.append('    irtr0: entity work.irq_router')
+		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_IRQS => NUM_IRQS)')
+		lines.append('        port map (')
+		lines.append('            clk        => mclk,')
+		lines.append('            resetn     => resetn,')
+		lines.append('            en         => shslv_irtr_en,')
+		lines.append('            we         => sh_we,')
+		lines.append('            addr       => sh_addr(' + str(addrW - 1) + ' downto 0),')
+		lines.append('            wdata      => sh_wdata,')
+		lines.append('            rdata      => irtr_rdata,')
+		lines.append('            irq_en_out => tile_irq_en_flat')
+		lines.append('        );')
+		return lines
+
+	def emitTileRstn(self):
+		return ['    tile_rstn(' + str(h) + ') <= resetn and pd_rstn(' + str(h) + ');'
+			for h in range(1, self.nHarts())]
+
+	def emitIsoClamps(self):
+		n = self.nHarts()
+		lines = []
+		for h in range(1, n):
+			hs = str(h)
+			addrLo = 'SH_AW' if h == 1 else hs + '*SH_AW'
+			wdataLo = '32' if h == 1 else hs + '*32'
+			rows = [
+				('arb_req(' + hs + ')', 'tile' + hs + '_req_raw', "'0'", False),
+				('arb_we(' + str(4 * h + 3) + ' downto ' + str(4 * h) + ')', 'tile' + hs + '_we_raw', "(others => '0')", False),
+				('arb_addr(' + str(h + 1) + '*SH_AW-1 downto ' + addrLo + ')', 'tile' + hs + '_addr_raw', "(others => '0')", True),
+				('arb_wdata(' + str(h + 1) + '*32-1 downto ' + wdataLo + ')', 'tile' + hs + '_wdata_raw', "(others => '0')", True),
+				('arb_lrsc(' + str(2 * h + 1) + ' downto ' + str(2 * h) + ')', 'tile' + hs + '_lrsc_raw', '"00"', False),
+				('arb_lock(' + hs + ')', 'tile' + hs + '_lock_raw', "'0'", False),
+				('a0_' + hs, 'a0_' + hs + '_raw', "(others => '0')", False),
+			]
+			# golden-master columns: short lines pad the LHS to 24 and the RHS
+			# to 16; the long addr/wdata pair aligns to itself with 1 space
+			lhsPad, rhsPad, longPad = 24, 16, 0
+			for lhs, rhs, els, lng in rows:
+				if lng:
+					longPad = max(longPad, len(lhs) + 1)
+				else:
+					lhsPad = max(lhsPad, len(lhs) + 1)
+					rhsPad = max(rhsPad, len(rhs) + 1)
+			if h > 1:
+				lines.append('')
+			for lhs, rhs, els, lng in rows:
+				lines.append(' ' * 4 + lhs.ljust(longPad if lng else lhsPad) + '<= '
+					+ (rhs + ' ' if lng else rhs.ljust(rhsPad))
+					+ 'when pd_iso_en(' + hs + ") = '0' else " + els + ';')
+		return lines
+
+	def tileInstance(self, h):
+		hs = str(h)
+		lines = []
+		lines.append('    hart' + hs + ': entity work.hart_tile')
+		lines.append('        generic map (')
+		lines.append('            PC_RST_VAL     => x"00000000",')
+		lines.append('            SH_AW          => SH_AW,')
+		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be')
+		lines.append('            -- identical on all ' + self.hartsWord() + ' tiles -- one hardened netlist)')
+		lines.append('            ENABLE_MUL        => CORE_ENABLE_MUL,')
+		lines.append('            ENABLE_DIV        => CORE_ENABLE_DIV,')
+		lines.append('            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,')
+		lines.append('            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,')
+		lines.append('            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP')
+		lines.append('        )')
+		lines.append('        port map (')
+		lines.append('            clk       => mclk,')
+		lines.append("            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn")
+		lines.append('            -- and pd_rstn) ' + EMDASH + ' a gated/waking tile is held in reset')
+		lines.append('            resetn    => tile_rstn(' + hs + '),')
+		lines.append("            sleep     => '0',")
+		lines.append('            hart_id   => x"' + format(h, '08x') + '",')
+		lines.append('            msip_in   => clint_msip(' + hs + '),')
+		lines.append('            mtip_in   => clint_mtip(' + hs + '),')
+		lines.append("            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive")
+		lines.append('            -- a netlist boundary: the hierarchical top flow elaborates hart_tile')
+		lines.append('            -- as a VERILOG netlist (no port defaults), and the open pin was tied')
+		lines.append('            -- LOW -> tiles had no CLINT slot enables and never woke on msip.')
+		lines.append("            hw_clint_en => '1',")
+		if h == 1:
+			lines.append('            -- M7a: deglitched peripheral levels fan out to every tile; the')
+			lines.append("            -- tile's row of the irq_router gates them (slots 83/84 are")
+			lines.append('            -- overridden/hardwired inside the tile)')
+		lines.append('            irq_ext    => irq_deglitch,')
+		lines.append('            irq_en_ext => tile_irq_en_flat(' + str(h + 1) + '*NUM_IRQS-1 downto ' + hs + '*NUM_IRQS),')
+		lines.append('            -- M17: outbound signals land on _raw and pass the iso clamps')
+		lines.append('            sh_req    => tile' + hs + '_req_raw,')
+		lines.append('            sh_we     => tile' + hs + '_we_raw,')
+		lines.append('            sh_addr   => tile' + hs + '_addr_raw,')
+		lines.append('            sh_wdata  => tile' + hs + '_wdata_raw,')
+		lines.append('            sh_gnt    => arb_gnt(' + hs + '),')
+		lines.append('            sh_done   => arb_done(' + hs + '),')
+		lines.append('            sh_rdata  => arb_rdata,')
+		lines.append('            sh_lrsc   => tile' + hs + '_lrsc_raw,')
+		lines.append('            sh_scfail => arb_scfail(' + hs + '),')
+		lines.append('            sh_lock   => tile' + hs + '_lock_raw,')
+		lines.append("            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides")
+		lines.append('            -- its own native PGEN power-down whenever the domain gates ' + EMDASH)
+		lines.append("            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')")
+		lines.append('            tcm_pgen  => pd_sleep(' + hs + '),')
+		lines.append('            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)')
+		lines.append('            pd_sleep  => pd_sleep(' + hs + '),')
+		lines.append('            pd_iso_en => pd_iso_en(' + hs + '),')
+		lines.append('            trap_flag => open,')
+		lines.append('            a0        => a0_' + hs + '_raw')
+		lines.append('        );')
+		return lines
+
+	def emitTileInstances(self):
+		lines = []
+		for h in range(1, self.nHarts()):
+			if h > 1:
+				lines.append('')
+			lines.extend(self.tileInstance(h))
+		return lines
+
 	def busComment(self, instKey, spec):
 		name = spec['periph']
 		ind = ' ' * 12
@@ -555,6 +909,36 @@ class McuVhdEmitter():
 	# ------------------------------------------------------------------
 
 	def emitRegion(self, name):
+		if name == 'a0-ports':
+			return self.emitA0Ports()
+		if name == 'arb-fabric-decls':
+			return self.emitArbFabricDecls()
+		if name == 'clint-irq-decls':
+			return self.emitClintIrqDecls()
+		if name == 'tile-irq-en-flat-decl':
+			return self.emitTileIrqEnFlatDecl()
+		if name == 'pd-decls':
+			return self.emitPdDecls()
+		if name == 'tile-raw-decls':
+			return self.emitTileRawDecls()
+		if name == 'sh-master-decl':
+			return self.emitShMasterDecl()
+		if name == 'hart0-instance':
+			return self.emitHart0Instance()
+		if name == 'arb-generic':
+			return self.emitArbGeneric()
+		if name == 'resv-generic':
+			return self.emitResvGeneric()
+		if name == 'clint-instance':
+			return self.emitClintInstance()
+		if name == 'irq-router-instance':
+			return self.emitIrqRouterInstance()
+		if name == 'tile-rstn':
+			return self.emitTileRstn()
+		if name == 'iso-clamps':
+			return self.emitIsoClamps()
+		if name == 'tile-instances':
+			return self.emitTileInstances()
 		if name == 'irq-signal-decls':
 			return self.emitIrqSignalDecls()
 		if name == 'irq-comb':
@@ -586,7 +970,7 @@ def generateMcuVhd(gen, templatePath, outPath):
 
 	header = []
 	header.append('-- MCU.vhd')
-	header.append('-- Castalia MCU top-level integration layer (4 harts, MCU_MP)')
+	header.append('-- Castalia MCU top-level integration layer (' + str(emitter.nHarts()) + ' harts, MCU_MP)')
 	header.append('-- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed')
 	header.append('-- \tboilerplate comes from hdl_templates/MCU.template.vhd; the description-')
 	header.append('-- \tdriven sections are generated from python/generate.py')
@@ -611,7 +995,12 @@ def generateMcuVhd(gen, templatePath, outPath):
 		out.extend(emitter.emitRegion(name))
 
 	expected = set(['irq-signal-decls', 'irq-comb', 'shslv-subdecode', 'shslv-rd-sel', 'rdata-bridge',
-		'sh-rdata-mux', 'polarity-shims'] + ['bus:' + k for k in BUS_SPECS])
+		'sh-rdata-mux', 'polarity-shims',
+		# A1 N-hart regions
+		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'tile-irq-en-flat-decl', 'pd-decls',
+		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
+		'clint-instance', 'irq-router-instance', 'tile-rstn', 'iso-clamps', 'tile-instances']
+		+ ['bus:' + k for k in BUS_SPECS])
 	if seen != expected:
 		raise Exception('MCU.vhd emitter: template regions ' + str(sorted(seen))
 			+ ' do not match the expected set ' + str(sorted(expected)))
