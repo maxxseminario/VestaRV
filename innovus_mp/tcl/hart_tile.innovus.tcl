@@ -147,6 +147,9 @@ eval "setObjFPlanPolygon Cell $DESIGN_NAME $U_POLY"
 initCoreRow
 # Defensive: no rows may survive inside the notch (analog keep-out).
 cutRow -area [list $NOTCH_X0 $BASE_H $NOTCH_X1 $DESIGN_HEIGHT]
+# (M17b: the two switchless-row placement blockages live AFTER the power-
+# switch/well-tap passes, NOT here — a blockage visible to addPowerSwitch
+# shifts its checkerboard phase and the uncovered rows MOVE. See below.)
 printStatus "Carved U-shape notch ($NOTCH_W x $NOTCH_D) at top center"
 
 set SRAM16K_WIDTH		319.650
@@ -248,9 +251,25 @@ printStatus "Inserting MTCMOS header switch columns (HEADBUF16MA10TH)"
 # every 80 um with a switch in EVERY row: VDD_SW is a follow-pin-only net
 # (no stripe grid), so a row with no switch has a FLOATING rail — IMPPSO-306
 # flagged exactly that under -skipRows (the M16 floating-rail lesson, power-
-# switch edition). ~1000 HEADBUF16 ≈ 8.5k um² in a 271k um² row budget.
+# switch edition). ~2000 HEADBUF16 ≈ 17k um² in a 271k um² row budget.
 # -skipRows is REQUIRED (omitting it is the "non-numeric operand" abort —
 # the option has no sane default in this build); 0 = a switch in every row.
+# -checkerBoard true is LOAD-BEARING (M17b post-mortem, both directions):
+#  * WITH it, the stagger leaves exactly two rows switchless — the bottom
+#    row (1,1) and the right U-leg top row (581,1047). IMPPSO-306 warns, the
+#    run rolls on, and place_opt parked 52 live cells (bnd_irq_* boundary
+#    flops, hart_id inverters) on the dead VDD_SW rail. Those two rows are
+#    now hard-blocked at floorplan time (see dead_row blockages above) so
+#    they stay EMPTY — dead rail, nothing on it.
+#  * WITHOUT it (full-density, switch in every row), the DRC drowns: ~1000
+#    M1 pin-frame abutment shorts (FILLER/WELLTAP/HEADBUF pmk frames overlap
+#    different-net M1 when vertically stacked in consecutive rows) + ~4500
+#    IMPVFC-92/94 connectivity problems. Proven by three runs; the stagger
+#    is exactly what keeps the pmk frames apart. NB the option is a bare
+#    FLAG in this build: `-checkerBoard false` is the same non-numeric-
+#    operand abort as a missing -skipRows.
+# Acceptance for any future rerun: every IMPPSO-306 row must lie inside a
+# dead_row blockage box.
 addPowerSwitch -column -powerDomain PD_GATED \
 	-globalSwitchCellName {HEADBUF16MA10TH} \
 	-area [list $CORE_SPACING $CORE_SPACING [expr {$DESIGN_WIDTH - $CORE_SPACING}] [expr {$DESIGN_HEIGHT - $CORE_SPACING}]] \
@@ -282,6 +301,10 @@ addWellTap \
     -fixedGap \
     -checkerBoard \
     -prefix WELLTAP
+
+# (M17b: the two switchless-row placement blockages live IMMEDIATELY BEFORE
+# place_opt_design — see there. Not here: visible to sroute they suppress
+# the blocked rows' follow-pin rails and strand the well-tap VDD frames.)
 
 # pmk secondary pins, now that the switch + tap instances exist. NOTE
 # -type net, NOT pgpin: the pmk LEF gives VDDG/VNW/VPW no USE power/ground
@@ -332,6 +355,31 @@ createRouteBlk -box 0 0 $DESIGN_WIDTH $DESIGN_HEIGHT -layer 8
 ################################################################################
 # (M17: the addWellTap pass moved UP before the power routing — FILLBIAS
 # taps must exist when the secondary sroute runs. See the power section.)
+
+# M17b: hard-block the two rows the switch checkerboard leaves uncovered —
+# the BOTTOM row (1,1) and the right U-leg TOP row (581,1047). Their VDD_SW
+# rails are permanently dead (IMPPSO-306 warns and the run rolls on) and
+# place_opt parked 52 live cells (bnd_irq_* boundary flops, hart_id
+# inverters) on the bottom one; blocked, they stay EMPTY — a dead floating
+# rail with nothing live on it. Well taps already placed there are fine
+# (FILLBIAS biases the wells from VNW/VPW = the AO nets; its VDD frame pin
+# merely abuts the dead stub). POSITION IS LOAD-BEARING — the blockages must
+# be created HERE, after everything upstream and just before place_opt:
+#  * before addPowerSwitch they shift its checkerboard phase and the
+#    uncovered rows MOVE ((1,1047)/(581,1045) went dark instead);
+#  * before sroute they suppress the blocked rows' follow-pin rails and the
+#    dead-row well-tap VDD frames go "unconnected" at signoff (6 IMPVFC-96).
+# Do NOT cutRow the bottom row instead (re-flips every row's orientation
+# parity above it — ~1000 M1 abutment shorts, proven) and do NOT drop the
+# checkerboard (M1 pin-frame shorts wherever pmk cells stack vertically,
+# also proven). Acceptance for any rerun: every IMPPSO-306 row lies inside
+# one of these boxes, and no live cell places at row-origin y=1 or in the
+# right-leg top row.
+createPlaceBlockage -type hard -name dead_row_bottom \
+	-box [list 0 0 $DESIGN_WIDTH 3]
+createPlaceBlockage -type hard -name dead_row_rleg_top \
+	-box [list [expr {$DESIGN_WIDTH - $FINGER_W}] [expr {$DESIGN_HEIGHT - 3}] $DESIGN_WIDTH $DESIGN_HEIGHT]
+printStatus "Blocked the 2 switchless dead-rail rows"
 
 place_opt_design
 printStatus "Placement done"
@@ -401,6 +449,25 @@ verifyGeometry \
 
 deleteAllRouteBlks
 addFiller
+
+# M17b: scrub the two dead-rail rows BARE before signoff. The blockages
+# (see the placement section) kept logic out, but addWellTap ran earlier
+# and left FILLBIAS taps in the right-leg top row, and the dead VDD_SW rail
+# stubs themselves flag as zero-area ANTENNA markers + dangling wires once
+# nothing abuts them. Delete the leftover insts, then the two rail stubs —
+# dry-run proven on the signoff DB: DRC 0, no IMPVFC-94/-96, conn drops to
+# the 476 expected VDD_SW/VSS piece infos. (Deleting the rail out from
+# under a FILLBIAS would re-strand its net-tied VDD frame — hence insts
+# first, rails second.)
+foreach __i [dbQuery -area [list [expr {$DESIGN_WIDTH - $FINGER_W}] [expr {$DESIGN_HEIGHT - 2.8}] $DESIGN_WIDTH [expr {$DESIGN_HEIGHT - 0.2}]] -objType inst] {
+	if {[dbGet $__i.pt_y] > [expr {$DESIGN_HEIGHT - 3.5}]} { deleteInst [dbGet $__i.name] }
+}
+foreach __i [dbQuery -area [list 0 0.5 $DESIGN_WIDTH 2.9] -objType inst] {
+	if {[dbGet $__i.pt_y] < 2.5} { deleteInst [dbGet $__i.name] }
+}
+editDelete -net VDD_SW -area [list 0 0.4 $DESIGN_WIDTH 1.9]
+editDelete -net VDD_SW -area [list [expr {$DESIGN_WIDTH - $FINGER_W}] [expr {$DESIGN_HEIGHT - 1.6}] $DESIGN_WIDTH [expr {$DESIGN_HEIGHT - 0.1}]]
+printStatus "Scrubbed the 2 dead-rail rows bare"
 
 ################################################################################
 # Signoff checks + reports
