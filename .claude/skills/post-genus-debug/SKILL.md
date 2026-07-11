@@ -46,6 +46,10 @@ edit the gate-flow files (genus_mp scripts, probe tcl, genus tcl) — mark temp 
   Parallel-flow cds.lib contaminates later single xruns (MULVLG multiple-binding) —
   `rm -rf cds.lib xcelium.d` before a manual xrun there. Never pipe runners through
   head/tail. xrun.log is overwritten per run — save evidence before relaunching.
+- **innovus_mp (post-P&R) runs: MAX_PARALLEL ≤ 2.** At 5-wide, xmsims got externally
+  SIGKILLed mid-sim (PG1 fix session 2026-07-10): logs truncate at "xcelium> run" or
+  mid-timing-warnings with NO tb verdict — mimics a mass gate failure. Check the
+  RUNNER STDOUT for "NNNNN Killed" lines before diagnosing the netlist.
 
 ## X-cascade root-causing (fastest path, proven M9b)
 

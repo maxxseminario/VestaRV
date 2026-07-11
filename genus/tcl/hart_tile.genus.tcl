@@ -208,6 +208,8 @@ path_group -from clk_cpu -group clk_cpu_group
 
 # --- TCM PGEN: powered-down-macro timing exception (as in the flat flow) ---
 set_false_path -to pin:$TOP_MODULE/ram0/PGEN
+# PG1 F2: RETN is now a port strapped '1' at MCU level (AO) — same treatment.
+set_false_path -to pin:$TOP_MODULE/ram0/RETN
 
 # --- I/O budgets ---
 # Registered boundary (M13 depth-1 flops at both ends): half-period split.
@@ -224,7 +226,7 @@ set_output_delay -clock [get_db clocks mclk] $FLASH_OUT_EXT [get_db ports {flash
 # Static straps and quasi-static observation pins. M17: pd_sleep/pd_iso_en
 # are quasi-static domain controls — they only transition while the domain
 # is quiesced (pwr_ctrl sequencing), never against live logic.
-set_false_path -from [get_db ports {hart_id[*] hw_clint_en tcm_pgen pd_sleep pd_iso_en}]
+set_false_path -from [get_db ports {hart_id[*] hw_clint_en tcm_pgen tcm_retn pd_sleep pd_iso_en}]
 set_false_path -to   [get_db ports {trap_flag a0[*]}]
 # Async reset: deassertion is synchronized externally by the POR/reset fabric;
 # recovery has huge margin at 25 MHz (same treatment the flat flow gave it by

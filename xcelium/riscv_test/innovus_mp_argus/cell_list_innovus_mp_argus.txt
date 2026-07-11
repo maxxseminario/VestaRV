@@ -1,0 +1,16 @@
+/home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/verilog/tsmc65_hvt_sc_adv10.v
+/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/verilog/tsmc65_hvt_sc_adv10_pmk.v
+/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.v
+/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.v
+../../../innovus_mp/out/hart_tile_argus.xsim.v
+../../../innovus_mp/out/MCU_ARGUS.xsim.clean.v
+../../../hdl/MCU_MP/constants.vhd
+../../../hdl/MCU_MP/macros/macros.vhd
+../../../hdl/MCU_ARGUS/MemoryMap.vhd
+../../../hdl/MCU_MP/tb/serial_flash.vhd
+../../../hdl/MCU_MP/sim/GlitchFilter_behav.vhd
+../../../hdl/MCU_MP/sim/PowerOnResetCheng_behav.vhd
+../../../hdl/MCU_MP/sim/OscillatorCurrentStarved_simulation.vhd
+../../../hdl/MCU_MP/tb/tb_defs.vhd
+./riscv_tb_gate.vhd

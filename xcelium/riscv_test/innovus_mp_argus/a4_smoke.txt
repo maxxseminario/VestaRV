@@ -1,0 +1,4 @@
+../rca/xxxrv32ui-p-simple.rcf
+../rca/xxxrv32ui-p-shexec.rcf
+../rca/xxxxrv32ui-p-shwfi.rcf
+../rca/xxxrv32ui-p-shboot.rcf

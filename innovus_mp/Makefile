@@ -25,14 +25,25 @@
 SHELL := /bin/bash
 CDSPATHS := $(abspath ..)/cdspaths.sh
 
-.PHONY: help hart_tile.innovus MCU_MP.innovus chip_top.innovus
+.PHONY: help hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus
 
 help:
-	@echo "Targets: hart_tile.innovus | MCU_MP.innovus | chip_top.innovus  (append .gui to see the window)"
+	@echo "Targets: hart_tile.innovus | MCU_MP.innovus | chip_top.innovus | hart_tile_argus.innovus | MCU_ARGUS.innovus  (append .gui to see the window)"
 
-hart_tile.innovus MCU_MP.innovus chip_top.innovus:
+# PG4/PG2-F1 wrapper hard-fail (extends the M17 zero-switches precedent):
+# the four message IDs below are the exact silent-failure chain that shipped
+# a sourceless VDD_SW three times (GNC never bound pins / sroute routed
+# nothing) -- Innovus prints them, returns rc=0, and tcl catch never fires,
+# so the LOG is the only place they exist. Scoped to the two Castalia
+# targets: the Argus tile flow still carries the pre-PG4 GNC forms and is
+# the A4 line's to fix with the same recipe (USEfix LEF + pgpin + gates).
+hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus:
 	@mkdir -p log out rpt dbs
 	source $(CDSPATHS) && innovus -no_gui -overwrite -log log/$(basename $@) -files tcl/$@.tcl
+	@case "$@" in hart_tile.innovus|MCU_MP.innovus) \
+		if grep -nE "IMPDB-122[13]|IMPSR-(503|1253)" log/$(basename $@).log; then \
+			echo "FATAL (PG4 wrapper): PG-hookup errors in log/$(basename $@).log -- PG2-F1 class"; exit 1; \
+		fi;; esac
 
 # GUI variant: same script minus the trailing `exit`, run WITH the window.
 %.innovus.gui:
