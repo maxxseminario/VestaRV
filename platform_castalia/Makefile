@@ -2,7 +2,7 @@
 # Source of truth: python/generate.py — everything else is generated from it.
 # All outputs stay inside platform_castalia/ (never touches ../hdl, ../software, ../tools).
 
-.PHONY: all help chip generate pdf publish show config clean install-deps
+.PHONY: all help chip generate pdf publish show config verify clean install-deps
 
 PUBLISH_PDF = ../implementations/asic/castalia/docs/TRM.pdf
 
@@ -15,9 +15,13 @@ CHIP_NAME ?=
 
 # Optional configuration file (JSON) produced by docs/chip_configurator.html or
 # written by hand: make chip CONFIG=path/to/config.json
-# It overrides the scalar knobs in python/generate.py (chip name, hart count,
-# register file, ISA generics, memory-region sizes). CHIP_NAME still wins over
-# the file's chipName. See docs/chip_configurator.html for the schema.
+# Knobs: chipName, numHarts, numMutexes, registerFileDualPort, isa.*,
+# memory.*, peripherals.npu — every key optional, unknown keys are a hard
+# error (typo protection), and the resolved result is written to
+# config/ChipConfig.resolved.json. CHIP_NAME still wins over the file's
+# chipName. Schema reference: docs/chip_configurator.html (interactive),
+# the generated TRM's "Chip Configuration" section, or generate.py's
+# _CONFIG_SCHEMA (the authority).
 CONFIG ?=
 
 # Default: 'make chip' regenerates the artifacts AND builds the TRM PDF
@@ -37,7 +41,12 @@ help:
 	@echo "  make pdf          - Compile the Technical Reference Manual PDF only"
 	@echo "  make publish      - Copy the built TRM.pdf to implementations/asic/castalia/docs/"
 	@echo "                      (then review + commit it yourself)"
-	@echo "  make show         - Show current MCU configuration"
+	@echo "  make show         - Show the resolved chip configuration + derived pad ring"
+	@echo "                      (reads config/ChipConfig.resolved.json from the last build)"
+	@echo "  make verify       - Prove the configuration BOOTS: stage the generated RTL into"
+	@echo "                      an Xcelium behavioral flow and run the smoke suite"
+	@echo "                      (CONFIG= as for make chip; SUITE=full for the whole"
+	@echo "                       regression; MAX_PARALLEL=N, FORCE_IMAGES=1)"
 	@echo "  make clean        - Remove generated output files (out/, config JSON)"
 	@echo "  make install-deps - Check Python/LaTeX dependencies"
 	@echo ""
@@ -53,12 +62,15 @@ generate:
 	@if [ -n "$(CONFIG)" ]; then echo "  • using config file: $(CONFIG)"; fi
 	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' python3 generate.py
 	@echo ""
+	@echo "Checking docs/chip_configurator.html against the schema/pad-ring/geometry..."
+	@python3 python/check_configurator_sync.py || echo "⚠️  WARNING: docs/chip_configurator.html has drifted from the generator (see DRIFT lines above) — update the HTML's transcribed blocks. NOT fatal; the build continues."
+	@echo ""
 	@echo "✅ Generation complete. Outputs:"
 	@echo "  • out/software/include/MemoryMap.h, periph.S"
 	@echo "  • out/linker-scripts/memory.x, periph.x, *.txt"
-	@echo "  • out/hdl/MCU.vhd, MemoryMap.vhd, MCU_routing_template.vhd"
-	@echo "  • config/MemoryMap.json"
-	@echo "  • latex/TRM/  (LaTeX sources)"
+	@echo "  • out/hdl/MCU.vhd, MemoryMap.vhd, riscv_tb.vhd, MCU_routing_template.vhd"
+	@echo "  • config/MemoryMap.json, ChipConfig.resolved.json, PadRing.json"
+	@echo "  • latex/TRM/  (LaTeX sources incl. generated block/boot/sync/pinout diagrams)"
 
 # The full chip: artifacts + the Technical Reference Manual PDF for exactly this
 # configuration (chapters, register tables, memory map, and feature list are all
@@ -101,16 +113,25 @@ publish:
 show config:
 	@./show_config.sh
 
+# ---------------------------------------------------------------------------
+# Config -> RTL -> proof: stage out/hdl into an Xcelium behavioral flow and run
+# the smoke suite (the A3 Argus hand-staging pattern, productized). Needs the
+# Cadence tools (verify.sh's runner sources ~/vestarv/cdspaths.sh itself) and
+# the riscv-none-elf- toolchain if the image set for this NHARTS isn't built.
+# ---------------------------------------------------------------------------
+verify: generate
+	@./verify.sh
+
 # Clean generated files (Castalia outputs only — NEVER touches the Myshkin toolchain
 # files in ../software or ../tools, and keeps latex/TRM/include/*_man.tex wrappers)
 clean:
-	@echo "⚠️  This removes generated Castalia outputs: out/, config/MemoryMap.json,"
+	@echo "⚠️  This removes generated Castalia outputs: out/, config/*.json,"
 	@echo "    and LaTeX build artifacts in latex/TRM/ (not the _man.tex wrappers)."
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		rm -rf out; \
-		rm -f config/MemoryMap.json; \
+		rm -f config/MemoryMap.json config/ChipConfig.resolved.json config/PadRing.json; \
 		rm -f latex/TRM/TRM.pdf latex/TRM/build.log latex/TRM/*.aux latex/TRM/*.toc latex/TRM/*.out latex/TRM/*.log; \
 		echo "✅ Cleaned generated files"; \
 	else \

@@ -482,9 +482,9 @@ class ChipGenerator():
 		raise Exception('Could not find Peripheral "' + name + '"')
 		return
 	
-	def CreatePeripheral(self, nameTemplate, nameIndex, peripheralMemorySlot, interruptPriority, absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None):
+	def CreatePeripheral(self, nameTemplate, nameIndex, peripheralMemorySlot, interruptPriority, absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None, registerSlotCount=None):
 		pt = self.FindPeripheralTemplate(nameTemplate)
-		p = Peripheral(peripheralTemplate=pt, peripheralMemorySlot=peripheralMemorySlot, peripheralMemorySlotCount=self.PeripheralMemorySlotCount, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterMemorySlotsPerPeripheralMemorySlot, peripheralMemoryStartAddress=self.PeripheralMemoryStartAddress, interruptPriority=interruptPriority, nameIndex=nameIndex, absoluteBaseAddress=absoluteBaseAddress, legacySlot=legacySlot, sharedBus=sharedBus, combinationalRead=combinationalRead, clockDomain=clockDomain, strobeNote=strobeNote)
+		p = Peripheral(peripheralTemplate=pt, peripheralMemorySlot=peripheralMemorySlot, peripheralMemorySlotCount=self.PeripheralMemorySlotCount, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterMemorySlotsPerPeripheralMemorySlot, peripheralMemoryStartAddress=self.PeripheralMemoryStartAddress, interruptPriority=interruptPriority, nameIndex=nameIndex, absoluteBaseAddress=absoluteBaseAddress, legacySlot=legacySlot, sharedBus=sharedBus, combinationalRead=combinationalRead, clockDomain=clockDomain, strobeNote=strobeNote, registerSlotCount=registerSlotCount)
 		p.Parent = self
 		self.Peripherals.append(p)
 		return p
@@ -684,6 +684,8 @@ class ChipGenerator():
 		signalRoutingVHDPath =  self.ChipRootDirectory + '/out/hdl/MCU_routing_template.vhd'
 		mcuVHDTemplatePath =  self.ChipRootDirectory + '/hdl_templates/MCU.template.vhd'
 		mcuVHDPath =  self.ChipRootDirectory + '/out/hdl/MCU.vhd'
+		riscvTbTemplatePath =  self.ChipRootDirectory + '/hdl_templates/riscv_tb.template.vhd'
+		riscvTbPath =  self.ChipRootDirectory + '/out/hdl/riscv_tb.vhd'
 		ramRomSizeDir =  self.ChipRootDirectory + '/out/linker-scripts'
 		chipConfigJsonPath =  self.ChipRootDirectory + '/config/MemoryMap.json'
 
@@ -727,6 +729,13 @@ class ChipGenerator():
 				if (test is False) and (self.McuMpCompat is not None) and os.path.isfile(mcuVHDTemplatePath):
 					import mcu_vhd
 					mcu_vhd.generateMcuVhd(self, mcuVHDTemplatePath, mcuVHDPath)
+				# Argus A3: the multi-hart testbench is numHarts-dependent (distinct
+				# a0_1..a0_(N-1) tile monitors matching the generated MCU a0 ports),
+				# so it is generated from the same numHarts. Byte-identical to
+				# hdl/MCU_MP/tb/riscv_tb.vhd at N=4 (check_riscv_tb_vhd.py).
+				if (test is False) and os.path.isfile(riscvTbTemplatePath):
+					import tb_vhd
+					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath)
 			
 			self.generateMemoryMapJson(chipConfigJsonPath)
 		else:
@@ -2036,18 +2045,22 @@ class ChipGenerator():
 			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(slot, 2) + ';', '-- offset = ' + str(slot * 4) + ' bytes'], prefixTabs=1)
 		t.AddBlankLine()
 
-		# NPU register slots in the RTL's MmrAddrNPU* spelling (values from the description)
-		t.AddLine('-- NPU register slots (RTL spelling)', prefixTabs=1)
-		npuP = self.FindPeripheral('NPU')
-		npuSlotByName = {}
-		for rt in npuP.Template.RegisterTemplates:
-			npuSlotByName[rt.NameTemplate] = rt.RegisterMemorySlot
-		for name, descRegName in c['npuMmrAddr']:
-			if descRegName not in npuSlotByName:
-				raise Exception('MCU_MP compat: NPU has no register named ' + descRegName + ' for ' + name)
-			slot = npuSlotByName[descRegName]
-			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(slot, 2) + ';', '-- offset = ' + str(slot * 4) + ' bytes'], prefixTabs=1)
-		t.AddBlankLine()
+		# NPU register slots in the RTL's MmrAddrNPU* spelling (values from the
+		# description). A2: skipped entirely for configurations that drop the
+		# NPU (Argus) — the generated MCU.vhd has no consumer for them there.
+		npuPresent = any(p.Name == 'NPU' for p in self.Peripherals)
+		if npuPresent:
+			t.AddLine('-- NPU register slots (RTL spelling)', prefixTabs=1)
+			npuP = self.FindPeripheral('NPU')
+			npuSlotByName = {}
+			for rt in npuP.Template.RegisterTemplates:
+				npuSlotByName[rt.NameTemplate] = rt.RegisterMemorySlot
+			for name, descRegName in c['npuMmrAddr']:
+				if descRegName not in npuSlotByName:
+					raise Exception('MCU_MP compat: NPU has no register named ' + descRegName + ' for ' + name)
+				slot = npuSlotByName[descRegName]
+				t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(slot, 2) + ';', '-- offset = ' + str(slot * 4) + ' bytes'], prefixTabs=1)
+			t.AddBlankLine()
 
 		# Per-vector interrupt bit numbers. The list is transcribed from the RTL; each
 		# interrupting peripheral's first vector must agree with its interruptPriority.
@@ -2127,6 +2140,11 @@ class ChipGenerator():
 				if pin.NoConnect:
 					continue
 				for af in pin.AltFuncs:
+					# Output-spread altFuncs (v1) are wired in the RTL with literal pin
+					# indices and emit no pnum_* reverse constant (their function names
+					# repeat across pins, which would collide), so they are exempt here.
+					if getattr(af, 'FromSpread', False):
+						continue
 					key = (gpioIndex, af.Index, pin.BitNumber, af.Name.replace('_', '').lower())
 					if key not in afPnumKeys:
 						raise Exception('MCU_MP compat: ' + p.Name + ' pin ' + str(pin.BitNumber) + ' declares AF' + str(af.Index) + ' ' + af.Name + ' but the pnums transcription has no matching pnum_gpio' + str(gpioIndex) + '_af' + str(af.Index) + '_* constant')

@@ -32,12 +32,17 @@ class RegisterTemplate():
 		# Set description
 		self.Description = description
 		
-		# Check memory slot
+		# Check memory slot. The REAL bound is per-peripheral (the global
+		# registerMemorySlotsPerPeripheralMemorySlot, or the peripheral's
+		# registerSlotCount override for absolute-base shared-window devices
+		# whose register file outgrows one page-0 slot pitch — A2/Argus:
+		# IRQROUTER rows at 4*h, PWRSR words at N harts) and is enforced in
+		# Register.__init__; this is only a template-level sanity bound.
 		if type(registerMemorySlot) != int:
 			raise Exception('registerMemorySlot must be an integer')
-		
-		if registerMemorySlot < 0 or registerMemorySlot > 63:
-			raise Exception('registerMemorySlot must be on the range of [0, 63]')
+
+		if registerMemorySlot < 0 or registerMemorySlot > 1023:
+			raise Exception('registerMemorySlot must be on the range of [0, 1023]')
 		
 		self.RegisterMemorySlot = registerMemorySlot
 		self.Offset = registerMemorySlot * 4

@@ -11,7 +11,7 @@ from ChipGenerator import ChipGenerator
 from Peripheral import PeripheralTemplate, Peripheral
 from Register import RegisterTemplate, Register
 from BitField import BitField
-from GpioConfigurator import GpioConfigurator
+from GpioConfigurator import GpioConfigurator, GpioAltFunc
 
 # ---------------------------------------------------------------------------
 # Optional configuration file:  make chip CONFIG=path/to/config.json
@@ -46,6 +46,96 @@ def _cfg(dottedKey, default):
 		node = node[part]
 	return node
 
+# ---------------------------------------------------------------------------
+# THE config schema — the single authoritative list of knobs a CONFIG= file
+# may set. docs/chip_configurator.html emits exactly these keys, the TRM's
+# generated Chip Configuration section documents them, and the resolved
+# values land in config/ChipConfig.resolved.json. Keep all four in sync.
+# Every key is optional (missing = the Castalia default). Unknown keys RAISE:
+# a typo that silently falls back to the default is worse than an error.
+# ---------------------------------------------------------------------------
+def _isBool(v):
+	return isinstance(v, bool)
+def _isInt(v):
+	return isinstance(v, int) and not isinstance(v, bool)
+def _isMemSize(v, ceiling):
+	return _isInt(v) and 0 < v <= ceiling and v % 0x400 == 0
+
+# Package models (G4, 2026-07-11): the pad ring derives from a PYTHON-DEFINED
+# package model; a config SELECTS one by name. Free-form pin assignment in the
+# config is intentionally unsupported — a chip gets its own pinout by adding a
+# model here (Argus will, once its package is decided), never in JSON.
+_PACKAGE_MODELS = ('myshkin-qfn44',)
+
+_CONFIG_SCHEMA = {
+	'chipName':             ('non-empty string — renames the chip in the TRM/headers (docs-only; CHIP_NAME env still wins)',
+	                         lambda v: isinstance(v, str) and len(v.strip()) > 0),
+	'numHarts':             ('int 1..32 — hart/tile count (4 = Castalia golden master, 18 = Argus sim-proven)',
+	                         lambda v: _isInt(v) and 1 <= v <= 32),
+	'numMutexes':           ('int 1..1024 — HW mutex bank size (16 = Castalia, 32 = Argus)',
+	                         lambda v: _isInt(v) and 1 <= v <= 1024),
+	'registerFileDualPort': ('bool — dual-port register file (ASIC) vs single-port (Spartan-6 FPGA)',
+	                         _isBool),
+	'isa.mul':              ('bool — M multiply', _isBool),
+	'isa.fastMul':          ('bool — docs-only on vesta (multiplier is already single-cycle)', _isBool),
+	'isa.div':              ('bool — M divide', _isBool),
+	'isa.atomics':          ('bool — A extension (LR/SC + AMO)', _isBool),
+	'isa.compressed':       ('bool — C extension', _isBool),
+	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs', _isBool),
+	'isa.counters':         ('bool — Zicntr mcycle/minstret', _isBool),
+	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters)', _isBool),
+	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)',
+	                              lambda v: _isMemSize(v, 0x4000)),
+	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000 (region 0x8000-0xBFFF)',
+	                              lambda v: _isMemSize(v, 0x4000)),
+	'memory.sharedBulkRamSize':  ('int bytes, multiple of 0x4000 (one sram1p16k bank) from 0x10000',
+	                              lambda v: _isInt(v) and v >= 0x4000 and v % 0x4000 == 0),
+	'memory.npuStagingRamSize':  ('int bytes, 1 KiB multiple <= 0x4000 (region 0xC000-0xFFFF)',
+	                              lambda v: _isMemSize(v, 0x4000)),
+	'peripherals.npu':      ('bool — False drops the NPU entirely (slot 10 + the 0xC000 staging window read zero)',
+	                         _isBool),
+	'peripherals.i2c1':     ('bool — False drops the second I2C instance (slot 15 reads zero, IRQ vectors 70-82 reserved, SDA1/SCL1 pins revert to plain GPIO)',
+	                         _isBool),
+	'peripherals.uart1':    ('bool — False drops the second UART instance (slot 5 reads zero, IRQ vectors 52-54 reserved, TX1/RX1 pins revert to plain GPIO)',
+	                         _isBool),
+	'peripherals.spi1':     ('bool — False drops the second SPI instance (slot 3 reads zero, IRQ vectors 11-12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO)',
+	                         _isBool),
+	'peripherals.timer1':   ('bool — False drops the second TIMER instance (slot 7 reads zero, IRQ vectors 22-27 reserved, T1CMP*/T1CAP* pins revert to plain GPIO)',
+	                         _isBool),
+	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS; today only "myshkin-qfn44" — new pinouts are added as Python models, never as free-form config pin lists)',
+	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
+	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
+	                         _isBool),
+}
+
+def _validateChipConfig(node, path=''):
+	'''Walk the loaded JSON: leading-underscore keys are free-form comments,
+	   peripheralsPreview is a tolerated planning aid from older configurator
+	   exports, everything else must be a schema key with a passing value.'''
+	for key in node:
+		if key.startswith('_'):
+			continue
+		dotted = (path + '.' + key) if path else key
+		if dotted == 'peripheralsPreview':
+			print('[generate] NOTE: config key "peripheralsPreview" is a planning aid — ignored')
+			continue
+		hasChildren = any(k.startswith(dotted + '.') for k in _CONFIG_SCHEMA)
+		if hasChildren and isinstance(node[key], dict):
+			_validateChipConfig(node[key], dotted)
+			continue
+		if dotted not in _CONFIG_SCHEMA:
+			valid = '\n'.join('  ' + k + '  — ' + _CONFIG_SCHEMA[k][0] for k in sorted(_CONFIG_SCHEMA))
+			raise Exception('Unknown chip-config key "' + dotted + '". Valid keys (all optional):\n' + valid
+				+ '\n(Beyond the peripherals.* knobs above the peripheral SET is fixed template content,'
+				+ '\n and the pad ring derives from the package model in generate.py — see'
+				+ '\n config/PadRing.json for the derived ring.)')
+		desc, check = _CONFIG_SCHEMA[dotted]
+		if not check(node[key]):
+			raise Exception('Chip-config key "' + dotted + '" has invalid value ' + repr(node[key]) + ' — expected: ' + desc)
+
+if _CHIP_CONFIG:
+	_validateChipConfig(_CHIP_CONFIG)
+
 def _hexLen(nBytes):
 	'''0x-prefixed uppercase-digit length string for a linker-script LENGTH field.'''
 	return '0x' + format(int(nBytes), 'X')
@@ -54,6 +144,83 @@ def _hexLen(nBytes):
 # and the ChipGenerator call share ONE value (A1 N-hart generalization).
 numHarts = _cfg('numHarts', 4)
 
+# Mutex count (A2/Argus: 32 for the 18-hart course chip, 16 = the Castalia
+# default). Word-mapped at 0x6000 + 4*i; the page has room for far more, the
+# RTL addr port width is clog2(numMutexes) (mutex_bank NMUTEX generic).
+numMutexes = _cfg('numMutexes', 16)
+
+# NPU presence (A2/Argus: the A0 decision DROPS the NPU — window slot 10
+# @0x4A00 becomes a reserved gap like slots 11/12's analog blocks, and the
+# 0xC000 staging-RAM window reads zero through the arbiter). True = the
+# Castalia default.
+npuPresent = _cfg('peripherals.npu', True)
+
+# I2C1 presence (G1a, 2026-07-11): the first config-droppable peripheral
+# INSTANCE (the NPU pattern extended to a second-instance peripheral). False:
+# window slot 15 becomes a dead gap (reads zero via the mux fall-through), its
+# 13 IRQ vectors 70-82 become IRQB_RSVD* (numbering FROZEN — the IVT slots and
+# every other vector number stay put; the RTL ties them low), the SDA1/SCL1
+# pad planes degrade to hi-Z (P4.2/4.3 revert to plain GPIO26/27, the P3.2/3
+# AF1 relocation plane goes unassigned). True = the Castalia default.
+i2c1Present = _cfg('peripherals.i2c1', True)
+
+# UART1/SPI1/TIMER1 presence (G1b, 2026-07-11): the G1a machinery fanned out
+# to the remaining second-instance peripherals. Each False empties its legacy
+# window slot (5/3/7 — dead gap, reads zero), reserves its frozen IRQ vectors
+# (52-54 / 11-12 / 22-27 -> IRQB_RSVD*), reverts its primary pads to plain
+# GPIO and hi-Zs its rows in the AF relocation + output-spread planes (the
+# spread map below is filtered before it is applied). True = the Castalia
+# defaults.
+uart1Present = _cfg('peripherals.uart1', True)
+spi1Present = _cfg('peripherals.spi1', True)
+timer1Present = _cfg('peripherals.timer1', True)
+
+# Package model selection (G4): which _PACKAGE_MODELS entry builds the pad
+# ring below, and whether the TRM package section carries the "Preliminary"
+# banner (True while every config inherits the Myshkin QFN-44 unchanged).
+packageModel = _cfg('package.model', 'myshkin-qfn44')
+packagePreliminary = _cfg('package.preliminary', True)
+
+# Remaining scalar knobs, hoisted so the ChipGenerator(...) call and the
+# resolved-config record at the bottom share ONE value per knob.
+_isa = {
+	'mul':        _cfg('isa.mul', True),
+	'fastMul':    _cfg('isa.fastMul', True),
+	'div':        _cfg('isa.div', True),
+	'atomics':    _cfg('isa.atomics', True),
+	'compressed': _cfg('isa.compressed', True),
+	'bitmanip':   _cfg('isa.bitmanip', True),
+	'counters':   _cfg('isa.counters', False),
+	'counters64': _cfg('isa.counters64', False),
+}
+_regsDualPort = _cfg('registerFileDualPort', True)
+_romSize = _cfg('memory.romSize', 16384)
+_tcmSize = _cfg('memory.tcmSizePerHart', 16384)
+
+def _isaString():
+	'''The march string this configuration implements (mirrors the misa CSR
+	   advertisement and the configurator's live ISA banner).'''
+	s = 'rv32i'
+	if _isa['mul'] or _isa['div']:
+		s += 'm'
+	if _isa['atomics']:
+		s += 'a'
+	if _isa['compressed']:
+		s += 'c'
+	if _isa['bitmanip']:
+		s += '_zba_zbb_zbs'
+	if _isa['counters']:
+		s += '_zicntr'
+	return s
+
+# Cross-knob sanity (WARN, not raise — these are legal but suspicious)
+if _isa['counters64'] and not _isa['counters']:
+	print('[generate] WARNING: isa.counters64 without isa.counters — the 64-bit high halves need the base Zicntr counters')
+if (not _isa['atomics']) and numHarts > 1:
+	print('[generate] WARNING: isa.atomics=false on a multi-hart chip breaks the LR/SC + AMO + mutex lock infrastructure the sh tests rely on')
+if _CHIP_CONFIG and numHarts not in (4, 18):
+	print('[generate] NOTE: numHarts=' + str(numHarts) + ' — only 4 (Castalia golden master, byte-identical RTL) and 18 (Argus, boots in simulation) are verified hart counts')
+
 # CLINT register-layout formula (A0/A1; must match hdl/MCU_MP/clint.vhd):
 # msip[h] at word h; mtime lo at word roundup16(4*numHarts)/4; mtimecmp[h]
 # lo/hi at mtime word + 4 + 2h. At numHarts=4 this reproduces the original
@@ -61,6 +228,29 @@ numHarts = _cfg('numHarts', 4)
 # the A1 no-op gate.
 clintMtimeSlot = ((4 * numHarts + 15) // 16) * 4
 clintMtimecmpSlot = clintMtimeSlot + 4
+clintSlotCount = clintMtimecmpSlot + 2 * numHarts	# words the CLINT decodes
+
+def _clog2(n):
+	'''Smallest w with 2**w >= n (matches mcu_vhd.py / the RTL ADDR_W math).'''
+	w = 0
+	while (1 << w) < n:
+		w += 1
+	return w
+
+def _slotCountOverride(words):
+	'''registerSlotCount value for a shared-window peripheral needing `words`
+	   register words: None while it still fits the 64-word global (so the
+	   Castalia description is provably untouched), the count once it does not
+	   (A2 engine delta — see Peripheral.registerSlotCount).'''
+	return words if words > 64 else None
+
+# Spelled-out counts for TRM prose ("the four harts"); larger counts fall
+# back to digits. Mirrors mcu_vhd.py's _HARTS_WORD.
+_SPELLED = {2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven',
+	8: 'eight', 9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve', 16: 'sixteen',
+	18: 'eighteen', 20: 'twenty', 24: 'twenty-four', 32: 'thirty-two'}
+def _spelled(n):
+	return _SPELLED.get(n, str(n))
 
 
 ''' Create Memory Map
@@ -97,12 +287,12 @@ m = ChipGenerator(
 	mcuUserGuideLatexTemplateFileName='TRM.template.tex',
 	numHarts=numHarts,	# multiprocessor hart count (default 4) — drives the TRM's \NumHarts/\NumHartsWord defines, the multi-core feature bullets, AND (since A1) the per-hart generated MCU.vhd regions + CLINT/IRQROUTER register loops below
 	romStartAddress=0x0000,
-	romSize=_cfg('memory.romSize', 16384),	# 16 KiB (region 0x0-0x3FFF; do not exceed 0x4000)
+	romSize=_romSize,	# 16 KiB (region 0x0-0x3FFF; do not exceed 0x4000)
 	peripheralMemoryStartAddress=0x4000,
 	peripheralMemorySlotCount=16,
 	registerMemorySlotsPerPeripheralMemorySlot=64, #Bytes between each peripheral's register memory slots.
 	ramStartAddress=0x8000,
-	ramMemorySlotSize=_cfg('memory.tcmSizePerHart', 16384),	# 16 KiB private TCM/tile (region 0x8000-0xBFFF; do not exceed 0x4000)
+	ramMemorySlotSize=_tcmSize,	# 16 KiB private TCM/tile (region 0x8000-0xBFFF; do not exceed 0x4000)
 	# Neither 0 nor 1 may be in ramMemorySlotsAvailable. This is because the ROM and the peripheral memory technically take slots 0 and 1.
 	# M11: ONE private TCM per tile (slot 2 = 0x8000-0xBFFF). The old RAM1
 	# slot is the shared NPU staging RAM (an ExtraMemorySection below), and
@@ -119,9 +309,9 @@ m = ChipGenerator(
 	padOutPosLogic=True,
 	padDIRPosLogic=False,
 	padRENPosLogic=False,
-	ENABLE_COUNTERS=_cfg('isa.counters', False),
-	ENABLE_COUNTERS64=_cfg('isa.counters64', False),
-	ENABLE_REGS_DUALPORT=_cfg('registerFileDualPort', True),	# TODO: Enable for ASIC synthesis if using a dual port register file, disable for Xilinx Spartan 6 FPGAs
+	ENABLE_COUNTERS=_isa['counters'],
+	ENABLE_COUNTERS64=_isa['counters64'],
+	ENABLE_REGS_DUALPORT=_regsDualPort,	# TODO: Enable for ASIC synthesis if using a dual port register file, disable for Xilinx Spartan 6 FPGAs
 	LATCHED_MEM_RDATA=False,
 	TWO_STAGE_SHIFT=False,
 	BARREL_SHIFTER=False,
@@ -134,29 +324,46 @@ m = ChipGenerator(
 	# vesta's multiplier is single-cycle combinational and its shifter is fixed).
 	# WARNING: disabling ENABLE_ATOMICS on a multi-hart chip breaks the LR/SC +
 	# AMO + (never-LR/SC-a-mutex aside) lock infrastructure the sh tests rely on.
-	COMPRESSED_ISA=_cfg('isa.compressed', True),
-	ENABLE_MUL=_cfg('isa.mul', True),
-	ENABLE_FAST_MUL=_cfg('isa.fastMul', True),
-	ENABLE_DIV=_cfg('isa.div', True),
-	ENABLE_ATOMICS=_cfg('isa.atomics', True),
-	ENABLE_BITMANIP=_cfg('isa.bitmanip', True),
+	COMPRESSED_ISA=_isa['compressed'],
+	ENABLE_MUL=_isa['mul'],
+	ENABLE_FAST_MUL=_isa['fastMul'],
+	ENABLE_DIV=_isa['div'],
+	ENABLE_ATOMICS=_isa['atomics'],
+	ENABLE_BITMANIP=_isa['bitmanip'],
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,
 	MASKED_IRQ=0x00000000,	# 32-bit IRQ mask. Any bit that is a '1' is a permanently disabled interrupt vector
 	PROGADDR_IRQ=0x9000,	# TODO: Set this as the address of the master IRQ handling function (this is NOT the interrupt vector table!!! This is the function that is called whenever ANY interrupt occurs)
-	lastRamMemorySlotSize=_cfg('memory.tcmSizePerHart', 16384)
+	lastRamMemorySlotSize=_tcmSize
 )
 
 
 
 # Extra memory sections: the multi-core shared regions (behind the mp_arbiter, all harts)
 _npuRamLen = _cfg('memory.npuStagingRamSize', 0x4000)   # region 0xC000-0xFFFF; do not exceed 0x4000
-_sharedRamLen = _cfg('memory.sharedBulkRamSize', 0x10000)  # region 0x10000-0x1FFFF; do not exceed 0x10000 (extended flash begins at 0x20000)
-m.ExtraMemorySections = [
-	('NPU_RAM (rwx)', ': ORIGIN = 0x0C000, LENGTH = ' + _hexLen(_npuRamLen), '/* NPU staging RAM (arbitrated; NPU-port-muxed during a THINK) */'),
-	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = ' + _hexLen(_sharedRamLen), '/* arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */'),
-]
+_sharedRamLen = _cfg('memory.sharedBulkRamSize', 0x10000)  # bulk RAM bytes from 0x10000 (Castalia 64 KiB / Argus 128 KiB); extended flash begins at the next power of two above the window
+if _sharedRamLen % 0x4000 != 0 or _sharedRamLen < 0x4000:
+	raise Exception('memory.sharedBulkRamSize must be a positive multiple of 0x4000 (one sram1p16k bank)')
+
+# A2 (Argus) shared-window geometry, consumed by mcu_vhd.py's generated
+# regions AND recorded here as the single source of truth:
+#   banks : sram1p16k bank count behind the arbiter (bank = 16 KiB)
+#   shAw  : arbiter/tile word-address width — the window is
+#           0x0..2^(shAw+2)-1 (bulk RAM end rounded UP to a power of two;
+#           the round-up gap, e.g. Argus 0x30000-0x3FFFF, reads zero) and
+#           EXTENDED FLASH decodes at exactly 2^(shAw+2) (strict sh_sel
+#           complement — the M3c.3 double-claim lesson).
+# Castalia (64 KiB): banks=4, shAw=15, flash at 0x20000 — the M11 values.
+_sharedRamBanks = _sharedRamLen // 0x4000
+shAw = _clog2(0x10000 + _sharedRamLen) - 2
+flashBase = 1 << (shAw + 2)
+m.ExtraMemorySections = []
+if npuPresent:
+	m.ExtraMemorySections.append(
+		('NPU_RAM (rwx)', ': ORIGIN = 0x0C000, LENGTH = ' + _hexLen(_npuRamLen), '/* NPU staging RAM (arbitrated; NPU-port-muxed during a THINK) */'))
+m.ExtraMemorySections.append(
+	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = ' + _hexLen(_sharedRamLen), '/* arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */'))
 
 # Extra hand-written TRM chapters input by the master template (copied into latex/TRM/include/)
 m.ExtraLatexIntroFiles = ['MULTICORE-intro-castalia-2026-07.tex']
@@ -164,11 +371,14 @@ m.ExtraLatexIntroFiles = ['MULTICORE-intro-castalia-2026-07.tex']
 # Shared window regions drawn in the TRM address space diagram (M11 map)
 m.SharedWindowSections = [
 	('CLINT', 0x5000, 0x5FFF, 'Core-local interruptor: msip IPIs, mtime/mtimecmp'),
-	('Mutex bank', 0x6000, 0x6FFF, 'HW mutex bank: 16 word-mapped mutexes, claim-on-read'),
+	('Mutex bank', 0x6000, 0x6FFF, 'HW mutex bank: ' + str(numMutexes) + ' word-mapped mutexes, claim-on-read'),
 	('IRQ router', 0x7000, 0x7FFF, 'Per-hart peripheral-IRQ enable rows (tile IRQ fan-out)'),
-	('NPU staging RAM', 0xC000, 0xFFFF, 'NPU vector staging RAM (NPU-port-muxed during a THINK)'),
-	('Shared RAM', 0x10000, 0x1FFFF, 'Arbitrated shared bulk RAM, 4 banks (locks, mailboxes, inter-hart data)'),
 ]
+if npuPresent:
+	m.SharedWindowSections.append(
+		('NPU staging RAM', 0xC000, 0xFFFF, 'NPU vector staging RAM (NPU-port-muxed during a THINK)'))
+m.SharedWindowSections.append(
+	('Shared RAM', 0x10000, 0x10000 + _sharedRamLen - 1, 'Arbitrated shared bulk RAM, ' + str(_sharedRamBanks) + ' banks (locks, mailboxes, inter-hart data)'))
 
 
 
@@ -265,7 +475,7 @@ r.AddBitField(BitField(name='SYSIRQRECEN', msb=1, accessibility='rw', descriptio
 r.AddBitField(BitField(name='SYSIRQGEN', msb=0, accessibility='rw', description='Global IRQ enable. Master enable for all interrupts. When cleared, all IRQs are disabled regardless of individual enable bits.', valueDescriptions=[(0b0, 'All IRQs globally disabled'), (0b1, 'IRQs enabled per IRQEN registers')]))
 
 # WDTCR
-r = RegisterTemplate(nameTemplate='WDTCR', registerMemorySlot=12, size=8, description='Watchdog timer control register. This register is protected and requires password unlock via WDTPASS before writing. Configures watchdog operation mode and timeout period.')
+r = RegisterTemplate(nameTemplate='WDTCR', registerMemorySlot=13, size=8, description='Watchdog timer control register. This register is protected and requires password unlock via WDTPASS before writing. Configures watchdog operation mode and timeout period.')
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='SYSWDTEN', msb=7, accessibility='rw', description='Watchdog timer enable. When set, watchdog counter increments on MCLK. Watchdog generates interrupt and/or reset when counter bit selected by WDTCDIV transitions from 0 to 1. Register is write-protected; unlock with WDTPASS first.', valueDescriptions=[(0b0, 'Watchdog disabled'), (0b1, 'Watchdog enabled')]))
@@ -275,7 +485,7 @@ r.AddBitField(BitField(name='SYSWDTIE', msb=1, accessibility='rw', description='
 r.AddBitField(BitField(name='SYSWDTHWRST', msb=0, accessibility='rw', description='Watchdog hardware reset enable. When set, watchdog timeout causes system reset. If WDTIE is set, reset occurs after interrupt service routine completes. If WDTIE is cleared or IRQ is not enabled, reset occurs immediately on timeout.', valueDescriptions=[(0b0, 'Watchdog reset disabled'), (0b1, 'Watchdog reset enabled')]))
 
 # WDTSR
-r = RegisterTemplate(nameTemplate='WDTSR', registerMemorySlot=13, size=8, description='Watchdog timer status register. Contains flags indicating watchdog reset and interrupt events. Flags are cleared by writing 1 to the respective bit.')
+r = RegisterTemplate(nameTemplate='WDTSR', registerMemorySlot=14, size=8, description='Watchdog timer status register. Contains flags indicating watchdog reset and interrupt events. Flags are cleared by writing 1 to the respective bit.')
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(unused=True, msb=7, lsb=2))
@@ -283,7 +493,7 @@ r.AddBitField(BitField(name='SYSWDTIF', msb=1, accessibility='rw1', description=
 r.AddBitField(BitField(name='SYSWDTRF', msb=0, accessibility='rw1', description='Watchdog timer reset flag. Set when system reset was caused by watchdog timer. Persists across resets until cleared by software. Cleared by writing 1 to this bit.', valueDescriptions=[(0b0, 'Reset not caused by watchdog'), (0b1, 'Reset caused by watchdog')]))
 
 # WDTPASS
-r = RegisterTemplate(nameTemplate='WDTPASS', registerMemorySlot=14, size=32, description='Watchdog timer password register. Write-only register for two security functions: (1) Write 0x3FB0AD1C to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write 0xD6F402BC to clear watchdog counter to 0, preventing timeout. Reading always returns 0.')
+r = RegisterTemplate(nameTemplate='WDTPASS', registerMemorySlot=12, size=32, description='Watchdog timer password register. Write-only register for two security functions: (1) Write 0x3FB0AD1C to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write 0xD6F402BC to clear watchdog counter to 0, preventing timeout. Reading always returns 0.')
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='SYSWDTPASS', msb=31, lsb=0, accessibility='w', description='Watchdog password. Write 0x3FB0AD1C (unlock password) to enable WDTCR writes for 64 MCLK cycles. Write 0xD6F402BC (clear password) to reset watchdog counter to 0.'))
@@ -678,7 +888,11 @@ r.AddBitField(BitField(msb=7, unused=True))
 
 ''' NPU '''
 p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in hart 0\'s private RAM1 (the 16 KiB SRAM at 0xC000, multiplexed between hart 0 and the NPU). The registers are reachable by every hart through the shared window, but the data path is not: hart 0 (or software staging through shared RAM) must place the operands in RAM1. Hart 0 is put to sleep for the duration of every computation, regardless of which hart started it.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-castalia-2026-07.tex', latexFeatureSummary='A neural processing unit (NPU) co-processor for hardware acceleration of machine learning tasks')
-m.AddPeripheralTemplate(p)
+# A2 (Argus): the template is only registered when the NPU exists — an
+# unregistered template emits no MemoryMap.h structs and no TRM chapter
+# (same end state as the removed AFE/SARADC blocks).
+if npuPresent:
+	m.AddPeripheralTemplate(p)
 
 # NPUCR
 r = RegisterTemplate(nameTemplate='NPUCR', registerMemorySlot=0, description='NPU control register', size=32)
@@ -777,8 +991,10 @@ r.AddBitField(BitField(name='PCTCNT3', msb=31, lsb=0, accessibility='r'))
 # are left as RESERVED GAPS — no other peripheral address or vector moves.
 
 
-''' CLINT (multi-core core-local interruptor, shared window at 0x11000) '''
-p = PeripheralTemplate(nameTemplate='CLINT', description='Core-local interruptor for the four harts. Provides per-hart software interrupts (msip, the inter-processor interrupt mechanism) and a shared free-running 64-bit mtime counter with one 64-bit mtimecmp compare register per hart (timer interrupts). Lives in the shared window behind the multi-core arbiter, so any hart can raise or clear any hart\'s interrupts. The msip and mtip outputs are level interrupts into each hart\'s interrupt vector (vectors 83 and 84); the interrupt service routine must clear the level (write 0 to its MSIP register, or advance its MTIMECMP past mtime) before returning, or the interrupt re-triggers. The block decodes only its low address bits, so its registers alias every 64 bytes throughout 0x11000-0x11FFF.', bitFieldPrefix='CLINT', latexIntroFileName='CLINT-intro-castalia-2026-07.tex')
+''' CLINT (multi-core core-local interruptor, shared window page 1 at 0x5000) '''
+# A2: the alias granularity follows the decoded word count (the RTL ADDR_W)
+_clintAliasBytes = 4 << _clog2(clintSlotCount)
+p = PeripheralTemplate(nameTemplate='CLINT', description='Core-local interruptor for the ' + _spelled(numHarts) + ' harts. Provides per-hart software interrupts (msip, the inter-processor interrupt mechanism) and a shared free-running 64-bit mtime counter with one 64-bit mtimecmp compare register per hart (timer interrupts). Lives in the shared window behind the multi-core arbiter, so any hart can raise or clear any hart\'s interrupts. The msip and mtip outputs are level interrupts into each hart\'s interrupt vector (vectors 83 and 84); the interrupt service routine must clear the level (write 0 to its MSIP register, or advance its MTIMECMP past mtime) before returning, or the interrupt re-triggers. The block decodes only its low address bits, so its registers alias every ' + str(_clintAliasBytes) + ' bytes throughout 0x5000-0x5FFF.', bitFieldPrefix='CLINT', latexIntroFileName='CLINT-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
 # MSIP0..MSIP(numHarts-1)
@@ -789,7 +1005,7 @@ for h in range(numHarts):
 	r.AddBitField(BitField(name='CLINTMSIPH' + str(h), msb=0, accessibility='rw', description='Software interrupt (IPI) level for hart ' + str(h) + '.', valueDescriptions=[(0b0, 'No software interrupt pending'), (0b1, 'Software interrupt raised')]))
 
 # MTIMEL / MTIMEH (word slot = clintMtimeSlot, the A0/A1 layout formula)
-r = RegisterTemplate(nameTemplate='MTIMEL', registerMemorySlot=clintMtimeSlot, size=32, description='Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all four harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.')
+r = RegisterTemplate(nameTemplate='MTIMEL', registerMemorySlot=clintMtimeSlot, size=32, description='Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all ' + _spelled(numHarts) + ' harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.')
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='CLINTMTIMEL', msb=31, lsb=0, accessibility='rw', description='mtime bits 31:0.'))
 
@@ -809,19 +1025,23 @@ for h in range(numHarts):
 
 
 
-''' MUTEX (hardware mutex bank, shared window at 0x13000) '''
-p = PeripheralTemplate(nameTemplate='MUTEX', description='Hardware mutex bank: sixteen word-mapped advisory locks providing single-instruction cross-hart mutual exclusion. Because the multi-core arbiter serializes whole shared-window transactions, a read is atomic for free: reading a mutex word returns 0 if the mutex was free and the same transaction claims it for the reading hart (owner becomes hartid+1); reading a held mutex returns the owner\'s marker (hartid+1) and does not disturb it. Writing 0 releases a mutex (deliberately not qualified by owner, so a supervisory hart can force-release a dead hart\'s mutex); nonzero writes are ignored, so ownership cannot be forged. Never access a mutex with LR/SC or AMO instructions -- only plain loads and stores. All mutexes reset to free.', bitFieldPrefix='MTX', latexIntroFileName='MUTEX-intro-castalia-2026-07.tex')
+''' MUTEX (hardware mutex bank, shared window page 2 at 0x6000) '''
+p = PeripheralTemplate(nameTemplate='MUTEX', description='Hardware mutex bank: ' + _spelled(numMutexes) + ' word-mapped advisory locks providing single-instruction cross-hart mutual exclusion. Because the multi-core arbiter serializes whole shared-window transactions, a read is atomic for free: reading a mutex word returns 0 if the mutex was free and the same transaction claims it for the reading hart (owner becomes hartid+1); reading a held mutex returns the owner\'s marker (hartid+1) and does not disturb it. Writing 0 releases a mutex (deliberately not qualified by owner, so a supervisory hart can force-release a dead hart\'s mutex); nonzero writes are ignored, so ownership cannot be forged. Never access a mutex with LR/SC or AMO instructions -- only plain loads and stores. All mutexes reset to free.', bitFieldPrefix='MTX', latexIntroFileName='MUTEX-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
-for i in range(16):
+# A2: owner-marker value descriptions enumerate the configured hart count
+_mtxOwnerValues = [(0, 'Mutex free (a read returning this value claims the mutex)', '_FREE')]
+for h in range(numHarts):
+	_mtxOwnerValues.append((h + 1, 'Held by hart ' + str(h), '_H' + str(h)))
+for i in range(numMutexes):
 	r = RegisterTemplate(nameTemplate='MUTEX' + str(i), registerMemorySlot=i, size=32, description='Hardware mutex ' + str(i) + '. Read to claim: a returned value of 0 means the mutex was free and the reading hart now holds it; a nonzero value is the current owner\'s marker (hartid+1). Write 0 to release.')
 	p.AddRegisterTemplate(r)
-	r.AddBitField(BitField(name='MTXOWN' + str(i), msb=31, lsb=0, accessibility='rw', description='Owner marker: 0 = free (and a read that returns 0 claims the mutex), h+1 = held by hart h.', valueDescriptions=[(0, 'Mutex free (a read returning this value claims the mutex)', '_FREE'), (1, 'Held by hart 0', '_H0'), (2, 'Held by hart 1', '_H1'), (3, 'Held by hart 2', '_H2'), (4, 'Held by hart 3', '_H3')]))
+	r.AddBitField(BitField(name='MTXOWN' + str(i), msb=31, lsb=0, accessibility='rw', description='Owner marker: 0 = free (and a read that returns 0 claims the mutex), h+1 = held by hart h.', valueDescriptions=list(_mtxOwnerValues)))
 
 
 
 ''' IRQROUTER (per-hart peripheral IRQ enable/routing, shared window at 0x13900) '''
-p = PeripheralTemplate(nameTemplate='IRQROUTER', description='Peripheral interrupt router: per-hart interrupt enable registers programmable by any hart through the shared window. Every peripheral interrupt line fans out to all four harts; each hart\'s tile ANDs the vector with its row of this register bank (ORed with its hardwired CLINT vectors 83 and 84, which therefore cannot be masked here). This lets software route any peripheral\'s interrupt to whichever hart currently owns that peripheral. All registers reset to 0 (everything masked), so the router is inert until software programs it. Row 0 exists for symmetry and debug but is not wired to hart 0, whose interrupt enables come from the SYSTEM peripheral as on the single-core chip.', bitFieldPrefix='IRQR', latexIntroFileName='IRQROUTER-intro-castalia-2026-07.tex')
+p = PeripheralTemplate(nameTemplate='IRQROUTER', description='Peripheral interrupt router: per-hart interrupt enable registers programmable by any hart through the shared window. Every peripheral interrupt line fans out to all ' + _spelled(numHarts) + ' harts; each hart\'s tile ANDs the vector with its row of this register bank (ORed with its hardwired CLINT vectors 83 and 84, which therefore cannot be masked here). This lets software route any peripheral\'s interrupt to whichever hart currently owns that peripheral. All registers reset to 0 (everything masked), so the router is inert until software programs it. Row 0 exists for symmetry and debug but is not wired to hart 0, whose interrupt enables come from the SYSTEM peripheral as on the single-core chip.', bitFieldPrefix='IRQR', latexIntroFileName='IRQROUTER-intro-castalia-2026-07.tex')
 m.AddPeripheralTemplate(p)
 
 for h in range(numHarts):
@@ -841,22 +1061,38 @@ for h in range(numHarts):
 
 
 ''' PWRCTRL (M17 MTCMOS power controller, peripheral-window slot 11 at 0x4B00) '''
-p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-3) sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released --- at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. Hart 0 (the management hart: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes. Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed --- that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
+p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-' + str(numHarts - 1) + ') sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released --- at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. Hart 0 (the management hart: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes. Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed --- that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
 m.AddPeripheralTemplate(p)
 
 r = RegisterTemplate(nameTemplate='PWRCR', registerMemorySlot=0, size=32, description='Power gate control. Setting GATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes (no aborts). Bit 0 (hart 0) is reserved: always-on, reads 0, writes ignored.')
 p.AddRegisterTemplate(r)
-r.AddBitField(BitField(unused=True, msb=31, lsb=4))
-r.AddBitField(BitField(name='PWRGATE', msb=3, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
+r.AddBitField(BitField(unused=True, msb=31, lsb=numHarts))
+r.AddBitField(BitField(name='PWRGATE', msb=numHarts - 1, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
 r.AddBitField(BitField(name='PWRH0', msb=0, lsb=0, accessibility='r', description='Hart 0 is always-on: reads 0, writes ignored.'))
 
-r = RegisterTemplate(nameTemplate='PWRSR', registerMemorySlot=1, size=32, description='Power sequencer state, one read-only nibble per hart (bits 4h+3:4h). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0\'s nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.')
-p.AddRegisterTemplate(r)
-r.AddBitField(BitField(unused=True, msb=31, lsb=16))
-r.AddBitField(BitField(name='PWRST3', msb=15, lsb=12, accessibility='r', description='Tile hart 3 sequencer state.'))
-r.AddBitField(BitField(name='PWRST2', msb=11, lsb=8, accessibility='r', description='Tile hart 2 sequencer state.'))
-r.AddBitField(BitField(name='PWRST1', msb=7, lsb=4, accessibility='r', description='Tile hart 1 sequencer state.'))
-r.AddBitField(BitField(name='PWRST0', msb=3, lsb=0, accessibility='r', description='Hart 0 state: always 0 (ON, always-on domain).'))
+# PWRSR nibble array (A2 regrow, user decision 2026-07-10): the 4-bit state
+# nibble encoding is kept and the register grows to ceil(numHarts/8)
+# consecutive words at +0x4 (PWRSR0/1/2/...). At numHarts=4 this is exactly
+# the original single PWRSR word — Castalia byte-identity for free.
+_pwrsrWords = (numHarts + 7) // 8
+for _w in range(_pwrsrWords):
+	_h0 = 8 * _w						# first hart in this word
+	_h1 = min(8 * _w + 7, numHarts - 1)	# last hart in this word
+	_name = 'PWRSR' if _pwrsrWords == 1 else 'PWRSR' + str(_w)
+	if _pwrsrWords == 1:
+		_desc = 'Power sequencer state, one read-only nibble per hart (bits 4h+3:4h). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0\'s nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.'
+	else:
+		_desc = 'Power sequencer state for harts ' + str(_h0) + '-' + str(_h1) + ', one read-only nibble per hart (hart h in bits 4(h-' + str(_h0) + ')+3:4(h-' + str(_h0) + ')). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0\'s nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.'
+	r = RegisterTemplate(nameTemplate=_name, registerMemorySlot=1 + _w, size=32, description=_desc)
+	p.AddRegisterTemplate(r)
+	if _h1 < 8 * _w + 7:
+		r.AddBitField(BitField(unused=True, msb=31, lsb=4 * (_h1 - _h0) + 4))
+	for _h in range(_h1, _h0 - 1, -1):
+		_lsb = 4 * (_h - _h0)
+		if _h == 0:
+			r.AddBitField(BitField(name='PWRST0', msb=3, lsb=0, accessibility='r', description='Hart 0 state: always 0 (ON, always-on domain).'))
+		else:
+			r.AddBitField(BitField(name='PWRST' + str(_h), msb=_lsb + 3, lsb=_lsb, accessibility='r', description='Tile hart ' + str(_h) + ' sequencer state.'))
 
 
 
@@ -883,25 +1119,34 @@ m.CheckPeripheralTemplates()
 GPIO0 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=1, absoluteBaseAddress=0x4000, legacySlot=0, sharedBus='periph', clockDomain='mclk')	# GPIO0 (M11 shared; the bootrom still programs the flash CS through it — now via the arbiter)
 GPIO1 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=28, absoluteBaseAddress=0x4100, legacySlot=1, sharedBus='periph', clockDomain='mclk')	# GPIO1 shared (slot 1)
 m.CreatePeripheral(nameTemplate='SPIx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=9, absoluteBaseAddress=0x4200, legacySlot=2, sharedBus='periph', clockDomain='smclk', strobeNote='reading SPI0RX auto-clears TCIF')	# SPI0 (M11 shared; its flash/XIP port stays on hart 0's >=0x20000 decode)
-m.CreatePeripheral(nameTemplate='SPIx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=11, absoluteBaseAddress=0x4300, legacySlot=3, sharedBus='periph', clockDomain='smclk', strobeNote='reading SPI1RX auto-clears TCIF')	# SPI1 shared (slot 3)
+if spi1Present:
+	m.CreatePeripheral(nameTemplate='SPIx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=11, absoluteBaseAddress=0x4300, legacySlot=3, sharedBus='periph', clockDomain='smclk', strobeNote='reading SPI1RX auto-clears TCIF')	# SPI1 shared (slot 3; config-droppable since G1b)
 m.CreatePeripheral(nameTemplate='UARTx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=13, absoluteBaseAddress=0x4400, legacySlot=4, sharedBus='periph', clockDomain='smclk')	# UART0 shared console UART (M11: back at its original 0x4400)
-m.CreatePeripheral(nameTemplate='UARTx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=52, absoluteBaseAddress=0x4500, legacySlot=5, sharedBus='periph', clockDomain='smclk')	# UART1 shared (slot 5)
+if uart1Present:
+	m.CreatePeripheral(nameTemplate='UARTx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=52, absoluteBaseAddress=0x4500, legacySlot=5, sharedBus='periph', clockDomain='smclk')	# UART1 shared (slot 5; config-droppable since G1b)
 m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=16, absoluteBaseAddress=0x4600, legacySlot=6, sharedBus='periph', clockDomain='muxed', strobeNote='ClockMuxGlitchFree needs 3 edges of the OLD source to release; poll-until-counting after enable')	# TIMER0 shared (slot 6)
-m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=22, absoluteBaseAddress=0x4700, legacySlot=7, sharedBus='periph', clockDomain='muxed', strobeNote='ClockMuxGlitchFree needs 3 edges of the OLD source to release; poll-until-counting after enable')	# TIMER1 shared (slot 7)
+if timer1Present:
+	m.CreatePeripheral(nameTemplate='TIMERx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=22, absoluteBaseAddress=0x4700, legacySlot=7, sharedBus='periph', clockDomain='muxed', strobeNote='ClockMuxGlitchFree needs 3 edges of the OLD source to release; poll-until-counting after enable')	# TIMER1 shared (slot 7; config-droppable since G1b)
 GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=None, interruptPriority=36, absoluteBaseAddress=0x4800, legacySlot=8, sharedBus='periph', clockDomain='mclk')	# GPIO2 shared (slot 8)
 m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=None, interruptPriority=0, absoluteBaseAddress=0x4900, legacySlot=9, sharedBus='periph', clockDomain='mclk', strobeNote='SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK itself: quiesce the other harts before clock reconfiguration (software contract)')	# SYSTEM (M11 shared; clock/power/WDT monarch — hart-0 management by convention)
-m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='vectors live in the shared NPU staging RAM at 0xC000; do not touch 0xC000-0xFFFF during a THINK — poll NPUCR bit 16')	# NPU register bus shared (slot 10); data path = the 0xC000 staging RAM
+if npuPresent:
+	m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='vectors live in the shared NPU staging RAM at 0xC000; do not touch 0xC000-0xFFFF during a THINK — poll NPUCR bit 16')	# NPU register bus shared (slot 10); data path = the 0xC000 staging RAM
 # SARADC removed (vector 56 reserved gap; its slot 11 is PWRCTRL's since M17)
 # AFE removed (slot 12 / vector 55 reserved gap)
 m.CreatePeripheral(nameTemplate='PWRCTRL', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4B00, legacySlot=11, sharedBus='native', clockDomain='mclk', strobeNote='cold-gate: a gated tile loses all state and reboots through the shared ROM on wake; gate only parked/quiesced tiles')	# M17 power controller (slot 11, ex-SARADC0; native arbiter slave)
 GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=None, interruptPriority=44, absoluteBaseAddress=0x4D00, legacySlot=13, sharedBus='periph', clockDomain='mclk')	# GPIO3 shared (slot 13)
 m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=57, absoluteBaseAddress=0x4E00, legacySlot=14, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C0 shared (slot 14)
-m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=70, absoluteBaseAddress=0x4F00, legacySlot=15, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C1 shared (slot 15)
+if i2c1Present:
+	m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=1, peripheralMemorySlot=None, interruptPriority=70, absoluteBaseAddress=0x4F00, legacySlot=15, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C1 shared (slot 15; config-droppable since G1a)
 
 # Multi-core shared-window peripherals (behind the mp_arbiter, reachable by all harts)
-m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x5000, sharedBus='native', clockDomain='mclk')	# CLINT at 0x5000 (M11: window page 1; vectors 83 msip, 84 mtip)
-m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6000, sharedBus='native', clockDomain='mclk', strobeNote='READ = atomic return-old-and-claim; never LR/SC or AMO a mutex address')	# HW mutex bank at 0x6000 (M11: window page 2)
-m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk')	# IRQ router at 0x7000 (M11: window page 3)
+# A2: the three whole-page native slaves may outgrow the 64-word page-0 slot
+# pitch at large hart counts (IRQROUTER rows at 4h need word 68 at h=17) —
+# registerSlotCount is the per-peripheral engine override (None while it fits,
+# so the Castalia N=4 description is provably untouched).
+m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x5000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(clintSlotCount))	# CLINT at 0x5000 (M11: window page 1; vectors 83 msip, 84 mtip)
+m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6000, sharedBus='native', clockDomain='mclk', strobeNote='READ = atomic return-old-and-claim; never LR/SC or AMO a mutex address', registerSlotCount=_slotCountOverride(numMutexes))	# HW mutex bank at 0x6000 (M11: window page 2)
+m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(4 * numHarts))	# IRQ router at 0x7000 (M11: window page 3)
 
 
 
@@ -954,6 +1199,12 @@ m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=
 # 96: AVSS
 # 98: AVDD
 
+# G4: everything from CreatePackage down to the last AddGpio(packagePinNumber=)
+# IS the 'myshkin-qfn44' package model — the only _PACKAGE_MODELS entry today.
+# A future model (e.g. Argus's own package) becomes an alternative block
+# selected on packageModel; the schema already validates the name.
+if packageModel != 'myshkin-qfn44':
+	raise Exception('package model "' + packageModel + '" is declared but not implemented')
 package = m.CreatePackage(
 	packageType='QFN',
 	pinCount=44,
@@ -1025,38 +1276,102 @@ GPIO0.AddGpio(GpioConfigurator(bitNumber=7, primaryName='BOOT', funcName='', fun
 # GPIO1 (P2.0-P2.7)
 GPIO1.ChangeGPIOPortSize(8)
 
-GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName='CS1', funcIOType='i',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 chip select', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=20) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName='MISO1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 Master In Slave Out', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=19) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName='MOSI1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 Master Out Slave In', altFuncs=[(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')]), packagePinNumber=18) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName='SCK1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='SPI1 serial clock', altFuncs=[(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')]), packagePinNumber=17) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName=('CS1' if spi1Present else ''), funcIOType=('i' if spi1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 chip select' if spi1Present else 'General-purpose I/O (ex-CS1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=20) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName=('MISO1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master In Slave Out' if spi1Present else 'General-purpose I/O (ex-MISO1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=19) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName=('MOSI1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master Out Slave In' if spi1Present else 'General-purpose I/O (ex-MOSI1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=18) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
+GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName=('SCK1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 serial clock' if spi1Present else 'General-purpose I/O (ex-SCK1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=17) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
 GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='UART0 transmitter'), packagePinNumber=16) # necessary; rstDIR=1 matches the RTL (RstValP2DIR=0x10)
 GPIO1.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO13', funcName='RX0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 receiver'), packagePinNumber=15) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName='TX1', funcIOType='o',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='UART1 transmitter', altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (alternate location)')]), packagePinNumber=14) # necessary
-GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName='RX1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='UART1 receiver', altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (alternate location)')]), packagePinNumber=13) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName=('TX1' if uart1Present else ''), funcIOType=('o' if uart1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 transmitter' if uart1Present else 'General-purpose I/O (ex-TX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (alternate location)')]), packagePinNumber=14) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName=('RX1' if uart1Present else ''), funcIOType=('io' if uart1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 receiver' if uart1Present else 'General-purpose I/O (ex-RX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (alternate location)')]), packagePinNumber=13) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
 
 # GPIO2 (P3.0-P3.7)
 GPIO2.ChangeGPIOPortSize(8)
 
-GPIO2.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO16', funcName='T0CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 0', altFuncs=[(1, 'TX1', 'o', 'UART1 transmitter (alternate location)')]), packagePinNumber=9) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO17', funcName='T0CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 1', altFuncs=[(1, 'RX1', 'io', 'UART1 receiver (alternate location)')]), packagePinNumber=8) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 0', altFuncs=[(1, 'SDA1', 'io', 'I2C1 serial data (alternate location)')]), packagePinNumber=7) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1', altFuncs=[(1, 'SCL1', 'io', 'I2C1 serial clock (alternate location)')]), packagePinNumber=6) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName='T1CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Compare 0', altFuncs=[(1, 'TX0', 'o', 'UART0 transmitter (alternate location)')]), packagePinNumber=5) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName='T1CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Compare 1', altFuncs=[(1, 'RX0', 'io', 'UART0 receiver (alternate location)')]), packagePinNumber=4) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName='T1CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Capture 0'), packagePinNumber=3) # necessary
-GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName='T1CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER1 Capture 1'), packagePinNumber=2) # necessary
+GPIO2.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO16', funcName='T0CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 0', altFuncs=([(1, 'TX1', 'o', 'UART1 transmitter (alternate location)')] if uart1Present else [])), packagePinNumber=9) # necessary; AF1 gated with UART1 (G1b)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO17', funcName='T0CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 1', altFuncs=([(1, 'RX1', 'io', 'UART1 receiver (alternate location)')] if uart1Present else [])), packagePinNumber=8) # necessary; AF1 gated with UART1 (G1b)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 0', altFuncs=([(1, 'SDA1', 'io', 'I2C1 serial data (alternate location)')] if i2c1Present else [])), packagePinNumber=7) # necessary; AF1 gated with I2C1 (G1a)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (alternate location)')] if i2c1Present else [])), packagePinNumber=6) # necessary; AF1 gated with I2C1 (G1a)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName=('T1CMP0' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 0' if timer1Present else 'General-purpose I/O (ex-T1CMP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'TX0', 'o', 'UART0 transmitter (alternate location)')]), packagePinNumber=5) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
+GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName=('T1CMP1' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 1' if timer1Present else 'General-purpose I/O (ex-T1CMP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'RX0', 'io', 'UART0 receiver (alternate location)')]), packagePinNumber=4) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
+GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName=('T1CAP0' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 0' if timer1Present else 'General-purpose I/O (ex-T1CAP0; TIMER1 dropped by this configuration)')), packagePinNumber=3) # necessary; primary gated with TIMER1 (G1b)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName=('T1CAP1' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 1' if timer1Present else 'General-purpose I/O (ex-T1CAP1; TIMER1 dropped by this configuration)')), packagePinNumber=2) # necessary; primary gated with TIMER1 (G1b)
 
 # GPIO3 (P4.0-P4.7)
 GPIO3.ChangeGPIOPortSize(8)
 
 GPIO3.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO24', funcName='SDA0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial data', altFuncs=[(1, 'T0CAP0', 'i', 'TIMER0 Capture 0 (alternate location)')]), packagePinNumber=1) # necessary
 GPIO3.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO25', funcName='SCL0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial clock', altFuncs=[(1, 'T0CAP1', 'i', 'TIMER0 Capture 1 (alternate location)')]), packagePinNumber=44) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO26', funcName='SDA1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C1 serial data', altFuncs=[(1, 'T1CAP0', 'i', 'TIMER1 Capture 0 (alternate location)')]), packagePinNumber=43) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName='SCL1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C1 serial clock', altFuncs=[(1, 'T1CAP1', 'i', 'TIMER1 Capture 1 (alternate location)')]), packagePinNumber=42) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO26', funcName=('SDA1' if i2c1Present else ''), funcIOType=('io' if i2c1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('I2C1 serial data' if i2c1Present else 'General-purpose I/O (ex-SDA1; I2C1 dropped by this configuration)'), altFuncs=([(1, 'T1CAP0', 'i', 'TIMER1 Capture 0 (alternate location)')] if timer1Present else [])), packagePinNumber=43) # necessary; primary gated with I2C1 (G1a), AF1 with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName=('SCL1' if i2c1Present else ''), funcIOType=('io' if i2c1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('I2C1 serial clock' if i2c1Present else 'General-purpose I/O (ex-SCL1; I2C1 dropped by this configuration)'), altFuncs=([(1, 'T1CAP1', 'i', 'TIMER1 Capture 1 (alternate location)')] if timer1Present else [])), packagePinNumber=42) # necessary; primary gated with I2C1 (G1a), AF1 with TIMER1 (G1b)
 GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 0', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=41) # necessary
 GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=40) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=[(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')]), packagePinNumber=39) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=[(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')]), packagePinNumber=38) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=39) # necessary; AF1 gated with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=38) # necessary; AF1 gated with TIMER1 (G1b)
+
+
+# --- GPIO alternate-function output-spread (v1): fill AF planes AF1..AF7 with the
+# shared timer/UART/SPI OUTPUT pool, fanned across all four ports so each output is
+# reachable on ~24 pins (RPi-style placement flexibility). Dormant at reset (PxAFS=0
+# selects AF0). The RTL wires these with LITERAL pin indices, so no pnum_* reverse
+# constants are emitted; the spread altFuncs are flagged FromSpread and skipped by the
+# altFunc<->pnum cross-check in ChipGenerator.generateMemoryMapVHD(). They still drive
+# the TRM AF matrix table and the location-qualified C-header AF defines.
+_AF_IOMAP = {'i':'I','o':'O','io':'IO'}
+_GPIO_AF_SPREAD = {
+	(0, 0): [(1, 'TX0', 'o', 'UART0 transmitter (alt plane AF1)'), (2, 'TX1', 'o', 'UART1 transmitter (alt plane AF2)'), (3, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF3)'), (4, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF4)'), (5, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF5)'), (6, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF6)'), (7, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF7)')],
+	(0, 1): [(1, 'TX1', 'o', 'UART1 transmitter (alt plane AF1)'), (2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
+	(0, 2): [(1, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF1)'), (2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
+	(0, 3): [(1, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF1)'), (2, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF2)'), (3, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF3)'), (4, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF4)'), (5, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF5)'), (6, 'TX0', 'o', 'UART0 transmitter (alt plane AF6)'), (7, 'TX1', 'o', 'UART1 transmitter (alt plane AF7)')],
+	(0, 4): [(1, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF1)'), (2, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF2)'), (3, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF3)'), (4, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF4)'), (5, 'TX0', 'o', 'UART0 transmitter (alt plane AF5)'), (6, 'TX1', 'o', 'UART1 transmitter (alt plane AF6)'), (7, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF7)')],
+	(0, 5): [(1, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF1)'), (2, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF2)'), (3, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF3)'), (4, 'TX0', 'o', 'UART0 transmitter (alt plane AF4)'), (5, 'TX1', 'o', 'UART1 transmitter (alt plane AF5)'), (6, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF6)'), (7, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF7)')],
+	(0, 6): [(1, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF1)'), (2, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF2)'), (3, 'TX0', 'o', 'UART0 transmitter (alt plane AF3)'), (4, 'TX1', 'o', 'UART1 transmitter (alt plane AF4)'), (5, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF5)'), (6, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF6)'), (7, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF7)')],
+	(0, 7): [(1, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF1)'), (2, 'TX0', 'o', 'UART0 transmitter (alt plane AF2)'), (3, 'TX1', 'o', 'UART1 transmitter (alt plane AF3)'), (4, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF4)'), (5, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF5)'), (6, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF6)'), (7, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF7)')],
+	(1, 0): [(2, 'TX1', 'o', 'UART1 transmitter (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
+	(1, 1): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
+	(1, 2): [(2, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF2)'), (3, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF3)'), (4, 'TX0', 'o', 'UART0 transmitter (alt plane AF4)'), (5, 'TX1', 'o', 'UART1 transmitter (alt plane AF5)'), (6, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF6)'), (7, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF7)')],
+	(1, 3): [(2, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF2)'), (3, 'TX0', 'o', 'UART0 transmitter (alt plane AF3)'), (4, 'TX1', 'o', 'UART1 transmitter (alt plane AF4)'), (5, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF5)'), (6, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF6)'), (7, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF7)')],
+	(1, 4): [(2, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF2)'), (3, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF3)'), (4, 'TX1', 'o', 'UART1 transmitter (alt plane AF4)'), (5, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF5)'), (6, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF6)'), (7, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF7)')],
+	(1, 5): [(2, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF2)'), (3, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF3)'), (4, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF4)'), (5, 'TX0', 'o', 'UART0 transmitter (alt plane AF5)'), (6, 'TX1', 'o', 'UART1 transmitter (alt plane AF6)'), (7, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF7)')],
+	(1, 6): [(2, 'TX0', 'o', 'UART0 transmitter (alt plane AF2)'), (3, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF3)'), (4, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF4)'), (5, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF5)'), (6, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF6)'), (7, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF7)')],
+	(1, 7): [(2, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF2)'), (3, 'TX0', 'o', 'UART0 transmitter (alt plane AF3)'), (4, 'TX1', 'o', 'UART1 transmitter (alt plane AF4)'), (5, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF5)'), (6, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF6)'), (7, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF7)')],
+	(2, 0): [(2, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF2)'), (3, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF3)'), (4, 'TX0', 'o', 'UART0 transmitter (alt plane AF4)'), (5, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF5)'), (6, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF6)'), (7, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF7)')],
+	(2, 1): [(2, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF2)'), (3, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF3)'), (4, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF4)'), (5, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF5)'), (6, 'TX0', 'o', 'UART0 transmitter (alt plane AF6)'), (7, 'TX1', 'o', 'UART1 transmitter (alt plane AF7)')],
+	(2, 2): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
+	(2, 3): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
+	(2, 4): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF3)'), (4, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF4)'), (5, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF5)'), (6, 'TX1', 'o', 'UART1 transmitter (alt plane AF6)'), (7, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF7)')],
+	(2, 5): [(2, 'TX0', 'o', 'UART0 transmitter (alt plane AF2)'), (3, 'TX1', 'o', 'UART1 transmitter (alt plane AF3)'), (4, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF4)'), (5, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF5)'), (6, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF6)'), (7, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF7)')],
+	(2, 6): [(2, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF2)'), (3, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF3)'), (4, 'TX0', 'o', 'UART0 transmitter (alt plane AF4)'), (5, 'TX1', 'o', 'UART1 transmitter (alt plane AF5)'), (6, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF6)'), (7, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF7)')],
+	(2, 7): [(2, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF2)'), (3, 'TX0', 'o', 'UART0 transmitter (alt plane AF3)'), (4, 'TX1', 'o', 'UART1 transmitter (alt plane AF4)'), (5, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF5)'), (6, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF6)'), (7, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF7)')],
+	(3, 0): [(2, 'TX0', 'o', 'UART0 transmitter (alt plane AF2)'), (3, 'TX1', 'o', 'UART1 transmitter (alt plane AF3)'), (4, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF4)'), (5, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF5)'), (6, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF6)'), (7, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF7)')],
+	(3, 1): [(2, 'TX1', 'o', 'UART1 transmitter (alt plane AF2)'), (3, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF3)'), (4, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF4)'), (5, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF5)'), (6, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF6)'), (7, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF7)')],
+	(3, 2): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
+	(3, 3): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
+	(3, 4): [(2, 'TX0', 'o', 'UART0 transmitter (alt plane AF2)'), (3, 'TX1', 'o', 'UART1 transmitter (alt plane AF3)'), (4, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF4)'), (5, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF5)'), (6, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF6)'), (7, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF7)')],
+	(3, 5): [(2, 'TX1', 'o', 'UART1 transmitter (alt plane AF2)'), (3, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
+	(3, 6): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
+	(3, 7): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF4)'), (5, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF5)'), (6, 'TX0', 'o', 'UART0 transmitter (alt plane AF6)'), (7, 'TX1', 'o', 'UART1 transmitter (alt plane AF7)')],
+}
+# G1b: a dropped second instance's outputs leave the spread pool BEFORE the
+# map is applied — its plane slots go unassigned everywhere (the RTL emitter
+# reads the surviving FromSpread altFuncs and wires '0' for the gaps).
+_droppedSpreadFuncs = set()
+if not uart1Present:
+	_droppedSpreadFuncs.add('TX1')
+if not spi1Present:
+	_droppedSpreadFuncs.update(('SCK1', 'MOSI1'))
+if not timer1Present:
+	_droppedSpreadFuncs.update(('T1CMP0', 'T1CMP1'))
+for _gp in (GPIO0, GPIO1, GPIO2, GPIO3):
+	_gi = int(_gp.Name[len('GPIO'):])
+	for _pin in _gp.Pins:
+		for _af in _GPIO_AF_SPREAD.get((_gi, _pin.BitNumber), []):
+			if _af[1] in _droppedSpreadFuncs:
+				continue
+			_afo = GpioAltFunc(_af[0], _af[1], _AF_IOMAP[_af[2]], _af[3])
+			_afo.FromSpread = True
+			_pin.AltFuncs.append(_afo)
+		_pin.AltFuncs.sort(key=lambda _a: _a.Index)
 
 
 ''' MCU_MP drop-in compatibility facts (RTL-generation track Phase 1, 2026-07-04) '''
@@ -1097,10 +1412,10 @@ _mcuMpGpioHelpers = [
 # SYSTEM register slots in the RTL's RegSlotSYS_* spelling. The slot numbers are
 # transcribed from the RTL (which SYSTEM.vhd decodes against). Third element = the
 # corresponding register in this description, for a consistency cross-check.
-# KNOWN DISCREPANCY (2026-07-04): the RTL has WDT_PASS=12/WDT_CR=13/WDT_SR=14 but this
-# description (and therefore the TRM + MemoryMap.h) has WDTCR=12/WDTSR=13/WDTPASS=14.
-# The RTL wins here; the TRM-track owns fixing the description. The generator prints a
-# warning for each such mismatch.
+# ~~KNOWN DISCREPANCY~~ FIXED (G5a, 2026-07-11): the description now matches the RTL's
+# WDT_PASS=12/WDT_CR=13/WDT_SR=14 (it had WDTCR=12/WDTSR=13/WDTPASS=14 since Myshkin — the
+# TRM and MemoryMap.h documented the WDT registers WRONG; software/ was audited first:
+# the only WDT users go through myshkin{,_s}.h, which always had the RTL order).
 _mcuMpSysRegSlots = [
 	('RegSlotSYS_CLK_CR', 0, 'SYSCLKCR'),
 	('RegSlotSYS_CLK_DIV_CR', 1, 'CLKDIVCR'),
@@ -1138,24 +1453,43 @@ _mcuMpNpuMmrAddr = [
 _mcuMpIrqVectors = [('IRQB_SYS_WDT', 'Watchdog Timer Interrupt')]
 for _b in range(8):
 	_mcuMpIrqVectors.append(('IRQB_GPIO0_B' + str(_b), 'GPIO0 Bit ' + str(_b) + ' Interrupt'))
+# G1b: dropped second instances leave RSVD gaps — the NUMBERING IS FROZEN
+# (same rule as the G1a I2C1 gate below: the RTL ties RSVD vectors low)
 for _i in (0, 1):
-	_mcuMpIrqVectors.append(('IRQB_SPI' + str(_i) + '_TC', 'SPI' + str(_i) + ' Transmission Complete Interrupt'))
-	_mcuMpIrqVectors.append(('IRQB_SPI' + str(_i) + '_TE', 'SPI' + str(_i) + ' Transmission Buffer Empty Interrupt'))
+	if _i == 1 and not spi1Present:
+		for _n in range(2):
+			_v = len(_mcuMpIrqVectors)
+			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; SPI1 dropped by this configuration)'))
+	else:
+		_mcuMpIrqVectors.append(('IRQB_SPI' + str(_i) + '_TC', 'SPI' + str(_i) + ' Transmission Complete Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_SPI' + str(_i) + '_TE', 'SPI' + str(_i) + ' Transmission Buffer Empty Interrupt'))
 _mcuMpIrqVectors.append(('IRQB_UART0_RC', 'UART0 Receive Complete Interrupt'))
 _mcuMpIrqVectors.append(('IRQB_UART0_TE', 'UART0 Transmission Buffer Empty Interrupt'))
 _mcuMpIrqVectors.append(('IRQB_UART0_TC', 'UART0 Transmission Complete Interrupt'))
 for _i in (0, 1):
 	for _sfx, _desc in [('CAP0', 'Capture 0'), ('CAP1', 'Capture 1'), ('OVF', 'Overflow'), ('CMP0', 'Compare 0'), ('CMP1', 'Compare 1'), ('CMP2', 'Compare 2')]:
-		_mcuMpIrqVectors.append(('IRQB_TIM' + str(_i) + '_' + _sfx, 'TIMER' + str(_i) + ' ' + _desc + ' Interrupt'))
+		if _i == 1 and not timer1Present:
+			_v = len(_mcuMpIrqVectors)
+			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; TIMER1 dropped by this configuration)'))
+		else:
+			_mcuMpIrqVectors.append(('IRQB_TIM' + str(_i) + '_' + _sfx, 'TIMER' + str(_i) + ' ' + _desc + ' Interrupt'))
 for _p in (1, 2, 3):
 	for _b in range(8):
 		_mcuMpIrqVectors.append(('IRQB_GPIO' + str(_p) + '_B' + str(_b), 'GPIO' + str(_p) + ' Bit ' + str(_b) + ' Interrupt'))
-_mcuMpIrqVectors.append(('IRQB_UART1_RC', 'UART1 Receive Complete Interrupt'))
-_mcuMpIrqVectors.append(('IRQB_UART1_TE', 'UART1 Transmission Buffer Empty Interrupt'))
-_mcuMpIrqVectors.append(('IRQB_UART1_TC', 'UART1 Transmission Complete Interrupt'))
+if uart1Present:
+	_mcuMpIrqVectors.append(('IRQB_UART1_RC', 'UART1 Receive Complete Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_UART1_TE', 'UART1 Transmission Buffer Empty Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_UART1_TC', 'UART1 Transmission Complete Interrupt'))
+else:
+	for _n in range(3):
+		_v = len(_mcuMpIrqVectors)
+		_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; UART1 dropped by this configuration)'))
 _mcuMpIrqVectors.append(('IRQB_RSVD55', 'Reserved (vector 55; formerly AFE0 Receive Complete)'))
 _mcuMpIrqVectors.append(('IRQB_RSVD56', 'Reserved (vector 56; formerly SARADC0 Conversion Complete)'))
-# I2C vector suffixes are lowercase in the RTL except STR — copied verbatim
+# I2C vector suffixes are lowercase in the RTL except STR — copied verbatim.
+# G1a: with I2C1 dropped its 13 vectors become RSVD gaps — the NUMBERING IS
+# FROZEN (IVT slots, CLINT vectors 83/84 and every other number stay put; the
+# RTL ties RSVD vectors low exactly like the ex-AFE/SARADC gaps above).
 for _i in (0, 1):
 	for _sfx, _desc in [
 			('STR', 'start received'), ('spr', 'stop received'),
@@ -1164,7 +1498,11 @@ for _i in (0, 1):
 			('mnr', 'master mode NACK received'), ('mxc', 'master mode transfer complete'),
 			('sa', 'slave address'), ('stxe', 'slave transmit empty'), ('sovf', 'slave overflow'),
 			('snr', 'slave mode NACK received'), ('sxc', 'slave mode transfer complete')]:
-		_mcuMpIrqVectors.append(('IRQB_I2C' + str(_i) + '_' + _sfx, 'I2C' + str(_i) + ' ' + _desc + ' Interrupt'))
+		if _i == 1 and not i2c1Present:
+			_v = len(_mcuMpIrqVectors)
+			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; I2C1 dropped by this configuration)'))
+		else:
+			_mcuMpIrqVectors.append(('IRQB_I2C' + str(_i) + '_' + _sfx, 'I2C' + str(_i) + ' ' + _desc + ' Interrupt'))
 # M5b: real CLINT (hdl/MCU_MP/clint.vhd, shared window 0x11000); per-hart msip/mtip
 _mcuMpIrqVectors.append(('IRQB_CLINT_MSIP', 'CLINT software interrupt (IPI)'))
 _mcuMpIrqVectors.append(('IRQB_CLINT_MTIP', 'CLINT timer interrupt'))
@@ -1180,15 +1518,19 @@ _mcuMpIrqFirstVector = {
 	'GPIO2': 'IRQB_GPIO2_B0',
 	'GPIO3': 'IRQB_GPIO3_B0',
 	'SPI0': 'IRQB_SPI0_TC',
-	'SPI1': 'IRQB_SPI1_TC',
 	'UART0': 'IRQB_UART0_RC',
-	'UART1': 'IRQB_UART1_RC',
 	'TIMER0': 'IRQB_TIM0_CAP0',
-	'TIMER1': 'IRQB_TIM1_CAP0',
 	'I2C0': 'IRQB_I2C0_STR',
-	'I2C1': 'IRQB_I2C1_STR',
 	'CLINT': 'IRQB_CLINT_MSIP',
 }
+if spi1Present:
+	_mcuMpIrqFirstVector['SPI1'] = 'IRQB_SPI1_TC'
+if uart1Present:
+	_mcuMpIrqFirstVector['UART1'] = 'IRQB_UART1_RC'
+if timer1Present:
+	_mcuMpIrqFirstVector['TIMER1'] = 'IRQB_TIM1_CAP0'
+if i2c1Present:
+	_mcuMpIrqFirstVector['I2C1'] = 'IRQB_I2C1_STR'
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -1256,23 +1598,28 @@ _mcuMpPnums = [
 	]),
 	# Multi-AF (AF1) pin assignments — plane-1 positions inside the flattened
 	# alt_func vectors (the groups above are plane 0 / AF0). Cross-checked
-	# against each pin's altFuncs metadata by generateMemoryMapVHD.
-	('GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation', 2, [
-		('pnum_gpio1_af1_t0_cmp0', 0), ('pnum_gpio1_af1_t0_cmp1', 1),
-		('pnum_gpio1_af1_t1_cmp0', 2), ('pnum_gpio1_af1_t1_cmp1', 3),
-		('pnum_gpio1_af1_sda0', 6), ('pnum_gpio1_af1_scl0', 7),
-	]),
-	('GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations', 3, [
-		('pnum_gpio2_af1_tx1', 0), ('pnum_gpio2_af1_rx1', 1),
-		('pnum_gpio2_af1_sda1', 2), ('pnum_gpio2_af1_scl1', 3),
-		('pnum_gpio2_af1_tx0', 4), ('pnum_gpio2_af1_rx0', 5),
-	]),
-	('GPIO3 (P4) AF1: TIMER capture + compare relocations', 4, [
-		('pnum_gpio3_af1_t0_cap0', 0), ('pnum_gpio3_af1_t0_cap1', 1),
-		('pnum_gpio3_af1_t1_cap0', 2), ('pnum_gpio3_af1_t1_cap1', 3),
-		('pnum_gpio3_af1_t0_cmp0', 4), ('pnum_gpio3_af1_t0_cmp1', 5),
-		('pnum_gpio3_af1_t1_cmp0', 6), ('pnum_gpio3_af1_t1_cmp1', 7),
-	]),
+	# against each pin's altFuncs metadata by generateMemoryMapVHD. G1b: rows
+	# whose SOURCE peripheral is dropped leave the group with it (the gated
+	# altFunc rows above are the other side of the bidirectional check).
+	('GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation' if timer1Present
+		else 'GPIO1 (P2) AF1: TIMER0 compare (PWM) relocations + I2C0 relocation (TIMER1 dropped: P2.2/3 reserved)', 2,
+		[('pnum_gpio1_af1_t0_cmp0', 0), ('pnum_gpio1_af1_t0_cmp1', 1)]
+		+ ([('pnum_gpio1_af1_t1_cmp0', 2), ('pnum_gpio1_af1_t1_cmp1', 3)] if timer1Present else [])
+		+ [('pnum_gpio1_af1_sda0', 6), ('pnum_gpio1_af1_scl0', 7)]),
+	({(True, True): 'GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations',
+		(True, False): 'GPIO2 (P3) AF1: UART0/UART1 relocations (I2C1 dropped: P3.2/3 reserved)',
+		(False, True): 'GPIO2 (P3) AF1: UART0 + I2C1 relocations (UART1 dropped: P3.0/1 reserved)',
+		(False, False): 'GPIO2 (P3) AF1: UART0 relocations (UART1, I2C1 dropped: P3.0-3 reserved)',
+		}[(uart1Present, i2c1Present)], 3,
+		([('pnum_gpio2_af1_tx1', 0), ('pnum_gpio2_af1_rx1', 1)] if uart1Present else [])
+		+ ([('pnum_gpio2_af1_sda1', 2), ('pnum_gpio2_af1_scl1', 3)] if i2c1Present else [])
+		+ [('pnum_gpio2_af1_tx0', 4), ('pnum_gpio2_af1_rx0', 5)]),
+	('GPIO3 (P4) AF1: TIMER capture + compare relocations' if timer1Present
+		else 'GPIO3 (P4) AF1: TIMER0 capture + compare relocations (TIMER1 dropped: P4.2/3/6/7 reserved)', 4,
+		[('pnum_gpio3_af1_t0_cap0', 0), ('pnum_gpio3_af1_t0_cap1', 1)]
+		+ ([('pnum_gpio3_af1_t1_cap0', 2), ('pnum_gpio3_af1_t1_cap1', 3)] if timer1Present else [])
+		+ [('pnum_gpio3_af1_t0_cmp0', 4), ('pnum_gpio3_af1_t0_cmp1', 5)]
+		+ ([('pnum_gpio3_af1_t1_cmp0', 6), ('pnum_gpio3_af1_t1_cmp1', 7)] if timer1Present else [])),
 ]
 
 m.McuMpCompat = {
@@ -1288,14 +1635,205 @@ m.McuMpCompat = {
 	'pnums': _mcuMpPnums,
 }
 
+# A2 (Argus): shared-window geometry for mcu_vhd.py's generated regions —
+# the SH_AW constant, the bank row and the NPU staging plumbing all derive
+# from these three values (computed with the memory sections above).
+m.McuMpGeometry = {
+	'shAw': shAw,               # arbiter/tile word-address width (15 = Castalia)
+	'sharedRamBanks': _sharedRamBanks,  # sram1p16k banks from 0x10000 (4 = Castalia)
+	'npu': npuPresent,          # False = Argus (slot 10 + 0xC000 window read zero)
+	'i2c1': i2c1Present,        # G1a: False drops the i2c1 instance (slot 15 dead)
+	'uart1': uart1Present,      # G1b: False drops the uart1 instance (slot 5 dead)
+	'spi1': spi1Present,        # G1b: False drops the spi1 instance (slot 3 dead)
+	'timer1': timer1Present,    # G1b: False drops the timer1 instance (slot 7 dead)
+}
+
 
 ''' Check for errors '''
 m.CheckPeripherals()
 m.CheckPackagePins()
 
 
+# ---------------------------------------------------------------------------
+# THE unified configuration record. One dict holds every knob the CONFIG=
+# schema accepts plus everything derived from them; it is (a) attached to the
+# generator so the TRM's generated Chip Configuration section renders from it,
+# and (b) written to config/ChipConfig.resolved.json after generation so
+# `make show`, scripts, and the configurator can read back exactly what was
+# built. Addresses are 0x-strings for readability; sizes are byte ints.
+# ---------------------------------------------------------------------------
+def _hx(v):
+	return '0x' + format(int(v), 'X')
+
+_resolvedConfig = [
+	('_comment', 'Resolved chip configuration — written by make chip (platform_castalia/python/generate.py). '
+		+ 'Inputs follow the CONFIG= JSON schema (docs/chip_configurator.html emits it); '
+		+ 'everything under "derived" is computed, not configurable.'),
+	('configFile', _cfgPath if _cfgPath else None),
+	('chipName', m.AsicName),
+	('numHarts', numHarts),
+	('numMutexes', numMutexes),
+	('registerFileDualPort', _regsDualPort),
+	('isa', _isa),
+	('memory', [
+		('romSize', _romSize),
+		('tcmSizePerHart', _tcmSize),
+		('sharedBulkRamSize', _sharedRamLen),
+		('npuStagingRamSize', _npuRamLen if npuPresent else 0),
+	]),
+	('peripherals', [('npu', npuPresent), ('i2c1', i2c1Present), ('uart1', uart1Present),
+		('spi1', spi1Present), ('timer1', timer1Present)]),
+	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
+	('derived', [
+		('isaString', _isaString()),
+		('sharedWindowAddrWidth', shAw),
+		('sharedRamBanks', _sharedRamBanks),
+		('flashBaseAddress', _hx(flashBase)),
+		('sharedRamEndAddress', _hx(0x10000 + _sharedRamLen - 1)),
+		('vectorsCount', 85),
+		('clintMsipVector', 83),
+		('clintMtipVector', 84),
+		('clintLayout', [
+			('msipAddress', '0x5000 + 4*hartid'),
+			('mtimeAddress', _hx(0x5000 + 4 * clintMtimeSlot)),
+			('mtimecmpBaseAddress', _hx(0x5000 + 4 * clintMtimecmpSlot)),
+		]),
+		('bootromLoaderRowBase', '0x10500 + 0x10*hartid'),	# Argus A3 relocation (N-agnostic, all builds — see software/bootrom_mp)
+		('stackPointerInit', _hx(0xC000)),
+		('peripheralCount', len(m.Peripherals)),
+	]),
+]
+
+def _od(pairs):
+	'''Recursively turn ('key', value) pair lists into dicts (py3.6 dicts keep
+	   insertion order, so the JSON reads in schema order).'''
+	if isinstance(pairs, list) and pairs and all(isinstance(p, tuple) and len(p) == 2 for p in pairs):
+		return dict((k, _od(v)) for k, v in pairs)
+	return pairs
+
+m.ResolvedConfig = _od(_resolvedConfig)
+m.PackagePreliminary = packagePreliminary	# G4: drives the TRM §2 "Preliminary" banner (LatexUserGuide \ifpackagepreliminary)
+# Schema key -> human description, for the TRM's generated Chip Configuration
+# section (documents the CONFIG= schema next to this build's resolved values)
+m.ConfigSchemaDoc = dict((k, _CONFIG_SCHEMA[k][0]) for k in _CONFIG_SCHEMA)
+
+# Derived pad ring: the package model above IS the pad-ring description
+# (pin order, sides, power domains). Recorded as config/PadRing.json and
+# rendered as the TRM's generated pinout diagram — there is no separate
+# hand-maintained pad list to drift out of sync.
+_padRingPins = []
+for _pp in m.Package.Pins:
+	_e = {
+		'pin': _pp.PackagePinNumber,
+		'side': _pp.Side,
+		'name': _pp.FullName if not _pp.NoConnect else 'NC',
+		'io': _pp.IOString if not _pp.NoConnect else 'NC',
+	}
+	if _pp.NoConnect:
+		_e['noConnect'] = True
+	else:
+		_e['powerDomain'] = _pp.PowerDomain.Name
+		if _pp.Gpio is not None:
+			_e['gpio'] = _pp.Gpio.GpioName
+			if len(_pp.Gpio.FuncName) > 0:
+				_e['af0'] = _pp.Gpio.FuncName
+			_af = [a for a in _pp.Gpio.AltFuncs if a.Index >= 1]
+			if _af:
+				_e['altFuncs'] = dict(('AF' + str(a.Index), a.Name) for a in sorted(_af, key=lambda a: a.Index))
+	_padRingPins.append(_e)
+
+m.PadRing = {
+	'_comment': 'Derived pad ring — computed by make chip from the package model in generate.py '
+		+ '(pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).',
+	'package': {
+		'type': m.Package.PackageType,
+		'pinCount': m.Package.PinCount,
+		'dimensions': m.Package.Dimensions,
+		'units': m.Package.Units,
+		'pinPitch': m.Package.PinPitch,
+		'pinsOnEachSide': m.Package.PinsOnEachSide,
+	},
+	'powerDomains': [
+		{
+			'name': _pd.Name,
+			'voltage': _pd.PositiveVoltage,
+			'positiveRail': {'pin': _pd.PositiveRailPackagePin.PackagePinNumber, 'name': _pd.PositiveRailPackagePin.Name},
+			'negativeRail': {'pin': _pd.NegativeRailPackagePin.PackagePinNumber, 'name': _pd.NegativeRailPackagePin.Name},
+		}
+		for _pd in (digitalIOPowerDomain, digitalCorePowerDomain, analogPowerDomain)
+	],
+	'pins': _padRingPins,
+}
+
+
 ''' Generate all output files '''
 # TODO: Enable saveHardware=True once MCU.vhd has the required "Begin Automatically Generated" headers
 # For now, only generating software files and documentation
 m.Generate(test=False, force=True, saveHardware=True, saveSoftware=True)
+
+# Unified-config artifacts (written last, so they only land on a successful build)
+with open(chipRootDirectory + '/config/ChipConfig.resolved.json', 'w') as _f:
+	json.dump(m.ResolvedConfig, _f, indent=2)
+	_f.write('\n')
+print('[generate] wrote config/ChipConfig.resolved.json (resolved configuration)')
+with open(chipRootDirectory + '/config/PadRing.json', 'w') as _f:
+	json.dump(m.PadRing, _f, indent=2)
+	_f.write('\n')
+print('[generate] wrote config/PadRing.json (derived pad ring)')
+
+# ---------------------------------------------------------------------------
+# G4: Innovus pad-placement template for the connected chip_top flow (roadmap
+# C0 "pad ring Flavor B") — ONE derived pad ring feeding the docs (PadRing.json
+# + the TRM pinout) AND PnR. Emits ordered per-side pad lists in the format
+# innovus_mp/tcl/chip_top.innovus.tcl's place_side proc consumes (Flavor A
+# hand-codes these lists today). Lists are in placeInstance GEOMETRIC order
+# (+x for bottom/top rows, +y for left/right rows); QFN pin 1 sits at the TOP
+# of the left edge (top view, counter-clockwise numbering), so the W and N
+# side lists run in DESCENDING pin order. Pad instance names are placeholders
+# (PAD_<pad>) — Flavor B binds them to tphn65gpgv2od3_sl cells + nets.
+# ---------------------------------------------------------------------------
+def _padInstName(_name):
+	'''"P3.0(GPIO24)/SDA0" -> PAD_P3_0 ; "VDDPST" -> PAD_VDDPST ; "ATP-IN" -> PAD_ATP_IN'''
+	_base = _name.split('(')[0].split('/')[0].strip()
+	return 'PAD_' + _base.replace('.', '_').replace('-', '_')
+
+_sideGeom = [	# (PadRing side, Flavor-A side name, geometric pin order)
+	('W', 'left', True),	# descending: pin 1 at the top, +y order = 11..1
+	('S', 'bottom', False),	# ascending: 12..22 left-to-right (+x)
+	('E', 'right', False),	# ascending: 23..33 bottom-to-top (+y)
+	('N', 'top', True),		# descending: 34 at the right, +x order = 44..34
+]
+_padTclLines = [
+	'# chip_top_padring.tcl -- GENERATED by platform_castalia (make chip); do not hand-edit.',
+	'# Ordered pad lists for the chip_top pad-ring flow (innovus_mp, Flavor A/B):',
+	'#   source out/pnr/chip_top_padring.tcl',
+	'#   place_side left $PADRING_LEFT   ;# etc. (place_side/place_pad from chip_top.innovus.tcl)',
+	'# Derived from the same package model as config/PadRing.json + the TRM pinout',
+	'# (model "' + packageModel + '", ' + m.Package.PackageType + '-' + str(m.Package.PinCount) + '). Lists are in placeInstance geometric order:',
+	'# +x for bottom/top rows, +y for left/right rows; QFN pin 1 is at the TOP of the',
+	'# left edge (top view, CCW numbering), so the left/top lists run pin-descending.',
+	'# Instance names are placeholders (PAD_<pad>); Flavor B binds cells and nets.',
+	'',
+]
+for _sd, _sideName, _desc in _sideGeom:
+	_sidePins = sorted([_p for _p in m.Package.Pins if _p.Side == _sd],
+		key=lambda _p: _p.PackagePinNumber, reverse=_desc)
+	_padTclLines.append('set PADRING_' + _sideName.upper() + ' {}')
+	for _p in _sidePins:
+		if _p.NoConnect:
+			_padTclLines.append('# (pin ' + str(_p.PackagePinNumber) + ': NC -- no pad instance; filler closes the gap)')
+			continue
+		_nm = _p.FullName
+		_dom = _p.PowerDomain.Name
+		_padTclLines.append('lappend PADRING_' + _sideName.upper() + ' '
+			+ _padInstName(_p.Name).ljust(16)
+			+ ';# pin ' + str(_p.PackagePinNumber).rjust(2) + ': ' + _nm + '  [' + _dom + ']')
+	_padTclLines.append('')
+_pnrDir = chipRootDirectory + '/out/pnr'
+if not os.path.isdir(_pnrDir):
+	os.makedirs(_pnrDir)
+with open(_pnrDir + '/chip_top_padring.tcl', 'w') as _f:
+	_f.write('\n'.join(_padTclLines))
+	_f.write('\n')
+print('[generate] wrote out/pnr/chip_top_padring.tcl (pad-placement template for the chip_top flow)')
 

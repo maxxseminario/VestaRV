@@ -18,8 +18,53 @@ hand-maintained `hdl/MCU_MP/` RTL is never touched.
 cd platform_castalia
 make chip                # generate every chip artifact AND build the TRM PDF
 make chip CHIP_NAME=Foo  # same configuration, renamed chip (TRM title/prose, file headers)
+make chip CONFIG=f.json  # apply a JSON configuration (see "Configuring a chip" below)
 make generate            # artifacts only (no PDF); make pdf = PDF only
+make show                # print the resolved configuration + derived pad ring
+make verify              # PROVE the configuration boots: stage the generated RTL into
+                         # an Xcelium behavioral flow + run the ISA/sh smoke suite
+                         # (CONFIG= as above; SUITE=full = whole regression; needs the
+                         #  Cadence tools and the riscv-none-elf- toolchain)
 ```
+
+## Configuring a chip (no RTL editing required)
+
+The whole configuration is one small JSON file passed as `make chip CONFIG=config.json`
+— produced interactively by **`../docs/chip_configurator.html`** or written by hand.
+Every key is optional (missing keys keep the Castalia defaults) and the schema is
+**validated**: an unknown key or out-of-range value is a hard error, never a silent
+fallback. The knobs (authoritative list: `_CONFIG_SCHEMA` in `python/generate.py`, also
+documented in the generated TRM's "Chip Configuration" section):
+
+| Key | Meaning |
+|-----|---------|
+| `chipName` | Docs-only rename (TRM, headers); `CHIP_NAME=` on the make line wins |
+| `numHarts` | Hart/tile count — 4 = Castalia golden master, 18 = Argus (sim-proven) |
+| `numMutexes` | HW mutex bank size (16 = Castalia, 32 = Argus) |
+| `registerFileDualPort` | Dual-port regfile (ASIC) vs single-port (FPGA) |
+| `isa.*` | `mul fastMul div atomics compressed bitmanip counters counters64` |
+| `memory.*` | `romSize tcmSizePerHart sharedBulkRamSize npuStagingRamSize` (bytes) |
+| `peripherals.npu` | `false` = Argus-style chip with no NPU at all |
+| `peripherals.i2c1` | `false` = drop the second I²C instance (slot 15 dead, vectors 70–82 reserved, SDA1/SCL1 pins revert to plain GPIO) |
+| `peripherals.uart1` | `false` = drop the second UART (slot 5 dead, vectors 52–54 reserved, TX1/RX1 pins revert to plain GPIO) |
+| `peripherals.spi1` | `false` = drop the second SPI (slot 3 dead, vectors 11–12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO) |
+| `peripherals.timer1` | `false` = drop the second TIMER (slot 7 dead, vectors 22–27 reserved, T1CMP\*/T1CAP\* pins revert to plain GPIO) |
+| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`; today `myshkin-qfn44`) |
+| `package.preliminary` | `false` = suppress the TRM package-section "Preliminary" banner |
+
+Every build also writes `config/ChipConfig.resolved.json` (all knobs plus the derived
+geometry — shared-window address width, RAM bank count, extended-flash base, CLINT
+register layout), `config/PadRing.json` — the **pad ring, derived from the package
+model** in `generate.py` (QFN-44 pin order, sides, power domains) — and
+`out/pnr/chip_top_padring.tcl`, the same ring as ordered per-side pad lists for the
+`innovus_mp` chip_top pad-ring flow. The pad ring is deliberately *derived, not
+configured*: the package model is its single source, and the TRM's labeled pinout
+figure is generated from the same model. The peripheral *set* is otherwise fixed RTL
+template content — the NPU and every second instance (I²C1, UART1, SPI1, TIMER1) are
+real drop knobs (G1a/G1b): a dropped instance's window reads zero, its vectors become
+reserved gaps (the numbering is frozen), and its pins revert to plain GPIO. Working
+configurations live in `config/` (`argus.json` = the 18-hart course chip;
+`castalia_no{i2c1,uart1,spi1,timer1}.json` = the G1a/G1b proof configs).
 
 `make chip` produces the complete Technical Reference Manual for exactly the generated
 configuration: the feature list, peripheral chapters (intro LaTeX snippets + register
@@ -53,6 +98,8 @@ flow and otherwise appear as raw macro source in the figure.
 | `out/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker memory regions (incl. `SHARED_RAM`) and symbols |
 | `out/hdl/MemoryMap.vhd`, `MCU.vhd`, `MCU_routing_template.vhd` | Generated VHDL. `MemoryMap.vhd` (2026-07-04) and `MCU.vhd` (2026-07-05, golden-master templated from `hdl_templates/MCU.template.vhd` + `python/mcu_vhd.py`) are verified **drop-in replacements** for their `hdl/MCU_MP/` originals (full behavioral_mp regression passes with the cell list pointed at them) but are not wired into the build; the routing template is reference-only |
 | `config/MemoryMap.json` | Machine-readable full memory map |
+| `config/ChipConfig.resolved.json` | The resolved configuration: every knob + derived geometry (`make show` prints it) |
+| `config/PadRing.json` | The derived pad ring (package model → pin/side/power-domain list) |
 
 ---
 
@@ -126,15 +173,18 @@ Known TODOs:
 - AFE intro: three figures (`fsmstatediagram.png`, `dsTimingDia.png`, `peripheral.png`) are
   missing from the repo; their figure blocks are commented out with `TODO(castalia)` markers
   (same figures are also unresolved in `platform/`).
-- Package/pinout is inherited from Myshkin unchanged (§2 carries a "preliminary" note) —
-  revisit when Castalia gets a package.
+- Package/pinout is inherited from Myshkin unchanged; the "preliminary" note is
+  config-driven since G4 (`package.preliminary`). When a chip gets its own package:
+  add a model to `_PACKAGE_MODELS` in `generate.py` and select it via `package.model`.
 - Remaining intros not yet reviewed for Castalia: AFE, SARADC, SPI (their filenames
   keep the inherited `-myshkin-`/undated suffixes until reviewed; see CLAUDE.md).
   GPIO was rewritten 2026-07-09 with the multi-alternate-function (PxAFS) work.
 - ~~Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map~~ DONE
   (M12): the multicore bootrom (`software/bootrom_mp/`) implements the single-ROM boot —
   mhartid dispatch, shared-RAM mailbox zeroing, WFI tile park, and the msip tile loader.
-- The description's WDT register order (WDTCR=12/WDTSR=13/WDTPASS=14) contradicts the RTL
-  (WDT_PASS=12/WDT_CR=13/WDT_SR=14) — the TRM and `MemoryMap.h` document these offsets
-  wrong. `make chip` warns; the generated VHDL emits the RTL truth. (The matching GPIO
-  pin-reset-attribute discrepancy was FIXED 2026-07-09 with the multi-AF work.)
+- ~~The description's WDT register order contradicts the RTL~~ FIXED (G5a 2026-07-11):
+  the description now carries the RTL order (WDT_PASS=12/WDT_CR=13/WDT_SR=14); the
+  stale doc-side `RegSlotWDT*` constants in `hdl/MCU_MP/MemoryMap.vhd` were aligned the
+  same day (no RTL logic read them). `make chip` is warning-free and
+  `check_memorymap_vhd.py` is drop-in clean. (The matching GPIO pin-reset-attribute
+  discrepancy was FIXED 2026-07-09 with the multi-AF work.)

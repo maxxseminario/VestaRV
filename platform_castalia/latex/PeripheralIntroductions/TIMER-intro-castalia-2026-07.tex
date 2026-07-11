@@ -12,7 +12,7 @@ The \peripheral{TIMERx} peripheral is a 32-bit general purpose timer/counter uni
 	\item Latched register reads for noise immunity
 \end{itemize}
 
-Both timers live in the shared peripheral page behind the multi-core arbiter (\peripheral{TIMER0} at \texttt{0x13600}, \peripheral{TIMER1} at \texttt{0x13700}), so any hart can own and operate a timer (see Section \ref{s:multicore}). Register accesses are serialized by the arbiter; a timer's interrupts are wired to hart 0's enables in the \peripheral{SYSTEM} peripheral and can be routed to any hart through the \peripheral{IRQROUTER} peripheral.
+The timers live in the shared peripheral page behind the multi-core arbiter (\peripheral{TIMER0} at \texttt{0x4600}, and \peripheral{TIMER1}, in configurations that include it, at \texttt{0x4700}), so any hart can own and operate a timer (see Section \ref{s:multicore}). Register accesses are serialized by the arbiter; a timer's interrupts are wired to hart 0's enables in the \peripheral{SYSTEM} peripheral and can be routed to any hart through the \peripheral{IRQROUTER} peripheral.
 
 
 

@@ -195,8 +195,11 @@ class GpioConfigurator():
 					raise Exception('altFuncs ioType must be one of: i, o, io')
 				self.AltFuncs.append(GpioAltFunc(afIndex, afName, afIOType, afDescription))
 			self.AltFuncs.sort(key=lambda af: af.Index)
-			if len(self.AltFuncs) > 0 and len(self.FuncName) < 1:
-				raise Exception('A pin with altFuncs must also have an AF0 funcName')
+			# G1a (2026-07-11): a pin MAY carry altFuncs with no AF0 funcName —
+			# a config-dropped peripheral's home pin reverts to plain GPIO at
+			# AF0 while its unrelated relocation planes (e.g. the TIMER capture
+			# AF1s on P4.2/4.3) stay. funcName<->funcIOType consistency is
+			# still enforced above.
 
 		# Generate the primary bit names
 		self.PrimaryBitName = ''

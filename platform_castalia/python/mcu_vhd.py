@@ -186,6 +186,414 @@ I2C_DECL_COMMENTS = {
 	('sxc', 0): 'Slave Transfer Complete Interrupt', ('sxc', 1): 'Slave Transfer Complete Interrupt',
 }
 
+# ---------------------------------------------------------------------------
+# G1a (2026-07-11): I2C1 is the first config-droppable peripheral INSTANCE.
+# The four regions below are transcribed VERBATIM from the golden master (they
+# were fixed template content until G1a carved them out); each emitter returns
+# them unchanged when I2C1 is present and degrades the I2C1 rows when it is
+# dropped (aggregate choices -> '0' hi-Z idiom, muxes/decls removed, comments
+# reworded). The two pure-verbatim blocks (pad decls, the i2c1 instance) live
+# in hdl_templates/MCU.template.i2c1.vhd instead (NPU side-template mechanism).
+# ---------------------------------------------------------------------------
+I2C_FABRIC_DECLS = [
+	"        -- M7c.2 movers: I2C0/I2C1 (M11: window slots 14/15). I2C's register",
+	'        -- READ is COMBINATIONAL (rdata_out collapses to register 0 the moment',
+	'        -- EnMemPeriph deasserts), so the bridge REGISTERS it at the',
+	'        -- LATCH->DATA edge (i2c*_sh_rdata below) ' + EMDASH + ' reproducing exactly the',
+	'        -- old adddec timing the I2C.vhd comment assumes ("EnMemPeriph has a',
+	'        -- leading edge exactly one clock cycle before rdata latches").',
+	'        signal shslv_i2c0_sel,  shslv_i2c0_en   : std_logic;',
+	'        signal shslv_i2c1_sel,  shslv_i2c1_en   : std_logic;',
+	"        signal shslv_rd_i2c0    : std_logic := '0';",
+	"        signal shslv_rd_i2c1    : std_logic := '0';",
+	'        signal i2c0_sh_en_n     : std_logic;',
+	'        signal i2c1_sh_en_n     : std_logic;',
+	'        signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance',
+	'        signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);',
+	"        signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered",
+	"        signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');",
+]
+GPIO2_AF1_PLANES = [
+	'        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,',
+	'        -- UART0 relocation on P3.4/5. P3.6/7 have no AF1.',
+	'        afunc3_af1_out <= (',
+	"            7 => '0',                           -- GPIO2 pin 7: unassigned (hi-Z input)",
+	"            6 => '0',                           -- GPIO2 pin 6: unassigned (hi-Z input)",
+	'            pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5',
+	'            pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4',
+	'            pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3',
+	'            pnum_gpio2_af1_sda1 => sda1_out,    -- GPIO2 pin 2',
+	'            pnum_gpio2_af1_rx1  => rx1_out,     -- GPIO2 pin 1',
+	'            pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0',
+	'        );',
+	'        afunc3_af1_dir <= (',
+	"            7 => '0',                           -- GPIO2 pin 7: unassigned (input)",
+	"            6 => '0',                           -- GPIO2 pin 6: unassigned (input)",
+	'            pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5',
+	'            pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4',
+	'            pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3',
+	'            pnum_gpio2_af1_sda1 => sda1_dir,    -- GPIO2 pin 2',
+	'            pnum_gpio2_af1_rx1  => rx1_dir,     -- GPIO2 pin 1',
+	'            pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0',
+	'        );',
+	'        afunc3_af1_ren <= (',
+	"            7 => '0',                           -- GPIO2 pin 7: unassigned (pull disabled)",
+	"            6 => '0',                           -- GPIO2 pin 6: unassigned (pull disabled)",
+	'            pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5',
+	'            pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4',
+	'            pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3',
+	'            pnum_gpio2_af1_sda1 => sda1_ren,    -- GPIO2 pin 2',
+	'            pnum_gpio2_af1_rx1  => rx1_ren,     -- GPIO2 pin 1',
+	'            pnum_gpio2_af1_tx1  => tx1_ren      -- GPIO2 pin 0',
+	'        );',
+]
+I2C_INPUT_MUXES = [
+	'        -- Resistor Enables (I2C0 relocates to P2.6/7, I2C1 to P3.2/3 ' + EMDASH + ' the',
+	'        -- peripheral ren_in follows the same AF selection as the inputs below)',
+	'        sda0_ren_in <= p2_ren(pnum_gpio1_af1_sda0)',
+	'                       when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"',
+	'                       else p4_ren(pnum_gpio3_sda0);',
+	'        scl0_ren_in <= p2_ren(pnum_gpio1_af1_scl0)',
+	'                       when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"',
+	'                       else p4_ren(pnum_gpio3_scl0);',
+	'        sda1_ren_in <= p3_ren(pnum_gpio2_af1_sda1)',
+	'                       when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"',
+	'                       else p4_ren(pnum_gpio3_sda1);',
+	'        scl1_ren_in <= p3_ren(pnum_gpio2_af1_scl1)',
+	'                       when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"',
+	'                       else p4_ren(pnum_gpio3_scl1);',
+	'',
+	'        -- Inputs (relocated pad wins, home pad is the default)',
+	'        sda0_in <= prt2_in(pnum_gpio1_af1_sda0)',
+	'                   when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"',
+	'                   else prt4_in(pnum_gpio3_sda0);',
+	'        scl0_in <= prt2_in(pnum_gpio1_af1_scl0)',
+	'                   when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"',
+	'                   else prt4_in(pnum_gpio3_scl0);',
+	'        sda1_in <= prt3_in(pnum_gpio2_af1_sda1)',
+	'                   when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"',
+	'                   else prt4_in(pnum_gpio3_sda1);',
+	'        scl1_in <= prt3_in(pnum_gpio2_af1_scl1)',
+	'                   when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"',
+	'                   else prt4_in(pnum_gpio3_scl1);',
+]
+GPIO3_PRIMARY_PLANES = [
+	'        afunc4_out <= (',
+	'            pnum_gpio3_dtp3     => dtp3_out,  -- GPIO3 pin 7',
+	'            pnum_gpio3_dtp2     => dtp2_out,  -- GPIO3 pin 6',
+	'            pnum_gpio3_dtp1     => dtp1_out,  -- GPIO3 pin 5',
+	'            pnum_gpio3_dtp0     => dtp0_out,  -- GPIO3 pin 4',
+	'            pnum_gpio3_scl1     => scl1_out,  -- GPIO3 pin 3',
+	'            pnum_gpio3_sda1     => sda1_out,  -- GPIO3 pin 2',
+	'            pnum_gpio3_scl0     => scl0_out,  -- GPIO3 pin 1',
+	'            pnum_gpio3_sda0     => sda0_out   -- GPIO3 pin 0',
+	'        );',
+	'        afunc4_dir <= (',
+	'            pnum_gpio3_dtp3 => dtp3_dir,      -- GPIO3 pin 7',
+	'            pnum_gpio3_dtp2 => dtp2_dir,      -- GPIO3 pin 6',
+	'            pnum_gpio3_dtp1 => dtp1_dir,      -- GPIO3 pin 5',
+	'            pnum_gpio3_dtp0 => dtp0_dir,      -- GPIO3 pin 4',
+	'            pnum_gpio3_scl1 => scl1_dir,      -- GPIO3 pin 3',
+	'            pnum_gpio3_sda1 => sda1_dir,      -- GPIO3 pin 2',
+	'            pnum_gpio3_scl0 => scl0_dir,      -- GPIO3 pin 1',
+	'            pnum_gpio3_sda0 => sda0_dir       -- GPIO3 pin 0',
+	'        );',
+	'        afunc4_ren <= (',
+	'            pnum_gpio3_dtp3 => dtp3_ren,      -- GPIO3 pin 7',
+	'            pnum_gpio3_dtp2 => dtp2_ren,      -- GPIO3 pin 6',
+	'            pnum_gpio3_dtp1 => dtp1_ren,      -- GPIO3 pin 5',
+	'            pnum_gpio3_dtp0 => dtp0_ren,      -- GPIO3 pin 4',
+	'            pnum_gpio3_scl1 => scl1_ren,      -- GPIO3 pin 3',
+	'            pnum_gpio3_sda1 => sda1_ren,      -- GPIO3 pin 2',
+	'            pnum_gpio3_scl0 => scl0_ren,      -- GPIO3 pin 1',
+	'            pnum_gpio3_sda0 => sda0_ren       -- GPIO3 pin 0',
+	'        );',
+]
+
+# ---------------------------------------------------------------------------
+# G1b (2026-07-11): UART1 / SPI1 / TIMER1 join I2C1 as config-droppable
+# INSTANCES. Same machinery: the mixed fixed/config regions below are
+# transcribed VERBATIM from the golden master and degrade line-by-line when an
+# instance is dropped (aggregate choices -> the '0' hi-Z idiom, muxes/decls
+# removed, comments reworded); the pure-verbatim pad-decl + instance blocks
+# live in hdl_templates/MCU.template.{uart1,spi1,timer1}.vhd (side templates).
+# The AF2-AF7 output-spread planes are NOT transcribed: they are emitted from
+# the description's FromSpread altFuncs (generate.py filters _GPIO_AF_SPREAD
+# by config first), with SPREAD_SIG below owning the RTL signal spellings —
+# check_mcu_vhd.py STRICT at defaults is the transcription proof.
+# ---------------------------------------------------------------------------
+# The shared timer/UART/SPI output pool's RTL signal spellings (spread planes
+# wire LITERAL pin indices; a plane slot with no surviving function reads '0')
+SPREAD_SIG = {
+	'TX0': 'tx0', 'TX1': 'tx1', 'SCK1': 'sck1', 'MOSI1': 'mosi1',
+	'T0CMP0': 't0_cmp0', 'T0CMP1': 't0_cmp1', 'T1CMP0': 't1_cmp0', 'T1CMP1': 't1_cmp1',
+}
+# Per-port spread-block header comments (transcribed; the flatten lines are
+# emitted by the same region so the whole block is one marker per port)
+SPREAD_HEADERS = {
+	0: ['        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the',
+		'        -- boot/flash/clock port keeps exactly one alternate function per pin.',
+		'        -- GPIO0 AF output-function spread: aggregates + 8-plane flatten'],
+	1: ['        -- Flattened AF planes (7 downto 2 unassigned)',
+		'        -- GPIO1 AF output-function spread: aggregates + 8-plane flatten'],
+	2: ['        -- Flattened AF planes (7 downto 2 unassigned)',
+		'        -- GPIO2 AF output-function spread: aggregates + 8-plane flatten'],
+	3: ['        -- Flattened AF planes (7 downto 2 unassigned)',
+		'        -- GPIO3 AF output-function spread: aggregates + 8-plane flatten'],
+}
+MOVER_FABRIC_DECLS = [
+	'        -- M7b movers: TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)',
+	'        signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;',
+	'        signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;',
+	'        signal shslv_gpio1_sel, shslv_gpio1_en  : std_logic;',
+	'        signal shslv_gpio2_sel, shslv_gpio2_en  : std_logic;',
+	'        signal shslv_gpio3_sel, shslv_gpio3_en  : std_logic;',
+	"        signal shslv_rd_tim0    : std_logic := '0';",
+	"        signal shslv_rd_tim1    : std_logic := '0';",
+	"        signal shslv_rd_gpio1   : std_logic := '0';",
+	"        signal shslv_rd_gpio2   : std_logic := '0';",
+	"        signal shslv_rd_gpio3   : std_logic := '0';",
+	'        signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen',
+	'        signal tim1_sh_en_n     : std_logic;',
+	'        signal gpio1_sh_en_n    : std_logic;',
+	'        signal gpio2_sh_en_n    : std_logic;',
+	'        signal gpio3_sh_en_n    : std_logic;',
+	'        signal tim0_sh_rdata    : std_logic_vector(31 downto 0);',
+	'        signal tim1_sh_rdata    : std_logic_vector(31 downto 0);',
+	'        signal gpio1_sh_rdata   : std_logic_vector(31 downto 0);',
+	'        signal gpio2_sh_rdata   : std_logic_vector(31 downto 0);',
+	'        signal gpio3_sh_rdata   : std_logic_vector(31 downto 0);',
+	'        -- M7c movers: SPI1 + UART1 (M11: window slots 3/5)',
+	'        signal shslv_spi1_sel,  shslv_spi1_en   : std_logic;',
+	'        signal shslv_uart1_sel, shslv_uart1_en  : std_logic;',
+	"        signal shslv_rd_spi1    : std_logic := '0';",
+	"        signal shslv_rd_uart1   : std_logic := '0';",
+	'        signal spi1_sh_en_n     : std_logic;',
+	'        signal uart1_sh_en_n    : std_logic;',
+	'        signal spi1_sh_rdata    : std_logic_vector(31 downto 0);',
+	'        signal uart1_sh_rdata   : std_logic_vector(31 downto 0);',
+]
+SPI1_INPUT_TAPS = [
+	'        cs1_in   <= prt2_in(pnum_gpio1_cs1);',
+	'        miso1_in <= prt2_in(pnum_gpio1_miso1);',
+	'        mosi1_in <= prt2_in(pnum_gpio1_mosi1);',
+	'        sck1_in  <= prt2_in(pnum_gpio1_sck1);',
+	'        sck1_ren_in <= p2_ren(pnum_gpio1_sck1);',
+	'        mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);',
+	'        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);',
+	'        -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);',
+]
+UART1_INPUT_MUXES = [
+	'        -- GPIO1 Connections (UART1)',
+	'        tx1_ren_in <= p3_ren(pnum_gpio2_af1_tx1)',
+	'                      when p3_afs((3 * pnum_gpio2_af1_tx1) + 2 downto 3 * pnum_gpio2_af1_tx1) = "001"',
+	'                      else p2_ren(pnum_gpio1_tx1);',
+	'        rx1_ren_in <= p3_ren(pnum_gpio2_af1_rx1)',
+	'                      when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"',
+	'                      else p2_ren(pnum_gpio1_rx1);',
+	'        rx1_in <= prt3_in(pnum_gpio2_af1_rx1)',
+	'                  when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"',
+	'                  else prt2_in(pnum_gpio1_rx1);',
+]
+GPIO1_PRIMARY_PLANES = [
+	'        afunc2_out <= (',
+	'            pnum_gpio1_rx1 => rx1_out,      -- GPIO1 pin 7',
+	'            pnum_gpio1_tx1 => tx1_out,      -- GPIO1 pin 6',
+	'            pnum_gpio1_rx0 => rx0_out,      -- GPIO1 pin 5',
+	'            pnum_gpio1_tx0 => tx0_out,      -- GPIO1 pin 4',
+	'            pnum_gpio1_sck1 => sck1_out,    -- GPIO1 pin 3',
+	'            pnum_gpio1_mosi1 => mosi1_out,  -- GPIO1 pin 2',
+	'            pnum_gpio1_miso1 => miso1_out,  -- GPIO1 pin 1',
+	'            0 => p2_out(0)                  -- CS1 line manually toggled with GPIO1',
+	'        );',
+	'        afunc2_dir <= (',
+	'            pnum_gpio1_rx1 => rx1_dir,      -- GPIO1 pin 7',
+	'            pnum_gpio1_tx1 => tx1_dir,      -- GPIO1 pin 6',
+	'            pnum_gpio1_rx0 => rx0_dir,      -- GPIO1 pin 5',
+	'            pnum_gpio1_tx0 => tx0_dir,      -- GPIO1 pin 4',
+	'            pnum_gpio1_sck1 => sck1_dir,    -- GPIO1 pin 3',
+	'            pnum_gpio1_mosi1 => mosi1_dir,  -- GPIO1 pin 2',
+	'            pnum_gpio1_miso1 => miso1_dir,  -- GPIO1 pin 1',
+	'            0 => p2_dir(0)',
+	'        );',
+	'        afunc2_ren <= (',
+	'            pnum_gpio1_rx1 => rx1_ren,      -- GPIO1 pin 7',
+	'            pnum_gpio1_tx1 => tx1_ren,      -- GPIO1 pin 6',
+	'            pnum_gpio1_rx0 => rx0_ren,      -- GPIO1 pin 5',
+	'            pnum_gpio1_tx0 => tx0_ren,      -- GPIO1 pin 4',
+	'            pnum_gpio1_sck1 => sck1_ren,    -- GPIO1 pin 3',
+	'            pnum_gpio1_mosi1 => mosi1_ren,  -- GPIO1 pin 2',
+	'            pnum_gpio1_miso1 => miso1_ren,  -- GPIO1 pin 1',
+	'            0 => p2_ren(0)',
+	'        );',
+]
+GPIO1_AF1_PLANES = [
+	'        -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),',
+	'        -- I2C0 relocation on P2.6/7 (the UART1 pins). P2.4/5 have no AF1.',
+	'        afunc2_af1_out <= (',
+	'            pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7',
+	'            pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6',
+	"            5 => '0',                               -- GPIO1 pin 5: unassigned (hi-Z input)",
+	"            4 => '0',                               -- GPIO1 pin 4: unassigned (hi-Z input)",
+	'            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3',
+	'            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2',
+	'            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1',
+	'            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_out   -- GPIO1 pin 0',
+	'        );',
+	'        afunc2_af1_dir <= (',
+	'            pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7',
+	'            pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6',
+	"            5 => '0',                               -- GPIO1 pin 5: unassigned (input)",
+	"            4 => '0',                               -- GPIO1 pin 4: unassigned (input)",
+	'            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3',
+	'            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2',
+	'            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1',
+	'            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_dir   -- GPIO1 pin 0',
+	'        );',
+	'        afunc2_af1_ren <= (',
+	'            pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7',
+	'            pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6',
+	"            5 => '0',                               -- GPIO1 pin 5: unassigned (pull disabled)",
+	"            4 => '0',                               -- GPIO1 pin 4: unassigned (pull disabled)",
+	'            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3',
+	'            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2',
+	'            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1',
+	'            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_ren   -- GPIO1 pin 0',
+	'        );',
+]
+GPIO2_TIMER_MUXES = [
+	'        -- Compare (PWM) outputs are available at three locations (home P3.0/1/4/5,',
+	'        -- AF1 on P2.0-3, AF1 on P4.4-7): the peripheral ren_in follows the',
+	'        -- selection with fixed priority P2 > P4 > home.',
+	'        t0_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp0)',
+	'                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp0) + 2 downto 3 * pnum_gpio1_af1_t0_cmp0) = "001"',
+	'                           else p4_ren(pnum_gpio3_af1_t0_cmp0)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp0) + 2 downto 3 * pnum_gpio3_af1_t0_cmp0) = "001"',
+	'                           else p3_ren(pnum_gpio2_t0_cmp0);',
+	'        t0_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp1)',
+	'                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp1) + 2 downto 3 * pnum_gpio1_af1_t0_cmp1) = "001"',
+	'                           else p4_ren(pnum_gpio3_af1_t0_cmp1)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp1) + 2 downto 3 * pnum_gpio3_af1_t0_cmp1) = "001"',
+	'                           else p3_ren(pnum_gpio2_t0_cmp1);',
+	'        t1_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp0)',
+	'                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp0) + 2 downto 3 * pnum_gpio1_af1_t1_cmp0) = "001"',
+	'                           else p4_ren(pnum_gpio3_af1_t1_cmp0)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp0) + 2 downto 3 * pnum_gpio3_af1_t1_cmp0) = "001"',
+	'                           else p3_ren(pnum_gpio2_t1_cmp0);',
+	'        t1_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp1)',
+	'                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp1) + 2 downto 3 * pnum_gpio1_af1_t1_cmp1) = "001"',
+	'                           else p4_ren(pnum_gpio3_af1_t1_cmp1)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp1) + 2 downto 3 * pnum_gpio3_af1_t1_cmp1) = "001"',
+	'                           else p3_ren(pnum_gpio2_t1_cmp1);',
+	'',
+	'        -- Capture inputs relocate to P4.0-3 (AF1); home pads stay the default',
+	'        t0_cap0_in      <= prt4_in(pnum_gpio3_af1_t0_cap0)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"',
+	'                           else prt3_in(pnum_gpio2_t0_cap0);',
+	'        t0_cap1_in      <= prt4_in(pnum_gpio3_af1_t0_cap1)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"',
+	'                           else prt3_in(pnum_gpio2_t0_cap1);',
+	'        t1_cap0_in      <= prt4_in(pnum_gpio3_af1_t1_cap0)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"',
+	'                           else prt3_in(pnum_gpio2_t1_cap0);',
+	'        t1_cap1_in      <= prt4_in(pnum_gpio3_af1_t1_cap1)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"',
+	'                           else prt3_in(pnum_gpio2_t1_cap1);',
+	'        t0_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap0)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"',
+	'                           else p3_ren(pnum_gpio2_t0_cap0);',
+	'        t1_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap0)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"',
+	'                           else p3_ren(pnum_gpio2_t1_cap0);',
+	'        t0_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap1)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"',
+	'                           else p3_ren(pnum_gpio2_t0_cap1);',
+	'        t1_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap1)',
+	'                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"',
+	'                           else p3_ren(pnum_gpio2_t1_cap1);',
+]
+GPIO2_PRIMARY_PLANES = [
+	'        afunc3_out <= (',
+	'            pnum_gpio2_t1_cap1 => t1_cap1_out,                  -- GPIO2 pin 7',
+	'            pnum_gpio2_t1_cap0 => p3_out(pnum_gpio2_t1_cap0),   -- GPIO2 pin 6',
+	'            pnum_gpio2_t1_cmp1 => t1_cmp1_out,                  -- GPIO2 pin 5',
+	'            pnum_gpio2_t1_cmp0 => t1_cmp0_out,                  -- GPIO2 pin 4',
+	'            pnum_gpio2_t0_cap1 => t0_cap1_out,                  -- GPIO2 pin 3',
+	'            pnum_gpio2_t0_cap0 => p3_out(pnum_gpio2_t0_cap0),   -- GPIO2 pin 2',
+	'            pnum_gpio2_t0_cmp1 => t0_cmp1_out,                  -- GPIO2 pin 1',
+	'            pnum_gpio2_t0_cmp0 => t0_cmp0_out                   -- GPIO2 pin 0',
+	'        );',
+	'        afunc3_dir <= (',
+	'            pnum_gpio2_t1_cap1 => t1_cap1_dir, -- GPIO2 pin 7',
+	'            pnum_gpio2_t1_cap0 => t1_cap0_dir, -- GPIO2 pin 6',
+	'            pnum_gpio2_t1_cmp1 => t1_cmp1_dir, -- GPIO2 pin 5',
+	'            pnum_gpio2_t1_cmp0 => t1_cmp0_dir, -- GPIO2 pin 4',
+	'            pnum_gpio2_t0_cap1 => t0_cap1_dir, -- GPIO2 pin 3',
+	'            pnum_gpio2_t0_cap0 => t0_cap0_dir, -- GPIO2 pin 2',
+	'            pnum_gpio2_t0_cmp1 => t0_cmp1_dir, -- GPIO2 pin 1',
+	'            pnum_gpio2_t0_cmp0 => t0_cmp0_dir  -- GPIO2 pin 0',
+	'        );',
+	'        afunc3_ren <= (',
+	'            pnum_gpio2_t1_cap1 => t1_cap1_ren, -- GPIO2 pin 7',
+	'            pnum_gpio2_t1_cap0 => t1_cap0_ren, -- GPIO2 pin 6',
+	'            pnum_gpio2_t1_cmp1 => t1_cmp1_ren, -- GPIO2 pin 5',
+	'            pnum_gpio2_t1_cmp0 => t1_cmp0_ren, -- GPIO2 pin 4',
+	'            pnum_gpio2_t0_cap1 => t0_cap1_ren, -- GPIO2 pin 3',
+	'            pnum_gpio2_t0_cap0 => t0_cap0_ren, -- GPIO2 pin 2',
+	'            pnum_gpio2_t0_cmp1 => t0_cmp1_ren, -- GPIO2 pin 1',
+	'            pnum_gpio2_t0_cmp0 => t0_cmp0_ren  -- GPIO2 pin 0',
+	'        );',
+]
+GPIO3_AF1_PLANES = [
+	'        -- AF1 plane: TIMER0/1 capture inputs relocate to P4.0-3 (the I2C pins),',
+	'        -- TIMER0/1 compare (PWM) outputs relocate to P4.4-7 (the dead DTP pins).',
+	"        -- Captures are inputs: out slice '0', dir/ren from the timer.",
+	'        afunc4_af1_out <= (',
+	'            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO3 pin 7',
+	'            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO3 pin 6',
+	'            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO3 pin 5',
+	'            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_out,  -- GPIO3 pin 4',
+	"            pnum_gpio3_af1_t1_cap1 => '0',          -- GPIO3 pin 3",
+	"            pnum_gpio3_af1_t1_cap0 => '0',          -- GPIO3 pin 2",
+	"            pnum_gpio3_af1_t0_cap1 => '0',          -- GPIO3 pin 1",
+	"            pnum_gpio3_af1_t0_cap0 => '0'           -- GPIO3 pin 0",
+	'        );',
+	'        afunc4_af1_dir <= (',
+	'            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO3 pin 7',
+	'            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO3 pin 6',
+	'            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO3 pin 5',
+	'            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_dir,  -- GPIO3 pin 4',
+	'            pnum_gpio3_af1_t1_cap1 => t1_cap1_dir,  -- GPIO3 pin 3',
+	'            pnum_gpio3_af1_t1_cap0 => t1_cap0_dir,  -- GPIO3 pin 2',
+	'            pnum_gpio3_af1_t0_cap1 => t0_cap1_dir,  -- GPIO3 pin 1',
+	'            pnum_gpio3_af1_t0_cap0 => t0_cap0_dir   -- GPIO3 pin 0',
+	'        );',
+	'        afunc4_af1_ren <= (',
+	'            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO3 pin 7',
+	'            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO3 pin 6',
+	'            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO3 pin 5',
+	'            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_ren,  -- GPIO3 pin 4',
+	'            pnum_gpio3_af1_t1_cap1 => t1_cap1_ren,  -- GPIO3 pin 3',
+	'            pnum_gpio3_af1_t1_cap0 => t1_cap0_ren,  -- GPIO3 pin 2',
+	'            pnum_gpio3_af1_t0_cap1 => t0_cap1_ren,  -- GPIO3 pin 1',
+	'            pnum_gpio3_af1_t0_cap0 => t0_cap0_ren   -- GPIO3 pin 0',
+	'        );',
+]
+ANALOG_TIE_OFFS = [
+	'    -- AFE / SARADC removed (digital-only Castalia). Peripheral-window slots',
+	'    -- 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0,',
+	'    -- tied low). Tie off the GPIO alt-function outputs the two analog blocks',
+	'    -- used to drive so those pins act as plain GPIO:',
+	'    --   GPIO2 pins 3/7 (T0/T1 CAP1 out, formerly SARADC DTP0/1)',
+	'    --   GPIO3 pins 4-7 (formerly AFE DTP0-3)',
+	"    t0_cap1_out <= '0';",
+	"    t1_cap1_out <= '0';",
+	"    dtp0_out <= '0';  dtp0_dir <= '0';  dtp0_ren <= '0';",
+	"    dtp1_out <= '0';  dtp1_dir <= '0';  dtp1_ren <= '0';",
+	"    dtp2_out <= '0';  dtp2_dir <= '0';  dtp2_ren <= '0';",
+	"    dtp3_out <= '0';  dtp3_dir <= '0';  dtp3_ren <= '0';",
+]
+
 # Memory-bus port-map specs per instance. Fields:
 #   periph   : description peripheral name
 #   ports    : port names in the RTL's order for this component type
@@ -223,13 +631,102 @@ IRQROUTER_BASE = 0x7000
 
 
 class McuVhdEmitter():
-	def __init__(self, gen):
+	def __init__(self, gen, npuBlocks=None, i2c1Blocks=None, uart1Blocks=None,
+			spi1Blocks=None, timer1Blocks=None):
 		self.gen = gen
 		self.periphsByName = {}
 		for p in gen.Peripherals:
 			self.periphsByName[p.Name] = p
 		self.slotSpelling = gen.McuMpCompat['periphSlotSpelling']
 		self.irqVectors = gen.McuMpCompat['irqVectors']
+
+		# A2 (Argus): shared-window geometry — SH_AW, bank count and NPU
+		# presence drive the memory-slave regions. Castalia defaults.
+		geo = getattr(gen, 'McuMpGeometry', None) or {}
+		self.shAw = geo.get('shAw', 15)
+		self.banks = geo.get('sharedRamBanks', 4)
+		self.npu = geo.get('npu', True)
+		self.npuBlocks = npuBlocks or {}
+		# G1a: droppable second I2C instance (the first config-droppable
+		# peripheral INSTANCE — window slot 15, vectors 70-82, SDA1/SCL1 pads)
+		self.i2c1 = geo.get('i2c1', True)
+		self.i2c1Blocks = i2c1Blocks or {}
+		# G1b: droppable UART1 / SPI1 / TIMER1 instances (window slots 5/3/7,
+		# vectors 52-54 / 11-12 / 22-27; primaries on P2.6/7, P2.0-3, P3.4-7)
+		self.uart1 = geo.get('uart1', True)
+		self.uart1Blocks = uart1Blocks or {}
+		self.spi1 = geo.get('spi1', True)
+		self.spi1Blocks = spi1Blocks or {}
+		self.timer1 = geo.get('timer1', True)
+		self.timer1Blocks = timer1Blocks or {}
+
+		# Geometry-filtered copies of the transcribed structure tables. The
+		# module-level tables stay the Castalia golden-master transcription;
+		# these are what the emitters consume.
+		self.shslv = dict(SHSLV)
+		self.pg0SelOrder = list(PG0_SEL_ORDER)
+		self.busSpecs = dict(BUS_SPECS)
+		self.shimGroups = list(SHIM_GROUPS)
+		self.memslv = {'rom': 'rom_q'}
+		if self.npu:
+			self.memslv['npuram'] = 'npuram_q'
+		for b in range(self.banks):
+			self.memslv['bank' + str(b)] = 'bank' + str(b) + '_q'
+		if not self.npu:
+			del self.shslv['NPU']
+			self.pg0SelOrder.remove('NPU')
+			del self.busSpecs['npu0']
+			self.shimGroups = [g for g in self.shimGroups if g[1] != ['NPU']]
+		if not self.i2c1:
+			del self.shslv['I2C1']
+			self.pg0SelOrder.remove('I2C1')
+			del self.busSpecs['i2c1']
+			groups = []
+			for (comment, names, pad) in self.shimGroups:
+				if 'I2C1' in names:
+					names = [n for n in names if n != 'I2C1']
+					comment = [c.replace('I2C0/I2C1', 'I2C0 (I2C1 dropped)') for c in comment]
+				groups.append((comment, names, pad))
+			self.shimGroups = groups
+		# G1b drops: same shslv/order/bus/shim treatment as I2C1. The M7c shim
+		# group covers SPI1+UART1 (comment reworded per survivor; the group
+		# disappears when both are dropped); TIMER1 leaves the M7b group whose
+		# comment stays valid for the surviving TIMER0/GPIO movers.
+		for flag, pname, bkey in ((self.uart1, 'UART1', 'uart1'),
+				(self.spi1, 'SPI1', 'spi1'), (self.timer1, 'TIMER1', 'timer1')):
+			if flag:
+				continue
+			del self.shslv[pname]
+			self.pg0SelOrder.remove(pname)
+			del self.busSpecs[bkey]
+			self.shimGroups = [(c, [n for n in ns if n != pname], p)
+				for (c, ns, p) in self.shimGroups]
+		if not (self.spi1 and self.uart1):
+			if self.spi1 and not self.uart1:
+				m7c = ["-- M7c: SPI1 (UART1 dropped by this configuration; audited clean;",
+					"-- SPI1's flash FSM is compiled out by ENABLE_EXTENDED_MEM=false, and",
+					'-- its baud core runs on smclk ' + EMDASH + ' the SYS_CLK_CR=0 rule applies to',
+					'-- SPI software too)']
+			elif self.uart1 and not self.spi1:
+				m7c = ['-- M7c: UART1 (SPI1 dropped by this configuration; audited clean ' + EMDASH,
+					'-- its baud core runs on smclk, so the SYS_CLK_CR=0 rule applies)']
+			else:
+				m7c = None	# both dropped: the whole M7c shim group disappears
+			groups = []
+			for (comment, names, pad) in self.shimGroups:
+				if comment and comment[0].startswith('-- M7c: SPI1'):
+					if m7c is None:
+						continue
+					comment = m7c
+				groups.append((comment, names, pad))
+			self.shimGroups = groups
+		self.shimGroups = [g for g in self.shimGroups if g[1]]
+		self.enOrder = ['rom'] \
+			+ (['npuram'] if self.npu else []) \
+			+ ['bank' + str(b) for b in range(self.banks)] \
+			+ ['CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] + self.pg0SelOrder
+		self.rdOrder = list(self.enOrder)
+
 		self.crossCheck()
 
 	def periph(self, name):
@@ -244,13 +741,13 @@ class McuVhdEmitter():
 		'''RAISE when the description and the transcribed RTL structure disagree.'''
 		# 1. sharedBus='periph' membership must match the transcribed shim/mux structure
 		descShared = set(p.Name for p in self.gen.Peripherals if getattr(p, 'SharedBus', None) == 'periph')
-		rtlShared = set(n for n in SHSLV if SHSLV[n]['shim'] is not None)
+		rtlShared = set(n for n in self.shslv if self.shslv[n]['shim'] is not None)
 		if descShared != rtlShared:
 			raise Exception('MCU.vhd emitter: sharedBus=periph peripherals ' + str(sorted(descShared))
 				+ ' do not match the transcribed RTL fabric ' + str(sorted(rtlShared))
 				+ ' (update the SHSLV/order tables in mcu_vhd.py from the RTL)')
 		descNative = set(p.Name for p in self.gen.Peripherals if getattr(p, 'SharedBus', None) == 'native')
-		rtlNative = set(n for n in SHSLV if SHSLV[n]['shim'] is None)
+		rtlNative = set(n for n in self.shslv if self.shslv[n]['shim'] is None)
 		if descNative != rtlNative:
 			raise Exception('MCU.vhd emitter: sharedBus=native peripherals ' + str(sorted(descNative))
 				+ ' do not match the transcribed RTL fabric ' + str(sorted(rtlNative)))
@@ -276,14 +773,15 @@ class McuVhdEmitter():
 
 		# 3. Bridge membership == combinationalRead metadata
 		descComb = set(p.Name for p in self.gen.Peripherals if getattr(p, 'CombinationalRead', False))
-		if descComb != set(['I2C0', 'I2C1', 'NPU']):
+		expectComb = set(['I2C0']) | (set(['I2C1']) if self.i2c1 else set()) | (set(['NPU']) if self.npu else set())
+		if descComb != expectComb:
 			raise Exception('MCU.vhd emitter: combinationalRead peripherals ' + str(sorted(descComb))
-				+ ' do not match the transcribed rdata-bridge membership (I2C0, I2C1, NPU)')
+				+ ' do not match the transcribed rdata-bridge membership ' + str(sorted(expectComb)))
 
 		# 4. Order lists must cover the shared set exactly
-		if set(PG0_SEL_ORDER) != rtlShared:
+		if set(self.pg0SelOrder) != rtlShared:
 			raise Exception('MCU.vhd emitter: PG0_SEL_ORDER does not cover the window-slot peripherals')
-		slots = [self.winSlot(n) for n in PG0_SEL_ORDER + PG0_NATIVE_ORDER]
+		slots = [self.winSlot(n) for n in self.pg0SelOrder + PG0_NATIVE_ORDER]
 		if len(set(slots)) != len(slots) or any(s < 0 or s > 15 for s in slots):
 			raise Exception('MCU.vhd emitter: page-0 slots must be unique and within 0..15 (reserved gaps allowed)')
 		# M17: native page-0 slaves (PWRCTRL) must be native AND sit at their slot address
@@ -294,15 +792,40 @@ class McuVhdEmitter():
 			if self.periph(name).BaseAddress != expected:
 				raise Exception('MCU.vhd emitter: ' + name + ' base address ' + hex(self.periph(name).BaseAddress)
 					+ ' does not match window slot ' + str(self.winSlot(name)) + ' (' + hex(expected) + ')')
-		if set(RD_ORDER) != rtlShared | rtlNative | set(MEMSLV):
+		if set(self.rdOrder) != rtlShared | rtlNative | set(self.memslv):
 			raise Exception('MCU.vhd emitter: RD_ORDER does not cover the shared slaves')
-		if set(EN_ORDER) != rtlShared | rtlNative | set(MEMSLV):
+		if set(self.enOrder) != rtlShared | rtlNative | set(self.memslv):
 			raise Exception('MCU.vhd emitter: EN_ORDER does not cover the shared slaves')
 		shimAll = set()
-		for _, names, _ in SHIM_GROUPS:
+		for _, names, _ in self.shimGroups:
 			shimAll |= set(names)
 		if shimAll != rtlShared:
 			raise Exception('MCU.vhd emitter: SHIM_GROUPS do not cover the shared peripherals')
+
+		# 5. A2 geometry sanity: the window must round to a power of two that
+		# holds the bank row, and the NPU-block splice source must be loaded
+		# whenever the NPU is present.
+		if 0x10000 + self.banks * 0x4000 > (1 << (self.shAw + 2)):
+			raise Exception('MCU.vhd emitter: ' + str(self.banks) + ' banks do not fit under SH_AW=' + str(self.shAw))
+		if self.npu and self.npuBlocks == {}:
+			raise Exception('MCU.vhd emitter: NPU present but MCU.template.npu.vhd blocks were not loaded')
+		if self.i2c1 and self.i2c1Blocks == {}:
+			raise Exception('MCU.vhd emitter: I2C1 present but MCU.template.i2c1.vhd blocks were not loaded')
+		for flag, blocks, tpl in ((self.uart1, self.uart1Blocks, 'uart1'),
+				(self.spi1, self.spi1Blocks, 'spi1'), (self.timer1, self.timer1Blocks, 'timer1')):
+			if flag and blocks == {}:
+				raise Exception('MCU.vhd emitter: ' + tpl.upper() + ' present but MCU.template.'
+					+ tpl + '.vhd blocks were not loaded')
+
+		# 6. G1b: every FromSpread altFunc must be a known output-pool member
+		# (SPREAD_SIG owns the RTL signal spelling the spread planes wire)
+		for gi in range(4):
+			for pin in self.periph('GPIO' + str(gi)).Pins:
+				for af in pin.AltFuncs:
+					if getattr(af, 'FromSpread', False) and af.Name not in SPREAD_SIG:
+						raise Exception('MCU.vhd emitter: spread function ' + af.Name
+							+ ' (GPIO' + str(gi) + ' pin ' + str(pin.BitNumber) + ' AF'
+							+ str(af.Index) + ') has no SPREAD_SIG spelling')
 
 	def winSlot(self, name):
 		'''Peripheral-window page-0 slot (the LEGACY 0x4000-page slot number).'''
@@ -314,22 +837,22 @@ class McuVhdEmitter():
 
 	def selOf(self, key):
 		'''EN/RD_ORDER key -> shslv_<sel> spelling (peripheral or memory slave).'''
-		if key in MEMSLV:
+		if key in self.memslv:
 			return key
-		return SHSLV[key]['sel']
+		return self.shslv[key]['sel']
 
 	def rdataOf(self, key):
 		'''EN/RD_ORDER key -> the rdata net muxed into sh_rdata_mux.'''
-		if key in MEMSLV:
-			return MEMSLV[key]
-		sig = SHSLV[key]['rdata']
+		if key in self.memslv:
+			return self.memslv[key]
+		sig = self.shslv[key]['rdata']
 		if getattr(self.periph(key), 'CombinationalRead', False):
 			pass	# the bridge-registered net keeps the plain name
 		return sig
 
 	def rdataSignal(self, name):
 		'''Signal the instance drives: bridge slaves drive the _c (combinational) net.'''
-		sig = SHSLV[name]['rdata']
+		sig = self.shslv[name]['rdata']
 		if getattr(self.periph(name), 'CombinationalRead', False):
 			sig += '_c'
 		return sig
@@ -390,21 +913,32 @@ class McuVhdEmitter():
 		lines.append(' ' * 8 + ');')
 		return lines
 
+	def pageBits(self, page):
+		'''Page code at the geometry's width (SH_AW-12 bits; 3 = Castalia).'''
+		return format(page, '0' + str(self.shAw - 12) + 'b')
+
+	def pageSlice(self):
+		return 'sh_addr(' + str(self.shAw - 1) + ' downto 12)'
+
 	def emitShslvSubdecode(self):
 		ind = ' ' * 4
 		clintBits = format((CLINT_BASE >> 12) & 3, '02b')
 		mtxBits = format((MUTEX_BASE >> 12) & 3, '02b')
 		irtrBits = format((IRQROUTER_BASE >> 12) & 3, '02b')
+		psl = self.pageSlice()
 		lines = []
-		lines.append(ind + '-- M11/M12: page select on s_addr(14:12). Page 000 is the shared boot')
-		lines.append(ind + '-- ROM (M12 ' + EMDASH + ' the single rom_hvt_pg all four harts reset into);')
-		lines.append(ind + '-- 010 is the TCM region (tile-private, never arrives here).')
-		lines.append(ind + 'shslv_rom_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "000" else \'0\';')
-		lines.append(ind + 'shslv_perwin_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "001" else \'0\';')
-		lines.append(ind + 'shslv_npuram_sel'.ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "011" else \'0\';')
-		for b in range(4):
-			lines.append(ind + ('shslv_bank' + str(b) + '_sel').ljust(16) + ' <= \'1\' when sh_addr(14 downto 12) = "1'
-				+ format(b, '02b') + '" else \'0\';')
+		# NOTE the comment spells the ARBITER port name (s_addr), the code the
+		# fabric net (sh_addr) — transcribed from the golden master.
+		lines.append(ind + '-- M11/M12: page select on s_addr(' + str(self.shAw - 1) + ':12). Page ' + self.pageBits(0) + ' is the shared boot')
+		lines.append(ind + '-- ROM (M12 ' + EMDASH + ' the single rom_hvt_pg all ' + self.hartsWord() + ' harts reset into);')
+		lines.append(ind + '-- ' + self.pageBits(2) + ' is the TCM region (tile-private, never arrives here).')
+		lines.append(ind + 'shslv_rom_sel'.ljust(16) + ' <= \'1\' when ' + psl + ' = "' + self.pageBits(0) + '" else \'0\';')
+		lines.append(ind + 'shslv_perwin_sel'.ljust(16) + ' <= \'1\' when ' + psl + ' = "' + self.pageBits(1) + '" else \'0\';')
+		if self.npu:
+			lines.append(ind + 'shslv_npuram_sel'.ljust(16) + ' <= \'1\' when ' + psl + ' = "' + self.pageBits(3) + '" else \'0\';')
+		for b in range(self.banks):
+			lines.append(ind + ('shslv_bank' + str(b) + '_sel').ljust(16) + ' <= \'1\' when ' + psl + ' = "'
+				+ self.pageBits(4 + b) + '" else \'0\';')
 		lines.append(ind + '-- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots,')
 		lines.append(ind + '-- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router')
 		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
@@ -413,19 +947,19 @@ class McuVhdEmitter():
 		lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
 		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering ' + EMDASH)
 		lines.append(ind + '-- every peripheral back at its original Myshkin address, shared by')
-		lines.append(ind + '-- all 4 harts')
-		for name in PG0_SEL_ORDER:
-			selName = 'shslv_' + SHSLV[name]['sel'] + '_sel'
+		lines.append(ind + '-- all ' + str(self.nHarts()) + ' harts')
+		for name in self.pg0SelOrder:
+			selName = 'shslv_' + self.shslv[name]['sel'] + '_sel'
 			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
 				+ format(self.winSlot(name), '04b') + '" else \'0\';')
 		lines.append(ind + '-- M17: the power controller is a NATIVE slave IN a page-0 slot (11,')
 		lines.append(ind + '-- 0x4B00 ' + EMDASH + ' vacated by SARADC0): slot-decoded like the peripherals')
 		lines.append(ind + '-- above, but it speaks the arbiter protocol directly (no shim).')
 		for name in PG0_NATIVE_ORDER:
-			selName = 'shslv_' + SHSLV[name]['sel'] + '_sel'
+			selName = 'shslv_' + self.shslv[name]['sel'] + '_sel'
 			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
 				+ format(self.winSlot(name), '04b') + '" else \'0\';')
-		for key in EN_ORDER:
+		for key in self.enOrder:
 			sel = self.selOf(key)
 			lines.append(ind + ('shslv_' + sel + '_en').ljust(16) + ' <= sh_en and shslv_' + sel + '_sel;')
 		return lines
@@ -436,11 +970,11 @@ class McuVhdEmitter():
 		lines.append(ind + 'shslv_rd_sel: process(mclk, resetn)')
 		lines.append(ind + 'begin')
 		lines.append(ind * 2 + "if resetn = '0' then")
-		for key in RD_ORDER:
+		for key in self.rdOrder:
 			lines.append(ind * 3 + ('shslv_rd_' + self.selOf(key)).ljust(16) + " <= '0';")
 		lines.append(ind * 2 + 'elsif rising_edge(mclk) then')
 		lines.append(ind * 3 + "if sh_en = '1' then")
-		for key in RD_ORDER:
+		for key in self.rdOrder:
 			sel = self.selOf(key)
 			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
 		lines.append(ind * 3 + 'end if;')
@@ -460,19 +994,23 @@ class McuVhdEmitter():
 		lines.append(ind + 'begin')
 		lines.append(ind * 2 + "if resetn = '0' then")
 		lines.append(ind * 3 + "i2c0_sh_rdata <= (others => '0');")
-		lines.append(ind * 3 + "i2c1_sh_rdata <= (others => '0');")
-		lines.append(ind * 3 + "npu_sh_rdata  <= (others => '0');")
+		if self.i2c1:
+			lines.append(ind * 3 + "i2c1_sh_rdata <= (others => '0');")
+		if self.npu:
+			lines.append(ind * 3 + "npu_sh_rdata  <= (others => '0');")
 		lines.append(ind * 2 + 'elsif rising_edge(mclk) then')
 		lines.append(ind * 3 + "if shslv_i2c0_en = '1' then")
 		lines.append(ind * 4 + 'i2c0_sh_rdata <= i2c0_sh_rdata_c;')
 		lines.append(ind * 3 + 'end if;')
-		lines.append(ind * 3 + "if shslv_i2c1_en = '1' then")
-		lines.append(ind * 4 + 'i2c1_sh_rdata <= i2c1_sh_rdata_c;')
-		lines.append(ind * 3 + 'end if;')
-		lines.append(ind * 3 + "-- M7d: NPU's MabMmrQ is combinational too (same rule)")
-		lines.append(ind * 3 + "if shslv_npu_en = '1' then")
-		lines.append(ind * 4 + 'npu_sh_rdata <= npu_sh_rdata_c;')
-		lines.append(ind * 3 + 'end if;')
+		if self.i2c1:
+			lines.append(ind * 3 + "if shslv_i2c1_en = '1' then")
+			lines.append(ind * 4 + 'i2c1_sh_rdata <= i2c1_sh_rdata_c;')
+			lines.append(ind * 3 + 'end if;')
+		if self.npu:
+			lines.append(ind * 3 + "-- M7d: NPU's MabMmrQ is combinational too (same rule)")
+			lines.append(ind * 3 + "if shslv_npu_en = '1' then")
+			lines.append(ind * 4 + 'npu_sh_rdata <= npu_sh_rdata_c;')
+			lines.append(ind * 3 + 'end if;')
 		lines.append(ind * 2 + 'end if;')
 		lines.append(ind + 'end process;')
 		return lines
@@ -481,7 +1019,7 @@ class McuVhdEmitter():
 		lines = []
 		prefix = ' ' * 4 + 'sh_rdata_mux <= '
 		cont = ' ' * len(prefix)
-		for i, key in enumerate(RD_ORDER):
+		for i, key in enumerate(self.rdOrder):
 			row = self.rdataOf(key).ljust(14) + ' when ' + ('shslv_rd_' + self.selOf(key)).ljust(16) + " = '1' else"
 			lines.append((prefix if i == 0 else cont) + row)
 		lines.append(cont + "(others => '0');  -- no slave (TCM page, unmapped)")
@@ -490,12 +1028,12 @@ class McuVhdEmitter():
 	def emitPolarityShims(self):
 		ind = ' ' * 4
 		lines = []
-		for gi, (comment, names, pad) in enumerate(SHIM_GROUPS):
+		for gi, (comment, names, pad) in enumerate(self.shimGroups):
 			for c in comment:
 				lines.append(ind + c)
 			for name in names:
-				shim = SHSLV[name]['shim'] + '_sh_en_n'
-				lines.append(ind + shim.ljust(pad) + '<= not shslv_' + SHSLV[name]['sel'] + '_en;')
+				shim = self.shslv[name]['shim'] + '_sh_en_n'
+				lines.append(ind + shim.ljust(pad) + '<= not shslv_' + self.shslv[name]['sel'] + '_en;')
 			if gi == 0:
 				lines.append(ind + 'sh_wen_n <= not sh_we;')
 				lines.append('')
@@ -659,6 +1197,7 @@ class McuVhdEmitter():
 		lines.append('            sh_scfail => arb_scfail(0),')
 		lines.append('            sh_lock   => arb_lock(0),')
 		lines.append('            tcm_pgen  => pgen_mem(1),')
+		lines.append("            tcm_retn  => '1',")
 		lines.append('            -- M17: hart 0 is ALWAYS-ON ' + EMDASH + ' its domain controls are strapped')
 		lines.append('            -- inactive (explicit, per the M14 netlist-boundary rule)')
 		lines.append("            pd_sleep  => '0',")
@@ -668,8 +1207,17 @@ class McuVhdEmitter():
 		lines.append('        );')
 		return lines
 
+	def masterW(self):
+		'''mp_arbiter s_master / mutex_bank master width (A2: the MW generic,
+		default 2 = the Castalia shape).'''
+		return max(1, _clog2(self.nHarts()))
+
 	def emitArbGeneric(self):
-		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)']
+		# A2: MW (s_master width) is emitted only when it differs from the
+		# RTL default 2 (N=4 byte-identity)
+		mw = self.masterW()
+		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW, DATA_WIDTH => 32'
+			+ ('' if mw == 2 else ', MW => ' + str(mw)) + ')']
 
 	def emitResvGeneric(self):
 		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW)']
@@ -709,7 +1257,9 @@ class McuVhdEmitter():
 		lines.append('    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,')
 		lines.append('    -- so this block is a provable NO-OP until software routes an IRQ.')
 		lines.append('    irtr0: entity work.irq_router')
-		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_IRQS => NUM_IRQS)')
+		# A2: ADDR_W emitted only when it differs from the RTL default 4
+		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_IRQS => NUM_IRQS'
+			+ ('' if addrW == 4 else ', ADDR_W => ' + str(addrW)) + ')')
 		lines.append('        port map (')
 		lines.append('            clk        => mclk,')
 		lines.append('            resetn     => resetn,')
@@ -719,6 +1269,594 @@ class McuVhdEmitter():
 		lines.append('            wdata      => sh_wdata,')
 		lines.append('            rdata      => irtr_rdata,')
 		lines.append('            irq_en_out => tile_irq_en_flat')
+		lines.append('        );')
+		return lines
+
+	# ------------------------------------------------------------------
+	# A2 (Argus): geometry regions — SH_AW constant, memory-slave decls,
+	# bank row, and the NPU-conditional verbatim blocks. Every emitter
+	# reproduces the golden master byte-identically at the Castalia
+	# geometry (SH_AW=15, 4 banks, NPU present).
+	# ------------------------------------------------------------------
+
+	def spliceSideBlock(self, blocks, sourceName, name):
+		'''Verbatim side-template block, re-running any inner --@GEN:bus:*@
+		marker through the bus emitter (the instance blocks carry their own
+		bus marker since the main template no longer does).'''
+		if name not in blocks:
+			raise Exception('MCU.vhd emitter: ' + sourceName + ' has no block "' + name + '"')
+		lines = []
+		for line in blocks[name]:
+			m = re.match(r'^\s*--@GEN:bus:(\w+)@\s*$', line)
+			if m:
+				lines.extend(self.emitBus(m.group(1)))
+			else:
+				lines.append(line)
+		return lines
+
+	def npuBlock(self, name):
+		'''Verbatim NPU-conditional block from MCU.template.npu.vhd (empty
+		when the config drops the NPU).'''
+		if not self.npu:
+			return []
+		return self.spliceSideBlock(self.npuBlocks, 'MCU.template.npu.vhd', name)
+
+	def i2c1Block(self, name):
+		'''Verbatim I2C1-conditional block from MCU.template.i2c1.vhd (G1a).
+		When the config drops I2C1 the instance marker leaves a breadcrumb
+		comment; everything else emits nothing.'''
+		if not self.i2c1:
+			if name == 'i2c1-instance':
+				return ['    -- I2C1 dropped by this configuration (window slot 15 reads zero;',
+					'    -- vectors 70-82 are reserved; the SDA1/SCL1 pad planes are hi-Z)']
+			return []
+		return self.spliceSideBlock(self.i2c1Blocks, 'MCU.template.i2c1.vhd', name)
+
+	def emitI2cFabricDecls(self):
+		'''The I2C0/I2C1 shared-window fabric declarations (G1a transcription).'''
+		lines = list(I2C_FABRIC_DECLS)
+		if not self.i2c1:
+			lines[0] = lines[0].replace('I2C0/I2C1 (M11: window slots 14/15)',
+				'I2C0 (M11: window slot 14; I2C1 dropped)')
+			lines = [l for l in lines if 'i2c1' not in l]
+		return lines
+
+	def emitGpio2Af1Planes(self):
+		'''The P3 (GPIO2) AF1 relocation-plane aggregates. Dropped I2C1/UART1
+		rows degrade to the existing "unassigned" hi-Z idiom (literal pin
+		index, since the pnum_gpio2_af1_{sda1,scl1,tx1,rx1} constants are
+		gated with their owner). The two knobs gate independently (G1b).'''
+		lines = list(GPIO2_AF1_PLANES)
+		dropRows = {}
+		if not self.i2c1:
+			dropRows.update({'scl1': ('3', 'I2C1'), 'sda1': ('2', 'I2C1')})
+		if not self.uart1:
+			dropRows.update({'rx1': ('1', 'UART1'), 'tx1': ('0', 'UART1')})
+		if dropRows:
+			out = []
+			for l in lines:
+				if not self.i2c1 and 'I2C1 relocation on P3.2/3' in l:
+					l = l.replace('I2C1 relocation on P3.2/3,', 'P3.2/3 reserved (I2C1 dropped),')
+				if not self.uart1 and 'UART1 relocation on P3.0/1' in l:
+					l = l.replace('UART1 relocation on P3.0/1,', 'P3.0/1 reserved (UART1 dropped),')
+				m = re.match(r'^(\s*)pnum_gpio2_af1_(\w+)\s*=> \w+_(out|dir|ren)(,?)\s*--.*$', l)
+				if m and m.group(2) in dropRows:
+					pin, owner = dropRows[m.group(2)]
+					mode = {'out': 'hi-Z input', 'dir': 'input', 'ren': 'pull disabled'}[m.group(3)]
+					col = l.index('--')
+					body = m.group(1) + pin + " => '0'" + m.group(4)
+					l = body.ljust(col) + '-- GPIO2 pin ' + pin + ': reserved, ' + owner + ' dropped (' + mode + ')'
+				out.append(l)
+			lines = out
+		return lines
+
+	def emitI2cInputMuxes(self):
+		'''The I2C input/REN AF-selection muxes (relocated pad wins). The I2C1
+		muxes disappear with the instance; the comment drops its mention.'''
+		lines = list(I2C_INPUT_MUXES)
+		if not self.i2c1:
+			out = []
+			skip = 0
+			for l in lines:
+				if skip:
+					skip -= 1
+					continue
+				s = l.strip()
+				if s.startswith(('sda1_ren_in <=', 'scl1_ren_in <=', 'sda1_in <=', 'scl1_in <=')):
+					skip = 2	# each mux is a 3-line conditional assignment
+					continue
+				if 'I2C0 relocates to P2.6/7, I2C1 to P3.2/3' in l:
+					l = l.replace('I2C0 relocates to P2.6/7, I2C1 to P3.2/3', 'I2C0 relocates to P2.6/7')
+				out.append(l)
+			lines = out
+		return lines
+
+	def emitGpio3PrimaryPlanes(self):
+		'''The P4 (GPIO3) primary alt-function aggregates. Dropped I2C1 rows
+		keep their pnum choice (the AF0 pnum constants are transcription,
+		not gated) but drive the hi-Z '0' idiom.'''
+		lines = list(GPIO3_PRIMARY_PLANES)
+		if not self.i2c1:
+			out = []
+			for l in lines:
+				m = re.match(r'^(\s*pnum_gpio3_(scl1|sda1)\s*=> )\w+_(?:out|dir|ren),\s*--.*$', l)
+				if m:
+					pin = '3' if m.group(2) == 'scl1' else '2'
+					col = l.index('--')
+					body = m.group(1) + "'0',"
+					l = body.ljust(col) + '-- GPIO3 pin ' + pin + ': reserved (I2C1 dropped)'
+				out.append(l)
+			lines = out
+		return lines
+
+	# ------------------------------------------------------------------
+	# G1b emitters: UART1 / SPI1 / TIMER1 config-droppable regions
+	# ------------------------------------------------------------------
+
+	def uart1Block(self, name):
+		'''Verbatim UART1-conditional block from MCU.template.uart1.vhd.'''
+		if not self.uart1:
+			if name == 'uart1-instance':
+				return ['    -- UART1 dropped by this configuration (window slot 5 reads zero;',
+					'    -- vectors 52-54 are reserved; the TX1/RX1 pad planes are hi-Z)']
+			return []
+		return self.spliceSideBlock(self.uart1Blocks, 'MCU.template.uart1.vhd', name)
+
+	def spi1Block(self, name):
+		'''Verbatim SPI1-conditional block from MCU.template.spi1.vhd.'''
+		if not self.spi1:
+			if name == 'spi1-instance':
+				return ['    -- SPI1 dropped by this configuration (window slot 3 reads zero;',
+					'    -- vectors 11-12 are reserved; the CS1/MISO1/MOSI1/SCK1 pad planes',
+					'    -- are hi-Z)']
+			return []
+		return self.spliceSideBlock(self.spi1Blocks, 'MCU.template.spi1.vhd', name)
+
+	def timer1Block(self, name):
+		'''Verbatim TIMER1-conditional block from MCU.template.timer1.vhd.'''
+		if not self.timer1:
+			if name == 'timer1-instance':
+				return ['    -- TIMER1 dropped by this configuration (window slot 7 reads zero;',
+					'    -- vectors 22-27 are reserved; the T1CMP0/T1CMP1/T1CAP0/T1CAP1 pad',
+					'    -- planes are hi-Z)']
+			return []
+		return self.spliceSideBlock(self.timer1Blocks, 'MCU.template.timer1.vhd', name)
+
+	def emitMoverFabricDecls(self):
+		'''The M7b/M7c mover fabric declarations (G1b transcription): TIMER1
+		rows leave the M7b sub-block, SPI1/UART1 rows the M7c sub-block (the
+		whole M7c sub-block disappears when both are dropped).'''
+		lines = list(MOVER_FABRIC_DECLS)
+		if not self.timer1:
+			lines[0] = lines[0].replace('TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)',
+				'TIMER0 + GPIO1/2/3 (M11: window slots 6/1/8/13; TIMER1 dropped)')
+			lines = [l for l in lines if 'tim1' not in l]
+		m7cAt = [i for i, l in enumerate(lines) if l.strip().startswith('-- M7c movers:')][0]
+		if not self.spi1 and not self.uart1:
+			lines = lines[:m7cAt]
+		elif not self.uart1:
+			lines[m7cAt] = lines[m7cAt].replace('SPI1 + UART1 (M11: window slots 3/5)',
+				'SPI1 (M11: window slot 3; UART1 dropped)')
+			lines = [l for l in lines if 'uart1' not in l]
+		elif not self.spi1:
+			lines[m7cAt] = lines[m7cAt].replace('SPI1 + UART1 (M11: window slots 3/5)',
+				'UART1 (M11: window slot 5; SPI1 dropped)')
+			lines = [l for l in lines if 'spi1' not in l]
+		return lines
+
+	def emitSpi1InputTaps(self):
+		'''The SPI1 pad input taps on P2.0-3 (disappear with the instance).'''
+		return list(SPI1_INPUT_TAPS) if self.spi1 else []
+
+	def emitUart1InputMuxes(self):
+		'''The UART1 relocatable-input muxes (RX1/ren; disappear with the
+		instance — the pnum_gpio2_af1_tx1/rx1 constants they read are gated).'''
+		return list(UART1_INPUT_MUXES) if self.uart1 else []
+
+	def emitGpio1PrimaryPlanes(self):
+		'''The P2 (GPIO1) primary alt-function aggregates. Dropped UART1/SPI1
+		rows keep their pnum choice (AF0 pnum constants are transcription,
+		not gated) but drive the hi-Z '0' idiom; the CS1 manual-toggle
+		passthrough survives an SPI1 drop as a plain-GPIO passthrough.'''
+		lines = list(GPIO1_PRIMARY_PLANES)
+		drops = {}
+		if not self.uart1:
+			drops.update({'rx1': ('7', 'UART1'), 'tx1': ('6', 'UART1')})
+		if not self.spi1:
+			drops.update({'sck1': ('3', 'SPI1'), 'mosi1': ('2', 'SPI1'), 'miso1': ('1', 'SPI1')})
+		if not drops:
+			return lines
+		out = []
+		for l in lines:
+			m = re.match(r'^(\s*pnum_gpio1_(\w+) => )\w+_(?:out|dir|ren),\s*--.*$', l)
+			if m and m.group(2) in drops:
+				pin, owner = drops[m.group(2)]
+				col = l.index('--')
+				body = m.group(1) + "'0',"
+				l = body.ljust(col) + '-- GPIO1 pin ' + pin + ': reserved (' + owner + ' dropped)'
+			elif not self.spi1 and 'CS1 line manually toggled' in l:
+				col = l.index('--')
+				l = l[:col].rstrip().ljust(col) + '-- GPIO1 pin 0 (ex-CS1; SPI1 dropped)'
+			out.append(l)
+		return out
+
+	def emitGpio1Af1Planes(self):
+		'''The P2 (GPIO1) AF1 relocation-plane aggregates. TIMER1's compare
+		relocations on P2.2/3 degrade to the '0' idiom (literal pin index —
+		the pnum_gpio1_af1_t1_cmp* constants are gated with TIMER1).'''
+		lines = list(GPIO1_AF1_PLANES)
+		if not self.spi1:
+			lines[0] = lines[0].replace('(the SPI1 pins)', '(the ex-SPI1 pins)')
+		if not self.uart1:
+			lines[1] = lines[1].replace('(the UART1 pins)', '(the ex-UART1 pins)')
+		if not self.timer1:
+			lines[0] = lines[0].replace('TIMER0/1 compare (PWM) outputs on P2.0-3',
+				'TIMER0 compare (PWM) outputs on P2.0/1 (TIMER1 dropped)')
+			out = []
+			for l in lines:
+				m = re.match(r'^(\s*)pnum_gpio1_af1_(t1_cmp[01]) => \w+_(out|dir|ren),\s*--.*$', l)
+				if m:
+					pin = '3' if m.group(2) == 't1_cmp1' else '2'
+					mode = {'out': 'hi-Z input', 'dir': 'input', 'ren': 'pull disabled'}[m.group(3)]
+					col = l.index('--')
+					body = m.group(1) + pin + " => '0',"
+					l = body.ljust(col) + '-- GPIO1 pin ' + pin + ': reserved, TIMER1 dropped (' + mode + ')'
+				out.append(l)
+			lines = out
+		return lines
+
+	def emitGpio2TimerMuxes(self):
+		'''The TIMER compare-ren / capture-input AF-selection muxes. TIMER1's
+		muxes disappear with the instance (their pnum_gpio*_af1_t1_* and
+		peripheral-side signals are gated); comments narrow to TIMER0.'''
+		lines = list(GPIO2_TIMER_MUXES)
+		if self.timer1:
+			return lines
+		out = []
+		skip = 0
+		for l in lines:
+			if skip:
+				skip -= 1
+				continue
+			s = l.strip()
+			if s.startswith(('t1_cmp0_ren_in', 't1_cmp1_ren_in')):
+				skip = 4	# 5-line two-stage conditional assignment
+				continue
+			if s.startswith(('t1_cap0_in', 't1_cap1_in', 't1_cap0_ren_in', 't1_cap1_ren_in')):
+				skip = 2	# 3-line conditional assignment
+				continue
+			if 'three locations (home P3.0/1/4/5,' in l:
+				l = l.replace('(home P3.0/1/4/5,', '(home P3.0/1,')
+			elif s.startswith('-- AF1 on P2.0-3, AF1 on P4.4-7)'):
+				l = l.replace('AF1 on P2.0-3, AF1 on P4.4-7)', 'AF1 on P2.0/1, AF1 on P4.4/5)')
+			elif s.startswith('-- selection with fixed priority'):
+				l = l.replace('priority P2 > P4 > home.', 'priority P2 > P4 > home (TIMER1 dropped).')
+			elif s.startswith('-- Capture inputs relocate to P4.0-3'):
+				l = l.replace('relocate to P4.0-3 (AF1)', 'relocate to P4.0/1 (AF1; TIMER1 dropped)')
+			out.append(l)
+		return out
+
+	def emitGpio2PrimaryPlanes(self):
+		'''The P3 (GPIO2) primary alt-function aggregates. Dropped TIMER1 rows
+		keep their pnum choice (AF0 transcription) and drive '0'; the
+		t1_cap0 out-plane passthrough (p3_out) survives — it references no
+		TIMER1 signal and is already the plain-GPIO idiom.'''
+		lines = list(GPIO2_PRIMARY_PLANES)
+		if self.timer1:
+			return lines
+		pinMap = {'t1_cmp0': '4', 't1_cmp1': '5', 't1_cap0': '6', 't1_cap1': '7'}
+		out = []
+		for l in lines:
+			m = re.match(r'^(\s*pnum_gpio2_(t1_(?:cmp[01]|cap[01])) => )t1_\w+_(?:out|dir|ren),\s*--.*$', l)
+			if m:
+				col = l.index('--')
+				body = m.group(1) + "'0',"
+				l = body.ljust(col) + '-- GPIO2 pin ' + pinMap[m.group(2)] + ': reserved (TIMER1 dropped)'
+			out.append(l)
+		return out
+
+	def emitGpio3Af1Planes(self):
+		'''The P4 (GPIO3) AF1 relocation-plane aggregates. TIMER1's capture
+		relocations (P4.2/3) and compare relocations (P4.6/7) degrade to the
+		'0' idiom with literal pin indices (their pnums are gated).'''
+		lines = list(GPIO3_AF1_PLANES)
+		if self.timer1:
+			return lines
+		hdr = ['        -- AF1 plane: TIMER0 capture inputs relocate to P4.0/1 (the I2C0 pins),',
+			'        -- TIMER0 compare (PWM) outputs relocate to P4.4/5 (the dead DTP pins;',
+			"        -- TIMER1 dropped). Captures are inputs: out slice '0', dir/ren from the timer."]
+		pinMap = {'t1_cap0': '2', 't1_cap1': '3', 't1_cmp0': '6', 't1_cmp1': '7'}
+		out = list(hdr)
+		for l in lines[3:]:
+			m = re.match(r"^(\s*)pnum_gpio3_af1_(t1_(?:cmp[01]|cap[01])) => (?:\w+_(?:out|dir|ren)|'0'),\s*--.*$", l)
+			if m:
+				pin = pinMap[m.group(2)]
+				col = l.index('--')
+				body = m.group(1) + pin + " => '0',"
+				l = body.ljust(col) + '-- GPIO3 pin ' + pin + ': reserved, TIMER1 dropped'
+			out.append(l)
+		return out
+
+	def emitAfSpread(self, gi):
+		'''One GPIO port's AF output-spread block: the AF1..AF7 (GPIO0) /
+		AF2..AF7 (GPIO1-3) plane aggregates + the 8-plane flatten, emitted
+		from the description's FromSpread altFuncs (generate.py filters
+		_GPIO_AF_SPREAD by config, so a dropped source's slots read '0').
+		SPREAD_SIG owns the RTL signal spellings; byte-identity at defaults
+		is proven by check_mcu_vhd.py STRICT.'''
+		port = self.periph('GPIO' + str(gi))
+		n = gi + 1
+		byPin = {}
+		for pin in port.Pins:
+			byPin[pin.BitNumber] = pin
+		lines = list(SPREAD_HEADERS[gi])
+		planes = range(1, 8) if gi == 0 else range(2, 8)
+		for k in planes:
+			for sfx in ('out', 'dir', 'ren'):
+				lines.append('        afunc%d_af%d_%s <= (' % (n, k, sfx))
+				for b in range(7, -1, -1):
+					src = "'0'"
+					for af in byPin[b].AltFuncs:
+						if af.Index == k and getattr(af, 'FromSpread', False):
+							src = SPREAD_SIG[af.Name] + '_' + sfx
+					lines.append('            %d => %s%s' % (b, src, '' if b == 0 else ','))
+				lines.append('        );')
+		for sfx in ('out', 'dir', 'ren'):
+			parts = ['afunc%d_af%d_%s' % (n, k, sfx) for k in range(7, 0, -1)]
+			parts.append('afunc%d_%s' % (n, sfx))
+			lines.append('        afunc%d_all_%s <= ' % (n, sfx) + ' & '.join(parts) + ';')
+		return lines
+
+	def emitAnalogTieOffs(self):
+		'''The ex-SARADC/AFE alt-function tie-offs. t1_cap1_out's tie leaves
+		with TIMER1 (its declaration lives in the TIMER1 pad-decl block).'''
+		lines = list(ANALOG_TIE_OFFS)
+		if not self.timer1:
+			lines = [l for l in lines if not l.strip().startswith('t1_cap1_out')]
+			lines = [l.replace('GPIO2 pins 3/7 (T0/T1 CAP1 out, formerly SARADC DTP0/1)',
+				'GPIO2 pin 3 (T0 CAP1 out, formerly SARADC DTP0; TIMER1 dropped)') for l in lines]
+		return lines
+
+	def windowTop(self):
+		return (1 << (self.shAw + 2)) - 1
+
+	def banksTop(self):
+		return 0x10000 + self.banks * 0x4000 - 1
+
+	def emitShWindowConst(self):
+		ind = ' ' * 8
+		pw = self.shAw - 12
+		lines = []
+		lines.append(ind + '-- M3c.2: shared window behind mp_arbiter on mclk. M5b widened SH_AW')
+		lines.append(ind + '-- 8 -> 12 (whole pre-M11 region 4). M11 memory-map rework: SH_AW')
+		lines.append(ind + '-- 12 -> ' + str(self.shAw) + ' ' + EMDASH + ' the arbiter word address now covers ALL of')
+		lines.append(ind + '-- 0x00000-0x%05X (word addr = data_addr(%d:2)) and the slave' % (self.windowTop(), self.shAw + 1))
+		lines.append(ind + '-- sub-decode selects on s_addr(' + str(self.shAw - 1) + ':12):')
+		lines.append(ind + '--   ' + self.pageBits(0) + ' = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM ' + EMDASH + ' one')
+		lines.append(ind + '--   ' + ' ' * pw + '   rom_hvt_pg, read-only slave; all ' + self.hartsWord() + ' harts reset here)')
+		lines.append(ind + '--   ' + self.pageBits(1) + ' = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots')
+		lines.append(ind + '--   ' + ' ' * pw + '   at the LEGACY slot numbering, page 1 = CLINT @0x5000,')
+		lines.append(ind + '--   ' + ' ' * pw + '   page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)')
+		lines.append(ind + '--   ' + self.pageBits(2) + ' = dead (TCM region ' + EMDASH + ' tile-private, never arrives here)')
+		if self.npu:
+			lines.append(ind + '--   ' + self.pageBits(3) + ' = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)')
+		else:
+			lines.append(ind + '--   ' + self.pageBits(3) + ' = dead (ex-NPU staging window 0xC000-0xFFFF ' + EMDASH + ' the NPU is')
+			lines.append(ind + '--   ' + ' ' * pw + '   dropped in this configuration; reads return zero)')
+		bankBits = _clog2(self.banks)
+		if pw == 3 and self.banks == 4:
+			bankCode = '1xx'
+		else:
+			bankCode = self.pageBits(4) + '-' + self.pageBits(4 + self.banks - 1)
+		lines.append(ind + '--   ' + bankCode + ' = shared bulk RAM 0x10000-0x%05X (%d x sram1p16k banks,' % (self.banksTop(), self.banks))
+		lines.append(ind + '--   ' + ' ' * len(bankCode) + '   bank = s_addr(' + str(11 + bankBits) + ':12))')
+		if 4 + self.banks < (1 << pw):
+			lines.append(ind + '--   ' + self.pageBits(4 + self.banks) + '-' + self.pageBits((1 << pw) - 1)
+				+ ' = unmapped (window power-of-two round-up gap; reads zero)')
+		lines.append((ind + 'constant SH_AW : natural := ' + str(self.shAw) + ';').ljust(55)
+			+ '-- shared-window word-address width')
+		return lines
+
+	def emitMemslvDecls(self):
+		ind = ' ' * 8
+		pw = self.shAw - 12
+		lines = []
+		lines.append(ind + '-- M11 slave fabric: page select on s_addr(' + str(self.shAw - 1) + ':12) (see the SH_AW')
+		lines.append(ind + '-- comment above for the map). The peripheral window sub-decodes on')
+		lines.append(ind + '-- s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY')
+		lines.append(ind + '-- 0x4000 slot numbering (slot = s_addr(9:6)) ' + EMDASH + ' every peripheral is')
+		lines.append(ind + '-- back at its original Myshkin address, now shared by all ' + str(self.nHarts()) + ' harts.')
+		def decl(name, comment=None):
+			line = ind + 'signal ' + name.ljust(17) + ': std_logic;'
+			if comment is not None:
+				line += '   -- ' + comment
+			return line
+		lines.append(decl('shslv_rom_sel', self.pageBits(0) + ' -> shared boot ROM 0x0-0x3FFF (M12)'))
+		lines.append(decl('shslv_perwin_sel', self.pageBits(1) + ' -> peripheral window 0x4000-0x7FFF'))
+		lines.append(decl('shslv_pg0_sel', 'window page 0 -> the 16 slots'))
+		if self.npu:
+			lines.append(decl('shslv_npuram_sel', self.pageBits(3) + ' -> NPU staging RAM 0xC000-0xFFFF'))
+		for b in range(self.banks):
+			lines.append(decl('shslv_bank' + str(b) + '_sel',
+				self.pageBits(4 + b) + ' -> bulk RAM bank %d (0x%05X)' % (b, 0x10000 + b * 0x4000)))
+		lines.append(decl('shslv_rom_en'))
+		if self.npu:
+			lines.append(decl('shslv_npuram_en'))
+		for b in range(self.banks):
+			lines.append(decl('shslv_bank' + str(b) + '_en'))
+		def rddecl(name, comment=None):
+			line = ind + 'signal ' + name.ljust(17) + ": std_logic := '0';"
+			if comment is not None:
+				line += ' -- ' + comment
+			return line
+		lines.append(rddecl('shslv_rd_rom', 'registered: last access was the boot ROM'))
+		if self.npu:
+			lines.append(rddecl('shslv_rd_npuram', 'registered: last access was the NPU RAM'))
+		for b in range(self.banks):
+			lines.append(rddecl('shslv_rd_bank' + str(b)))
+		lines.append(ind + '-- boot ROM + bulk RAM banks' + (' + NPU staging RAM' if self.npu else '') + ' are hard macros: their')
+		lines.append(ind + '-- Q is the 1-cycle registered read the arbiter\'s slave model')
+		lines.append(ind + '-- expects, so the macro output IS the rdata (no extra register).')
+		lines.append(ind + '-- Enables/WEN are ACTIVE-LOW at the macro ' + EMDASH + ' shims below.')
+		def vdecl(name):
+			return ind + 'signal ' + name.ljust(17) + ': std_logic_vector(31 downto 0);'
+		lines.append(vdecl('rom_q'))
+		for b in range(self.banks):
+			lines.append(vdecl('bank' + str(b) + '_q'))
+		if self.npu:
+			lines.append(vdecl('npuram_q'))
+		lines.append(decl('rom_cen_n'))
+		if self.npu:
+			lines.append(decl('npuram_cen_n'))
+		for b in range(self.banks):
+			lines.append(decl('bank' + str(b) + '_cen_n'))
+		lines.append(ind + 'signal ' + 'shmem_gwen_n'.ljust(17) + ': std_logic;   -- shared-macro global write enable (active-low)')
+		return lines
+
+	def emitPgenDecls(self):
+		ind = ' ' * 8
+		lines = []
+		if self.npu:
+			lines.append(ind + "-- (M13: hart 0's adddec<->TCM bus moved into hart_tile; pgen_mem")
+			lines.append(ind + '-- stays ' + EMDASH + " SYSTEM0's BLOCKPWR gates rom0 (0), hart 0's TCM via the")
+			lines.append(ind + "-- tile's tcm_pgen port (1) and npuram0 (2).)")
+		else:
+			lines.append(ind + "-- (M13: hart 0's adddec<->TCM bus moved into hart_tile; pgen_mem")
+			lines.append(ind + '-- stays ' + EMDASH + " SYSTEM0's BLOCKPWR gates rom0 (0) and hart 0's TCM via the")
+			lines.append(ind + "-- tile's tcm_pgen port (1); bit 2 (ex-npuram0) has no consumer")
+			lines.append(ind + '-- in this configuration ' + EMDASH + ' the NPU and its staging RAM are dropped.)')
+		lines.append(ind + 'signal ' + 'RAM_Dout'.ljust(17) + ': std_logic_vector(31 downto 0);')
+		lines.append(ind + 'signal ' + 'pgen_mem'.ljust(17) + ': std_logic_vector(2 downto 0);')
+		return lines
+
+	def emitShslvBanner(self):
+		ind = ' ' * 4
+		lines = []
+		lines.append(ind + '-- M5b/M11/M12: slave-side sub-decode of the shared window. The arbiter')
+		lines.append(ind + '-- serializes ALL masters onto ONE slave port; the ' + str(self.shAw) + '-bit word address')
+		lines.append(ind + '-- then selects which physical slave this transaction hits (s_addr(' + str(self.shAw - 1) + ':12)')
+		lines.append(ind + '-- pages, see the SH_AW comment):')
+		lines.append(ind + '--   0x00000-0x03FFF -> THE shared boot ROM (M12: one rom_hvt_pg,')
+		lines.append(ind + '--                      read-only ' + EMDASH + ' writes complete but are discarded)')
+		lines.append(ind + '--   0x04000-0x07FFF -> peripheral window: page 0 = 16 x 256B slots at')
+		lines.append(ind + '--                      the LEGACY slot numbering (every peripheral back')
+		lines.append(ind + '--                      at its Myshkin address, shared by all ' + str(self.nHarts()) + ' harts),')
+		lines.append(ind + '--                      page 1 = CLINT, page 2 = MUTEX, page 3 = router')
+		if self.npu:
+			lines.append(ind + '--   0x0C000-0x0FFFF -> NPU staging RAM (sram1p16k, NPU-port-muxed)')
+		lines.append(ind + '--   0x10000-0x%05X -> bulk RAM banks 0-%d (%d x sram1p16k)' % (self.banksTop(), self.banks - 1, self.banks))
+		lines.append(ind + '--   everything else -> no slave (reads return 0)')
+		lines.append(ind + '-- Every slave obeys the same 1-cycle registered-read contract (the SRAM')
+		lines.append(ind + '-- macros natively; peripherals via their clk_mem-registered reads), so')
+		lines.append(ind + "-- the arbiter's IDLE->LATCH->DATA timing is untouched; the shslv_rd_*")
+		lines.append(ind + '-- selects are registered at the access cycle and steer s_rdata during')
+		lines.append(ind + '-- DATA. resv_unit still snoops every transaction (its s_we_gated drives')
+		lines.append(ind + '-- ALL slaves: a suppressed SC write must not touch a peripheral either).')
+		return lines
+
+	def emitSharedRamBanks(self):
+		ind = ' ' * 4
+		lines = []
+		lines.append(ind + '-- =========================================================================')
+		lines.append(ind + '-- M11: shared bulk RAM = %d x sram1p16k macros (%d KB, 0x10000-0x%05X),'
+			% (self.banks, self.banks * 16, self.banksTop()))
+		lines.append(ind + "-- replacing the M3c 256-word behavioral array. The macro IS the arbiter's")
+		lines.append(ind + '-- slave model: CEN sampled with the address at the s_en cycle\'s ending')
+		lines.append(ind + '-- edge, Q valid the next cycle (1-cycle registered read). Enables/WEN are')
+		lines.append(ind + '-- ACTIVE-LOW at the macro ' + EMDASH + ' inverted from the arbiter\'s active-high')
+		lines.append(ind + '-- strobes; WEN comes from the resv-GATED sh_we (a suppressed SC write')
+		lines.append(ind + '-- must not touch memory), per-byte lanes (M4a). No INIT: power-up')
+		lines.append(ind + '-- contents are undefined on silicon ' + EMDASH + ' the write-before-read contract')
+		lines.append(ind + '-- (mailbox zeroing) is an M12 bootrom obligation; behavioral models')
+		lines.append(ind + '-- zero-fill, the gate flow deposits zeros.')
+		lines.append(ind + '-- =========================================================================')
+		for b in range(self.banks):
+			nm = 'bank' + str(b) + '_cen_n'
+			lines.append(ind + nm.ljust(13) + '<= not shslv_bank' + str(b) + '_en;')
+		if self.npu:
+			lines.append(ind + 'npuram_cen_n'.ljust(13) + '<= not shslv_npuram_en;')
+		lines.append(ind + 'rom_cen_n'.ljust(13) + '<= not shslv_rom_en;   -- M12: shared boot ROM (read-only, no WEN)')
+		lines.append(ind + 'shmem_gwen_n <= \'0\' when sh_we /= "0000" else \'1\';')
+		for b in range(self.banks):
+			lines.append('')
+			lines.append(ind + 'shbank' + str(b) + ': entity work.sram1p16k_hvt_pg')
+			lines.append(ind * 2 + 'port map (')
+			lines.append(ind * 3 + 'Q     => bank' + str(b) + '_q,')
+			lines.append(ind * 3 + 'CLK   => mclk,')
+			lines.append(ind * 3 + 'CEN   => bank' + str(b) + '_cen_n,')
+			lines.append(ind * 3 + 'WEN   => sh_wen_n,')
+			lines.append(ind * 3 + 'A     => sh_addr(11 downto 0),')
+			lines.append(ind * 3 + 'D     => sh_wdata,')
+			lines.append(ind * 3 + 'EMA   => "000",')
+			lines.append(ind * 3 + 'GWEN  => shmem_gwen_n,')
+			lines.append(ind * 3 + "RETN  => '1',")
+			lines.append(ind * 3 + "PGEN  => '0'")
+			lines.append(ind * 2 + ');')
+		return lines
+
+	def emitMutexInstance(self):
+		'''mtx0 (A2): NMUTEX from the description's MUTEX register count; the
+		AW/MW generics and the addr slice follow. At 16 mutexes / 4 harts this
+		is the golden master byte-identically (defaults omitted).'''
+		nMutex = len(self.periph('MUTEX').Registers)
+		aw = _clog2(nMutex)
+		if 2**aw != nMutex:
+			raise Exception('MCU.vhd emitter: MUTEX register count ' + str(nMutex)
+				+ ' must be a power of two (exact word alias, mutex_bank AW)')
+		mw = self.masterW()
+		gm = 'generic map (NMUTEX => ' + str(nMutex)
+		if aw != 4:
+			gm += ', AW => ' + str(aw)
+		if mw != 2:
+			gm += ', MW => ' + str(mw)
+		gm += ')'
+		lines = []
+		lines.append('    mtx0: entity work.mutex_bank')
+		lines.append(' ' * 8 + gm)
+		lines.append('        port map (')
+		lines.append('            clk    => mclk,')
+		lines.append('            resetn => resetn,')
+		lines.append('            en     => shslv_mtx_en,')
+		lines.append('            we     => sh_we,')
+		lines.append('            addr   => sh_addr(' + str(aw - 1) + ' downto 0),')
+		lines.append('            wdata  => sh_wdata,')
+		lines.append('            master => sh_master,')
+		lines.append('            rdata  => mtx_rdata')
+		lines.append('        );')
+		return lines
+
+	def emitPwrInstance(self):
+		'''pwr0 (A2): NHARTS generic emitted when != the RTL default 4. The
+		description's PWRSR word count is cross-checked against the nibble-
+		array formula ceil(N/8) (RAISES on drift, like the CLINT layout).'''
+		n = self.nHarts()
+		nsrw = (n + 7) // 8
+		maxSlot = 0
+		for r in self.periph('PWRCTRL').Registers:
+			if r.RegisterMemorySlot > maxSlot:
+				maxSlot = r.RegisterMemorySlot
+		if maxSlot != nsrw:
+			raise Exception('MCU.vhd emitter: PWRCTRL register layout does not match the A2 '
+				+ 'PWRSR nibble-array formula (PWRCR + ceil(N/8) PWRSR words) '
+				+ EMDASH + ' generate.py and pwr_ctrl.vhd must agree')
+		gm = 'generic map ('
+		if n != 4:
+			gm += 'NHARTS => ' + str(n) + ', '
+		gm += 'T_SEQ => 4, T_RAIL => 256)'
+		lines = []
+		lines.append('    pwr0: entity work.pwr_ctrl')
+		lines.append(' ' * 8 + gm)
+		lines.append('        port map (')
+		lines.append('            clk       => mclk,')
+		lines.append('            resetn    => resetn,')
+		lines.append('            en        => shslv_pwr_en,')
+		lines.append('            we        => sh_we,')
+		lines.append('            addr      => sh_addr(3 downto 0),')
+		lines.append('            wdata     => sh_wdata,')
+		lines.append('            rdata     => pwr_rdata,')
+		lines.append('            pd_iso_en => pd_iso_en,')
+		lines.append('            pd_sleep  => pd_sleep,')
+		lines.append('            pd_rstn   => pd_rstn')
 		lines.append('        );')
 		return lines
 
@@ -809,6 +1947,9 @@ class McuVhdEmitter():
 		lines.append('            -- its own native PGEN power-down whenever the domain gates ' + EMDASH)
 		lines.append("            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')")
 		lines.append('            tcm_pgen  => pd_sleep(' + hs + '),')
+		lines.append('            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro')
+		lines.append('            -- RETN receiver is AO ' + EMDASH + ' an in-tile tie was a dying-rail driver)')
+		lines.append("            tcm_retn  => '1',")
 		lines.append('            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)')
 		lines.append('            pd_sleep  => pd_sleep(' + hs + '),')
 		lines.append('            pd_iso_en => pd_iso_en(' + hs + '),')
@@ -856,8 +1997,8 @@ class McuVhdEmitter():
 		if shared:
 			return {
 				'clk_mem': 'mclk',
-				'en': SHSLV[name]['shim'] + '_sh_en_n',
-				'en_mem': SHSLV[name]['shim'] + '_sh_en_n',
+				'en': self.shslv[name]['shim'] + '_sh_en_n',
+				'en_mem': self.shslv[name]['shim'] + '_sh_en_n',
 				'wen': 'sh_wen_n',
 				'addr_periph': 'sh_addr(5 downto 0)',
 				'write_data': 'sh_wdata',
@@ -875,13 +2016,13 @@ class McuVhdEmitter():
 		}
 
 	def emitBus(self, instKey):
-		spec = BUS_SPECS[instKey]
+		spec = self.busSpecs[instKey]
 		name = spec['periph']
 		ind = ' ' * 12
 		lines = self.busComment(instKey, spec)
 		if spec['comment'] == 'i2c':
 			# I2C.vhd port names, tab-aligned like the RTL
-			en = SHSLV[name]['shim'] + '_sh_en_n'
+			en = self.shslv[name]['shim'] + '_sh_en_n'
 			lines.append(ind + 'ClkMem\t\t\t=> mclk,')
 			lines.append(ind + 'EnMemPeriph\t\t=> ' + en + ',')
 			lines.append(ind + 'WEn\t\t\t\t=> sh_wen_n,')
@@ -890,7 +2031,7 @@ class McuVhdEmitter():
 			lines.append(ind + 'rdata_out\t\t=> ' + self.rdataSignal(name) + ',')
 			return lines
 		if spec['comment'] == 'npu':
-			en = SHSLV[name]['shim'] + '_sh_en_n'
+			en = self.shslv[name]['shim'] + '_sh_en_n'
 			lines.append(ind + 'MabMmrA'.ljust(12) + '=> sh_addr(1 downto 0),')
 			lines.append(ind + 'MabMmrD'.ljust(12) + '=> sh_wdata,')
 			lines.append(ind + 'MabMmrCLK'.ljust(12) + '=> mclk,')
@@ -933,6 +2074,59 @@ class McuVhdEmitter():
 			return self.emitClintInstance()
 		if name == 'irq-router-instance':
 			return self.emitIrqRouterInstance()
+		if name == 'mutex-instance':
+			return self.emitMutexInstance()
+		if name == 'pwr-instance':
+			return self.emitPwrInstance()
+		if name == 'sh-window-const':
+			return self.emitShWindowConst()
+		if name == 'memslv-decls':
+			return self.emitMemslvDecls()
+		if name == 'pgen-decls':
+			return self.emitPgenDecls()
+		if name == 'shslv-banner':
+			return self.emitShslvBanner()
+		if name == 'shared-ram-banks':
+			return self.emitSharedRamBanks()
+		if name in ('npu-component', 'npu-fabric-decls', 'npu-mux-decls',
+				'npu-sleep-comment', 'npu-instance', 'npuram-instance'):
+			return self.npuBlock(name)
+		if name in ('i2c1-pad-decls', 'i2c1-instance'):
+			return self.i2c1Block(name)
+		if name == 'i2c-fabric-decls':
+			return self.emitI2cFabricDecls()
+		if name == 'gpio2-af1-planes':
+			return self.emitGpio2Af1Planes()
+		if name == 'i2c-input-muxes':
+			return self.emitI2cInputMuxes()
+		if name == 'gpio3-primary-planes':
+			return self.emitGpio3PrimaryPlanes()
+		if name in ('uart1-pad-decls', 'uart1-instance'):
+			return self.uart1Block(name)
+		if name in ('spi1-pad-decls', 'spi1-instance'):
+			return self.spi1Block(name)
+		if name in ('timer1-pad-decls', 'timer1-instance'):
+			return self.timer1Block(name)
+		if name == 'mover-fabric-decls':
+			return self.emitMoverFabricDecls()
+		if name == 'spi1-input-taps':
+			return self.emitSpi1InputTaps()
+		if name == 'uart1-input-muxes':
+			return self.emitUart1InputMuxes()
+		if name == 'gpio1-primary-planes':
+			return self.emitGpio1PrimaryPlanes()
+		if name == 'gpio1-af1-planes':
+			return self.emitGpio1Af1Planes()
+		if name == 'gpio2-timer-muxes':
+			return self.emitGpio2TimerMuxes()
+		if name == 'gpio2-primary-planes':
+			return self.emitGpio2PrimaryPlanes()
+		if name == 'gpio3-af1-planes':
+			return self.emitGpio3Af1Planes()
+		if name in ('gpio0-af-spread', 'gpio1-af-spread', 'gpio2-af-spread', 'gpio3-af-spread'):
+			return self.emitAfSpread(int(name[4]))
+		if name == 'analog-tie-offs':
+			return self.emitAnalogTieOffs()
 		if name == 'tile-rstn':
 			return self.emitTileRstn()
 		if name == 'iso-clamps':
@@ -955,15 +2149,42 @@ class McuVhdEmitter():
 			return self.emitPolarityShims()
 		if name.startswith('bus:'):
 			instKey = name[len('bus:'):]
-			if instKey not in BUS_SPECS:
+			if instKey not in self.busSpecs:
 				raise Exception('MCU.vhd emitter: no bus spec for instance "' + instKey + '"')
 			return self.emitBus(instKey)
 		raise Exception('MCU.vhd emitter: unknown region "' + name + '"')
 
 
+def loadSideBlocks(path, tag):
+	'''Parse a side template: --@<tag>:<name>@ marker lines delimit the
+	verbatim conditional blocks (A2 NPU mechanism, generalized at G1a).'''
+	blocks = {}
+	cur = None
+	marker = re.compile(r'^--@' + tag + r':([A-Za-z0-9:_-]+)@$')
+	with open(path, 'r', newline='') as f:
+		for line in f.read().split('\n'):
+			m = marker.match(line)
+			if m:
+				cur = []
+				blocks[m.group(1)] = cur
+			elif cur is not None:
+				cur.append(line)
+	# strip one trailing blank line per block (the inter-block separator)
+	for name in blocks:
+		while blocks[name] and blocks[name][-1] == '':
+			blocks[name].pop()
+	return blocks
+
+
 def generateMcuVhd(gen, templatePath, outPath):
 	'''Fill hdl_templates/MCU.template.vhd markers from the description; write outPath.'''
-	emitter = McuVhdEmitter(gen)
+	tplDir = os.path.dirname(templatePath)
+	emitter = McuVhdEmitter(gen,
+		npuBlocks=loadSideBlocks(os.path.join(tplDir, 'MCU.template.npu.vhd'), 'NPUBLOCK'),
+		i2c1Blocks=loadSideBlocks(os.path.join(tplDir, 'MCU.template.i2c1.vhd'), 'I2C1BLOCK'),
+		uart1Blocks=loadSideBlocks(os.path.join(tplDir, 'MCU.template.uart1.vhd'), 'UART1BLOCK'),
+		spi1Blocks=loadSideBlocks(os.path.join(tplDir, 'MCU.template.spi1.vhd'), 'SPI1BLOCK'),
+		timer1Blocks=loadSideBlocks(os.path.join(tplDir, 'MCU.template.timer1.vhd'), 'TIMER1BLOCK'))
 
 	with open(templatePath, 'r', newline='') as f:
 		templateLines = f.read().split('\n')
@@ -999,8 +2220,28 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# A1 N-hart regions
 		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'tile-irq-en-flat-decl', 'pd-decls',
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
-		'clint-instance', 'irq-router-instance', 'tile-rstn', 'iso-clamps', 'tile-instances']
-		+ ['bus:' + k for k in BUS_SPECS])
+		'clint-instance', 'irq-router-instance', 'mutex-instance', 'pwr-instance',
+		'tile-rstn', 'iso-clamps', 'tile-instances',
+		# A2 geometry / NPU-conditional regions
+		'sh-window-const', 'memslv-decls', 'pgen-decls', 'shslv-banner', 'shared-ram-banks',
+		'npu-component', 'npu-fabric-decls', 'npu-mux-decls', 'npu-sleep-comment',
+		'npu-instance', 'npuram-instance',
+		# G1a I2C1-conditional regions (i2c1-pad-decls/instance are side-template
+		# verbatim; the other four are transcribed emitters that degrade the
+		# I2C1 rows to the hi-Z idiom when the config drops the instance)
+		'i2c1-pad-decls', 'i2c1-instance', 'i2c-fabric-decls', 'gpio2-af1-planes',
+		'i2c-input-muxes', 'gpio3-primary-planes',
+		# G1b UART1/SPI1/TIMER1-conditional regions (pad-decls/instances are
+		# side-template verbatim; the rest are transcribed emitters, except
+		# the four *-af-spread blocks which emit from the FromSpread altFuncs)
+		'uart1-pad-decls', 'uart1-instance', 'spi1-pad-decls', 'spi1-instance',
+		'timer1-pad-decls', 'timer1-instance', 'mover-fabric-decls',
+		'spi1-input-taps', 'uart1-input-muxes', 'gpio1-primary-planes',
+		'gpio1-af1-planes', 'gpio2-timer-muxes', 'gpio2-primary-planes',
+		'gpio3-af1-planes', 'gpio0-af-spread', 'gpio1-af-spread',
+		'gpio2-af-spread', 'gpio3-af-spread', 'analog-tie-offs']
+		# bus:npu0/i2c1/uart1/spi1/timer1 live INSIDE their instance side blocks
+		+ ['bus:' + k for k in emitter.busSpecs if k not in ('npu0', 'i2c1', 'uart1', 'spi1', 'timer1')])
 	if seen != expected:
 		raise Exception('MCU.vhd emitter: template regions ' + str(sorted(seen))
 			+ ' do not match the expected set ' + str(sorted(expected)))
