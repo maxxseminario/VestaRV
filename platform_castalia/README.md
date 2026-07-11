@@ -170,15 +170,14 @@ Hand-maintained (survive regeneration, not overwritten):
 - `latex/TRM.template.tex` — the master document (edit this, never `latex/TRM/TRM.tex`)
 
 Known TODOs:
-- AFE intro: three figures (`fsmstatediagram.png`, `dsTimingDia.png`, `peripheral.png`) are
-  missing from the repo; their figure blocks are commented out with `TODO(castalia)` markers
-  (same figures are also unresolved in `platform/`).
 - Package/pinout is inherited from Myshkin unchanged; the "preliminary" note is
   config-driven since G4 (`package.preliminary`). When a chip gets its own package:
   add a model to `_PACKAGE_MODELS` in `generate.py` and select it via `package.model`.
-- Remaining intros not yet reviewed for Castalia: AFE, SARADC, SPI (their filenames
-  keep the inherited `-myshkin-`/undated suffixes until reviewed; see CLAUDE.md).
-  GPIO was rewritten 2026-07-09 with the multi-alternate-function (PxAFS) work.
+- Last intro not yet reviewed for Castalia: SPI (keeps its `-myshkin-` suffix until
+  reviewed; see CLAUDE.md). The AFE/SARADC intros were deleted 2026-07-11 — both
+  peripherals are removed from Castalia (originals live in `platform/`); this also
+  moots the three missing AFE figures. GPIO was rewritten 2026-07-09 with the
+  multi-alternate-function (PxAFS) work.
 - ~~Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map~~ DONE
   (M12): the multicore bootrom (`software/bootrom_mp/`) implements the single-ROM boot —
   mhartid dispatch, shared-RAM mailbox zeroing, WFI tile park, and the msip tile loader.
