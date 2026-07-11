@@ -46,7 +46,11 @@ entity mp_arbiter is
     generic (
         N          : natural := 4;    -- number of masters (harts)
         ADDR_WIDTH : natural := 12;   -- shared-slave address width
-        DATA_WIDTH : natural := 32
+        DATA_WIDTH : natural := 32;
+        -- A2 (Argus): s_master export width — must satisfy 2**MW >= N
+        -- (checked by the coverage assert below). Default 2 = the Castalia
+        -- 4-hart shape, so every existing instantiation is unchanged.
+        MW         : natural := 2
     );
     port (
         clk    : in  std_logic;   -- free-running mclk
@@ -76,9 +80,10 @@ entity mp_arbiter is
         -- s_master (M7c LOCKING): the granted master's index, registered at
         -- the IDLE pick alongside s_addr — valid for the whole transaction.
         -- Lets a slave attribute the access to a hart (the mutex_bank's
-        -- claim-read needs to know WHO is reading). Width fixed for N <= 4.
+        -- claim-read needs to know WHO is reading). Width = the MW generic
+        -- (A2: was fixed 2, N <= 4).
         s_en     : out std_logic;
-        s_master : out std_logic_vector(1 downto 0);
+        s_master : out std_logic_vector(MW-1 downto 0);
         s_we    : out std_logic_vector(3 downto 0);
         s_addr  : out std_logic_vector(ADDR_WIDTH-1 downto 0);
         s_wdata : out std_logic_vector(DATA_WIDTH-1 downto 0);
@@ -145,6 +150,12 @@ architecture behav of mp_arbiter is
 
 begin
 
+    -- A2 coverage assert: the s_master export must be able to name every
+    -- master (elaboration-time constant condition; no hardware).
+    assert 2**MW >= N
+        report "mp_arbiter: MW too small for N masters (2**MW must be >= N)"
+        severity failure;
+
     process(clk, resetn)
         variable winner    : integer;
         variable idx       : natural;
@@ -199,7 +210,7 @@ begin
                         -- slave samples s_en at the next edge (s_en self-clears
                         -- via the default above, so it is a one-cycle strobe).
                         s_en         <= '1';
-                        s_master     <= conv_std_logic_vector(winner, 2);
+                        s_master     <= conv_std_logic_vector(winner, MW);
                         s_we         <= we_of(we, winner);
                         cur_we       <= we_of(we, winner);
                         s_addr       <= addr_of(addr, winner);
@@ -255,7 +266,7 @@ begin
                     elsif req(cur) = '1' and need_release(cur) = '0' then
                         gnt(cur) <= '1';
                         s_en     <= '1';
-                        s_master <= conv_std_logic_vector(cur, 2);
+                        s_master <= conv_std_logic_vector(cur, MW);
                         s_we     <= we_of(we, cur);
                         cur_we   <= we_of(we, cur);
                         s_addr   <= addr_of(addr, cur);

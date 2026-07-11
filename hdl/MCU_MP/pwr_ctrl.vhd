@@ -42,10 +42,17 @@
 -- MCU.vhd), 1-cycle registered read, free-running mclk. Resets all-ON ->
 -- the block is a provable NO-OP until software sets a PWRCR bit.
 --
--- REGISTERS (word offsets in the 256B slot; only addr(3:0) decoded):
---   +0x0 PWRCR : bits 3:1 RW  GATE[h] — 1 = power-gate tile h, 0 = run.
---                bit  0   RO  0 (hart 0 always-on; writes ignored).
---   +0x4 PWRSR : RO. 4-bit state nibble per hart: PWRSR(4h+3 downto 4h).
+-- REGISTERS (word offsets in the 256B slot; only addr(3:0) decoded).
+-- A2 (Argus) N-hart regrow — at the NHARTS=4 default this is EXACTLY the
+-- original M17 map (one PWRSR word):
+--   +0x0 PWRCR : bits NHARTS-1:1 RW  GATE[h] — 1 = power-gate tile h,
+--                0 = run. Bit 0 RO 0 (hart 0 always-on; writes ignored).
+--                The write is qualified by byte-lane 0 only — use full-word
+--                stores (sw); the gate bits are treated as ONE field even
+--                when NHARTS-1:1 spans byte lanes.
+--   +0x4.. PWRSR0..ceil(NHARTS/8)-1 : RO. 4-bit state nibble per hart, 8
+--                harts per word: hart h in PWRSR(h/8), nibble
+--                (4*(h mod 8)+3 downto 4*(h mod 8)).
 --                0=ON  1=ISO (clamping)  2=RSTOFF (reset, rail dying)
 --                3=OFF (gated)  4=RAIL (waking, rail settling)
 --                5=UNISO (clamp release)   Hart 0 nibble reads 0.
@@ -58,6 +65,11 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity pwr_ctrl is
     generic (
+        -- A2 (Argus): hart count — tiles 1..NHARTS-1 each get a gate bit,
+        -- a sequencer FSM and a pd_* row (hart 0 is always-on, no row).
+        -- Default 4 = the Castalia shape; every existing instantiation is
+        -- unchanged.
+        NHARTS : natural := 4;
         -- sequencing delays in mclk cycles. T_SEQ paces the iso->rst->off
         -- steps (any small value works: the boundary is registered and the
         -- tile is quiesced). T_RAIL is the wake rail-settle budget: it must
@@ -79,19 +91,24 @@ entity pwr_ctrl is
         wdata  : in  std_logic_vector(31 downto 0);
         rdata  : out std_logic_vector(31 downto 0);
 
-        -- per-tile MTCMOS controls, harts 1-3 (hart 0 has no row: always-on).
+        -- per-tile MTCMOS controls, harts 1..NHARTS-1 (hart 0 has no row:
+        -- always-on).
         -- pd_iso_en : isolation clamp enable (CPF isolation_condition; also
         --             routed into the tile for its A2ISO cells' EN legs).
         -- pd_sleep  : HEAD switch SLEEP, ACTIVE-HIGH = rail OFF (pmk sense).
         -- pd_rstn   : ANDed into the tile's resetn at the top level — the
         --             cold-gate reset that makes wake = M12 boot.
-        pd_iso_en : out std_logic_vector(3 downto 1);
-        pd_sleep  : out std_logic_vector(3 downto 1);
-        pd_rstn   : out std_logic_vector(3 downto 1)
+        pd_iso_en : out std_logic_vector(NHARTS-1 downto 1);
+        pd_sleep  : out std_logic_vector(NHARTS-1 downto 1);
+        pd_rstn   : out std_logic_vector(NHARTS-1 downto 1)
     );
 end entity;
 
 architecture behav of pwr_ctrl is
+
+    -- A2: PWRSR word count — 8 state nibbles per word (one word at the
+    -- Castalia NHARTS=4 default, so the register map is unchanged there)
+    constant NSRW : natural := (NHARTS + 7) / 8;
 
     -- FSM state encodings == the PWRSR nibble values (documented above)
     constant S_ON     : std_logic_vector(3 downto 0) := x"0";
@@ -101,18 +118,28 @@ architecture behav of pwr_ctrl is
     constant S_RAIL   : std_logic_vector(3 downto 0) := x"4";
     constant S_UNISO  : std_logic_vector(3 downto 0) := x"5";
 
-    type state_arr_t is array(1 to 3) of std_logic_vector(3 downto 0);
-    type cnt_arr_t   is array(1 to 3) of natural range 0 to 65535;
+    type state_arr_t is array(1 to NHARTS-1) of std_logic_vector(3 downto 0);
+    type cnt_arr_t   is array(1 to NHARTS-1) of natural range 0 to 65535;
 
     signal state     : state_arr_t;
     signal cnt       : cnt_arr_t;
-    signal gate_req  : std_logic_vector(3 downto 1);
-    signal iso_r     : std_logic_vector(3 downto 1);
-    signal sleep_r   : std_logic_vector(3 downto 1);
-    signal rstn_r    : std_logic_vector(3 downto 1);
+    signal gate_req  : std_logic_vector(NHARTS-1 downto 1);
+    signal iso_r     : std_logic_vector(NHARTS-1 downto 1);
+    signal sleep_r   : std_logic_vector(NHARTS-1 downto 1);
+    signal rstn_r    : std_logic_vector(NHARTS-1 downto 1);
     signal rdata_reg : std_logic_vector(31 downto 0);
 
 begin
+
+    -- A2 coverage asserts (elaboration-time constants; no hardware): the
+    -- PWRCR gate bits must fit one 32-bit word, and PWRCR + the PWRSR array
+    -- must fit the 16 decoded words (addr(3:0)).
+    assert NHARTS >= 2 and NHARTS <= 32
+        report "pwr_ctrl: NHARTS out of range (PWRCR is one 32-bit word)"
+        severity failure;
+    assert 1 + NSRW <= 16
+        report "pwr_ctrl: PWRSR array outgrows the 16-word decode"
+        severity failure;
 
     rdata     <= rdata_reg;
     pd_iso_en <= iso_r;
@@ -120,7 +147,10 @@ begin
     pd_rstn   <= rstn_r;
 
     pwr_proc: process(clk, resetn)
-        variable sr : std_logic_vector(31 downto 0);
+        -- A2: sr is the concatenated PWRSR word array (hart h's nibble at
+        -- 4h, 8 harts per 32-bit word — one word at the NHARTS=4 default)
+        variable sr   : std_logic_vector(NSRW*32-1 downto 0);
+        variable widx : integer range 0 to 15;
     begin
         if resetn = '0' then
             -- reset = every tile ON (iso off, switches on, reset released):
@@ -138,26 +168,30 @@ begin
             -- ---- register access (1-cycle registered read) ----
             if en = '1' then
                 sr := (others => '0');
-                for h in 1 to 3 loop
+                for h in 1 to NHARTS-1 loop
                     sr(4*h + 3 downto 4*h) := state(h);
                 end loop;
 
+                widx := conv_integer(addr);
                 rdata_reg <= (others => '0');
-                case addr is
-                    when x"0"   => rdata_reg(3 downto 1) <= gate_req;
-                    when x"1"   => rdata_reg <= sr;
-                    when others => null;   -- reserved words read 0
-                end case;
+                if widx = 0 then
+                    rdata_reg(NHARTS-1 downto 1) <= gate_req;
+                elsif widx <= NSRW then
+                    -- PWRSR0..NSRW-1 at +0x4.. (one word at NHARTS=4)
+                    rdata_reg <= sr(32*widx - 1 downto 32*(widx-1));
+                end if;                        -- reserved words read 0
 
-                -- PWRCR write (byte lane 0 carries all the bits; bit 0 —
-                -- hart 0 — has no storage, so it can never be gated)
-                if addr = x"0" and we(0) = '1' then
-                    gate_req <= wdata(3 downto 1);
+                -- PWRCR write (qualified by byte lane 0 — the gate bits are
+                -- ONE field even when NHARTS-1:1 spans lanes, so software
+                -- uses full-word stores; bit 0 — hart 0 — has no storage,
+                -- so it can never be gated)
+                if widx = 0 and we(0) = '1' then
+                    gate_req <= wdata(NHARTS-1 downto 1);
                 end if;
             end if;
 
             -- ---- per-tile MTCMOS sequencers ----
-            for h in 1 to 3 loop
+            for h in 1 to NHARTS-1 loop
                 case state(h) is
 
                     when S_ON =>                    -- iso=0 slp=0 rstn=1

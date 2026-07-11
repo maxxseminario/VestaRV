@@ -45,7 +45,12 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity mutex_bank is
     generic (
-        NMUTEX : natural := 16    -- one 256B slot's worth of word-mapped mutexes
+        NMUTEX : natural := 16;   -- word-mapped mutexes (16 = one slot pitch)
+        -- A2 (Argus): decoded word-address width (2**AW must cover NMUTEX)
+        -- and the arbiter's s_master width (must match mp_arbiter's MW).
+        -- Defaults = the Castalia 4-hart/16-mutex shape.
+        AW     : natural := 4;
+        MW     : natural := 2
     );
     port (
         clk    : in  std_logic;   -- free-running mclk
@@ -54,21 +59,30 @@ entity mutex_bank is
         -- slave port (behind mp_arbiter; enables active-high, we resv-gated)
         en     : in  std_logic;
         we     : in  std_logic_vector(3 downto 0);
-        addr   : in  std_logic_vector(3 downto 0);   -- word offset within slot
+        addr   : in  std_logic_vector(AW-1 downto 0); -- word offset within the bank
         wdata  : in  std_logic_vector(31 downto 0);
-        master : in  std_logic_vector(1 downto 0);   -- granted master (arbiter)
+        master : in  std_logic_vector(MW-1 downto 0); -- granted master (arbiter)
         rdata  : out std_logic_vector(31 downto 0)
     );
 end entity;
 
 architecture behav of mutex_bank is
 
-    -- owner per mutex: 0 = free, else hartid+1 (fits 3 bits for 4 harts)
-    type owner_t is array(0 to NMUTEX-1) of std_logic_vector(2 downto 0);
+    -- owner per mutex: 0 = free, else hartid+1. hartid <= 2**MW - 1, so
+    -- hartid+1 always fits MW+1 bits (3 bits at the Castalia default).
+    type owner_t is array(0 to NMUTEX-1) of std_logic_vector(MW downto 0);
+    constant OWNER_FREE : std_logic_vector(MW downto 0) := (others => '0');
     signal owner     : owner_t;
     signal rdata_reg : std_logic_vector(31 downto 0);
 
 begin
+
+    -- A2 coverage assert (elaboration-time constant; no hardware). Equality
+    -- is required, not just coverage: the addr slice must alias the bank
+    -- exactly (an idx beyond NMUTEX-1 would fall off the owner array).
+    assert 2**AW = NMUTEX
+        report "mutex_bank: NMUTEX must equal 2**AW (exact word alias)"
+        severity failure;
 
     rdata <= rdata_reg;
 
@@ -85,18 +99,18 @@ begin
                 -- registered read: ALWAYS returns the pre-transaction owner
                 -- (0 = "was free, and this read just claimed it for you")
                 rdata_reg              <= (others => '0');
-                rdata_reg(2 downto 0)  <= owner(idx);
+                rdata_reg(MW downto 0) <= owner(idx);
 
                 if we = "0000" then
                     -- claim-read: atomic return-old-and-claim in ONE txn —
                     -- the arbiter's serialization is the atomicity
-                    if owner(idx) = "000" then
+                    if owner(idx) = OWNER_FREE then
                         owner(idx) <= ('0' & master) + 1;
                     end if;
                 elsif wdata = x"00000000" then
                     -- release (unqualified — see header); nonzero writes are
                     -- ignored so ownership can never be forged
-                    owner(idx) <= "000";
+                    owner(idx) <= OWNER_FREE;
                 end if;
             end if;
         end if;

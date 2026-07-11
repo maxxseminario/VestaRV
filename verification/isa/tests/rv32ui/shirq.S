@@ -32,10 +32,13 @@
 # from sleep -> ISR shared-window accesses -> route teardown.
 #
 # Shared words (>= 0x10190, clear of all earlier tests' words):
-#     TURN     = 0x10190          which hart's round it is (zero-init: park)
-#     READY[h] = 0x101A0 + 4*h    0x4EAD0000+h just before hart h sleeps
-#     DONE[h]  = 0x101B0 + 4*h    0xD01E0000+h after hart h wakes
-# (next free shared word: 0x101C0)
+#     TURN     = 0x10190                  which hart's round it is (zero-init)
+#     READY[h] = 0x101A0 + 4*h            0x4EAD0000+h before hart h sleeps
+#     DONE[h]  = 0x101A0 + 4*NHARTS + 4*h 0xD01E0000+h after hart h wakes
+# Argus A3: DONE base = READY_BASE + 4*NHARTS (placed after the NHARTS-sized
+# READY array so it can't overrun at N=18). N=4: DONE base 0x101B0 (unchanged);
+# N=18: READY 0x101A4..0x101E4, DONE 0x101EC..0x1022C, all < 0x10500.
+# (next free shared word: 0x101C0 at N=4)
 #
 # RACE NOTES:
 #  * router-write-before-transmit: hart h writes its ENL BEFORE READY[h]; the
@@ -63,7 +66,7 @@
 #define SH_IRTR    0x7000
 #define TURN       0x10190
 #define READY_BASE 0x101A0
-#define DONE_BASE  0x101B0
+#define DONE_BASE  (READY_BASE + 4*NHARTS)   /* after the NHARTS-sized READY array */
 #define BR_VAL     1
 #define CR_EN_TCIE 0x21          /* UART enable + TX-complete IRQ enable */
 #define ENL_UART0_TC (1 << 15)   /* IRQB_UART0_TC in irq_en[31:0] */
@@ -82,9 +85,7 @@ RVTEST_CODE_BEGIN
     # into tile_entry (mp_boot.h). They park on TURN just as the old preloaded
     # tiles did; hart 0 falls through to its UART setup + round loop.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -193,7 +194,7 @@ woke:
     bnez t4, shirq_fail
 
     addi s7, s7, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s7, t0, round_loop
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

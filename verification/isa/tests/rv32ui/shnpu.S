@@ -47,7 +47,12 @@
 # Shared words (>= 0x10220, clear of all earlier tests' words):
 #     TOKEN    = 0x10220          whose turn (shram zero-init => hart 0)
 #     DONE[h]  = 0x10230 + 4*h    0x4E900000+h after hart h's part
-# (next free shared word: 0x10240)
+# Argus A3: TOKEN sits below the DONE base, so the NHARTS-sized DONE array
+# (N=18: 0x10234..0x10274, < 0x10500) can't overrun it. NOTE (see report):
+# harts 1/2/3 have DISTINCT roles and harts >= 4 fall into hart 1's role
+# (reconfigure + npu_run to OUT1); N=18 semantics UNVERIFIED (and NPU is dropped
+# in Argus anyway) — manual review. N=4 behaviour is unchanged.
+# (next free shared word: 0x10240 at N=4)
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -82,9 +87,7 @@ RVTEST_CODE_BEGIN
     # tiles into tile_entry through the bootrom loader (mp_boot.h). They park
     # on the token just as the old preloaded tiles did.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -189,7 +192,7 @@ hart0:
     li   t6, 100000             # M12: covers 3 serialized tile ROM-copies at launch
 ring_wait:
     lw   t0, 0(s3)
-    li   t1, 4
+    li   t1, NHARTS
     beq  t0, t1, ring_home
     addi t6, t6, -1
     bnez t6, ring_wait
@@ -203,7 +206,7 @@ done_check:
     add  t2, s6, t3
     bne  t1, t2, shnpu_fail
     addi t3, t3, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  t3, t0, done_check
 
     li   t0, X_ADDR             # THE END-TO-END PROOF: both outputs landed

@@ -33,10 +33,15 @@
 #   realistic control-loop hang.
 #
 # Shared words (>= 0x10440, clear of the whole prior mailbox ledger and of the
-# bootrom loader rows at 0x10400-0x1043F; all zeroed by the bootrom at boot):
-#     HEARTBEAT[h] = 0x10440 + 4*h    healthy: +1 per pass; hart 2: +1 forever
-#     DONE[h]      = 0x10450 + 4*h    0xD09E0000+h once channel h completes
-#     BABBLE_SCRATCH = 0x10460        dead word the babbler READS for contention
+# bootrom loader rows; all zeroed by the bootrom at boot):
+#     HEARTBEAT[h]   = 0x10440 + 4*h             healthy +1/pass; hart 2 forever
+#     DONE[h]        = 0x10440 + 4*NHARTS + 4*h  0xD09E0000+h on channel done
+#     BABBLE_SCRATCH = 0x10440 + 8*NHARTS        dead word the babbler READS
+# Argus A3: DONE is placed AFTER the NHARTS-sized HEARTBEAT array and BABBLE
+# after DONE, so nothing overruns at N=18 (the old fixed 0x10450/0x10460 had
+# HEARTBEAT[4..] running into DONE at N>4). N=4: DONE 0x10450, BABBLE 0x10460
+# (unchanged). N=18: HEARTBEAT 0x10440..0x10484, DONE 0x10488..0x104CC,
+# BABBLE 0x104D0 — all < the loader rows at 0x10500.
 #
 # No interrupts are used (pure polling + mailboxes), so the env DEFINE_IVT
 # (slots 0-82) is left untouched — nothing extends the .ivt section here.
@@ -65,7 +70,7 @@ RVTEST_CODE_BEGIN
     # common per-hart bases
     li   sp, 0xBFF0             # private TCM top (convention; no IRQs here)
     li   s2, 0x10440            # HEARTBEAT base
-    li   s3, 0x10450            # DONE base
+    li   s3, (0x10440 + 4*NHARTS)  # DONE base (after NHARTS-sized HEARTBEAT)
     li   s6, 0xD09E0000         # DONE magic base
 
     bnez s10, tile_entry        # only hart 0 launches + verifies
@@ -77,9 +82,7 @@ RVTEST_CODE_BEGIN
     sw   t1, 0(t0)
 
     MP_STAGE_IMAGE(4096)                    # stage the TCM image once (0x18000)
-    MP_LAUNCH_HART(FAULT_HART, tile_entry, 4096)   # start the babbler FIRST
-    MP_LAUNCH_HART(1, tile_entry, 4096)     # then the two healthy channels
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)         # launch all NHARTS-1 tiles (channels)
 
     # hart 0 runs its OWN channel work (adds real contention with the babbler)
     mv   a1, s10                # hartid 0
@@ -94,7 +97,7 @@ RVTEST_CODE_BEGIN
     jal  ra, wait_done          # bounded-wait DONE[3]
 
     # ---- faulted tile 2 must NOT have completed --------------------------
-    li   t0, 0x10450 + 4*FAULT_HART
+    li   t0, (0x10440 + 4*NHARTS) + 4*FAULT_HART   # DONE[FAULT_HART]
     lw   t1, 0(t0)
     li   t2, 0xD09E0000 + FAULT_HART
     beq  t1, t2, shfault_fail   # if it "finished", the fault model is invalid
@@ -125,7 +128,7 @@ tile_entry:
     .option pop
     li   sp, 0xBFF0
     li   s2, 0x10440
-    li   s3, 0x10450
+    li   s3, (0x10440 + 4*NHARTS)   # DONE base (after NHARTS-sized HEARTBEAT)
     li   s6, 0xD09E0000
 
     li   t0, FAULT_HART
@@ -149,7 +152,7 @@ hold:
 wedge:
     slli s8, s10, 2
     add  s8, s2, s8            # HEARTBEAT[FAULT_HART] (proof-of-life counter)
-    li   s9, 0x10460           # a dead shared word to READ (pure contention)
+    li   s9, (0x10440 + 8*NHARTS)  # BABBLE_SCRATCH: a dead word to READ
 babble:
     lw   t0, 0(s8)
     addi t0, t0, 1

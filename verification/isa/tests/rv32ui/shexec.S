@@ -33,8 +33,12 @@
 #                                 shamo's probe constraint 0x22222222 is safe)
 #     CHK     = 0x103D4           0x00010001, written by hart 0
 #     TOKEN   = 0x103D8           turn word, hart-0 owned: h = hart h's turn
-#     DONE[h] = 0x103D8 + 4*h     0xE0EC0000+h, h=1..3 (0x103DC/E0/E4)
-#     next free: 0x103E8 (6 words left)
+#     DONE[h] = 0x103D8 + 4*h     0xE0EC0000+h, h=1..NHARTS-1
+# Argus A3: CODE/CHK/TOKEN sit below the DONE base; the NHARTS-sized DONE array
+# runs 0x103DC..(0x103D8+4*(NHARTS-1)). N=18 top = 0x1041C, clear of the loader
+# rows (0x10500+) and below the bootrom zero-range end (0x10800). Every tile
+# runs the SAME payload (no role dispatch) — parameterizes cleanly.
+#     next free: 0x103E8 (N=4)
 #
 # Harts 1-3 (launched by hart 0 at tile_entry): PARK polling TOKEN (reads only), then
 # run the payload, check t1, write DONE[h], set a0 = PASS inline, verify DONE
@@ -69,9 +73,7 @@ RVTEST_CODE_BEGIN
     # into tile_entry (mp_boot.h). They park on TOKEN just as the old
     # preloaded tiles did; hart 0 falls through to the orchestrator.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -137,7 +139,7 @@ parked_chk:
     lw   t2, 0(t1)
     bnez t2, shexec_fail
     addi t0, t0, 1
-    li   t1, 4
+    li   t1, NHARTS
     bne  t0, t1, parked_chk
 
     # the gate hart executes from shared FIRST (fail fast, easy triage)
@@ -166,7 +168,7 @@ wake_wait:
     j    shexec_fail
 released:
     addi s6, s6, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s6, t0, release_loop
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

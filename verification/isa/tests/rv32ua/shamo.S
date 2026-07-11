@@ -28,14 +28,16 @@
 # backoff/livelock machinery is needed, unlike every LR/SC test.
 #
 # Shared-window map (next free was 0x103A0; RAM ends 0x103FF):
-#     CTR     = 0x103A0   (must end EXACTLY 256)
+#     CTR     = 0x103A0   (must end EXACTLY NHARTS*64)
 #     SWP     = 0x103A4   (hart 0's private amoswap chain)
 #     PROBE   = 0x103B0   (garbage-address probe; DONE's h=0 slot, unused)
-#     DONE[h] = 0x103B0 + 4*h, h=1..3  (0xA30D0000+h)
+#     DONE[h] = 0x103B0 + 4*h, h=1..NHARTS-1  (0xA30D0000+h)
 # The probe also READS 0x103D0 (= PROBE + 0x20, the garbage address): that
-# word must never hold 0x22222222 when a future test claims it (it is only
-# read, never written, by this test).
-# Next free: 0x103C0.
+# word must never hold 0x22222222 (it is only read, never written, by the
+# probe). At N=18 DONE[8] == 0x103D0 (0xA30D0008 != 0x22222222, so the probe
+# stays valid both fix-present and fix-absent); the array ends at DONE[17] =
+# 0x103F4 (< the 0x103FF window end). CTR/SWP sit below the DONE base.
+# Next free: 0x103C0 (N=4) — but at N=18 the DONE array itself reaches 0x103F4.
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -52,12 +54,10 @@ RVTEST_CODE_BEGIN
     .option pop
     bnez s10, tile_entry        # M12: only hart 0 runs the launcher
 
-    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # M12 single-ROM boot: stage this TCM image once, launch all NHARTS-1 tiles
     # into tile_entry (mp_boot.h), then fall through and run the same body.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -124,8 +124,8 @@ hart0_verify:
 
     # counter must reach EXACTLY 256; bounded poll (budget rule — a lost
     # update must FAIL inside the 100ms tb watchdog, not ride it)
-    li   t5, 256
-    li   t6, 100000             # M12: covers 3 serialized tile ROM-copies + the
+    li   t5, NHARTS*64
+    li   t6, 100000             # M12: covers the serialized tile ROM-copies + the
                                 # tiles' 64 increments each after launch
 ctr_poll:
     lw   t3, 0(s7)
@@ -154,7 +154,7 @@ dchk_poll:
     j    shamo_fail
 dchk_ok:
     addi s6, s6, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s6, t0, done_chk
 
     .option pop

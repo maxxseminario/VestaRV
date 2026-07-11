@@ -314,7 +314,15 @@ use work.MemoryMap.all;
 
 entity adddec is
     generic (
-        ENABLE_FLASH_EXTENDED_MEM : boolean := false
+        ENABLE_FLASH_EXTENDED_MEM : boolean := false;
+        -- A2 (Argus): shared-window word-address width, passed down from
+        -- hart_tile. The extended-flash decode is the STRICT COMPLEMENT of
+        -- the master-side sh_sel window (addr(31:SH_AW+2) /= 0 — the M3c.3
+        -- double-claim lesson), and the TCM decode is qualified by the same
+        -- upper bits so a wide window (SH_AW=16: 0x20000-0x3FFFF) can never
+        -- alias onto the TCM's region bits. Default 15 = the Castalia shape
+        -- (flash >= 0x20000), bit-for-bit the original decode.
+        SH_AW                     : natural := 15
     );
     port (
         clk               : in  std_logic;
@@ -369,6 +377,16 @@ architecture Behavioral of adddec is
     signal en_clk_mem_flash : std_logic;
     signal flash_dout_reg : std_logic_vector(31 downto 0);
 
+    -- A2: SH_AW-derived all-zero comparators (see the generic comment).
+    -- FLASH_ZERO spans the bits above the shared window; tcm_upper_zero
+    -- qualifies the window bits above the region field (no such bits at
+    -- SH_AW=15, where bit 16 is the region field's top bit — the qualifier
+    -- is then constant '1', reproducing the original decode exactly; the
+    -- slice lives in a generate because Xcelium rejects a null slice).
+    constant FLASH_ZERO   : std_logic_vector(31 downto SH_AW+2) := (others => '0');
+    constant ZEROS32      : std_logic_vector(31 downto 0) := (others => '0');
+    signal tcm_upper_zero : std_logic;
+
 begin
 
     -- Memory map (M11 rework; M12 single-ROM boot — this decoder now serves
@@ -397,22 +415,38 @@ begin
     -- address deadlocks the core (SPI0 FlashActive freezes clk_cpu via
     -- sleep_cpu while the shared handshake stalls mem_ready) — keep the flash
     -- decode the exact complement of the master-side sh_sel regions.
+    -- A2: the boundary is 2^(SH_AW+2) — the strict complement of sh_sel's
+    -- window qualification. At the SH_AW=15 default this is bit-for-bit the
+    -- original ">= 0x20000" decode; at SH_AW=16 (Argus) flash begins 0x40000.
     gen_flash_detect: if ENABLE_FLASH_EXTENDED_MEM generate
-        is_flash_access <= '1' when unsigned(data_addr) >= x"00020000" else '0';
+        is_flash_access <= '1' when data_addr(31 downto SH_AW+2) /= FLASH_ZERO else '0';
     end generate;
     
     gen_no_flash_detect: if not ENABLE_FLASH_EXTENDED_MEM generate
         is_flash_access <= '0';
     end generate;
 
+    -- A2: TCM upper-bit qualification — the TCM lives at 0x8000-0xBFFF
+    -- ONLY, so the window bits ABOVE the region field must be zero. At the
+    -- Castalia SH_AW=15 there are no such bits (statically '1' — the flash
+    -- decode already excluded everything >= 0x20000, original behavior);
+    -- at SH_AW=16 it keeps 0x28000-0x2BFFF (region bits also "010") from
+    -- double-claiming against sh_sel.
+    gen_tcm_qual: if SH_AW >= 16 generate
+        tcm_upper_zero <= '1' when data_addr(SH_AW+1 downto 17) = ZEROS32(SH_AW+1 downto 17) else '0';
+    end generate;
+    gen_tcm_qual_none: if SH_AW < 16 generate
+        tcm_upper_zero <= '1';
+    end generate;
+
     -- Memory enable generation
-    process(mem_region_sel, periph_addr_nat, is_flash_access)
+    process(mem_region_sel, periph_addr_nat, is_flash_access, tcm_upper_zero)
     begin
         -- Initialize all enables to inactive
         mem_en_sig <= (others => '1');
         mem_en_periph_sig <= (others => '1');
         mem_en_flash_sig <= '1';
-        
+
         if is_flash_access = '1' then
             -- Flash memory access
             mem_en_flash_sig <= '0';
@@ -427,7 +461,9 @@ begin
 
             case mem_region_sel is
                 when "010" =>
-                    mem_en_sig(MemSlotRAM0) <= '0';
+                    if tcm_upper_zero = '1' then
+                        mem_en_sig(MemSlotRAM0) <= '0';
+                    end if;
                 when others =>
                     null;
             end case;

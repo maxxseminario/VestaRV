@@ -21,9 +21,15 @@
 # tiles need hartid-scaled backoff to de-synchronize — M4c rule).
 #
 # The tile payload commits EXACTLY 64 increments on 0x10080 (like shmem_mp
-# phase 2) and then hammers its OWN disjoint word 0x10040+4*hartid forever
-# (shmem_mp phase 3) — it never re-touches the counter, so hart 0's exact-256
-# check is never disturbed while contention stays live.
+# phase 2) and then hammers its OWN disjoint word forever (shmem_mp phase 3) —
+# it never re-touches the counter, so hart 0's exact NHARTS*64 check is never
+# disturbed while contention stays live.
+#
+# Argus A3 ledger note: the disjoint hammer word is 0x10090 + 4*hartid (NOT the
+# historical 0x10040 base). At N=18 the old 0x10040+4*hartid array reached hart
+# 16 at 0x10080 — exactly the atomic COUNTER — which would corrupt the count.
+# Rebased to 0x10090 (N=18 span 0x10090..0x100D4, clear of the counter and all
+# other ledger words, still inside the bootrom-zeroed 0x10000-0x107FF range).
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -43,9 +49,7 @@ RVTEST_CODE_BEGIN
     # hart 0: stage this TCM image once, launch all three tiles into the LR/SC
     # hammer, then commit its own 64 increments and require 256 total.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_payload, 4096)
-    MP_LAUNCH_HART(2, tile_payload, 4096)
-    MP_LAUNCH_HART(3, tile_payload, 4096)
+    MP_LAUNCH_ALL(tile_payload, 4096)
 
     li   s7, 0x10080            # common atomic counter (word 32 of the window)
     li   s8, 64                 # increments to commit
@@ -67,8 +71,8 @@ count_ok:
     addi s8, s8, -1
     bnez s8, count_loop
 
-    # ---- all four harts contributed: counter must reach EXACTLY 256 ----
-    li   t5, 256
+    # ---- all NHARTS harts contributed: counter must reach EXACTLY NHARTS*64 ----
+    li   t5, NHARTS*64
 wait_full:
     lw   t3, 0(s7)
     blt  t3, t5, wait_full      # lost update -> spins forever -> watchdog
@@ -110,8 +114,8 @@ tcount_ok:
     # (keeps three live masters contending, exactly as the old preload did).
     li   a0, 0xCAFEBABE         # inline PASS (tb latches a0_1/2/3)
     slli t1, s10, 2
-    li   t2, 0x10040
-    add  s2, t2, t1             # my disjoint word 0x10040 + 4*hartid
+    li   t2, 0x10090
+    add  s2, t2, t1             # my disjoint word 0x10090 + 4*hartid (rebased
     slli s3, s10, 24
     li   t2, 0x00C0FFEE
     xor  s3, s3, t2             # per-hart pattern base
