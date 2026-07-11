@@ -19,11 +19,11 @@
 SHELL := /bin/bash
 CDSPATHS := $(abspath ..)/cdspaths.sh
 
-.PHONY: help MCU_MP.genus MCU.genus hart_tile.genus MCU_MP_hier.genus
+.PHONY: help MCU_MP.genus MCU.genus hart_tile.genus MCU_MP_hier.genus hart_tile_argus.genus MCU_ARGUS_hier.genus
 
 help:
-	@echo "Targets: MCU_MP.genus | MCU.genus | hart_tile.genus | MCU_MP_hier.genus   (see comments in this Makefile)"
+	@echo "Targets: MCU_MP.genus | MCU.genus | hart_tile.genus | MCU_MP_hier.genus | hart_tile_argus.genus | MCU_ARGUS_hier.genus   (see comments in this Makefile)"
 
-MCU_MP.genus MCU.genus hart_tile.genus MCU_MP_hier.genus:
+MCU_MP.genus MCU.genus hart_tile.genus MCU_MP_hier.genus hart_tile_argus.genus MCU_ARGUS_hier.genus:
 	@mkdir -p log out rpt
 	source $(CDSPATHS) && genus -no_gui -overwrite -log log/$(basename $@) -files tcl/$@.tcl

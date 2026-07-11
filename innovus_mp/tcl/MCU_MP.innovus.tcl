@@ -308,10 +308,25 @@ puts "### UNL STATUS ### : deleted $__nuked ring-detour shapes above y=1213"
 #    other side (see the sroute -area cap below); both are needed, they
 #    produce byte-identical violation bounds and masked each other.
 set STRIPE_TOP_Y [expr {$NOTCH_FLOOR_Y - 39}]
+# PG4 (fixes the PG3 MCU-DRC headline classes in ONE knob): the M8 pass gets
+# -stacked_via_bottom_layer M7. Root cause, read off the merged GDS: the M8
+# horizontal pass (which runs FIRST, before any M7 stripe exists) used to
+# punch FULL M8->M4 stacks straight down onto the sram/ROM M4 PG pin strips
+# at the PIN rows/columns — while the M7 vertical pass later punched its own
+# M7->M8 arrays at the stripe CROSSINGS. Two interleaved same-net VIA7
+# arrays ~0.34 um apart at every crossing (cut gaps ~0.115 < 0.54 3-adj) =
+# VIA7.W.1 + VIA7.S.2, 930 results each; the M8-pass stacks' floating
+# M8/M7 landing pads at off-stripe pin rows (e.g. MCU_VIA83 pad top edge
+# y=199.21 vs stripe lly 200.0) = M8.S.3 x93 and the M7.S.4-at-ROM pair.
+# With bottom=M7 the M8 pass only ties to real M7 (ring legs, tile M7 PG
+# pins); ALL macro-pin/rail stacks come from the M7 pass, centered on its
+# own stripes (sram/ROM PG pins are full-width horizontal M4 strips, so
+# every M7 vertical crosses every pin — coverage is preserved).
 setAddStripeMode \
     -remove_floating_stripe_over_block true \
     -trim_antenna_back_to_shape core_ring \
 	-stacked_via_top_layer M8 \
+	-stacked_via_bottom_layer M7 \
     -extend_to_closest_target ring
 addStripe \
 	-layer M8 \
@@ -325,6 +340,14 @@ addStripe \
 	-block_ring_bottom_layer_limit M1 \
 	-start_offset $POWER_STRIPE_SET_TO_SET \
 	-stop_offset $POWER_STRIPE_PATH_SPACING
+# M7 pass: bottom back to M1 — this pass owns the macro-pin (M4) and
+# follow-pin rail (M1) stacks, all landing on its own stripe centerlines.
+setAddStripeMode \
+    -remove_floating_stripe_over_block true \
+    -trim_antenna_back_to_shape core_ring \
+	-stacked_via_top_layer M8 \
+	-stacked_via_bottom_layer M1 \
+    -extend_to_closest_target ring
 addStripe \
 	-layer M7 \
 	-nets {VDD VSS} \

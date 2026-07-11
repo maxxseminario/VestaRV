@@ -1,0 +1,97 @@
+library(analog_abstracts_dummy) {
+  delay_model : table_lookup;
+  time_unit : "1ns"; voltage_unit : "1V"; current_unit : "1mA";
+  capacitive_load_unit (1,pf);
+  pulling_resistance_unit : "1kohm"; leakage_power_unit : "1nW";
+  nom_process : 1; nom_temperature : 25; nom_voltage : 1.2;
+  cell(GlitchFilter) {
+    area : 100;
+    pin(IrqGlitchy[0]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[1]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[2]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[3]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[4]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[5]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[6]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[7]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[8]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[9]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[10]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[11]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[12]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[13]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[14]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[15]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[16]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[17]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[18]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[19]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[20]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[21]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[22]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[23]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[24]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[25]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[26]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[27]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[28]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[29]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[30]) { direction : input; capacitance : 0.001; }
+    pin(IrqGlitchy[31]) { direction : input; capacitance : 0.001; }
+    pin(IrqDeglitched[0]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[1]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[2]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[3]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[4]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[5]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[6]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[7]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[8]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[9]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[10]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[11]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[12]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[13]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[14]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[15]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[16]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[17]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[18]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[19]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[20]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[21]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[22]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[23]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[24]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[25]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[26]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[27]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[28]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[29]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[30]) { direction : output; capacitance : 0.001; }
+    pin(IrqDeglitched[31]) { direction : output; capacitance : 0.001; }
+  }
+  cell(PowerOnResetCheng) {
+    area : 100;
+    pin(resetn_in) { direction : input; capacitance : 0.001; }
+    pin(resetn_out) { direction : output; capacitance : 0.001; }
+  }
+  cell(OscillatorCurrentStarved) {
+    area : 100;
+    pin(Freq[0]) { direction : input; capacitance : 0.001; }
+    pin(Freq[1]) { direction : input; capacitance : 0.001; }
+    pin(Freq[2]) { direction : input; capacitance : 0.001; }
+    pin(Freq[3]) { direction : input; capacitance : 0.001; }
+    pin(Freq[4]) { direction : input; capacitance : 0.001; }
+    pin(Freq[5]) { direction : input; capacitance : 0.001; }
+    pin(Freq[6]) { direction : input; capacitance : 0.001; }
+    pin(Freq[7]) { direction : input; capacitance : 0.001; }
+    pin(Freq[8]) { direction : input; capacitance : 0.001; }
+    pin(Freq[9]) { direction : input; capacitance : 0.001; }
+    pin(Freq[10]) { direction : input; capacitance : 0.001; }
+    pin(Freq[11]) { direction : input; capacitance : 0.001; }
+    pin(En) { direction : input; capacitance : 0.001; }
+    pin(Reset) { direction : input; capacitance : 0.001; }
+    pin(ClkOut) { direction : output; capacitance : 0.001; }
+  }
+}
