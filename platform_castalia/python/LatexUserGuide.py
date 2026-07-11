@@ -57,6 +57,11 @@ class LatexUserGuide():
 		self.GenerateFeaturesList()
 		self.GenerateExtraIntroChapters()
 		self.GenerateAddressSpaceDiagram()
+		self.GenerateChipConfigurationSection()
+		self.GenerateSystemBlockDiagram()
+		self.GenerateBootFlowDiagram()
+		self.GenerateSyncPrimitiveDecisionTree()
+		self.GeneratePackagePinoutDiagram()
 		self.GenerateInterruptsTable()
 		self.GeneratePackagePinsConfigurationTable()
 		self.GenerateGpioPinsConfigurationTable()
@@ -177,9 +182,45 @@ class LatexUserGuide():
 			defines['ClintMtipVector'] = str(clint.InterruptPriority + 1)
 			defines['PeriphVectorsCount'] = str(clint.InterruptPriority)
 
+		# A2 (Argus): shared-memory geometry + mutex-count defines so the
+		# hand-written multi-core chapter is configuration-driven prose.
+		npuPresent = True
+		geo = getattr(self.Gen, 'McuMpGeometry', None)
+		if geo:
+			banks = geo['sharedRamBanks']
+			npuPresent = geo['npu']
+			defines['SharedRamSizeKiB'] = str(banks * 16)
+			defines['SharedRamBanks'] = str(banks)
+			defines['SharedRamEndAddress'] = fmthex(0x10000 + banks * 0x4000 - 1)
+			defines['FlashBaseAddress'] = fmthex(1 << (geo['shAw'] + 2))
+		# Boot-ROM contracts + TCM geometry (used by the multi-core chapter and
+		# the generated boot flow diagram). The loader mailbox base is the
+		# N-agnostic Argus A3 value used by software/bootrom_mp on ALL builds.
+		defines['BootMailboxBase'] = fmthex(0x10500)
+		defines['TcmSizeKiB'] = str(self.Gen.RamMemorySlotSize // 1024)
+		defines['TcmWords'] = str(self.Gen.RamMemorySlotSize // 4)
+		mutexP = None
+		for p in self.Gen.Peripherals:
+			if p.Name == 'MUTEX':
+				mutexP = p
+		if mutexP is not None:
+			nMtx = len(mutexP.Registers)
+			mtxWords = {16: 'sixteen', 32: 'thirty-two', 64: 'sixty-four'}
+			defines['NumMutexes'] = str(nMtx)
+			defines['NumMutexesWord'] = mtxWords.get(nMtx, str(nMtx))
+
 		s = ''
 		for item in defines:
 			s += '\\newcommand{\\' + item + '}{' + defines[item] + '}\n'
+		# NPU presence conditional (\ifnpupresent ... \else ... \fi) for the
+		# multi-core chapter's NPU-dependent prose
+		s += '\\newif\\ifnpupresent\n'
+		s += ('\\npupresenttrue' if npuPresent else '\\npupresentfalse') + '\n'
+		# G4: package "Preliminary" banner conditional — config-driven
+		# (package.preliminary; True while the package is inherited from Myshkin)
+		s += '\\newif\\ifpackagepreliminary\n'
+		s += ('\\packagepreliminarytrue' if getattr(self.Gen, 'PackagePreliminary', True)
+			else '\\packagepreliminaryfalse') + '\n'
 		
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -449,6 +490,310 @@ class LatexUserGuide():
 		
 		return
 	
+	# -----------------------------------------------------------------
+	# Unified-configuration section + generated diagrams (2026-07-11).
+	# All of these render from the SAME records generate.py builds for
+	# config/ChipConfig.resolved.json and config/PadRing.json, so the TRM,
+	# the make chip schema, and the configurator HTML cannot drift apart.
+	# -----------------------------------------------------------------
+
+	def GenerateChipConfigurationSection(self):
+		'''include/ChipConfigurationTable.tex — the make chip CONFIG= schema with
+		   this build's resolved values, plus the derived-geometry table.'''
+		rc = getattr(self.Gen, 'ResolvedConfig', None)
+		doc = getattr(self.Gen, 'ConfigSchemaDoc', {})
+		if rc is None:
+			return
+
+		def val(dotted):
+			node = rc
+			for part in dotted.split('.'):
+				node = node.get(part) if isinstance(node, dict) else None
+			return node
+
+		def texdesc(s):
+			return fmttex(s.replace('—', '---'))
+
+		def fmtval(dotted, v):
+			if isinstance(v, bool):
+				return '\\texttt{' + ('true' if v else 'false') + '}'
+			if dotted.startswith('memory.') and isinstance(v, int):
+				return '\\texttt{' + str(v) + '} (' + str(v // 1024) + '\\,KiB)'
+			return '\\texttt{' + fmttex(str(v)) + '}'
+
+		keyOrder = ['chipName', 'numHarts', 'numMutexes', 'registerFileDualPort',
+			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
+			'isa.bitmanip', 'isa.counters', 'isa.counters64',
+			'memory.romSize', 'memory.tcmSizePerHart', 'memory.sharedBulkRamSize',
+			'memory.npuStagingRamSize', 'peripherals.npu']
+
+		s = '% Generated: the make chip CONFIG= schema + the values of THIS build\n'
+		s += '\\begin{longtable}[c]{ l l p{7.2cm} }\n'
+		s += '\\caption{Chip configuration knobs (\\texttt{make chip CONFIG=config.json}) and the values of this build} \\label{t:chip-config} \\\\\n'
+		s += '\\hline \\textbf{Configuration key} & \\textbf{This build} & \\textbf{Meaning / valid values} \\\\ \\hline \\endfirsthead\n'
+		s += '\\multicolumn{3}{c}{\\textit{\\tablename\\ \\thetable\\ continued from previous page}} \\\\ \\hline\n'
+		s += '\\textbf{Configuration key} & \\textbf{This build} & \\textbf{Meaning / valid values} \\\\ \\hline \\endhead\n'
+		s += '\\hline \\multicolumn{3}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
+		rowColored = False
+		for k in keyOrder:
+			v = val(k)
+			if v is None and k == 'memory.npuStagingRamSize':
+				v = 0
+			row = '\\texttt{' + fmttex(k) + '} & ' + fmtval(k, v) + ' & ' + texdesc(doc.get(k, '')) + ' \\\\\n'
+			if rowColored:
+				row = '\\rowcolor{tablehighlightcolor} ' + row
+			rowColored = not rowColored
+			s += row
+		s = s[:-3] + '\\\\\n\\hline\n\\end{longtable}\n\n'
+
+		drv = rc.get('derived', {})
+		derivedRows = [
+			('ISA string (march)', '\\texttt{' + fmttex(str(drv.get('isaString'))) + '}', 'Advertised in the read-only \\register{misa} CSR'),
+			('Shared-window address width', '\\texttt{' + str(drv.get('sharedWindowAddrWidth')) + '} bits (words)', 'Arbiter/tile word-address width; the window is \\texttt{0x0}\\,--\\,$2^{w+2}-1$'),
+			('Shared RAM banks', '\\texttt{' + str(drv.get('sharedRamBanks')) + '}' + ' $\\times$ 16\\,KiB', 'One SRAM macro per bank behind the arbiter'),
+			('Extended flash base', '\\texttt{' + fmttex(str(drv.get('flashBaseAddress'))) + '}', 'First address decoded to the SPI-flash XIP path (hart 0 only); strictly the complement of the shared window'),
+			('Interrupt vectors', '\\texttt{' + str(drv.get('vectorsCount')) + '}', 'Vectors ' + str(drv.get('clintMsipVector')) + '/' + str(drv.get('clintMtipVector')) + ' are the CLINT software/timer interrupts'),
+			('CLINT \\register{MTIME}', '\\texttt{' + fmttex(str((drv.get('clintLayout') or {}).get('mtimeAddress'))) + '}', 'Layout is hart-count-derived: \\register{MSIPx} at \\texttt{0x5000}\\,+\\,4$h$, \\register{MTIMECMPx} from \\texttt{' + fmttex(str((drv.get('clintLayout') or {}).get('mtimecmpBaseAddress'))) + '}'),
+			('Boot-loader mailbox rows', '\\texttt{' + fmttex(str(drv.get('bootromLoaderRowBase'))) + '}', 'Tile-loading rows \\{SRC, LEN, ENTRY\\} consumed by the boot ROM'),
+			('Stack pointer at reset', '\\texttt{' + fmttex(str(drv.get('stackPointerInit'))) + '}', 'Top of each hart\'s private TCM, growing down'),
+			('Peripheral count', '\\texttt{' + str(drv.get('peripheralCount')) + '}', 'Instantiated peripherals (including CLINT/MUTEX/IRQROUTER)'),
+		]
+		s += '% Derived geometry — computed by generate.py, NOT configurable\n'
+		s += '\\begin{longtable}[c]{ l l p{6.6cm} }\n'
+		s += '\\caption{Derived geometry of this configuration (computed, not configurable)} \\label{t:chip-config-derived} \\\\\n'
+		s += '\\hline \\textbf{Derived value} & \\textbf{This build} & \\textbf{Notes} \\\\ \\hline \\endfirsthead\n'
+		s += '\\multicolumn{3}{c}{\\textit{\\tablename\\ \\thetable\\ continued from previous page}} \\\\ \\hline\n'
+		s += '\\textbf{Derived value} & \\textbf{This build} & \\textbf{Notes} \\\\ \\hline \\endhead\n'
+		s += '\\hline \\multicolumn{3}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
+		rowColored = False
+		for name, v, note in derivedRows:
+			row = name + ' & ' + v + ' & ' + note + ' \\\\\n'
+			if rowColored:
+				row = '\\rowcolor{tablehighlightcolor} ' + row
+			rowColored = not rowColored
+			s += row
+		s = s[:-3] + '\\\\\n\\hline\n\\end{longtable}\n'
+
+		with open(self.IncludeDirectory + '/ChipConfigurationTable.tex', 'w') as f:
+			f.write(s)
+		return
+
+	def GenerateSystemBlockDiagram(self):
+		'''include/SystemBlockDiagram.tex — configuration-driven top-level block
+		   diagram: N hart tiles over the registered boundary, the serializing
+		   round-robin arbiter, and the shared-window slaves.'''
+		N = self.Gen.NumHarts
+		geo = getattr(self.Gen, 'McuMpGeometry', None) or {'shAw': 15, 'sharedRamBanks': 4, 'npu': True}
+		banks = geo['sharedRamBanks']
+		npu = geo['npu']
+		flashBase = fmthex(1 << (geo['shAw'] + 2))
+		romKiB = self.Gen.RomSize // 1024
+		tcmKiB = self.Gen.RamMemorySlotSize // 1024
+		nMtx = 0
+		for p in self.Gen.Peripherals:
+			if p.Name == 'MUTEX':
+				nMtx = len(p.Registers)
+
+		# Tiles to draw: all of them up to 5, else 0,1,2,...,N-1 with an ellipsis
+		if N <= 5:
+			shown = list(range(N))
+		else:
+			shown = [0, 1, 2, None, N - 1]
+		tileW = 3.0
+		gap = 0.45
+		xs = []
+		x = 0.0
+		for t in shown:
+			w = 1.0 if t is None else tileW
+			xs.append((t, x + w / 2.0, w))
+			x += w + gap
+		totalW = x - gap
+
+		s = '% Generated system block diagram (configuration-driven: numHarts=' + str(N) + ', banks=' + str(banks) + ', npu=' + str(npu) + ')\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, font=\\sffamily\\small},\n'
+		s += '\ttile/.style={blk, fill=black!4},\n'
+		s += '\tslave/.style={blk, fill=black!8},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+
+		# Hart tiles
+		for t, cx, w in xs:
+			if t is None:
+				s += '\\node[font=\\sffamily\\Large] at (' + '%.2f' % cx + ', 4.55) {$\\cdots$};\n'
+				continue
+			label = '\\textbf{hart ' + str(t) + '}\\\\ VestaRV core\\\\ ' + str(tcmKiB) + '\\,KiB TCM'
+			extra = ''
+			if t == 0:
+				extra = '\\\\ \\scriptsize mgmt hart'
+			s += '\\node[tile, minimum width=' + '%.2f' % w + 'cm, minimum height=1.9cm] (tile' + str(t) + ') at (' + '%.2f' % cx + ', 4.55) {' + label + extra + '};\n'
+
+		# Registered tile boundary
+		s += '\\draw[dashed] (-0.4, 3.30) -- (' + '%.2f' % (totalW + 0.4) + ', 3.30);\n'
+		s += '\\node[note, anchor=west] at (' + '%.2f' % (totalW + 0.5) + ', 3.30) {registered tile boundary\\\\ (1 cycle each way)};\n'
+
+		# Arbiter
+		s += '\\node[blk, fill=black!15, minimum width=' + '%.2f' % totalW + 'cm, minimum height=0.85cm] (arb) at (' + '%.2f' % (totalW / 2.0) + ', 2.45) {\\textbf{mp\\_arbiter} --- serializing round-robin, ' + str(N) + ' masters, grant-locked AMOs};\n'
+		for t, cx, w in xs:
+			if t is None:
+				continue
+			s += '\\draw[bus] (' + '%.2f' % cx + ', 3.60) -- (' + '%.2f' % cx + ', 2.88);\n'
+
+		# Shared-window slaves
+		slaves = []
+		slaves.append(('Boot ROM\\\\ \\texttt{0x0} (' + str(romKiB) + '\\,KiB)\\\\ all harts reset here', 2.9))
+		slaves.append(('Peripherals \\texttt{0x4000}\\\\ 16 slots $+$ CLINT\\\\ ' + str(nMtx) + ' mutexes $+$ IRQ router', 3.6))
+		if npu:
+			slaves.append(('NPU staging RAM\\\\ \\texttt{0xC000} (16\\,KiB)', 2.9))
+		slaves.append(('Shared RAM \\texttt{0x10000}\\\\ ' + str(banks) + ' $\\times$ 16\\,KiB banks', 3.3))
+		sTotal = sum(w for _, w in slaves) + gap * (len(slaves) - 1)
+		sx = (totalW - sTotal) / 2.0
+		for txt, w in slaves:
+			cx = sx + w / 2.0
+			s += '\\node[slave, minimum width=' + '%.2f' % w + 'cm, minimum height=1.25cm] at (' + '%.2f' % cx + ', 0.75) {' + txt + '};\n'
+			s += '\\draw[bus] (' + '%.2f' % cx + ', 2.02) -- (' + '%.2f' % cx + ', 1.40);\n'
+			sx += w + gap
+
+		# Hart 0's private flash path (XIP)
+		s += '\\node[blk, dashed, minimum width=2.9cm, minimum height=1.25cm] (flash) at (-2.15, 4.55) {SPI flash (XIP)\\\\ $\\geq$ \\texttt{' + flashBase + '}\\\\ \\scriptsize hart 0 only};\n'
+		s += '\\draw[bus, dashed] (flash.east) -- (tile0.west);\n'
+		s += '\\end{tikzpicture}\n'
+
+		with open(self.IncludeDirectory + '/SystemBlockDiagram.tex', 'w') as f:
+			f.write(s)
+		return
+
+	def GenerateBootFlowDiagram(self):
+		'''include/BootFlowDiagram.tex — the M12 single-ROM boot flow chart
+		   (mhartid dispatch, hart-0 SPI boot, tile WFI park + msip loader).'''
+		N = self.Gen.NumHarts
+		s = '% Generated boot flow chart (M12 single-ROM boot, numHarts=' + str(N) + ')\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tstp/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, text width=4.6cm, inner sep=5pt},\n'
+		s += '\tterm/.style={stp, fill=black!12},\n'
+		s += '\tdec/.style={draw, thick, diamond, aspect=2.4, align=center, font=\\sffamily\\small, inner sep=1.5pt},\n'
+		s += '\tflow/.style={->, >=Stealth, thick},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, fill=white, inner sep=1pt}]\n'
+		s += '\\node[term, text width=7.6cm] (rst) at (6.0, 10.6) {\\textbf{Power-on / reset}\\\\ all ' + str(N) + ' harts: PC $=$ \\texttt{0x0}, fetching THE shared boot ROM through the arbiter};\n'
+		s += '\\node[dec] (who) at (6.0, 8.9) {\\register{mhartid} $= 0$?};\n'
+		# Hart 0 branch (left)
+		s += '\\node[stp] (h0a) at (2.6, 7.1) {Configure \\peripheral{GPIO0}/\\peripheral{SPI0}, read the BOOT strap pin};\n'
+		s += '\\node[stp] (h0b) at (2.6, 5.5) {Copy the program from SPI flash to \\texttt{0x8000}--\\texttt{0xFFFC}; zero the mailbox region \\texttt{0x10000}--\\texttt{0x107FF}};\n'
+		s += '\\node[term] (h0c) at (2.6, 3.9) {Jump to \\texttt{\\SpiFlashProgramAddress} --- application runs on hart 0};\n'
+		s += '\\node[stp, dashed] (launch) at (2.6, 1.9) {\\textbf{Launching a tile $h$:} stage its image in shared RAM, write \\register{SRC[h]}/\\register{LEN[h]}/\\register{ENTRY[h]} at \\texttt{\\BootMailboxBase}$+16h$, then write $1$ to \\register{MSIPx} (\\texttt{0x5000}$+4h$)};\n'
+		# Tile branch (right)
+		s += '\\node[stp] (t1) at (9.4, 7.1) {Set $\\mathtt{sp}$ to the top of the private TCM; arm the software-interrupt vector};\n'
+		s += '\\node[term] (t2) at (9.4, 5.5) {\\textbf{Park}: low-power sleep, waiting for a \\peripheral{CLINT} software interrupt};\n'
+		s += '\\node[stp] (t3) at (9.4, 3.6) {ROM loader: clear the \\register{MSIPx} level, read \\register{SRC}/\\register{LEN}/\\register{ENTRY} at \\texttt{\\BootMailboxBase}$+16h$, copy \\register{LEN} words into the TCM at \\texttt{0x8000}};\n'
+		s += '\\node[term] (t4) at (9.4, 1.9) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM --- tile runs};\n'
+		# Edges
+		s += '\\draw[flow] (rst) -- (who);\n'
+		s += '\\draw[flow] (who.west) -| node[lab, pos=0.25] {yes: hart 0} (h0a.north);\n'
+		s += '\\draw[flow] (who.east) -| node[lab, pos=0.25] {no: harts 1--' + str(N - 1) + '} (t1.north);\n'
+		s += '\\draw[flow] (h0a) -- (h0b);\n'
+		s += '\\draw[flow] (h0b) -- (h0c);\n'
+		s += '\\draw[flow, dashed] (h0c) -- (launch);\n'
+		s += '\\draw[flow] (t1) -- (t2);\n'
+		s += '\\draw[flow] (t2) -- node[lab, right=1pt] {\\register{MSIPx} interrupt} (t3);\n'
+		s += '\\draw[flow] (t3) -- (t4);\n'
+		s += '\\draw[flow, dashed] (launch.east) -- node[lab, above, sloped] {\\peripheral{CLINT} msip} (t2.south west);\n'
+		s += '\\end{tikzpicture}\n'
+		with open(self.IncludeDirectory + '/BootFlowDiagram.tex', 'w') as f:
+			f.write(s)
+		return
+
+	def GenerateSyncPrimitiveDecisionTree(self):
+		'''include/SyncPrimitiveDecisionTree.tex — which synchronization
+		   primitive to use (HW mutex vs AMO vs LR/SC), as a decision tree.'''
+		s = '% Generated synchronization-primitive decision tree\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tdec/.style={draw, thick, diamond, aspect=2.6, align=center, font=\\sffamily\\small, inner sep=1pt},\n'
+		s += '\tleaf/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, text width=4.1cm, inner sep=5pt, fill=black!8},\n'
+		s += '\tflow/.style={->, >=Stealth, thick},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, fill=white, inner sep=1pt}]\n'
+		s += '\\node[dec] (q1) at (6.2, 8.6) {Single shared word to update atomically?\\\\ \\scriptsize (counter, swap, flag)};\n'
+		s += '\\node[leaf] (amo) at (1.9, 6.6) {\\textbf{AMO} (\\asminline{amoadd}, \\asminline{amoswap}, \\ldots)\\\\ \\scriptsize one-shot cross-hart RMW; the arbiter grant is held across the pair ($\\sim$5 cycles, pins the shared bus)};\n'
+		s += '\\node[dec] (q2) at (8.6, 6.4) {Guarding a multi-word critical section?};\n'
+		s += '\\node[dec] (q3) at (5.9, 4.2) {Hardware mutex free?\\\\ \\scriptsize (\\NumMutexes{} in the bank)};\n'
+		s += '\\node[leaf] (lrfree) at (11.4, 4.2) {\\textbf{LR/SC} retry loop\\\\ \\scriptsize lock-free structures; failed \\asminline{SC} never writes};\n'
+		s += '\\node[leaf] (mtx) at (2.9, 2.0) {\\textbf{Hardware mutex} (preferred)\\\\ \\scriptsize \\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases --- one instruction, no retry state};\n'
+		s += '\\node[leaf] (lrlock) at (8.8, 2.0) {\\textbf{LR/SC spinlock} in shared RAM\\\\ \\scriptsize reservation-based lock};\n'
+		s += '\\draw[flow] (q1.west) -| node[lab, pos=0.3] {yes} (amo.north);\n'
+		s += '\\draw[flow] (q1.east) -| node[lab, pos=0.3] {no} (q2.north);\n'
+		s += '\\draw[flow] (q2.west) -| node[lab, pos=0.3] {yes} (q3.north);\n'
+		s += '\\draw[flow] (q2.east) -| node[lab, pos=0.3] {no} (lrfree.north);\n'
+		s += '\\draw[flow] (q3.west) -| node[lab, pos=0.3] {yes} (mtx.north);\n'
+		s += '\\draw[flow] (q3.east) -| node[lab, pos=0.3] {no} (lrlock.north);\n'
+		s += '\\node[draw, thick, dashed, align=left, font=\\sffamily\\scriptsize, text width=12.6cm, inner sep=5pt] at (6.2, -0.1) {'
+		s += '\\textbf{Rules that apply to every branch:} never use \\asminline{LR}/\\asminline{SC} or AMO instructions on \\peripheral{MUTEX} bank addresses (the claim-on-read side effect fires); '
+		s += 'every retry loop needs a hart-scaled backoff ($\\mathtt{delay} \\propto \\register{mhartid}+1$) and a bounded retry count --- identical harts on the fair round-robin arbiter can otherwise livelock.};\n'
+		s += '\\end{tikzpicture}\n'
+		with open(self.IncludeDirectory + '/SyncPrimitiveDecisionTree.tex', 'w') as f:
+			f.write(s)
+		return
+
+	def GeneratePackagePinoutDiagram(self):
+		'''include/PackagePinoutDiagram.tex — fully labeled package top view,
+		   derived from the same package model as config/PadRing.json.'''
+		pkg = self.Gen.Package
+		D = float(pkg.Dimensions[0])
+		half = D / 2.0
+		pitch = float(pkg.PinPitch)
+		pw = float(pkg.PinWidth)
+		pd = float(pkg.PinDepth)
+
+		def pinLabel(pin):
+			if pin.NoConnect:
+				return '\\textit{\\color{black!55}NC}'
+			name = fmttex(pin.Name)
+			if pin.FuncName is not None:
+				name += '\\,/\\,' + fmttex(pin.FuncName)
+			if pin.IsPowerDomainPin:
+				return '\\textbf{' + name + '}'
+			return name
+
+		s = '% Generated package pinout (derived from the package model; see config/PadRing.json)\n'
+		s += '\\begin{tikzpicture}[x=10mm, y=10mm]\n'
+		s += '\\draw[thick] (' + '%.3f' % -half + ',' + '%.3f' % -half + ') rectangle (' + '%.3f' % half + ',' + '%.3f' % half + ');\n'
+		# Center annotation
+		s += '\\node[align=center, font=\\sffamily] at (0,0) {\\textbf{\\AsicNameForUserGuide}\\\\ ' + pkg.PackageType + '-' + str(pkg.PinCount) + ' --- top view\\\\ \\footnotesize ' + str(pkg.Dimensions[0]) + '$\\times$' + str(pkg.Dimensions[1]) + '\\,' + pkg.Units + ', ' + str(pkg.PinPitch) + '\\,' + pkg.Units + ' pitch};\n'
+		# Pin-1 dot
+		s += '\\fill (' + '%.3f' % (-half + 0.55) + ',' + '%.3f' % (half - 0.55) + ') circle (0.09);\n'
+
+		sideCount = {'W': 0, 'S': 0, 'E': 0, 'N': 0}
+		for pin in pkg.Pins:
+			sideCount[pin.Side] += 1
+		sideIdx = {'W': 0, 'S': 0, 'E': 0, 'N': 0}
+		for pin in pkg.Pins:
+			n = sideCount[pin.Side]
+			j = sideIdx[pin.Side]
+			sideIdx[pin.Side] += 1
+			fill = ', fill=black!15' if pin.IsPowerDomainPin else ''
+			if pin.Side == 'W':
+				y = ((n - 1) / 2.0 - j) * pitch
+				s += '\\draw[thick' + fill + '] (' + '%.3f' % (-half - 0.001) + ',' + '%.3f' % (y - pw / 2) + ') rectangle (' + '%.3f' % (-half + pd) + ',' + '%.3f' % (y + pw / 2) + ');\n'
+				s += '\\node[font=\\tiny, anchor=west, inner sep=1pt] at (' + '%.3f' % (-half + pd + 0.06) + ',' + '%.3f' % y + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[font=\\tiny\\sffamily, anchor=east, inner sep=1.5pt] at (' + '%.3f' % (-half - 0.12) + ',' + '%.3f' % y + ') {' + pinLabel(pin) + '};\n'
+			elif pin.Side == 'S':
+				xq = (j - (n - 1) / 2.0) * pitch
+				s += '\\draw[thick' + fill + '] (' + '%.3f' % (xq - pw / 2) + ',' + '%.3f' % (-half - 0.001) + ') rectangle (' + '%.3f' % (xq + pw / 2) + ',' + '%.3f' % (-half + pd) + ');\n'
+				s += '\\node[font=\\tiny, anchor=west, inner sep=1pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (-half + pd + 0.06) + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[font=\\tiny\\sffamily, anchor=east, inner sep=1.5pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (-half - 0.12) + ') {' + pinLabel(pin) + '};\n'
+			elif pin.Side == 'E':
+				y = (j - (n - 1) / 2.0) * pitch
+				s += '\\draw[thick' + fill + '] (' + '%.3f' % (half - pd) + ',' + '%.3f' % (y - pw / 2) + ') rectangle (' + '%.3f' % (half + 0.001) + ',' + '%.3f' % (y + pw / 2) + ');\n'
+				s += '\\node[font=\\tiny, anchor=east, inner sep=1pt] at (' + '%.3f' % (half - pd - 0.06) + ',' + '%.3f' % y + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[font=\\tiny\\sffamily, anchor=west, inner sep=1.5pt] at (' + '%.3f' % (half + 0.12) + ',' + '%.3f' % y + ') {' + pinLabel(pin) + '};\n'
+			else:	# N
+				xq = ((n - 1) / 2.0 - j) * pitch
+				s += '\\draw[thick' + fill + '] (' + '%.3f' % (xq - pw / 2) + ',' + '%.3f' % (half - pd) + ') rectangle (' + '%.3f' % (xq + pw / 2) + ',' + '%.3f' % (half + 0.001) + ');\n'
+				s += '\\node[font=\\tiny, anchor=east, inner sep=1pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (half - pd - 0.06) + ') {' + str(pin.PackagePinNumber) + '};\n'
+				s += '\\node[font=\\tiny\\sffamily, anchor=west, inner sep=1.5pt, rotate=90] at (' + '%.3f' % xq + ',' + '%.3f' % (half + 0.12) + ') {' + pinLabel(pin) + '};\n'
+		s += '\\end{tikzpicture}\n'
+		with open(self.IncludeDirectory + '/PackagePinoutDiagram.tex', 'w') as f:
+			f.write(s)
+		return
+
 	def GenerateInterruptsTable(self):
 		# Get all of the peripherals that generate interrupt signals
 		interruptPeripherals = [p for p in self.Gen.Peripherals if p.InterruptPriority is not None]

@@ -339,52 +339,7 @@ architecture behav of MCU is
         );
     end component;
 
-    -- NPUx
-    component NPU is
-        generic(
-            -- Fixed-Point M and N Bits for inputs, weights, and outputs
-            -- Of note, Y bits also control size of accumulator
-            X_M_BITS		: integer := 0;
-            W_M_BITS		: integer := 3;
-            Y_M_BITS		: integer := 3;
-            N_BITS			: integer := 15;
-            -- RHO to be used with sigmoid approximation
-            RHO				: integer := 2
-        );
-        port(
-            -- System Signals
-            Clk				: in	std_logic;						-- NPU Main Clock
-            ResetN			: in	std_logic;						-- NPU Active-Low Reset
-
-            -- Memory Address Bus to Memory Mapped Registers Signals
-            MabMmrA			: in 	std_logic_vector(1 downto 0);	-- MCU To NPU MMR - Address
-            MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
-            MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
-            MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable
-            MabMmrWEN		: in	std_logic_vector(3 downto 0);	-- MCU To NPU MMR - Write Enable
-            MabMmrQ			: out 	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Output
-
-            -- Multiplexed SRAM Signals from MCU
-            SramQ_in		: in	std_logic_vector(31 downto 0);	-- MCU To NPU - Data Output
-            SramA_in 		: in	std_logic_vector(11 downto 0);	-- SRAM To NPU - Address
-            SramD_in 		: in	std_logic_vector(31 downto 0);	-- SRAM To NPU - Data Input
-            SramCLK_in 		: in	std_logic;						-- SRAM To NPU - Clock
-            SramCEN_in 		: in	std_logic;						-- SRAM To NPU - Chip Enable
-            SramGWEN_in 	: in	std_logic;						-- SRAM To NPU - Global Write Enable
-            SramWEN_in 		: in	std_logic_vector(3 downto 0);	-- SRAM To NPU - Write Enable
-        
-            -- NPU to SRAM Interface Signals
-            NpuSramA_out		: out	std_logic_vector(11 downto 0);	-- NPU To SRAM - Address 
-            NpuSramD_out		: out	std_logic_vector(31 downto 0);	-- NPU To SRAM - Data Input
-            NpuSramCLK_out		: out 	std_logic;						-- NPU To SRAM - Clock
-            NpuSramCEN_out		: out	std_logic;						-- NPU To SRAM - Chip Enable
-            NpuSramGWEN_out		: out 	std_logic;						-- NPU To SRAM - Global Write Enable
-            NpuSramWEN_out		: out 	std_logic_vector(3 downto 0);	-- NPU To SRAM - Write Enable
-
-            -- NPU Status Signal
-            NpuActive		: out	std_logic						-- NPU Active Signal for Arbitration
-        );
-    end component;
+    --@GEN:npu-component@
 
 
 
@@ -426,21 +381,7 @@ architecture behav of MCU is
         -- M13: the RISCV core interface signals (read_data/write_word/
         -- data_addr/wen_*) moved into hart_tile with the core.
 
-        -- M3c.2: shared window behind mp_arbiter on mclk. M5b widened SH_AW
-        -- 8 -> 12 (whole pre-M11 region 4). M11 memory-map rework: SH_AW
-        -- 12 -> 15 — the arbiter word address now covers ALL of
-        -- 0x00000-0x1FFFF (word addr = data_addr(16:2)) and the slave
-        -- sub-decode selects on s_addr(14:12):
-        --   000 = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM — one
-        --         rom_hvt_pg, read-only slave; all four harts reset here)
-        --   001 = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots
-        --         at the LEGACY slot numbering, page 1 = CLINT @0x5000,
-        --         page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)
-        --   010 = dead (TCM region — tile-private, never arrives here)
-        --   011 = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)
-        --   1xx = shared bulk RAM 0x10000-0x1FFFF (4 x sram1p16k banks,
-        --         bank = s_addr(13:12))
-        constant SH_AW : natural := 15;                -- shared-window word-address width
+        --@GEN:sh-window-const@
         -- M13: the hart-0 master-side handshake state (sh_sel/sh_acked/
         -- sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile — all four
         -- masters now carry identical tile-internal copies of it.
@@ -451,48 +392,7 @@ architecture behav of MCU is
         signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
         signal sh_wdata         : std_logic_vector(31 downto 0);
-        -- M11 slave fabric: page select on s_addr(14:12) (see the SH_AW
-        -- comment above for the map). The peripheral window sub-decodes on
-        -- s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY
-        -- 0x4000 slot numbering (slot = s_addr(9:6)) — every peripheral is
-        -- back at its original Myshkin address, now shared by all 4 harts.
-        signal shslv_rom_sel    : std_logic;   -- 000 -> shared boot ROM 0x0-0x3FFF (M12)
-        signal shslv_perwin_sel : std_logic;   -- 001 -> peripheral window 0x4000-0x7FFF
-        signal shslv_pg0_sel    : std_logic;   -- window page 0 -> the 16 slots
-        signal shslv_npuram_sel : std_logic;   -- 011 -> NPU staging RAM 0xC000-0xFFFF
-        signal shslv_bank0_sel  : std_logic;   -- 100 -> bulk RAM bank 0 (0x10000)
-        signal shslv_bank1_sel  : std_logic;   -- 101 -> bulk RAM bank 1 (0x14000)
-        signal shslv_bank2_sel  : std_logic;   -- 110 -> bulk RAM bank 2 (0x18000)
-        signal shslv_bank3_sel  : std_logic;   -- 111 -> bulk RAM bank 3 (0x1C000)
-        signal shslv_rom_en     : std_logic;
-        signal shslv_npuram_en  : std_logic;
-        signal shslv_bank0_en   : std_logic;
-        signal shslv_bank1_en   : std_logic;
-        signal shslv_bank2_en   : std_logic;
-        signal shslv_bank3_en   : std_logic;
-        signal shslv_rd_rom     : std_logic := '0'; -- registered: last access was the boot ROM
-        signal shslv_rd_npuram  : std_logic := '0'; -- registered: last access was the NPU RAM
-        signal shslv_rd_bank0   : std_logic := '0';
-        signal shslv_rd_bank1   : std_logic := '0';
-        signal shslv_rd_bank2   : std_logic := '0';
-        signal shslv_rd_bank3   : std_logic := '0';
-        -- boot ROM + bulk RAM banks + NPU staging RAM are hard macros: their
-        -- Q is the 1-cycle registered read the arbiter's slave model
-        -- expects, so the macro output IS the rdata (no extra register).
-        -- Enables/WEN are ACTIVE-LOW at the macro — shims below.
-        signal rom_q            : std_logic_vector(31 downto 0);
-        signal bank0_q          : std_logic_vector(31 downto 0);
-        signal bank1_q          : std_logic_vector(31 downto 0);
-        signal bank2_q          : std_logic_vector(31 downto 0);
-        signal bank3_q          : std_logic_vector(31 downto 0);
-        signal npuram_q         : std_logic_vector(31 downto 0);
-        signal rom_cen_n        : std_logic;
-        signal npuram_cen_n     : std_logic;
-        signal bank0_cen_n      : std_logic;
-        signal bank1_cen_n      : std_logic;
-        signal bank2_cen_n      : std_logic;
-        signal bank3_cen_n      : std_logic;
-        signal shmem_gwen_n     : std_logic;   -- shared-macro global write enable (active-low)
+        --@GEN:memslv-decls@
         -- M5b: real CLINT (M11: peripheral-window page 1 @0x5000)
         signal shslv_clint_sel  : std_logic;
         signal shslv_clint_en   : std_logic;
@@ -534,64 +434,9 @@ architecture behav of MCU is
         -- boundary registers' reset values, so a clamped master looks
         -- exactly like a reset one to the arbiter (no M5a-class hazard).
         --@GEN:tile-raw-decls@
-        -- M7b movers: TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)
-        signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
-        signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
-        signal shslv_gpio1_sel, shslv_gpio1_en  : std_logic;
-        signal shslv_gpio2_sel, shslv_gpio2_en  : std_logic;
-        signal shslv_gpio3_sel, shslv_gpio3_en  : std_logic;
-        signal shslv_rd_tim0    : std_logic := '0';
-        signal shslv_rd_tim1    : std_logic := '0';
-        signal shslv_rd_gpio1   : std_logic := '0';
-        signal shslv_rd_gpio2   : std_logic := '0';
-        signal shslv_rd_gpio3   : std_logic := '0';
-        signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen
-        signal tim1_sh_en_n     : std_logic;
-        signal gpio1_sh_en_n    : std_logic;
-        signal gpio2_sh_en_n    : std_logic;
-        signal gpio3_sh_en_n    : std_logic;
-        signal tim0_sh_rdata    : std_logic_vector(31 downto 0);
-        signal tim1_sh_rdata    : std_logic_vector(31 downto 0);
-        signal gpio1_sh_rdata   : std_logic_vector(31 downto 0);
-        signal gpio2_sh_rdata   : std_logic_vector(31 downto 0);
-        signal gpio3_sh_rdata   : std_logic_vector(31 downto 0);
-        -- M7c movers: SPI1 + UART1 (M11: window slots 3/5)
-        signal shslv_spi1_sel,  shslv_spi1_en   : std_logic;
-        signal shslv_uart1_sel, shslv_uart1_en  : std_logic;
-        signal shslv_rd_spi1    : std_logic := '0';
-        signal shslv_rd_uart1   : std_logic := '0';
-        signal spi1_sh_en_n     : std_logic;
-        signal uart1_sh_en_n    : std_logic;
-        signal spi1_sh_rdata    : std_logic_vector(31 downto 0);
-        signal uart1_sh_rdata   : std_logic_vector(31 downto 0);
-        -- M7c.2 movers: I2C0/I2C1 (M11: window slots 14/15). I2C's register
-        -- READ is COMBINATIONAL (rdata_out collapses to register 0 the moment
-        -- EnMemPeriph deasserts), so the bridge REGISTERS it at the
-        -- LATCH->DATA edge (i2c*_sh_rdata below) — reproducing exactly the
-        -- old adddec timing the I2C.vhd comment assumes ("EnMemPeriph has a
-        -- leading edge exactly one clock cycle before rdata latches").
-        signal shslv_i2c0_sel,  shslv_i2c0_en   : std_logic;
-        signal shslv_i2c1_sel,  shslv_i2c1_en   : std_logic;
-        signal shslv_rd_i2c0    : std_logic := '0';
-        signal shslv_rd_i2c1    : std_logic := '0';
-        signal i2c0_sh_en_n     : std_logic;
-        signal i2c1_sh_en_n     : std_logic;
-        signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance
-        signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
-        signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
-        signal i2c1_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0');
-        -- M7d mover: NPU register bus (M11: window slot 10 @0x4A00). Its MMR
-        -- read is COMBINATIONAL like I2C's -> same bridge register. The NPU's
-        -- DATA now lives in the shared NPU staging RAM at 0xC000 (bank above)
-        -- — the SRAM-port mux is fed by the slave fabric, and hart 0 no
-        -- longer sleeps during THINK (the staging RAM is not its private
-        -- memory any more; "don't touch 0xC000-0xFFFF during a THINK" is a
-        -- software contract, poll NPUCR bit 16).
-        signal shslv_npu_sel,   shslv_npu_en    : std_logic;
-        signal shslv_rd_npu     : std_logic := '0';
-        signal npu_sh_en_n      : std_logic;
-        signal npu_sh_rdata_c   : std_logic_vector(31 downto 0); -- combinational, from the instance
-        signal npu_sh_rdata     : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
+        --@GEN:mover-fabric-decls@
+        --@GEN:i2c-fabric-decls@
+        --@GEN:npu-fabric-decls@
         -- M11 movers: the last three private peripherals join the window —
         -- SYSTEM0 (slot 9 @0x4900), GPIO0 (slot 0 @0x4000), SPI0 (slot 2
         -- @0x4200). All
@@ -628,11 +473,7 @@ architecture behav of MCU is
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
         -- Memory and RAM Control Signals
-        -- (M13: hart 0's adddec<->TCM bus moved into hart_tile; pgen_mem
-        -- stays — SYSTEM0's BLOCKPWR gates rom0 (0), hart 0's TCM via the
-        -- tile's tcm_pgen port (1) and npuram0 (2).)
-        signal RAM_Dout         : std_logic_vector(31 downto 0);
-        signal pgen_mem         : std_logic_vector(2 downto 0);
+        --@GEN:pgen-decls@
 
         -- Flash Extended Memory Signals
         signal mem_en_flash    : std_logic;
@@ -642,15 +483,7 @@ architecture behav of MCU is
         signal flash_ext_meming: std_logic;
         signal mab_out         : std_logic_vector(31 downto 0); 
 
-        -- NPU0 Signals 
-        signal npu0_mux_ram_a       : std_logic_vector(11 downto 0);
-        signal npu0_mux_ram_d       : std_logic_vector(31 downto 0);
-        signal npu0_mux_ram_cen     : std_logic;
-        signal npu0_mux_ram_gwen    : std_logic;
-        signal npu0_mux_wen         : std_logic_vector(3 downto 0);
-        signal npu0_mux_ram_q       : std_logic_vector(31 downto 0);
-        signal npu0_mux_ram_clk     : std_logic;
-        signal npu0_active          : std_logic;
+        --@GEN:npu-mux-decls@
 
         -- DCO Signals 
         signal en_dco0          : std_logic;
@@ -666,6 +499,89 @@ architecture behav of MCU is
         -- An unassigned plane slice behaves as a high-impedance input:
         -- out='0', dir='0' (input), ren='0' (pull disabled) — pre-polarity.
         constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
+
+    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI
+    -- outputs fanned across all four ports. Dormant at reset (PxAFS=0).
+        -- GPIO0 (port 1) planes AF1-AF7
+        signal afunc1_af1_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af1_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af1_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO1 (port 2) planes AF2-AF7
+        signal afunc2_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO2 (port 3) planes AF2-AF7
+        signal afunc3_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO3 (port 4) planes AF2-AF7
+        signal afunc4_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_ren		: std_logic_vector(7 downto 0);
+
 
     -- GPIO0 Signals (Port 1) ------------------------------------------------------------
         signal p1_out					: std_logic_vector(7 downto 0);
@@ -750,30 +666,7 @@ architecture behav of MCU is
         signal afunc2_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
         signal p2_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
-        -- P2.0: cs1 
-        signal cs1_in                : std_logic;
-        signal cs1_ren_in           : std_logic;
-
-        -- P2.1: miso1 
-        signal miso1_in              : std_logic;
-        signal miso1_out             : std_logic;
-        signal miso1_dir             : std_logic;
-        signal miso1_ren             : std_logic;
-        signal miso1_ren_in         : std_logic;
-
-        -- P2.2: mosi1
-        signal mosi1_in              : std_logic;
-        signal mosi1_out             : std_logic;
-        signal mosi1_dir             : std_logic;
-        signal mosi1_ren             : std_logic;
-        signal mosi1_ren_in         : std_logic;
-
-        -- P2.3: sck1
-        signal sck1_in               : std_logic;
-        signal sck1_out              : std_logic;
-        signal sck1_dir              : std_logic;
-        signal sck1_ren              : std_logic;
-        signal sck1_ren_in          : std_logic;
+        --@GEN:spi1-pad-decls@
 
         -- P2.4: TX0
         signal tx0_out              : std_logic;
@@ -788,18 +681,7 @@ architecture behav of MCU is
         signal rx0_ren              : std_logic;
         signal rx0_ren_in          : std_logic;
 
-        -- P2.6: TX1
-        signal tx1_out              : std_logic;
-        signal tx1_dir              : std_logic;
-        signal tx1_ren              : std_logic;
-        signal tx1_ren_in          : std_logic;
-
-        -- P2.7: RX1
-        signal rx1_in               : std_logic;
-        signal rx1_out              : std_logic;
-        signal rx1_dir              : std_logic;
-        signal rx1_ren              : std_logic;
-        signal rx1_ren_in           : std_logic;
+        --@GEN:uart1-pad-decls@
     
     -- GPIO2 Signals (Port 3) ------------------------------------------------------------
         signal p3_out					: std_logic_vector(7 downto 0);
@@ -843,30 +725,7 @@ architecture behav of MCU is
         signal t0_cap1_out           : std_logic;
 
 
-        -- P3.4: T1_CMP0 (output)
-        signal t1_cmp0_out           : std_logic;
-        signal t1_cmp0_dir           : std_logic;
-        signal t1_cmp0_ren           : std_logic;
-        signal t1_cmp0_ren_in        : std_logic;
-
-        -- P3.5: T1_CMP1 (output)
-        signal t1_cmp1_out           : std_logic;
-        signal t1_cmp1_dir           : std_logic;
-        signal t1_cmp1_ren           : std_logic;
-        signal t1_cmp1_ren_in       : std_logic;
-
-        -- P3.6: T1_CAP0 (input)
-        signal t1_cap0_in            : std_logic;
-        signal t1_cap0_dir           : std_logic;
-        signal t1_cap0_ren           : std_logic;
-        signal t1_cap0_ren_in       : std_logic;
-
-        -- P3.7: T1_CAP1 (input and output (double as dtp for SARADC))
-        signal t1_cap1_in            : std_logic;
-        signal t1_cap1_dir           : std_logic;
-        signal t1_cap1_ren           : std_logic;
-        signal t1_cap1_ren_in        : std_logic;
-        signal t1_cap1_out           : std_logic;
+        --@GEN:timer1-pad-decls@
 
 
     -- GPIO3 Signals (Port 4) ------------------------------------------------------------
@@ -899,19 +758,7 @@ architecture behav of MCU is
         signal scl0_ren              : std_logic;
         signal scl0_ren_in          : std_logic;
 
-        -- P4.2: SDA1 (input and output)
-        signal sda1_in               : std_logic;
-        signal sda1_out              : std_logic;
-        signal sda1_dir              : std_logic;
-        signal sda1_ren              : std_logic;
-        signal sda1_ren_in          : std_logic;
-        
-        -- P4.3: SCL1 (input and output)
-        signal scl1_in               : std_logic;
-        signal scl1_out              : std_logic;
-        signal scl1_dir              : std_logic;
-        signal scl1_ren              : std_logic;
-        signal scl1_ren_in          : std_logic;
+        --@GEN:i2c1-pad-decls@
 
         -- P4.4: DTP0 (output only)
         signal dtp0_out               : std_logic;
@@ -1001,21 +848,10 @@ begin
 
         );
 
-        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the
-        -- boot/flash/clock port keeps exactly one alternate function per pin.
-        afunc1_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_out;
-        afunc1_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_dir;
-        afunc1_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_ren;
+        --@GEN:gpio0-af-spread@
 
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
-        cs1_in   <= prt2_in(pnum_gpio1_cs1);
-        miso1_in <= prt2_in(pnum_gpio1_miso1);
-        mosi1_in <= prt2_in(pnum_gpio1_mosi1);
-        sck1_in  <= prt2_in(pnum_gpio1_sck1);
-        sck1_ren_in <= p2_ren(pnum_gpio1_sck1);
-        mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);
-        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);
-        -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
+        --@GEN:spi1-input-taps@
 
         -- GPIO1 Connections (UART0)
         -- Multi-AF input routing: a relocated function reads its alternate pad
@@ -1033,310 +869,36 @@ begin
                   when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                   else prt2_in(pnum_gpio1_rx0);
 
-        -- GPIO1 Connections (UART1)
-        tx1_ren_in <= p3_ren(pnum_gpio2_af1_tx1)
-                      when p3_afs((3 * pnum_gpio2_af1_tx1) + 2 downto 3 * pnum_gpio2_af1_tx1) = "001"
-                      else p2_ren(pnum_gpio1_tx1);
-        rx1_ren_in <= p3_ren(pnum_gpio2_af1_rx1)
-                      when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"
-                      else p2_ren(pnum_gpio1_rx1);
-        rx1_in <= prt3_in(pnum_gpio2_af1_rx1)
-                  when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"
-                  else prt2_in(pnum_gpio1_rx1);
+        --@GEN:uart1-input-muxes@
 
 
-        afunc2_out <= (
-            pnum_gpio1_rx1 => rx1_out,      -- GPIO1 pin 7
-            pnum_gpio1_tx1 => tx1_out,      -- GPIO1 pin 6
-            pnum_gpio1_rx0 => rx0_out,      -- GPIO1 pin 5
-            pnum_gpio1_tx0 => tx0_out,      -- GPIO1 pin 4
-            pnum_gpio1_sck1 => sck1_out,    -- GPIO1 pin 3
-            pnum_gpio1_mosi1 => mosi1_out,  -- GPIO1 pin 2
-            pnum_gpio1_miso1 => miso1_out,  -- GPIO1 pin 1
-            0 => p2_out(0)                  -- CS1 line manually toggled with GPIO1
-        );
-        afunc2_dir <= (
-            pnum_gpio1_rx1 => rx1_dir,      -- GPIO1 pin 7
-            pnum_gpio1_tx1 => tx1_dir,      -- GPIO1 pin 6
-            pnum_gpio1_rx0 => rx0_dir,      -- GPIO1 pin 5
-            pnum_gpio1_tx0 => tx0_dir,      -- GPIO1 pin 4
-            pnum_gpio1_sck1 => sck1_dir,    -- GPIO1 pin 3
-            pnum_gpio1_mosi1 => mosi1_dir,  -- GPIO1 pin 2
-            pnum_gpio1_miso1 => miso1_dir,  -- GPIO1 pin 1
-            0 => p2_dir(0)
-        );
-        afunc2_ren <= (
-            pnum_gpio1_rx1 => rx1_ren,      -- GPIO1 pin 7
-            pnum_gpio1_tx1 => tx1_ren,      -- GPIO1 pin 6
-            pnum_gpio1_rx0 => rx0_ren,      -- GPIO1 pin 5
-            pnum_gpio1_tx0 => tx0_ren,      -- GPIO1 pin 4
-            pnum_gpio1_sck1 => sck1_ren,    -- GPIO1 pin 3
-            pnum_gpio1_mosi1 => mosi1_ren,  -- GPIO1 pin 2
-            pnum_gpio1_miso1 => miso1_ren,  -- GPIO1 pin 1
-            0 => p2_ren(0)
-        );
+        --@GEN:gpio1-primary-planes@
 
-        -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),
-        -- I2C0 relocation on P2.6/7 (the UART1 pins). P2.4/5 have no AF1.
-        afunc2_af1_out <= (
-            pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7
-            pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (hi-Z input)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (hi-Z input)
-            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3
-            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2
-            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1
-            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_out   -- GPIO1 pin 0
-        );
-        afunc2_af1_dir <= (
-            pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7
-            pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (input)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (input)
-            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3
-            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2
-            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1
-            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_dir   -- GPIO1 pin 0
-        );
-        afunc2_af1_ren <= (
-            pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7
-            pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (pull disabled)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (pull disabled)
-            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3
-            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2
-            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1
-            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_ren   -- GPIO1 pin 0
-        );
+        --@GEN:gpio1-af1-planes@
 
-        -- Flattened AF planes (7 downto 2 unassigned)
-        afunc2_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_out & afunc2_out;
-        afunc2_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_dir & afunc2_dir;
-        afunc2_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_ren & afunc2_ren;
+        --@GEN:gpio1-af-spread@
 
     -- GPIO2 Connections (TIMER0, TIMER1) -------------------------------------------------
-        -- Compare (PWM) outputs are available at three locations (home P3.0/1/4/5,
-        -- AF1 on P2.0-3, AF1 on P4.4-7): the peripheral ren_in follows the
-        -- selection with fixed priority P2 > P4 > home.
-        t0_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp0)
-                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp0) + 2 downto 3 * pnum_gpio1_af1_t0_cmp0) = "001"
-                           else p4_ren(pnum_gpio3_af1_t0_cmp0)
-                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp0) + 2 downto 3 * pnum_gpio3_af1_t0_cmp0) = "001"
-                           else p3_ren(pnum_gpio2_t0_cmp0);
-        t0_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp1)
-                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp1) + 2 downto 3 * pnum_gpio1_af1_t0_cmp1) = "001"
-                           else p4_ren(pnum_gpio3_af1_t0_cmp1)
-                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp1) + 2 downto 3 * pnum_gpio3_af1_t0_cmp1) = "001"
-                           else p3_ren(pnum_gpio2_t0_cmp1);
-        t1_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp0)
-                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp0) + 2 downto 3 * pnum_gpio1_af1_t1_cmp0) = "001"
-                           else p4_ren(pnum_gpio3_af1_t1_cmp0)
-                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp0) + 2 downto 3 * pnum_gpio3_af1_t1_cmp0) = "001"
-                           else p3_ren(pnum_gpio2_t1_cmp0);
-        t1_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp1)
-                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp1) + 2 downto 3 * pnum_gpio1_af1_t1_cmp1) = "001"
-                           else p4_ren(pnum_gpio3_af1_t1_cmp1)
-                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp1) + 2 downto 3 * pnum_gpio3_af1_t1_cmp1) = "001"
-                           else p3_ren(pnum_gpio2_t1_cmp1);
-
-        -- Capture inputs relocate to P4.0-3 (AF1); home pads stay the default
-        t0_cap0_in      <= prt4_in(pnum_gpio3_af1_t0_cap0)
-                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"
-                           else prt3_in(pnum_gpio2_t0_cap0);
-        t0_cap1_in      <= prt4_in(pnum_gpio3_af1_t0_cap1)
-                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"
-                           else prt3_in(pnum_gpio2_t0_cap1);
-        t1_cap0_in      <= prt4_in(pnum_gpio3_af1_t1_cap0)
-                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"
-                           else prt3_in(pnum_gpio2_t1_cap0);
-        t1_cap1_in      <= prt4_in(pnum_gpio3_af1_t1_cap1)
-                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"
-                           else prt3_in(pnum_gpio2_t1_cap1);
-        t0_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap0)
-                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"
-                           else p3_ren(pnum_gpio2_t0_cap0);
-        t1_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap0)
-                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"
-                           else p3_ren(pnum_gpio2_t1_cap0);
-        t0_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap1)
-                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"
-                           else p3_ren(pnum_gpio2_t0_cap1);
-        t1_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap1)
-                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"
-                           else p3_ren(pnum_gpio2_t1_cap1);
+        --@GEN:gpio2-timer-muxes@
 
 
-        afunc3_out <= (
-            pnum_gpio2_t1_cap1 => t1_cap1_out,                  -- GPIO2 pin 7
-            pnum_gpio2_t1_cap0 => p3_out(pnum_gpio2_t1_cap0),   -- GPIO2 pin 6
-            pnum_gpio2_t1_cmp1 => t1_cmp1_out,                  -- GPIO2 pin 5
-            pnum_gpio2_t1_cmp0 => t1_cmp0_out,                  -- GPIO2 pin 4
-            pnum_gpio2_t0_cap1 => t0_cap1_out,                  -- GPIO2 pin 3
-            pnum_gpio2_t0_cap0 => p3_out(pnum_gpio2_t0_cap0),   -- GPIO2 pin 2
-            pnum_gpio2_t0_cmp1 => t0_cmp1_out,                  -- GPIO2 pin 1
-            pnum_gpio2_t0_cmp0 => t0_cmp0_out                   -- GPIO2 pin 0
-        );
-        afunc3_dir <= (
-            pnum_gpio2_t1_cap1 => t1_cap1_dir, -- GPIO2 pin 7
-            pnum_gpio2_t1_cap0 => t1_cap0_dir, -- GPIO2 pin 6
-            pnum_gpio2_t1_cmp1 => t1_cmp1_dir, -- GPIO2 pin 5
-            pnum_gpio2_t1_cmp0 => t1_cmp0_dir, -- GPIO2 pin 4
-            pnum_gpio2_t0_cap1 => t0_cap1_dir, -- GPIO2 pin 3
-            pnum_gpio2_t0_cap0 => t0_cap0_dir, -- GPIO2 pin 2
-            pnum_gpio2_t0_cmp1 => t0_cmp1_dir, -- GPIO2 pin 1
-            pnum_gpio2_t0_cmp0 => t0_cmp0_dir  -- GPIO2 pin 0
-        );
-        afunc3_ren <= (
-            pnum_gpio2_t1_cap1 => t1_cap1_ren, -- GPIO2 pin 7
-            pnum_gpio2_t1_cap0 => t1_cap0_ren, -- GPIO2 pin 6
-            pnum_gpio2_t1_cmp1 => t1_cmp1_ren, -- GPIO2 pin 5
-            pnum_gpio2_t1_cmp0 => t1_cmp0_ren, -- GPIO2 pin 4
-            pnum_gpio2_t0_cap1 => t0_cap1_ren, -- GPIO2 pin 3
-            pnum_gpio2_t0_cap0 => t0_cap0_ren, -- GPIO2 pin 2
-            pnum_gpio2_t0_cmp1 => t0_cmp1_ren, -- GPIO2 pin 1
-            pnum_gpio2_t0_cmp0 => t0_cmp0_ren  -- GPIO2 pin 0
-        );
+        --@GEN:gpio2-primary-planes@
 
-        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,
-        -- UART0 relocation on P3.4/5. P3.6/7 have no AF1.
-        afunc3_af1_out <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (hi-Z input)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (hi-Z input)
-            pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5
-            pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4
-            pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3
-            pnum_gpio2_af1_sda1 => sda1_out,    -- GPIO2 pin 2
-            pnum_gpio2_af1_rx1  => rx1_out,     -- GPIO2 pin 1
-            pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0
-        );
-        afunc3_af1_dir <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (input)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (input)
-            pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5
-            pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4
-            pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3
-            pnum_gpio2_af1_sda1 => sda1_dir,    -- GPIO2 pin 2
-            pnum_gpio2_af1_rx1  => rx1_dir,     -- GPIO2 pin 1
-            pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0
-        );
-        afunc3_af1_ren <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (pull disabled)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (pull disabled)
-            pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5
-            pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4
-            pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3
-            pnum_gpio2_af1_sda1 => sda1_ren,    -- GPIO2 pin 2
-            pnum_gpio2_af1_rx1  => rx1_ren,     -- GPIO2 pin 1
-            pnum_gpio2_af1_tx1  => tx1_ren      -- GPIO2 pin 0
-        );
+        --@GEN:gpio2-af1-planes@
 
-        -- Flattened AF planes (7 downto 2 unassigned)
-        afunc3_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_out & afunc3_out;
-        afunc3_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_dir & afunc3_dir;
-        afunc3_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_ren & afunc3_ren;
+        --@GEN:gpio2-af-spread@
 
 
 
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
-        -- Resistor Enables (I2C0 relocates to P2.6/7, I2C1 to P3.2/3 — the
-        -- peripheral ren_in follows the same AF selection as the inputs below)
-        sda0_ren_in <= p2_ren(pnum_gpio1_af1_sda0)
-                       when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
-                       else p4_ren(pnum_gpio3_sda0);
-        scl0_ren_in <= p2_ren(pnum_gpio1_af1_scl0)
-                       when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
-                       else p4_ren(pnum_gpio3_scl0);
-        sda1_ren_in <= p3_ren(pnum_gpio2_af1_sda1)
-                       when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
-                       else p4_ren(pnum_gpio3_sda1);
-        scl1_ren_in <= p3_ren(pnum_gpio2_af1_scl1)
-                       when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
-                       else p4_ren(pnum_gpio3_scl1);
+        --@GEN:i2c-input-muxes@
 
-        -- Inputs (relocated pad wins, home pad is the default)
-        sda0_in <= prt2_in(pnum_gpio1_af1_sda0)
-                   when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
-                   else prt4_in(pnum_gpio3_sda0);
-        scl0_in <= prt2_in(pnum_gpio1_af1_scl0)
-                   when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
-                   else prt4_in(pnum_gpio3_scl0);
-        sda1_in <= prt3_in(pnum_gpio2_af1_sda1)
-                   when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
-                   else prt4_in(pnum_gpio3_sda1);
-        scl1_in <= prt3_in(pnum_gpio2_af1_scl1)
-                   when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
-                   else prt4_in(pnum_gpio3_scl1);
+        --@GEN:gpio3-primary-planes@
 
-        afunc4_out <= (
-            pnum_gpio3_dtp3     => dtp3_out,  -- GPIO3 pin 7
-            pnum_gpio3_dtp2     => dtp2_out,  -- GPIO3 pin 6
-            pnum_gpio3_dtp1     => dtp1_out,  -- GPIO3 pin 5
-            pnum_gpio3_dtp0     => dtp0_out,  -- GPIO3 pin 4
-            pnum_gpio3_scl1     => scl1_out,  -- GPIO3 pin 3
-            pnum_gpio3_sda1     => sda1_out,  -- GPIO3 pin 2
-            pnum_gpio3_scl0     => scl0_out,  -- GPIO3 pin 1
-            pnum_gpio3_sda0     => sda0_out   -- GPIO3 pin 0
-        );
-        afunc4_dir <= (
-            pnum_gpio3_dtp3 => dtp3_dir,      -- GPIO3 pin 7
-            pnum_gpio3_dtp2 => dtp2_dir,      -- GPIO3 pin 6
-            pnum_gpio3_dtp1 => dtp1_dir,      -- GPIO3 pin 5
-            pnum_gpio3_dtp0 => dtp0_dir,      -- GPIO3 pin 4
-            pnum_gpio3_scl1 => scl1_dir,      -- GPIO3 pin 3
-            pnum_gpio3_sda1 => sda1_dir,      -- GPIO3 pin 2
-            pnum_gpio3_scl0 => scl0_dir,      -- GPIO3 pin 1
-            pnum_gpio3_sda0 => sda0_dir       -- GPIO3 pin 0
-        );
-        afunc4_ren <= (
-            pnum_gpio3_dtp3 => dtp3_ren,      -- GPIO3 pin 7
-            pnum_gpio3_dtp2 => dtp2_ren,      -- GPIO3 pin 6
-            pnum_gpio3_dtp1 => dtp1_ren,      -- GPIO3 pin 5
-            pnum_gpio3_dtp0 => dtp0_ren,      -- GPIO3 pin 4
-            pnum_gpio3_scl1 => scl1_ren,      -- GPIO3 pin 3
-            pnum_gpio3_sda1 => sda1_ren,      -- GPIO3 pin 2
-            pnum_gpio3_scl0 => scl0_ren,      -- GPIO3 pin 1
-            pnum_gpio3_sda0 => sda0_ren       -- GPIO3 pin 0
-        );
+        --@GEN:gpio3-af1-planes@
 
-        -- AF1 plane: TIMER0/1 capture inputs relocate to P4.0-3 (the I2C pins),
-        -- TIMER0/1 compare (PWM) outputs relocate to P4.4-7 (the dead DTP pins).
-        -- Captures are inputs: out slice '0', dir/ren from the timer.
-        afunc4_af1_out <= (
-            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO3 pin 7
-            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO3 pin 6
-            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO3 pin 5
-            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_out,  -- GPIO3 pin 4
-            pnum_gpio3_af1_t1_cap1 => '0',          -- GPIO3 pin 3
-            pnum_gpio3_af1_t1_cap0 => '0',          -- GPIO3 pin 2
-            pnum_gpio3_af1_t0_cap1 => '0',          -- GPIO3 pin 1
-            pnum_gpio3_af1_t0_cap0 => '0'           -- GPIO3 pin 0
-        );
-        afunc4_af1_dir <= (
-            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO3 pin 7
-            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO3 pin 6
-            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO3 pin 5
-            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_dir,  -- GPIO3 pin 4
-            pnum_gpio3_af1_t1_cap1 => t1_cap1_dir,  -- GPIO3 pin 3
-            pnum_gpio3_af1_t1_cap0 => t1_cap0_dir,  -- GPIO3 pin 2
-            pnum_gpio3_af1_t0_cap1 => t0_cap1_dir,  -- GPIO3 pin 1
-            pnum_gpio3_af1_t0_cap0 => t0_cap0_dir   -- GPIO3 pin 0
-        );
-        afunc4_af1_ren <= (
-            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO3 pin 7
-            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO3 pin 6
-            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO3 pin 5
-            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_ren,  -- GPIO3 pin 4
-            pnum_gpio3_af1_t1_cap1 => t1_cap1_ren,  -- GPIO3 pin 3
-            pnum_gpio3_af1_t1_cap0 => t1_cap0_ren,  -- GPIO3 pin 2
-            pnum_gpio3_af1_t0_cap1 => t0_cap1_ren,  -- GPIO3 pin 1
-            pnum_gpio3_af1_t0_cap0 => t0_cap0_ren   -- GPIO3 pin 0
-        );
-
-        -- Flattened AF planes (7 downto 2 unassigned)
-        afunc4_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_out & afunc4_out;
-        afunc4_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_dir & afunc4_dir;
-        afunc4_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_ren & afunc4_ren;
+        --@GEN:gpio3-af-spread@
 
 
     -- =============================================================================
@@ -1349,12 +911,7 @@ begin
     -- =============================================================================
     -- Component Instantiations
     -- =============================================================================
-    -- M11: npu0_active no longer sleeps hart 0 — the NPU's vectors live in
-    -- the SHARED staging RAM at 0xC000 (an arbiter slave), not in hart 0's
-    -- private RAM1 (retired). The sleep existed to keep hart 0's un-stallable
-    -- private RAM1 accesses from colliding with the NPU's port mux; shared
-    -- accesses have arbiter back-pressure and "no 0xC000-0xFFFF access during
-    -- a THINK" is the software contract (poll NPUCR bit 16, shnpu.S).
+    --@GEN:npu-sleep-comment@
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
 
     --@GEN:hart0-instance@
@@ -1401,25 +958,7 @@ begin
         );
 
     -- =========================================================================
-    -- M5b/M11/M12: slave-side sub-decode of the shared window. The arbiter
-    -- serializes ALL masters onto ONE slave port; the 15-bit word address
-    -- then selects which physical slave this transaction hits (s_addr(14:12)
-    -- pages, see the SH_AW comment):
-    --   0x00000-0x03FFF -> THE shared boot ROM (M12: one rom_hvt_pg,
-    --                      read-only — writes complete but are discarded)
-    --   0x04000-0x07FFF -> peripheral window: page 0 = 16 x 256B slots at
-    --                      the LEGACY slot numbering (every peripheral back
-    --                      at its Myshkin address, shared by all 4 harts),
-    --                      page 1 = CLINT, page 2 = MUTEX, page 3 = router
-    --   0x0C000-0x0FFFF -> NPU staging RAM (sram1p16k, NPU-port-muxed)
-    --   0x10000-0x1FFFF -> bulk RAM banks 0-3 (4 x sram1p16k)
-    --   everything else -> no slave (reads return 0)
-    -- Every slave obeys the same 1-cycle registered-read contract (the SRAM
-    -- macros natively; peripherals via their clk_mem-registered reads), so
-    -- the arbiter's IDLE->LATCH->DATA timing is untouched; the shslv_rd_*
-    -- selects are registered at the access cycle and steer s_rdata during
-    -- DATA. resv_unit still snoops every transaction (its s_we_gated drives
-    -- ALL slaves: a suppressed SC write must not touch a peripheral either).
+    --@GEN:shslv-banner@
     -- =========================================================================
     --@GEN:shslv-subdecode@
 
@@ -1441,18 +980,7 @@ begin
     -- WHICH hart's claim-read this is. Resets all-free -> provable NO-OP.
     -- ADVISORY by design decision: no bus-enforced locking (no core bus-error
     -- path; stall-until-release would be a deadlock generator).
-    mtx0: entity work.mutex_bank
-        generic map (NMUTEX => 16)
-        port map (
-            clk    => mclk,
-            resetn => resetn,
-            en     => shslv_mtx_en,
-            we     => sh_we,
-            addr   => sh_addr(3 downto 0),
-            wdata  => sh_wdata,
-            master => sh_master,
-            rdata  => mtx_rdata
-        );
+    --@GEN:mutex-instance@
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
     -- One gate bit per tile hart; a per-tile FSM sequences the domain
@@ -1463,20 +991,7 @@ begin
     -- honest, since reset values equal the A2ISO clamp-0 values on every
     -- outbound tile signal. Resets all-ON -> provable NO-OP until software
     -- gates a tile. Software contract: gate only parked/quiesced tiles.
-    pwr0: entity work.pwr_ctrl
-        generic map (T_SEQ => 4, T_RAIL => 256)
-        port map (
-            clk       => mclk,
-            resetn    => resetn,
-            en        => shslv_pwr_en,
-            we        => sh_we,
-            addr      => sh_addr(3 downto 0),
-            wdata     => sh_wdata,
-            rdata     => pwr_rdata,
-            pd_iso_en => pd_iso_en,
-            pd_sleep  => pd_sleep,
-            pd_rstn   => pd_rstn
-        );
+    --@GEN:pwr-instance@
 
     -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
     -- which is also what keeps it bus-silent at the arbiter (sh_req is
@@ -1489,81 +1004,7 @@ begin
     -- domain. These gates synthesize into the ALWAYS-ON control plane.
     --@GEN:iso-clamps@
 
-    -- =========================================================================
-    -- M11: shared bulk RAM = 4 x sram1p16k macros (64 KB, 0x10000-0x1FFFF),
-    -- replacing the M3c 256-word behavioral array. The macro IS the arbiter's
-    -- slave model: CEN sampled with the address at the s_en cycle's ending
-    -- edge, Q valid the next cycle (1-cycle registered read). Enables/WEN are
-    -- ACTIVE-LOW at the macro — inverted from the arbiter's active-high
-    -- strobes; WEN comes from the resv-GATED sh_we (a suppressed SC write
-    -- must not touch memory), per-byte lanes (M4a). No INIT: power-up
-    -- contents are undefined on silicon — the write-before-read contract
-    -- (mailbox zeroing) is an M12 bootrom obligation; behavioral models
-    -- zero-fill, the gate flow deposits zeros.
-    -- =========================================================================
-    bank0_cen_n  <= not shslv_bank0_en;
-    bank1_cen_n  <= not shslv_bank1_en;
-    bank2_cen_n  <= not shslv_bank2_en;
-    bank3_cen_n  <= not shslv_bank3_en;
-    npuram_cen_n <= not shslv_npuram_en;
-    rom_cen_n    <= not shslv_rom_en;   -- M12: shared boot ROM (read-only, no WEN)
-    shmem_gwen_n <= '0' when sh_we /= "0000" else '1';
-
-    shbank0: entity work.sram1p16k_hvt_pg
-        port map (
-            Q     => bank0_q,
-            CLK   => mclk,
-            CEN   => bank0_cen_n,
-            WEN   => sh_wen_n,
-            A     => sh_addr(11 downto 0),
-            D     => sh_wdata,
-            EMA   => "000",
-            GWEN  => shmem_gwen_n,
-            RETN  => '1',
-            PGEN  => '0'
-        );
-
-    shbank1: entity work.sram1p16k_hvt_pg
-        port map (
-            Q     => bank1_q,
-            CLK   => mclk,
-            CEN   => bank1_cen_n,
-            WEN   => sh_wen_n,
-            A     => sh_addr(11 downto 0),
-            D     => sh_wdata,
-            EMA   => "000",
-            GWEN  => shmem_gwen_n,
-            RETN  => '1',
-            PGEN  => '0'
-        );
-
-    shbank2: entity work.sram1p16k_hvt_pg
-        port map (
-            Q     => bank2_q,
-            CLK   => mclk,
-            CEN   => bank2_cen_n,
-            WEN   => sh_wen_n,
-            A     => sh_addr(11 downto 0),
-            D     => sh_wdata,
-            EMA   => "000",
-            GWEN  => shmem_gwen_n,
-            RETN  => '1',
-            PGEN  => '0'
-        );
-
-    shbank3: entity work.sram1p16k_hvt_pg
-        port map (
-            Q     => bank3_q,
-            CLK   => mclk,
-            CEN   => bank3_cen_n,
-            WEN   => sh_wen_n,
-            A     => sh_addr(11 downto 0),
-            D     => sh_wdata,
-            EMA   => "000",
-            GWEN  => shmem_gwen_n,
-            RETN  => '1',
-            PGEN  => '0'
-        );
+    --@GEN:shared-ram-banks@
 
     -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
     -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
@@ -1819,51 +1260,7 @@ begin
 
         );
 
-    spi1: SPI
-        generic map (
-            ENABLE_EXTENDED_MEM => false
-        )
-        port map (
-
-            clk             => smclk,
-            mclk            => mclk,
-            resetn          => resetn,
-            irq_tc          => irq_spi1_tc,
-            irq_te          => irq_spi1_te,
-
-            --@GEN:bus:spi1@
-
-            cs_in       => cs1_in,
-
-            sck_in      => sck1_in,
-            sck_out     => sck1_out,
-            sck_dir     => sck1_dir,
-            sck_ren     => sck1_ren,
-            sck_ren_in  => sck1_ren_in,
-
-            mosi_in     => mosi1_in,
-            mosi_out    => mosi1_out,
-            mosi_dir    => mosi1_dir,
-            mosi_ren    => mosi1_ren,
-            mosi_ren_in => mosi1_ren_in,
-
-            miso_in     => miso1_in,
-            miso_out    => miso1_out,
-            miso_dir    => miso1_dir,
-            miso_ren    => miso1_ren,
-            miso_ren_in => miso1_ren_in, 
-
-            en_mem_flash    => '1', 
-            clk_mem_flash   => '1',
-            mab             => (others => '1'),
-            rdata_flash     => open,
-            disable_clk_cpu => open,
-            
-            cs_flash_out   => open,
-            cs_flash_dir   => open,
-            cs_flash_ren   => open
-
-    );
+    --@GEN:spi1-instance@
 
     -- M6: UART0 is the SHARED console UART on the mp_arbiter slave port (all
     -- 4 harts). M11 moved its window from 0x12000 back to its ORIGINAL 0x4400
@@ -1893,29 +1290,7 @@ begin
             RX_REN      => rx0_ren
     );
 
-    uart1: UART
-        port map (
-            -- System Signals
-            clk         => smclk,
-            resetn       => resetn,
-
-            -- Interrupt Signals
-            irq_rc       => irq_uart1_rc,
-            irq_te       => irq_uart1_te,
-            irq_tc       => irq_uart1_tc,
-
-            --@GEN:bus:uart1@
-
-            -- Pad Interface
-            TX_OUT      => tx1_out,
-            TX_DIR      => tx1_dir,
-            TX_REN      => tx1_ren,
-
-            RX_IN       => rx1_in,
-            RX_OUT      => rx1_out,
-            RX_DIR      => rx1_dir,
-            RX_REN      => rx1_ren
-    );
+    --@GEN:uart1-instance@
 
     i2c0: I2C
         generic map (
@@ -1957,45 +1332,7 @@ begin
             SDA_REN			=> sda0_ren
 	);
 
-    i2c1: I2C
-        generic map (
-            default_SAD => i2c1_default_SAD
-        )
-        port map
-        (
-            -- System Signals
-            smclk			=> smclk,	
-            resetn			=> resetn,	
-
-            irq_str			=> irq_i2c1_str,
-            irq_spr			=> irq_i2c1_spr,
-            irq_msts		=> irq_i2c1_msts,
-            irq_msps		=> irq_i2c1_msps,
-            irq_marb		=> irq_i2c1_marb,
-            irq_mtxe		=> irq_i2c1_mtxe,
-            irq_mnr			=> irq_i2c1_mnr,
-            irq_mxc			=> irq_i2c1_mxc,
-            irq_sa			=> irq_i2c1_sa,
-            irq_stxe		=> irq_i2c1_stxe,
-            irq_sovf		=> irq_i2c1_sovf,
-            irq_snr			=> irq_i2c1_snr,
-            irq_sxc			=> irq_i2c1_sxc,
-            
-            --@GEN:bus:i2c1@
-
-            -- Pin Inputs/Outputs
-            SCL_IN			=> scl1_in,
-            SCL_OUT			=> scl1_out,
-            SCL_DIR			=> scl1_dir,
-            SCL_REN_in		=> scl1_ren_in,
-            SCL_REN			=> scl1_ren,
-            
-            SDA_IN			=> sda1_in,
-            SDA_OUT			=> sda1_out,
-            SDA_DIR			=> sda1_dir,
-            SDA_REN_in		=> sda1_ren_in,
-            SDA_REN			=> sda1_ren
-	);
+    --@GEN:i2c1-instance@
 
     timer0 : TIMER
         port map (
@@ -2038,97 +1375,11 @@ begin
             cap1_in      => t0_cap1_in
     );
 
-    timer1 : TIMER
-        port map (
-            -- System Signals
-            mclk         => mclk,
-            smclk        => smclk,
-            clk_lfxt     => clk_lfxt,
-            clk_hfxt     => clk_hfxt,
-            resetn       => resetn,
+    --@GEN:timer1-instance@
 
-            -- IRQ Signals  
-            irq_cap0     => irq_tim1_cap0,
-            irq_cap1     => irq_tim1_cap1,
-            irq_ovf      => irq_tim1_ovf,
-            irq_cmp0     => irq_tim1_cmp0,
-            irq_cmp1     => irq_tim1_cmp1,
-            irq_cmp2     => irq_tim1_cmp2,
+    --@GEN:npu-instance@
 
-            --@GEN:bus:timer1@
-
-            -- Pad Interface
-            cmp0_ren_in  => t1_cmp0_ren_in,
-            cmp0_out     => t1_cmp0_out,
-            cmp0_dir     => t1_cmp0_dir,
-            cmp0_ren     => t1_cmp0_ren,
-
-            cmp1_ren_in  => t1_cmp1_ren_in,
-            cmp1_out     => t1_cmp1_out,
-            cmp1_dir     => t1_cmp1_dir,
-            cmp1_ren     => t1_cmp1_ren,
-
-            cap0_ren_in  => t1_cap0_ren_in,
-            cap0_ren     => t1_cap0_ren,
-            cap0_dir     => t1_cap0_dir,
-            cap0_in      => t1_cap0_in,
-
-            cap1_ren_in  => t1_cap1_ren_in,
-            cap1_ren     => t1_cap1_ren,
-            cap1_dir     => t1_cap1_dir,
-            cap1_in      => t1_cap1_in
-    );
-
-    npu0: entity work.NPU
-        generic map(
-            X_M_BITS => 0,
-            W_M_BITS => 7,
-            Y_M_BITS => 7,
-            N_BITS   => 24,
-            RHO      => 2
-        )
-        port map (
-            -- System Signals
-            clk         => mclk,  
-            resetn      => resetn,
-
-            --@GEN:bus:npu0@
-
-            -- MUXed SRAM Inputs — M11: the staging RAM's bus side is the
-            -- ARBITER SLAVE fabric (0xC000-0xFFFF page), not hart 0's adddec:
-            -- any hart stages vectors through the shared window. Active-low
-            -- strobes shimmed exactly like the bulk RAM banks.
-            SramQ_in      => npuram_q,
-            SramA_in      => sh_addr(11 downto 0),
-            SramD_in      => sh_wdata,
-            SramCLK_in    => mclk,
-            SramCEN_in    => npuram_cen_n,
-            SramGWEN_in   => shmem_gwen_n,
-            SramWEN_in    => sh_wen_n,
-
-            -- SRAM Interface (connect directly to SRAM blocks without going through address decoder)
-            NpuSramA_out    => npu0_mux_ram_a,
-            NpuSramD_out    => npu0_mux_ram_d,
-            NpuSramCLK_out  => npu0_mux_ram_clk,
-            NpuSramCEN_out  => npu0_mux_ram_cen,
-            NpuSramGWEN_out => npu0_mux_ram_gwen,
-            NpuSramWEN_out  => npu0_mux_wen,
-
-            NpuActive       => npu0_active -- Make irq
-    );
-
-    -- AFE / SARADC removed (digital-only Castalia). Peripheral-window slots
-    -- 11/12 (0x4B00/0x4C00) and IRQ vectors 55/56 are reserved gaps (read 0,
-    -- tied low). Tie off the GPIO alt-function outputs the two analog blocks
-    -- used to drive so those pins act as plain GPIO:
-    --   GPIO2 pins 3/7 (T0/T1 CAP1 out, formerly SARADC DTP0/1)
-    --   GPIO3 pins 4-7 (formerly AFE DTP0-3)
-    t0_cap1_out <= '0';
-    t1_cap1_out <= '0';
-    dtp0_out <= '0';  dtp0_dir <= '0';  dtp0_ren <= '0';
-    dtp1_out <= '0';  dtp1_dir <= '0';  dtp1_ren <= '0';
-    dtp2_out <= '0';  dtp2_dir <= '0';  dtp2_ren <= '0';
-    dtp3_out <= '0';  dtp3_dir <= '0';  dtp3_ren <= '0';
+    --@GEN:analog-tie-offs@
 
     -- =============================================================================
     -- Memory Blocks
@@ -2156,25 +1407,7 @@ begin
     -- adddec — BLOCKPWR's RAMOFF gating survives via the tile's tcm_pgen
     -- port (pgen_mem(1), wired at the hart0 instance).
 
-    -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1
-    -- macro, promoted to an ARBITER SLAVE). The NPU's internal port mux
-    -- (NpuMuxSel) still owns these pins: bus side = the shared-slave fabric
-    -- (see the NPU instance's Sram*_in), NPU side during a THINK. Q feeds
-    -- both the slave read mux (npuram_q) and the NPU's SramQ_in. BLOCKPWR's
-    -- RAM1OFF bit keeps gating this macro (pgen_mem(2)).
-    npuram0: entity work.sram1p16k_hvt_pg
-        port map (
-            Q     => npuram_q,
-            CLK   => npu0_mux_ram_clk,
-            CEN   => npu0_mux_ram_cen,
-            WEN   => npu0_mux_wen,
-            A     => npu0_mux_ram_a,
-            D     => npu0_mux_ram_d,
-            EMA   => "000",
-            GWEN  => npu0_mux_ram_gwen,
-            RETN  => '1',
-            PGEN  => pgen_mem(2)
-    );
+    --@GEN:npuram-instance@
 
 
     -- =============================================================================

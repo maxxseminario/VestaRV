@@ -1,0 +1,5 @@
+{
+  "_comment": "G1b proof configuration: the Castalia defaults with the second SPI instance dropped. Slot 3 reads zero, IRQ vectors 11-12 are reserved (numbering frozen), CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO8-11 (their TIMER AF1 relocations survive), the SCK1/MOSI1 output-spread slots go hi-Z. Prove with: make verify CONFIG=config/castalia_nospi1.json",
+  "chipName": "CastaliaNoSPI1",
+  "peripherals": { "spi1": false }
+}

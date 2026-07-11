@@ -1,0 +1,5 @@
+{
+  "_comment": "G1b proof configuration: the Castalia defaults with the second UART instance dropped. Slot 5 reads zero, IRQ vectors 52-54 are reserved (numbering frozen), TX1/RX1 pins revert to plain GPIO14/15, the TX1 output-spread slots go hi-Z. Prove with: make verify CONFIG=config/castalia_nouart1.json",
+  "chipName": "CastaliaNoUART1",
+  "peripherals": { "uart1": false }
+}

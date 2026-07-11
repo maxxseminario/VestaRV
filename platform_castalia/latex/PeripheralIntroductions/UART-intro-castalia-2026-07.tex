@@ -37,7 +37,7 @@ A connection diagram for the UART is displayed in Figure \ref{fig:uart-connectio
 
 \subsection{Shared Access on Castalia}
 
-Both UARTs live in the shared window behind the multi-core arbiter (see Section \ref{s:multicore}), so all four harts can use them. \peripheral{UART0} is the \textit{console UART}: it carries the boot-time Forth console and has its own dedicated window at \texttt{0x12000} rather than a slot in the shared peripheral page. \peripheral{UART1} sits in the shared peripheral page at \texttt{0x13500}.
+The UARTs live in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}), so any hart can use them, each at its original memory-mapped slot: \peripheral{UART0} at \texttt{0x4400}, and \peripheral{UART1} (in configurations that include it) at \texttt{0x4500}. \peripheral{UART0} is the \textit{console UART}: it carries the boot-time Forth console.
 
 The arbiter makes every individual register access atomic: one hart's read or write of \register{UARTxTX}, \register{UARTxSR}, and so on completes as a whole before any other hart's access is served. Message-level ownership, however, is software's responsibility --- if two harts transmit at the same time, their \textit{bytes} interleave on the wire. Software that shares a UART between harts should serialize whole messages with a lock: claim a hardware mutex (\peripheral{MUTEX} bank) or an \texttt{LR}/\texttt{SC} session lock in shared RAM, transmit the message, then release. See Section \ref{ss:multicore-sync}.
 

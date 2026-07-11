@@ -124,7 +124,7 @@ class Peripheral():
 						# software), or 'muxed' (TIMER's glitch-free clock mux)
 	StrobeNote = None	# Access side-effect software must know (e.g. SPIxRX read clears TCIF)
 
-	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None):
+	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None, registerSlotCount=None):
 		'''
 		@peripheralTemplate - The PeripheralTemplate type to bind this Peripheral to
 		@peripheralMemorySlot - The peripheral memory slot number that this peripheral will use
@@ -138,6 +138,12 @@ class Peripheral():
 		@combinationalRead - True when the peripheral's register read is combinational and needs the MCU-side bridge register (I2C, NPU)
 		@clockDomain - 'mclk', 'smclk' or 'muxed'; software-visible clocking class of the peripheral core
 		@strobeNote - access side-effect note (e.g. reading SPIxRX auto-clears TCIF)
+		@registerSlotCount - per-peripheral override of the register-word count (A2/Argus engine
+			delta). The global registerMemorySlotsPerPeripheralMemorySlot (64) is ALSO the legacy
+			0x4000-page slot pitch, so it cannot simply be raised; absolute-base shared-window
+			peripherals whose register file scales with the hart count (IRQROUTER rows at 4*h,
+			CLINT/PWRCTRL at large N, a 32-mutex bank) declare their own word count here instead.
+			Only legal together with absoluteBaseAddress. None = the global count.
 		'''
 		# Check peripheralTemplate
 		if type(peripheralTemplate) != PeripheralTemplate:
@@ -170,7 +176,18 @@ class Peripheral():
 			raise Exception('registerMemorySlotsPerPeripheralMemorySlot must be an int > 0')
 		if registerMemorySlotsPerPeripheralMemorySlot < 1:
 			raise Exception('registerMemorySlotsPerPeripheralMemorySlot must be an int > 0')
-		
+
+		# Per-peripheral register-word-count override (see the docstring): the
+		# EFFECTIVE count bounds this peripheral's RegisterMemorySlots.
+		if registerSlotCount is None:
+			self.RegisterSlotCount = registerMemorySlotsPerPeripheralMemorySlot
+		else:
+			if type(registerSlotCount) != int or registerSlotCount < 1:
+				raise Exception('registerSlotCount must be None or an int > 0, but its value is ' + str(registerSlotCount))
+			if absoluteBaseAddress is None:
+				raise Exception('registerSlotCount is only legal for absoluteBaseAddress peripherals (the legacy slot space has a fixed ' + str(registerMemorySlotsPerPeripheralMemorySlot) + '-word pitch)')
+			self.RegisterSlotCount = registerSlotCount
+
 		# Check the peripheral memory offset
 		if type(peripheralMemoryStartAddress) != int:
 			raise Exception('peripheralMemoryStartAddress must be an int >= 0x0000')
@@ -257,7 +274,7 @@ class Peripheral():
 		# Generate the registers
 		self.Registers = []
 		for rt in self.Template.RegisterTemplates:
-			r = Register(registerTemplate=rt, peripheralBaseAddress=self.BaseAddress, registerMemorySlotsPerPeripheralMemorySlot=registerMemorySlotsPerPeripheralMemorySlot, nameIndex=nameIndex)
+			r = Register(registerTemplate=rt, peripheralBaseAddress=self.BaseAddress, registerMemorySlotsPerPeripheralMemorySlot=self.RegisterSlotCount, nameIndex=nameIndex)
 			r.Parent = self
 			self.Registers.append(r)
 		

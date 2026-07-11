@@ -54,7 +54,15 @@
 
 % System configuration
 \section{System Configuration} \label{s:config}
-The microcontroller (MCU) described in this document is a \NumHartsWord-hart (\NumHartsWord-core) multiprocessor built from \NumHartsWord{} identical VestaRV CPU cores, a custom 32-bit RISC-V processor. The microcontroller is composed of the \NumHartsWord{} VestaRV harts, a ROM that contains boot software and a Forth interpreter, private RAM memory cells per hart, an arbitrated shared memory window for inter-hart communication, and several peripherals. The multi-core architecture is described in Section~\ref{s:multicore}. The modular architecture enables customization of the peripheral set, memory configuration, and system features to match specific application requirements.
+The microcontroller (MCU) described in this document is a \NumHartsWord-hart (\NumHartsWord-core) multiprocessor built from \NumHartsWord{} identical VestaRV CPU cores, a custom 32-bit RISC-V processor. The microcontroller is composed of the \NumHartsWord{} VestaRV harts, a ROM that contains boot software and a Forth interpreter, private RAM memory cells per hart, an arbitrated shared memory window for inter-hart communication, and several peripherals. The multi-core architecture is described in Section~\ref{s:multicore}. The modular architecture enables customization of the peripheral set, memory configuration, and system features to match specific application requirements. Figure~\ref{fig:system-block-diagram} shows the top-level organization of this configuration.
+
+% Generated, configuration-driven system block diagram (make chip)
+\begin{figure}[h]
+	\centering
+	\resizebox{\linewidth}{!}{\input{include/SystemBlockDiagram.tex}}
+	\caption{\AsicNameForUserGuide{} top-level block diagram (generated from this configuration: \NumHarts{} harts, \SharedRamSizeKiB\,KiB shared RAM). Every hart tile couples an unmodified VestaRV core with its private TCM; everything else is reached through the serializing round-robin arbiter.}
+	\label{fig:system-block-diagram}
+\end{figure}
 
 % TODO: add Castalia layout/bonding figures once the chip has been laid out
 %\begin{figure}[h]
@@ -71,6 +79,12 @@ The following list details the MCU configuration:
 	\input{include/FeaturesList.tex}
 \end{itemize}
 
+\subsection{Chip Configuration} \label{ss:chipConfig}
+
+This document, the memory-map headers, the linker scripts, and the drop-in RTL are all generated from one chip configuration by \texttt{make chip}. The configuration is a small JSON document (every key optional; missing keys keep the \AsicNameForUserGuide{} defaults) passed as \texttt{make chip CONFIG=config.json}; an interactive front-end for producing it ships with the generator (\texttt{docs/chip\_configurator.html}). Table~\ref{t:chip-config} lists every configuration knob together with the value used to build \emph{this} document, and Table~\ref{t:chip-config-derived} lists the geometry derived from those knobs. The resolved configuration is also written to \texttt{config/ChipConfig.resolved.json} at every build, and \texttt{make verify [CONFIG=config.json]} \emph{proves} a configuration: it stages the generated RTL into a behavioral simulation environment and runs the multi-core boot/ISA smoke suite against it. The core peripheral set and the pad ring are not configuration knobs --- they are fixed template content, and the pad ring (Section~\ref{s:pinsConfig}) is derived from the generator's package model --- but the second-instance peripherals (\peripheral{UART1}, \peripheral{SPI1}, \peripheral{TIMER1}, \peripheral{I2C1}) and the \peripheral{NPU} are individually droppable through the \texttt{peripherals} section: a dropped instance's register window reads zero, its interrupt vectors are reserved (the numbering is frozen), and its pins revert to plain GPIO.
+
+\input{include/ChipConfigurationTable.tex}
+
 \newpage
 
 
@@ -78,54 +92,22 @@ The following list details the MCU configuration:
 % Pin configuration
 \section{Packaging and Pins Configuration} \label{s:pinsConfig}
 
+% Config-driven (G4): package.preliminary=false suppresses this banner once a
+% chip's package is finalized (its own model in generate.py's _PACKAGE_MODELS).
+\ifpackagepreliminary
 \textbf{Preliminary:} the package and pinout in this section are inherited from the single-core Myshkin MCU and have not yet been finalized for \AsicNameForUserGuide. Pin assignments, package type, and pin count are subject to change.
+\fi
 
+% Generated, fully-labeled pinout diagram — derived from the package model in
+% generate.py (the same model that emits config/PadRing.json and Table \ref{t:package-pins})
 \begin{figure}[h]
-	\begin{tikzpicture}[x=12mm, y=12mm]
-		% This is for a square, symmetrical QFN package (e.g. all sides have the same number of pins)
-		% User-edited dimensions.  All dimensions are in mm.
-		%\def\PackageSize{7}     % For QFN, the outer dimension of the package
-		%\def\PackagePinCount{48}       % The number of package pins
-		%\def\PackagePinPitch{0.5}
-		%\def\PackagePinWidth{0.25}
-		%\def\PackagePinDepth{0.4}
-		\def\fontScale{0.5}     % Controls size of pin number fonts--adjust if too large/small
-	
-		% Locate the southwest and northeast corners of the whole package.
-		\pgfmathsetmacro\packageSW{-\PackageSize/2}
-		\pgfmathsetmacro\packageNE{\PackageSize/2}
-	
-		% Other dimensions
-		\pgfmathsetmacro\pinCountPerSide{\PackagePinCount/4}
-	
-		% Draw the QFN Plastic Package Outline
-		\draw (\packageSW,\packageSW) rectangle (\packageNE,\packageNE);
-
-		\foreach \side in {0, 1, 2, 3}
-		{
-			\pgfmathsetmacro\pinsOnThisSide{\pinCountPerSide}
-			\foreach \pinSideNum in {1,2,...,\pinCountPerSide}
-			{
-				\pgfmathsetmacro\yTranslate{-(\pinSideNum - 1 - ((\pinsOnThisSide - 1)/2)) * \PackagePinPitch)}
-				\pgfmathsetmacro\pinNum{int(\pinsOnThisSide*\side + \pinSideNum)}
-
-				% Draw the pin shape
-				\draw[rotate={90 * \side}, shift={(\packageSW, \yTranslate)}] (0, \PackagePinWidth/2) -- (\PackagePinDepth, \PackagePinWidth/2) -- (\PackagePinDepth, -\PackagePinWidth/2) -- (0, -\PackagePinWidth/2);
-				
-				% Add the pin number
-				\draw[rotate={90 * \side}, shift={(\packageSW, \yTranslate)}]   (\PackagePinDepth/2,0) node[scale=\fontScale] {\textbf{\pinNum}};
-			}
-		}
-
-		% Add the "pin 1" dot
-		\draw[] (\packageSW + \PackagePinDepth/2, \packageNE - \PackagePinDepth/2) circle (\PackagePinDepth/4);
-
-	\end{tikzpicture}
-	\caption{QFN-{\PackagePinCount} ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch)}
+	\centering
+	\resizebox{0.98\linewidth}{!}{\input{include/PackagePinoutDiagram.tex}}
+	\caption{QFN-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch). Each pin is labeled with its pad name and, for GPIO pins, its AF0 (reset-selected) alternate function; power-rail pins are shaded and bold. The full per-pin alternate-function matrix is in Table \ref{t:gpio-afs}.}
 	\label{fig:package}
 \end{figure}
 
-The chip package is a QFN-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint (as seen from the top down) is shown in Figure \ref{fig:package}. The pins on the package are listed in Table \ref{t:package-pins}.
+The chip package is a QFN-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint (as seen from the top down) is shown in Figure \ref{fig:package}. The pins on the package are listed in Table \ref{t:package-pins}. The pin ordering, side assignment, and power domains in both the figure and the table are derived from the generator's package model and are also exported machine-readably to \texttt{config/PadRing.json} at every \texttt{make chip} build.
 
 \input{include/PackagePinsConfigurationTable.tex}
 

@@ -1,0 +1,5 @@
+{
+  "_comment": "G1b proof configuration: the Castalia defaults with the second TIMER instance dropped. Slot 7 reads zero, IRQ vectors 22-27 are reserved (numbering frozen), T1CMP0/T1CMP1/T1CAP0/T1CAP1 pins revert to plain GPIO20-23 (their UART0 AF1 relocations survive), the T1CMP0/T1CMP1 output-spread slots and every TIMER1 AF1 relocation go hi-Z. Prove with: make verify CONFIG=config/castalia_notimer1.json",
+  "chipName": "CastaliaNoTIMER1",
+  "peripherals": { "timer1": false }
+}
