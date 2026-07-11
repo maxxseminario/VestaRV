@@ -24,8 +24,11 @@
 # CLINT (shared window, all harts reach it through the arbiter):
 #     MSIP[h]     = 0x5000 + 4*h    (bit 0; level IRQ to hart h)
 # Shared words (>= 0x10150, clear of all earlier tests' words):
-#     READY[h]    = 0x10150 + 4*h    0x4EAD0000+h just before hart h sleeps
-#     DONE[h]     = 0x10160 + 4*h    0xD00E0000+h after hart h wakes
+#     READY[h]    = 0x10150 + 4*h            0x4EAD0000+h before hart h sleeps
+#     DONE[h]     = 0x10150 + 4*NHARTS + 4*h 0xD00E0000+h after hart h wakes
+# Argus A3: the DONE base is placed AFTER the NHARTS-sized READY array so it
+# can't overrun it at N=18 (N=4: DONE base 0x10160, unchanged; N=18: 0x10198,
+# READY 0x10154..0x10194, DONE 0x1019C..0x101DC, all < 0x10500).
 #
 # RACE NOTE (why sleep-after-READY is safe): the arbiter SERIALIZES the
 # window. Hart 0 can only observe READY[h] after hart h's store completed,
@@ -52,6 +55,15 @@
 #include "test_macros.h"
 #include "mp_boot.h"
 
+# Copy volume per tile. Like shboot this is a STAGGERED launch (each tile
+# launched, waited-on, IPI'd IN TURN), so the total copy cost is NHARTS-1
+# serialized transfers. The payload (.ivt 0x8000 + .text ending ~0x83A6, incl.
+# the copied slot-83 msip ISR = ~230 words) is tiny; 512 words covers it with
+# margin. At N=4 this still copies the whole payload (unchanged proof); at N=18
+# it keeps all 17 serialized launches inside the tb 100 ms watchdog (a full
+# 16 KB copy per tile overran it, ~300 ms of honest sim). Protocol identical.
+#define MP_SHWFI_WORDS 512
+
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
 
@@ -65,7 +77,7 @@ RVTEST_CODE_BEGIN
     # hart 0: set up and go to the waker (the staged launch is done there)
     li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
     li   s2, 0x10150            # READY base
-    li   s3, 0x10160            # DONE base
+    li   s3, (0x10150 + 4*NHARTS)  # DONE base (after the NHARTS-sized READY array)
     li   s4, 0x5000            # CLINT MSIP base
     li   s5, 0x4EAD0000         # READY magic base
     li   s6, 0xD00E0000         # DONE magic base
@@ -78,7 +90,7 @@ tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option pop
     li   sp, 0xBFF0             # private TCM top; IRQ_SV pushes PC at sp-4
     li   s2, 0x10150            # READY base
-    li   s3, 0x10160            # DONE base
+    li   s3, (0x10150 + 4*NHARTS)  # DONE base (after the NHARTS-sized READY array)
     li   s4, 0x5000            # CLINT MSIP base
     li   s5, 0x4EAD0000         # READY magic base
     li   s6, 0xD00E0000         # DONE magic base
@@ -102,7 +114,7 @@ wfi_verify:                     # forever: DONE must survive other traffic
 
     # ---- hart 0: staggered — LAUNCH, park proof, REAL IPI, wake proof -----
 waker:
-    MP_STAGE_IMAGE(4096)        # stage the full TCM image once (0x18000)
+    MP_STAGE_IMAGE(MP_SHWFI_WORDS)  # stage the payload block once (0x18000)
     li   s7, 1
 waker_loop:
     # M12 LAUNCH: write hart s7's loader row, then its FIRST msip. The bootrom
@@ -114,8 +126,8 @@ waker_loop:
     add  t0, t0, t1             # loader row for hart s7
     li   t1, MP_STAGE_BASE
     sw   t1, 0(t0)              # SRC = the staged image
-    li   t1, 4096
-    sw   t1, 4(t0)              # LEN = full TCM
+    li   t1, MP_SHWFI_WORDS
+    sw   t1, 4(t0)              # LEN = payload block (covers .ivt + .text + ISR)
     la   t1, tile_entry
     sw   t1, 8(t0)              # ENTRY
     slli t0, s7, 2
@@ -154,7 +166,7 @@ woke:
     lw   t2, 0(t3)              # its ISR must have cleared the msip level
     bnez t2, shwfi_fail
     addi s7, s7, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s7, t0, waker_loop
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

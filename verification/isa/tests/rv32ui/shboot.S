@@ -24,14 +24,25 @@
 # by the bootrom copy): write DONE[mhartid], a0 = PASS inline, then verify
 # DONE forever (a post-PASS corruption still fails the run).
 #
-#     DONE[h]  = 0x10120 + 4*h   (unchanged ledger word; GO/ENTRY at
-#                                 0x10100/0x10110 are RETIRED — the bootrom
-#                                 loader mailboxes replaced them)
+#     DONE[h]  = 0x10120 + 4*h   (h = 1..NHARTS-1; GO/ENTRY at 0x10100/0x10110
+#                                 are RETIRED — the bootrom loader mailboxes
+#                                 replaced them). N=18: 0x10124..0x10164, no
+#                                 control words above the array, all < 0x10500.
 #*****************************************************************************
 
 #include "riscv_test.h"
 #include "test_macros.h"
 #include "mp_boot.h"
+
+# Copy volume per tile. The staggered proof copies SRC->TCM for each hart IN
+# TURN, so the total copy cost is NHARTS-1 serialized transfers. The payload
+# (.ivt 0x8000 + .text ending ~0x833A = ~207 words) is tiny; 512 words covers
+# it with margin. At N=4 this still copies the whole payload (unchanged proof).
+# At N=18, 17 serialized 16 KB copies overran the tb 100 ms watchdog (~300 ms of
+# honest sim); the 512-word block keeps all 17 releases inside the watchdog
+# without weakening the protocol (row/msip/ISR-clear/copy/ignite/report path is
+# identical). (A3: verified passing at N=4 AND N=18.)
+#define MP_SHBOOT_WORDS 512
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -69,7 +80,7 @@ payload_verify:                 # forever: DONE must survive other traffic
 
     # ---- hart 0: staggered load + launch + wake check, hart 1 then 2 then 3
 releaser:
-    MP_STAGE_IMAGE(4096)        # stage the full TCM image once (0x18000)
+    MP_STAGE_IMAGE(MP_SHBOOT_WORDS)  # stage the payload block once (0x18000)
     li   s6, 1
 release_loop:
     slli t0, s6, 2
@@ -84,8 +95,8 @@ release_loop:
     add  t0, t0, t1             # loader row for hart s6
     li   t1, MP_STAGE_BASE
     sw   t1, 0(t0)              # SRC = the staged image
-    li   t1, 4096
-    sw   t1, 4(t0)              # LEN = full TCM
+    li   t1, MP_SHBOOT_WORDS
+    sw   t1, 4(t0)              # LEN = payload block (covers .ivt + .text)
     la   t1, boot_payload
     sw   t1, 8(t0)              # ENTRY
     slli t0, s6, 2
@@ -111,7 +122,7 @@ released:
     lw   t2, 0(t1)
     bnez t2, shboot_fail
     addi s6, s6, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s6, t0, release_loop
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

@@ -21,6 +21,10 @@
 # Shared words (>= 0x10170, clear of all earlier tests' words):
 #     TOKEN    = 0x10170          whose turn it is (shram zero-init => hart 0)
 #     DONE[h]  = 0x10180 + 4*h    0xC0DE0000+h after hart h transmitted
+# Argus A3: TOKEN sits below the DONE base, so the NHARTS-sized DONE array
+# (N=18: 0x10184..0x101C4, < 0x10500) can't overrun it. Every tile runs the
+# SAME transmit role (no per-hart role dispatch), so this test parameterizes
+# cleanly to any NHARTS.
 #
 # Hart 0 (SPI boot):  verify CR/TX read their reset zeros through the live
 #   shared window, program BR=1 + CR=EN through 0x4400, read both back,
@@ -64,9 +68,7 @@ RVTEST_CODE_BEGIN
     # tiles into tile_entry through the bootrom loader (mp_boot.h). They park
     # on the token just as the old preloaded tiles did.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -150,7 +152,7 @@ hart0:
                                 # covers 3 serialized tile ROM-copies at launch)
 ring_wait:
     lw   t0, 0(s3)
-    li   t1, 4
+    li   t1, NHARTS
     beq  t0, t1, ring_home
     addi t6, t6, -1
     bnez t6, ring_wait
@@ -164,7 +166,7 @@ done_check:
     add  t2, s6, t3
     bne  t1, t2, shuart_fail
     addi t3, t3, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  t3, t0, done_check
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

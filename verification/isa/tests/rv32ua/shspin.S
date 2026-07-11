@@ -16,10 +16,12 @@
 #
 # Shared-window map (clear of shmem 0x10000-8, shlrsc 0x1000C/0x10010,
 # shmem_mp 0x10040+4*h, counter 0x10080):
-#     DONE[h] = 0x10120 + 4*h  (0x10100/0x10110 GO/ENTRY retired at M12)
-#     LOCK  = 0x10140   (0 free, 1 held)
-#     CTR   = 0x10144   (must end EXACTLY 4*32 = 128)
-#     OWNER = 0x10148   (holder writes hartid+1, re-checks before release)
+#     DONE[h] = 0x10120 + 4*h            (h = 1..NHARTS-1)
+#     LOCK    = 0x10120 + 4*NHARTS        (0 free, 1 held)
+#     CTR     = 0x10120 + 4*NHARTS + 4    (must end EXACTLY NHARTS*32)
+#     OWNER   = 0x10120 + 4*NHARTS + 8    (holder writes hartid+1, re-checks)
+# Argus A3: control words placed AFTER the NHARTS-sized DONE array so it can't
+# overrun them at N=18. N=4: LOCK/CTR/OWNER=0x10130/34/38; N=18: 0x10168/6C/70.
 #
 # LR/SC RULES (M4c post-mortem): hartid-scaled backoff after a failed acquire
 # (identical harts on the fair round-robin arbiter LIVELOCK without it) and a
@@ -41,12 +43,10 @@ RVTEST_CODE_BEGIN
     .option pop
     bnez s10, tile_entry        # M12: only hart 0 runs the launcher
 
-    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # M12 single-ROM boot: stage this TCM image once, launch all NHARTS-1 tiles
     # into tile_entry (mp_boot.h), then fall through and run the same payload.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -55,10 +55,10 @@ tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option pop
     li   sp, 0xBFF0             # convention (loader left 0xBFFC)
 
-    li   s4, 0x10120            # DONE base
-    li   s7, 0x10140            # LOCK
-    li   s8, 0x10144            # CTR
-    li   s9, 0x10148            # OWNER
+    li   s4, 0x10120                    # DONE base (DONE[h] = 0x10120 + 4*h, h=1..NHARTS-1)
+    li   s7, (0x10120 + 4*NHARTS)       # LOCK   (control words placed AFTER the
+    li   s8, (0x10120 + 4*NHARTS + 4)   # CTR     NHARTS-sized DONE array so the
+    li   s9, (0x10120 + 4*NHARTS + 8)   # OWNER   array can't overrun them at N=18)
     # fall through — every hart runs the same payload
 
 lock_payload:
@@ -126,10 +126,10 @@ done_wait:
     j    shspin_fail
 done_ok:
     addi s6, s6, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s6, t0, done_wait_loop
     lw   t3, 0(s8)
-    li   t4, 128                # 4 harts * 32 — lost update = wrong count
+    li   t4, NHARTS*32          # NHARTS harts * 32 — lost update = wrong count
     bne  t3, t4, shspin_fail
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

@@ -17,9 +17,11 @@
 -- slot there, and this is the MP system-control block — the mnemonic is
 -- intentional. Slots 0-8/10-15 are for the M7b+ shared peripherals.
 --
--- REGISTER MAP (byte address = 0x13900 + 4*word; only addr(3:0) decoded, so
--- the block aliases every 16 words through its 256B slot):
---   word 4h+0 : HhENL = irq_en[31:0]   for hart h   (h = 0..3)
+-- REGISTER MAP (byte address = 0x13900 + 4*word; only addr(ADDR_W-1:0)
+-- decoded — ADDR_W=4 at the Castalia default, so the block aliases every 16
+-- words through its 256B slot; wider at larger NHARTS (A2), where row
+-- indices beyond NHARTS-1 are dead: they read 0 and ignore writes):
+--   word 4h+0 : HhENL = irq_en[31:0]   for hart h   (h = 0..NHARTS-1)
 --   word 4h+1 : HhENM = irq_en[63:32]  for hart h
 --   word 4h+2 : HhENU = irq_en[84:64]  for hart h   (bits 20:0; CONTIGUOUS
 --               packing in BOTH directions — deliberately NOT SYSTEM0's
@@ -50,7 +52,11 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity irq_router is
     generic (
         NHARTS   : natural := 4;
-        NUM_IRQS : natural := 85
+        NUM_IRQS : natural := 85;
+        -- A2 (Argus): decoded word-address width. Rows live at word 4h, so
+        -- 2**ADDR_W must cover 4*NHARTS words (assert below). Default 4 =
+        -- the Castalia 4-hart shape (16 words, the original addr(3:0)).
+        ADDR_W   : natural := 4
     );
     port (
         clk    : in  std_logic;   -- free-running mclk
@@ -59,7 +65,7 @@ entity irq_router is
         -- slave port (behind mp_arbiter; enables active-high)
         en     : in  std_logic;
         we     : in  std_logic_vector(3 downto 0);
-        addr   : in  std_logic_vector(3 downto 0);   -- word offset within slot
+        addr   : in  std_logic_vector(ADDR_W-1 downto 0);   -- word offset
         wdata  : in  std_logic_vector(31 downto 0);
         rdata  : out std_logic_vector(31 downto 0);
 
@@ -103,9 +109,19 @@ begin
         end generate;
     end generate;
 
+    -- A2 coverage assert: the decoded width must cover every hart row
+    -- (elaboration-time constant condition; no hardware).
+    assert 2**ADDR_W >= 4*NHARTS
+        report "irq_router: ADDR_W too small for NHARTS rows (words 4h..4h+2)"
+        severity failure;
+
     router_proc: process(clk, resetn)
-        variable widx : integer range 0 to 15;
-        variable hidx : integer range 0 to NHARTS-1;
+        variable widx : integer range 0 to 2**ADDR_W - 1;
+        -- A2: the RAW row index can exceed NHARTS-1 when 4*NHARTS is not a
+        -- power of two (Argus N=18: 128 decoded words, rows 18-31 are dead);
+        -- dead rows read 0 and ignore writes. At the Castalia default
+        -- (ADDR_W=4, NHARTS=4) every row is live and behavior is unchanged.
+        variable hidx : integer range 0 to 2**ADDR_W / 4;
         variable wsub : integer range 0 to 3;
         variable rd   : std_logic_vector(31 downto 0);
     begin
@@ -120,13 +136,13 @@ begin
                 rd   := (others => '0');
 
                 -- ---- read mux (registered; valid next cycle, arbiter DATA) --
-                if wsub /= 3 then
+                if hidx < NHARTS and wsub /= 3 then
                     rd := en_words(hidx*3 + wsub);
                 end if;
                 rdata_reg <= rd;
 
                 -- ---- lane-merged writes -------------------------------------
-                if we /= "0000" and wsub /= 3 then
+                if hidx < NHARTS and we /= "0000" and wsub /= 3 then
                     en_words(hidx*3 + wsub) <=
                         lane_merge(en_words(hidx*3 + wsub), wdata, we);
                 end if;

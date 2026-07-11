@@ -8,10 +8,13 @@
 # shared window throughout — every CLINT access below rides the arbiter
 # under real 4-way contention).
 #
-# CLINT map (shared window, 0x5000):
-#     MSIP[h]        = 0x5000 + 4*h      (bit 0, level IRQ)
-#     MTIME  lo/hi   = 0x5010 / 0x5014  (free-running, +1 per mclk, writable)
-#     MTIMECMP[0] lo = 0x5020, hi = 0x11024  (resets ALL-ONES -> mtip quiet)
+# CLINT map (shared window, 0x5000) — N-parameterized layout (Argus A3):
+#     MSIP[h]        = 0x5000 + 4*h                     (bit 0, level IRQ)
+#     MTIME_OFF      = roundup16(4*NHARTS)  (= 0x10 @N=4, 0x50 @N=18)
+#     MTIME  lo/hi   = 0x5000+MTIME_OFF / +4            (free-running, writable)
+#     MTIMECMP[0]    = 0x5000 + MTIME_OFF + 0x10        (resets ALL-ONES -> quiet)
+# At N=4 the formula reproduces the historic 0x5010/0x5020 layout exactly; at
+# N=18 the wider msip array pushes mtime to 0x5050 and mtimecmp[0] to 0x5060.
 #
 # Checks:
 #   1. mtime ticks: two reads (separate arbiter txns) strictly increase.
@@ -34,6 +37,15 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"                 /* NHARTS (default 4; Argus build -DNHARTS=18) */
+
+# CLINT register offsets from base 0x5000, derived by the RTL's layout formula
+# (mtime after the NHARTS-sized msip array, 16-byte aligned).
+#define MTIME_OFF     ((4*NHARTS + 15) & ~15)
+#define MTIME_LO      (MTIME_OFF)
+#define MTIME_HI      (MTIME_OFF + 4)
+#define MTIMECMP0_LO  (MTIME_OFF + 0x10)
+#define MTIMECMP0_HI  (MTIME_OFF + 0x14)
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -44,15 +56,15 @@ RVTEST_CODE_BEGIN
     sw   x0, 0(s3)
 
     # ---- 1. mtime ticks --------------------------------------------------
-    lw   t0, 0x10(s2)           # MTIME lo
-    lw   t1, 0x10(s2)
+    lw   t0, MTIME_LO(s2)           # MTIME lo
+    lw   t1, MTIME_LO(s2)
     bgeu t0, t1, shclint_fail   # second read must be STRICTLY greater
 
     # ---- 2. mtime writable -----------------------------------------------
     li   t2, 0x40000000
-    sw   t2, 0x10(s2)           # MTIME lo = 0x40000000
-    sw   x0, 0x14(s2)           # MTIME hi = 0
-    lw   t0, 0x10(s2)
+    sw   t2, MTIME_LO(s2)           # MTIME lo = 0x40000000
+    sw   x0, MTIME_HI(s2)           # MTIME hi = 0
+    lw   t0, MTIME_LO(s2)
     sub  t0, t0, t2             # ticks since the write
     li   t1, 0x1000
     bgeu t0, t1, shclint_fail   # must read back close to the written value
@@ -80,10 +92,10 @@ msip_ok:
     bnez t2, shclint_fail
 
     # ---- 5. mtip: arm mtimecmp[0] a little in the future --------------------
-    lw   t1, 0x10(s2)           # MTIME lo (hi is 0 from step 2; +64 can't carry)
+    lw   t1, MTIME_LO(s2)           # MTIME lo (hi is 0 from step 2; +64 can't carry)
     addi t1, t1, 64
-    sw   t1, 0x20(s2)           # MTIMECMP[0] lo first (hi still all-ones: quiet)
-    sw   x0, 0x24(s2)           # ...then hi = 0: ARMED
+    sw   t1, MTIMECMP0_LO(s2)           # MTIMECMP[0] lo first (hi still all-ones: quiet)
+    sw   x0, MTIMECMP0_HI(s2)           # ...then hi = 0: ARMED
     li   t6, 20000
 mtip_wait:
     lw   t2, 0(s3)
@@ -123,7 +135,7 @@ mtip_isr:
     sw   t2, 8(sp)
     li   t0, 0x5000
     li   t1, -1
-    sw   t1, 0x24(t0)           # MTIMECMP[0] hi = all-ones: level drops
+    sw   t1, MTIMECMP0_HI(t0)           # MTIMECMP[0] hi = all-ones: level drops
     la   t1, isr_flags
     lw   t2, 0(t1)
     ori  t2, t2, 2

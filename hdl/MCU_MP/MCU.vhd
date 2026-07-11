@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/09 at 02:33:22 with the generate.py chip generator
+-- Generated on 2026/07/10 at 03:42:35 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -769,6 +769,89 @@ architecture behav of MCU is
         -- out='0', dir='0' (input), ren='0' (pull disabled) — pre-polarity.
         constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
 
+    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI
+    -- outputs fanned across all four ports. Dormant at reset (PxAFS=0).
+        -- GPIO0 (port 1) planes AF1-AF7
+        signal afunc1_af1_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af1_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af1_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO1 (port 2) planes AF2-AF7
+        signal afunc2_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO2 (port 3) planes AF2-AF7
+        signal afunc3_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO3 (port 4) planes AF2-AF7
+        signal afunc4_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_ren		: std_logic_vector(7 downto 0);
+
+
     -- GPIO0 Signals (Port 1) ------------------------------------------------------------
         signal p1_out					: std_logic_vector(7 downto 0);
         signal p1_dir					: std_logic_vector(7 downto 0);
@@ -1105,9 +1188,220 @@ begin
 
         -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the
         -- boot/flash/clock port keeps exactly one alternate function per pin.
-        afunc1_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_out;
-        afunc1_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_dir;
-        afunc1_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc1_ren;
+        -- GPIO0 AF output-function spread: aggregates + 8-plane flatten
+        afunc1_af1_out <= (
+            7 => mosi1_out,
+            6 => sck1_out,
+            5 => t1_cmp1_out,
+            4 => t1_cmp0_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => tx1_out,
+            0 => tx0_out
+        );
+        afunc1_af1_dir <= (
+            7 => mosi1_dir,
+            6 => sck1_dir,
+            5 => t1_cmp1_dir,
+            4 => t1_cmp0_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => tx1_dir,
+            0 => tx0_dir
+        );
+        afunc1_af1_ren <= (
+            7 => mosi1_ren,
+            6 => sck1_ren,
+            5 => t1_cmp1_ren,
+            4 => t1_cmp0_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => tx1_ren,
+            0 => tx0_ren
+        );
+        afunc1_af2_out <= (
+            7 => tx0_out,
+            6 => mosi1_out,
+            5 => sck1_out,
+            4 => t1_cmp1_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => t0_cmp0_out,
+            0 => tx1_out
+        );
+        afunc1_af2_dir <= (
+            7 => tx0_dir,
+            6 => mosi1_dir,
+            5 => sck1_dir,
+            4 => t1_cmp1_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => t0_cmp0_dir,
+            0 => tx1_dir
+        );
+        afunc1_af2_ren <= (
+            7 => tx0_ren,
+            6 => mosi1_ren,
+            5 => sck1_ren,
+            4 => t1_cmp1_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => t0_cmp0_ren,
+            0 => tx1_ren
+        );
+        afunc1_af3_out <= (
+            7 => tx1_out,
+            6 => tx0_out,
+            5 => mosi1_out,
+            4 => sck1_out,
+            3 => t1_cmp1_out,
+            2 => t1_cmp0_out,
+            1 => t0_cmp1_out,
+            0 => t0_cmp0_out
+        );
+        afunc1_af3_dir <= (
+            7 => tx1_dir,
+            6 => tx0_dir,
+            5 => mosi1_dir,
+            4 => sck1_dir,
+            3 => t1_cmp1_dir,
+            2 => t1_cmp0_dir,
+            1 => t0_cmp1_dir,
+            0 => t0_cmp0_dir
+        );
+        afunc1_af3_ren <= (
+            7 => tx1_ren,
+            6 => tx0_ren,
+            5 => mosi1_ren,
+            4 => sck1_ren,
+            3 => t1_cmp1_ren,
+            2 => t1_cmp0_ren,
+            1 => t0_cmp1_ren,
+            0 => t0_cmp0_ren
+        );
+        afunc1_af4_out <= (
+            7 => t0_cmp0_out,
+            6 => tx1_out,
+            5 => tx0_out,
+            4 => mosi1_out,
+            3 => sck1_out,
+            2 => t1_cmp1_out,
+            1 => t1_cmp0_out,
+            0 => t0_cmp1_out
+        );
+        afunc1_af4_dir <= (
+            7 => t0_cmp0_dir,
+            6 => tx1_dir,
+            5 => tx0_dir,
+            4 => mosi1_dir,
+            3 => sck1_dir,
+            2 => t1_cmp1_dir,
+            1 => t1_cmp0_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc1_af4_ren <= (
+            7 => t0_cmp0_ren,
+            6 => tx1_ren,
+            5 => tx0_ren,
+            4 => mosi1_ren,
+            3 => sck1_ren,
+            2 => t1_cmp1_ren,
+            1 => t1_cmp0_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc1_af5_out <= (
+            7 => t0_cmp1_out,
+            6 => t0_cmp0_out,
+            5 => tx1_out,
+            4 => tx0_out,
+            3 => mosi1_out,
+            2 => sck1_out,
+            1 => t1_cmp1_out,
+            0 => t1_cmp0_out
+        );
+        afunc1_af5_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t0_cmp0_dir,
+            5 => tx1_dir,
+            4 => tx0_dir,
+            3 => mosi1_dir,
+            2 => sck1_dir,
+            1 => t1_cmp1_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc1_af5_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t0_cmp0_ren,
+            5 => tx1_ren,
+            4 => tx0_ren,
+            3 => mosi1_ren,
+            2 => sck1_ren,
+            1 => t1_cmp1_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc1_af6_out <= (
+            7 => t1_cmp0_out,
+            6 => t0_cmp1_out,
+            5 => t0_cmp0_out,
+            4 => tx1_out,
+            3 => tx0_out,
+            2 => mosi1_out,
+            1 => sck1_out,
+            0 => t1_cmp1_out
+        );
+        afunc1_af6_dir <= (
+            7 => t1_cmp0_dir,
+            6 => t0_cmp1_dir,
+            5 => t0_cmp0_dir,
+            4 => tx1_dir,
+            3 => tx0_dir,
+            2 => mosi1_dir,
+            1 => sck1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc1_af6_ren <= (
+            7 => t1_cmp0_ren,
+            6 => t0_cmp1_ren,
+            5 => t0_cmp0_ren,
+            4 => tx1_ren,
+            3 => tx0_ren,
+            2 => mosi1_ren,
+            1 => sck1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc1_af7_out <= (
+            7 => t1_cmp1_out,
+            6 => t1_cmp0_out,
+            5 => t0_cmp1_out,
+            4 => t0_cmp0_out,
+            3 => tx1_out,
+            2 => tx0_out,
+            1 => mosi1_out,
+            0 => sck1_out
+        );
+        afunc1_af7_dir <= (
+            7 => t1_cmp1_dir,
+            6 => t1_cmp0_dir,
+            5 => t0_cmp1_dir,
+            4 => t0_cmp0_dir,
+            3 => tx1_dir,
+            2 => tx0_dir,
+            1 => mosi1_dir,
+            0 => sck1_dir
+        );
+        afunc1_af7_ren <= (
+            7 => t1_cmp1_ren,
+            6 => t1_cmp0_ren,
+            5 => t0_cmp1_ren,
+            4 => t0_cmp0_ren,
+            3 => tx1_ren,
+            2 => tx0_ren,
+            1 => mosi1_ren,
+            0 => sck1_ren
+        );
+        afunc1_all_out <= afunc1_af7_out & afunc1_af6_out & afunc1_af5_out & afunc1_af4_out & afunc1_af3_out & afunc1_af2_out & afunc1_af1_out & afunc1_out;
+        afunc1_all_dir <= afunc1_af7_dir & afunc1_af6_dir & afunc1_af5_dir & afunc1_af4_dir & afunc1_af3_dir & afunc1_af2_dir & afunc1_af1_dir & afunc1_dir;
+        afunc1_all_ren <= afunc1_af7_ren & afunc1_af6_ren & afunc1_af5_ren & afunc1_af4_ren & afunc1_af3_ren & afunc1_af2_ren & afunc1_af1_ren & afunc1_ren;
 
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         cs1_in   <= prt2_in(pnum_gpio1_cs1);
@@ -1212,9 +1506,190 @@ begin
         );
 
         -- Flattened AF planes (7 downto 2 unassigned)
-        afunc2_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_out & afunc2_out;
-        afunc2_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_dir & afunc2_dir;
-        afunc2_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc2_af1_ren & afunc2_ren;
+        -- GPIO1 AF output-function spread: aggregates + 8-plane flatten
+        afunc2_af2_out <= (
+            7 => mosi1_out,
+            6 => tx0_out,
+            5 => t1_cmp1_out,
+            4 => sck1_out,
+            3 => mosi1_out,
+            2 => t1_cmp1_out,
+            1 => t0_cmp0_out,
+            0 => tx1_out
+        );
+        afunc2_af2_dir <= (
+            7 => mosi1_dir,
+            6 => tx0_dir,
+            5 => t1_cmp1_dir,
+            4 => sck1_dir,
+            3 => mosi1_dir,
+            2 => t1_cmp1_dir,
+            1 => t0_cmp0_dir,
+            0 => tx1_dir
+        );
+        afunc2_af2_ren <= (
+            7 => mosi1_ren,
+            6 => tx0_ren,
+            5 => t1_cmp1_ren,
+            4 => sck1_ren,
+            3 => mosi1_ren,
+            2 => t1_cmp1_ren,
+            1 => t0_cmp0_ren,
+            0 => tx1_ren
+        );
+        afunc2_af3_out <= (
+            7 => tx0_out,
+            6 => t0_cmp0_out,
+            5 => sck1_out,
+            4 => mosi1_out,
+            3 => tx0_out,
+            2 => sck1_out,
+            1 => t1_cmp0_out,
+            0 => t0_cmp1_out
+        );
+        afunc2_af3_dir <= (
+            7 => tx0_dir,
+            6 => t0_cmp0_dir,
+            5 => sck1_dir,
+            4 => mosi1_dir,
+            3 => tx0_dir,
+            2 => sck1_dir,
+            1 => t1_cmp0_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc2_af3_ren <= (
+            7 => tx0_ren,
+            6 => t0_cmp0_ren,
+            5 => sck1_ren,
+            4 => mosi1_ren,
+            3 => tx0_ren,
+            2 => sck1_ren,
+            1 => t1_cmp0_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc2_af4_out <= (
+            7 => tx1_out,
+            6 => t0_cmp1_out,
+            5 => mosi1_out,
+            4 => tx1_out,
+            3 => tx1_out,
+            2 => tx0_out,
+            1 => t1_cmp1_out,
+            0 => t1_cmp0_out
+        );
+        afunc2_af4_dir <= (
+            7 => tx1_dir,
+            6 => t0_cmp1_dir,
+            5 => mosi1_dir,
+            4 => tx1_dir,
+            3 => tx1_dir,
+            2 => tx0_dir,
+            1 => t1_cmp1_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc2_af4_ren <= (
+            7 => tx1_ren,
+            6 => t0_cmp1_ren,
+            5 => mosi1_ren,
+            4 => tx1_ren,
+            3 => tx1_ren,
+            2 => tx0_ren,
+            1 => t1_cmp1_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc2_af5_out <= (
+            7 => t0_cmp0_out,
+            6 => t1_cmp0_out,
+            5 => tx0_out,
+            4 => t0_cmp0_out,
+            3 => t0_cmp0_out,
+            2 => tx1_out,
+            1 => sck1_out,
+            0 => t1_cmp1_out
+        );
+        afunc2_af5_dir <= (
+            7 => t0_cmp0_dir,
+            6 => t1_cmp0_dir,
+            5 => tx0_dir,
+            4 => t0_cmp0_dir,
+            3 => t0_cmp0_dir,
+            2 => tx1_dir,
+            1 => sck1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc2_af5_ren <= (
+            7 => t0_cmp0_ren,
+            6 => t1_cmp0_ren,
+            5 => tx0_ren,
+            4 => t0_cmp0_ren,
+            3 => t0_cmp0_ren,
+            2 => tx1_ren,
+            1 => sck1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc2_af6_out <= (
+            7 => t0_cmp1_out,
+            6 => t1_cmp1_out,
+            5 => tx1_out,
+            4 => t0_cmp1_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => mosi1_out,
+            0 => sck1_out
+        );
+        afunc2_af6_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t1_cmp1_dir,
+            5 => tx1_dir,
+            4 => t0_cmp1_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => mosi1_dir,
+            0 => sck1_dir
+        );
+        afunc2_af6_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t1_cmp1_ren,
+            5 => tx1_ren,
+            4 => t0_cmp1_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => mosi1_ren,
+            0 => sck1_ren
+        );
+        afunc2_af7_out <= (
+            7 => t1_cmp0_out,
+            6 => sck1_out,
+            5 => t0_cmp0_out,
+            4 => t1_cmp0_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => tx0_out,
+            0 => mosi1_out
+        );
+        afunc2_af7_dir <= (
+            7 => t1_cmp0_dir,
+            6 => sck1_dir,
+            5 => t0_cmp0_dir,
+            4 => t1_cmp0_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => tx0_dir,
+            0 => mosi1_dir
+        );
+        afunc2_af7_ren <= (
+            7 => t1_cmp0_ren,
+            6 => sck1_ren,
+            5 => t0_cmp0_ren,
+            4 => t1_cmp0_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => tx0_ren,
+            0 => mosi1_ren
+        );
+        afunc2_all_out <= afunc2_af7_out & afunc2_af6_out & afunc2_af5_out & afunc2_af4_out & afunc2_af3_out & afunc2_af2_out & afunc2_af1_out & afunc2_out;
+        afunc2_all_dir <= afunc2_af7_dir & afunc2_af6_dir & afunc2_af5_dir & afunc2_af4_dir & afunc2_af3_dir & afunc2_af2_dir & afunc2_af1_dir & afunc2_dir;
+        afunc2_all_ren <= afunc2_af7_ren & afunc2_af6_ren & afunc2_af5_ren & afunc2_af4_ren & afunc2_af3_ren & afunc2_af2_ren & afunc2_af1_ren & afunc2_ren;
 
     -- GPIO2 Connections (TIMER0, TIMER1) -------------------------------------------------
         -- Compare (PWM) outputs are available at three locations (home P3.0/1/4/5,
@@ -1333,9 +1808,190 @@ begin
         );
 
         -- Flattened AF planes (7 downto 2 unassigned)
-        afunc3_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_out & afunc3_out;
-        afunc3_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_dir & afunc3_dir;
-        afunc3_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc3_af1_ren & afunc3_ren;
+        -- GPIO2 AF output-function spread: aggregates + 8-plane flatten
+        afunc3_af2_out <= (
+            7 => mosi1_out,
+            6 => sck1_out,
+            5 => tx0_out,
+            4 => t0_cmp1_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => t1_cmp0_out,
+            0 => sck1_out
+        );
+        afunc3_af2_dir <= (
+            7 => mosi1_dir,
+            6 => sck1_dir,
+            5 => tx0_dir,
+            4 => t0_cmp1_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => t1_cmp0_dir,
+            0 => sck1_dir
+        );
+        afunc3_af2_ren <= (
+            7 => mosi1_ren,
+            6 => sck1_ren,
+            5 => tx0_ren,
+            4 => t0_cmp1_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => t1_cmp0_ren,
+            0 => sck1_ren
+        );
+        afunc3_af3_out <= (
+            7 => tx0_out,
+            6 => mosi1_out,
+            5 => tx1_out,
+            4 => t1_cmp1_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => t1_cmp1_out,
+            0 => mosi1_out
+        );
+        afunc3_af3_dir <= (
+            7 => tx0_dir,
+            6 => mosi1_dir,
+            5 => tx1_dir,
+            4 => t1_cmp1_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => t1_cmp1_dir,
+            0 => mosi1_dir
+        );
+        afunc3_af3_ren <= (
+            7 => tx0_ren,
+            6 => mosi1_ren,
+            5 => tx1_ren,
+            4 => t1_cmp1_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => t1_cmp1_ren,
+            0 => mosi1_ren
+        );
+        afunc3_af4_out <= (
+            7 => tx1_out,
+            6 => tx0_out,
+            5 => t0_cmp0_out,
+            4 => sck1_out,
+            3 => t1_cmp1_out,
+            2 => t1_cmp0_out,
+            1 => sck1_out,
+            0 => tx0_out
+        );
+        afunc3_af4_dir <= (
+            7 => tx1_dir,
+            6 => tx0_dir,
+            5 => t0_cmp0_dir,
+            4 => sck1_dir,
+            3 => t1_cmp1_dir,
+            2 => t1_cmp0_dir,
+            1 => sck1_dir,
+            0 => tx0_dir
+        );
+        afunc3_af4_ren <= (
+            7 => tx1_ren,
+            6 => tx0_ren,
+            5 => t0_cmp0_ren,
+            4 => sck1_ren,
+            3 => t1_cmp1_ren,
+            2 => t1_cmp0_ren,
+            1 => sck1_ren,
+            0 => tx0_ren
+        );
+        afunc3_af5_out <= (
+            7 => t0_cmp0_out,
+            6 => tx1_out,
+            5 => t0_cmp1_out,
+            4 => mosi1_out,
+            3 => sck1_out,
+            2 => t1_cmp1_out,
+            1 => mosi1_out,
+            0 => t0_cmp1_out
+        );
+        afunc3_af5_dir <= (
+            7 => t0_cmp0_dir,
+            6 => tx1_dir,
+            5 => t0_cmp1_dir,
+            4 => mosi1_dir,
+            3 => sck1_dir,
+            2 => t1_cmp1_dir,
+            1 => mosi1_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc3_af5_ren <= (
+            7 => t0_cmp0_ren,
+            6 => tx1_ren,
+            5 => t0_cmp1_ren,
+            4 => mosi1_ren,
+            3 => sck1_ren,
+            2 => t1_cmp1_ren,
+            1 => mosi1_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc3_af6_out <= (
+            7 => t0_cmp1_out,
+            6 => t0_cmp0_out,
+            5 => t1_cmp0_out,
+            4 => tx1_out,
+            3 => mosi1_out,
+            2 => sck1_out,
+            1 => tx0_out,
+            0 => t1_cmp0_out
+        );
+        afunc3_af6_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t0_cmp0_dir,
+            5 => t1_cmp0_dir,
+            4 => tx1_dir,
+            3 => mosi1_dir,
+            2 => sck1_dir,
+            1 => tx0_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc3_af6_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t0_cmp0_ren,
+            5 => t1_cmp0_ren,
+            4 => tx1_ren,
+            3 => mosi1_ren,
+            2 => sck1_ren,
+            1 => tx0_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc3_af7_out <= (
+            7 => t1_cmp0_out,
+            6 => t0_cmp1_out,
+            5 => sck1_out,
+            4 => t0_cmp0_out,
+            3 => tx0_out,
+            2 => mosi1_out,
+            1 => tx1_out,
+            0 => t1_cmp1_out
+        );
+        afunc3_af7_dir <= (
+            7 => t1_cmp0_dir,
+            6 => t0_cmp1_dir,
+            5 => sck1_dir,
+            4 => t0_cmp0_dir,
+            3 => tx0_dir,
+            2 => mosi1_dir,
+            1 => tx1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc3_af7_ren <= (
+            7 => t1_cmp0_ren,
+            6 => t0_cmp1_ren,
+            5 => sck1_ren,
+            4 => t0_cmp0_ren,
+            3 => tx0_ren,
+            2 => mosi1_ren,
+            1 => tx1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc3_all_out <= afunc3_af7_out & afunc3_af6_out & afunc3_af5_out & afunc3_af4_out & afunc3_af3_out & afunc3_af2_out & afunc3_af1_out & afunc3_out;
+        afunc3_all_dir <= afunc3_af7_dir & afunc3_af6_dir & afunc3_af5_dir & afunc3_af4_dir & afunc3_af3_dir & afunc3_af2_dir & afunc3_af1_dir & afunc3_dir;
+        afunc3_all_ren <= afunc3_af7_ren & afunc3_af6_ren & afunc3_af5_ren & afunc3_af4_ren & afunc3_af3_ren & afunc3_af2_ren & afunc3_af1_ren & afunc3_ren;
 
 
 
@@ -1436,9 +2092,190 @@ begin
         );
 
         -- Flattened AF planes (7 downto 2 unassigned)
-        afunc4_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_out & afunc4_out;
-        afunc4_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_dir & afunc4_dir;
-        afunc4_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc4_af1_ren & afunc4_ren;
+        -- GPIO3 AF output-function spread: aggregates + 8-plane flatten
+        afunc4_af2_out <= (
+            7 => t0_cmp1_out,
+            6 => t0_cmp0_out,
+            5 => tx1_out,
+            4 => tx0_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => tx1_out,
+            0 => tx0_out
+        );
+        afunc4_af2_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t0_cmp0_dir,
+            5 => tx1_dir,
+            4 => tx0_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => tx1_dir,
+            0 => tx0_dir
+        );
+        afunc4_af2_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t0_cmp0_ren,
+            5 => tx1_ren,
+            4 => tx0_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => tx1_ren,
+            0 => tx0_ren
+        );
+        afunc4_af3_out <= (
+            7 => t1_cmp0_out,
+            6 => t0_cmp1_out,
+            5 => t0_cmp0_out,
+            4 => tx1_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => t0_cmp0_out,
+            0 => tx1_out
+        );
+        afunc4_af3_dir <= (
+            7 => t1_cmp0_dir,
+            6 => t0_cmp1_dir,
+            5 => t0_cmp0_dir,
+            4 => tx1_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => t0_cmp0_dir,
+            0 => tx1_dir
+        );
+        afunc4_af3_ren <= (
+            7 => t1_cmp0_ren,
+            6 => t0_cmp1_ren,
+            5 => t0_cmp0_ren,
+            4 => tx1_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => t0_cmp0_ren,
+            0 => tx1_ren
+        );
+        afunc4_af4_out <= (
+            7 => sck1_out,
+            6 => t1_cmp1_out,
+            5 => t1_cmp0_out,
+            4 => t0_cmp1_out,
+            3 => t1_cmp1_out,
+            2 => t1_cmp0_out,
+            1 => t0_cmp1_out,
+            0 => t0_cmp0_out
+        );
+        afunc4_af4_dir <= (
+            7 => sck1_dir,
+            6 => t1_cmp1_dir,
+            5 => t1_cmp0_dir,
+            4 => t0_cmp1_dir,
+            3 => t1_cmp1_dir,
+            2 => t1_cmp0_dir,
+            1 => t0_cmp1_dir,
+            0 => t0_cmp0_dir
+        );
+        afunc4_af4_ren <= (
+            7 => sck1_ren,
+            6 => t1_cmp1_ren,
+            5 => t1_cmp0_ren,
+            4 => t0_cmp1_ren,
+            3 => t1_cmp1_ren,
+            2 => t1_cmp0_ren,
+            1 => t0_cmp1_ren,
+            0 => t0_cmp0_ren
+        );
+        afunc4_af5_out <= (
+            7 => mosi1_out,
+            6 => sck1_out,
+            5 => t1_cmp1_out,
+            4 => t1_cmp0_out,
+            3 => sck1_out,
+            2 => t1_cmp1_out,
+            1 => t1_cmp0_out,
+            0 => t0_cmp1_out
+        );
+        afunc4_af5_dir <= (
+            7 => mosi1_dir,
+            6 => sck1_dir,
+            5 => t1_cmp1_dir,
+            4 => t1_cmp0_dir,
+            3 => sck1_dir,
+            2 => t1_cmp1_dir,
+            1 => t1_cmp0_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc4_af5_ren <= (
+            7 => mosi1_ren,
+            6 => sck1_ren,
+            5 => t1_cmp1_ren,
+            4 => t1_cmp0_ren,
+            3 => sck1_ren,
+            2 => t1_cmp1_ren,
+            1 => t1_cmp0_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc4_af6_out <= (
+            7 => tx0_out,
+            6 => mosi1_out,
+            5 => sck1_out,
+            4 => t1_cmp1_out,
+            3 => mosi1_out,
+            2 => sck1_out,
+            1 => t1_cmp1_out,
+            0 => t1_cmp0_out
+        );
+        afunc4_af6_dir <= (
+            7 => tx0_dir,
+            6 => mosi1_dir,
+            5 => sck1_dir,
+            4 => t1_cmp1_dir,
+            3 => mosi1_dir,
+            2 => sck1_dir,
+            1 => t1_cmp1_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc4_af6_ren <= (
+            7 => tx0_ren,
+            6 => mosi1_ren,
+            5 => sck1_ren,
+            4 => t1_cmp1_ren,
+            3 => mosi1_ren,
+            2 => sck1_ren,
+            1 => t1_cmp1_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc4_af7_out <= (
+            7 => tx1_out,
+            6 => tx0_out,
+            5 => mosi1_out,
+            4 => sck1_out,
+            3 => tx0_out,
+            2 => mosi1_out,
+            1 => sck1_out,
+            0 => t1_cmp1_out
+        );
+        afunc4_af7_dir <= (
+            7 => tx1_dir,
+            6 => tx0_dir,
+            5 => mosi1_dir,
+            4 => sck1_dir,
+            3 => tx0_dir,
+            2 => mosi1_dir,
+            1 => sck1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc4_af7_ren <= (
+            7 => tx1_ren,
+            6 => tx0_ren,
+            5 => mosi1_ren,
+            4 => sck1_ren,
+            3 => tx0_ren,
+            2 => mosi1_ren,
+            1 => sck1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc4_all_out <= afunc4_af7_out & afunc4_af6_out & afunc4_af5_out & afunc4_af4_out & afunc4_af3_out & afunc4_af2_out & afunc4_af1_out & afunc4_out;
+        afunc4_all_dir <= afunc4_af7_dir & afunc4_af6_dir & afunc4_af5_dir & afunc4_af4_dir & afunc4_af3_dir & afunc4_af2_dir & afunc4_af1_dir & afunc4_dir;
+        afunc4_all_ren <= afunc4_af7_ren & afunc4_af6_ren & afunc4_af5_ren & afunc4_af4_ren & afunc4_af3_ren & afunc4_af2_ren & afunc4_af1_ren & afunc4_ren;
 
 
     -- =============================================================================
@@ -1603,6 +2440,7 @@ begin
             sh_scfail => arb_scfail(0),
             sh_lock   => arb_lock(0),
             tcm_pgen  => pgen_mem(1),
+            tcm_retn  => '1',
             -- M17: hart 0 is ALWAYS-ON — its domain controls are strapped
             -- inactive (explicit, per the M14 netlist-boundary rule)
             pd_sleep  => '0',
@@ -2142,6 +2980,9 @@ begin
             -- its own native PGEN power-down whenever the domain gates —
             -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(1),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
             -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
             pd_sleep  => pd_sleep(1),
             pd_iso_en => pd_iso_en(1),
@@ -2192,6 +3033,9 @@ begin
             -- its own native PGEN power-down whenever the domain gates —
             -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(2),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
             -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
             pd_sleep  => pd_sleep(2),
             pd_iso_en => pd_iso_en(2),
@@ -2242,6 +3086,9 @@ begin
             -- its own native PGEN power-down whenever the domain gates —
             -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
             tcm_pgen  => pd_sleep(3),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
             -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
             pd_sleep  => pd_sleep(3),
             pd_iso_en => pd_iso_en(3),

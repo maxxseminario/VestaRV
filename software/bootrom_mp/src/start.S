@@ -49,7 +49,12 @@
 // can release a tile, so DONE==0-style parked-proofs are silicon-safe.
 // =============================================================================
 #define CLINT_MSIP_BASE     0x5000      // CLINT msip[h] = 0x5000 + 4*h
-#define BOOT_MB_BASE        0x10400     // loader mailbox rows (h=1..3 used)
+// Loader mailbox rows: {SRC,LEN,ENTRY} at BOOT_MB_BASE + 0x10*h, h=1..N-1.
+// N-agnostic base (Argus A3): relocated 0x10400 -> 0x10500 so the rows (up to
+// 0x10500+0x10*(N-1); block 0x10500-0x1061F at N=18) clear the sh-test scratch
+// words below 0x10500 (shfault/shpwr) and stay inside MB_ZERO_END. This MUST
+// stay equal to MP_BOOT_MB_BASE in verification/env/p/mp_boot.h.
+#define BOOT_MB_BASE        0x10500     // loader mailbox rows (h=1..N-1 used)
 #define MB_ZERO_BASE        0x10000     // zeroed region start
 #define MB_ZERO_END         0x10800     // zeroed region end (exclusive)
 #define IVT_MSIP_SLOT       (IVT_BASE_ADDR + 4*83)  // IVT slot 83 (CLINT msip) = 0x814C
@@ -85,7 +90,7 @@ spi_flash_boot:
     li sp, SP_INIT_VAL // Initialize Stack Pointer to the top of the TCM
 
     // M12 write-before-read contract: zero the shared-RAM mailbox region
-    // (test/app ledger 0x10000-0x103FF + the loader mailboxes at 0x10400)
+    // (test/app ledger 0x10000-0x104FF + the loader mailboxes at 0x10500)
     // BEFORE any path that could release a tile. Tiles are parked in ROM
     // and touch no mailbox until their msip fires, so this cannot race.
     li a2, MB_ZERO_BASE

@@ -13,10 +13,12 @@
 # hart 0 falls through to run it too. The "tiles hammer FOREVER after passing"
 # property is preserved — hart 0 always contends with three live masters.
 #
-# Each hart reads mhartid and hammers its OWN word at 0x10040 + 4*hartid —
-# DISJOINT per hart (shared-word atomicity needs the M4 resv_unit/byte lanes),
-# and clear of shmem.S's words at 0x10000/0x10004 so it can run on harts 1-3
-# concurrently with hart 0's shmem regression test.
+# Each hart reads mhartid and hammers its OWN word at 0x10090 + 4*hartid —
+# DISJOINT per hart (shared-word atomicity needs the M4 resv_unit/byte lanes).
+# Argus A3 rebase: the historical 0x10040 base put hart 16's word at 0x10080 =
+# the phase-2 atomic COUNTER at N=18 (self-collision). Rebased to 0x10090 (N=18
+# span 0x10090..0x100D4, clear of the counter 0x10080 and all other ledger
+# words, inside the bootrom-zeroed 0x10000-0x107FF range).
 #
 # Phase 1: a fully-verified write/readback sweep -> set a0 = 0xCAFEBABE (PASS).
 # Phase 2: keep hammering FOREVER (write, read back twice, compare) so hart 0
@@ -43,9 +45,7 @@ RVTEST_CODE_BEGIN
     # hart 0: stage this TCM image once, launch all three tiles into the SAME
     # hammer body, then fall through and run it too (live 4-way contention).
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_body, 4096)
-    MP_LAUNCH_HART(2, tile_body, 4096)
-    MP_LAUNCH_HART(3, tile_body, 4096)
+    MP_LAUNCH_ALL(tile_body, 4096)
 
 tile_body:                      # entry ABI: only sp defined — re-derive mhartid
     .option push
@@ -54,7 +54,7 @@ tile_body:                      # entry ABI: only sp defined — re-derive mhart
     .option pop
     li   sp, 0xBFF0             # test convention (bootrom left 0xBFFC)
     slli t1, t0, 2              # hartid * 4
-    li   t2, 0x10040
+    li   t2, 0x10090            # Argus A3: rebased from 0x10040 (see header)
     add  s2, t2, t1             # s2 = my disjoint shared word
 
     # per-hart pattern seed (hartid in the top byte -> cross-hart corruption

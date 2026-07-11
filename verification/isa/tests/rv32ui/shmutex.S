@@ -33,9 +33,13 @@
 # all-free.
 #
 # Shared words (>= 0x10380, clear of shlock's journal 0x10280-0x1037F):
-#     CTR      = 0x10380          must end EXACTLY 128
+#     CTR      = 0x10380          must end EXACTLY NHARTS*32
 #     OWNER    = 0x10384          holder writes hartid+1, re-checks
 #     DONE[h]  = 0x10390 + 4*h    0x40BE0000+h after hart h's 32 sessions
+# Argus A3: CTR/OWNER sit BELOW the DONE base, so the NHARTS-sized DONE array
+# (N=18: 0x10394..0x103D4, < 0x10500) can't overrun them. Phase-1 uses the
+# disjoint mutex MUTEX[1+hartid]; the HW bank has only 16 mutexes, so at N=18
+# harts >= 15 index past MUTEX15 (see report — phase-1 needs manual review).
 # (next free shared word: 0x103A0)
 #*****************************************************************************
 
@@ -58,12 +62,10 @@ RVTEST_CODE_BEGIN
     .option pop
     bnez s10, tile_entry        # M12: only hart 0 runs the launcher
 
-    # M12 single-ROM boot: stage this TCM image once, launch all three tiles
+    # M12 single-ROM boot: stage this TCM image once, launch all NHARTS-1 tiles
     # into tile_entry (mp_boot.h), then fall through and run the same body.
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_entry, 4096)
-    MP_LAUNCH_HART(2, tile_entry, 4096)
-    MP_LAUNCH_HART(3, tile_entry, 4096)
+    MP_LAUNCH_ALL(tile_entry, 4096)
 
 tile_entry:                     # tiles enter here (loader ABI: only sp defined)
     .option push
@@ -158,11 +160,11 @@ dw_poll:
     j    shmutex_fail
 dw_ok:
     addi s6, s6, 1
-    li   t0, 4
+    li   t0, NHARTS
     bne  s6, t0, dw_loop
 
     lw   t3, 0(s8)
-    li   t4, 128                # 4 harts * 32 — lost update = wrong count
+    li   t4, NHARTS*32          # NHARTS harts * 32 — lost update = wrong count
     bne  t3, t4, shmutex_fail
 
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin

@@ -60,7 +60,10 @@ entity arb_lat_master is
         N_LRSC     : natural := 6;    -- successful LR/SC increments (pass 5)
         N_RMW      : natural := 8;    -- grant-locked RMW pairs (pass 6)
         N_MTX      : natural := 6;    -- mutex-protected increments (pass 7)
-        BREAK_MODE : natural := 0     -- 1 = drop lock early (master 0 only)
+        BREAK_MODE : natural := 0;    -- 1 = drop lock early (master 0 only)
+        -- A2 (Argus): total master count, for the mutex owner-marker sanity
+        -- bounds (owner is 1..N_TOTAL and can exceed 3 bits at N > 7)
+        N_TOTAL    : natural := 4
     );
     port (
         clk      : in  std_logic;
@@ -262,8 +265,8 @@ begin
             loop
                 txn(MTX_ADDR, "0000", x"00000000", "00", rd, scf);  -- claim-read
                 exit when rd = x"00000000";                          -- acquired
-                got := conv_integer(rd(2 downto 0));
-                if got = 0 or got > 4 then                           -- sanity: owner is 1..4
+                got := conv_integer(rd(7 downto 0));                 -- owner marker (A2: > 3 bits at N > 7)
+                if got = 0 or got > N_TOTAL then                     -- sanity: owner is 1..N_TOTAL
                     err <= '1';
                     report "master " & integer'image(INDEX) &
                            " MUTEX bogus owner readback" severity error;
@@ -282,7 +285,7 @@ begin
             -- own-marker re-read: a held mutex returns owner = INDEX+1 and
             -- the re-read must NOT disturb ownership
             txn(MTX_ADDR, "0000", x"00000000", "00", rd, scf);
-            if conv_integer(rd(2 downto 0)) /= INDEX + 1 then
+            if conv_integer(rd(7 downto 0)) /= INDEX + 1 then
                 err <= '1';
                 report "master " & integer'image(INDEX) &
                        " MUTEX own-marker mismatch" severity error;
@@ -312,13 +315,31 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity arb_lat_tb is
     generic (
         N_DELAY    : natural := 0;   -- boundary-register stages, 0/1/2 (M13 emulation)
-        BREAK_MODE : natural := 0    -- 0 clean; 1 early lock drop; 2 skewed addr pipe
+        BREAK_MODE : natural := 0;   -- 0 clean; 1 early lock drop; 2 skewed addr pipe
+        -- A2 (Argus): master count. 4 = the Castalia gate; 18 = the Argus
+        -- fabric shape (s_master/MW widen, owner markers pass 3 bits).
+        N_MASTERS  : natural := 4
     );
 end entity;
 
 architecture sim of arb_lat_tb is
 
-    constant N   : natural := 4;
+    constant N   : natural := N_MASTERS;
+
+    -- A2: s_master / mutex master width at this master count (mp_arbiter MW)
+    function clog2(v : natural) return natural is
+        variable w : natural := 0;
+    begin
+        while 2**w < v loop
+            w := w + 1;
+        end loop;
+        return w;
+    end function;
+    function max2(a, b : natural) return natural is
+    begin
+        if a > b then return a; else return b; end if;
+    end function;
+    constant MW : natural := max2(1, clog2(N));
     constant AW  : natural := 12;  -- BFM-internal width. The MCU is at SH_AW=15 since M11; the
                                    -- protocol properties proven here (wait-for-release masking,
                                    -- LOCKED pairs, LR/SC ordering) are ADDRESS-WIDTH-INDEPENDENT
@@ -396,7 +417,7 @@ architecture sim of arb_lat_tb is
 
     -- arbiter <-> slaves
     signal s_en      : std_logic;
-    signal s_master  : std_logic_vector(1 downto 0);
+    signal s_master  : std_logic_vector(MW-1 downto 0);
     signal s_we      : std_logic_vector(3 downto 0);
     signal s_we_g    : std_logic_vector(3 downto 0);   -- resv-gated
     signal s_addr    : std_logic_vector(AW-1 downto 0);
@@ -434,7 +455,7 @@ begin
         mst: entity work.arb_lat_master
             generic map (INDEX => i, NTX => NTX, N_RND => N_RND,
                          N_LRSC => N_LRSC, N_RMW => N_RMW, N_MTX => N_MTX,
-                         BREAK_MODE => BREAK_MODE)
+                         BREAK_MODE => BREAK_MODE, N_TOTAL => N)
             port map (
                 clk => clk, resetn => resetn,
                 req => m_req(i), we => m_we(i),
@@ -493,7 +514,7 @@ begin
 
     -- DUT: the real arbiter
     dut: entity work.mp_arbiter
-        generic map (N => N, ADDR_WIDTH => AW, DATA_WIDTH => DW)
+        generic map (N => N, ADDR_WIDTH => AW, DATA_WIDTH => DW, MW => MW)
         port map (
             clk => clk, resetn => resetn,
             req => a_req, we => a_we, addr => a_addr, wdata => a_wdata,
@@ -520,7 +541,7 @@ begin
     ram_en  <= s_en and not mtx_sel;
 
     mtx0: entity work.mutex_bank
-        generic map (NMUTEX => 16)
+        generic map (NMUTEX => 16, MW => MW)
         port map (
             clk => clk, resetn => resetn,
             en => mtx_en, we => s_we_g, addr => s_addr(3 downto 0),
@@ -622,7 +643,9 @@ begin
         variable v : natural;
     begin
         wait until resetn = '1';
-        for t in 0 to 200000 loop
+        -- A2: watchdog scales with the master count (more masters = more
+        -- serialized traffic + contention); 200000 cycles at the N=4 gate.
+        for t in 0 to 50000 * N loop
             wait until rising_edge(clk);
             exit when m_finished = (m_finished'range => '1');
         end loop;

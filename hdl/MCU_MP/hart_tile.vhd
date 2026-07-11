@@ -85,7 +85,11 @@ entity hart_tile is
     generic (
         -- M12: every hart resets to 0x0 = the shared boot ROM.
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
-        SH_AW          : natural := 15;  -- shared-window word-address width (must match mp_arbiter; M11: covers 0x00000-0x1FFFF)
+        SH_AW          : natural := 15;  -- shared-window word-address width (must match mp_arbiter;
+                                         -- M11 default 15 covers 0x00000-0x1FFFF. A2: also DRIVES the
+                                         -- sh_sel window decode and adddec's complementary flash
+                                         -- decode below — 16 = the Argus shape, window 0x0-0x3FFFF,
+                                         -- flash from 0x40000)
 
         -- Core ISA feature switches, passed straight down to vesta (see
         -- vesta.vhd). Config-driven from generate.py via the MemoryMap
@@ -170,6 +174,14 @@ entity hart_tile is
         -- pgen_mem(1) (software power gating preserved); tiles: '0'.
         tcm_pgen  : in  std_logic := '0';
 
+        -- PG1 (2026-07-10): TCM retention control, strapped '1' (retention
+        -- disabled) from the ALWAYS-ON MCU top. Was an in-tile TIEHI on the
+        -- switched rail — but the macro's RETN receiver is on the always-on
+        -- rail (PG1 finding F2: a dying tie meant sleep-long crowbar in the
+        -- macro plus uncommanded retention-mode entry). A port also gives a
+        -- future retention stage (M18) its sequencing hook for free.
+        tcm_retn  : in  std_logic := '1';
+
         -- M17: MTCMOS domain controls — no tile RTL logic consumes them.
         -- pd_sleep is the CPF hook (cpf/hart_tile.cpf): it drives the HEAD
         -- switch fabric's SLEEP daisy chain (pmk sense: ACTIVE-HIGH =
@@ -238,7 +250,8 @@ architecture behav of hart_tile is
 
     component adddec is
         generic (
-            ENABLE_FLASH_EXTENDED_MEM : boolean := false
+            ENABLE_FLASH_EXTENDED_MEM : boolean := false;
+            SH_AW                     : natural := 15
         );
         port (
             clk               : in  std_logic;
@@ -273,6 +286,13 @@ architecture behav of hart_tile is
 
     -- constant tie-offs
     constant zero_periph : word_array(0 to 15)                  := (others => (others => '0'));
+
+    -- A2: SH_AW-derived all-zero comparators for the sh_sel decode below.
+    -- SH_WIN_ZERO qualifies the whole window (addr(31:SH_AW+2) = 0);
+    -- SH_TCM_ZERO qualifies the TCM carve-out's upper bits (addr(SH_AW+1:16)
+    -- = 0 — one bit at the Castalia SH_AW=15, two at the Argus SH_AW=16).
+    constant SH_WIN_ZERO : std_logic_vector(31 downto SH_AW+2) := (others => '0');
+    constant SH_TCM_ZERO : std_logic_vector(SH_AW+1 downto 16) := (others => '0');
 
     -- M5b/M13: the two CLINT slots are hardwire-enabled when hw_clint_en='1'
     -- (tiles — no SYSTEM peripheral to program them); M7a ORs in the
@@ -528,7 +548,10 @@ begin
     -- netlists); only hart 0 has SPI0 behind the flash ports (see header).
     adddec0: adddec
         generic map (
-            ENABLE_FLASH_EXTENDED_MEM => true
+            ENABLE_FLASH_EXTENDED_MEM => true,
+            -- A2: the flash decode is the strict complement of this tile's
+            -- SH_AW-derived sh_sel window (M3c.3 double-claim lesson)
+            SH_AW                     => SH_AW
         )
         port map (
             clk             => clk_cpu,
@@ -564,15 +587,22 @@ begin
     -- M3c.4: shared-window master (proven M3c wiring, tile-internal).
     -- See the header comment for the design rationale of every piece.
     -- =========================================================================
-    -- M11/M12 decode: EVERYTHING in 0x00000-0x1FFFF except the private TCM
-    -- (region 010) is shared -- boot ROM (000, M12), peripheral window
-    -- (001), NPU staging RAM (011), bulk RAM (1xx) -- under an exact
-    -- (31:17)=0 qualification (a loose decode aliases >=0x20000 extended-
-    -- flash addresses back into the window - bug 2 class / the M3c.3
-    -- double-claim deadlock). adddec asserts no enable for any shared
-    -- region, so the two decoders can never double-claim an address.
-    sh_sel <= '1' when data_addr(31 downto 17) = "000000000000000"
-                   and data_addr(16 downto 14) /= "010" else '0';
+    -- M11/M12 decode: EVERYTHING in the shared window except the private TCM
+    -- (0x8000-0xBFFF) is shared -- boot ROM (M12), peripheral window, NPU
+    -- staging RAM, bulk RAM -- under an exact (31:SH_AW+2)=0 qualification
+    -- (a loose decode aliases extended-flash addresses back into the window
+    -- - bug 2 class / the M3c.3 double-claim deadlock). adddec asserts no
+    -- enable for any shared region, so the two decoders can never
+    -- double-claim an address.
+    -- A2 (Argus): the decode is derived from SH_AW — the window is
+    -- 0x0..2^(SH_AW+2)-1 minus the TCM. At the Castalia default (SH_AW=15,
+    -- window 0x0-0x1FFFF) this is bit-for-bit the original
+    -- (31:17)=0 and (16:14)/="010" decode; at SH_AW=16 (Argus, window
+    -- 0x0-0x3FFFF, flash from 0x40000) it is (31:18)=0 and (17:14)/="0010".
+    sh_sel <= '1' when data_addr(31 downto SH_AW+2) = SH_WIN_ZERO
+                   and not (data_addr(SH_AW+1 downto 16) = SH_TCM_ZERO
+                            and data_addr(15 downto 14) = "10")
+                   else '0';
 
     -- one-shot handshake on the FREE-RUNNING clk (mclk): request until this
     -- access completes (done), then hold off re-request until the core steps
@@ -697,7 +727,7 @@ begin
             D     => write_data,
             EMA   => "000",
             GWEN  => GWEN,
-            RETN  => '1',
+            RETN  => tcm_retn,
             PGEN  => tcm_pgen
         );
 

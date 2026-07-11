@@ -10,7 +10,7 @@
 #
 # M12: the default tile preload (harts 1-3 running shmem_mp) is retired, so
 # this test now LAUNCHES the tiles itself: hart 0 stages this TCM image once
-# and launches all three into tile_hammer through the bootrom loader
+# and launches all NHARTS-1 tiles into tile_hammer through the bootrom loader
 # (mp_boot.h). tile_hammer mirrors shmem_mp phase 3 — write an incrementing
 # per-hart pattern to the hart's own word, read it back, compare (so a wrongly
 # committed foreign SC of 0xDEAD to 0x10044 is caught by hart 1's own
@@ -50,9 +50,7 @@ RVTEST_CODE_BEGIN
     # hart 0: stage this TCM image once, launch all three tiles into the
     # forever-hammer (hart 1 becomes the foreign-write source for step 4).
     MP_STAGE_IMAGE(4096)
-    MP_LAUNCH_HART(1, tile_hammer, 4096)
-    MP_LAUNCH_HART(2, tile_hammer, 4096)
-    MP_LAUNCH_HART(3, tile_hammer, 4096)
+    MP_LAUNCH_ALL(tile_hammer, 4096)
 
     # Wait until hart 1 is actively hammering 0x10044 (its writes change the
     # word every iteration). Bounded (M12: covers the tile ROM copy at launch).

@@ -133,9 +133,13 @@ package MemoryMap is
 	constant RegSlotIRQPRIM			: natural := 09;	-- offset = 36 bytes
 	constant RegSlotIRQPRIU			: natural := 10;	-- offset = 40 bytes
 	constant RegSlotIRQCR			: natural := 11;	-- offset = 44 bytes
-	constant RegSlotWDTCR			: natural := 12;	-- offset = 48 bytes
-	constant RegSlotWDTSR			: natural := 13;	-- offset = 52 bytes
-	constant RegSlotWDTPASS			: natural := 14;	-- offset = 56 bytes
+	-- G5a (2026-07-11): WDT slot order corrected to the RTL decode truth
+	-- (RegSlotSYS_WDT_PASS=12/CR=13/SR=14 below, which SYSTEM.vhd implements);
+	-- these doc-side constants had carried the wrong Myshkin-era order. No RTL
+	-- logic reads them.
+	constant RegSlotWDTPASS			: natural := 12;	-- offset = 48 bytes
+	constant RegSlotWDTCR			: natural := 13;	-- offset = 52 bytes
+	constant RegSlotWDTSR			: natural := 14;	-- offset = 56 bytes
 	constant RegSlotWDTVAL			: natural := 15;	-- offset = 60 bytes
 	constant RegSlotDCO0BIAS		: natural := 16;	-- offset = 64 bytes
 	constant RegSlotDCO1BIAS		: natural := 17;	-- offset = 68 bytes
