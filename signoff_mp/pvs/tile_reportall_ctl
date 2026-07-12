@@ -1,0 +1,3 @@
+// PG4 BA-ICG probe: uncap the mismatch report (deck caps at 1000) so the
+// layout-side disposition of the dead ClkGate wrapper devices is visible.
+lvs_report_max -all;
