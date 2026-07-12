@@ -1,0 +1,8 @@
+.include_cdl "/opt/design_kits/TSMC65-PDK/kit/Assura/lvs_rcx/source.added"
+.include_cdl "/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/lvs_netlist/tsmc65_hvt_sc_adv10_no_bulk.cdl"
+.include_cdl "/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10-pmk/lvs_netlist/tsmc65_hvt_sc_adv10_pmk.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/component_cdls/GlitchFilter.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/component_cdls/PowerOnResetCheng.cdl"
+.include_cdl "/home/mseminario2/chips/myshkin/ic/pvs/MCU/MCU/component_cdls/OscillatorCurrentStarved.cdl"

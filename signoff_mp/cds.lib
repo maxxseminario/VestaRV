@@ -1,0 +1,36 @@
+# PG3 signoff workspace (Castalia MCU_MP / hart_tile foundry DRC+LVS).
+# Reuses the Myshkin kit/IP library definitions read-only via INCLUDE;
+# every library CREATED by this flow is defined below and lives HERE,
+# never in chips/myshkin/ic (frozen tapeout workspace).
+INCLUDE /home/mseminario2/chips/myshkin/ic/cds.lib
+
+# pmk (power-management kit: HEADBUF/GPGBUF/FILLBIAS/...) OA layouts.
+# The ~/lib/.../tsmc65_sc_adv10_pmk stub is EMPTY -- this lib is created by
+# strmin_pmk.sh from the kit GDS. Myshkin never used pmk cells.
+DEFINE tsmc65_sc_adv10_pmk /home/mseminario2/vestarv/signoff_mp/tsmc65_sc_adv10_pmk
+
+# Work libraries: one per streamed-in Innovus GDS (never Myshkin's names).
+DEFINE hart_tile_mp /home/mseminario2/vestarv/signoff_mp/hart_tile_mp
+#Removed by ddDeleteObj: DEFINE MCU_MP_signoff /home/mseminario2/vestarv/signoff_mp/MCU_MP_signoff
+DEFINE tsmc65_sc_adv10_pmk /home/mseminario2/vestarv/signoff_mp/tsmc65_sc_adv10_pmk
+DEFINE hart_tile_mp /home/mseminario2/vestarv/signoff_mp/hart_tile_mp
+
+# The sram1p16k_hvt_pg CELL NAME is ambiguous on this machine: Myshkin's OA
+# lib (ic/sram1p16k_hvt_pg) holds the ORIGINAL wide mux-32 strip (1126x121)
+# it taped out with; the ip kit (chips/myshkin/ip/sram1p16k_hvt_pg, Feb 2024)
+# holds the near-square mux-8 macro (319.65x383.085) that Castalia hardens
+# with (hart_tile.innovus.tcl SRAM16K_WIDTH/HEIGHT). Binding ram0 to the
+# wide-strip layout produced ~185k phantom DRC results attributed into the
+# sram subcells. This lib is streamed from the ip kit GDS and MUST shadow
+# the Myshkin lib in strmin/reflib.list.
+DEFINE sram1p16k_sq /home/mseminario2/vestarv/signoff_mp/sram1p16k_sq
+DEFINE sram1p16k_sq /home/mseminario2/vestarv/signoff_mp/sram1p16k_sq
+DEFINE MCU_MP_signoff /home/mseminario2/vestarv/signoff_mp/MCU_MP_signoff
+DEFINE MCU_MP_signoff /home/mseminario2/vestarv/signoff_mp/MCU_MP_signoff
+DEFINE f2probe_lib /home/mseminario2/vestarv/signoff_mp/f2probe_lib
+DEFINE trial1_lib /home/mseminario2/vestarv/signoff_mp/trial1_lib
+DEFINE trial2_lib /home/mseminario2/vestarv/signoff_mp/trial2_lib
+DEFINE trial3_lib /home/mseminario2/vestarv/signoff_mp/trial3_lib
+DEFINE trial4_lib /home/mseminario2/vestarv/signoff_mp/trial4_lib
+DEFINE mcu_trial_lib /home/mseminario2/vestarv/signoff_mp/mcu_trial_lib
+DEFINE mcu_trial_lib /home/mseminario2/vestarv/signoff_mp/mcu_trial_lib

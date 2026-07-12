@@ -1223,6 +1223,95 @@ if {[info exists PG1_NREP] && $PG1_NREP > 0} {
 		exit 1
 	}
 	puts "### UNL STATUS ### : PG4 F1 repeater gate — all GPGBUF AO supplies via'd"
+	# PG4/F2b (2026-07-11): the repeater VDDG strap is an ISLAND unless it
+	# happens to catch an engine stack — F2b seed left pgaorep_2's 52-um
+	# strap with a pin via1 and NOTHING upward (via2=0; the nearest ladder
+	# passed 2.35 um above its top). The via gate above only proves the PIN
+	# hop. Deterministic grid hop: one horizontal SAME-LAYER M2 link from
+	# each repeater strap to the nearest main strap column with y-overlap
+	# (touching same-net metal, no vias — the proven ladder mechanism; the
+	# main columns are grid-connected by the post-route strap-grid repair).
+	foreach __i [dbGet -p top.insts.name pgaorep_*] {
+		set __bx [lindex [dbGet $__i.box] 0]
+		foreach {__rx0 __ry0 __rx1 __ry1} $__bx {}
+		# the repeater's OWN strap piece: M2 VDD that x-OVERLAPS the cell
+		# bbox, 4-60 um tall. First F2c run grabbed the nearest MAIN column
+		# (full height, 2 um away) instead and self-linked it — x-overlap
+		# and the height ceiling exclude main columns and ladder rungs.
+		set __sp ""
+		foreach __o [dbQuery -area [list [expr {$__rx0 - 2.0}] [expr {$__ry0 - 60.0}] [expr {$__rx1 + 2.0}] [expr {$__ry1 + 60.0}]] -objType sWire] {
+			if {[dbGet -e $__o.layer.name] ne "M2" || [dbGet -e $__o.net.name] ne "VDD"} { continue }
+			set __b2 [lindex [dbGet $__o.box] 0]
+			foreach {__px0 __py0 __px1 __py1} $__b2 {}
+			set __h [expr {$__py1 - $__py0}]
+			if {$__h < 4.0 || $__h > 60.0} { continue }
+			if {$__px1 < $__rx0 || $__px0 > $__rx1} { continue }
+			set __sp $__b2
+			break
+		}
+		if {$__sp eq ""} {
+			puts "FATAL (PG4/F2b): repeater [dbGet $__i.name] has no VDDG M2 strap piece to link. Saving dbs/pg4rep_fail.innovus; aborting."
+			saveDesign dbs/pg4rep_fail.innovus
+			exit 1
+		}
+		foreach {__px0 __py0 __px1 __py1} $__sp {}
+		# nearest main strap column with y-overlap
+		# candidate main straps whose ACTUAL METAL y-overlaps the repeater
+		# strap — the run band is NOT the metal (F2d: the H351 strap metal
+		# starts at 398.0 while its band starts at 396; a 397.3 link
+		# floated 0.4 um below the strap). Metal extents are SEED-VARIANT
+		# per column, and 0.1-wide sleep-chain M2 routes block some scan
+		# bands (F2e: pgaorep_0's nearest column only overlapped y >= 398.5
+		# where the psoPSI wires run) — so try EVERY overlapping column in
+		# distance order until one yields a clear link y.
+		set __cands {}
+		foreach __pr $__placed_runs {
+			foreach {__key __msx __may0 __may1} $__pr {}
+			if {$__may0 > [expr {$__py1 - 1.0}] || $__may1 < [expr {$__py0 + 1.0}]} { continue }
+			set __d [expr {abs($__msx - $__px0)}]
+			if {$__d < 0.5 || $__d > 30.0} { continue }
+			foreach __o [dbQuery -area [list [expr {$__msx + 0.05}] $__may0 [expr {$__msx + 0.25}] $__may1] -objType sWire] {
+				if {[dbGet -e $__o.layer.name] ne "M2" || [dbGet -e $__o.net.name] ne "VDD"} { continue }
+				set __b3 [lindex [dbGet $__o.box] 0]
+				foreach {__qx0 __qy0 __qx1 __qy1} $__b3 {}
+				if {[expr {$__qy1 - $__qy0}] < 4.0} { continue }
+				set __ov [expr {min($__py1, $__qy1) - max($__py0, $__qy0)}]
+				if {$__ov < 1.5} { continue }
+				lappend __cands [list $__d $__msx $__qy0 $__qy1]
+				break
+			}
+		}
+		set __cands [lsort -real -index 0 $__cands]
+		set __ly ""; set __best ""
+		foreach __cand $__cands {
+			foreach {__d __msx __qy0 __qy1} $__cand {}
+			set __clx0 [expr {min($__px0, $__msx)}]
+			set __clx1 [expr {max($__px1, $__msx + 0.3)}]
+			# clearance margin = M2 narrow min-space 0.10 exactly — the
+			# VSS twin sits at a LEGAL 0.13 gap and a fat margin blocks
+			# every candidate y (first F2c run).
+			set __sc0 [expr {max($__py0, $__qy0) + 0.5}]
+			set __sc1 [expr {min($__py1, $__qy1) - 0.8}]
+			for {set __cy $__sc0} {$__cy < $__sc1} {set __cy [expr {$__cy + 1.0}]} {
+				set __ok 1
+				foreach __o [concat [dbQuery -area [list [expr {$__clx0 - 0.10}] [expr {$__cy - 0.10}] [expr {$__clx1 + 0.10}] [expr {$__cy + 0.40}]] -objType sWire] [dbQuery -area [list [expr {$__clx0 - 0.10}] [expr {$__cy - 0.10}] [expr {$__clx1 + 0.10}] [expr {$__cy + 0.40}]] -objType wire]] {
+					if {[dbGet -e $__o.layer.name] ne "M2"} { continue }
+					if {[dbGet -e $__o.net.name] eq "VDD"} { continue }
+					set __ok 0; break
+				}
+				if {$__ok} { set __ly $__cy; break }
+			}
+			if {$__ly ne ""} { set __best $__msx; set __lx0 $__clx0; set __lx1 $__clx1; break }
+		}
+		if {$__ly eq ""} {
+			puts "FATAL (PG4/F2b): no clear link y to any main strap column for repeater [dbGet $__i.name] ([llength $__cands] candidates tried). Saving dbs/pg4rep_fail.innovus; aborting."
+			saveDesign dbs/pg4rep_fail.innovus
+			exit 1
+		}
+		add_shape -net VDD -layer M2 -rect [list $__lx0 $__ly $__lx1 [expr {$__ly + 0.3}]] -shape STRIPE -status ROUTED
+		createRouteBlk -box [list [expr {$__lx0 - 0.1}] [expr {$__ly - 0.1}] [expr {$__lx1 + 0.1}] [expr {$__ly + 0.4}]] -layer 2
+		puts "PG4/F2b: linked repeater [dbGet $__i.name] strap to main column x=$__best (link y=$__ly, span $__lx0-$__lx1)"
+	}
 	# fence the repeater straps from the router like the column straps
 	foreach __i [dbGet -p top.insts.name pgaorep_*] {
 		set __bx [lindex [dbGet $__i.box] 0]
@@ -1494,6 +1583,101 @@ foreach __pr $__placed_runs {
 		lappend __f2waived [list $__key $__sx $__y]
 	}
 }
+# --- PG4/F2g: DRC cleanup on the F2 metal (Myshkin bar: G.4/VIA1.R.4 = 0).
+# (b) DOUBLE-column zones (a tap strap TOUCHING a header strap, 2 pairs on
+#     this floorplan): the two pieces start/end at different y, so the
+#     first/last finger reaches only ONE of them = a single-via connection
+#     beside the merged plate -> VIA1.R.4. Align both pieces to the pair's
+#     y-envelope and re-run the via pass there (every finger then gets a
+#     via on BOTH straps).
+set __npairfix 0
+set __ncap 0
+for {set __ii 0} {$__ii < [llength $__placed_runs]} {incr __ii} {
+	for {set __jj [expr {$__ii + 1}]} {$__jj < [llength $__placed_runs]} {incr __jj} {
+		foreach {__ka __sxa __ay0a __ay1a} [lindex $__placed_runs $__ii] {}
+		foreach {__kb __sxb __ay0b __ay1b} [lindex $__placed_runs $__jj] {}
+		if {[expr {abs($__sxa - $__sxb)}] > 0.35} { continue }
+		set __oy0 [expr {max($__ay0a, $__ay0b)}]
+		set __oy1 [expr {min($__ay1a, $__ay1b)}]
+		if {[expr {$__oy1 - $__oy0}] < 4.0} { continue }
+		# each strap's OWN piece: must CONTAIN its strap centerline —
+		# a thin query window partial-overlaps the PARTNER's piece too
+		# and dbQuery order is arbitrary (F2g probe: both queries
+		# returned the same piece and the alignment no-op'ed).
+		set __pa ""; set __pb ""
+		foreach __pp [list a b] {
+			set __psx [expr {$__pp eq "a" ? $__sxa : $__sxb}]
+			set __ctr [expr {$__psx + 0.15}]
+			foreach __o [dbQuery -area [list [expr {$__psx + 0.05}] $__oy0 [expr {$__psx + 0.25}] $__oy1] -objType sWire] {
+				if {[dbGet -e $__o.layer.name] ne "M2" || [dbGet -e $__o.net.name] ne "VDD"} { continue }
+				set __b [lindex [dbGet $__o.box] 0]
+				if {[expr {[lindex $__b 3] - [lindex $__b 1]}] < 4.0} { continue }
+				if {[lindex $__b 0] > $__ctr || [lindex $__b 2] < $__ctr} { continue }
+				if {$__pp eq "a"} { set __pa $__b } else { set __pb $__b }
+				break
+			}
+		}
+		if {$__pa eq "" || $__pb eq ""} { continue }
+		set __ey0 [expr {min([lindex $__pa 1], [lindex $__pb 1])}]
+		set __ey1 [expr {max([lindex $__pa 3], [lindex $__pb 3])}]
+		foreach __pp [list [list $__sxa $__pa] [list $__sxb $__pb]] {
+			foreach {__psx __pbx} $__pp {}
+			if {[lindex $__pbx 1] > [expr {$__ey0 + 0.01}]} {
+				add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED \
+					-rect [list $__psx $__ey0 [expr {$__psx + 0.3}] [expr {[lindex $__pbx 1] + 0.1}]]
+			}
+			if {[lindex $__pbx 3] < [expr {$__ey1 - 0.01}]} {
+				add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED \
+					-rect [list $__psx [expr {[lindex $__pbx 3] - 0.1}] [expr {$__psx + 0.3}] $__ey1]
+			}
+		}
+		editPowerVia -add_vias 1 -nets VDD -bottom_layer M1 -top_layer M2 \
+			-orthogonal_only 0 -area [list [expr {min($__sxa, $__sxb) - 0.5}] $__ey0 [expr {max($__sxa, $__sxb) + 0.9}] $__ey1]
+		incr __npairfix
+	}
+}
+# CAP POST-MORTEM (F2i): the per-via "pad-overhang caps" that lived here
+# were POISON — each 0.15x0.1 cap misaligned with its 0.18-tall via pad
+# (pt_y+-0.05 vs +-0.09) and made its OWN G.4 small-jog pair: 304 caps =
+# 600 G.4:M2i markers (Calibre; the in-flow "6" read during the F2i
+# acceptance was a stale/raced report). Never patch DRC classes with
+# blind per-object decorations; prove each patch shape on a trial GDS
+# (restore -> add_shape -> streamOut -> strmin -> blockdrc, ~6 min).
+#
+# (c) the PROVEN patch set (trial-GDS Calibre iterations 1-4, 2026-07-11):
+# hardcoded, seed-stable (identical coordinates across F2f/F2i hardens),
+# M7.S.4(b) house style. Covers the 8 residual results:
+#   - stub-seam MERGES at the two double-column bottom stubs: unify the
+#     T/H stub pieces into one block (the same seam-merge that the (b)
+#     alignment applies to the main runs; kills the G.4 jog families and
+#     converts the R.4 single-via question into a solvable R.2/R.3 one).
+#   - side FILLS at the three via pads that overhang the strap union by
+#     0.055 (column ends + column top): fill flush to the pad, reaching
+#     exactly 0.1 past the strap edge — a >= min-width step is legal.
+#   - the stub tap-via REGENERATE: a single via1 in the now-0.525-wide
+#     merged block violates VIA1.R.2 (>0.42-wide M2 needs >=2 cuts). The
+#     engine refuses to add cuts to a connected overlap, add_via and
+#     add_shape-on-VIA1 are both GDS-phantoms — so DELETE the one via at
+#     its exact coordinates and re-add on the wide overlap: the engine
+#     regenerates it as a real 2-cut array (GDS layer-51 proven).
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {193.100 2.000 193.625 8.000}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {433.100 2.000 433.625 7.500}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {193.000 4.000 193.200 4.150}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {193.575 4.050 193.725 4.150}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {433.000 5.850 433.200 6.000}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {433.575 5.850 433.725 5.950}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {433.000 597.850 433.200 598.050}
+add_shape -net VDD -layer M2 -shape STRIPE -status ROUTED -rect {433.575 597.850 433.725 598.050}
+set __b [pg4_count_via1 433.1 4.1 433.4 4.8]
+editPowerVia -delete_vias 1 -nets VDD -bottom_layer M1 -top_layer M2 -area {433.15 4.20 433.35 4.40}
+editPowerVia -add_vias 1 -nets VDD -bottom_layer M1 -top_layer M2 -orthogonal_only 0 -area {433.05 4.15 433.45 4.80}
+set __a [pg4_count_via1 433.1 4.1 433.4 4.8]
+if {$__a < $__b} {
+	puts "FATAL (PG4/F2g): stub tap-via regenerate lost the via ($__b -> $__a). Saving dbs/pg4f2_fail.innovus; aborting."
+	saveDesign dbs/pg4f2_fail.innovus
+	exit 1
+}
+puts "### UNL STATUS ### : PG4/F2g DRC cleanup — $__npairfix double-column zones aligned+re-via'd, patch set placed, stub via regenerated ($__b -> $__a)"
 puts "### UNL STATUS ### : PG4/F2 strap-pin link repair — $__f2vias via1s created this pass, $__f2covered cells strap-covered, [llength $__f2waived] taps naked (first 10: [lrange $__f2waived 0 9])"
 if {$__f2covered < 1400} {
 	puts "FATAL (PG4/F2): only $__f2covered strap-covered cells (expect ~977 headers + ~700 taps). Saving dbs/pg4f2_fail.innovus; aborting."
