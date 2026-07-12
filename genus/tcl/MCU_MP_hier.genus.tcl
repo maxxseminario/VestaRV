@@ -115,7 +115,7 @@ set_db use_tiehilo_for_const duplicate
 # Read HDL (MCU_MP tree MINUS the tile: no vesta/, no adddec, no hart_tile)
 ################################################################################
 puts "Reading HDL (MCU_MP top, hart_tile as blackbox)"
-set MP $HDL_DIR/MCU_MP
+set MP $HDL_DIR/common
 
 # --- Commune / shared packages and cells ---
 read_hdl -vhdl -library work $MP/commune/fixed_float_types_c.vhdl

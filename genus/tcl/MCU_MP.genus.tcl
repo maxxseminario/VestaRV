@@ -4,7 +4,7 @@
 #
 # Derived from tcl/MCU.genus.tcl (the verified single-core "Myshkin" flow).
 # Differences vs. the single-core script:
-#   * Reads the MCU_MP HDL tree (hdl/MCU_MP/...) plus the new multi-core infra
+#   * Reads the MCU_MP HDL tree (hdl/common/...) plus the new multi-core infra
 #     blocks (mp_arbiter, clint, irq_router, mutex_bank, resv_unit, hart_tile).
 #   * Top entity is still "MCU"; since M13 ALL FOUR harts are hart_tile
 #     instances "hart0/1/2/3" (each a full vesta + adddec + private TCM,
@@ -172,7 +172,7 @@ set_db use_tiehilo_for_const duplicate
 # which comes from the .lib files above (same as the single-core flow).
 puts "Reading HDL (MCU_MP)"
 
-set MP $HDL_DIR/MCU_MP
+set MP $HDL_DIR/common
 
 # --- Commune / shared packages and cells ---
 read_hdl -vhdl -library work $MP/commune/fixed_float_types_c.vhdl
