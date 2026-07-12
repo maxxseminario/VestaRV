@@ -858,14 +858,20 @@ begin
         -- when that pin's PxAFS field selects the function's plane (keyed on
         -- PxAFS only — peripheral inputs stay always-visible, like the direct
         -- taps they replace); otherwise it reads its home pad. The peripheral
-        -- ren_in (user pull preference) follows the same selection.
+        -- ren_in (user pull preference) follows the same selection. RX0's v2
+        -- pad is P4.5 at AF2 (a spread io slot — literal index, no pnum; pairs
+        -- with TX0 on P4.4 AF2); fixed priority: v2 pad > AF1 pad > home.
         tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
                       when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
                       else p2_ren(pnum_gpio1_tx0);
-        rx0_ren_in <= p3_ren(pnum_gpio2_af1_rx0)
+        rx0_ren_in <= p4_ren(5)
+                      when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                      else p3_ren(pnum_gpio2_af1_rx0)
                       when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                       else p2_ren(pnum_gpio1_rx0);
-        rx0_in <= prt3_in(pnum_gpio2_af1_rx0)
+        rx0_in <= prt4_in(5)
+                  when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                  else prt3_in(pnum_gpio2_af1_rx0)
                   when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                   else prt2_in(pnum_gpio1_rx0);
 

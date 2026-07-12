@@ -49,11 +49,24 @@ python3 make_ram_deposit.py ":dut" \
 # Driver tcl: preload before the first fetch, re-assert during the second
 # reset pulse (tb: resetn 0..40ns, second pulse 280-380ns), then free-run.
 if [ "$XRUN_MODE" = "batch" ]; then
+# Chunked free-run (CLAUDE.md chunked-tcl rule): xmsim buffers output, so a
+# monolithic 'run' gives NO liveness signal for hours (the first shboot
+# attempt died silently at 92.4 ms sim-time with a truncated log). 5 ms
+# chunks + flushed marker lines make progress and death points visible.
 cat > log/gate_run.tcl <<EOF
 run 1 ns
 source log/preload.tcl
 run 299 ns
 source log/preload.tcl
+for {set i 1} {\$i <= 50} {incr i} {
+    run 5 ms
+    puts "### GATE-CHUNK \$i (~[expr {\$i * 5}] ms sim-time)"
+    # shboot/shwfi diagnosis: DONE[1..17] = 0x10120+4h = shbank0 words 72-88 =
+    # rows 2-3 (32 words/row). Dump raw rows; decode offline.
+    if {[catch {puts "### DONE-ROW2 [value -hex {:dut:shbank0:mem[2]}]"} e]} { puts "### DONE-PROBE-ERR2 \$e" }
+    if {[catch {puts "### DONE-ROW3 [value -hex {:dut:shbank0:mem[3]}]"} e]} { puts "### DONE-PROBE-ERR3 \$e" }
+    flush stdout
+}
 run
 exit
 EOF

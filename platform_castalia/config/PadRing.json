@@ -82,6 +82,7 @@
       "gpio": "P2.7",
       "af0": "T1CAP1",
       "altFuncs": {
+        "AF1": "SCL0",
         "AF2": "MOSI1",
         "AF3": "TX0",
         "AF4": "TX1",
@@ -99,6 +100,7 @@
       "gpio": "P2.6",
       "af0": "T1CAP0",
       "altFuncs": {
+        "AF1": "SDA0",
         "AF2": "SCK1",
         "AF3": "MOSI1",
         "AF4": "TX0",
@@ -281,6 +283,7 @@
       "gpio": "P1.5",
       "af0": "RX0",
       "altFuncs": {
+        "AF1": "SCL1",
         "AF2": "T1CMP1",
         "AF3": "SCK1",
         "AF4": "MOSI1",
@@ -298,6 +301,7 @@
       "gpio": "P1.4",
       "af0": "TX0",
       "altFuncs": {
+        "AF1": "SDA1",
         "AF2": "SCK1",
         "AF3": "MOSI1",
         "AF4": "TX1",
@@ -617,7 +621,7 @@
         "AF4": "T1CMP1",
         "AF5": "SCK1",
         "AF6": "MOSI1",
-        "AF7": "TX0"
+        "AF7": "MISO1"
       }
     },
     {
@@ -630,7 +634,7 @@
       "af0": "DTP1",
       "altFuncs": {
         "AF1": "T0CMP1",
-        "AF2": "TX1",
+        "AF2": "RX0",
         "AF3": "T0CMP0",
         "AF4": "T1CMP0",
         "AF5": "T1CMP1",

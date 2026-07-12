@@ -173,10 +173,15 @@ Known TODOs:
 - Package/pinout is inherited from Myshkin unchanged; the "preliminary" note is
   config-driven since G4 (`package.preliminary`). When a chip gets its own package:
   add a model to `_PACKAGE_MODELS` in `generate.py` and select it via `package.model`.
-- Last intro not yet reviewed for Castalia: SPI (keeps its `-myshkin-` suffix until
-  reviewed; see CLAUDE.md). The AFE/SARADC intros were deleted 2026-07-11 — both
-  peripherals are removed from Castalia (originals live in `platform/`); this also
-  moots the three missing AFE figures. GPIO was rewritten 2026-07-09 with the
+- ~~Last intro not yet reviewed for Castalia: SPI~~ DONE (2026-07-11, session 4):
+  every intro now carries a `-castalia-` suffix. The SPI rewrite covers the M11
+  shared window (SPI0 `0x4200` / SPI1 `0x4300`), the RX-read-clears-TCIF
+  cross-hart side effect, the SMCLK/boot-clock rule, SPI1 as the droppable
+  slave-capable instance, and the hart-0-only flash extended memory at the
+  config-driven base (`\FlashBaseAddress`) with the M12 BOOT-pin/segment-loader
+  boot story. The AFE/SARADC intros were deleted 2026-07-11 — both peripherals
+  are removed from Castalia (originals live in `platform/`); this also moots the
+  three missing AFE figures. GPIO was rewritten 2026-07-09 with the
   multi-alternate-function (PxAFS) work.
 - ~~Cross-repo: the ROM bootrom must be rebuilt against the Castalia memory map~~ DONE
   (M12): the multicore bootrom (`software/bootrom_mp/`) implements the single-ROM boot —

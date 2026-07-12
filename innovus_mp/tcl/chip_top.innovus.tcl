@@ -129,24 +129,19 @@ placeInstance PAD_CORNER_TR $far  $far  R180 -fixed
 placeInstance PAD_CORNER_TL $near $far  R270 -fixed
 
 # --- Ordered pad lists per side (analog isolated on the bottom edge) ---
-set BOTTOM [list PAD_avss \
-    PAD_aio_0 PAD_aio_1 PAD_aio_2 PAD_aio_3 PAD_aio_4 PAD_aio_5 \
-    PAD_aio_6 PAD_aio_7 PAD_aio_8 PAD_aio_9 PAD_aio_10 PAD_aio_11 \
-    PAD_avdd]
+# Factored into a data-only file so the C0 diff-check can source them too.
+source $SCRIPT_DIR/chip_top_padlists.tcl
 
-set TOP [list PAD_vssio_0 PAD_resetn \
-    PAD_prt1_0 PAD_prt1_1 PAD_prt1_2 PAD_prt1_3 PAD_prt1_4 PAD_prt1_5 PAD_prt1_6 PAD_prt1_7 \
-    PAD_vdd_0 \
-    PAD_prt2_0 PAD_prt2_1 PAD_prt2_2 PAD_prt2_3 PAD_prt2_4 PAD_prt2_5 PAD_prt2_6 PAD_prt2_7 \
-    PAD_vddio_0]
-
-set LEFT [list PAD_vss_0 \
-    PAD_prt3_0 PAD_prt3_1 PAD_prt3_2 PAD_prt3_3 PAD_prt3_4 PAD_prt3_5 PAD_prt3_6 PAD_prt3_7 \
-    PAD_vddio_1 PAD_poc]
-
-set RIGHT [list PAD_vss_1 \
-    PAD_prt4_0 PAD_prt4_1 PAD_prt4_2 PAD_prt4_3 PAD_prt4_4 PAD_prt4_5 PAD_prt4_6 PAD_prt4_7 \
-    PAD_vssio_1 PAD_vdd_1]
+# C0 diff-check against the generated platform_castalia package ring (pad
+# EXISTENCE drift = FAIL lines; side/order deltas are expected WARNs -- the
+# die-ring-vs-package-order question is unreconciled, Flavor A stays
+# authoritative for placement). Non-fatal: report and continue.
+if {[catch {
+    source $SCRIPT_DIR/check_padring_vs_castalia.tcl
+    check_padring_vs_castalia
+} pcerr]} {
+    printWarning "padring diff-check failed to run: $pcerr"
+}
 
 place_side bottom $BOTTOM
 place_side top    $TOP

@@ -248,6 +248,19 @@ createPlaceBlockage -type hard -name b2marL -box [list 0 $B2_Y0 $TILE_X0 $B2_Y1]
 cutRow -area [list 0 $B2_Y0 $TILE_X0 $B2_Y1]
 createPlaceBlockage -type hard -name b2marR -box [list [expr {$DESIGN_WIDTH - $TILE_SIDE_MARGIN}] $B2_Y0 $DESIGN_WIDTH $B2_Y1]
 cutRow -area [list [expr {$DESIGN_WIDTH - $TILE_SIDE_MARGIN}] $B2_Y0 $DESIGN_WIDTH $B2_Y1]
+# v4.15: the col-3 channel mouth (x ~1365-1420 at B2) is the ONE spot every
+# run re-shorts (v4.10-v4.14: 3 residual shorts always cluster there; blast-
+# radius re-solves just reshuffle them within it) -- the local track supply
+# is saturated by cell/pin density. 50% soft-density screen = fewer pins,
+# more routing slack. The mirror strip left of the channel gets the same.
+# v4.16: relieve ALL five channel mouths (the residual short migrated to
+# whichever mouth was unscreened: x 478, 1295-1420, 1745-1885 across runs;
+# 1295 landed exactly at the old 1300 box edge). +/-70um around each channel.
+for {set g 0} {$g < [expr {$NCOLS - 1}]} {incr g} {
+	set chx [expr {$TILE_X0 + $TILE_W + $g * ($TILE_W + $TILE_GRID_GAP)}]
+	createPlaceBlockage -type partial -density 50 -name b2relief$g \
+		-box [list [expr {$chx - 70}] $B2_Y0 [expr {$chx + $TILE_GRID_GAP + 70}] $B2_Y1]
+}
 plog "### UNL STATUS ### : rows restricted to B1 + B2 bands (channel/margin/fringe rails killed)"
 
 # --- Chip pins: all on the BOTTOM edge (digital-only, north face empty) ---
@@ -636,7 +649,7 @@ setNanoRouteMode \
     -routeFixTopLayerAntenna false \
     -drouteAntennaEcoListFile $REPORT_DIR/$BASENAME.routeDesign.diodes.txt \
     -dbSkipAnalog true \
-    -drouteEndIteration default
+    -drouteEndIteration 40
 routeDesign
 
 # v4.3: hold-only post-route opt. Setup has +14.7 ns -- the -setup pass only
@@ -658,7 +671,7 @@ setOptMode -holdTargetSlack 0
 setNanoRouteMode -routeTopRoutingLayer 6
 deleteAllRouteBlks
 set PREV_NSHORT -1
-for {set eco 1} {$eco <= 6} {incr eco} {
+for {set eco 1} {$eco <= 12} {incr eco} {
 	verifyGeometry \
 	    -error 10000 \
 	    -warning 10000 \
@@ -667,6 +680,17 @@ for {set eco 1} {$eco <= 6} {incr eco} {
 	catch { set NSHORT [exec sh -c "grep -m1 -E '^  Short' $REPORT_DIR/$BASENAME.verifyGeometry.postroute.rpt | grep -oE '\[0-9\]+'"] }
 	plog "### UNL STATUS ### : postroute DRC pass $eco: shorts=$NSHORT"
 	if {$NSHORT == 0} { break }
+	# connectivity tripwire (v4.15 lesson: an escalation can trade shorts for
+	# OPENS and the shorts-only loop sails to signoff with broken nets)
+	verifyConnectivity -type regular -error 2000 -noAntenna \
+	    -report $REPORT_DIR/$BASENAME.verifyConnectivity.loop.rpt
+	set NOPEN 0
+	catch { set NOPEN [exec sh -c "grep -cE 'IMPVFC-(92|96|98)' $REPORT_DIR/$BASENAME.verifyConnectivity.loop.rpt"] }
+	if {$NOPEN > 2} {
+		plog "### UNL FATAL ### : $NOPEN regular-net connectivity problems mid-loop -- escalation broke nets"
+		saveDesign $DATABASE_DIR/$BASENAME.diag.innovus -def
+		exit 1
+	}
 	# Bail out on structural failure: v4.4 proved ecoRoute fixes exactly 0 of
 	# a capacity-class short storm (8325 -> 8325 -> 8325). Save a diagnostic
 	# db and stop instead of burning an hour of futile ecos + garbage signoff.
@@ -690,28 +714,28 @@ for {set eco 1} {$eco <= 6} {incr eco} {
 				lappend badnets $net
 			}
 		}
-		# v4.12 blast radius: rerouting only the 2 shorted nets recreates the
-		# short 1um away (v4.10/v4.11: the same a0_15_raw[14] x buffer-net pair
-		# survived 3 escalations) -- the LOCAL AREA must be re-solved jointly.
-		# Select every signal net with regular wiring in a +/-8um box around
-		# each short marker; fall back to the shorted nets alone if the area
-		# query is unavailable.
-		set boxes [regexp -all -inline {Bounds : \( ([\d.]+), ([\d.]+) \) \( ([\d.]+), ([\d.]+) \)} $rpt]
-		foreach {full bx1 by1 bx2 by2} $boxes {
-			set qx1 [expr {$bx1 - 8}]; set qy1 [expr {$by1 - 8}]
-			set qx2 [expr {$bx2 + 8}]; set qy2 [expr {$by2 + 8}]
-			if {[catch {
-				foreach w [dbQuery -area [list $qx1 $qy1 $qx2 $qy2] -objType regularWire] {
-					set nn [dbGet $w.net.name]
-					if {$nn ne "VDD" && $nn ne "VSS" && [lsearch -exact $badnets $nn] < 0} {
-						lappend badnets $nn
+		# v4.18 neighborhood harvest: editSelect -area around each SHORT marker
+		# to COLLECT net names (v4.13-15's mistake was editDelete -- orphaned
+		# pieces; v4.15 signed off with 185 broken nets). The harvested nets
+		# join the selected-net REROUTE below, which rips and reroutes each
+		# net COMPLETELY -- the connectivity-safe joint re-solve.
+		foreach {full lay bx1 by1 bx2 by2} [regexp -all -inline \
+				{SHORT:[^\n]*\( (M\d) \)\s*\nBounds : \( ([\d.]+), ([\d.]+) \) \( ([\d.]+), ([\d.]+) \)} $rpt] {
+			catch {editDeselect}
+			if {![catch {editSelect -area [list [expr {$bx1 - 8}] [expr {$by1 - 8}] [expr {$bx2 + 8}] [expr {$by2 + 8}]]}]} {
+				catch {
+					foreach w [dbGet -p selected] {
+						set nn ""
+						catch { set nn [dbGet $w.net.name] }
+						if {$nn ne "" && $nn ne "VDD" && $nn ne "VSS" && [lsearch -exact $badnets $nn] < 0} {
+							lappend badnets $nn
+						}
 					}
 				}
-			} r]} {
-				plog "### UNL WARN ### : area query failed near ($bx1,$by1): $r"
 			}
+			catch {editDeselect}
 		}
-		plog "### UNL STATUS ### : stall escalation, rerouting [llength $badnets] nets (shorted + blast radius)"
+		plog "### UNL STATUS ### : stall escalation, rerouting [llength $badnets] shorted nets"
 		deselectAll
 		foreach n $badnets {
 			if {[catch {selectNet $n} r]} {
@@ -726,7 +750,7 @@ for {set eco 1} {$eco <= 6} {incr eco} {
 		deselectAll
 	}
 	set PREV_NSHORT $NSHORT
-	ecoRoute -fix_drc
+	if {[catch {ecoRoute -fix_drc} r]} { plog "### UNL WARN ### : ecoRoute -fix_drc failed: $r" }
 }
 
 addFiller
