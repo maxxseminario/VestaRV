@@ -99,7 +99,11 @@ end component;
     -- unimplemented instruction and spins) is failed when this fires. Longest known
     -- legit passing test is ~13.7 ms sim-time, so 100 ms gives ~7x headroom while
     -- failing tests give up ~100x sooner than the old 10 s value.
-    constant SIMULATION_TIMEOUT : time := 100000 us;
+    -- A4 GATE NOTE: Argus shboot legitimately needs ~88 ms behavioral (17 serialized
+    -- tile loads after an ~80 ms SPI boot; A3 already trimmed copy sizes) -- the
+    -- 100 ms budget left only 12% margin and the GATE run crossed it. 250 ms for
+    -- the gate flow; a hung test still dies ~40x sooner than the old 10 s value.
+    constant SIMULATION_TIMEOUT : time := 250000 us;
     
     -- Test control addresses
     constant FAIL_LABEL : std_logic_vector(31 downto 0) := x"DEADBEEF"; -- fail label

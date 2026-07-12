@@ -1,7 +1,7 @@
 The Serial Peripheral Interface (SPI) peripheral is a high speed, full-duplex, synchronous, multipoint serial interface. It transfers one bit at a time. The SPI bus requires three wires (SCK, MOSI, and MISO), along with one CS wire for every slave. The main features of the SPI peripheral are listed below:
 
 \begin{itemize}
-	\item Master or slave mode (\peripheral{SPI0} is master-only, \peripheral{SPI1} supports both master and slave modes)
+	\item Master or slave mode (\peripheral{SPI0} is master-only; \peripheral{SPI1}, in configurations that include it, supports both master and slave modes)
 	\item LSB-first or MSB-first transfers
 	\item 8-, 16-, or 32-bit transfer lengths
 	\item Master mode supports SPI modes 0-3
@@ -10,7 +10,7 @@ The Serial Peripheral Interface (SPI) peripheral is a high speed, full-duplex, s
 	\item Programmable transfer rate with configurable baud rate divider
 	\item Continuous transfer operation to reduce dead time between frames
 	\item Interrupts for transfer complete and TX register empty
-	\item Flash extended memory feature on \peripheral{SPI0} for memory-mapped read access to external SPI flash
+	\item Flash extended memory feature on \peripheral{SPI0} for memory-mapped read access to external SPI flash (the boot flash), available to hart 0
 \end{itemize}
 
 
@@ -22,7 +22,7 @@ The Serial Peripheral Interface (SPI) peripheral is a high speed, full-duplex, s
 	\label{fig:spi-connection-diagram}
 \end{figure}
 
-The SPI bus has four pins: \pin{SCKx}, \pin{MOSIx}, \pin{MISOx}, and \pin{CSx} (not present on \peripheral{SPI0}). A connection diagram for the SPI bus is shown in Figure \ref{fig:spi-connection-diagram}.
+The SPI bus has four pins: \pin{SCKx}, \pin{MOSIx}, \pin{MISOx}, and \pin{CSx} (present only on \peripheral{SPI1}). A connection diagram for the SPI bus is shown in Figure \ref{fig:spi-connection-diagram}.
 
 \pin{SCKx} is the serial clock pin, which governs when each data bit is both latched and updated. It must be attached to the SCK pin on every other device that shares the SPI bus. When the corresponding \register{PxSEL[y]} bit is a 1, the \peripheral{SPIx} peripheral seizes the \texttt{DIR}, \texttt{OUT}, and \texttt{REN} controls of \pin{SCKx}.
 
@@ -30,7 +30,27 @@ The SPI bus has four pins: \pin{SCKx}, \pin{MOSIx}, \pin{MISOx}, and \pin{CSx} (
 
 \pin{MISOx} is the master in slave out pin, which transfers each data bit from the slave to the master. It is an output when the SPI port is enabled, in slave mode, and the \pin{CSx} pin is asserted (low), otherwise it is a high impedance input. It must be attached to the MISO pin on every other device that shares the SPI bus. When the corresponding \register{PxSEL[y]} bit is a 1, the \peripheral{SPIx} peripheral seizes the \texttt{DIR}, \texttt{OUT}, and \texttt{REN} controls of \pin{MISOx}.
 
-\pin{CSx} is the chip select pin for the \peripheral{SPIx} peripheral on this chip. It is a high impedance input that waits to be asserted (pulled low) by an external master if this \peripheral{SPIx} peripheral is in slave mode, which begins the SPI transfer. One CS wire needs to be connected between a GPIO pin of the master and the CS pin of the slave for every slave on the bus. Each slave CS wire must be attached to a dedicated GPIO pin on the master in a one-to-one fashion. The \peripheral{SPIx} peripheral never seizes control of the \pin{CSx} pin (regardless of the state of the corresponding \register{PxSEL[y]} bit), and as such it must be configured as a high impedance input manually.
+\pin{CS1} is the chip select pin for the \peripheral{SPI1} peripheral (\peripheral{SPI0} is master-only and has no CS input). It is a high impedance input that waits to be asserted (pulled low) by an external master when \peripheral{SPI1} is in slave mode, which begins the SPI transfer. One CS wire needs to be connected between a GPIO pin of the master and the CS pin of the slave for every slave on the bus. Each slave CS wire must be attached to a dedicated GPIO pin on the master in a one-to-one fashion. The \peripheral{SPI1} peripheral never seizes control of the \pin{CS1} pin (regardless of the state of the corresponding \register{PxSEL[y]} bit), and as such it must be configured as a high impedance input manually.
+
+\peripheral{SPI0} additionally owns the dedicated \pin{CS\_FLASH} pin, the chip select of the external boot flash. When its \register{PxSEL[y]} bit is a 1, \peripheral{SPI0} drives \pin{CS\_FLASH} automatically as part of the flash extended memory protocol; when the bit is a 0 it is an ordinary GPIO output, which is how the boot ROM toggles it during the boot sequence.
+
+Note that \peripheral{SPI1}'s \pin{SCK1} and \pin{MOSI1} outputs are also members of the shared alternate-function output pool, so they can be relocated onto other GPIO pins through the \register{PxAFS} plane selects (see the GPIO chapter).
+
+
+\subsection{Shared Access on Castalia}
+
+The SPI peripherals live in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}), so any hart can use them, each at its original memory-mapped slot: \peripheral{SPI0} at \texttt{0x4200}, and \peripheral{SPI1} (in configurations that include it) at \texttt{0x4300}. \peripheral{SPI0} is the boot-flash master: its bus pins are wired to the external SPI flash, it is used by the boot ROM to load programs, and it provides the flash extended memory feature.
+
+The arbiter makes every individual register access atomic: one hart's read or write of \register{SPIxTX}, \register{SPIxSR}, and so on completes as a whole before any other hart's access is served. Transfer-level ownership, however, is software's responsibility --- if two harts push frames at the same time, their frames interleave on the wire and their received words race for \register{SPIxRX}. Software that shares an SPI port between harts should serialize whole transfers (or whole packets) with a lock: claim a hardware mutex (\peripheral{MUTEX} bank) or an \texttt{LR}/\texttt{SC} session lock in shared RAM, perform the transfer, then release. See Section \ref{ss:multicore-sync}.
+
+Beware that some SPI register reads have side effects that now fire on \textit{any} hart's access: reading \register{SPIxRX} clears the \bitfield{SPITCIF} flag. A hart must therefore never read \register{SPIxRX} speculatively while another hart owns the transfer --- it would consume the owner's transfer-complete event. When ownership is ambiguous, clear flags explicitly by writing 1s to \register{SPIxSR} instead of relying on the read strobe.
+
+The SPI interrupt lines (transfer complete, TX register empty) are wired to hart 0's interrupt enables in the \peripheral{SYSTEM} peripheral and can additionally be routed to any other hart through the \peripheral{IRQROUTER} peripheral. A hart's interrupt service routine must clear the interrupt flag (through the shared window) before returning.
+
+Note that the SPI core runs in the SMCLK clock domain, and the boot ROM may leave SMCLK sourced from LFXT (32.768~\si{\kilo\hertz}) when it jumps to the application --- in that state SCK runs at a small fraction of that frequency and transfers appear to hang. Always configure the SMCLK source in the \peripheral{SYSTEM} peripheral (Section \ref{ss:clocks}) before using an SPI port, rather than relying on the boot-time clock state.
+
+The flash extended memory region is the one exception to shared access: it is decoded on hart 0's private bus, not through the arbiter. Only hart 0 can read the flash through it; another hart's access to that address range reads zeros (see Section \ref{ss:spi-flash-xip}).
+
 
 \subsection{Generalized SPI Transfer Process}
 
@@ -142,15 +162,17 @@ The TX queue allows the SPI peripheral to constantly transfer data without any d
 
 The SPI peripheral has two interrupt flags (\bitfield{SPITCIF} and \bitfield{SPITEIF}) and one status indicator (\bitfield{SPIBUSY}). If the corresponding interrupts are enabled in the \register{SPIxCR} register and the \peripheral{SPIx} ISR is not masked, the interrupt flags will generate interrupts when set to 1. Both interrupt flags must be cleared before the ISR returns to prevent spurious re-execution.
 
-The \bitfield{SPITCIF} interrupt flag is set when a SPI transfer completes. It can be cleared by writing 1 to it or by reading the \register{SPIxRX} register.
+The \bitfield{SPITCIF} interrupt flag is set when a SPI transfer completes. It can be cleared by writing 1 to it or by reading the \register{SPIxRX} register (see the shared-access note above: the read-clear fires on any hart's read).
 
 The \bitfield{SPITEIF} interrupt flag is set when the \register{SPIxTX} transmit buffer becomes empty and ready to accept new data. In master mode without an ongoing transfer, it sets immediately when writing to \register{SPIxTX}. During an active transfer, it sets when the current frame completes and the queued data begins transmission. In slave mode, it sets when the master begins the first SCK clock cycle. This flag must be cleared by writing 1 to it.
 
 The \bitfield{SPIBUSY} indicator reflects the peripheral's transfer state. In master mode, it is 1 during active frame transmission (SCK actively clocking) and 0 when idle. Note that \bitfield{SPIBUSY} can be 0 between frames if no new data is queued before the previous frame completes. In slave mode, \bitfield{SPIBUSY} is 1 when the \pin{CSx} pin is asserted (low) and 0 when deasserted (high).
 
+Note that flash extended memory reads (Section \ref{ss:spi-flash-xip}) are handled entirely in hardware and do not set \bitfield{SPITCIF} or \bitfield{SPITEIF}.
+
 \subsection{Master Mode Transfer Procedure}
 
-To use the SPI peripheral in master mode, the user must first initialize the \peripheral{SPIx} peripheral by configuring the \register{SPIxCR} register. Of note, \bitfield{SPIEN} must be 1 and \bitfield{SPISM} must be 0 to enable the SPI peripheral in master mode. Then, the GPIO pins multiplexed with \pin{SCKx}, \pin{MISOx}, and \pin{MOSIx} must be set to secondary/peripheral mode with their respective bits in the \register{PxSEL} registers. Finally, the GPIO pins attached to each slave's CS pin need to be set to output a logic high voltage (note that these CS pins are \textit{not} the same as this \peripheral{SPIx} peripheral's own \pin{CSx} pin, which is used when this device is in slave mode).
+To use the SPI peripheral in master mode, the user must first initialize the \peripheral{SPIx} peripheral by configuring the \register{SPIxCR} register. Of note, \bitfield{SPIEN} must be 1 and \bitfield{SPISM} must be 0 to enable the SPI peripheral in master mode. Then, the GPIO pins multiplexed with \pin{SCKx}, \pin{MISOx}, and \pin{MOSIx} must be set to secondary/peripheral mode with their respective bits in the \register{PxSEL} registers. Finally, the GPIO pins attached to each slave's CS pin need to be set to output a logic high voltage (note that these CS pins are \textit{not} the same as \peripheral{SPI1}'s own \pin{CS1} pin, which is used when this device is in slave mode).
 
 To initiate a SPI transfer, the master should first clear the SPI status register \register{SPIxSR} by writing 0 to it, and then must assert (pull low) the slave's CS pin. Then, the master may begin transferring as many frames as it wants in the packet. To send a frame, the master must first check if the \register{SPIxTX} register is empty (i.e. ready to accept a new word to queue for transfer) by ensuring that either \bitfield{SPITEIF} is 1 or \bitfield{SPIBUSY} is 0. Then, the master may write the next word to transmit to \register{SPIxTX}. Next, if \bitfield{SPITCIF} is 1, the master should read the value of the \register{SPIxRX} register to read the value the slave transmitted on the prior frame. Then, the master must clear the status register and may either start another frame or end the packet by deasserting (pulling high) the CS wire.
 
@@ -178,14 +200,14 @@ int main()
 	PxSEL &= ~(BITy);
 	PxOUT |= BITy;
 	PxDIR |= BITy;
-	
+
 	// Assert the CS pin
 	PxOUT &= ~(BITy);
 
 	// Do a single SPI transfer
 	uint32_t tx_data = 57;
 	uint32_t rx_data;
-	
+
 	rx_data = spi_transfer(tx_data);
 
 	// Deassert the CS pin
@@ -212,62 +234,62 @@ uint32_t spi_transfer(uint32_t tx_data)
 
 \subsection{Slave Mode Transfer Procedure}
 
-To use the SPI peripheral in slave mode, the user must first initialize the \peripheral{SPIx} peripheral by configuring the \register{SPIxCR} register. Of note, \bitfield{SPIEN} must be 1 and \bitfield{SPISM} must be 1 to enable the SPI peripheral in slave mode. Then, the GPIO pins multiplexed with \pin{SCKx}, \pin{MISOx}, and \pin{MOSIx} must be set to secondary/peripheral mode with their respective bits in the \register{PxSEL} registers. Finally, the \pin{CSx} pin must be set as a high impedance input in GPIO mode to allow the master to assert this \peripheral{SPIx} peripheral.
+Slave mode is available only on \peripheral{SPI1}, in configurations that include it (\peripheral{SPI0} is master-only). To use \peripheral{SPI1} in slave mode, the user must first initialize the peripheral by configuring the \register{SPI1CR} register. Of note, \bitfield{SPIEN} must be 1 and \bitfield{SPISM} must be 1 to enable the SPI peripheral in slave mode. Then, the GPIO pins multiplexed with \pin{SCK1}, \pin{MISO1}, and \pin{MOSI1} must be set to secondary/peripheral mode with their respective bits in the \register{PxSEL} registers. Finally, the \pin{CS1} pin must be set as a high impedance input in GPIO mode to allow the master to assert this \peripheral{SPI1} peripheral.
 
-Immediately after initialization, a word should be written to the \register{SPIxTX} register, which will be transmitted to the master when the master asserts the \pin{CSx} pin and begins sending SCK pulses. Whatever data is contained in \register{SPIxTX} will always be transmitted to the master when the master begins each frame regardless of if the slave has updated the value of \register{SPIxTX}, so care must be taken to always put valid data in the \register{SPIxTX} register before the master begins the next frame. Once the master begins sending a frame, the \bitfield{SPITEIF} flag will become 1, indicating that the next word to transmit to the master should be written to \register{SPIxTX}. At the end of the frame, the \bitfield{SPITCIF} flag will become 1, and the data in \register{SPIxRX} will contain the data received from the master. \register{SPIxRX} should then be read, and the status register \register{SPIxSR} must be cleared. Note that the \register{SPIxRX} register must be read before the end of the next frame, else the data will be overwritten and unrecoverable.
+Immediately after initialization, a word should be written to the \register{SPI1TX} register, which will be transmitted to the master when the master asserts the \pin{CS1} pin and begins sending SCK pulses. Whatever data is contained in \register{SPI1TX} will always be transmitted to the master when the master begins each frame regardless of if the slave has updated the value of \register{SPI1TX}, so care must be taken to always put valid data in the \register{SPI1TX} register before the master begins the next frame. Once the master begins sending a frame, the \bitfield{SPITEIF} flag will become 1, indicating that the next word to transmit to the master should be written to \register{SPI1TX}. At the end of the frame, the \bitfield{SPITCIF} flag will become 1, and the data in \register{SPI1RX} will contain the data received from the master. \register{SPI1RX} should then be read, and the status register \register{SPI1SR} must be cleared. Note that the \register{SPI1RX} register must be read before the end of the next frame, else the data will be overwritten and unrecoverable.
 
-There is no dedicated interrupt indicating when the \pin{CSx} pin is asserted or deasserted, but this functionalty can be achieved using the ordinary GPIO pin interrupts.
+There is no dedicated interrupt indicating when the \pin{CS1} pin is asserted or deasserted, but this functionality can be achieved using the ordinary GPIO pin interrupts.
 
 
 
-\subsection{External SPI Flash Extended Memory Access}
+\subsection{External SPI Flash Extended Memory Access} \label{ss:spi-flash-xip}
 
-The \peripheral{SPI0} peripheral includes a flash extended memory feature that enables memory-mapped read access to external SPI flash memory. When enabled via the \bitfield{SPIFEN} control bit, this feature allows the CPU to read from the SPI flash using standard load instructions, as if the flash were directly addressable ROM on the memory bus. This capability is designed to support programs larger than the internal RAM capacity, up to the full size of the SPI flash (typically 8 MB or more).
+The \peripheral{SPI0} peripheral includes a flash extended memory feature that enables memory-mapped read access to the external SPI flash memory. When enabled via the \bitfield{SPIFEN} control bit, this feature allows hart 0 to read from the SPI flash using standard load instructions (and to execute code in place from it), as if the flash were directly addressable ROM on the memory bus. This capability is designed to support programs larger than the internal RAM capacity, up to the full size of the SPI flash.
 
-\textbf{Important:} Using flash extended memory significantly reduces execution speed compared to RAM-based execution, as each 32-bit read requires multiple SCK clock cycles to retrieve data from the external flash. This feature is best suited for read-only data, lookup tables, or code sections that are not performance-critical.
+The flash region is decoded on hart 0's private bus, \textit{not} through the multi-core arbiter: memory accesses by hart 0 at or above the extended flash base address (\texttt{\FlashBaseAddress}) are automatically translated to SPI flash read operations. The other harts have no path to the flash --- their accesses in this range read zeros (without stalling). The \peripheral{SPI0} peripheral manages the flash read protocol transparently, including chip select control (via \pin{CS\_FLASH}), command sequencing, and data retrieval; the hart is stalled for the duration of each flash access.
 
-The flash extended memory feature supports standard SPI flash memories with 256-byte pages. When \bitfield{SPIFEN} is enabled, memory accesses in the address range \texttt{0x01000000} to \texttt{0x01FFFFFF} are automatically translated to SPI flash read operations. The \peripheral{SPI0} peripheral manages the flash read protocol transparently, including chip select control, command sequencing, and data retrieval.
+\textbf{Important:} Using flash extended memory significantly reduces execution speed compared to RAM-based execution, as each 32-bit read requires multiple SCK clock cycles to retrieve data from the external flash (and SCK itself runs from SMCLK). This feature is best suited for read-only data, lookup tables, or code sections that are not performance-critical.
 
 \subsubsection{Flash Address Translation}
 
-The \peripheral{SPI0} peripheral translates CPU memory addresses to SPI flash addresses using the \register{SPI0FOS} (SPI Flash Offset) register. The actual flash address accessed is computed as:
+The \peripheral{SPI0} peripheral translates CPU memory addresses to 24-bit SPI flash addresses using the \register{SPI0FOS} (SPI Flash Offset) register. Only the low 24 bits of the CPU address participate; the actual flash address accessed is computed as:
 
 \begin{equation*}
 \text{Flash Address} = (\text{CPU Address} + \texttt{SPI0FOS}) \mod 2^{24}
 \end{equation*}
 
-This offset mechanism allows flexible mapping of flash contents to different virtual addresses in the CPU's address space. The 24-bit address wraps at \texttt{0xFFFFFF}, discarding any overflow bits. By modifying \register{SPI0FOS}, software can remap flash regions without physically moving data in the flash memory.
+This offset mechanism allows flexible mapping of flash contents to different virtual addresses in the CPU's address space. The 24-bit address wraps at \texttt{0xFFFFFF}, discarding any overflow bits. By modifying \register{SPI0FOS}, software can remap flash regions without physically moving data in the flash memory. For example, to make flash address 0 appear at the extended flash base address itself, set \register{SPI0FOS} to the two's complement of the base address modulo $2^{24}$.
 
 \subsubsection{Flash Initialization Procedure}
 
 Before enabling the flash extended memory feature, the SPI flash must be properly initialized. The initialization sequence depends on the specific flash chip, but typically includes:
 
 \begin{enumerate}
-	\item Configure \peripheral{SPI0} in master mode with appropriate SPI mode (typically SPIMODE3), 8-bit transfers initially, and SCK frequency within flash specifications (often 50-85 MHz maximum)
+	\item Configure \peripheral{SPI0} in master mode with appropriate SPI mode (typically SPIMODE3), 8-bit transfers initially, and SCK frequency within flash specifications
 	\item Set \pin{SCK0}, \pin{MOSI0}, and \pin{MISO0} pins to secondary/peripheral mode via \register{PxSEL}
 	\item Configure the flash chip select pin (\pin{CS\_FLASH}) as GPIO output, initially high (deasserted)
-	\item Wake the flash from deep power-down mode if necessary (command varies by flash chip, often \texttt{0xAB})
+	\item Wake the flash from deep power-down mode (command varies by flash chip, often \texttt{0xAB}) --- note that the boot ROM deliberately puts the flash \textit{into} deep power-down at the end of every SPI flash boot, so this step is required after a flash boot
 	\item Configure flash-specific features such as page size or addressing mode using vendor-specific commands
 	\item Transfer control of \pin{CS\_FLASH} to the SPI peripheral by setting it to secondary/peripheral mode
 	\item Enable flash extended memory by setting \bitfield{SPIFEN} = 1 in \register{SPI0CR}
 \end{enumerate}
 
-Once initialized, the flash extended memory feature operates transparently. CPU read operations in the designated address range automatically trigger SPI flash transactions without software intervention.
+Once initialized, the flash extended memory feature operates transparently. Read operations by hart 0 in the designated address range automatically trigger SPI flash transactions without software intervention.
 
 
 
 \subsection{\peripheral{SPI0} Boot Behavior}
 
-The \peripheral{SPI0} peripheral is used during the boot process to load programs from external SPI flash memory. When the MCU powers on or resets, the \pin{BOOT} pin determines whether the system fetches the program from SPI flash or launches the interactive Forth interpreter. If programmed to boot from flash, the bootloader in ROM uses \peripheral{SPI0} to read the program from the attached SPI flash and copy it to RAM before jumping to the program start address.
+The \peripheral{SPI0} peripheral is used during the boot process to load programs from the external SPI flash memory. All harts reset into the shared boot ROM (see Section \ref{s:startup}); hart 0 then samples the \pin{BOOT} pin to decide the boot mode. If \pin{BOOT} is low, the interactive Forth interpreter is launched from ROM over \peripheral{UART0}. If \pin{BOOT} is high, the boot ROM uses \peripheral{SPI0} to read the program image from the attached SPI flash, copies its segments into RAM (the load window is \texttt{0x8000}--\texttt{0xFFFC}), puts the flash into deep power-down, switches SMCLK to LFXT, and jumps to the program entry point at \texttt{0x8200}. The other harts remain parked in the ROM until launched through the boot-ROM loader (see Section \ref{s:multicore}).
 
-\textbf{Important:} During boot, the \peripheral{SPI0} peripheral actively drives the \pin{MISO0} line. If other slave devices share the \peripheral{SPI0} bus, they must not attempt to drive \pin{MISO0} during the boot sequence. This conflict can occur if a slave's chip select (CS) pin is controlled by a GPIO pin that defaults to high-impedance input at reset, potentially allowing the slave's CS to float low (asserted state).
+During the boot sequence the ROM drives \pin{CS\_FLASH} (as a GPIO output) and clocks the flash, and the flash drives the \pin{MISO0} line. If other slave devices share the \peripheral{SPI0} bus, they must not drive \pin{MISO0} during the boot sequence. This conflict can occur if a slave's chip select (CS) pin is controlled by a GPIO pin that defaults to high-impedance input at reset, potentially allowing the slave's CS to float low (asserted state).
 
 To prevent bus contention during boot:
 
 \begin{itemize}
 	\item Use GPIO pins with pull-up resistors or start-high reset behavior to control slave CS pins
 	\item Ensure all non-flash slaves on the \peripheral{SPI0} bus have their CS pins driven high during MCU reset
-	\item Consider dedicating \peripheral{SPI0} exclusively to the boot flash, using \peripheral{SPI1} for other SPI devices
+	\item Consider dedicating \peripheral{SPI0} exclusively to the boot flash, using \peripheral{SPI1} (in configurations that include it) for other SPI devices
 	\item Add external pull-up resistors to slave CS lines if GPIO reset behavior is insufficient
 \end{itemize}
 

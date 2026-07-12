@@ -25,10 +25,10 @@
 SHELL := /bin/bash
 CDSPATHS := $(abspath ..)/cdspaths.sh
 
-.PHONY: help hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus
+.PHONY: help hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus chip_top_argus.innovus
 
 help:
-	@echo "Targets: hart_tile.innovus | MCU_MP.innovus | chip_top.innovus | hart_tile_argus.innovus | MCU_ARGUS.innovus  (append .gui to see the window)"
+	@echo "Targets: hart_tile.innovus | MCU_MP.innovus | chip_top.innovus | hart_tile_argus.innovus | MCU_ARGUS.innovus | chip_top_argus.innovus  (append .gui to see the window)"
 
 # PG4/PG2-F1 wrapper hard-fail (extends the M17 zero-switches precedent):
 # the four message IDs below are the exact silent-failure chain that shipped
@@ -37,7 +37,7 @@ help:
 # so the LOG is the only place they exist. Scoped to the two Castalia
 # targets: the Argus tile flow still carries the pre-PG4 GNC forms and is
 # the A4 line's to fix with the same recipe (USEfix LEF + pgpin + gates).
-hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus:
+hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus chip_top_argus.innovus:
 	@mkdir -p log out rpt dbs
 	source $(CDSPATHS) && innovus -no_gui -overwrite -log log/$(basename $@) -files tcl/$@.tcl
 	@case "$@" in hart_tile.innovus|MCU_MP.innovus) \

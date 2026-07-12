@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/10 at 03:42:35 with the generate.py chip generator
+-- Generated on 2026/07/11 at 19:22:24 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -1405,12 +1405,18 @@ begin
 
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         cs1_in   <= prt2_in(pnum_gpio1_cs1);
-        miso1_in <= prt2_in(pnum_gpio1_miso1);
+        -- MISO1 relocates to P4.6 (AF7, v2 spread slot — literal index, no pnum;
+        -- completes a full SPI1 on P4.4/5/6 at AF7); home pad is the default
+        miso1_in <= prt4_in(6)
+                    when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
+                    else prt2_in(pnum_gpio1_miso1);
         mosi1_in <= prt2_in(pnum_gpio1_mosi1);
         sck1_in  <= prt2_in(pnum_gpio1_sck1);
         sck1_ren_in <= p2_ren(pnum_gpio1_sck1);
         mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);
-        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);
+        miso1_ren_in <= p4_ren(6)
+                        when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
+                        else p2_ren(pnum_gpio1_miso1);
         -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
 
         -- GPIO1 Connections (UART0)
@@ -1418,14 +1424,20 @@ begin
         -- when that pin's PxAFS field selects the function's plane (keyed on
         -- PxAFS only — peripheral inputs stay always-visible, like the direct
         -- taps they replace); otherwise it reads its home pad. The peripheral
-        -- ren_in (user pull preference) follows the same selection.
+        -- ren_in (user pull preference) follows the same selection. RX0's v2
+        -- pad is P4.5 at AF2 (a spread io slot — literal index, no pnum; pairs
+        -- with TX0 on P4.4 AF2); fixed priority: v2 pad > AF1 pad > home.
         tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
                       when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
                       else p2_ren(pnum_gpio1_tx0);
-        rx0_ren_in <= p3_ren(pnum_gpio2_af1_rx0)
+        rx0_ren_in <= p4_ren(5)
+                      when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                      else p3_ren(pnum_gpio2_af1_rx0)
                       when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                       else p2_ren(pnum_gpio1_rx0);
-        rx0_in <= prt3_in(pnum_gpio2_af1_rx0)
+        rx0_in <= prt4_in(5)
+                  when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                  else prt3_in(pnum_gpio2_af1_rx0)
                   when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                   else prt2_in(pnum_gpio1_rx0);
 
@@ -1473,12 +1485,13 @@ begin
         );
 
         -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),
-        -- I2C0 relocation on P2.6/7 (the UART1 pins). P2.4/5 have no AF1.
+        -- I2C1 relocation on P2.4/5 (v2), I2C0 relocation on P2.6/7 (the UART1 pins)
+        -- — both I2C buses land on this port at AF1.
         afunc2_af1_out <= (
             pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (hi-Z input)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (hi-Z input)
+            pnum_gpio1_af1_scl1 => scl1_out,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_out,        -- GPIO1 pin 4
             pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3
             pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2
             pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1
@@ -1487,8 +1500,8 @@ begin
         afunc2_af1_dir <= (
             pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (input)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (input)
+            pnum_gpio1_af1_scl1 => scl1_dir,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_dir,        -- GPIO1 pin 4
             pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3
             pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2
             pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1
@@ -1497,8 +1510,8 @@ begin
         afunc2_af1_ren <= (
             pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (pull disabled)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (pull disabled)
+            pnum_gpio1_af1_scl1 => scl1_ren,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_ren,        -- GPIO1 pin 4
             pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3
             pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2
             pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1
@@ -1775,10 +1788,11 @@ begin
         );
 
         -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,
-        -- UART0 relocation on P3.4/5. P3.6/7 have no AF1.
+        -- UART0 relocation on P3.4/5, I2C0 relocation on P3.6/7 (v2) — the
+        -- full serial-relocation row (both UARTs + both I2C buses).
         afunc3_af1_out <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (hi-Z input)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (hi-Z input)
+            pnum_gpio2_af1_scl0 => scl0_out,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_out,    -- GPIO2 pin 6
             pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5
             pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4
             pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3
@@ -1787,8 +1801,8 @@ begin
             pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0
         );
         afunc3_af1_dir <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (input)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (input)
+            pnum_gpio2_af1_scl0 => scl0_dir,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_dir,    -- GPIO2 pin 6
             pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5
             pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4
             pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3
@@ -1797,8 +1811,8 @@ begin
             pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0
         );
         afunc3_af1_ren <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (pull disabled)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (pull disabled)
+            pnum_gpio2_af1_scl0 => scl0_ren,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_ren,    -- GPIO2 pin 6
             pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5
             pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4
             pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3
@@ -1997,32 +2011,49 @@ begin
 
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
-        -- Resistor Enables (I2C0 relocates to P2.6/7, I2C1 to P3.2/3 — the
-        -- peripheral ren_in follows the same AF selection as the inputs below)
-        sda0_ren_in <= p2_ren(pnum_gpio1_af1_sda0)
+        -- Resistor Enables (I2C0 relocates to P2.6/7 or P3.6/7 (v2), I2C1 to
+        -- P3.2/3 or P2.4/5 (v2) — the peripheral ren_in follows the same AF
+        -- selection as the inputs below, fixed priority: v2 pad > AF1 pad > home)
+        sda0_ren_in <= p3_ren(pnum_gpio2_af1_sda0)
+                       when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
+                       else p2_ren(pnum_gpio1_af1_sda0)
                        when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
                        else p4_ren(pnum_gpio3_sda0);
-        scl0_ren_in <= p2_ren(pnum_gpio1_af1_scl0)
+        scl0_ren_in <= p3_ren(pnum_gpio2_af1_scl0)
+                       when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"
+                       else p2_ren(pnum_gpio1_af1_scl0)
                        when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
                        else p4_ren(pnum_gpio3_scl0);
-        sda1_ren_in <= p3_ren(pnum_gpio2_af1_sda1)
+        sda1_ren_in <= p2_ren(pnum_gpio1_af1_sda1)
+                       when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"
+                       else p3_ren(pnum_gpio2_af1_sda1)
                        when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
                        else p4_ren(pnum_gpio3_sda1);
-        scl1_ren_in <= p3_ren(pnum_gpio2_af1_scl1)
+        scl1_ren_in <= p2_ren(pnum_gpio1_af1_scl1)
+                       when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"
+                       else p3_ren(pnum_gpio2_af1_scl1)
                        when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
                        else p4_ren(pnum_gpio3_scl1);
 
         -- Inputs (relocated pad wins, home pad is the default)
-        sda0_in <= prt2_in(pnum_gpio1_af1_sda0)
+        sda0_in <= prt3_in(pnum_gpio2_af1_sda0)
+                   when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
+                   else prt2_in(pnum_gpio1_af1_sda0)
                    when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
                    else prt4_in(pnum_gpio3_sda0);
-        scl0_in <= prt2_in(pnum_gpio1_af1_scl0)
+        scl0_in <= prt3_in(pnum_gpio2_af1_scl0)
+                   when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"
+                   else prt2_in(pnum_gpio1_af1_scl0)
                    when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
                    else prt4_in(pnum_gpio3_scl0);
-        sda1_in <= prt3_in(pnum_gpio2_af1_sda1)
+        sda1_in <= prt2_in(pnum_gpio1_af1_sda1)
+                   when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"
+                   else prt3_in(pnum_gpio2_af1_sda1)
                    when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
                    else prt4_in(pnum_gpio3_sda1);
-        scl1_in <= prt3_in(pnum_gpio2_af1_scl1)
+        scl1_in <= prt2_in(pnum_gpio1_af1_scl1)
+                   when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"
+                   else prt3_in(pnum_gpio2_af1_scl1)
                    when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
                    else prt4_in(pnum_gpio3_scl1);
 
@@ -2096,7 +2127,7 @@ begin
         afunc4_af2_out <= (
             7 => t0_cmp1_out,
             6 => t0_cmp0_out,
-            5 => tx1_out,
+            5 => rx0_out,
             4 => tx0_out,
             3 => t0_cmp1_out,
             2 => t0_cmp0_out,
@@ -2106,7 +2137,7 @@ begin
         afunc4_af2_dir <= (
             7 => t0_cmp1_dir,
             6 => t0_cmp0_dir,
-            5 => tx1_dir,
+            5 => rx0_dir,
             4 => tx0_dir,
             3 => t0_cmp1_dir,
             2 => t0_cmp0_dir,
@@ -2116,7 +2147,7 @@ begin
         afunc4_af2_ren <= (
             7 => t0_cmp1_ren,
             6 => t0_cmp0_ren,
-            5 => tx1_ren,
+            5 => rx0_ren,
             4 => tx0_ren,
             3 => t0_cmp1_ren,
             2 => t0_cmp0_ren,
@@ -2245,7 +2276,7 @@ begin
         );
         afunc4_af7_out <= (
             7 => tx1_out,
-            6 => tx0_out,
+            6 => miso1_out,
             5 => mosi1_out,
             4 => sck1_out,
             3 => tx0_out,
@@ -2255,7 +2286,7 @@ begin
         );
         afunc4_af7_dir <= (
             7 => tx1_dir,
-            6 => tx0_dir,
+            6 => miso1_dir,
             5 => mosi1_dir,
             4 => sck1_dir,
             3 => tx0_dir,
@@ -2265,7 +2296,7 @@ begin
         );
         afunc4_af7_ren <= (
             7 => tx1_ren,
-            6 => tx0_ren,
+            6 => miso1_ren,
             5 => mosi1_ren,
             4 => sck1_ren,
             3 => tx0_ren,

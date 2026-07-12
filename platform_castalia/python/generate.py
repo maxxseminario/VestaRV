@@ -522,7 +522,7 @@ r.AddBitField(BitField(name='SYSDCO1BIAS', msb=11, lsb=0, accessibility='rw', de
 	
 	
 ''' SPIx '''
-p = PeripheralTemplate(nameTemplate='SPIx', description='Serial Peripheral Interface. Supports both master and slave modes with configurable data length (8, 16, or 32 bits), clock polarity, clock phase, and byte ordering. SPI0 includes flash extended memory capability for direct memory-mapped access to external SPI flash. SPI1 supports both master and slave modes without flash extended memory.', registerPrefix='SPIx', bitFieldPrefix='SPI', latexIntroFileName='SPI-intro-myshkin-2025-11.tex', latexFeatureSummary='{count} SPI interfaces (SPI0 provides memory-mapped access to external flash memory)')
+p = PeripheralTemplate(nameTemplate='SPIx', description='Serial Peripheral Interface. Supports both master and slave modes with configurable data length (8, 16, or 32 bits), clock polarity, clock phase, and byte ordering. SPI0 includes flash extended memory capability for direct memory-mapped access to external SPI flash. SPI1 supports both master and slave modes without flash extended memory.', registerPrefix='SPIx', bitFieldPrefix='SPI', latexIntroFileName='SPI-intro-castalia-2026-07.tex', latexFeatureSummary='{count} SPI interfaces (SPI0 provides memory-mapped access to external flash memory)')
 m.AddPeripheralTemplate(p)
 
 # SPIxCR
@@ -1280,8 +1280,8 @@ GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName=('CS1'
 GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName=('MISO1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master In Slave Out' if spi1Present else 'General-purpose I/O (ex-MISO1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=19) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
 GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName=('MOSI1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master Out Slave In' if spi1Present else 'General-purpose I/O (ex-MOSI1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=18) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
 GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName=('SCK1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 serial clock' if spi1Present else 'General-purpose I/O (ex-SCK1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=17) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
-GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='UART0 transmitter'), packagePinNumber=16) # necessary; rstDIR=1 matches the RTL (RstValP2DIR=0x10)
-GPIO1.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO13', funcName='RX0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 receiver'), packagePinNumber=15) # necessary
+GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='UART0 transmitter', altFuncs=([(1, 'SDA1', 'io', 'I2C1 serial data (second alternate location)')] if i2c1Present else [])), packagePinNumber=16) # necessary; rstDIR=1 matches the RTL (RstValP2DIR=0x10); AF1 gated with I2C1 (pin-mux v2)
+GPIO1.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO13', funcName='RX0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 receiver', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (second alternate location)')] if i2c1Present else [])), packagePinNumber=15) # necessary; AF1 gated with I2C1 (pin-mux v2)
 GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName=('TX1' if uart1Present else ''), funcIOType=('o' if uart1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 transmitter' if uart1Present else 'General-purpose I/O (ex-TX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (alternate location)')]), packagePinNumber=14) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
 GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName=('RX1' if uart1Present else ''), funcIOType=('io' if uart1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 receiver' if uart1Present else 'General-purpose I/O (ex-RX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (alternate location)')]), packagePinNumber=13) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
 
@@ -1294,8 +1294,8 @@ GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CA
 GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (alternate location)')] if i2c1Present else [])), packagePinNumber=6) # necessary; AF1 gated with I2C1 (G1a)
 GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName=('T1CMP0' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 0' if timer1Present else 'General-purpose I/O (ex-T1CMP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'TX0', 'o', 'UART0 transmitter (alternate location)')]), packagePinNumber=5) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
 GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName=('T1CMP1' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 1' if timer1Present else 'General-purpose I/O (ex-T1CMP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'RX0', 'io', 'UART0 receiver (alternate location)')]), packagePinNumber=4) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
-GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName=('T1CAP0' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 0' if timer1Present else 'General-purpose I/O (ex-T1CAP0; TIMER1 dropped by this configuration)')), packagePinNumber=3) # necessary; primary gated with TIMER1 (G1b)
-GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName=('T1CAP1' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 1' if timer1Present else 'General-purpose I/O (ex-T1CAP1; TIMER1 dropped by this configuration)')), packagePinNumber=2) # necessary; primary gated with TIMER1 (G1b)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName=('T1CAP0' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 0' if timer1Present else 'General-purpose I/O (ex-T1CAP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (second alternate location)')]), packagePinNumber=3) # necessary; primary gated with TIMER1 (G1b), AF1 is an I2C0 source (pin-mux v2)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName=('T1CAP1' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 1' if timer1Present else 'General-purpose I/O (ex-T1CAP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (second alternate location)')]), packagePinNumber=2) # necessary; primary gated with TIMER1 (G1b), AF1 is an I2C0 source (pin-mux v2)
 
 # GPIO3 (P4.0-P4.7)
 GPIO3.ChangeGPIOPortSize(8)
@@ -1348,8 +1348,8 @@ _GPIO_AF_SPREAD = {
 	(3, 2): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
 	(3, 3): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
 	(3, 4): [(2, 'TX0', 'o', 'UART0 transmitter (alt plane AF2)'), (3, 'TX1', 'o', 'UART1 transmitter (alt plane AF3)'), (4, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF4)'), (5, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF5)'), (6, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF6)'), (7, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF7)')],
-	(3, 5): [(2, 'TX1', 'o', 'UART1 transmitter (alt plane AF2)'), (3, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
-	(3, 6): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'TX0', 'o', 'UART0 transmitter (alt plane AF7)')],
+	(3, 5): [(2, 'RX0', 'io', 'UART0 receiver (alternate location; pairs with TX0 on P3.4 AF2)'), (3, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF3)'), (4, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF4)'), (5, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF5)'), (6, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF6)'), (7, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF7)')],
+	(3, 6): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'MISO1', 'io', 'SPI1 master-in (alternate location; completes SPI1 on P3.4/5/6 AF7)')],
 	(3, 7): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF4)'), (5, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF5)'), (6, 'TX0', 'o', 'UART0 transmitter (alt plane AF6)'), (7, 'TX1', 'o', 'UART1 transmitter (alt plane AF7)')],
 }
 # G1b: a dropped second instance's outputs leave the spread pool BEFORE the
@@ -1359,7 +1359,7 @@ _droppedSpreadFuncs = set()
 if not uart1Present:
 	_droppedSpreadFuncs.add('TX1')
 if not spi1Present:
-	_droppedSpreadFuncs.update(('SCK1', 'MOSI1'))
+	_droppedSpreadFuncs.update(('SCK1', 'MOSI1', 'MISO1'))	# MISO1: pin-mux v2 io slot (P4.6 AF7)
 if not timer1Present:
 	_droppedSpreadFuncs.update(('T1CMP0', 'T1CMP1'))
 for _gp in (GPIO0, GPIO1, GPIO2, GPIO3):
@@ -1601,19 +1601,26 @@ _mcuMpPnums = [
 	# against each pin's altFuncs metadata by generateMemoryMapVHD. G1b: rows
 	# whose SOURCE peripheral is dropped leave the group with it (the gated
 	# altFunc rows above are the other side of the bidirectional check).
-	('GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation' if timer1Present
-		else 'GPIO1 (P2) AF1: TIMER0 compare (PWM) relocations + I2C0 relocation (TIMER1 dropped: P2.2/3 reserved)', 2,
+	('GPIO1 (P2) AF1: '
+		+ ('TIMER compare (PWM) relocations' if timer1Present else 'TIMER0 compare (PWM) relocations')
+		+ (' + I2C1 relocation (v2)' if i2c1Present else '')
+		+ ' + I2C0 relocation'
+		+ ('' if (timer1Present and i2c1Present)
+			else ' (' + ', '.join((['TIMER1 dropped: P2.2/3 reserved'] if not timer1Present else [])
+				+ (['I2C1 dropped: P2.4/5 reserved'] if not i2c1Present else [])) + ')'), 2,
 		[('pnum_gpio1_af1_t0_cmp0', 0), ('pnum_gpio1_af1_t0_cmp1', 1)]
 		+ ([('pnum_gpio1_af1_t1_cmp0', 2), ('pnum_gpio1_af1_t1_cmp1', 3)] if timer1Present else [])
+		+ ([('pnum_gpio1_af1_sda1', 4), ('pnum_gpio1_af1_scl1', 5)] if i2c1Present else [])
 		+ [('pnum_gpio1_af1_sda0', 6), ('pnum_gpio1_af1_scl0', 7)]),
-	({(True, True): 'GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations',
-		(True, False): 'GPIO2 (P3) AF1: UART0/UART1 relocations (I2C1 dropped: P3.2/3 reserved)',
-		(False, True): 'GPIO2 (P3) AF1: UART0 + I2C1 relocations (UART1 dropped: P3.0/1 reserved)',
-		(False, False): 'GPIO2 (P3) AF1: UART0 relocations (UART1, I2C1 dropped: P3.0-3 reserved)',
+	({(True, True): 'GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations + I2C0 relocation (v2)',
+		(True, False): 'GPIO2 (P3) AF1: UART0/UART1 relocations + I2C0 relocation (v2) (I2C1 dropped: P3.2/3 reserved)',
+		(False, True): 'GPIO2 (P3) AF1: UART0 + I2C1 relocations + I2C0 relocation (v2) (UART1 dropped: P3.0/1 reserved)',
+		(False, False): 'GPIO2 (P3) AF1: UART0 relocations + I2C0 relocation (v2) (UART1, I2C1 dropped: P3.0-3 reserved)',
 		}[(uart1Present, i2c1Present)], 3,
 		([('pnum_gpio2_af1_tx1', 0), ('pnum_gpio2_af1_rx1', 1)] if uart1Present else [])
 		+ ([('pnum_gpio2_af1_sda1', 2), ('pnum_gpio2_af1_scl1', 3)] if i2c1Present else [])
-		+ [('pnum_gpio2_af1_tx0', 4), ('pnum_gpio2_af1_rx0', 5)]),
+		+ [('pnum_gpio2_af1_tx0', 4), ('pnum_gpio2_af1_rx0', 5),
+			('pnum_gpio2_af1_sda0', 6), ('pnum_gpio2_af1_scl0', 7)]),
 	('GPIO3 (P4) AF1: TIMER capture + compare relocations' if timer1Present
 		else 'GPIO3 (P4) AF1: TIMER0 capture + compare relocations (TIMER1 dropped: P4.2/3/6/7 reserved)', 4,
 		[('pnum_gpio3_af1_t0_cap0', 0), ('pnum_gpio3_af1_t0_cap1', 1)]

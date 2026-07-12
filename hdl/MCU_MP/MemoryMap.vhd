@@ -1094,21 +1094,25 @@ package MemoryMap is
 	-- A pin drives its AF<k> function when PxSEL(pin)='1' and the pin's PxAFS
 	-- field = k. Unassigned AF slots behave as high-impedance inputs.
 	-- GPIO0 (P1) deliberately has no AF1+ functions (flash/clock/boot straps).
-	-- GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation
+	-- GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C1 relocation (v2) + I2C0 relocation
 	constant pnum_gpio1_af1_t0_cmp0	: natural := 00;						-- P2.0
 	constant pnum_gpio1_af1_t0_cmp1	: natural := 01;						-- P2.1
 	constant pnum_gpio1_af1_t1_cmp0	: natural := 02;						-- P2.2
 	constant pnum_gpio1_af1_t1_cmp1	: natural := 03;						-- P2.3
+	constant pnum_gpio1_af1_sda1	: natural := 04;						-- P2.4
+	constant pnum_gpio1_af1_scl1	: natural := 05;						-- P2.5
 	constant pnum_gpio1_af1_sda0	: natural := 06;						-- P2.6
 	constant pnum_gpio1_af1_scl0	: natural := 07;						-- P2.7
 
-	-- GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations
+	-- GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations + I2C0 relocation (v2)
 	constant pnum_gpio2_af1_tx1		: natural := 00;						-- P3.0
 	constant pnum_gpio2_af1_rx1		: natural := 01;						-- P3.1
 	constant pnum_gpio2_af1_sda1	: natural := 02;						-- P3.2
 	constant pnum_gpio2_af1_scl1	: natural := 03;						-- P3.3
 	constant pnum_gpio2_af1_tx0		: natural := 04;						-- P3.4
 	constant pnum_gpio2_af1_rx0		: natural := 05;						-- P3.5
+	constant pnum_gpio2_af1_sda0	: natural := 06;						-- P3.6
+	constant pnum_gpio2_af1_scl0	: natural := 07;						-- P3.7
 
 	-- GPIO3 (P4) AF1: TIMER capture + compare relocations
 	constant pnum_gpio3_af1_t0_cap0	: natural := 00;						-- P4.0

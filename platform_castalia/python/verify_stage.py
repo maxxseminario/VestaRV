@@ -78,6 +78,7 @@ CATALOG = [
     T('rv32ui-p-shexec', 'tiles', True),
     T('rv32ui-p-shpwr', 'tiles', True),
     T('rv32ui-p-afsel', '', True),
+    T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
     T('rv32ua-p-shlock', 'tiles atomics uart1', True),
     T('rv32ua-p-shamo', 'tiles atomics', True),

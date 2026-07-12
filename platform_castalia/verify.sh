@@ -47,7 +47,17 @@ if [ ! -f "$STAMP" ] && [ "$RCF_COUNT" -gt 0 ]; then
     esac
 fi
 HAVE=$(cat "$STAMP" 2>/dev/null || echo none)
-if [ "$FORCE_IMAGES" = 1 ] || [ "$HAVE" != "$NHARTS" ] || [ "$RCF_COUNT" -eq 0 ]; then
+# A fresh stamp is not enough: a test ADDED to the catalog since the set was
+# built has no rcf yet (afselv2 burned this on the Argus set, 2026-07-12) --
+# scan the staged runner/smoke lists and rebuild if any staged rcf is missing.
+MISSING=0
+for f in $(grep -ho '\.\./r[a-z0-9][a-z0-9]/[^" ]*\.rcf' \
+        "$STAGE_DIR"/smoke.txt "$STAGE_DIR"/xrun_parallel.sh 2>/dev/null \
+        | sed 's|.*/||' | sort -u); do
+    [ -f "$RCF_DEST/$f" ] || MISSING=$((MISSING+1))
+done
+[ "$MISSING" -gt 0 ] && echo "  $MISSING staged test image(s) missing from $RCF_DEST"
+if [ "$FORCE_IMAGES" = 1 ] || [ "$HAVE" != "$NHARTS" ] || [ "$RCF_COUNT" -eq 0 ] || [ "$MISSING" -gt 0 ]; then
     echo "  building images: NHARTS=$NHARTS -> $RCF_DEST (have: NHARTS=$HAVE, $RCF_COUNT rcf)"
     command -v riscv-none-elf-gcc >/dev/null || { echo "❌ riscv-none-elf- toolchain not on PATH"; exit 1; }
     ../verification/isa/build_mp_images.sh "$NHARTS" "$RCF_DEST" || { echo "❌ image build failed"; exit 1; }

@@ -1,11 +1,35 @@
 ################################################################################
-# Innovus script -- MCU_ARGUS TOP-LEVEL ASSEMBLY (A4; 18-tile teaching chip)
+# Innovus script -- chip_top_argus: the CONNECTED 3x3mm Argus chip (A5,
+# M15 "Flavor B"). FLAT chip run = the A4 v4 18-tile assembly + the M15 tphn
+# pad ring in ONE design (chip_top instantiates the pads and the MCU; the MCU
+# hierarchy is placed/routed directly, tiles stay hardened LEF macros).
 #
-# Hierarchical assembly of the 18-hart Argus MCU on the 2690x2690 M15 pad-ring
-# interior. The 18 hart instances (hart0-17) are the HARDENED compact tile
+# WHY FLAT, NOT ASSEMBLY-AS-MACRO: the ring interior is exactly 2690x2690 =
+# DESIGN_WIDTH/HEIGHT of the A4 assembly -- an MCU_ARGUS macro would abut the
+# pad ring with ZERO routing margin on all four edges (and its ~708 pins all
+# sit on the bottom edge, where the ring has only analog pads). Flat, the
+# ~136 real pad-to-core nets are ordinary nets riding the proven side
+# margins/channels into B1. See .devlog/2026-07-12-argus-a5-chip-top.md.
+#
+# FRAME: the A4 interior keeps its (0,0)-(2690,2690) coordinates UNTOUCHED
+# (every v4 geometry line below is byte-identical to MCU_ARGUS.innovus.tcl);
+# the die box is EXTENDED to (-155,-155)-(2845,2845) (3000x3000) and the pad
+# ring lands in the negative/outer band: pad rows inset 20um (seal band) +
+# 135um pad depth -> pad inner edges exactly on the interior boundary
+# (ORG+OFF+RING = -155+20+135 = 0). The -155 offset vs Flavor A's 0..3000
+# frame is cosmetic (GDS geometry is relative).
+#
+# a0/a0_1..a0_17 are OPEN on the mcu0 instance (Myshkin vesta_chip tape-out
+# precedent); the chip SDC dont_touches their nets so the driver clamps
+# survive for the gate tb (trim-proof fallback: the tiles' own a0 ports,
+# probed as mcu0.hart<h>.a0).
+#
+# The 18 hart instances (mcu0/hart0-17) are the HARDENED compact tile
 # (405x685 plain rectangle -- NO analog notch; Argus is digital-only):
 # footprint from out/hart_tile_argus.lef, timing from the per-corner ETMs
 # out/hart_tile_argus.etm_{ss,ff}.lib.
+#
+# ============ A4 v4 ARCHITECTURE NOTES (still load-bearing) ============
 #
 # === v4 FLOORPLAN (v3 was topologically dead -- read this before touching) ===
 # The tile's 489 signal pins are ALL on M4 at its local BOTTOM edge (y 0..0.5),
@@ -73,11 +97,22 @@ source tcl/constants.tcl
 source $SCRIPT_DIR/procedures.tcl
 proc plog {msg} { puts $msg; flush stdout }
 
-set DESIGN_NAME MCU
-set BASENAME    MCU_ARGUS
+set DESIGN_NAME chip_top
+set BASENAME    chip_top_argus
 
+# Interior frame (the A4 assembly coordinates, UNTOUCHED)
 set DESIGN_WIDTH  2690
 set DESIGN_HEIGHT 2690
+
+# Chip frame: die 3000x3000 extended around the interior (negative origin).
+set PAD_RING  135.0   ;# tphn pad depth
+set SEAL_OFF   20.0   ;# die edge -> pad outer edge (seal-ring band, M15)
+set PADW       25.0   ;# signal/supply pad width along the row
+set FR_ORG   [expr {-($PAD_RING + $SEAL_OFF)}]                 ;# -155
+set DIE_LLX  $FR_ORG
+set DIE_LLY  $FR_ORG
+set DIE_URX  [expr {$DESIGN_WIDTH  - $FR_ORG}]                 ;# 2845
+set DIE_URY  [expr {$DESIGN_HEIGHT - $FR_ORG}]                 ;# 2845
 
 set POWER_RING_PATH_WIDTH	10.0
 set POWER_RING_PATH_SPACING	4.0
@@ -94,11 +129,19 @@ tic
 ################################################################################
 # Design import
 ################################################################################
-set init_verilog             "$INPUT_DIR/MCU_ARGUS_hier.pnr.v"
+# chip wrapper (pads + mcu0) FIRST, then the A4 hier netlist it instantiates
+set init_verilog             "$INPUT_DIR/chip_top_argus.v $INPUT_DIR/MCU_ARGUS_hier.pnr.v"
 set init_top_cell            "$DESIGN_NAME"
 set init_pwr_net             "VDD"
 set init_gnd_net             "VSS"
-set init_mmmc_file           "$SCRIPT_DIR/viewdefinition_top_argus.tcl"
+set init_mmmc_file           "$SCRIPT_DIR/viewdefinition_chip_argus.tcl"
+
+# tphn pad LEF (M15): 8lm variant matches the M1-M8 tech LEF (9lm adds M9/
+# VIA8 -> unknown-layer spam on streamOut); tpfn is the WRONG family (no _G
+# macros, no SD pad, no PDB3A). The 8lm supply macros PVDD1DGZ_G/PVSS1DGZ_G
+# already carry USE POWER/GROUND (verified 2026-07-12 -- no USEfix needed;
+# the M15 "signal PINs" note was wrong for this variant).
+set IO_PAD_LEF "/opt/design_kits/TSMC65-IP/tsmc/digital/Back_End/lef/tphn65gpgv2od3_sl_210a/mt_2/8lm/lef/tphn65gpgv2od3_sl_8lm.lef"
 
 set init_lef_file	"$STD_CELL_DIR/lef/tsmc_cln65_a10_6X1Z_tech.lef  \
 					$STD_CELL_DIR/lef/tsmc65_hvt_sc_adv10_macro.lef \
@@ -107,7 +150,8 @@ set init_lef_file	"$STD_CELL_DIR/lef/tsmc_cln65_a10_6X1Z_tech.lef  \
 					$IC_DIR/abstracts/myshkin_abs/GlitchFilter/GlitchFilter.lef \
 					$IC_DIR/abstracts/myshkin_abs/PowerOnResetCheng/PowerOnResetCheng.lef \
 					$IC_DIR/abstracts/myshkin_abs/OscillatorCurrentStarved/OscillatorCurrentStarved.lef \
-					$OUTPUT_DIR/hart_tile_argus.lef"
+					$OUTPUT_DIR/hart_tile_argus.lef \
+					$IO_PAD_LEF"
 
 set init_design_uniquify 1
 init_design
@@ -127,11 +171,93 @@ globalNetConnect VDD -type pgpin -pin VDD -inst * -module {} -autoTie -verbose
 globalNetConnect VSS -type pgpin -pin VSS -inst * -module {} -autoTie -verbose
 
 ################################################################################
-# Floorplan
+# Floorplan: die (-155,-155)-(2845,2845), core box = the A4 core box UNCHANGED
+# at (1,1)-(2689,2689) -> identical core rows, identical interior coordinates.
 ################################################################################
 floorPlan \
     -site TSMC65ADV10TSITE \
-    -s $CORE_WIDTH $CORE_HEIGHT $CORE_SPACING $CORE_SPACING $CORE_SPACING $CORE_SPACING
+    -b $DIE_LLX $DIE_LLY $DIE_URX $DIE_URY \
+       $DIE_LLX $DIE_LLY $DIE_URX $DIE_URY \
+       $CORE_SPACING $CORE_SPACING [expr {$DESIGN_WIDTH - $CORE_SPACING}] [expr {$DESIGN_HEIGHT - $CORE_SPACING}]
+
+################################################################################
+# Pad ring (M15 Flavor A geometry in the -155 frame)
+#
+# placeInstance x y orient lands the ORIENTED bbox LOWER-LEFT at (x,y) (M15).
+# CCW ring: bottom R0 / right R90 / top R180 / left R270; corners BL R0 /
+# BR R90 / TR R180 / TL R270. Pad rows are inset SEAL_OFF from the die edge;
+# with FR_ORG = -(SEAL_OFF+PAD_RING) the pad INNER edges land exactly on the
+# interior boundary: near = -135 (outer band -135..0), far = 2690.
+################################################################################
+set PAD_NEAR [expr {$FR_ORG + $SEAL_OFF}]        ;# -135
+set PAD_FAR  $DESIGN_WIDTH                       ;# 2690 (bbox LL of top/right rows)
+set PAD_SPAN $DESIGN_WIDTH                       ;# pad span between inset corners
+
+# Place one pad instance in slot i of n on a given side (block centered).
+proc place_pad {inst side i n} {
+    global PAD_NEAR PAD_FAR PAD_SPAN PADW
+    set block [expr {$n * $PADW}]
+    set start [expr {($PAD_SPAN - $block) / 2.0}]  ;# interior-frame x/y offset
+    set lo    [expr {$start + $i * $PADW}]
+    switch -- $side {
+        bottom { placeInstance $inst $lo       $PAD_NEAR R0   -fixed }
+        top    { placeInstance $inst $lo       $PAD_FAR  R180 -fixed }
+        left   { placeInstance $inst $PAD_NEAR $lo       R270 -fixed }
+        right  { placeInstance $inst $PAD_FAR  $lo       R90  -fixed }
+        default { error "bad side $side" }
+    }
+}
+proc place_side {side padlist} {
+    set n [llength $padlist]
+    set i 0
+    foreach inst $padlist {
+        place_pad $inst $side $i $n
+        incr i
+    }
+    plog "### UNL STATUS ### : placed $n pads on $side edge"
+}
+
+placeInstance PAD_CORNER_BL $PAD_NEAR $PAD_NEAR R0   -fixed
+placeInstance PAD_CORNER_BR $PAD_FAR  $PAD_NEAR R90  -fixed
+placeInstance PAD_CORNER_TR $PAD_FAR  $PAD_FAR  R180 -fixed
+placeInstance PAD_CORNER_TL $PAD_NEAR $PAD_FAR  R270 -fixed
+
+# Ordered side lists (shared data file; C0 sources the same lists)
+source $SCRIPT_DIR/chip_top_padlists.tcl
+place_side bottom $BOTTOM
+place_side top    $TOP
+place_side left   $LEFT
+place_side right  $RIGHT
+
+# IO fillers complete the ring bus between pads (M15 fallback ladder kept)
+if {[catch {
+    addIoFiller -cell {PFILLER20_G PFILLER10_G PFILLER5_G PFILLER1_G PFILLER05_G PFILLER0005_G} -prefix IOFILL
+} r]} {
+    plog "### UNL WARN ### : addIoFiller failed ($r) -- retrying after addIoRow"
+    if {[catch {addIoRow} r2]} { plog "### UNL WARN ### : addIoRow also failed: $r2" }
+    catch {addIoFiller -cell {PFILLER20_G PFILLER10_G PFILLER5_G PFILLER1_G PFILLER05_G PFILLER0005_G} -prefix IOFILL}
+}
+plog "### UNL STATUS ### : pad ring + IO fillers placed"
+
+# Seal-ring band: outer SEAL_OFF-wide frame reserved (place + route keep-out;
+# the real SEALRING_3mm OA cell is GDS-merged at chip assembly -- M15).
+proc seal_keepouts {} {
+    global DIE_LLX DIE_LLY DIE_URX DIE_URY SEAL_OFF
+    set frames [list \
+        [list $DIE_LLX $DIE_LLY $DIE_URX [expr {$DIE_LLY + $SEAL_OFF}]] \
+        [list $DIE_LLX [expr {$DIE_URY - $SEAL_OFF}] $DIE_URX $DIE_URY] \
+        [list $DIE_LLX $DIE_LLY [expr {$DIE_LLX + $SEAL_OFF}] $DIE_URY] \
+        [list [expr {$DIE_URX - $SEAL_OFF}] $DIE_LLY $DIE_URX $DIE_URY]]
+    set i 0
+    foreach f $frames {
+        lassign $f x0 y0 x1 y1
+        catch {createPlaceBlockage -box $x0 $y0 $x1 $y1 -name SEALRING_$i}
+        catch {createRouteBlk -box $x0 $y0 $x1 $y1 -layer {1 2 3 4 5 6 7 8} -name SEALRINGRB_$i}
+        incr i
+    }
+}
+seal_keepouts
+plog "### UNL STATUS ### : seal-ring band reserved"
 
 # --- Geometry parameters (must match the hardened tile / macro LEFs) ---
 set TILE_W        405
@@ -168,7 +294,7 @@ if {$GRID_TOP > 2657.5} { plog "### UNL FATAL ### : grid top $GRID_TOP crowds th
 
 # --- Shared-RAM row ---
 set i 0
-foreach m {shbank0 shbank1 shbank2 shbank3 shbank4 shbank5 shbank6 shbank7} {
+foreach m {mcu0/shbank0 mcu0/shbank1 mcu0/shbank2 mcu0/shbank3 mcu0/shbank4 mcu0/shbank5 mcu0/shbank6 mcu0/shbank7} {
 	placeInstance $m [expr {$SH_X0 + $i * ($SRAM16K_WIDTH + $SH_GAP)}] $SH_Y R0
 	addHaloToBlock 2 2 2 2 $m
 	incr i
@@ -177,20 +303,20 @@ cutRow
 
 # --- B1 control band: ROM R90 + analog macros; std cells fill around them ---
 set MACRO_Y [expr {$B1_Y0 + 6}]
-placeInstance rom0 40 $MACRO_Y R90
-addHaloToBlock 6 6 6 6 rom0
-placeInstance por     420 $MACRO_Y R0
-addHaloToBlock 4 4 4 4 por
-placeInstance dco0    560 $MACRO_Y R0
-addHaloToBlock 4 4 4 4 dco0
-placeInstance dco1    700 $MACRO_Y R0
-addHaloToBlock 4 4 4 4 dco1
-placeInstance irq_gf0 840  $MACRO_Y R0
-addHaloToBlock 4 4 4 4 irq_gf0
-placeInstance irq_gf1 940  $MACRO_Y R0
-addHaloToBlock 4 4 4 4 irq_gf1
-placeInstance irq_gf2 1040 $MACRO_Y R0
-addHaloToBlock 4 4 4 4 irq_gf2
+placeInstance mcu0/rom0 40 $MACRO_Y R90
+addHaloToBlock 6 6 6 6 mcu0/rom0
+placeInstance mcu0/por     420 $MACRO_Y R0
+addHaloToBlock 4 4 4 4 mcu0/por
+placeInstance mcu0/dco0    560 $MACRO_Y R0
+addHaloToBlock 4 4 4 4 mcu0/dco0
+placeInstance mcu0/dco1    700 $MACRO_Y R0
+addHaloToBlock 4 4 4 4 mcu0/dco1
+placeInstance mcu0/irq_gf0 840  $MACRO_Y R0
+addHaloToBlock 4 4 4 4 mcu0/irq_gf0
+placeInstance mcu0/irq_gf1 940  $MACRO_Y R0
+addHaloToBlock 4 4 4 4 mcu0/irq_gf1
+placeInstance mcu0/irq_gf2 1040 $MACRO_Y R0
+addHaloToBlock 4 4 4 4 mcu0/irq_gf2
 cutRow
 
 # --- 18-tile grid: 6 full-width cols; rows 0/2 R0 (pins down), row 1 MX
@@ -214,8 +340,8 @@ for {set row 0} {$row < $NROWS} {incr row} {
 	for {set col 0} {$col < $NCOLS} {incr col} {
 		set h [expr {$row * $NCOLS + $col}]
 		set tx [expr {$TILE_X0 + $col * ($TILE_W + $TILE_GRID_GAP) + [lindex $ROW_XOFF $row]}]
-		placeInstance hart$h $tx [lindex $ROW_Y $row] [lindex $ROW_ORIENT $row]
-		addHaloToBlock 4 4 4 4 hart$h
+		placeInstance mcu0/hart$h $tx [lindex $ROW_Y $row] [lindex $ROW_ORIENT $row]
+		addHaloToBlock 4 4 4 4 mcu0/hart$h
 	}
 }
 cutRow
@@ -263,11 +389,13 @@ for {set g 0} {$g < [expr {$NCOLS - 1}]} {incr g} {
 }
 plog "### UNL STATUS ### : rows restricted to B1 + B2 bands (channel/margin/fringe rails killed)"
 
-# --- Chip pins: all on the BOTTOM edge (digital-only, north face empty) ---
-set ALL_PINS [dbGet top.terms.name]
-puts "Assigning [llength $ALL_PINS] pins to the bottom edge"
-editPin -pin $ALL_PINS -side Bottom -layer 4 -spreadType side -spacing 2 -fixOverlap 1
-printStatus "Placed chip pins (all bottom)"
+# --- Chip pins: NONE placed. chip_top's ports (resetn/prt*/aio) ride their
+# pad instances' PAD terminals; physically each port's net has exactly one
+# pin (the pad's PAD pin) = single-pin nets, skipped by the tracer. The A4
+# editPin-to-bottom-edge block is gone WITH the MCU port pins themselves --
+# the ~708 ex-top-level terms are internal mcu0 nets now (a0* dangle by
+# design, Myshkin precedent). ---
+plog "### UNL STATUS ### : no top-level pin shapes (ports ride pad PAD terminals)"
 
 ################################################################################
 # Power: full rectangular ring + tile-pin-aligned M7 lanes (see header)
@@ -283,6 +411,21 @@ addRing \
     -offset $POWER_RING_PATH_SPACING \
     -center 0 -extend_corner {} -threshold 0 -jog_distance 0 \
     -snap_wire_center_to_grid None
+
+# --- Pad-supply hookup (A5): the four core-domain supply pads carry real
+# USE POWER/GROUND pins (PVDD1DGZ_G.VDD / PVSS1DGZ_G.VSS -- LEF-verified),
+# already bound to VDD/VSS by the globalNetConnect -inst * above. Tie their
+# core-side pin fingers (M1/M2 at the pad inner edge) to the fresh core ring.
+# The PG-only connectivity gate below is the acceptance check (pad terminals
+# join the special-net trace). ---
+sroute \
+	-nets { VSS VDD } \
+	-connect { padPin } \
+	-allowJogging 1 \
+	-allowLayerChange 1 \
+	-layerChangeRange { M1(1) M8(8) } \
+	-area [list $DIE_LLX $DIE_LLY $DIE_URX $DIE_URY]
+plog "### UNL STATUS ### : pad-supply sroute (padPin) done"
 
 # --- M8 horizontal grid: RAM band + B1 only (y<566: 2um below the row-0 tile
 # M8 OBS at 568). PG4 knob: bottom M7 so this pass never punches macro-pin
@@ -364,7 +507,7 @@ set LANE_VSS {}
 foreach spec $LANE_SPECS {
 	if {[lindex $spec 0] eq "VDD"} { lappend LANE_VDD [lindex $spec 1] } else { lappend LANE_VSS [lindex $spec 1] }
 }
-foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
+foreach m {mcu0/por mcu0/dco0 mcu0/dco1 mcu0/irq_gf0 mcu0/irq_gf1 mcu0/irq_gf2} {
 	set ip [dbGet -p top.insts.name $m]
 	if {$ip eq "" || $ip eq "0x0"} { plog "### UNL WARN ### : rescue-pair skip, inst $m not found"; continue }
 	set x0 [expr {[dbGet $ip.box_llx] + 1}]
@@ -389,7 +532,7 @@ foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
 # center-pairs, the gap itself had nothing). One pair per uncovered gap. ---
 set prev_urx -1
 set prev_name {}
-foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
+foreach m {mcu0/por mcu0/dco0 mcu0/dco1 mcu0/irq_gf0 mcu0/irq_gf1 mcu0/irq_gf2} {
 	set ip [dbGet -p top.insts.name $m]
 	if {$ip eq "" || $ip eq "0x0"} { continue }
 	set llx [dbGet $ip.box_llx]
@@ -425,7 +568,7 @@ foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
 # offset by 25 from the 50-pitch main M8 grid whose pairs sit at ~400/450/
 # 500/550) keeps them clear of the main pass = no PG4-style interleaved
 # same-net via arrays at shared crossings. ---
-set rp [dbGet -p top.insts.name rom0]
+set rp [dbGet -p top.insts.name mcu0/rom0]
 set RX0 [expr {[dbGet $rp.box_llx] - 2}]
 set RX1 [expr {[dbGet $rp.box_urx] + 2}]
 set RY0 [dbGet $rp.box_lly]
@@ -535,9 +678,10 @@ fixVia -short
 fixVia -minCut
 fixVia -minStep
 
-# Reserve M7/M8 for power during signal routing.
-createRouteBlk -box 0 0 $DESIGN_WIDTH $DESIGN_HEIGHT -layer 7
-createRouteBlk -box 0 0 $DESIGN_WIDTH $DESIGN_HEIGHT -layer 8
+# Reserve M7/M8 for power during signal routing -- FULL DIE frame (A5: also
+# keeps signal routing off M7/M8 over the pad band).
+createRouteBlk -box $DIE_LLX $DIE_LLY $DIE_URX $DIE_URY -layer 7
+createRouteBlk -box $DIE_LLX $DIE_LLY $DIE_URX $DIE_URY -layer 8
 
 ################################################################################
 # Placement
@@ -546,7 +690,7 @@ createRouteBlk -box 0 0 $DESIGN_WIDTH $DESIGN_HEIGHT -layer 8
 # (glitch-free by construction; gate names are genus-mapped -- catch-guarded so
 # a resynth rename can't abort the run).
 set_interactive_constraint_modes [all_constraint_modes -active]
-foreach g {timer0/g11710 timer1/g11710} {
+foreach g {mcu0/timer0/g11710 mcu0/timer1/g11710} {
 	if {[catch {set_disable_clock_gating_check $g} r]} {
 		puts "gating-check disable SKIPPED for $g: $r"
 	} else {
@@ -573,9 +717,9 @@ addWellTap \
 # the verdict of record). Region (hard, NON-exclusive) not fence: the rest
 # of the fabric shares B1.  ---
 set B1_BOX [list 2 $B1_Y0 [expr {$DESIGN_WIDTH - 2}] $B1_Y1]
-if {[catch {createRegion irtr0 {*}$B1_BOX} r]} {
+if {[catch {createRegion mcu0/irtr0 {*}$B1_BOX} r]} {
 	plog "### UNL WARN ### : createRegion failed ($r), falling back to createGuide"
-	createGuide irtr0 {*}$B1_BOX
+	createGuide mcu0/irtr0 {*}$B1_BOX
 }
 plog "### UNL STATUS ### : irtr0 constrained to B1 $B1_BOX"
 
@@ -670,6 +814,10 @@ setOptMode -holdTargetSlack 0
 # must NOT touch M7/M8: pin the route ceiling to M6 instead. ---
 setNanoRouteMode -routeTopRoutingLayer 6
 deleteAllRouteBlks
+# A5: deleteAllRouteBlks just removed the seal-band keep-outs too -- restore
+# them so loop ecos can't stray into the reserved outer 20um band (the
+# SEALRING_* PLACE blockages survive; only the route blks are re-made).
+seal_keepouts
 set PREV_NSHORT -1
 for {set eco 1} {$eco <= 12} {incr eco} {
 	verifyGeometry \
@@ -807,7 +955,8 @@ streamOut \
     -stripes 1 \
     -units 1000 \
     -mode ALL \
-    -merge [list $OUTPUT_DIR/hart_tile_argus.gds2] \
+    -merge [list $OUTPUT_DIR/hart_tile_argus.gds2 \
+                 /opt/design_kits/TSMC65-IP/tsmc/digital/Back_End/gds/tphn65gpgv2od3_sl_210a/mt_2/8lm/tphn65gpgv2od3_sl.gds] \
     -mapFile $INPUT_DIR/innovus2gds.map
 
 printStatus "Writing SDF (top level)"

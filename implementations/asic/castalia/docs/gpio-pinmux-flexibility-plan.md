@@ -1,8 +1,8 @@
 # Castalia GPIO Alternate-Function Flexibility — Analysis & Plan
 
-*Status: **v1 IMPLEMENTED** (output-function spread), 2026-07-10. Target: `hdl/MCU_MP`
-(Castalia, `multicore-mp`), generated via `platform_castalia`. v2 (input relocation +
-AF1-gap fill) planned — see §6.*
+*Status: **v1 IMPLEMENTED** (output-function spread), 2026-07-10; **v2 IMPLEMENTED**
+(input relocation + AF1-gap fill), 2026-07-11 — see §6. Target: `hdl/MCU_MP`
+(Castalia, `multicore-mp`), generated via `platform_castalia`.*
 
 ## v1 result (implemented 2026-07-10)
 
@@ -11,7 +11,7 @@ AF planes, drawn from a shared pool (UART `TX0`/`TX1`, timer compares
 `T0CMP0/1`/`T1CMP0/1`, SPI1 `SCK1`/`MOSI1`), fanned across **all four ports** so each
 output is reachable on **~23–27 pins**. The TRM AF matrix table dropped from ~200
 Hi-Z cells to **5** (P0.7 AF0 = the real BOOT strap; 4 AF1 gaps on pins that never had
-an AF1 — deferred to v2). Verification: `check_mcu_vhd` IDENTICAL / `check_memorymap`
+an AF1 — filled by v2 on 2026-07-11, leaving **1**). Verification: `check_mcu_vhd` IDENTICAL / `check_memorymap`
 DROP-IN COMPATIBLE (both exit 0); `behavioral_mp` smoke 26/26 PASS incl. `afsel`.
 Mechanism: reset `PxAFS=0` keeps AF0 active, so boot + every test is byte-identical;
 new planes are additive output aggregates that never touch a peripheral input path.
@@ -123,17 +123,36 @@ so each pin becomes flexible, e.g.:
 The full explicit 32×8 table will be hand-designed for review, encoded in
 `generate.py`, and the generator will emit the matching RTL + TRM.
 
-## 6. v2 (planned) — input relocation + AF1-gap fill
+## 6. v2 (IMPLEMENTED 2026-07-11) — input relocation + AF1-gap fill
 
-v1 spreads OUTPUT functions only (purely additive, zero input-path risk). v2 adds:
+v1 spreads OUTPUT functions only (purely additive, zero input-path risk). v2 adds
+bidirectional-bus completions on a bounded set of pins (TRM pin naming P0-P3):
 
-- **Input/IO relocation**: offer `RX0`/`RX1`, `SDA0/1`/`SCL0/1`, `MISO1` on a bounded
-  set of extra pins by surgically extending each function's input-select mux (priority
-  across candidate pins). This enables *full bidirectional* buses (a whole UART / I2C /
-  SPI) to land on chosen pins, not just their output halves.
-- **AF1-gap fill**: the 4 remaining Hi-Z AF1 cells (P1.4/P1.5/P2.6/P2.7 — pins with no
-  historical AF1) require reworking the existing per-port `afunc<N>_af1_*` aggregates;
-  folded into v2 to avoid disturbing proven AF1-relocation code in v1.
+| v2 slot | Function | Config gate | Bus story |
+|---------|----------|-------------|-----------|
+| P1.4 AF1 | `SDA1` io | `i2c1` | port-1 AF1 row = BOTH I2C buses (with SDA0/SCL0 on P1.6/7) |
+| P1.5 AF1 | `SCL1` io | `i2c1` | ” |
+| P2.6 AF1 | `SDA0` io | — | port-2 AF1 row completely filled (both UARTs + both I2Cs) |
+| P2.7 AF1 | `SCL0` io | — | ” |
+| P3.5 AF2 | `RX0` io (was TX1) | — | full UART0 pair on the DTP pins at AFS=2 (TX0 @ P3.4 AF2) |
+| P3.6 AF7 | `MISO1` io (was TX0) | `spi1` | full SPI1 master on P3.4/5/6 at AFS=7 |
+
+All 4 AF1 gaps are filled; the only remaining Hi-Z cell at defaults is P0.7 AF0 (the
+real BOOT strap). Input muxes extend the proven always-visible idiom (keyed on the
+candidate pin's `PxAFS` only) to fixed-priority chains: **v2 pad > AF1 pad > home**
+(selecting one input on two pins at once is a software error; priority makes it
+deterministic). The two v2 spread io slots wire literal pin indices (no `pnum`,
+FromSpread); the four AF1 slots get real `pnum_gpio{1,2}_af1_*` constants (added to
+`hdl/MCU_MP/MemoryMap.vhd` + `_mcuMpPnums`, bidirectional cross-check). RX1 and
+UART1/I2C1's existing 2-location sets were left alone — a third location would have
+collided with the existing `pnum_gpio2_af1_rx1`-class names for no bus-completion gain.
+
+Proof: `afselv2.S` (rv32ui, smoke set, verify-tag `spi1`) — relocated-MISO1 static
+levels through P3.6 AF7 (plus negative control), and a TIMER0-paced software
+bit-banged UART frame received by RX0 through P3.5 AF2 (0xA5 then 0x3C, FEF/PEF/OVF
+clean, plus negative control). Emitters degrade per config (noi2c1/nospi1 emit zero
+dangling references); at the new golden master `check_mcu_vhd` is STRICT IDENTICAL
+(3865 lines) and `check_memorymap_vhd` drop-in.
 
 ## Implementation notes (how v1 was built)
 

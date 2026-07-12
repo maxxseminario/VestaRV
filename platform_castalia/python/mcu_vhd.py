@@ -215,10 +215,11 @@ I2C_FABRIC_DECLS = [
 ]
 GPIO2_AF1_PLANES = [
 	'        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,',
-	'        -- UART0 relocation on P3.4/5. P3.6/7 have no AF1.',
+	'        -- UART0 relocation on P3.4/5, I2C0 relocation on P3.6/7 (v2) ' + EMDASH + ' the',
+	'        -- full serial-relocation row (both UARTs + both I2C buses).',
 	'        afunc3_af1_out <= (',
-	"            7 => '0',                           -- GPIO2 pin 7: unassigned (hi-Z input)",
-	"            6 => '0',                           -- GPIO2 pin 6: unassigned (hi-Z input)",
+	'            pnum_gpio2_af1_scl0 => scl0_out,    -- GPIO2 pin 7',
+	'            pnum_gpio2_af1_sda0 => sda0_out,    -- GPIO2 pin 6',
 	'            pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5',
 	'            pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4',
 	'            pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3',
@@ -227,8 +228,8 @@ GPIO2_AF1_PLANES = [
 	'            pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0',
 	'        );',
 	'        afunc3_af1_dir <= (',
-	"            7 => '0',                           -- GPIO2 pin 7: unassigned (input)",
-	"            6 => '0',                           -- GPIO2 pin 6: unassigned (input)",
+	'            pnum_gpio2_af1_scl0 => scl0_dir,    -- GPIO2 pin 7',
+	'            pnum_gpio2_af1_sda0 => sda0_dir,    -- GPIO2 pin 6',
 	'            pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5',
 	'            pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4',
 	'            pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3',
@@ -237,8 +238,8 @@ GPIO2_AF1_PLANES = [
 	'            pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0',
 	'        );',
 	'        afunc3_af1_ren <= (',
-	"            7 => '0',                           -- GPIO2 pin 7: unassigned (pull disabled)",
-	"            6 => '0',                           -- GPIO2 pin 6: unassigned (pull disabled)",
+	'            pnum_gpio2_af1_scl0 => scl0_ren,    -- GPIO2 pin 7',
+	'            pnum_gpio2_af1_sda0 => sda0_ren,    -- GPIO2 pin 6',
 	'            pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5',
 	'            pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4',
 	'            pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3',
@@ -248,32 +249,49 @@ GPIO2_AF1_PLANES = [
 	'        );',
 ]
 I2C_INPUT_MUXES = [
-	'        -- Resistor Enables (I2C0 relocates to P2.6/7, I2C1 to P3.2/3 ' + EMDASH + ' the',
-	'        -- peripheral ren_in follows the same AF selection as the inputs below)',
-	'        sda0_ren_in <= p2_ren(pnum_gpio1_af1_sda0)',
+	'        -- Resistor Enables (I2C0 relocates to P2.6/7 or P3.6/7 (v2), I2C1 to',
+	'        -- P3.2/3 or P2.4/5 (v2) ' + EMDASH + ' the peripheral ren_in follows the same AF',
+	'        -- selection as the inputs below, fixed priority: v2 pad > AF1 pad > home)',
+	'        sda0_ren_in <= p3_ren(pnum_gpio2_af1_sda0)',
+	'                       when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"',
+	'                       else p2_ren(pnum_gpio1_af1_sda0)',
 	'                       when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"',
 	'                       else p4_ren(pnum_gpio3_sda0);',
-	'        scl0_ren_in <= p2_ren(pnum_gpio1_af1_scl0)',
+	'        scl0_ren_in <= p3_ren(pnum_gpio2_af1_scl0)',
+	'                       when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"',
+	'                       else p2_ren(pnum_gpio1_af1_scl0)',
 	'                       when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"',
 	'                       else p4_ren(pnum_gpio3_scl0);',
-	'        sda1_ren_in <= p3_ren(pnum_gpio2_af1_sda1)',
+	'        sda1_ren_in <= p2_ren(pnum_gpio1_af1_sda1)',
+	'                       when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"',
+	'                       else p3_ren(pnum_gpio2_af1_sda1)',
 	'                       when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"',
 	'                       else p4_ren(pnum_gpio3_sda1);',
-	'        scl1_ren_in <= p3_ren(pnum_gpio2_af1_scl1)',
+	'        scl1_ren_in <= p2_ren(pnum_gpio1_af1_scl1)',
+	'                       when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"',
+	'                       else p3_ren(pnum_gpio2_af1_scl1)',
 	'                       when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"',
 	'                       else p4_ren(pnum_gpio3_scl1);',
 	'',
 	'        -- Inputs (relocated pad wins, home pad is the default)',
-	'        sda0_in <= prt2_in(pnum_gpio1_af1_sda0)',
+	'        sda0_in <= prt3_in(pnum_gpio2_af1_sda0)',
+	'                   when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"',
+	'                   else prt2_in(pnum_gpio1_af1_sda0)',
 	'                   when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"',
 	'                   else prt4_in(pnum_gpio3_sda0);',
-	'        scl0_in <= prt2_in(pnum_gpio1_af1_scl0)',
+	'        scl0_in <= prt3_in(pnum_gpio2_af1_scl0)',
+	'                   when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"',
+	'                   else prt2_in(pnum_gpio1_af1_scl0)',
 	'                   when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"',
 	'                   else prt4_in(pnum_gpio3_scl0);',
-	'        sda1_in <= prt3_in(pnum_gpio2_af1_sda1)',
+	'        sda1_in <= prt2_in(pnum_gpio1_af1_sda1)',
+	'                   when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"',
+	'                   else prt3_in(pnum_gpio2_af1_sda1)',
 	'                   when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"',
 	'                   else prt4_in(pnum_gpio3_sda1);',
-	'        scl1_in <= prt3_in(pnum_gpio2_af1_scl1)',
+	'        scl1_in <= prt2_in(pnum_gpio1_af1_scl1)',
+	'                   when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"',
+	'                   else prt3_in(pnum_gpio2_af1_scl1)',
 	'                   when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"',
 	'                   else prt4_in(pnum_gpio3_scl1);',
 ]
@@ -327,6 +345,10 @@ GPIO3_PRIMARY_PLANES = [
 SPREAD_SIG = {
 	'TX0': 'tx0', 'TX1': 'tx1', 'SCK1': 'sck1', 'MOSI1': 'mosi1',
 	'T0CMP0': 't0_cmp0', 'T0CMP1': 't0_cmp1', 'T1CMP0': 't1_cmp0', 'T1CMP1': 't1_cmp1',
+	# pin-mux v2: io slots carried by the spread planes (their INPUT side is a
+	# separate relocation mux — RX0 in the fixed template, MISO1 in
+	# SPI1_INPUT_TAPS — keyed on the pin's PxAFS, always-visible idiom)
+	'RX0': 'rx0', 'MISO1': 'miso1',
 }
 # Per-port spread-block header comments (transcribed; the flatten lines are
 # emitted by the same region so the whole block is one marker per port)
@@ -375,12 +397,18 @@ MOVER_FABRIC_DECLS = [
 ]
 SPI1_INPUT_TAPS = [
 	'        cs1_in   <= prt2_in(pnum_gpio1_cs1);',
-	'        miso1_in <= prt2_in(pnum_gpio1_miso1);',
+	'        -- MISO1 relocates to P4.6 (AF7, v2 spread slot ' + EMDASH + ' literal index, no pnum;',
+	'        -- completes a full SPI1 on P4.4/5/6 at AF7); home pad is the default',
+	'        miso1_in <= prt4_in(6)',
+	'                    when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"',
+	'                    else prt2_in(pnum_gpio1_miso1);',
 	'        mosi1_in <= prt2_in(pnum_gpio1_mosi1);',
 	'        sck1_in  <= prt2_in(pnum_gpio1_sck1);',
 	'        sck1_ren_in <= p2_ren(pnum_gpio1_sck1);',
 	'        mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);',
-	'        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);',
+	'        miso1_ren_in <= p4_ren(6)',
+	'                        when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"',
+	'                        else p2_ren(pnum_gpio1_miso1);',
 	'        -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);',
 ]
 UART1_INPUT_MUXES = [
@@ -429,12 +457,13 @@ GPIO1_PRIMARY_PLANES = [
 ]
 GPIO1_AF1_PLANES = [
 	'        -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),',
-	'        -- I2C0 relocation on P2.6/7 (the UART1 pins). P2.4/5 have no AF1.',
+	'        -- I2C1 relocation on P2.4/5 (v2), I2C0 relocation on P2.6/7 (the UART1 pins)',
+	'        -- ' + EMDASH + ' both I2C buses land on this port at AF1.',
 	'        afunc2_af1_out <= (',
 	'            pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7',
 	'            pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6',
-	"            5 => '0',                               -- GPIO1 pin 5: unassigned (hi-Z input)",
-	"            4 => '0',                               -- GPIO1 pin 4: unassigned (hi-Z input)",
+	'            pnum_gpio1_af1_scl1 => scl1_out,        -- GPIO1 pin 5',
+	'            pnum_gpio1_af1_sda1 => sda1_out,        -- GPIO1 pin 4',
 	'            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3',
 	'            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2',
 	'            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1',
@@ -443,8 +472,8 @@ GPIO1_AF1_PLANES = [
 	'        afunc2_af1_dir <= (',
 	'            pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7',
 	'            pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6',
-	"            5 => '0',                               -- GPIO1 pin 5: unassigned (input)",
-	"            4 => '0',                               -- GPIO1 pin 4: unassigned (input)",
+	'            pnum_gpio1_af1_scl1 => scl1_dir,        -- GPIO1 pin 5',
+	'            pnum_gpio1_af1_sda1 => sda1_dir,        -- GPIO1 pin 4',
 	'            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3',
 	'            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2',
 	'            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1',
@@ -453,8 +482,8 @@ GPIO1_AF1_PLANES = [
 	'        afunc2_af1_ren <= (',
 	'            pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7',
 	'            pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6',
-	"            5 => '0',                               -- GPIO1 pin 5: unassigned (pull disabled)",
-	"            4 => '0',                               -- GPIO1 pin 4: unassigned (pull disabled)",
+	'            pnum_gpio1_af1_scl1 => scl1_ren,        -- GPIO1 pin 5',
+	'            pnum_gpio1_af1_sda1 => sda1_ren,        -- GPIO1 pin 4',
 	'            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3',
 	'            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2',
 	'            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1',
@@ -1351,22 +1380,27 @@ class McuVhdEmitter():
 		return lines
 
 	def emitI2cInputMuxes(self):
-		'''The I2C input/REN AF-selection muxes (relocated pad wins). The I2C1
-		muxes disappear with the instance; the comment drops its mention.'''
+		'''The I2C input/REN AF-selection muxes (fixed priority: v2 pad > AF1
+		pad > home). The I2C1 muxes disappear with the instance; the comment
+		drops its mention.'''
 		lines = list(I2C_INPUT_MUXES)
 		if not self.i2c1:
 			out = []
 			skip = 0
 			for l in lines:
 				if skip:
-					skip -= 1
+					if l.rstrip().endswith(';'):
+						skip = 0
 					continue
 				s = l.strip()
 				if s.startswith(('sda1_ren_in <=', 'scl1_ren_in <=', 'sda1_in <=', 'scl1_in <=')):
-					skip = 2	# each mux is a 3-line conditional assignment
+					skip = 1	# each mux runs to its terminating ';'
 					continue
-				if 'I2C0 relocates to P2.6/7, I2C1 to P3.2/3' in l:
-					l = l.replace('I2C0 relocates to P2.6/7, I2C1 to P3.2/3', 'I2C0 relocates to P2.6/7')
+				if 'I2C1 to' in l:
+					l = l.replace('I2C0 relocates to P2.6/7 or P3.6/7 (v2), I2C1 to',
+						'I2C0 relocates to P2.6/7 or P3.6/7 (v2)')
+				elif s.startswith('-- P3.2/3 or P2.4/5 (v2)'):
+					l = l.replace('-- P3.2/3 or P2.4/5 (v2) ', '-- ')
 				out.append(l)
 			lines = out
 		return lines
@@ -1482,25 +1516,34 @@ class McuVhdEmitter():
 
 	def emitGpio1Af1Planes(self):
 		'''The P2 (GPIO1) AF1 relocation-plane aggregates. TIMER1's compare
-		relocations on P2.2/3 degrade to the '0' idiom (literal pin index —
-		the pnum_gpio1_af1_t1_cmp* constants are gated with TIMER1).'''
+		relocations on P2.2/3 and I2C1's v2 relocations on P2.4/5 degrade to
+		the '0' idiom (literal pin index — the pnum_gpio1_af1_t1_cmp* /
+		pnum_gpio1_af1_{sda1,scl1} constants are gated with their owner).'''
 		lines = list(GPIO1_AF1_PLANES)
 		if not self.spi1:
 			lines[0] = lines[0].replace('(the SPI1 pins)', '(the ex-SPI1 pins)')
 		if not self.uart1:
 			lines[1] = lines[1].replace('(the UART1 pins)', '(the ex-UART1 pins)')
+		dropRows = {}
 		if not self.timer1:
 			lines[0] = lines[0].replace('TIMER0/1 compare (PWM) outputs on P2.0-3',
 				'TIMER0 compare (PWM) outputs on P2.0/1 (TIMER1 dropped)')
+			dropRows.update({'t1_cmp0': ('2', 'TIMER1'), 't1_cmp1': ('3', 'TIMER1')})
+		if not self.i2c1:
+			lines[1] = lines[1].replace('I2C1 relocation on P2.4/5 (v2), ',
+				'P2.4/5 reserved (I2C1 dropped), ')
+			lines[2] = lines[2].replace('both I2C buses land', 'I2C0 lands')
+			dropRows.update({'sda1': ('4', 'I2C1'), 'scl1': ('5', 'I2C1')})
+		if dropRows:
 			out = []
 			for l in lines:
-				m = re.match(r'^(\s*)pnum_gpio1_af1_(t1_cmp[01]) => \w+_(out|dir|ren),\s*--.*$', l)
-				if m:
-					pin = '3' if m.group(2) == 't1_cmp1' else '2'
+				m = re.match(r'^(\s*)pnum_gpio1_af1_(\w+) => \w+_(out|dir|ren),\s*--.*$', l)
+				if m and m.group(2) in dropRows:
+					pin, owner = dropRows[m.group(2)]
 					mode = {'out': 'hi-Z input', 'dir': 'input', 'ren': 'pull disabled'}[m.group(3)]
 					col = l.index('--')
 					body = m.group(1) + pin + " => '0',"
-					l = body.ljust(col) + '-- GPIO1 pin ' + pin + ': reserved, TIMER1 dropped (' + mode + ')'
+					l = body.ljust(col) + '-- GPIO1 pin ' + pin + ': reserved, ' + owner + ' dropped (' + mode + ')'
 				out.append(l)
 			lines = out
 		return lines
