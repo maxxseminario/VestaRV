@@ -18,8 +18,8 @@
 
 set -u
 cd "$(dirname "$0")"
-GDS=../innovus_mp/out/MCU_MP.gds2
-DB=../innovus_mp/dbs/MCU_MP.signoff.innovus.dat
+GDS=../innovus/common/out/MCU_MP.gds2
+DB=../innovus/common/dbs/MCU_MP.signoff.innovus.dat
 
 die() { echo "ACCEPT_MCU FATAL: $*"; exit 1; }
 
@@ -36,7 +36,7 @@ fi
 
 echo "==== stage 2: labels + full CDL ===="
 python3 gen_mcu_lvslabels.py pvs/hart_tile.lvslabels pvs/MCU.lvslabels || die "label gen"
-[ pvs/hart_tile.lvs.v -nt ../innovus_mp/out/hart_tile.lef ] || \
+[ pvs/hart_tile.lvs.v -nt ../innovus/common/out/hart_tile.lef ] || \
     echo "WARN: pvs/hart_tile.lvs.v predates the tile LEF -- confirm it is the F2j netlist"
 cat pvs/MCU.lvs.v pvs/hart_tile.lvs.v > pvs/MCU_full.lvs.v
 

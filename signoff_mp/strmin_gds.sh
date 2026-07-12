@@ -5,7 +5,7 @@
 # that script's history. Run from ~/vestarv/signoff_mp (cds.lib lives here).
 #
 # usage: ./strmin_gds.sh targetLib topCell gdsFile
-# e.g.:  ./strmin_gds.sh hart_tile_mp hart_tile ../innovus_mp/out/hart_tile.gds2
+# e.g.:  ./strmin_gds.sh hart_tile_mp hart_tile ../innovus/common/out/hart_tile.gds2
 
 set -u
 cd "$(dirname "$0")"

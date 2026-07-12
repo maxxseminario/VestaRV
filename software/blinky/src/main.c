@@ -1,10 +1,10 @@
 /*
  * blinky - Drive P3.0 (T0CMP0 pad) with TIMER0 hardware for a visible
  * ~1 Hz blink (2 Hz toggle). Uses the auto-generated header
- * platform/gcc/lib/include/MemoryMap.h.
+ * platform/myshkin/gcc/lib/include/MemoryMap.h.
  *
  * The chip pads externally labelled "P3.x" are driven by the HDL entity
- * named GPIO2 (slot 8, base 0x4800) -- see hdl/MCU/MCU.vhd line ~855.
+ * named GPIO2 (slot 8, base 0x4800) -- see hdl/myshkin/MCU.vhd line ~855.
  * Pin 0 of that port is T0CMP0.
  *
  * Timing (assuming SMCLK ~= 10 MHz):
@@ -15,7 +15,7 @@
  *   CMP0 = 76  -> mid-cycle (value not critical with CMP0IH; just must
  *                 be <= CMP2 so it fires once per period)
  *
- * Header values were cross-checked against hdl/MCU/periph/TIMER.vhd:
+ * Header values were cross-checked against hdl/myshkin/periph/TIMER.vhd:
  *   control_reg(6)       = timer_enable        -> TEN_BIT     = 0x40
  *   control_reg(7)       = compare2_reset_en   -> CMP2RST_BIT = 0x80
  *   control_reg(14)      = compare0_init_level -> CMP0IH_BIT  = 0x4000

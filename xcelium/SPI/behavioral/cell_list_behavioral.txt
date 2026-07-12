@@ -1,7 +1,7 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/periph/SPI.vhd
-../../../hdl/MCU/tb/periph_tb_pkg.vhd
-../../../hdl/MCU/tb/spi_bfm_pkg.vhd
-../../../hdl/MCU/tb/SPI_tb.vhd
+../../../hdl/myshkin/constants.vhd
+../../../hdl/myshkin/MemoryMap.vhd
+../../../hdl/myshkin/sim/ClkGate.vhd
+../../../hdl/myshkin/periph/SPI.vhd
+../../../hdl/myshkin/tb/periph_tb_pkg.vhd
+../../../hdl/myshkin/tb/spi_bfm_pkg.vhd
+../../../hdl/myshkin/tb/SPI_tb.vhd

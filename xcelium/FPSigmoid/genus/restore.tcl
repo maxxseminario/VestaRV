@@ -5,7 +5,7 @@
 #
 # You can restore this configuration with:
 #
-#      xrun /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/vhdl/tsmc65_hvt_sc_adv10.vhd ../../../genus/out/FPSigmoid.genus.v ../../../hdl/MCU/tb/FPSigmoid_tb.vhd -top FPSigmoid_tb -sdf_cmd_file FPSigmoid.sdfcmd -sdfstats log/sdf_stats.log -sdf_verbose -v200x -work work -access +r -controlrelax nlstex -relax -input ./restore.tcl -input ../../disable_x_warnings.tcl -input restore.tcl
+#      xrun /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/vhdl/tsmc65_hvt_sc_adv10.vhd ../../../genus/out/FPSigmoid.genus.v ../../../hdl/myshkin/tb/FPSigmoid_tb.vhd -top FPSigmoid_tb -sdf_cmd_file FPSigmoid.sdfcmd -sdfstats log/sdf_stats.log -sdf_verbose -v200x -work work -access +r -controlrelax nlstex -relax -input ./restore.tcl -input ../../disable_x_warnings.tcl -input restore.tcl
 #
 
 set tcl_prompt1 {puts -nonewline "xcelium> "}

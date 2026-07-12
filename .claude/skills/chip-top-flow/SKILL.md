@@ -5,7 +5,7 @@ description: Build a CONNECTED pad-ring chip-top (M15 "Flavor B") — wiring a h
 
 # Connected pad-ring chip-top (M15 Flavor B)
 
-Golden example, proven 2026-07-12 (Argus A5): `innovus_mp/tcl/chip_top_argus.
+Golden example, proven 2026-07-12 (Argus A5): `innovus/common/tcl/chip_top_argus.
 innovus.tcl` + `in/chip_top_argus.{v,sdc}` + `xcelium/riscv_test/
 innovus_chip_argus/`. Full narrative + status log: `.devlog/2026-07-12-argus-
 a5-chip-top.md` — read it for the "why" behind any item below; if this skill

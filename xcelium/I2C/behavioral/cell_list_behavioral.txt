@@ -1,8 +1,8 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/commune/ClkDivPower2.vhd
-../../../hdl/MCU/periph/I2C.vhd
-../../../hdl/MCU/tb/periph_tb_pkg.vhd
-../../../hdl/MCU/tb/i2c_bfm_pkg.vhd
-../../../hdl/MCU/tb/I2C_tb.vhd
+../../../hdl/myshkin/constants.vhd
+../../../hdl/myshkin/MemoryMap.vhd
+../../../hdl/myshkin/sim/ClkGate.vhd
+../../../hdl/myshkin/commune/ClkDivPower2.vhd
+../../../hdl/myshkin/periph/I2C.vhd
+../../../hdl/myshkin/tb/periph_tb_pkg.vhd
+../../../hdl/myshkin/tb/i2c_bfm_pkg.vhd
+../../../hdl/myshkin/tb/I2C_tb.vhd

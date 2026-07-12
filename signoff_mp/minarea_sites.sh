@@ -1,7 +1,7 @@
 #!/bin/bash
 # PG4: extract metal min-AREA violation sites (the marker box IS the violating
 # sliver for area rules) from a Calibre results .db into a sites file for
-# innovus_mp/tcl/mcu_minarea_patch.tcl. Usage:
+# innovus/common/tcl/mcu_minarea_patch.tcl. Usage:
 #   ./minarea_sites.sh calibre/MCU_MP_signoff/MCU/results/blockdrc.db > sites.txt
 # Output lines: "<layer> <x0> <y0> <x1> <y1>" in um (chip coords).
 set -u

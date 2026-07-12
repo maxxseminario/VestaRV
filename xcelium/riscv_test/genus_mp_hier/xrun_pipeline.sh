@@ -1,5 +1,5 @@
 #!/bin/bash
-# PIPELINED test runner — POST-P&R (innovus_mp, M14 HIERARCHICAL: 4x hardened hart_tile + top assembly) MCU_MP gate-level sim with SDF.
+# PIPELINED test runner — POST-P&R (innovus/common, M14 HIERARCHICAL: 4x hardened hart_tile + top assembly) MCU_MP gate-level sim with SDF.
 #
 # Variant of xrun_parallel.sh (this dir). Same generate→compile front end, but
 # the back end FUSES elaboration and simulation into one MAX_PARALLEL worker

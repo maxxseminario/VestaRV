@@ -1,5 +1,5 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/periph/GPIO.vhd
-../../../hdl/MCU/tb/GPIO_tb.vhd
+../../../hdl/myshkin/constants.vhd
+../../../hdl/myshkin/MemoryMap.vhd
+../../../hdl/myshkin/sim/ClkGate.vhd
+../../../hdl/myshkin/periph/GPIO.vhd
+../../../hdl/myshkin/tb/GPIO_tb.vhd

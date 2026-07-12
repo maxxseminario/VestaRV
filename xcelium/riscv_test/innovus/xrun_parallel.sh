@@ -2,7 +2,7 @@
 # Parallel rv32ui test runner — POST-PLACE-&-ROUTE (innovus) gate-level sim with SDF.
 #
 # Same wrapper-per-test strategy as behavioral/xrun_parallel.sh, but the design
-# under test is the placed-and-routed gate netlist (../../../innovus/out/MCU.xsim.v) and
+# under test is the placed-and-routed gate netlist (../../../innovus/myshkin/out/MCU.xsim.v) and
 # each snapshot is back-annotated with SDF timing at elaboration.
 #
 #   1. Generate a tiny VHDL wrapper entity per test (unique top = unique snapshot)

@@ -3,7 +3,7 @@
 # run_arb_lat.sh -- M10 arbiter latency-insensitivity proof.
 #
 # Compiles + elaborates + simulates mp_arbiter.vhd + resv_unit.vhd +
-# mutex_bank.vhd against hdl/MCU_MP/tb/arb_lat_tb.vhd, which wraps the
+# mutex_bank.vhd against hdl/common/tb/arb_lat_tb.vhd, which wraps the
 # master<->arbiter boundary in N_DELAY pipeline-register stages (both
 # directions) emulating the M13 registered tile boundary. PASS iff EVERY
 # N_DELAY in the sweep prints "ALL CHECKS PASSED".
@@ -25,7 +25,7 @@
 # =============================================================================
 source ~/vestarv/cdspaths.sh
 
-HDL=~/vestarv/hdl/MCU_MP
+HDL=~/vestarv/hdl/common
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 DELAYS=${DELAYS:-"0 1 2"}
 BREAK_MODE=${BREAK_MODE:-0}

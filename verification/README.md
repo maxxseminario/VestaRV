@@ -78,7 +78,7 @@ make all
    -- ROM initialization file: verification/isa/rcf/rv32ui-p-add.rcf
    ```
 
-4. See `hdl/MCU/tb/` for example testbench implementations
+4. See `hdl/myshkin/tb/` for example testbench implementations
 
 ## Test Organization
 
@@ -150,7 +150,7 @@ VestaRV verification includes:
 
 - [`isa/README.md`](isa/README.md) — Detailed ISA test build instructions
 - [`../build-system/README.md`](../build-system/README.md) — Toolchain setup
-- [`../hdl/MCU/tb/`](../hdl/MCU/tb/) — VHDL testbench examples
+- [`../hdl/myshkin/tb/`](../hdl/myshkin/tb/) — VHDL testbench examples
 - [`../firmware/README.md`](../firmware/README.md) — Firmware development guide
 
 ## References

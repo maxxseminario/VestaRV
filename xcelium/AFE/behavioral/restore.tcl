@@ -5,7 +5,7 @@
 #
 # You can restore this configuration with:
 #
-#      xrun ../../../hdl/MCU/constants.vhd ../../../hdl/MCU/MemoryMap.vhd ../../../hdl/MCU/sim/ClkGate.vhd ../../../hdl/MCU/periph/AFE_FSM.vhd ../../../hdl/MCU/periph/AFE.vhd ../../../hdl/MCU/tb/AFE_tb.vhd -top AFE_tb -v200x -work work -access +r -controlrelax nlstex -relax -input ./restore.tcl -input ../../disable_x_warnings.tcl -input restore.tcl
+#      xrun ../../../hdl/myshkin/constants.vhd ../../../hdl/myshkin/MemoryMap.vhd ../../../hdl/myshkin/sim/ClkGate.vhd ../../../hdl/myshkin/periph/AFE_FSM.vhd ../../../hdl/myshkin/periph/AFE.vhd ../../../hdl/myshkin/tb/AFE_tb.vhd -top AFE_tb -v200x -work work -access +r -controlrelax nlstex -relax -input ./restore.tcl -input ../../disable_x_warnings.tcl -input restore.tcl
 #
 
 set tcl_prompt1 {puts -nonewline "xcelium> "}

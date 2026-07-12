@@ -169,7 +169,7 @@ Used for:
 
 5. **Test in simulation**:
    - Use `.rcf` file with VHDL testbench
-   - See `hdl/MCU/tb/` for testbench examples
+   - See `hdl/myshkin/tb/` for testbench examples
 
 6. **Program hardware**:
    - Use `.bin` or `.hex` file
@@ -235,6 +235,6 @@ ls bin/
 - [`build-system/linker-scripts/`](../build-system/linker-scripts/) — Memory layout configuration
 - [`verification/isa/README.md`](../verification/isa/README.md) — Test programs as code examples
 - [`implementations/`](../implementations/) — Chip-specific configurations and memory maps
-- [`hdl/MCU/tb/`](../hdl/MCU/tb/) — VHDL testbench examples for simulation
+- [`hdl/myshkin/tb/`](../hdl/myshkin/tb/) — VHDL testbench examples for simulation
 
 

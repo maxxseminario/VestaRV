@@ -4,7 +4,7 @@
 #
 # ./stripped_hdl/{MCU.vhd,MemoryMap.vhd} are a `make chip` product generated
 # with EVERY extension disabled (CORE_ENABLE_* all false). To refresh them:
-#   cd platform_castalia/python
+#   cd platform/common/python
 #   sed -e 's/COMPRESSED_ISA=True/COMPRESSED_ISA=False/' \
 #       -e 's/ENABLE_\(FAST_\)\?MUL=True/ENABLE_\1MUL=False/' \
 #       -e 's/ENABLE_DIV=True/ENABLE_DIV=False/' \
