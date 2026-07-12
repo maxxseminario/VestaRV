@@ -3,18 +3,18 @@
 # Dependency order — VHDL is order-sensitive.
 
 # --- core constants / memory map ---
-../../../hdl/MCU_MP/constants.vhd
-../../../hdl/MCU_MP/MemoryMap.vhd
+../../../hdl/common/constants.vhd
+../../../hdl/common/MemoryMap.vhd
 
 # --- simulation support ---
-../../../hdl/MCU_MP/sim/ClkGate.vhd
+../../../hdl/common/sim/ClkGate.vhd
 
 # --- shared testbench package (scoreboard + register-bus BFM) ---
-../../../hdl/MCU_MP/tb/periph_tb_pkg.vhd
+../../../hdl/common/tb/periph_tb_pkg.vhd
 
 # --- flash model + SPI peripheral under test ---
-../../../hdl/MCU_MP/tb/serial_flash.vhd
-../../../hdl/MCU_MP/periph/SPI.vhd
+../../../hdl/common/tb/serial_flash.vhd
+../../../hdl/common/periph/SPI.vhd
 
 # --- the self-checking testbench (top-level snapshot) ---
-../../../hdl/MCU_MP/tb/SPI_flash_tb.vhd
+../../../hdl/common/tb/SPI_flash_tb.vhd

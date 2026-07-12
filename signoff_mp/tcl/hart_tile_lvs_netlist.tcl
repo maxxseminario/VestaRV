@@ -21,7 +21,7 @@
 # -flat is NOT used: the tile is already a single level below leaf cells, and
 # flat explodes the ram0 macro reference we want boxed.
 
-restoreDesign /home/mseminario2/vestarv/innovus_mp/dbs/hart_tile.signoff.innovus.dat hart_tile
+restoreDesign /home/mseminario2/vestarv/innovus/common/dbs/hart_tile.signoff.innovus.dat hart_tile
 
 saveNetlist \
     -excludeLeafCell \

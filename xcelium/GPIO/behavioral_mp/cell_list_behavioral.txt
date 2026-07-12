@@ -1,5 +1,5 @@
-../../../hdl/MCU_MP/constants.vhd
-../../../hdl/MCU_MP/MemoryMap.vhd
-../../../hdl/MCU_MP/sim/ClkGate.vhd
-../../../hdl/MCU_MP/periph/GPIO.vhd
-../../../hdl/MCU_MP/tb/GPIO_tb.vhd
+../../../hdl/common/constants.vhd
+../../../hdl/common/MemoryMap.vhd
+../../../hdl/common/sim/ClkGate.vhd
+../../../hdl/common/periph/GPIO.vhd
+../../../hdl/common/tb/GPIO_tb.vhd

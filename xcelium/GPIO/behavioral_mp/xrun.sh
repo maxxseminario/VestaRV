@@ -1,6 +1,6 @@
 #!/bin/bash
 # Standalone behavioral sim of the MCU_MP (Castalia) GPIO peripheral testbench
-# (hdl/MCU_MP/tb/GPIO_tb.vhd) — the multi-AF (PxAFS) capable twin of
+# (hdl/common/tb/GPIO_tb.vhd) — the multi-AF (PxAFS) capable twin of
 # xcelium/GPIO/behavioral, which covers the frozen Myshkin GPIO.
 #
 # Self-checking: the TB prints "ALL CHECKS PASSED" or "N CHECK(S) FAILED" and

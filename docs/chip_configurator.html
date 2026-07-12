@@ -238,7 +238,7 @@
   <span class="arw">→</span>
   <span class="step-n">2</span><b>Download <code>config.json</code></b> from the panel on the right.
   <span class="arw">→</span>
-  <span class="step-n">3</span>Run <code class="cmdlike">make chip CONFIG=config.json</code> in <code>platform_castalia/</code> — RTL, headers, linker scripts <b>and the TRM PDF</b> all regenerate; nobody touches a line of RTL.
+  <span class="step-n">3</span>Run <code class="cmdlike">make chip CONFIG=config.json</code> in <code>platform/common/</code> — RTL, headers, linker scripts <b>and the TRM PDF</b> all regenerate; nobody touches a line of RTL.
 </div>
 
 <main>
@@ -387,7 +387,7 @@
 
     <div class="legend-note">
       <b style="color:var(--txt)">How this works.</b> Download <code>config.json</code> and run
-      <code>make chip CONFIG=config.json</code> from <code>platform_castalia/</code>. The schema is
+      <code>make chip CONFIG=config.json</code> from <code>platform/common/</code>. The schema is
       <b>validated</b> by <code>generate.py</code>: unknown keys and out-of-range values are hard errors, so a typo
       can never silently fall back to a default. Applied knobs: <b>chip name, hart count, mutex count, register
       file, the ISA switches, the memory-region sizes, and NPU presence</b> — they drive the generated
@@ -395,13 +395,13 @@
       <i>and</i> the TRM PDF (feature list, config tables, block/boot/sync/pinout diagrams). Every build also writes
       <code>config/ChipConfig.resolved.json</code> (knobs + derived geometry — <code>make show</code> prints it) and
       <code>config/PadRing.json</code> (the derived pad ring). With the default config the generated RTL stays
-      byte-identical to <code>hdl/MCU_MP</code> (<code>check_mcu_vhd.py</code> exit 0).
+      byte-identical to <code>hdl/common</code> (<code>check_mcu_vhd.py</code> exit 0).
     </div>
   </div>
 </main>
 
 <footer>
-  VestaRV chip generator · source of truth <code>platform_castalia/python/generate.py</code> · outputs stay inside <code>platform_castalia/</code>
+  VestaRV chip generator · source of truth <code>platform/common/python/generate.py</code> · outputs stay inside <code>platform/common/</code>
 </footer>
 
 <div class="toast" id="toast">Copied</div>
@@ -916,8 +916,8 @@ function derivedPanel(){
 
 function outCommand(){
   const L = [];
-  L.push(`<span class="c"># 1. download config.json (button below) into platform_castalia/</span>`);
-  L.push(`<span class="c"># 2. from platform_castalia/, feed it to the generator:</span>`);
+  L.push(`<span class="c"># 1. download config.json (button below) into platform/common/</span>`);
+  L.push(`<span class="c"># 2. from platform/common/, feed it to the generator:</span>`);
   L.push(`<span class="cmd">make chip</span> <span class="s">CONFIG=config.json</span>`);
   L.push(``);
   L.push(`<span class="c"># regenerates EVERYTHING for this configuration:</span>`);
@@ -968,11 +968,11 @@ function outPython(){
 }
 
 /* The AUTHORITATIVE schema consumed (and VALIDATED) by
-   platform_castalia/python/generate.py — see _CONFIG_SCHEMA there.
+   platform/common/python/generate.py — see _CONFIG_SCHEMA there.
    Every key is optional; unknown keys are a hard error. */
 function configObject(){
   const o = {
-    _comment: "VestaRV chip config — feed to: make chip CONFIG=config.json (from platform_castalia/). Every key optional; unknown keys are rejected by generate.py. Resolved result: config/ChipConfig.resolved.json.",
+    _comment: "VestaRV chip config — feed to: make chip CONFIG=config.json (from platform/common/). Every key optional; unknown keys are rejected by generate.py. Resolved result: config/ChipConfig.resolved.json.",
     chipName: cfg.chipName.trim() || "Castalia",
     numHarts: cfg.numHarts,
     numMutexes: cfg.numMutexes,

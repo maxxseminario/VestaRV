@@ -8,7 +8,7 @@
 #
 # Headless twin: ./xrun_batch.sh [test]  (-> xrun.log)
 #
-# DUT = innovus_mp post-P&R netlists (top + 4x hardened hart_tile), SDF via MCU_MP_hier.sdfcmd
+# DUT = innovus/common post-P&R netlists (top + 4x hardened hart_tile), SDF via MCU_MP_hier.sdfcmd
 # (MAXIMUM). The netlist's MCU has no generics. M12: the tile-TCM preload is
 # RETIRED — every hart boots from the shared ROM like silicon (the gate ROM
 # macro holds the real M12 bootrom), so no per-hart TCM deposits. All that

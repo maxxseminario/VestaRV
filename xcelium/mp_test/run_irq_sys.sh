@@ -3,7 +3,7 @@
 # run_irq_sys.sh -- standalone self-checking sim for the MP interrupt system.
 #
 # Compiles + elaborates + simulates clint.vhd (M5b) and irq_router.vhd (M7a)
-# against the combined self-checking testbench hdl/MCU_MP/tb/irq_sys_tb.vhd
+# against the combined self-checking testbench hdl/common/tb/irq_sys_tb.vhd
 # (msip IPIs, 64-bit mtime/mtimecmp mtip levels, router rows/fan-out, ENU
 # contiguous-packing guard, hart_tile gating-equation integration checks).
 # PASS iff the log contains the scoreboard banner "ALL CHECKS PASSED".
@@ -16,7 +16,7 @@
 set -e
 source ~/vestarv/cdspaths.sh
 
-HDL=~/vestarv/hdl/MCU_MP
+HDL=~/vestarv/hdl/common
 RUN_DIR="$(cd "$(dirname "$0")" && pwd)/work_irq_sys"
 rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR"; cd "$RUN_DIR"
 

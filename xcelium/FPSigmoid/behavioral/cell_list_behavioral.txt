@@ -1,4 +1,4 @@
-../../../hdl/MCU/libraries/fixed_float_types_c.vhdl
-../../../hdl/MCU/libraries/fixed_pkg_c.vhdl
-../../../hdl/MCU/general/FPSigmoid.vhd
-../../../hdl/MCU/tb/FPSigmoid_tb.vhd
+../../../hdl/myshkin/libraries/fixed_float_types_c.vhdl
+../../../hdl/myshkin/libraries/fixed_pkg_c.vhdl
+../../../hdl/myshkin/general/FPSigmoid.vhd
+../../../hdl/myshkin/tb/FPSigmoid_tb.vhd

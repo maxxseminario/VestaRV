@@ -5,7 +5,7 @@
 #
 # You can restore this configuration with:
 #
-#      xrun ../../../hdl/MCU/general/FPSigmoid.vhd ../../../hdl/MCU/tb/FPSigmoid_tb.vhd -top FPSigmoid_tb -v200x -work work -access +r -controlrelax nlstex -relax -s -input restore.tcl
+#      xrun ../../../hdl/myshkin/general/FPSigmoid.vhd ../../../hdl/myshkin/tb/FPSigmoid_tb.vhd -top FPSigmoid_tb -v200x -work work -access +r -controlrelax nlstex -relax -s -input restore.tcl
 #
 
 set tcl_prompt1 {puts -nonewline "xcelium> "}

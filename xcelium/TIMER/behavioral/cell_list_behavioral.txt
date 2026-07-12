@@ -1,6 +1,6 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/sim/ClockMuxGlitchFree.vhd
-../../../hdl/MCU/periph/TIMER.vhd
-../../../hdl/MCU/tb/TIMER_tb.vhd
+../../../hdl/myshkin/constants.vhd
+../../../hdl/myshkin/MemoryMap.vhd
+../../../hdl/myshkin/sim/ClkGate.vhd
+../../../hdl/myshkin/sim/ClockMuxGlitchFree.vhd
+../../../hdl/myshkin/periph/TIMER.vhd
+../../../hdl/myshkin/tb/TIMER_tb.vhd

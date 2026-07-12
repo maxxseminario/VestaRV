@@ -82,7 +82,7 @@ VestaRV HDL is written in **VHDL-93/2008**.
 
 - **Naming**: `snake_case` for signals and variables; `PascalCase` for entity and architecture names; `ALL_CAPS` for constants and generics.
 - **Ports**: Group related ports with a comment header. Use `in`/`out` consistently; avoid `inout` except for pad-level models.
-- **Clocking**: All synchronous logic uses a single rising-edge clock per clock domain. Use the `ClkGate` component from `hdl/MCU/commune/` for gated clocks rather than combinatorial clock enable.
+- **Clocking**: All synchronous logic uses a single rising-edge clock per clock domain. Use the `ClkGate` component from `hdl/myshkin/commune/` for gated clocks rather than combinatorial clock enable.
 - **Reset**: Active-low synchronous or asynchronous reset named `resetn`. Use `if resetn = '0' then` — not `if not resetn`.
 - **Comments**: Include a brief header comment on each process explaining what it does. Keep inline comments concise.
 - **No `std_logic_arith`** in new code — use `ieee.numeric_std` instead. (Legacy files may still use the older package; do not change working files gratuitously.)
@@ -103,8 +103,8 @@ Firmware is written in **C (C11)** or **RISC-V assembly (RV32)**.
 ## Verification Requirements
 
 Any HDL change that modifies:
-- **The VestaRV core** (`hdl/MCU/vesta/`) — must pass all ISA tests (`cd verification/isa && make all`)
-- **A peripheral** (`hdl/MCU/periph/`) — must include or update the corresponding testbench in `hdl/MCU/tb/` and demonstrate a passing simulation
+- **The VestaRV core** (`hdl/myshkin/vesta/`) — must pass all ISA tests (`cd verification/isa && make all`)
+- **A peripheral** (`hdl/myshkin/periph/`) — must include or update the corresponding testbench in `hdl/myshkin/tb/` and demonstrate a passing simulation
 - **The memory map** — must regenerate the memory map and confirm `python3 generator/python/generate.py` runs without error
 
 Simulation can be run with any VHDL-2008-compatible simulator (GHDL, ModelSim, Xcelium, Questa). See [`hdl/README.md`](hdl/README.md) for simulation setup.

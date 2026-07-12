@@ -1,6 +1,6 @@
 -- MCU.vhd
 -- Castalia MCU top-level integration layer (4 harts, MCU_MP)
--- Golden-master templated from the verified hdl/MCU_MP/MCU.vhd: the fixed
+-- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
 -- Generated on 2026/07/08 at 02:41:26 with the generate.py chip generator
@@ -65,7 +65,7 @@ architecture behav of MCU is
 
     -- M13 TILE EXTRACTION: the vesta core, its adddec and its private TCM no
     -- longer appear inline here — hart 0 is now the SAME hart_tile entity as
-    -- harts 1-3 (hdl/MCU_MP/hart_tile.vhd), and the four tile instances are
+    -- harts 1-3 (hdl/common/hart_tile.vhd), and the four tile instances are
     -- STRUCTURALLY IDENTICAL (one netlist -> one hardened tile in M14).
     -- Every per-instance difference is wiring only: hart_id (mhartid port),
     -- hart 0's flash/XIP + sleep hookup to SPI0, the IRQ enable/priority
@@ -1731,7 +1731,7 @@ begin
             PGEN  => '0'
         );
 
-    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/MCU_MP/hart_tile.vhd). Each
+    -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/common/hart_tile.vhd). Each
     -- tile is a full vesta + its own adddec + private TCM (RAM0, 0x8000).
     -- M12: tiles reset to PC 0x0 like hart 0 and fetch the SHARED boot ROM
     -- through the arbiter — the M3b-M11 preloaded-TCM boot (PC_RST_VAL

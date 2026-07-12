@@ -1,21 +1,21 @@
 ---
 name: castalia-chipgen
-description: Work on the platform_castalia chip generator — add/modify config knobs, droppable peripherals, memory-map or register changes, and TRM documentation. Use whenever editing generate.py/mcu_vhd.py/hdl_templates, adding a CONFIG= schema key, dropping/adding a peripheral instance, or doing TRM/intro work. Encodes the gate ritual, the end-to-end knob checklist, and the degrade idioms that have burned sessions.
+description: Work on the platform/common chip generator — add/modify config knobs, droppable peripherals, memory-map or register changes, and TRM documentation. Use whenever editing generate.py/mcu_vhd.py/hdl_templates, adding a CONFIG= schema key, dropping/adding a peripheral instance, or doing TRM/intro work. Encodes the gate ritual, the end-to-end knob checklist, and the degrade idioms that have burned sessions.
 ---
 
-# platform_castalia chip generator + TRM work
+# platform/common chip generator + TRM work
 
-Single source of truth: `platform_castalia/python/generate.py`. The RTL wins; the
-generator documents it. `hdl/MCU_MP/MCU.vhd` IS the `make chip` product — NEVER
+Single source of truth: `platform/common/python/generate.py`. The RTL wins; the
+generator documents it. `hdl/common/MCU.vhd` IS the `make chip` product — NEVER
 hand-edit it (edit `hdl_templates/MCU.template.vhd` fixed regions or
 generate.py/mcu_vhd.py generated regions, then `make chip` and copy
-`out/hdl/MCU.vhd` over it). Read `platform_castalia/CLAUDE.md` for the current
+`out/hdl/MCU.vhd` over it). Read `platform/common/CLAUDE.md` for the current
 facts; THIS skill is the procedure.
 
 ## THE GATE RITUAL (run after EVERY change, no exceptions)
 
 ```bash
-cd ~/vestarv/platform_castalia
+cd ~/vestarv/platform/common
 make chip [CONFIG=config/foo.json]      # or make generate for artifacts-only
 python3 python/check_mcu_vhd.py         # must exit 0: STRICT IDENTICAL at defaults
 python3 python/check_memorymap_vhd.py   # must end: DROP-IN COMPATIBLE
@@ -116,7 +116,7 @@ The proven chain (G1a i2c1, G1b uart1/spi1/timer1 — mirror them):
 
 ## Never
 
-- Touch `hdl/MCU/` or `platform/` (frozen Myshkin), or overwrite
+- Touch `hdl/myshkin/` or `platform/` (frozen Myshkin), or overwrite
   `software/bootrom/bin/rom.rcf`.
 - Commit without the user's OK; never commit PDK/foundry artifacts (public repo).
 - Renumber IRQ vectors or move the extended-flash base off the strict

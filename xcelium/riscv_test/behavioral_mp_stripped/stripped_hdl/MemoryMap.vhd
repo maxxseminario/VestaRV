@@ -242,7 +242,7 @@ package MemoryMap is
 
 
 	---------- GPIO Register Reset Values ----------
-	-- Transcribed from hdl/MCU_MP/MemoryMap.vhd (RTL port numbering: GPIO0 = P1)
+	-- Transcribed from hdl/common/MemoryMap.vhd (RTL port numbering: GPIO0 = P1)
 	-- GPIO0
 	constant RstValP1OUT	: std_logic_vector(31 downto 0) := X"00000001";	-- cs0 default to '1' to disable flash
 	constant RstValP1DIR	: std_logic_vector(31 downto 0) := X"00000041";	-- only cs0, and trap is an output
@@ -837,7 +837,7 @@ package MemoryMap is
 
 
 	---------- MCU_MP Compatibility ----------
-	-- Constants the hand-written hdl/MCU_MP/MemoryMap.vhd defines beyond the sections
+	-- Constants the hand-written hdl/common/MemoryMap.vhd defines beyond the sections
 	-- above. Emitted so this generated package is a drop-in replacement for that file;
 	-- transcribed values cite it as their source.
 
@@ -888,7 +888,7 @@ package MemoryMap is
 	constant gpio_out_high			: std_logic := '1';						-- GPIO output high
 	constant gpio_out_low			: std_logic := '0';						-- GPIO output low
 
-	-- SYSTEM register slots (RTL spelling; slot values from hdl/MCU_MP/MemoryMap.vhd)
+	-- SYSTEM register slots (RTL spelling; slot values from hdl/common/MemoryMap.vhd)
 	constant RegSlotSYS_CLK_CR		: natural := 00;						-- offset = 0 bytes
 	constant RegSlotSYS_CLK_DIV_CR	: natural := 01;						-- offset = 4 bytes
 	constant RegSlotSYS_BLOCK_PWR	: natural := 02;						-- offset = 8 bytes
@@ -914,7 +914,7 @@ package MemoryMap is
 	constant MmrAddrNPUWVSAR		: natural := 02;						-- offset = 8 bytes
 	constant MmrAddrNPUOVSAR		: natural := 03;						-- offset = 12 bytes
 
-	-- Interrupt Bit Assignments (per-vector; names from hdl/MCU_MP/MemoryMap.vhd)
+	-- Interrupt Bit Assignments (per-vector; names from hdl/common/MemoryMap.vhd)
 	constant IVT_BASE_ADDR			: integer := 16#8000#;					-- IVT base address = 0x8000
 	constant IRQB_SYS_WDT			: natural := 00;						-- Watchdog Timer Interrupt, IVT address = 0x8000
 	constant IRQB_GPIO0_B0			: natural := 01;						-- GPIO0 Bit 0 Interrupt, IVT address = 0x8004

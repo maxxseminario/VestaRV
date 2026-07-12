@@ -3,38 +3,38 @@
 # snapshot. Keep dependencies before dependents (VHDL is order-sensitive).
 
 # --- fixed-point libraries (NPU) ---
-../../../hdl/MCU/commune/fixed_float_types_c.vhdl
-../../../hdl/MCU/commune/fixed_pkg_c.vhdl
+../../../hdl/myshkin/commune/fixed_float_types_c.vhdl
+../../../hdl/myshkin/commune/fixed_pkg_c.vhdl
 
 # --- core constants / memory map ---
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
+../../../hdl/myshkin/constants.vhd
+../../../hdl/myshkin/MemoryMap.vhd
 
 # --- simulation / commune support ---
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/sim/ClockMuxGlitchFree.vhd
-../../../hdl/MCU/commune/ClkDivPower2.vhd
-../../../hdl/MCU/commune/CRC16.vhd
-../../../hdl/MCU/commune/ARM_IP_RAM.vhd
-../../../hdl/MCU/commune/FPMac.vhd
-../../../hdl/MCU/commune/FPSigmoid.vhd
+../../../hdl/myshkin/sim/ClkGate.vhd
+../../../hdl/myshkin/sim/ClockMuxGlitchFree.vhd
+../../../hdl/myshkin/commune/ClkDivPower2.vhd
+../../../hdl/myshkin/commune/CRC16.vhd
+../../../hdl/myshkin/commune/ARM_IP_RAM.vhd
+../../../hdl/myshkin/commune/FPMac.vhd
+../../../hdl/myshkin/commune/FPSigmoid.vhd
 
 # --- shared testbench packages ---
-../../../hdl/MCU/tb/periph_tb_pkg.vhd
-../../../hdl/MCU/tb/i2c_bfm_pkg.vhd
-../../../hdl/MCU/tb/spi_bfm_pkg.vhd
-../../../hdl/MCU/tb/uart_bfm_pkg.vhd
+../../../hdl/myshkin/tb/periph_tb_pkg.vhd
+../../../hdl/myshkin/tb/i2c_bfm_pkg.vhd
+../../../hdl/myshkin/tb/spi_bfm_pkg.vhd
+../../../hdl/myshkin/tb/uart_bfm_pkg.vhd
 
 # --- peripherals under test ---
-../../../hdl/MCU/periph/SYSTEM.vhd
-../../../hdl/MCU/periph/I2C.vhd
-../../../hdl/MCU/periph/SPI.vhd
-../../../hdl/MCU/periph/UART.vhd
-../../../hdl/MCU/periph/NPU.vhd
+../../../hdl/myshkin/periph/SYSTEM.vhd
+../../../hdl/myshkin/periph/I2C.vhd
+../../../hdl/myshkin/periph/SPI.vhd
+../../../hdl/myshkin/periph/UART.vhd
+../../../hdl/myshkin/periph/NPU.vhd
 
 # --- self-checking testbenches (each a top-level snapshot) ---
-../../../hdl/MCU/tb/SYSTEM_tb.vhd
-../../../hdl/MCU/tb/I2C_tb.vhd
-../../../hdl/MCU/tb/SPI_tb.vhd
-../../../hdl/MCU/tb/UART_tb.vhd
-../../../hdl/MCU/tb/NPU_tb.vhd
+../../../hdl/myshkin/tb/SYSTEM_tb.vhd
+../../../hdl/myshkin/tb/I2C_tb.vhd
+../../../hdl/myshkin/tb/SPI_tb.vhd
+../../../hdl/myshkin/tb/UART_tb.vhd
+../../../hdl/myshkin/tb/NPU_tb.vhd

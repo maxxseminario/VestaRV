@@ -36,10 +36,10 @@ extern "C" {
 #define PERIPH_SPI1_BASE        (0x4300)
 #define PERIPH_UART0_BASE       (0x4400)
 #define PERIPH_UART1_BASE       (0x4500)
-// M6 (multi-core, hdl/MCU_MP only): UART0 is the SHARED console UART behind
+// M6 (multi-core, hdl/common only): UART0 is the SHARED console UART behind
 // the mp_arbiter — all 4 harts reach it here; the 0x4400 window reads zeros.
 #define PERIPH_UART0_SH_BASE    (0x12000)
-// M7a/M7b (multi-core, hdl/MCU_MP only): the 0x13000 page is 16 x 256B
+// M7a/M7b (multi-core, hdl/common only): the 0x13000 page is 16 x 256B
 // shared-peripheral slots behind the mp_arbiter, slot numbers MIRRORING the
 // 0x4000 page (old windows read zeros). Slot 9 = the per-hart IRQ router
 // (M7a: HhENL/M/U at +0x10*h + 0/4/8, contiguous packing, resets masked).

@@ -2,8 +2,8 @@
 # =============================================================================
 # run_arbiter.sh  (M3c) -- standalone self-checking sim for mp_arbiter.
 #
-# Compiles + elaborates + simulates hdl/MCU_MP/mp_arbiter.vhd against its
-# self-checking testbench hdl/MCU_MP/tb/mp_arbiter_tb.vhd (4 synthetic masters
+# Compiles + elaborates + simulates hdl/common/mp_arbiter.vhd against its
+# self-checking testbench hdl/common/tb/mp_arbiter_tb.vhd (4 synthetic masters
 # contending for one shared single-port RAM). PASS iff the log contains the
 # scoreboard banner "ALL CHECKS PASSED".
 #
@@ -15,7 +15,7 @@
 set -e
 source ~/vestarv/cdspaths.sh
 
-HDL=~/vestarv/hdl/MCU_MP
+HDL=~/vestarv/hdl/common
 RUN_DIR="$(cd "$(dirname "$0")" && pwd)/work"
 rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR"; cd "$RUN_DIR"
 

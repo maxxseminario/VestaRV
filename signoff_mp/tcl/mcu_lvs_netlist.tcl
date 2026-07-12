@@ -10,7 +10,7 @@
 # (M14/M16 devlogs) is: patch dbs/*.dat/MCU.mode (-tapeOut false) +
 # set restore_db_file_check 0. The .mode file is patched on disk.
 set restore_db_file_check 0
-restoreDesign /home/mseminario2/vestarv/innovus_mp/dbs/MCU_MP.signoff.innovus.dat MCU
+restoreDesign /home/mseminario2/vestarv/innovus/common/dbs/MCU_MP.signoff.innovus.dat MCU
 
 saveNetlist \
     -excludeLeafCell \

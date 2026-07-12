@@ -9,7 +9,7 @@
 #
 # Headless twin: ./xrun_batch.sh [test]  (-> xrun.log)
 #
-# DUT = innovus_mp/out/{MCU_ARGUS.xsim.clean.v + hart_tile_argus.xsim.v}, SDF
+# DUT = innovus/common/out/{MCU_ARGUS.xsim.clean.v + hart_tile_argus.xsim.v}, SDF
 # via MCU_ARGUS_hier.sdfcmd (top + 18 tile scopes, MAXIMUM). Argus images live
 # in ../rca (A3: 29-char TEST_FILE, x-padded basenames). Tiles boot from the
 # shared ROM like silicon — the local rom_hvt_pg_verilog.rcf is the CURRENT

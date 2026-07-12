@@ -5,7 +5,7 @@
 #
 # You can restore this configuration with:
 #
-#      xrun /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/vhdl/tsmc65_hvt_sc_adv10.vhd ../../../ip/sram2p16k_hvt_pg/sram2p16k_hvt_pg.v ../../../genus/out/NPU.genus.v ../../../hdl/MCU/libraries/fixed_float_types_c.vhdl ../../../hdl/MCU/libraries/fixed_pkg_c.vhdl ../../../hdl/MCU/tb/NPU_tb.vhd -top npu_tb -sdf_cmd_file NPU.sdfcmd -sdfstats log/sdf_stats.log -sdf_verbose -v200x -work work -access +r -controlrelax nlstex -relax -input ./restore.tcl -input ./disable_x_warnings.tcl -input restore.tcl
+#      xrun /opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/vhdl/tsmc65_hvt_sc_adv10.vhd ../../../ip/sram2p16k_hvt_pg/sram2p16k_hvt_pg.v ../../../genus/out/NPU.genus.v ../../../hdl/myshkin/libraries/fixed_float_types_c.vhdl ../../../hdl/myshkin/libraries/fixed_pkg_c.vhdl ../../../hdl/myshkin/tb/NPU_tb.vhd -top npu_tb -sdf_cmd_file NPU.sdfcmd -sdfstats log/sdf_stats.log -sdf_verbose -v200x -work work -access +r -controlrelax nlstex -relax -input ./restore.tcl -input ./disable_x_warnings.tcl -input restore.tcl
 #
 
 set tcl_prompt1 {puts -nonewline "xcelium> "}

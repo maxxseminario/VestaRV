@@ -1,8 +1,8 @@
 # Castalia GPIO Alternate-Function Flexibility — Analysis & Plan
 
 *Status: **v1 IMPLEMENTED** (output-function spread), 2026-07-10; **v2 IMPLEMENTED**
-(input relocation + AF1-gap fill), 2026-07-11 — see §6. Target: `hdl/MCU_MP`
-(Castalia, `multicore-mp`), generated via `platform_castalia`.*
+(input relocation + AF1-gap fill), 2026-07-11 — see §6. Target: `hdl/common`
+(Castalia, `multicore-mp`), generated via `platform/common`.*
 
 ## v1 result (implemented 2026-07-10)
 
@@ -19,7 +19,7 @@ new planes are additive output aggregates that never touch a peripheral input pa
 *Update (G1b, 2026-07-11): the spread pool is config-aware — a dropped second
 instance (`peripherals.uart1/spi1/timer1 = false`) removes its outputs (TX1,
 SCK1/MOSI1, T1CMP0/1) from the pool and their plane slots revert to Hi-Z. The
-spread planes are now emitted by `platform_castalia/python/mcu_vhd.py` from the
+spread planes are now emitted by `platform/common/python/mcu_vhd.py` from the
 filtered pool rather than carried as fixed template text.*
 
 *Original analysis + plan follows.*
@@ -94,13 +94,13 @@ the value is **routing choice**, not duplicated peripherals.
 
 ## 4. Implementation path (matches the generator flow)
 
-1. **`platform_castalia/python/generate.py`** — extend each pin's `altFuncs` to
+1. **`platform/common/python/generate.py`** — extend each pin's `altFuncs` to
    AF1–AF7. Single source of truth: generates the `pnum_gpio*_afN_*` constants
    (`MemoryMap.vhd`), pin reset attrs, and TRM Table 3 (now real functions, not Hi-Z).
-2. **`platform_castalia/hdl_templates/MCU.template.vhd`** — expand the AF-routing
+2. **`platform/common/hdl_templates/MCU.template.vhd`** — expand the AF-routing
    region: per-port plane aggregates for planes 2–7, the 8-wide flatten, and extend
    the input relocation muxes (priority across each function's candidate pins).
-3. `make chip` → copy `out/hdl/MCU.vhd` over `hdl/MCU_MP/MCU.vhd` →
+3. `make chip` → copy `out/hdl/MCU.vhd` over `hdl/common/MCU.vhd` →
    **`check_mcu_vhd.py` exit 0** (byte-identical) and `check_memorymap_vhd.py` clean.
 4. **`behavioral_mp` regression** green (proves AF0/boot untouched) + a `GPIO_tb`
    plane-select check.
@@ -143,7 +143,7 @@ candidate pin's `PxAFS` only) to fixed-priority chains: **v2 pad > AF1 pad > hom
 (selecting one input on two pins at once is a software error; priority makes it
 deterministic). The two v2 spread io slots wire literal pin indices (no `pnum`,
 FromSpread); the four AF1 slots get real `pnum_gpio{1,2}_af1_*` constants (added to
-`hdl/MCU_MP/MemoryMap.vhd` + `_mcuMpPnums`, bidirectional cross-check). RX1 and
+`hdl/common/MemoryMap.vhd` + `_mcuMpPnums`, bidirectional cross-check). RX1 and
 UART1/I2C1's existing 2-location sets were left alone — a third location would have
 collided with the existing `pnum_gpio2_af1_rx1`-class names for no bus-completion gain.
 

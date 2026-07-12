@@ -5,7 +5,7 @@
 #
 # You can restore this configuration with:
 #
-#      xrun ../../../hdl/MCU/commune/fixed_float_types_c.vhdl ../../../hdl/MCU/commune/fixed_pkg_c.vhdl ../../../hdl/MCU/constants.vhd ../../../hdl/MCU/MemoryMap.vhd ../../../hdl/MCU/commune/ClkGate.vhd ../../../hdl/MCU/ARM_IP_RAM.vhd ../../../hdl/MCU/commune/FPMac.vhd ../../../hdl/MCU/commune/FPSigmoid.vhd ../../../hdl/MCU/periph/NPU.vhd ../../../hdl/MCU/tb/NPU_tb.vhd -top NPU_tb -v200x -work work -access +r -controlrelax nlstex -relax -s -input restore.tcl
+#      xrun ../../../hdl/myshkin/commune/fixed_float_types_c.vhdl ../../../hdl/myshkin/commune/fixed_pkg_c.vhdl ../../../hdl/myshkin/constants.vhd ../../../hdl/myshkin/MemoryMap.vhd ../../../hdl/myshkin/commune/ClkGate.vhd ../../../hdl/myshkin/ARM_IP_RAM.vhd ../../../hdl/myshkin/commune/FPMac.vhd ../../../hdl/myshkin/commune/FPSigmoid.vhd ../../../hdl/myshkin/periph/NPU.vhd ../../../hdl/myshkin/tb/NPU_tb.vhd -top NPU_tb -v200x -work work -access +r -controlrelax nlstex -relax -s -input restore.tcl
 #
 
 set tcl_prompt1 {puts -nonewline "xcelium> "}
