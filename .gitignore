@@ -4,9 +4,14 @@
 # genus  = synthesis, innovus = place & route, xcelium = simulation, .cadence = session state
 genus/
 # innovus/myshkin is frozen single-core PD output -- entirely generated, never committed.
-# innovus/common (was innovus_mp/) holds hand-maintained tcl/sh/Makefile source and is
-# NOT blanket-ignored here -- its own build-artifact dirs are dropped further down.
+# innovus/common (was innovus_mp/) holds hand-maintained tcl/sh/Makefile source PLUS a
+# large amount of generated + PDK-derived P&R output (dbs/ out/ log/ rpt/ work/
+# timingReports/, qrc/voltus logs, timing files, via-viol reports, netlists...). Like the
+# old blanket `innovus/` rule and innovus/myshkin/, both trees are ignored wholesale; the
+# hand-maintained source (Makefile, prep_top_netlist*.sh, tcl/, in/chip_top.*) is already
+# tracked and stays tracked -- add any NEW source file with `git add -f`.
 innovus/myshkin/
+innovus/common/
 .cadence/
 # Pegasus/Calibre DRC-LVS run logs:
 ic_bad/

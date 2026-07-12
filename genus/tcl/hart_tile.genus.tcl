@@ -128,7 +128,7 @@ set_db use_tiehilo_for_const duplicate
 # Read HDL -- the hart_tile subset of the MCU_MP tree
 ################################################################################
 puts "Reading HDL (hart_tile subset)"
-set MP $HDL_DIR/MCU_MP
+set MP $HDL_DIR/common
 
 # Packages + the synthesizable clock-gate wrapper
 read_hdl -vhdl -library work $MP/constants.vhd
