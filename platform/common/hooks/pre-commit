@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# VestaRV pre-commit hook — block commits that would ship a STALE Castalia TRM.
+#
+# Rationale: implementations/asic/castalia/docs/TRM.pdf is a REAL committed file (so it is
+# clickable from the GitHub page — a symlink into the gitignored build tree would dangle).
+# It is refreshed by 'make publish' in platform/common. This hook makes staleness a hard
+# error instead of something you have to remember, using the reproducible-PDF check-publish
+# target (identical TRM.tex -> byte-identical TRM.pdf via SOURCE_DATE_EPOCH).
+#
+# Only runs when TRM-relevant files are staged. Bypass with 'git commit --no-verify'.
+# Install with: make -C platform/common install-hook
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+gen="$root/platform/common"
+
+# Trigger only when something that can change the TRM is staged: the generator sources,
+# the LaTeX, the Makefile, or the published PDF itself.
+if ! git diff --cached --name-only | grep -Eq \
+   '^platform/common/(python/|latex/|hdl_templates/|Makefile)|^implementations/asic/castalia/docs/TRM\.pdf$'; then
+   exit 0
+fi
+
+# Need a generated TeX to check against; if 'make chip' has never run in this clone, skip
+# rather than block (nothing to compare, and the RTL gates already force the chip rebuild).
+if [ ! -f "$gen/latex/TRM/TRM.tex" ]; then
+   echo "⚠️  pre-commit: latex/TRM/TRM.tex not generated — skipping TRM freshness check (run 'make -C platform/common chip')." >&2
+   exit 0
+fi
+
+# Need pdflatex to rebuild; if this machine has no TeX, skip rather than block the commit.
+if ! command -v pdflatex >/dev/null 2>&1 && ! ls "$HOME"/texlive/*/bin/*/pdflatex >/dev/null 2>&1; then
+   echo "⚠️  pre-commit: pdflatex not found — skipping TRM freshness check." >&2
+   exit 0
+fi
+
+echo "pre-commit: verifying the published TRM is up to date..." >&2
+if ! make -C "$gen" --no-print-directory check-publish >&2; then
+   echo "" >&2
+   echo "❌ Commit blocked: the published TRM is stale or missing." >&2
+   echo "   Fix:  make -C platform/common chip && make -C platform/common publish" >&2
+   echo "         git add implementations/asic/castalia/docs/TRM.pdf" >&2
+   echo "   Bypass (only if the PDF is intentionally unchanged): git commit --no-verify" >&2
+   exit 1
+fi
