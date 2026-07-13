@@ -2,9 +2,15 @@
 # Source of truth: python/generate.py — everything else is generated from it.
 # All outputs stay inside platform/common/ (never touches ../../hdl, ../../software, ../../tools).
 
-.PHONY: all help chip generate pdf publish check-publish install-hook show config verify clean install-deps
+.PHONY: all help chip generate pdf publish check-publish publish-chip check-chip install-hook show config verify clean install-deps
 
-PUBLISH_PDF = ../../implementations/asic/castalia/docs/TRM.pdf
+# Which implementations/asic/<CHIP>/docs/TRM.pdf the publish/check targets act on.
+# The default build ('make chip') is Castalia; a non-default chip also needs its CONFIG,
+# so use the publish-chip / check-chip convenience targets (they build the requested chip
+# then regenerate the default Castalia artifacts so out/ and the tracked resolved-config
+# JSON go back to HEAD).
+CHIP ?= castalia
+PUBLISH_PDF = ../../implementations/asic/$(CHIP)/docs/TRM.pdf
 
 # pdflatex: PATH first, then any user-local TeX Live install
 PDFLATEX := $(shell command -v pdflatex 2>/dev/null || ls $(HOME)/texlive/*/bin/*/pdflatex 2>/dev/null | head -1)
@@ -51,6 +57,9 @@ help:
 	@echo "                      (then review + commit it yourself)"
 	@echo "  make check-publish- Verify the committed TRM matches the generator (byte-diff a"
 	@echo "                      deterministic rebuild vs the published PDF; exit 1 if stale)"
+	@echo "  make publish-chip - Build + publish a non-default chip's TRM, then restore Castalia"
+	@echo "                      (e.g. make publish-chip CHIP=argus CONFIG=config/argus.json)"
+	@echo "  make check-chip   - check-publish for a non-default chip (CHIP=/CONFIG= as above)"
 	@echo "  make install-hook - Install a pre-commit hook that runs check-publish"
 	@echo "  make show         - Show the resolved chip configuration + derived pad ring"
 	@echo "                      (reads config/ChipConfig.resolved.json from the last build)"
@@ -102,12 +111,14 @@ pdf:
 	@if [ ! -f latex/TRM/TRM.tex ]; then \
 		echo "❌ latex/TRM/TRM.tex not generated yet. Run 'make chip' first."; \
 		exit 1; fi
-	@echo "Compiling TRM (two pdflatex passes)..."
+	@echo "Compiling TRM (clean .aux + 3 pdflatex passes: converged AND reproducible)..."
 	@cd latex/TRM && \
 		export SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH) FORCE_SOURCE_DATE=1 && \
-		'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 && \
-		'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 || \
-		{ echo "❌ pdflatex failed — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }
+		rm -f TRM.aux TRM.toc TRM.out TRM.lof TRM.lot TRM.idx && \
+		for pass in 1 2 3; do \
+			'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 || \
+			{ echo "❌ pdflatex failed (pass $$pass) — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }; \
+		done
 	@grep -E "Output written|^!" latex/TRM/build.log | head -3
 	@echo "✅ latex/TRM/TRM.pdf (reproducible; SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH))"
 
@@ -137,6 +148,28 @@ check-publish: pdf
 		echo "❌ Published TRM is STALE: latex/TRM/TRM.pdf differs from $(PUBLISH_PDF)"; \
 		echo "   Refresh it:  make publish   (then: git add $(PUBLISH_PDF))"; \
 		exit 1; fi
+
+# Build + publish one chip's TRM in a single step, then restore the default (Castalia)
+# artifacts. Use for non-default chips, which need their CONFIG:
+#   make publish-chip CHIP=argus CONFIG=config/argus.json
+# The trailing 'generate' returns out/ and the tracked config/*.resolved.json to Castalia
+# (the CLAUDE.md "re-run plain make chip after any Argus-config run" idiom, baked in).
+publish-chip:
+	@$(MAKE) --no-print-directory generate CONFIG=$(CONFIG)
+	@$(MAKE) --no-print-directory pdf
+	@$(MAKE) --no-print-directory publish CHIP=$(CHIP)
+	@$(MAKE) --no-print-directory generate CONFIG= >/dev/null
+	@echo "↩  restored default (Castalia) artifacts"
+
+# Non-default-chip drift check (manual; the pre-commit hook only gates the default
+# Castalia TRM to avoid churning the tracked resolved-config JSON):
+#   make check-chip CHIP=argus CONFIG=config/argus.json
+check-chip:
+	@$(MAKE) --no-print-directory generate CONFIG=$(CONFIG)
+	@$(MAKE) --no-print-directory check-publish CHIP=$(CHIP); rc=$$?; \
+	 $(MAKE) --no-print-directory generate CONFIG= >/dev/null; \
+	 echo "↩  restored default (Castalia) artifacts"; \
+	 exit $$rc
 
 # Install the pre-commit hook that runs check-publish so a stale TRM can't be committed.
 # The hook SOURCE is tracked at hooks/pre-commit; this copies it into the repo's .git.
