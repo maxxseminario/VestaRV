@@ -2,12 +2,20 @@
 # Source of truth: python/generate.py — everything else is generated from it.
 # All outputs stay inside platform/common/ (never touches ../../hdl, ../../software, ../../tools).
 
-.PHONY: all help chip generate pdf publish show config verify clean install-deps
+.PHONY: all help chip generate pdf publish check-publish install-hook show config verify clean install-deps
 
 PUBLISH_PDF = ../../implementations/asic/castalia/docs/TRM.pdf
 
 # pdflatex: PATH first, then any user-local TeX Live install
 PDFLATEX := $(shell command -v pdflatex 2>/dev/null || ls $(HOME)/texlive/*/bin/*/pdflatex 2>/dev/null | head -1)
+
+# Reproducible-PDF anchor: with SOURCE_DATE_EPOCH set, pdfTeX (>=1.40.17) pins the
+# embedded /CreationDate, /ModDate AND the trailer /ID, so identical TRM.tex -> byte-
+# identical TRM.pdf. This is what makes 'make check-publish' a meaningful byte-diff.
+# It is an ARBITRARY FIXED instant (2025-01-01 UTC), not the build time — every TRM
+# content date is config-driven, so this only affects otherwise-nondeterministic PDF
+# metadata. Do not derive it from HEAD/now, or rebuilds stop being reproducible.
+SOURCE_DATE_EPOCH ?= 1735689600
 
 # Optional chip-name override for the whole configuration (TRM title page/prose,
 # generated file headers): make chip CHIP_NAME=MyChip
@@ -41,6 +49,9 @@ help:
 	@echo "  make pdf          - Compile the Technical Reference Manual PDF only"
 	@echo "  make publish      - Copy the built TRM.pdf to implementations/asic/castalia/docs/"
 	@echo "                      (then review + commit it yourself)"
+	@echo "  make check-publish- Verify the committed TRM matches the generator (byte-diff a"
+	@echo "                      deterministic rebuild vs the published PDF; exit 1 if stale)"
+	@echo "  make install-hook - Install a pre-commit hook that runs check-publish"
 	@echo "  make show         - Show the resolved chip configuration + derived pad ring"
 	@echo "                      (reads config/ChipConfig.resolved.json from the last build)"
 	@echo "  make verify       - Prove the configuration BOOTS: stage the generated RTL into"
@@ -93,11 +104,12 @@ pdf:
 		exit 1; fi
 	@echo "Compiling TRM (two pdflatex passes)..."
 	@cd latex/TRM && \
+		export SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH) FORCE_SOURCE_DATE=1 && \
 		'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 && \
 		'$(PDFLATEX)' -interaction=nonstopmode TRM.tex > build.log 2>&1 || \
 		{ echo "❌ pdflatex failed — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }
 	@grep -E "Output written|^!" latex/TRM/build.log | head -3
-	@echo "✅ latex/TRM/TRM.pdf"
+	@echo "✅ latex/TRM/TRM.pdf (reproducible; SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH))"
 
 # Publish the built TRM to the repo's implementations tree (committing is left to you,
 # so a stale or broken PDF never gets pushed by accident)
@@ -109,6 +121,31 @@ publish:
 	@cp latex/TRM/TRM.pdf $(PUBLISH_PDF)
 	@echo "✅ Published to $(PUBLISH_PDF)"
 	@echo "   Review and commit it: git add $(PUBLISH_PDF) && git commit"
+
+# Drift gate (the check_mcu_vhd.py analog for the TRM): rebuild the PDF deterministically
+# from the CURRENT generated latex/TRM/TRM.tex and byte-compare it to the committed copy.
+# Exit 0 = the published TRM matches what the generator produces; exit 1 = STALE.
+# Assumes the TeX is current — run 'make generate' (or 'make chip') first if generate.py,
+# the templates, or intro tex changed. Used by the pre-commit hook (see install-hook).
+check-publish: pdf
+	@if [ ! -f $(PUBLISH_PDF) ]; then \
+		echo "❌ No published TRM at $(PUBLISH_PDF) — run 'make publish' to create it."; \
+		exit 1; fi
+	@if cmp -s latex/TRM/TRM.pdf $(PUBLISH_PDF); then \
+		echo "✅ Published TRM is up to date: $(PUBLISH_PDF)"; \
+	else \
+		echo "❌ Published TRM is STALE: latex/TRM/TRM.pdf differs from $(PUBLISH_PDF)"; \
+		echo "   Refresh it:  make publish   (then: git add $(PUBLISH_PDF))"; \
+		exit 1; fi
+
+# Install the pre-commit hook that runs check-publish so a stale TRM can't be committed.
+# The hook SOURCE is tracked at hooks/pre-commit; this copies it into the repo's .git.
+install-hook:
+	@hookdir="$$(cd ../.. && git rev-parse --absolute-git-dir)/hooks"; \
+	 mkdir -p "$$hookdir"; \
+	 cp hooks/pre-commit "$$hookdir/pre-commit"; \
+	 chmod +x "$$hookdir/pre-commit"; \
+	 echo "✅ Installed pre-commit hook -> $$hookdir/pre-commit"
 
 show config:
 	@./show_config.sh
