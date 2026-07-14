@@ -315,15 +315,35 @@ executeProgram:
     sw a6, SPI_TX(a0) // Write to SPI Flash Transmit Register
     jal ra, spi0_wait_until_tx_complete // Wait until SPI transfer is complete
 
+    // M19c bootrom fix (a): quiesce SPI0 across the PxSEL pin flip, then restore
+    // the CR byte-identical. The flip releases GPIO0's SPI pads; the flip-instant
+    // transient could otherwise reach FlashActive -> disable_clk_cpu
+    // (= FlashActive, SPI.vhd:653) -> hart0 clk_cpu -> chip death (boot-end
+    // "HAZARD 1"; pre-fix this killed irqctx/shirq at ~13.41 ms). Writing
+    // SPI_CR=0 (spi_en=spi_fen=0) async-holds FlashActive=0 (SPI.vhd:555-564)
+    // across the flip; the restore returns the post-boot CR byte-identical
+    // (0x108C8) so the XIP state apps may rely on is preserved.
+    // NOTE (2026-07-13): this closes HAZARD 1 but does NOT get the binding gate
+    // smoke to 7/7 — irqctx/shirq are ALSO killed by a SEPARATE core X at the
+    // IRET (M19 irtr0 in_service, the worst setup path), which is RTL, not
+    // bootrom. See .devlog/2026-07-13-m19c-physical-reharden.md.
+    // t2 is dead here (a0=SPI0 base, a1=GPIO0 base stay live; a2 is the only reg
+    // clobbered between save and restore).
+    lw t2, SPI_CR(a0)   // save SPI0 control register
+    sw zero, SPI_CR(a0) // spi_en=0, spi_fen=0 -> FlashActive held 0 across the flip
+
     //Set GPIO0 to not alternative function mode (save TRAP pin)
     li a2, GPIO0_TRAP_MASK  // Load GPIO0 TRAP and CS Flash mask
     sw a2, GPIO_PxSEL(a1) // Set GPIO Select Register to not alternative function mode
-    
+
     //Deassert CS
     li a2, GPIO0_CS_MASK // Load CS Flash mask
     sw a2, GPIO_PxOUTS(a1) // Set GPIO Output Register to set (deassert) CS bit
 
-    
+    //Restore SPI0 CR byte-identical (post-boot XIP contract preserved)
+    sw t2, SPI_CR(a0)   // post-boot SPI_CR == 0x108C8, unchanged from pre-M19c
+
+
     
     # //Set smclk to lfxt 
     li t0, PERIPH_SYSTEM0_BASE

@@ -2086,8 +2086,14 @@ class ChipGenerator():
 		for i, entry in enumerate(c['irqVectors']):
 			name, description = entry
 			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(i, 2) + ';', '-- ' + description + ', IVT address = ' + self.fmthex(self.VectorsStartAddress + i * 4)], prefixTabs=1)
-		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(self.VectorsCount) + ';', '-- Total number of IRQs'], prefixTabs=1)
-		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
+		# M19: the SOURCE count (deglitch/irq_router width) and the core's IVT
+		# slot count split — slot VectorsCount (85) is the meip external-IRQ
+		# vector, delivered by the irq_router's claim/complete stage, not a
+		# deglitched peripheral source.
+		t.AddRow(['constant IRQB_EXT_MEIP', ': natural := ' + self.fmtint(self.VectorsCount, 2) + ';', '-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = ' + self.fmthex(self.VectorsStartAddress + self.VectorsCount * 4)], prefixTabs=1)
+		t.AddRow(['constant NUM_IRQ_SRCS', ': natural := ' + str(self.VectorsCount) + ';', '-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)'], prefixTabs=1)
+		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(self.VectorsCount + 1) + ';', '-- Core IVT slot count = sources + the meip slot (M19)'], prefixTabs=1)
+		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQ_SRCS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# Core ISA feature switches (config-driven): consumed by MCU.vhd's hart_tile

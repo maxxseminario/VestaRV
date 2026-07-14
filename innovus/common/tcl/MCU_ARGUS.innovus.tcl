@@ -26,12 +26,13 @@
 #   row 1   : MX  (pins UP -- flipped!)              y 1253..1938
 #   B2 band : 30um std-cell band BETWEEN rows 1 and 2, y 1938..1968.
 #             Row 1's pins face its bottom edge, row 2's pins face its top
-#             edge. B2 hosts irtr0 (the 18x85 tile_irq_en fan-out source,
-#             region-constrained here) + the per-tile TIELO/TIEHI cells
-#             (~155 constant pins per tile: irq_prio_ext/hart_id/flash_dout)
-#             so neither the irq_en fan-out nor the tie nets cross the tile
-#             rows. gf_out (85, shared irq vector) rises B1->B2 once and
-#             distributes to rows 1/2 locally.
+#             edge. B2 is a pin-escape + tie/buffer band (irtr0 itself is
+#             region'd into B1 -- the v4.5 note below). M19c: the 18x85
+#             tile_irq_en fan-out and the 85-wide gf vector to tiles are
+#             GONE -- irtr0 sends ONE meip wire per tile (the deglitched
+#             vector terminates inside the router); per-tile TIELO/TIEHI
+#             constant pins drop ~155 -> ~64 (hart_id/flash_dout;
+#             irq_prio_ext retired with the M19 ports).
 #   row 2   : R0  (pins DOWN into B2)                y 1968..2653
 # Cut math after the move: rows 1+2 send only their ~135 real fabric nets per
 # tile (sh bus ~95, a0/trap 33, pd/misc) through the channels: ~1730 tracks
@@ -59,9 +60,12 @@
 # NOTE (PG-track): the pmk VDDG/VNW/VPW hookup stays the pre-PG4 form = the
 # documented PG2-F1 phantom; the fix is the PG-track re-harden, NOT A4's.
 #
-# hw_clint_en: the Argus MCU.vhd drives it EXPLICITLY per tile (hart0='0',
-# harts 1-17='1') -- the netlist carries the straps, so the M14 "VHDL default
-# lost at the netlist boundary" silicon bug does NOT apply here (verified).
+# meip_in (M19c; replaces the retired hw_clint_en strap): the router's
+# per-hart claim/complete output -- ONE wire per tile from irtr0, wired
+# EXPLICITLY per hart in the Argus MCU.vhd, so the M14 "VHDL default lost at
+# the netlist boundary" class does not apply. msip/mtip wiring unchanged.
+# Tile pin total drops ~255 vs the M17 netlist (irq_ext/irq_en_ext/
+# irq_prio_ext/irq_recursion_en/hw_clint_en/isr_ret retired).
 #
 # Netlist: in/MCU_ARGUS_hier.pnr.v = MCU_ARGUS_hier.genus.v with the hart_tile
 # subtree stripped (prep_top_netlist_argus.sh) so innovus binds hart_tile to
@@ -544,9 +548,16 @@ createRouteBlk -box 0 0 $DESIGN_WIDTH $DESIGN_HEIGHT -layer 8
 ################################################################################
 # Spurious clock-gating checks on the TIMER ClockMuxGlitchFree select legs
 # (glitch-free by construction; gate names are genus-mapped -- catch-guarded so
-# a resynth rename can't abort the run).
+# a resynth rename can't abort the run). WITHOUT the disable, hold-fixing burns
+# ~11 ns of DLY cells chasing the unmeetable -8.3 ns hold and the over-inserted
+# delay line then overshoots one mclk period into a setup miss (M14 precedent).
+# NETLIST-DEPENDENT names: after any MCU_ARGUS_hier re-synth, re-derive with
+#   grep -nE '\.AN \(control_reg\[16\]\), \.B \(clock_source\)' \
+#        innovus/common/in/MCU_ARGUS_hier.pnr.v
+# and update the list (the NAND2B in module TIMER -> timer0, TIMER_1 -> timer1).
+# M19 re-emit (Stage 4) renamed g11710 -> g3282 (timer0) / g3281 (timer1).
 set_interactive_constraint_modes [all_constraint_modes -active]
-foreach g {timer0/g11710 timer1/g11710} {
+foreach g {timer0/g3282 timer1/g3281} {
 	if {[catch {set_disable_clock_gating_check $g} r]} {
 		puts "gating-check disable SKIPPED for $g: $r"
 	} else {

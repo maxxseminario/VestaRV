@@ -55,20 +55,19 @@ architecture behav of MCU is
     -- harts 1-3 (hdl/common/hart_tile.vhd), and the four tile instances are
     -- STRUCTURALLY IDENTICAL (one netlist -> one hardened tile in M14).
     -- Every per-instance difference is wiring only: hart_id (mhartid port),
-    -- hart 0's flash/XIP + sleep hookup to SPI0, the IRQ enable/priority
-    -- source (SYSTEM0 on hart 0, irq_router row + hardwired CLINT slots on
-    -- tiles) and the TCM PGEN (BLOCKPWR on hart 0). The vesta and adddec
-    -- component declarations went with the inline hart-0 machinery.
+    -- hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR
+    -- on hart 0). M19: the IRQ interface is IDENTICAL on every hart —
+    -- msip/mtip from the CLINT + one meip wire from the irq_router's
+    -- claim/complete stage (SYSTEM0's vectored path is retired). The vesta
+    -- and adddec component declarations went with the inline hart-0
+    -- machinery.
 
     ----------------------------------- Peripherals --------------------------------------------------
 
     -- SYSTEMx
     component SYSTEM
-        generic (
-            NUM_IRQS    : natural := 32
-        );
         port (
-            -- Clock Inputs 
+            -- Clock Inputs
             clk_lfxt_in     : in  std_logic;
             clk_hfxt_in     : in  std_logic;
             clk_dco0_in     : in  std_logic;
@@ -79,13 +78,11 @@ architecture behav of MCU is
             resetn_por      : in  std_logic;
             resetn_sys      : out std_logic;
 
-            -- Interrupt Signals
-            irq             : in  std_logic_vector(NUM_IRQS -1 downto 0); 
-            isr_ret         : in  std_logic;
-            irq_en          : out std_logic_vector(NUM_IRQS -1 downto 0);
-            irq_priority    : out std_logic_vector(NUM_IRQS -1 downto 0);
-            irq_recursion_en: out std_logic;
+            -- Interrupt Signals (M19: WDT only — the vectored controller is
+            -- retired; routing/delivery live in the irq_router)
             irq_sys_wdt     : out std_logic;
+            wdt_irq_routed   : in  std_logic := '0';
+            wdt_irq_complete : in  std_logic := '0';
 
             -- Memory Bus
             clk_mem         : in  std_logic;
@@ -347,14 +344,13 @@ architecture behav of MCU is
     -- MCU Block Level Signal Declarations --------------------------------------
 
         -- System Signals 
-        signal resetn           : std_logic; 
+        signal resetn           : std_logic;
         signal resetn_por       : std_logic;
-        signal resetn_sys       : std_logic; 
-        signal irq_en           : std_logic_vector(NUM_IRQS-1 downto 0);
-        signal irq_priority     : std_logic_vector(NUM_IRQS-1 downto 0);
-        signal isr_ret          : std_logic; -- Interrupt Service Routine Return Signal
-        signal irq_recursion_en : std_logic; -- Allow Interrupt Recursion
-        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs 
+        signal resetn_sys       : std_logic;
+        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/
+        -- irq_recursion_en) is RETIRED — delivery is the irq_router's
+        -- per-hart meip wires (claim/complete), declared at meip-decl below.
+        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs
         signal sleep_cpu        : std_logic;
         signal PGENROM          : std_logic; -- Active low power rom power gating
         signal PGENSRAM         : std_logic; -- Active low power ram power gating
@@ -373,9 +369,8 @@ architecture behav of MCU is
         --@GEN:irq-signal-decls@
 
         signal irq_comb         : std_logic_vector(95 downto 0);
-        signal irq_deglitch     : std_logic_vector(NUM_IRQS -1 downto 0);
+        signal irq_deglitch     : std_logic_vector(NUM_IRQ_SRCS -1 downto 0);
         signal gf_out           : std_logic_vector(95 downto 0);
-        -- signal irq_cat          : std_logic_vector(95 downto NUM_IRQS);
 
 
         -- M13: the RISCV core interface signals (read_data/write_word/
@@ -413,7 +408,7 @@ architecture behav of MCU is
         signal shslv_irtr_en    : std_logic;
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
-        --@GEN:tile-irq-en-flat-decl@
+        --@GEN:meip-decl@
         -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
         -- window slot 11 @0x4B00 (vacated by SARADC0). Its pd_* rows drive
         -- the tile power domains: pd_rstn folds into each tile's resetn
@@ -1028,15 +1023,14 @@ begin
     -- window — its sh_* port maps straight onto that master's slice
     -- of the flattened arb_* buses. Each hart's a0 is brought out (a0_1/2/3);
     -- the tb latches pass AND fail, so a post-PASS corruption still fails
-    -- the run. M13: sleep/flash/tcm_pgen and the SYSTEM0-side IRQ ports ride
-    -- their entity defaults here — only hart 0 wires them.
+    -- the run. M13: sleep/flash/tcm_pgen ride their entity defaults here —
+    -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
+    -- identical on every hart.
     --@GEN:tile-instances@
 
-    -- System Peripheral
+    -- System Peripheral (M19: the vectored IRQ controller is retired — only
+    -- the WDT level source + the D2 router hooks remain on the IRQ side)
     system0: SYSTEM
-        generic map (
-            NUM_IRQS => NUM_IRQS 
-        )
         port map (
             clk_lfxt_in   => lfxt_in,
             clk_hfxt_in   => hfxt_in,
@@ -1045,14 +1039,11 @@ begin
 
             resetn_in      => resetn_in,
             resetn_por     => resetn_por,
-            resetn_sys     => resetn, 
+            resetn_sys     => resetn,
 
-            irq           => irq_deglitch,
-            isr_ret       => isr_ret,
-            irq_en        => irq_en,
-            irq_priority  => irq_priority,
-            irq_recursion_en => irq_recursion_en,
             irq_sys_wdt   => irq_sys_wdt,
+            wdt_irq_routed   => wdt_irq_routed,
+            wdt_irq_complete => wdt_irq_complete,
 
             --@GEN:bus:system0@
 
@@ -1447,7 +1438,7 @@ begin
             IrqGlitchy		=> irq_comb(95 downto 64),
             IrqDeglitched	=> gf_out(95 downto 64)
 	);
-    irq_deglitch <= gf_out(NUM_IRQS-1 downto 0);
+    irq_deglitch <= gf_out(NUM_IRQ_SRCS-1 downto 0);
 
     -- This tie-low cell is instantiated because, for some reason, Genus won't route tie cells to any of the analog blocks, instead directly connecting the pins to VSS (or VDD)
 	-- This tie-low cell buries a constant 0 one level down in the hierarchy, which tricks Genus into using an actual tie-low cell from the standard cell library and connecting it to all the constant '0' inputs to the glitch filter

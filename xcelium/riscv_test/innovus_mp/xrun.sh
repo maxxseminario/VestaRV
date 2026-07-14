@@ -30,6 +30,16 @@
 source ~/vestarv/cdspaths.sh
 cd "$(dirname "$0")"
 
+# M19c NHARTS guard: the Argus N=18 image build TRANSITS through the shared
+# rcf/ (build_mp_images.sh) and once silently poisoned the Castalia set
+# (sh tests gathered h=1..17 at N=4 -- 2026-07-13 post-mortem). Refuse to
+# run against a wrong-N image set.
+if [ -f ../rcf/.nharts ] && [ "$(cat ../rcf/.nharts)" != "4" ]; then
+    echo "FATAL: ../rcf/.nharts says NHARTS=$(cat ../rcf/.nharts), this flow needs 4."
+    echo "       Rebuild: cd verification/isa && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
+    exit 1
+fi
+
 PAT="${1:-simple}"
 if [ "$XRUN_MODE" = "batch" ]; then MODE=""; else MODE="-gui"; fi
 

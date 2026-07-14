@@ -430,49 +430,11 @@ p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(name='SYSCRCSTATE', msb=15, lsb=0, accessibility='rw', description='CRC state value. Initialize to 0xFFFF before starting CRC calculation. Read after processing all data bytes to get final CRC16 checksum.'))
 
-# IRQENL
-r = RegisterTemplate(nameTemplate='IRQENL', registerMemorySlot=5, size=32, description='IRQ enable register (lower 32 bits). Each bit enables the corresponding IRQ when set to 1. Bit position corresponds to IRQ vector number 0-31. IRQ also requires global enable in IRQCR.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SYSIRQENL', msb=31, lsb=0, accessibility='rw', description='IRQ enable bits for IRQ vectors 0-31. Set bit to 1 to enable corresponding IRQ.'))
-
-# IRQENM
-r = RegisterTemplate(nameTemplate='IRQENM', registerMemorySlot=6, size=32, description='IRQ enable register (middle 32 bits). Each bit enables the corresponding IRQ when set to 1. Bit position corresponds to IRQ vector number 32-63.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SYSIRQENM', msb=31, lsb=0, accessibility='rw', description='IRQ enable bits for IRQ vectors 32-63. Set bit to 1 to enable corresponding IRQ.'))
-
-# IRQENU
-r = RegisterTemplate(nameTemplate='IRQENU', registerMemorySlot=7, size=32, description='IRQ enable register (upper bits). Each bit enables the corresponding IRQ when set to 1. Bit position corresponds to IRQ vector number 64 and above.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SYSIRQENU', msb=31, lsb=0, accessibility='rw', description='IRQ enable bits for IRQ vectors 64 and above. Set bit to 1 to enable corresponding IRQ.'))
-
-# IRQPRIL
-r = RegisterTemplate(nameTemplate='IRQPRIL', registerMemorySlot=8, size=32, description='IRQ priority register (lower 32 bits). Each bit sets priority tier for corresponding IRQ. Bit position corresponds to IRQ vector number 0-31. Priority determined first by tier (0=high, 1=low), then by IRQ number (lower number = higher priority within tier).')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SYSIRQPRIL', msb=31, lsb=0, accessibility='rw', description='IRQ priority bits for IRQ vectors 0-31. Clear bit (0) for high priority tier, set bit (1) for low priority tier.'))
-
-# IRQPRIM
-r = RegisterTemplate(nameTemplate='IRQPRIM', registerMemorySlot=9, size=32, description='IRQ priority register (middle 32 bits). Each bit sets priority tier for corresponding IRQ. Bit position corresponds to IRQ vector number 32-63.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SYSIRQPRIM', msb=31, lsb=0, accessibility='rw', description='IRQ priority bits for IRQ vectors 32-63. Clear bit (0) for high priority tier, set bit (1) for low priority tier.'))
-
-# IRQPRIU
-r = RegisterTemplate(nameTemplate='IRQPRIU', registerMemorySlot=10, size=32, description='IRQ priority register (upper bits). Each bit sets priority tier for corresponding IRQ. Bit position corresponds to IRQ vector number 64 and above.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(name='SYSIRQPRIU', msb=31, lsb=0, accessibility='rw', description='IRQ priority bits for IRQ vectors 64 and above. Clear bit (0) for high priority tier, set bit (1) for low priority tier.'))
-
-# IRQCR
-r = RegisterTemplate(nameTemplate='IRQCR', registerMemorySlot=11, size=8, description='IRQ control register. Controls global IRQ enable and interrupt recursion settings.')
-p.AddRegisterTemplate(r)
-
-r.AddBitField(BitField(unused=True, msb=7, lsb=2))
-r.AddBitField(BitField(name='SYSIRQRECEN', msb=1, accessibility='rw', description='IRQ recursion enable. When set, allows interrupt service routines to be interrupted by higher priority IRQs.', valueDescriptions=[(0b0, 'IRQ recursion disabled'), (0b1, 'IRQ recursion enabled')]))
-r.AddBitField(BitField(name='SYSIRQGEN', msb=0, accessibility='rw', description='Global IRQ enable. Master enable for all interrupts. When cleared, all IRQs are disabled regardless of individual enable bits.', valueDescriptions=[(0b0, 'All IRQs globally disabled'), (0b1, 'IRQs enabled per IRQEN registers')]))
+# M19: the IRQENL/M/U, IRQPRIL/M/U and IRQCR registers (slots 5-11) are
+# RETIRED — ALL peripheral interrupt routing/masking, hart 0 included, lives
+# in the IRQROUTER's per-hart rows (claim/complete delivery, one meip wire
+# per hart; priority is fixed lowest-vector-wins). The slots are reserved:
+# they read 0 and ignore writes.
 
 # WDTCR
 r = RegisterTemplate(nameTemplate='WDTCR', registerMemorySlot=13, size=8, description='Watchdog timer control register. This register is protected and requires password unlock via WDTPASS before writing. Configures watchdog operation mode and timeout period.')
@@ -481,7 +443,7 @@ p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='SYSWDTEN', msb=7, accessibility='rw', description='Watchdog timer enable. When set, watchdog counter increments on MCLK. Watchdog generates interrupt and/or reset when counter bit selected by WDTCDIV transitions from 0 to 1. Register is write-protected; unlock with WDTPASS first.', valueDescriptions=[(0b0, 'Watchdog disabled'), (0b1, 'Watchdog enabled')]))
 r.AddBitField(BitField(unused=True, msb=6))
 r.AddBitField(BitField(name='SYSWDTCDIV', msb=5, lsb=2, accessibility='rw', description='Watchdog timer clock divider select. Selects which bit of the 24-bit counter triggers watchdog event. Event occurs when selected bit transitions from 0 to 1. Timeout period = 2^(WDTCDIV+16) MCLK cycles.', valueDescriptions=[(0b0000, 'Bit 16: 65,536 MCLK cycles', '_65536'), (0b0001, 'Bit 17: 131,072 MCLK cycles', '_131072'), (0b0010, 'Bit 18: 262,144 MCLK cycles', '_262144'), (0b0011, 'Bit 19: 524,288 MCLK cycles', '_524288'), (0b0100, 'Bit 20: 1,048,576 MCLK cycles', '_1048576'), (0b0101, 'Bit 21: 2,097,152 MCLK cycles', '_2097152'), (0b0110, 'Bit 22: 4,194,304 MCLK cycles', '_4194304'), (0b0111, 'Bit 23: 8,388,608 MCLK cycles', '_8388608'), (0b1000, 'Bit 24: 16,777,216 MCLK cycles', '_16777216'), (0b1001, 'Bit 25: 33,554,432 MCLK cycles', '_33554432'), (0b1010, 'Bit 26: 67,108,864 MCLK cycles', '_67108864'), (0b1011, 'Bit 27: 134,217,728 MCLK cycles', '_134217728'), (0b1100, 'Bit 28: 268,435,456 MCLK cycles', '_268435456'), (0b1101, 'Bit 29: 536,870,912 MCLK cycles', '_536870912'), (0b1110, 'Bit 30: 1,073,741,824 MCLK cycles', '_1073741824'), (0b1111, 'Bit 31: 2,147,483,648 MCLK cycles', '_2147483648')]))
-r.AddBitField(BitField(name='SYSWDTIE', msb=1, accessibility='rw', description='Watchdog timer interrupt enable. When set, watchdog timeout generates an interrupt before reset. If SYSWDTEN is also set and SYSIRQEN is enabled for watchdog IRQ, system executes watchdog ISR. Upon ISR return, system resets if SYSWDTHWRST is set.', valueDescriptions=[(0b0, 'Watchdog interrupt disabled'), (0b1, 'Watchdog interrupt enabled')]))
+r.AddBitField(BitField(name='SYSWDTIE', msb=1, accessibility='rw', description='Watchdog timer interrupt enable. When set, watchdog timeout raises the watchdog interrupt level (vector 0), delivered to whichever hart the IRQROUTER routes it to. After the servicing hart completes the claim (IRQROUTER CLAIM/COMPLETE), the system resets if SYSWDTHWRST is set. If the vector is not routed to any hart, the reset (when enabled) occurs immediately on timeout.', valueDescriptions=[(0b0, 'Watchdog interrupt disabled'), (0b1, 'Watchdog interrupt enabled')]))
 r.AddBitField(BitField(name='SYSWDTHWRST', msb=0, accessibility='rw', description='Watchdog hardware reset enable. When set, watchdog timeout causes system reset. If WDTIE is set, reset occurs after interrupt service routine completes. If WDTIE is cleared or IRQ is not enabled, reset occurs immediately on timeout.', valueDescriptions=[(0b0, 'Watchdog reset disabled'), (0b1, 'Watchdog reset enabled')]))
 
 # WDTSR
@@ -1040,23 +1002,55 @@ for i in range(numMutexes):
 
 
 
-''' IRQROUTER (per-hart peripheral IRQ enable/routing, shared window at 0x13900) '''
-p = PeripheralTemplate(nameTemplate='IRQROUTER', description='Peripheral interrupt router: per-hart interrupt enable registers programmable by any hart through the shared window. Every peripheral interrupt line fans out to all ' + _spelled(numHarts) + ' harts; each hart\'s tile ANDs the vector with its row of this register bank (ORed with its hardwired CLINT vectors 83 and 84, which therefore cannot be masked here). This lets software route any peripheral\'s interrupt to whichever hart currently owns that peripheral. All registers reset to 0 (everything masked), so the router is inert until software programs it. Row 0 exists for symmetry and debug but is not wired to hart 0, whose interrupt enables come from the SYSTEM peripheral as on the single-core chip.', bitFieldPrefix='IRQR', latexIntroFileName='IRQROUTER-intro-castalia-2026-07.tex')
+''' IRQROUTER (M19 PLIC-lite: per-hart routing rows + CLAIM/COMPLETE delivery, shared window page 3 at 0x7000) '''
+p = PeripheralTemplate(nameTemplate='IRQROUTER', description='THE peripheral interrupt controller (M19): per-hart interrupt routing/enable rows plus a claim/complete delivery stage, programmable by any hart through the shared window. Every deglitched peripheral interrupt level terminates here; the router raises a single external-interrupt wire (meip, interrupt vector 85) to each of the ' + _spelled(numHarts) + ' harts whenever some peripheral source is pending, enabled in that hart\'s row, and not already being serviced. The servicing hart reads CLAIM to atomically discover and claim the lowest-numbered such source (claims are attributed to the reading hart by the shared-bus arbiter, so simultaneous claimers are serialized and each source is delivered exactly once), runs the source\'s handler, clears the interrupt level at the peripheral, and writes the source number back to CLAIM (complete). A source under service is masked from every hart\'s meip until completed; if its level is still high at complete (a new event), it pends again. Priority is fixed: the lowest pending vector number wins. The CLINT vectors 83 (msip) and 84 (mtip) are never delivered through meip — they reach each hart on dedicated hardwired wires — so their row bits are writable but have no effect. All rows reset to 0 (everything masked), so the router is inert until software programs it. Since M19 row 0 is live: hart 0 takes meip like every other hart (the SYSTEM peripheral\'s vectored interrupt controller is retired).', bitFieldPrefix='IRQR', latexIntroFileName='IRQROUTER-intro-castalia-2026-07.tex', latexFeatureSummary='Claim/complete peripheral interrupt delivery (PLIC-style) with any-vector-to-any-hart routing')
 m.AddPeripheralTemplate(p)
 
 for h in range(numHarts):
-	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENL', registerMemorySlot=4 * h, size=32, description='Hart ' + str(h) + ' interrupt enable register, vectors 31:0. Each bit enables routing of the corresponding interrupt vector to hart ' + str(h) + '.')
+	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENL', registerMemorySlot=4 * h, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 31:0. Each bit enables delivery of the corresponding interrupt vector to hart ' + str(h) + ' via its meip wire (vector 85) and the CLAIM/COMPLETE mechanism.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENL', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 31:0, routed to hart ' + str(h) + '.'))
 
-	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENM', registerMemorySlot=4 * h + 1, size=32, description='Hart ' + str(h) + ' interrupt enable register, vectors 63:32.')
+	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENM', registerMemorySlot=4 * h + 1, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 63:32.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENM', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 63:32, routed to hart ' + str(h) + '.'))
 
-	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt enable register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the SYSTEM peripheral\'s IRQENU register on the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the hardwired CLINT vectors 83 and 84 and are ORed with the hardwired enables, so they can only be redundantly re-enabled, never masked.')
+	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(unused=True, msb=31, lsb=21))
 	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENU', msb=20, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 84:64, routed to hart ' + str(h) + '.'))
+
+# M19 claim/complete block at fixed word offsets (hart-count-independent
+# addresses: CLAIM at +0x800, status words at +0x810/+0x820)
+r = RegisterTemplate(nameTemplate='CLAIM', registerMemorySlot=512, size=32, description='Interrupt claim/complete register (M19). READ = claim: atomically returns the lowest pending interrupt vector that is enabled in the READING hart\'s routing row and not already under service, and marks it under service (masking it from every hart\'s meip). Returns 0xFFFFFFFF if nothing is pending for the reader; a handler seeing that value treats the interrupt as spurious and simply returns. WRITE = complete: write the claimed vector number to end its service; the vector becomes deliverable again (and pends immediately if its level is still asserted, so clear the level at the peripheral BEFORE completing). Completion is deliberately not qualified by owner, so a supervisor hart can complete on behalf of a hung hart (recovery); written values that are not valid vector numbers, including a stored 0xFFFFFFFF, are ignored.')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(name='IRQRCLAIM', msb=31, lsb=0, accessibility='rw', description='Read: claimed vector number (0xFFFFFFFF = none pending for this hart). Write: vector number to complete.'))
+
+r = RegisterTemplate(nameTemplate='PENDL', registerMemorySlot=516, size=32, description='Raw pending interrupt levels, vectors 31:0 (read-only; deglitched peripheral levels before enable/claim masking). Debug and polling aid.')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(name='IRQRPENDL', msb=31, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors 31:0.'))
+
+r = RegisterTemplate(nameTemplate='PENDM', registerMemorySlot=517, size=32, description='Raw pending interrupt levels, vectors 63:32 (read-only).')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(name='IRQRPENDM', msb=31, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors 63:32.'))
+
+r = RegisterTemplate(nameTemplate='PENDU', registerMemorySlot=518, size=32, description='Raw pending interrupt levels, vectors 84:64 (bits 20:0, read-only; bits 31:21 read as 0).')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(unused=True, msb=31, lsb=21))
+r.AddBitField(BitField(name='IRQRPENDU', msb=20, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors 84:64.'))
+
+r = RegisterTemplate(nameTemplate='INSVCL', registerMemorySlot=520, size=32, description='Under-service (claimed, not yet completed) flags, vectors 31:0 (read-only). Debug and recovery visibility: a stuck bit here means a hart claimed the vector and never completed it; any hart can recover by writing the vector number to CLAIM.')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(name='IRQRINSVCL', msb=31, lsb=0, accessibility='r', description='Under-service flags for vectors 31:0.'))
+
+r = RegisterTemplate(nameTemplate='INSVCM', registerMemorySlot=521, size=32, description='Under-service flags, vectors 63:32 (read-only).')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(name='IRQRINSVCM', msb=31, lsb=0, accessibility='r', description='Under-service flags for vectors 63:32.'))
+
+r = RegisterTemplate(nameTemplate='INSVCU', registerMemorySlot=522, size=32, description='Under-service flags, vectors 84:64 (bits 20:0, read-only; bits 31:21 read as 0).')
+p.AddRegisterTemplate(r)
+r.AddBitField(BitField(unused=True, msb=31, lsb=21))
+r.AddBitField(BitField(name='IRQRINSVCU', msb=20, lsb=0, accessibility='r', description='Under-service flags for vectors 84:64.'))
 
 
 
@@ -1146,7 +1140,7 @@ if i2c1Present:
 # so the Castalia N=4 description is provably untouched).
 m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x5000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(clintSlotCount))	# CLINT at 0x5000 (M11: window page 1; vectors 83 msip, 84 mtip)
 m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6000, sharedBus='native', clockDomain='mclk', strobeNote='READ = atomic return-old-and-claim; never LR/SC or AMO a mutex address', registerSlotCount=_slotCountOverride(numMutexes))	# HW mutex bank at 0x6000 (M11: window page 2)
-m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(4 * numHarts))	# IRQ router at 0x7000 (M11: window page 3)
+m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
 
 
 
@@ -1422,13 +1416,8 @@ _mcuMpSysRegSlots = [
 	('RegSlotSYS_BLOCK_PWR', 2, 'BLOCKPWR'),
 	('RegSlotSYS_CRC_DATA', 3, 'CRCDATA'),
 	('RegSlotSYS_CRC_STATE', 4, 'CRCSTATE'),
-	('RegSlotSYS_IRQ_ENL', 5, 'IRQENL'),
-	('RegSlotSYS_IRQ_ENM', 6, 'IRQENM'),
-	('RegSlotSYS_IRQ_ENU', 7, 'IRQENU'),
-	('RegSlotSYS_IRQ_PRIL', 8, 'IRQPRIL'),
-	('RegSlotSYS_IRQ_PRIM', 9, 'IRQPRIM'),
-	('RegSlotSYS_IRQ_PRIU', 10, 'IRQPRIU'),
-	('RegSlotSYS_IRQ_CR', 11, 'IRQCR'),
+	# M19: slots 5-11 (SYS_IRQ_ENL/M/U, PRIL/M/U, CR) are RETIRED — reserved
+	# gaps; routing/masking lives in the IRQROUTER rows.
 	('RegSlotSYS_WDT_PASS', 12, 'WDTPASS'),
 	('RegSlotSYS_WDT_CR', 13, 'WDTCR'),
 	('RegSlotSYS_WDT_SR', 14, 'WDTSR'),

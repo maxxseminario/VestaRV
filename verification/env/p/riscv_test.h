@@ -197,7 +197,83 @@
   jal zero, 0x0BB00;   /* IRQ 80 - I2C1_SOVF   - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 81 - I2C1_SNR    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 82 - I2C1_SXC    - unused -> TCM parking */
-  
+
+/* ===========================================================================
+ * M19 CLAIM/COMPLETE DELIVERY (PLIC-lite irq_router rework)
+ * ===========================================================================
+ * Peripheral IRQs are no longer hardware-vectored to their per-source IVT
+ * slots: every hart takes ONE external interrupt (meip, IVT slot 85 =
+ * IRQB_EXT_MEIP), raised by the irq_router whenever some source is pending,
+ * enabled in THAT hart's routing row (0x7000 + 0x10*h), and not already
+ * under service. The slot-85 dispatcher below reads CLAIM (0x7800) to
+ * atomically discover+claim the source, dispatches THROUGH THE EXISTING IVT
+ * (jalr into slot id: the slot's `jal zero, isr` preserves ra, so the
+ * per-source .isr_* sections double as the dispatch table for free), then
+ * writes the id back to CLAIM (complete) and irets. A parked slot (0xBB00)
+ * reached via claim never returns -> tb watchdog = loud FAIL.
+ *
+ * HANDLER ABI (per-source .isr_* sections, meip-delivered sources ONLY —
+ * CLINT slots 83/84 keep the classic hardware-vectored iret ISRs):
+ *   - plain function: END WITH ret (the dispatcher completes + irets)
+ *   - t0/t1/t2 are dispatcher-saved scratch: free to clobber
+ *   - ra must survive (or be saved/restored); anything else: save/restore
+ *   - clear the source LEVEL at the peripheral BEFORE returning (complete
+ *     happens after return; a still-high level re-pends = new event)
+ *   - a handler on a slept hart still does its own `ignite`
+ * The CLINT slots (83/84) are hardwire-enabled on EVERY hart since M19 (no
+ * SYSTEM/router setup needed); all peripheral routing = the router rows.
+ * ======================================================================== */
+
+#define IRQR_BASE_ADDR   0x7000
+#define IRQR_CLAIM_ADDR  0x7800
+#define IRQB_EXT_MEIP_N  85
+
+/* The slot-85 dispatcher, in its own 256 B TCM section (link.ld: 0xB100).
+ * The claimed id is stashed ON THE STACK across the handler call — handlers
+ * are allowed to clobber t0/t1/t2, so nothing live may stay in them (the
+ * first cut kept id in t1 and COMPLETEd garbage; the out-of-range write was
+ * ignored and the source stayed under service forever — shirq round 2). */
+#define MEIP_DISPATCHER()                                                      \
+  .section .isr_meip, "ax";                                                    \
+meip_dispatch:                                                                 \
+  addi sp, sp, -20;                                                            \
+  sw   ra, 0(sp);                                                              \
+  sw   t0, 4(sp);                                                              \
+  sw   t1, 8(sp);                                                              \
+  sw   t2, 12(sp);                                                             \
+  li   t2, IRQR_CLAIM_ADDR;                                                    \
+  lw   t1, 0(t2);              /* CLAIM (atomic read-and-claim) */             \
+  li   t0, -1;                                                                 \
+  beq  t1, t0, 99f;            /* sentinel: spurious -> just iret */           \
+  sw   t1, 16(sp);             /* stash id (handlers may clobber t0-t2) */     \
+  slli t0, t1, 2;                                                              \
+  li   ra, 0x8000;                                                             \
+  add  t0, t0, ra;             /* &IVT[id] */                                  \
+  jalr ra, 0(t0);              /* slot jal preserves ra; handler rets here */  \
+  lw   t1, 16(sp);             /* reload id + claim address */                 \
+  li   t2, IRQR_CLAIM_ADDR;                                                    \
+  sw   t1, 0(t2);              /* COMPLETE(id) */                              \
+99:;                                                                           \
+  lw   ra, 0(sp);                                                              \
+  lw   t0, 4(sp);                                                              \
+  lw   t1, 8(sp);                                                              \
+  lw   t2, 12(sp);                                                             \
+  addi sp, sp, 20;                                                             \
+  iret;                                                                        \
+  .previous;
+
+/* Arm IVT slot 85 -> the dispatcher, for tests that did NOT emit their own
+ * slots 83/84 (parks them; gap-free .org from the DEFINE_IVT end). Tests
+ * with their own CLINT ISRs at .org 0x14C instead add a third jal:
+ *     jal zero, 0x0B100    # slot 85 = meip -> dispatcher            */
+#define IVT_ARM_MEIP()                                                         \
+  .section .ivt, "ax";                                                         \
+  .org 0x14C;                                                                  \
+  jal zero, 0x0BB00;           /* 83 msip: parked (test uses none) */          \
+  jal zero, 0x0BB00;           /* 84 mtip: parked */                           \
+  jal zero, 0x0B100;           /* 85 meip -> dispatcher (.isr_meip) */         \
+  .previous;
+
 #define INIT_XREG                                                       \
   li x1, 0;                                                             \
   li x2, 0;                                                             \

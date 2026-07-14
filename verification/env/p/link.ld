@@ -62,6 +62,14 @@ SECTIONS
    * 0xB200-0xBAFF; 0xBB00 is the unused-slot parking target (DEFINE_IVT).
    * The linker errors on overlap if an ISR outgrows its 256-byte slot. */
 
+  /* M19: the meip (IVT slot 85) claim/complete dispatcher -- riscv_test.h
+   * MEIP_DISPATCHER(). Empty unless the test invokes the macro. */
+  . = 0x0B100;
+  .isr_meip : {
+    KEEP(*(.isr_meip))
+    . = ALIGN(4);
+  }
+
   . = 0x0B200;  /* IRQ 52 - UART1_RC */
   .isr_uart1_rc : {
     KEEP(*(.isr_uart1_rc))
