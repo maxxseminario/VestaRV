@@ -43,6 +43,28 @@ printf '%s MCU_MP_VIA* layout MCU_VIA*\n' "$targetLib" > strmin/via_rename.cellm
 # translated (caught by the gate on the first mcu_trial_lib import; the
 # MCU_MP_signoff runs never hit it because the cell already existed there).
 printf '%s %s layout %s\n' "$targetLib" "$topcell" "$topcell" >> strmin/via_rename.cellmap
+# C0 (chip_top wrapper): the INTERNAL mcu0 cell is still named MCU (== the
+# Myshkin tapeout cell). Like the MCU_VIA* structs, its child SREF can be
+# hijacked BY NAME to myshkin_tapeout/MCU even though the chip GDS defines it
+# -- pinning only the topcell (chip_top) does NOT cover it. Pin MCU into the
+# target lib too so it TRANSLATES from the file. (For the MCU_MP.xsim runs the
+# topcell IS MCU, already pinned by the line above -- guarded to avoid a dup.)
+if [ "$topcell" != "MCU" ]; then
+    printf '%s MCU layout MCU\n' "$targetLib" >> strmin/via_rename.cellmap
+    # C0 (chip_top): the streamOut -merge put the tphn pad cells' FULL geometry
+    # in the chip GDS -- but they ALSO exist in myshkin_tapeout (shared tphn IP,
+    # the SAME cells; Myshkin taped out the same pad ring), so strmin name-
+    # resolves them from there (XSTRM-287) and the hard gate below fires on the
+    # whole pad family. Unlike the MCU_VIA* phantom (a DIFFERENT same-named
+    # cell), this resolution is geometrically benign -- but pin the tphn pad
+    # family (P*_G: PDUW*/PDB*/PVDD*/PVSS*/PCORNER*/PFILLER*) into the target
+    # lib so they TRANSLATE from the merged GDS = a SELF-CONTAINED OA and the
+    # gate stays meaningful (only the 3 analog abstracts, whose real layout
+    # genuinely lives in myshkin_tapeout, are allowed to resolve there). P*_G
+    # matches ONLY the tphn pads -- no std cell / analog macro / MCU_VIA does.
+    # (Harmless for the pad-less hart_tile/MCU_MP runs: nothing to match.)
+    printf '%s P*_G layout P*_G\n' "$targetLib" >> strmin/via_rename.cellmap
+fi
 strmin \
     -library "$targetLib" \
     -topCell "$topcell" \

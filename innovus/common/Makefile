@@ -6,10 +6,13 @@
 #   make MCU_MP.innovus      top-level assembly: 4x tile (ILM/LEF) + control
 #                            plane + CTS (tcl/MCU_MP.innovus.tcl)
 #                            needs the tile outputs + ../../genus/out/MCU_MP_hier.genus.{v,sdc}
-#   make chip_top.innovus    M15 pad-ring floorplan PROTOTYPE (geometry only):
-#                            tphn pad ring around a reserved core area on a
-#                            3x3 mm die (tcl/chip_top.innovus.tcl). No core
-#                            netlist / CTS / route -- inputs in/chip_top.v only.
+#   make chip_top.innovus    Castalia C0 CONNECTED chip-top (M15 "Flavor B"):
+#                            the MCU_MP assembly wired into the tphn pad ring on
+#                            a 3x3 mm die, placed/routed/signed off in ONE flat
+#                            run (tcl/chip_top.innovus.tcl). Inputs
+#                            in/chip_top.{v,sdc} + in/MCU_MP_hier.pnr.v + the
+#                            hardened out/hart_tile.lef. Supersedes the old
+#                            geometry-only prototype.
 #
 # Add ".gui" to any target to run the SAME flow with the Innovus window up and
 # keep it open after (the trailing `exit` is stripped to a temp copy):
@@ -23,7 +26,9 @@
 # =============================================================================
 
 SHELL := /bin/bash
-CDSPATHS := $(abspath ..)/cdspaths.sh
+# 2026-07-12 restructure: innovus/ -> innovus/common/, so the repo root is
+# two levels up now (the pre-restructure `..` silently broke every target).
+CDSPATHS := $(abspath ../..)/cdspaths.sh
 
 .PHONY: help hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus chip_top_argus.innovus
 
@@ -40,7 +45,7 @@ help:
 hart_tile.innovus MCU_MP.innovus chip_top.innovus hart_tile_argus.innovus MCU_ARGUS.innovus chip_top_argus.innovus:
 	@mkdir -p log out rpt dbs
 	source $(CDSPATHS) && innovus -no_gui -overwrite -log log/$(basename $@) -files tcl/$@.tcl
-	@case "$@" in hart_tile.innovus|MCU_MP.innovus) \
+	@case "$@" in hart_tile.innovus|MCU_MP.innovus|chip_top.innovus|hart_tile_argus.innovus|MCU_ARGUS.innovus) \
 		if grep -nE "IMPDB-122[13]|IMPSR-(503|1253)" log/$(basename $@).log; then \
 			echo "FATAL (PG4 wrapper): PG-hookup errors in log/$(basename $@).log -- PG2-F1 class"; exit 1; \
 		fi;; esac

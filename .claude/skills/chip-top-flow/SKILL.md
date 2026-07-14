@@ -144,10 +144,63 @@ Template: `xcelium/riscv_test/innovus_chip_argus/`.
 Same padlists file, same golden-example diff, applied to `<TARGET>.
 innovus.tcl` instead of `MCU_ARGUS.innovus.tcl`. Extra step: extend the
 Makefile PG4 wrapper grep case-list to the new chip target (it's scoped by
-design name today). If the new assembly's core box is ≪ the ring interior
-(true for Castalia), it can keep its own `floorPlan -s` core box — only the
-die box and pad frame change; re-derive `PAD_NEAR`/`PAD_FAR` relative to
-**that** assembly's DESIGN_WIDTH/HEIGHT, not Argus's 2690.
+design name today).
+
+### RECTANGULAR-in-square assembly (proven by Castalia C0, 2026-07-14)
+
+When the assembly is NOT square-and-interior-sized (Argus WAS: 2690² ==
+interior, so its single `PAD_NEAR`/`PAD_FAR` + symmetric −155 die origin
+worked), re-derive the frame PER EDGE. Castalia MCU_MP is 2689×1700 in the
+2690² interior:
+
+- **Center the assembly with an ASYMMETRIC negative die origin**, keeping the
+  core box UNCHANGED (native coords byte-identical, so the assembly's power-
+  closure ladder — ring-detour deletion, y-capped sroute, stripe ceiling — all
+  stay valid). `IN = (−MARGIN_X, −MARGIN_Y)…(W+MARGIN_X, H+MARGIN_Y)` where
+  `MARGIN = (INT_SPAN−DESIGN)/2`; `DIE = IN ± (SEAL_OFF+PAD_RING)`. For C0:
+  die `(−155.5,−650)–(2844.5,2350)` = exactly 3000². `floorPlan -b` core box =
+  `(1,1)-(W−1,H−1)` (identical to the assembly's `-s` core box).
+- **`place_pad` gets per-edge `PAD_NEAR_X/FAR_X/NEAR_Y/FAR_Y`** and a per-axis
+  interior-LL centering offset (`IN_LLX/IN_LLY + (INT_SPAN−block)/2`), not one
+  pair. Corners at the per-axis near/far.
+- **`addRing -follow io` then lands the core ring at the pad/interior boundary**,
+  ~(interior−assembly)/2 OUT from the short edges (the log says it: "power
+  planner will calculate offsets from I/O rows"). Upside: padPin supply hookup
+  is trivial (pads abut the ring — C0 = 9 wires). Downside: the ring sits in the
+  slack, so expect EXTRA cosmetic VDD/VSS floating-power-stub viols
+  (IMPVFC-200) vs the assembly baseline — but 0 signal opens and the CORE grid
+  over the logic stays byte-identical (preplace verifyGeometry matches the
+  assembly EXACTLY; that's the tell it's sound). `-follow core` would hug the
+  assembly (cleaner connectivity) at the cost of a long top-pad padPin hop —
+  a real tradeoff, decide per target.
+
+### verifyConnectivity: compare to the ASSEMBLY's baseline, not to 0
+
+Argus's assembly signed off at 0, so its chip did too. Castalia's assembly
+ships with ~577 VDD/VSS redundant-pin + floating-stub viols (IMPVFC-96/200,
+the "tile U-ring is closed, top-leg pins are redundancy only" class). The chip
+INHERITS that + adds ring/slack stubs. Categorize the report (grep the
+IMPVFC-* summary + check for `Use: SIGNAL` opens) and diff vs the assembly's
+own signoff rpt — accept the same-class delta, STOP on any NEW class (esp.
+signal-net opens on resetn/prt = pad-to-core routing failure).
+
+### SDC transform: prefix `get_nets` too (not just `get_pins`)
+
+If the assembly has an NPU (Castalia does, Argus doesn't) the genus SDC carries
+`set_dont_touch [get_nets …]` lines — prefix those with `mcu0/` as well
+(`s/\[get_nets {npu0\//.../`), or they silently fail (TCLCMD-917) and the
+dont_touch the assembly applies is dropped. Prefix `get_pins`+`get_nets`, drop
+`get_ports`, leave `get_designs`/`get_lib_cells`/`[current_design]` bare.
+
+### strmin guard: pin the internal MCU cell AND the pad family (C0)
+
+`signoff_mp/strmin_gds.sh` is already extended (guarded `topcell≠MCU`): it pins
+the internal `MCU` cell (a `chip_top` wrapper doesn't exempt it — mcu0 is still
+`MCU`, name-hijackable like the PG4 `MCU_VIA*` phantom) AND the tphn pad family
+`P*_G` (the `streamOut -merge` puts the pads in the GDS, but they also live in
+`myshkin_tapeout` as the SAME shared IP → make them TRANSLATE for a self-
+contained OA). After a clean run, XSTRM-287 must resolve from `myshkin_tapeout`
+ONLY the 3 analog abstracts — never a raw strmin.
 
 ## Never
 
