@@ -109,76 +109,76 @@ for file in $filter; do
         echo "00000000000000000000000000000000" >> "$tmpfile"
     done
 
-    # Now process the actual program data starting at 0x8200
-    # We'll find all contiguous nonzero regions
+    # Now find the load regions.
+    #
+    # M19c HAZARD 2 root cause (2026-07-13, .devlog/2026-07-13-m19c-physical-
+    # reharden.md): the old scanner split regions on TWO consecutive zero
+    # WORDS, so a legitimate all-zero program word adjacent to trailing
+    # padding was classified as inter-section gap and NEVER LOADED. irqctx's
+    # IRET (32-bit 0x0000000b at halfword-aligned 0x854a) has its upper
+    # halfword (0x0000) in word 0x854c at the head of the trailing zero run:
+    # the word was dropped, the TCM powers up X (like silicon), the IRET
+    # fetch returned X on funct7 -> isr_ret X -> the core's whole IRQ-return
+    # register bank latched X on one clk_cpu edge (gate smoke irqctx/shirq
+    # 100 ms watchdog deaths). Behavioral RTL memories zero-initialize, which
+    # exactly masks a dropped ZERO word -- gate/silicon is where it detonates.
+    #
+    # Two rules close the class:
+    #   * GAP_MIN: only a run of >= GAP_MIN zero words separates regions --
+    #     short zero runs are real content (alignment padding, zero
+    #     constants, unimp landing pads) and stay inside the region.
+    #   * REGION_PAD: every region is extended by REGION_PAD trailing zero
+    #     words -- an instruction can straddle INTO a long zero run (the
+    #     irqctx IRET case; GAP_MIN alone cannot cover it because the
+    #     straddled word HEADS the run).
+    # Both rules only ever ADD loaded words, and merging can only reduce the
+    # segment count, so the bootrom's 10ADBEEF/CAFEBABE command loop and
+    # every existing image consumer are unaffected.
+    GAP_MIN=8
+    REGION_PAD=2
+
+    # Collect indices of nonzero lines, then merge runs separated by fewer
+    # than GAP_MIN zeros into single regions.
     in_region=0
     region_start=0
-    region_end=0
+    region_end=0        # last NONZERO line of the current region
+    zero_run=0
 
-    for ((i = 0; i <= total_lines; i++)); do
-        line="${file_lines[i]}"
-        
-        # Check if current line is zero
-        is_current_zero=0
-        if [[ $i -lt $total_lines ]] && [[ "$line" == "00000000000000000000000000000000" ]]; then
-            is_current_zero=1
-        fi
-        
-        # Check if next line is also zero (for consecutive zero detection)
-        is_next_zero=0
-        if [[ $((i + 1)) -lt $total_lines ]] && [[ "${file_lines[$((i + 1))]}" == "00000000000000000000000000000000" ]]; then
-            is_next_zero=1
-        fi
-        
-        # A line is considered "separator" if it's part of two consecutive zeros
-        # OR if we're at EOF
-        is_separator=0
-        if [[ $i -eq $total_lines ]]; then
-            # EOF
-            is_separator=1
-        elif [[ $is_current_zero -eq 1 && $is_next_zero -eq 1 ]]; then
-            # Current and next are both zero - this is start of consecutive zeros
-            is_separator=1
-        elif [[ $i -gt 0 ]]; then
-            # Check if previous line was zero and current is zero (end of consecutive zeros)
-            prev_line="${file_lines[$((i - 1))]}"
-            if [[ "$prev_line" == "00000000000000000000000000000000" ]] && [[ $is_current_zero -eq 1 ]]; then
-                is_separator=1
+    flush_region() {
+        # pad the region tail into the following zeros (clamped to EOF)
+        local pend=$((region_end + REGION_PAD))
+        [ $pend -ge $total_lines ] && pend=$((total_lines - 1))
+        local seg_start_dec=$((program_start_dec + 4 * region_start))
+        local seg_end_dec=$((program_start_dec + 4 * (pend + 1))) # not inclusive
+        {
+            echo "$line1"
+            to_bin32 "$seg_start_dec"
+            to_bin32 "$seg_end_dec"
+            for ((j = region_start; j <= pend; j++)); do
+                echo "${file_lines[j]}"
+            done
+        } >> "$tmpfile"
+    }
+
+    for ((i = 0; i < total_lines; i++)); do
+        if [[ "${file_lines[i]}" == "00000000000000000000000000000000" ]]; then
+            zero_run=$((zero_run + 1))
+            if [ $in_region -eq 1 ] && [ $zero_run -ge $GAP_MIN ]; then
+                flush_region
+                in_region=0
             fi
-        fi
-        
-        if [[ $i -lt $total_lines ]] && [[ $is_separator -eq 0 ]]; then
-            # Non-separator line: start or continue a region
+        else
             if [ $in_region -eq 0 ]; then
                 region_start=$i
                 in_region=1
             fi
             region_end=$i
-        else
-            # Separator or EOF: if we were in a region, end it
-            if [ $in_region -eq 1 ]; then
-                # region_start ... region_end is a region to be written
-                # Calculate addresses based on program starting at 0x8200
-                seg_start_dec=$((program_start_dec + 4 * region_start))
-                seg_end_dec=$((program_start_dec + 4 * (region_end + 1))) # not inclusive
-                seg_start_bin=$(to_bin32 "$seg_start_dec")
-                seg_end_bin=$(to_bin32 "$seg_end_dec")
-
-                # Write loadSegment command
-                echo "$line1" >> "$tmpfile"
-                echo "$seg_start_bin" >> "$tmpfile"
-                echo "$seg_end_bin" >> "$tmpfile"
-
-                # Write the data
-                for ((j = region_start; j <= region_end; j++)); do
-                    echo "${file_lines[j]}" >> "$tmpfile"
-                done
-
-                in_region=0
-            fi
-            # Otherwise, continue looking for next region
+            zero_run=0
         fi
     done
+    if [ $in_region -eq 1 ]; then
+        flush_region
+    fi
 
     # Write the execute command (Line4) at the very end
     echo "$line4" >> "$tmpfile"

@@ -432,6 +432,18 @@ end component;
     -- detonates the clock tree via GPIO0's input comb (see Castalia
     -- riscv_tb_gate.vhd). Weak '1' emulates the pad pull when flash sleeps.
     prt1(pnum_gpio0_miso) <= spi_miso when flash_awake = '1' else 'H';
+    -- M19c HAZARD 2 residual (shirq): UART0 RX0 (P2.5) / UART1 RX1 (P2.7) are
+    -- always-visible peripheral input taps (MCU.vhd multi-AF routing reads the
+    -- home pad regardless of PxSEL). A floating pad reads back X through the
+    -- pad input buffer; the X poisons the UART's rx start detect ->
+    -- rx_in_progress -> the baud/TX clock-gate enables, and the FIRST TX write
+    -- then clocks USR_UTCIF to X -> irq_tc -> deglitcher -> irq_router meip X
+    -- -> the routed hart X-collapses at IRQ entry (see innovus_mp
+    -- diag_shirq_h1cap.sh forensic). Behavioral masks it (VHDL '=' on 'X' is
+    -- false); silicon reads a defined level. Same class + fix as the MISO
+    -- weak pull above: idle-high (mark) UART lines.
+    prt2(pnum_gpio1_rx0) <= 'H';
+    prt2(pnum_gpio1_rx1) <= 'H';
     spi_short_proc: process(prt1, prt1_dir, prt2, prt2_dir, prt3, prt3_dir, flash_awake, spi_test, uart_test, timer_test)
     begin
         for i in 0 to 7 loop

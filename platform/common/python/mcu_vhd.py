@@ -14,7 +14,7 @@
 #
 # A1 (Argus N-hart generalization, 2026-07-10) adds the numHarts-driven regions:
 #   - a0-ports                       : per-tile-hart a0 observation ports (entity)
-#   - arb-fabric-decls / clint-irq-decls / tile-irq-en-flat-decl / pd-decls /
+#   - arb-fabric-decls / clint-irq-decls / meip-decl / pd-decls /
 #     tile-raw-decls / sh-master-decl : the per-hart fabric signal widths
 #   - hart0-instance / tile-instances : the hart_tile instances (hart 0's
 #     special wiring vs the tiles' router rows — per-instance WIRING only)
@@ -935,9 +935,9 @@ class McuVhdEmitter():
 			if irqbName.startswith('IRQB_RSVD'):
 				continue	# reserved vector gap — falls through to 'others => irq_tielow'
 			lines.append(' ' * 12 + irqbName.ljust(16) + '=> ' + self.irqSignalName(irqbName) + ',')
-		lines.append(' ' * 12 + "-- M5b: hart 0's CLINT levels (harts 1-3 get theirs via tile ports)")
-		lines.append(' ' * 12 + 'IRQB_CLINT_MSIP => clint_msip(0),')
-		lines.append(' ' * 12 + 'IRQB_CLINT_MTIP => clint_mtip(0),')
+		lines.append(' ' * 12 + '-- M19: the CLINT slots (83/84) fall through to irq_tielow — every')
+		lines.append(' ' * 12 + "-- hart gets its own msip/mtip on dedicated wires; the source")
+		lines.append(' ' * 12 + '-- vector feeds ONLY the irq_router (meip claim/complete delivery)')
 		lines.append(' ' * 12 + 'others          => irq_tielow')
 		lines.append(' ' * 8 + ');')
 		return lines
@@ -1142,8 +1142,12 @@ class McuVhdEmitter():
 		return [self.sigDecl('clint_msip', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('clint_mtip', 'std_logic_vector(' + nm1 + ' downto 0);')]
 
-	def emitTileIrqEnFlatDecl(self):
-		return [self.sigDecl('tile_irq_en_flat', 'std_logic_vector(' + str(self.nHarts()) + '*NUM_IRQS-1 downto 0);')]
+	def emitMeipDecl(self):
+		# M19: one registered external-IRQ wire per hart (replaces the M7a
+		# NHARTS*NUM_IRQS enable fan-out) + the D2 WDT hooks into SYSTEM0
+		return [self.sigDecl('meip', 'std_logic_vector(' + str(self.nHarts() - 1) + ' downto 0);'),
+			self.sigDecl('wdt_irq_routed', 'std_logic;   -- irq_router: source 0 enabled in some row'),
+			self.sigDecl('wdt_irq_complete', 'std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)')]
 
 	def emitPdDecls(self):
 		rng = 'std_logic_vector(' + str(self.nHarts() - 1) + ' downto 1);'
@@ -1177,11 +1181,11 @@ class McuVhdEmitter():
 		lines.append('    -- live in hart_tile.vhd now ' + EMDASH + " see the rationale there. Hart 0's")
 		lines.append('    -- remaining specials are pure WIRING on the identical tile:')
 		lines.append('    --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),')
-		lines.append('    --   * irq_en_ext/irq_prio_ext/irq_recursion_en/isr_ret -> SYSTEM0')
-		lines.append("    --     (hw_clint_en='0': SYS_IRQ_EN's reset-all-masked semantics kept;")
-		lines.append('    --     tiles hardwire CLINT slots 83/84 instead and take the router row),')
 		lines.append('    --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),')
 		lines.append('    --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.')
+		lines.append('    -- M19: the IRQ interface is IDENTICAL on every hart ' + EMDASH + ' msip/mtip from')
+		lines.append("    -- the CLINT + this hart's meip row from the irq_router (SYSTEM0's")
+		lines.append('    -- vectored path and the hw_clint_en strap are retired).')
 		lines.append('    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency')
 		lines.append('    -- insensitivity at boundary depths 0/1/2; the boot fetch through the')
 		lines.append('    -- arbiter exercises the stall path on every run).')
@@ -1205,12 +1209,7 @@ class McuVhdEmitter():
 		lines.append('            hart_id   => x"00000000",')
 		lines.append('            msip_in   => clint_msip(0),')
 		lines.append('            mtip_in   => clint_mtip(0),')
-		lines.append('            irq_ext    => irq_deglitch,')
-		lines.append('            irq_en_ext => irq_en,')
-		lines.append('            irq_prio_ext     => irq_priority,')
-		lines.append('            irq_recursion_en => irq_recursion_en,')
-		lines.append('            isr_ret          => isr_ret,')
-		lines.append("            hw_clint_en      => '0',")
+		lines.append('            meip_in   => meip(0),')
 		lines.append('            flash_mem_en  => mem_en_flash,')
 		lines.append('            flash_clk_mem => clk_mem_flash,')
 		lines.append('            flash_mab     => mab_flash,')
@@ -1276,28 +1275,35 @@ class McuVhdEmitter():
 	def emitIrqRouterInstance(self):
 		n = self.nHarts()
 		nm1 = str(n - 1)
-		# rows at +0x10*h -> 4 words per hart; 4-bit floor is the golden
-		# master's sh_addr(3 downto 0) (irq_router.vhd regrows at A2 for N>4)
-		addrW = max(4, _clog2(4 * n))
+		# M19: ADDR_W is fixed 10 (full-page decode; CLAIM at word 512) = the
+		# RTL default, so the generic is never emitted. MW follows the
+		# arbiter's s_master width (emitted only when != the RTL default 2).
+		mw = self.masterW()
 		lines = []
-		lines.append('    -- M7a: tile IRQ fan-out ' + EMDASH + ' per-hart peripheral-IRQ enable rows, written by')
-		lines.append('    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows')
-		lines.append('    -- 1-' + nm1 + " feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's")
-		lines.append('    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,')
-		lines.append('    -- so this block is a provable NO-OP until software routes an IRQ.')
+		lines.append('    -- M19 PLIC-lite: THE peripheral interrupt controller ' + EMDASH + ' per-hart routing')
+		lines.append('    -- rows (any hart programs any row through the arbiter; resv-gated sh_we')
+		lines.append('    -- like the CLINT) + CLAIM/COMPLETE delivery @0x7800. The deglitched')
+		lines.append('    -- source vector TERMINATES here; delivery to harts 0-' + nm1 + ' is the one')
+		lines.append('    -- registered meip wire each (IVT slot 85). sh_master attributes claim')
+		lines.append('    -- reads (the mutex-bank idiom). Resets all-masked, so this block is a')
+		lines.append('    -- provable NO-OP until software routes an IRQ. The wdt_* hooks carry')
+		lines.append("    -- the D2 watchdog contract into SYSTEM0 (source 0's routed/EOI state).")
 		lines.append('    irtr0: entity work.irq_router')
-		# A2: ADDR_W emitted only when it differs from the RTL default 4
-		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_IRQS => NUM_IRQS'
-			+ ('' if addrW == 4 else ', ADDR_W => ' + str(addrW)) + ')')
+		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_SRCS => NUM_IRQ_SRCS'
+			+ ('' if mw == 2 else ', MW => ' + str(mw)) + ')')
 		lines.append('        port map (')
-		lines.append('            clk        => mclk,')
-		lines.append('            resetn     => resetn,')
-		lines.append('            en         => shslv_irtr_en,')
-		lines.append('            we         => sh_we,')
-		lines.append('            addr       => sh_addr(' + str(addrW - 1) + ' downto 0),')
-		lines.append('            wdata      => sh_wdata,')
-		lines.append('            rdata      => irtr_rdata,')
-		lines.append('            irq_en_out => tile_irq_en_flat')
+		lines.append('            clk          => mclk,')
+		lines.append('            resetn       => resetn,')
+		lines.append('            en           => shslv_irtr_en,')
+		lines.append('            we           => sh_we,')
+		lines.append('            addr         => sh_addr(9 downto 0),')
+		lines.append('            wdata        => sh_wdata,')
+		lines.append('            rdata        => irtr_rdata,')
+		lines.append('            master       => sh_master,')
+		lines.append('            irq_in       => irq_deglitch,')
+		lines.append('            meip_out     => meip,')
+		lines.append('            wdt_routed   => wdt_irq_routed,')
+		lines.append('            wdt_complete => wdt_irq_complete')
 		lines.append('        );')
 		return lines
 
@@ -1964,17 +1970,11 @@ class McuVhdEmitter():
 		lines.append('            hart_id   => x"' + format(h, '08x') + '",')
 		lines.append('            msip_in   => clint_msip(' + hs + '),')
 		lines.append('            mtip_in   => clint_mtip(' + hs + '),')
-		lines.append("            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive")
-		lines.append('            -- a netlist boundary: the hierarchical top flow elaborates hart_tile')
-		lines.append('            -- as a VERILOG netlist (no port defaults), and the open pin was tied')
-		lines.append('            -- LOW -> tiles had no CLINT slot enables and never woke on msip.')
-		lines.append("            hw_clint_en => '1',")
 		if h == 1:
-			lines.append('            -- M7a: deglitched peripheral levels fan out to every tile; the')
-			lines.append("            -- tile's row of the irq_router gates them (slots 83/84 are")
-			lines.append('            -- overridden/hardwired inside the tile)')
-		lines.append('            irq_ext    => irq_deglitch,')
-		lines.append('            irq_en_ext => tile_irq_en_flat(' + str(h + 1) + '*NUM_IRQS-1 downto ' + hs + '*NUM_IRQS),')
+			lines.append('            -- M19: ONE external-IRQ wire per tile ' + EMDASH + " the irq_router's")
+			lines.append('            -- registered claim/complete output (routing/masking lives in')
+			lines.append("            -- the router rows; the tile hardwires its three live slots)")
+		lines.append('            meip_in   => meip(' + hs + '),')
 		lines.append('            -- M17: outbound signals land on _raw and pass the iso clamps')
 		lines.append('            sh_req    => tile' + hs + '_req_raw,')
 		lines.append('            sh_we     => tile' + hs + '_we_raw,')
@@ -2099,8 +2099,8 @@ class McuVhdEmitter():
 			return self.emitArbFabricDecls()
 		if name == 'clint-irq-decls':
 			return self.emitClintIrqDecls()
-		if name == 'tile-irq-en-flat-decl':
-			return self.emitTileIrqEnFlatDecl()
+		if name == 'meip-decl':
+			return self.emitMeipDecl()
 		if name == 'pd-decls':
 			return self.emitPdDecls()
 		if name == 'tile-raw-decls':
@@ -2261,7 +2261,7 @@ def generateMcuVhd(gen, templatePath, outPath):
 	expected = set(['irq-signal-decls', 'irq-comb', 'shslv-subdecode', 'shslv-rd-sel', 'rdata-bridge',
 		'sh-rdata-mux', 'polarity-shims',
 		# A1 N-hart regions
-		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'tile-irq-en-flat-decl', 'pd-decls',
+		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'meip-decl', 'pd-decls',
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
 		'clint-instance', 'irq-router-instance', 'mutex-instance', 'pwr-instance',
 		'tile-rstn', 'iso-clamps', 'tile-instances',

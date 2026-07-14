@@ -126,13 +126,8 @@ package MemoryMap is
 	constant RegSlotBLOCKPWR		: natural := 02;	-- offset = 8 bytes
 	constant RegSlotCRCDATA			: natural := 03;	-- offset = 12 bytes
 	constant RegSlotCRCSTATE		: natural := 04;	-- offset = 16 bytes
-	constant RegSlotIRQENL			: natural := 05;	-- offset = 20 bytes
-	constant RegSlotIRQENM			: natural := 06;	-- offset = 24 bytes
-	constant RegSlotIRQENU			: natural := 07;	-- offset = 28 bytes
-	constant RegSlotIRQPRIL			: natural := 08;	-- offset = 32 bytes
-	constant RegSlotIRQPRIM			: natural := 09;	-- offset = 36 bytes
-	constant RegSlotIRQPRIU			: natural := 10;	-- offset = 40 bytes
-	constant RegSlotIRQCR			: natural := 11;	-- offset = 44 bytes
+	-- M19: RegSlotIRQENL/M/U, IRQPRIL/M/U and IRQCR (slots 5-11) are RETIRED
+	-- with the SYSTEM vectored IRQ controller — reserved gaps (read 0).
 	-- G5a (2026-07-11): WDT slot order corrected to the RTL decode truth
 	-- (RegSlotSYS_WDT_PASS=12/CR=13/SR=14 below, which SYSTEM.vhd implements);
 	-- these doc-side constants had carried the wrong Myshkin-era order. No RTL
@@ -534,33 +529,9 @@ package MemoryMap is
 	constant SYSCRCSTATE_MSB		: natural := 15;
 	constant SYSCRCSTATE_LSB		: natural := 00;
 
-	-- IRQENL
-	constant SYSIRQENL_MSB			: natural := 31;
-	constant SYSIRQENL_LSB			: natural := 00;
-
-	-- IRQENM
-	constant SYSIRQENM_MSB			: natural := 31;
-	constant SYSIRQENM_LSB			: natural := 00;
-
-	-- IRQENU
-	constant SYSIRQENU_MSB			: natural := 31;
-	constant SYSIRQENU_LSB			: natural := 00;
-
-	-- IRQPRIL
-	constant SYSIRQPRIL_MSB			: natural := 31;
-	constant SYSIRQPRIL_LSB			: natural := 00;
-
-	-- IRQPRIM
-	constant SYSIRQPRIM_MSB			: natural := 31;
-	constant SYSIRQPRIM_LSB			: natural := 00;
-
-	-- IRQPRIU
-	constant SYSIRQPRIU_MSB			: natural := 31;
-	constant SYSIRQPRIU_LSB			: natural := 00;
-
-	-- IRQCR
-	constant SYSIRQRECEN_LSB		: natural := 01;
-	constant SYSIRQGEN_LSB			: natural := 00;
+	-- M19: the IRQENL/M/U, IRQPRIL/M/U and IRQCR bit-field constants are
+	-- RETIRED with the SYSTEM vectored IRQ controller (irq_router rows own
+	-- routing/masking; see the IRQR* constants below).
 
 	-- WDTCR
 	constant SYSWDTEN_LSB			: natural := 07;
@@ -933,13 +904,8 @@ package MemoryMap is
 	constant RegSlotSYS_BLOCK_PWR	: natural := 02;						-- offset = 8 bytes
 	constant RegSlotSYS_CRC_DATA	: natural := 03;						-- offset = 12 bytes
 	constant RegSlotSYS_CRC_STATE	: natural := 04;						-- offset = 16 bytes
-	constant RegSlotSYS_IRQ_ENL		: natural := 05;						-- offset = 20 bytes
-	constant RegSlotSYS_IRQ_ENM		: natural := 06;						-- offset = 24 bytes
-	constant RegSlotSYS_IRQ_ENU		: natural := 07;						-- offset = 28 bytes
-	constant RegSlotSYS_IRQ_PRIL	: natural := 08;						-- offset = 32 bytes
-	constant RegSlotSYS_IRQ_PRIM	: natural := 09;						-- offset = 36 bytes
-	constant RegSlotSYS_IRQ_PRIU	: natural := 10;						-- offset = 40 bytes
-	constant RegSlotSYS_IRQ_CR		: natural := 11;						-- offset = 44 bytes
+	-- M19: slots 5-11 (SYS_IRQ_ENL/M/U, PRIL/M/U, CR) are RETIRED — reserved
+	-- gaps; routing/masking lives in the IRQROUTER rows.
 	constant RegSlotSYS_WDT_PASS	: natural := 12;						-- offset = 48 bytes
 	constant RegSlotSYS_WDT_CR		: natural := 13;						-- offset = 52 bytes
 	constant RegSlotSYS_WDT_SR		: natural := 14;						-- offset = 56 bytes
@@ -1040,8 +1006,13 @@ package MemoryMap is
 	constant IRQB_I2C1_sxc			: natural := 82;						-- I2C1 slave mode transfer complete Interrupt, IVT address = 0x8148
 	constant IRQB_CLINT_MSIP		: natural := 83;						-- CLINT software interrupt (IPI), IVT address = 0x814C
 	constant IRQB_CLINT_MTIP		: natural := 84;						-- CLINT timer interrupt, IVT address = 0x8150
-	constant NUM_IRQS				: natural := 85;						-- Total number of IRQs
-	constant NUM_GF_INSTANCES		: natural := (NUM_IRQS + 31) / 32;		-- glitch-filter instance count
+	-- M19: the SOURCE count (deglitch/irq_router width) and the core's IVT
+	-- slot count split — slot 85 is the meip external-IRQ vector, delivered
+	-- by the irq_router's claim/complete stage, not a deglitched source.
+	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
+	constant NUM_IRQ_SRCS			: natural := 85;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
+	constant NUM_IRQS				: natural := 86;						-- Core IVT slot count = sources + the meip slot (M19)
+	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
 	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)
 	constant CORE_ENABLE_MUL		: boolean := true;						-- M: MUL/MULH/MULHU/MULHSU

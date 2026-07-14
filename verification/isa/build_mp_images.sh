@@ -37,7 +37,26 @@ for g in "$@"; do
     make "${g}-flash" RISCV_GCC_OPTS="$BASE_OPTS -DNHARTS=$NH"
 done
 
-mkdir -p "$DEST"
-rm -f "$DEST"/*.rcf
-cp rcf/*.rcf "$DEST"/
+# DEST == rcf/ guard (M19 war story): make already populates rcf/ during the
+# build; the rm/cp below would DELETE the fresh set and then fail to copy it
+# onto itself. Only stage out when DEST is a different directory.
+# M19c: pwd -P (PHYSICAL) — xcelium/riscv_test/rcf is a SYMLINK to this
+# rcf/; the logical-pwd compare missed that and the stage-out rm'd the
+# canonical set through the alias, then cp'd onto an empty glob.
+if [ "$(cd "$DEST" 2>/dev/null && pwd -P)" != "$(cd rcf && pwd -P)" ]; then
+    mkdir -p "$DEST"
+    rm -f "$DEST"/*.rcf
+    cp rcf/*.rcf "$DEST"/
+    # M19c POST-MORTEM: the build TRANSITS through rcf/, so after an
+    # out-of-tree stage (e.g. the Argus N=18 set) rcf/ is left holding
+    # $NH-flavored images too — this silently poisoned the Castalia rcf/
+    # after the M19b Argus verify (sh tests gathered h=1..17 at N=4;
+    # 12/26 behavioral smoke failures, chased through three sim levels).
+    echo "WARNING: rcf/ now ALSO holds the NHARTS=$NH set (build transit)."
+    echo "         Rebuild the canonical set before Castalia sims:"
+    echo "         ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
+fi
+# .nharts = the TRUTH of what each dir currently holds (runners guard on it).
+echo "$NH" > "$DEST/.nharts"
+echo "$NH" > rcf/.nharts
 echo "=== done: $(ls "$DEST"/*.rcf | wc -l) rcf files in $DEST (NHARTS=$NH) ==="

@@ -13,7 +13,7 @@
 	\item \SharedRamSizeKiB\,KiB of shared bulk RAM at \texttt{0x10000}--\texttt{\SharedRamEndAddress} for locks, mailboxes, staged tile programs, and inter-hart data
 	\item \peripheral{CLINT} with per-hart software interrupts (inter-processor interrupts) and a shared 64-bit \register{mtime} with per-hart compare registers
 	\item \NumMutexes{} single-instruction hardware mutexes (\peripheral{MUTEX} bank)
-	\item Per-hart peripheral interrupt routing (\peripheral{IRQROUTER}), so any peripheral interrupt can be steered to any hart
+	\item Claim/complete peripheral interrupt delivery (\peripheral{IRQROUTER}): any peripheral interrupt can be routed to any hart over one external-interrupt wire per hart, with exactly-once claiming
 	\item \texttt{LR}/\texttt{SC} and \texttt{AMO} atomic instructions supported to shared RAM, including sub-word shared stores (byte lanes)
 	\item Instruction fetch from shared memory is supported (the boot ROM is fetched this way by construction); parked harts sleep via the custom \asminline{sleep} instruction and are woken by a software interrupt --- no busy-wait power burn
 \end{itemize}
@@ -24,7 +24,7 @@
 
 All \NumHartsWord{} harts are instances of the same \textit{hart tile}: an unmodified VestaRV core plus its own private TCM, replicating the proven single-core memory path, with every connection to the rest of the chip registered at the tile boundary. Since every hart sees the same address map --- shared boot ROM, shared peripherals, private TCM at the same local address --- the \NumHartsWord{} harts are architecturally identical and code is hart-portable by construction.
 
-Hart 0 is additionally the \textit{management hart}. It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{\FlashBaseAddress}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all \NumHartsWord{} harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Hart 0's peripheral-interrupt enables and priorities also come from the \peripheral{SYSTEM} controller's legacy registers, where harts 1--\MaxHartIndex{} use their \peripheral{IRQROUTER} rows.
+Hart 0 is additionally the \textit{management hart}. It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{\FlashBaseAddress}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all \NumHartsWord{} harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Peripheral interrupts are uniform across harts: every hart, hart 0 included, routes and receives them through its \peripheral{IRQROUTER} row and the claim/complete mechanism (see the \peripheral{IRQROUTER} chapter).
 
 Software discovers which hart it is running on by reading the \register{mhartid} CSR:
 
@@ -45,7 +45,7 @@ Everything below the extended flash region except each hart's private TCM is beh
 	\texttt{0x04000}--\texttt{0x04FFF} & Peripheral slots & 16 slots of 256 bytes, legacy numbering \\
 	\texttt{0x05000}--\texttt{0x05FFF} & \peripheral{CLINT} & IPIs (\register{MSIPx}), \register{MTIME}/\register{MTIMECMPx} \\
 	\texttt{0x06000}--\texttt{0x06FFF} & \peripheral{MUTEX} bank & \NumMutexes{} hardware mutexes \\
-	\texttt{0x07000}--\texttt{0x07FFF} & \peripheral{IRQROUTER} & Per-hart interrupt enable rows \\
+	\texttt{0x07000}--\texttt{0x07FFF} & \peripheral{IRQROUTER} & Per-hart routing rows + CLAIM/COMPLETE \\
 	\ifnpupresent \texttt{0x0C000}--\texttt{0x0FFFF} & NPU staging RAM (16\,KiB) & Vector storage; NPU-owned during a run \\ \fi
 	\texttt{0x10000}--\texttt{\SharedRamEndAddress} & Shared bulk RAM (\SharedRamSizeKiB\,KiB) & Locks, mailboxes, inter-hart data \\ \hline
 \end{tabular}

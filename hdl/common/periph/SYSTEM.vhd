@@ -7,12 +7,14 @@ use work.constants.all;
 use work.MemoryMap.all;
 
 entity SYSTEM is
-    generic (
-        -- Number of IRQ lines
-        NUM_IRQS         : natural := 32
-    );
+    -- M19: the vectored IRQ controller block (SYS_IRQ_EN/PRI/CR + the ENU
+    -- write-packing quirk) is RETIRED — ALL peripheral IRQ routing/masking,
+    -- hart 0 included, lives in the irq_router's per-hart rows @0x7000
+    -- (claim/complete delivery, one meip wire per hart). SYSTEM keeps the
+    -- clock/reset/CRC/WDT monarchy. The retired register slots read 0 and
+    -- ignore writes (reserved).
     port (
-        -- Clock Inputs 
+        -- Clock Inputs
         clk_lfxt_in     : in  std_logic;
         clk_hfxt_in     : in  std_logic;
         clk_dco0_in     : in  std_logic;
@@ -23,13 +25,19 @@ entity SYSTEM is
         resetn_por      : in  std_logic;
         resetn_sys      : out std_logic;
 
-        -- Interrupt Signals
-        irq             : in  std_logic_vector(NUM_IRQS -1 downto 0); 
-        isr_ret         : in  std_logic;
-        irq_en          : out std_logic_vector(NUM_IRQS -1 downto 0);
-        irq_priority    : out std_logic_vector(NUM_IRQS -1 downto 0);
-        irq_recursion_en : out std_logic;
+        -- Interrupt Signals (M19: WDT only)
+        -- The WDT level source into the deglitch chain (source 0 =
+        -- IRQB_SYS_WDT). Pre-M19 this was hardwired '0' (dead); it is now
+        -- wdt_if AND wdt_ie — a REAL level, cleared by the WDT_SR
+        -- write-1-to-clear, masked chip-wide until a router row routes it.
         irq_sys_wdt     : out std_logic;
+        -- D2 hooks from the irq_router: wdt_irq_routed = source 0 is
+        -- enabled in SOME hart's row (the reset-on-undeliverable arm);
+        -- wdt_irq_complete = 1-mclk COMPLETE(0) pulse — the WDT
+        -- end-of-interrupt (replaces the falling_edge(isr_ret) hack; works
+        -- no matter WHICH hart serviced the WDT).
+        wdt_irq_routed   : in  std_logic := '0';
+        wdt_irq_complete : in  std_logic := '0';
 
         -- Memory Bus
         clk_mem         : in  std_logic;
@@ -66,12 +74,11 @@ architecture rtl of SYSTEM is
     signal SYS_BLOCK_PWR      : std_logic_vector(2 downto 0);
     signal SYS_CRC_DATA       : std_logic_vector(7 downto 0);
     signal SYS_CRC_STATE      : std_logic_vector(15 downto 0);
-    signal SYS_IRQ_EN         : std_logic_vector(NUM_IRQS -1 downto 0);
-    signal SYS_IRQ_PRI        : std_logic_vector(NUM_IRQS -1 downto 0); -- Defines low or high priority. 0 = low, 1 = high
+    -- M19: SYS_IRQ_EN / SYS_IRQ_PRI / SYS_IRQ_CR are RETIRED (irq_router
+    -- rows own routing/masking chip-wide; priority is fixed lowest-ID).
     signal SYS_WDT_CR         : std_logic_vector(7 downto 0);
     signal SYS_WDT_SR         : std_logic_vector(1 downto 0);
     signal SYS_WDT_VAL        : std_logic_vector(23 downto 0);
-    signal SYS_IRQ_CR         : std_logic_vector(1 downto 0);
     -- signal DCO0_BIAS          : std_logic_vector(11 downto 0);
     -- signal DCO1_BIAS          : std_logic_vector(11 downto 0);
     -- signal SYS_IRQ           : std_logic_vector(NUM_IRQS -1 downto 0); -- End of interrupt signals '1' interrupt pending '0' interrupt complete / no interrupt
@@ -102,9 +109,6 @@ architecture rtl of SYSTEM is
     -- SYS_WDT_SR
     signal wdt_rf             : std_logic;
     signal wdt_if             : std_logic;
-
-    -- SYS_IRQ_CR
-    signal irq_gen           : std_logic; -- Glocal IRQ enable
 
     -- =============================================================================
     -- Memory Interface Signals
@@ -185,10 +189,6 @@ begin
     wdt_ie        <= SYS_WDT_CR(1);
     wdt_hwrst     <= SYS_WDT_CR(0);
 
-    irq_recursion_en    <= SYS_IRQ_CR(1);
-    irq_gen             <= SYS_IRQ_CR(0);
-
-
     SYS_WDT_SR    <= (
         0 => wdt_rf, 
         1 => wdt_if
@@ -265,8 +265,10 @@ begin
                 -- Set interrupt flag on WDT timeout
                 wdt_if <= '1';
 
-                -- Generate trigger pulse if interrupts are enabled
-                if wdt_ie = '1' and irq_gen = '1' then
+                -- Generate trigger pulse if interrupts are enabled (M19:
+                -- the retired SYS_IRQ_CR global gate no longer qualifies —
+                -- delivery masking is the irq_router row's job)
+                if wdt_ie = '1' then
                     wdt_trigger <= '1';
                 end if;
             else
@@ -293,19 +295,29 @@ begin
 
 
 
-    -- This is safe becuase since WDT is the highest priority interrupt, it cannot be interrupted - if wdt_trigger = '1' then the next isr ret signal is gauranteed to be for the wdt_isr. Once returned, we will perform a system reset.
-    wdt_eoi_proc: process(resetn_sys, isr_ret)
+    -- M19 (D2): the WDT end-of-interrupt is the irq_router's COMPLETE(0)
+    -- pulse — a real mclk-domain strobe from WHICHEVER hart completed the
+    -- WDT claim (the pre-M19 falling_edge(isr_ret) form only observed
+    -- hart 0, and only ever fired if the iret coincided with the 1-cycle
+    -- trigger pulse — vestigial). Qualified by wdt_if (the pending LEVEL),
+    -- not the trigger pulse.
+    wdt_eoi_proc: process(resetn_sys, mclk)
     begin
         if resetn_sys = '0' then
             wdt_interrupt_ret <= '0';
-        elsif falling_edge(isr_ret) and wdt_trigger = '1' then
-            wdt_interrupt_ret <= '1';
+        elsif rising_edge(mclk) then
+            if wdt_irq_complete = '1' and wdt_if = '1' then
+                wdt_interrupt_ret <= '1';
+            end if;
         end if;
     end process;
 
-    resetn_wdt <= '0' when wdt_en = '1' and wdt_trigger = '1' and 
-                    (wdt_ie = '0' or SYS_IRQ_EN(IRQB_SYS_WDT) = '0' or 
-                    (wdt_ie = '1' and wdt_interrupt_ret = '1')) 
+    -- M19: "IRQ masked" is now the router's business — wdt_irq_routed
+    -- replaces the retired SYS_IRQ_EN(IRQB_SYS_WDT) term (reset fires when
+    -- the timeout IRQ is undeliverable ANYWHERE, or after its EOI).
+    resetn_wdt <= '0' when wdt_en = '1' and wdt_trigger = '1' and
+                    (wdt_ie = '0' or wdt_irq_routed = '0' or
+                    (wdt_ie = '1' and wdt_interrupt_ret = '1'))
                     else '1';
 
     -- wdt resetn flag process
@@ -534,11 +546,13 @@ begin
     -- PGEN_rom <= rom_off;
     PGEN_mem <= ram_off & rom_off;
 
-    -- IRQ Signals 
-    irq_en <= SYS_IRQ_EN when irq_gen = '1' else (others => '0');
-    irq_priority <= SYS_IRQ_PRI;
-    -- irq_sys <= wdt_if;
-    irq_sys_wdt <= '0'; -- TODO: For now zero
+    -- IRQ Signals
+    -- M19: the WDT level source goes LIVE (pre-M19 this was hardwired '0'
+    -- and WDT interrupt mode was dead). Level = pending flag AND interrupt
+    -- mode; cleared by the WDT_SR write-1-to-clear (the ISR's
+    -- clear-the-level-at-the-peripheral contract). Chip-wide it stays
+    -- masked until software routes source 0 in an irq_router row.
+    irq_sys_wdt <= wdt_if and wdt_ie;
 
     -- CRC Logic
 
@@ -568,10 +582,8 @@ begin
 
             SYS_CLK_CR      <= (others => '0');
             SYS_CLK_DIV_CR  <= (others => '0');
-            SYS_BLOCK_PWR   <= (others => '0'); 
-            SYS_IRQ_EN      <= (others => '0'); 
+            SYS_BLOCK_PWR   <= (others => '0');
             SYS_WDT_CR      <= (others => '0');
-            SYS_IRQ_PRI     <= (others => '0');
             DCO0_BIAS       <= DCO0_BIAS_DEFAULT;
             DCO1_BIAS       <= DCO1_BIAS_DEFAULT;
             
@@ -611,82 +623,11 @@ begin
                             crc_prev(15 downto 8) <= write_data(15 downto 8);
                             first_crc_flag <= '1';
                         end if;
-                    when RegSlotSYS_IRQ_ENL =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_EN(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_IRQ_EN(15 downto 8) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SYS_IRQ_EN(23 downto 16) <= write_data(23 downto 16);
-                        end if;
-                        if wen(3) = '0' then
-                            SYS_IRQ_EN(31 downto 24) <= write_data(31 downto 24);
-                        end if;
-                    when RegSlotSYS_IRQ_ENM =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_EN(39 downto 32) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_IRQ_EN(47 downto 40) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SYS_IRQ_EN(55 downto 48) <= write_data(23 downto 16);
-                        end if;
-                        if wen(3) = '0' then
-                            SYS_IRQ_EN(63 downto 56) <= write_data(31 downto 24);
-                        end if;
-                    when RegSlotSYS_IRQ_ENU =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_EN(71 downto 64) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_IRQ_EN(79 downto 72) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SYS_IRQ_EN(NUM_IRQS-1 downto 80) <= write_data(NUM_IRQS-64+7 downto 24);
-                        end if;
-                    when RegSlotSYS_IRQ_PRIL =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_PRI(7 downto 0) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_IRQ_PRI(15 downto 8) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SYS_IRQ_PRI(23 downto 16) <= write_data(23 downto 16);
-                        end if;
-                        if wen(3) = '0' then
-                            SYS_IRQ_PRI(31 downto 24) <= write_data(31 downto 24);
-                        end if;
-                    when RegSlotSYS_IRQ_PRIM =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_PRI(39 downto 32) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_IRQ_PRI(47 downto 40) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SYS_IRQ_PRI(55 downto 48) <= write_data(23 downto 16);
-                        end if;
-                        if wen(3) = '0' then
-                            SYS_IRQ_PRI(63 downto 56) <= write_data(31 downto 24);
-                        end if;
-                    when RegSlotSYS_IRQ_PRIU =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_PRI(71 downto 64) <= write_data(7 downto 0);
-                        end if;
-                        if wen(1) = '0' then
-                            SYS_IRQ_PRI(79 downto 72) <= write_data(15 downto 8);
-                        end if;
-                        if wen(2) = '0' then
-                            SYS_IRQ_PRI(NUM_IRQS-1 downto 80) <= write_data(NUM_IRQS-64+7 downto 24);
-                        end if;
-                    when RegSlotSYS_IRQ_CR =>
-                        if wen(0) = '0' then
-                            SYS_IRQ_CR <= write_data(SYS_IRQ_CR'high downto SYS_IRQ_CR'low);
-                        end if;
+                    -- M19: RegSlotSYS_IRQ_ENL/ENM/ENU, PRIL/PRIM/PRIU and
+                    -- IRQ_CR are RETIRED (reserved slots: writes ignored,
+                    -- reads 0 via the read process 'others'). Routing/
+                    -- masking = irq_router rows @0x7000; the ENU packing
+                    -- quirk (EN(84:80) <= write_data(28:24)) dies with them.
                     when RegSlotSYS_WDT_CR =>
                         if unlocked = '1' and wen(0) = '0' then
                             SYS_WDT_CR(SYS_WDT_CR'high downto 0) <= write_data(SYS_WDT_CR'high downto 0);
@@ -762,27 +703,7 @@ begin
                 when RegSlotSYS_CRC_STATE =>
                     read_data <= (others => '0');
                     read_data(SYS_CRC_STATE'high downto SYS_CRC_STATE'low) <= SYS_CRC_STATE;
-                when RegSlotSYS_IRQ_ENL =>
-                    read_data <= (others => '0');
-                    read_data <= SYS_IRQ_EN(31 downto 0);
-                when RegSlotSYS_IRQ_ENM =>
-                    read_data <= (others => '0');
-                    read_data <= SYS_IRQ_EN(63 downto 32);
-                when RegSlotSYS_IRQ_ENU => --TODO: Check sizing 
-                    read_data <= (others => '0');
-                    read_data(NUM_IRQS-64-1 downto 0) <= SYS_IRQ_EN(NUM_IRQS-1 downto 64);
-                when RegSlotSYS_IRQ_PRIL =>
-                    read_data <= (others => '0');
-                    read_data <= SYS_IRQ_PRI(31 downto 0);
-                when RegSlotSYS_IRQ_PRIM =>
-                    read_data <= (others => '0');
-                    read_data <= SYS_IRQ_PRI(63 downto 32);
-                when RegSlotSYS_IRQ_PRIU => --TODO: Check sizing
-                    read_data <= (others => '0');
-                    read_data(NUM_IRQS-64-1 downto 0) <= SYS_IRQ_PRI(NUM_IRQS-1 downto 64);
-                when RegSlotSYS_IRQ_CR =>
-                    read_data <= (others => '0');
-                    read_data(SYS_IRQ_CR'high downto SYS_IRQ_CR'low) <= SYS_IRQ_CR;
+                -- M19: the SYS_IRQ_* slots fall through to 'others' (read 0)
                 when RegSlotSYS_WDT_CR =>
                     read_data <= (others => '0');
                     read_data(SYS_WDT_CR'high downto SYS_WDT_CR'low) <= SYS_WDT_CR;

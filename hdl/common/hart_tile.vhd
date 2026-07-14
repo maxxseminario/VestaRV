@@ -29,13 +29,17 @@
 --                    flash_clk_mem is a GATED CLOCK, and a one-cycle-late
 --                    sleep would let the core consume garbage flash_dout
 --                    (they become hart-0 tile timing-budget pins in M14).
---   * IRQ source   — tiles: irq_en_ext = their irq_router row and
---                    hw_clint_en='1' hardwires CLINT slots 83/84 (no SYSTEM
---                    peripheral to program enables). Hart 0: irq_en_ext =
---                    SYSTEM0's irq_en, irq_prio_ext/irq_recursion_en from
---                    SYSTEM0, isr_ret back to SYSTEM0 (WDT end-of-interrupt),
---                    and hw_clint_en='0' — SYS_IRQ_EN's reset-all-masked
---                    semantics are preserved exactly.
+--   * IRQ source   — M19: IDENTICAL on every hart (hart 0 included — the
+--                    SYSTEM0 vectored path and hw_clint_en are retired).
+--                    Three per-hart level wires cross the boundary: msip/
+--                    mtip from the CLINT and meip from the irq_router's
+--                    claim/complete stage (IVT slot 85 = IRQB_EXT_MEIP).
+--                    All three slots are hardwire-enabled; ALL routing/
+--                    masking lives in the router's per-hart rows @0x7000
+--                    (reset all-masked — the old SYS_IRQ_EN reset semantics
+--                    hold chip-wide by construction). Priority/recursion
+--                    are tied off: with three live slots the in-core
+--                    priority machinery constant-propagates away.
 --   * tcm_pgen     — hart 0's TCM keeps its BLOCKPWR software power gating
 --                    (pgen_mem(1)); tiles tie '0'.
 --   * pd_sleep/pd_iso_en (M17) — MTCMOS power-gating controls from pwr_ctrl
@@ -121,25 +125,14 @@ entity hart_tile is
         msip_in   : in  std_logic := '0';
         mtip_in   : in  std_logic := '0';
 
-        -- M7a: shared-peripheral IRQ fan-out. irq_ext carries the deglitched
-        -- peripheral IRQ levels (mclk-domain fan-out of irq_deglitch in
-        -- MCU.vhd); its CLINT slots 83/84 are IGNORED here — this hart's own
-        -- msip_in/mtip_in override them. irq_en_ext is this hart's enable
-        -- row: tiles wire their irq_router row, hart 0 wires SYSTEM0's
-        -- irq_en (M13). Both default to all-zeros.
-        irq_ext    : in std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
-        irq_en_ext : in std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
-
-        -- M13: IRQ machinery that only hart 0 exercises (SYSTEM0-owned);
-        -- tiles keep the defaults / leave isr_ret open.
-        irq_prio_ext     : in  std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
-        irq_recursion_en : in  std_logic := '0';
-        isr_ret          : out std_logic;
-        -- '1' (tiles): hardwire-enable CLINT slots 83/84 (no SYSTEM
-        -- peripheral to program them). '0' (hart 0): enables come ONLY from
-        -- irq_en_ext = SYSTEM0's irq_en (SYS_IRQ_EN resets all-masked and
-        -- software unmasks via SYS_IRQ_ENU — semantics preserved exactly).
-        hw_clint_en      : in  std_logic := '1';
+        -- M19: the external (peripheral) interrupt wire — the irq_router's
+        -- registered per-hart claim/complete output. Lands on IVT slot 85
+        -- (IRQB_EXT_MEIP); the ISR discovers the source by READING the
+        -- router's CLAIM word. Replaces the M7a wide fan-out (irq_ext/
+        -- irq_en_ext/irq_prio_ext/irq_recursion_en/hw_clint_en/isr_ret
+        -- ports are RETIRED — ~255 boundary flops and the per-tile 85-bit
+        -- priority bank with them).
+        meip_in   : in  std_logic := '0';
 
         -- M13: extended-flash / XIP port (adddec's >=0x20000 decode, enabled
         -- in every tile). Hart 0 wires SPI0 here; tiles leave outputs open,
@@ -294,13 +287,17 @@ architecture behav of hart_tile is
     constant SH_WIN_ZERO : std_logic_vector(31 downto SH_AW+2) := (others => '0');
     constant SH_TCM_ZERO : std_logic_vector(SH_AW+1 downto 16) := (others => '0');
 
-    -- M5b/M13: the two CLINT slots are hardwire-enabled when hw_clint_en='1'
-    -- (tiles — no SYSTEM peripheral to program them); M7a ORs in the
-    -- software-routed enable row (irq_en_ext: router row on tiles, SYSTEM0's
-    -- irq_en on hart 0).
-    signal tile_irq_en   : std_logic_vector(NUM_IRQS-1 downto 0);
+    -- M19: exactly three live IVT slots — meip (85) + the CLINT pair
+    -- (83/84) — all hardwire-enabled; every other slot is constant '0' in
+    -- BOTH the vector and the enables, so synthesis prunes the core's
+    -- NUM_IRQS-wide priority encoder and in-service tracking down to the
+    -- three live sources. Routing/masking lives in the irq_router rows.
+    constant TILE_IRQ_EN : std_logic_vector(NUM_IRQS-1 downto 0) :=
+        (IRQB_EXT_MEIP => '1', IRQB_CLINT_MSIP => '1', IRQB_CLINT_MTIP => '1',
+         others => '0');
+    -- priority all-low / recursion off: fixed (the SYSTEM0 knobs are retired)
+    constant TILE_IRQ_PRI : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
 
-    -- M5b/M7a: per-hart CLINT + routed peripheral levels into this core's vector
     signal tile_irq_vec  : std_logic_vector(NUM_IRQS-1 downto 0);
 
     -- M9b/M12: delayed core reset release — held until the boot fetch has
@@ -361,23 +358,23 @@ architecture behav of hart_tile is
     -- =========================================================================
     -- M13 REGISTERED TILE BOUNDARY (depth 1, mclk). Every shared-bus signal
     -- and every IRQ/CLINT level crosses the tile edge through EXACTLY ONE
-    -- register stage — outbound req/we/addr/wdata/lrsc/lock (+ isr_ret),
-    -- inbound gnt/done/rdata/scfail (+ msip/mtip/irq vector/enables/
-    -- priority/recursion). ONE depth for ALL of them: skew between req and
+    -- register stage — outbound req/we/addr/wdata/lrsc/lock, inbound
+    -- gnt/done/rdata/scfail (+ msip/mtip/meip — M19: the inbound IRQ stage
+    -- shrank from the 3xNUM_IRQS-wide vector/enable/priority banks to these
+    -- three level wires). ONE depth for ALL of them: skew between req and
     -- addr/wdata/lrsc corrupts the arbiter's IDLE sample (arb_lat_tb
     -- BREAK_MODE=2 is the proof), and rdata/scfail must stay aligned with
     -- done (value-with-pulse). The arbiter protocol is proven
     -- latency-insensitive at depths 0/1/2 (M10 wait-for-release masking);
     -- the M12 wait-for-boot-fetch reset release is latency-insensitive by
     -- construction. NOT registered (see header): sleep + the flash/XIP
-    -- ports (gated clock; sleep race), hart_id/hw_clint_en (static straps),
+    -- ports (gated clock; sleep race), hart_id (static strap),
     -- trap_flag/a0 (quasi-static observation).
     -- =========================================================================
     -- internal (pre-boundary) nets for signals that used to drive ports
     signal sh_req_int     : std_logic;
     signal sh_lrsc_int    : std_logic_vector(1 downto 0);
     signal amo_lock_int   : std_logic;
-    signal isr_ret_int    : std_logic;
     -- outbound stage
     signal bnd_req_r      : std_logic := '0';
     signal bnd_we_r       : std_logic_vector(3 downto 0) := (others => '0');
@@ -385,7 +382,6 @@ architecture behav of hart_tile is
     signal bnd_wdata_r    : std_logic_vector(31 downto 0) := (others => '0');
     signal bnd_lrsc_r     : std_logic_vector(1 downto 0) := "00";
     signal bnd_lock_r     : std_logic := '0';
-    signal bnd_isr_ret_r  : std_logic := '0';
     -- inbound stage
     signal bnd_gnt_r      : std_logic := '0';   -- registered for uniformity; no tile logic consumes gnt
     signal bnd_done_r     : std_logic := '0';
@@ -393,10 +389,7 @@ architecture behav of hart_tile is
     signal bnd_scfail_r   : std_logic := '0';
     signal bnd_msip_r     : std_logic := '0';
     signal bnd_mtip_r     : std_logic := '0';
-    signal bnd_irq_ext_r  : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
-    signal bnd_irq_en_r   : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
-    signal bnd_irq_prio_r : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
-    signal bnd_recur_r    : std_logic := '0';
+    signal bnd_meip_r     : std_logic := '0';
 
 begin
 
@@ -412,7 +405,6 @@ begin
             bnd_wdata_r   <= (others => '0');
             bnd_lrsc_r    <= "00";
             bnd_lock_r    <= '0';
-            bnd_isr_ret_r <= '0';
         elsif rising_edge(clk) then
             bnd_req_r     <= sh_req_int;
             bnd_we_r      <= sh_we_lanes;
@@ -420,7 +412,6 @@ begin
             bnd_wdata_r   <= write_word;
             bnd_lrsc_r    <= sh_lrsc_int;
             bnd_lock_r    <= amo_lock_int;
-            bnd_isr_ret_r <= isr_ret_int;
         end if;
     end process;
 
@@ -430,7 +421,6 @@ begin
     sh_wdata <= bnd_wdata_r;
     sh_lrsc <= bnd_lrsc_r;
     sh_lock <= bnd_lock_r;
-    isr_ret <= bnd_isr_ret_r;
 
     bnd_in: process(clk, resetn)
     begin
@@ -441,10 +431,7 @@ begin
             bnd_scfail_r   <= '0';
             bnd_msip_r     <= '0';
             bnd_mtip_r     <= '0';
-            bnd_irq_ext_r  <= (others => '0');
-            bnd_irq_en_r   <= (others => '0');
-            bnd_irq_prio_r <= (others => '0');
-            bnd_recur_r    <= '0';
+            bnd_meip_r     <= '0';
         elsif rising_edge(clk) then
             bnd_gnt_r      <= sh_gnt;
             bnd_done_r     <= sh_done;
@@ -452,32 +439,19 @@ begin
             bnd_scfail_r   <= sh_scfail;
             bnd_msip_r     <= msip_in;
             bnd_mtip_r     <= mtip_in;
-            bnd_irq_ext_r  <= irq_ext;
-            bnd_irq_en_r   <= irq_en_ext;
-            bnd_irq_prio_r <= irq_prio_ext;
-            bnd_recur_r    <= irq_recursion_en;
+            bnd_meip_r     <= meip_in;
         end if;
     end process;
 
-    -- M7a: vector = the fanned-out deglitched peripheral levels, with the two
-    -- CLINT slots overridden by THIS hart's own msip/mtip (irq_ext carries
-    -- hart 0's CLINT bits there — never consume them). Enables = the
-    -- software-routed/programmed row, plus the hardwired CLINT slots when
-    -- hw_clint_en='1' (tiles).
-    tile_irq_proc: process(bnd_irq_ext_r, bnd_msip_r, bnd_mtip_r)
+    -- M19: three live slots — meip (router claim/complete stage) + this
+    -- hart's own CLINT pair. Everything else is constant '0'; the enables
+    -- are the hardwired TILE_IRQ_EN constant (masking lives in the router).
+    tile_irq_proc: process(bnd_meip_r, bnd_msip_r, bnd_mtip_r)
     begin
-        tile_irq_vec <= bnd_irq_ext_r;
+        tile_irq_vec <= (others => '0');
+        tile_irq_vec(IRQB_EXT_MEIP)   <= bnd_meip_r;
         tile_irq_vec(IRQB_CLINT_MSIP) <= bnd_msip_r;
         tile_irq_vec(IRQB_CLINT_MTIP) <= bnd_mtip_r;
-    end process;
-
-    tile_irq_en_proc: process(bnd_irq_en_r, hw_clint_en)
-    begin
-        tile_irq_en <= bnd_irq_en_r;
-        if hw_clint_en = '1' then
-            tile_irq_en(IRQB_CLINT_MSIP) <= '1';
-            tile_irq_en(IRQB_CLINT_MTIP) <= '1';
-        end if;
     end process;
 
     -- M9b/M12: the reset vector (0x0) is the SHARED boot ROM since M12 — the
@@ -535,10 +509,10 @@ begin
             amo_lock     => amo_lock_int,
 
             irq_vector       => tile_irq_vec,
-            irq_priority     => bnd_irq_prio_r,
-            irq_en           => tile_irq_en,
-            irq_recursion_en => bnd_recur_r,
-            isr_ret          => isr_ret_int,
+            irq_priority     => TILE_IRQ_PRI,
+            irq_en           => TILE_IRQ_EN,
+            irq_recursion_en => '0',
+            isr_ret          => open,
 
             trap_flag    => trap_flag,
             a0           => a0

@@ -48,13 +48,8 @@ RVTEST_CODE_BEGIN
     li   t0, 0x0BADF00D
     sw   t0, 0(sp)              # 0xBFF0: hardware must NOT touch this
 
-    # ---- unmask CLINT msip on hart 0 (SYSTEM regs) -------------------------
-    # SYS_IRQ_ENU write packing QUIRK: EN bit 83 (msip) = write_data bit 27
-    li   t0, 0x4900             # SYSTEM base
-    li   t1, 0x08000000
-    sw   t1, 0x1C(t0)           # SYS_IRQ_ENU
-    li   t1, 1
-    sw   t1, 0x2C(t0)           # SYS_IRQ_CR: irq_gen (global enable)
+    # ---- M19: no unmask needed — the CLINT slots are hardwire-enabled on
+    # ---- every hart (SYS_IRQ_ENU/CR are retired, reserved slots) -----------
 
     # ---- pattern every GPR except sp, s3, t0, t6 ---------------------------
     # (s3 = flag pointer, t0 = poll scratch, t6 = bounded budget)

@@ -20,16 +20,20 @@
 # both directions (deliberately NOT SYSTEM0's ENU write quirk). Reset = all
 # masked.
 #
-# THIS TEST: harts 1-3 IN TURN route the shared UART0's TX-complete IRQ
-# (slot IRQB_UART0_TC = 15 -> HhENL bit 15) to THEMSELVES through the
+# THIS TEST (M19 claim/complete rework — the delivery path changed, the
+# protocol did not): harts 1-3 IN TURN route the shared UART0's TX-complete
+# IRQ (source IRQB_UART0_TC = 15 -> HhENL bit 15) to THEMSELVES through the
 # arbiter, then SLEEP (extinguish, clk_cpu off). Hart 0 transmits a byte on
-# the shared UART0; the UTCIF level wakes the routed hart, whose ISR (at the
-# fixed IVT-slot-15 target 0xB700 (M11 TCM ISR bank), section .isr_uart0_tc) clears the UART
-# level THROUGH THE ARBITER, un-routes itself, ignites, and irets; the woken
-# mainline reports DONE. Hart 0 then verifies UTCIF==0 and the router row
-# ==0 (the ISR really ran on the other hart), and moves to the next hart.
-# So each round proves: router write by tile hart -> level fan-out -> wake
-# from sleep -> ISR shared-window accesses -> route teardown.
+# the shared UART0; the UTCIF level raises the routed hart's meip (IVT slot
+# 85), which wakes it into the env MEIP_DISPATCHER: CLAIM returns 15, the
+# dispatcher jalr's through IVT slot 15 into the .isr_uart0_tc HANDLER
+# (plain-ret ABI) which clears the UART level THROUGH THE ARBITER, un-routes
+# itself, ignites, and rets; the dispatcher COMPLETEs source 15 and irets;
+# the woken mainline reports DONE. Hart 0 then verifies UTCIF==0 and the
+# router row ==0 (the handler really ran on the other hart), and moves to
+# the next hart. So each round proves: router row write by tile hart ->
+# meip delivery -> wake from sleep -> claim -> IVT-table dispatch ->
+# handler shared-window accesses -> complete -> route teardown.
 #
 # Shared words (>= 0x10190, clear of all earlier tests' words):
 #     TURN     = 0x10190                  which hart's round it is (zero-init)
@@ -49,9 +53,11 @@
 #  * one-route-at-a-time: each ISR clears ITS OWN row before the next round,
 #    so a later transmit's UTCIF can never IRQ an earlier (awake) hart.
 #
-# Hart 0 never takes UART IRQs itself: SYS_IRQ_EN resets all-masked and this
-# test never touches SYSTEM0's enables (CR.TCIE is set, which feeds the level
-# into irq_comb — masked at hart 0, ROUTED at the tiles).
+# Hart 0 never takes UART IRQs itself: its router row (row 0 — LIVE since
+# M19) resets all-masked and this test never writes it (CR.TCIE is set,
+# which feeds the level into irq_comb — masked at hart 0, ROUTED at the
+# tiles). Claim also guarantees exactly-once: even a multi-hart route could
+# not double-deliver.
 #
 # SMCLK RULE (M6 war story): the ROM bootrom parks SMCLK on LFXT mid-boot;
 # hart 0 writes SYS_CLK_CR=0 (HFXT) before any UART use. BR=1 -> ~13.3us
@@ -202,15 +208,14 @@ woke:
 shirq_fail:
     RVTEST_FAIL                 # a0 = 0xDEADBEEF, spin
 
-    # ---- UART0_TC ISR (fixed IVT slot-15 target 0xB700 (M11); runs on the woken
-    # ---- tile hart). Clears the UART LEVEL through the arbiter, un-routes
-    # ---- itself, ignites (iret must resume MAINLINE, not sleep). Only t0/t1
-    # ---- used, stack-saved; s10 = my hartid from mainline. ------------------
+    # ---- UART0_TC HANDLER (M19 plain-ret ABI; reached via CLAIM=15 ->
+    # ---- dispatcher jalr through IVT slot 15 -> 0xB700). Clears the UART
+    # ---- LEVEL through the arbiter BEFORE returning (complete follows in
+    # ---- the dispatcher), un-routes itself, ignites (the dispatcher's iret
+    # ---- must resume MAINLINE, not sleep). t0/t1 are dispatcher-saved
+    # ---- scratch; ra untouched; s10 = my hartid from mainline. -------------
     .section .isr_uart0_tc, "ax"
 uart0_tc_isr:
-    addi sp, sp, -8
-    sw   t0, 0(sp)
-    sw   t1, 4(sp)
     li   t0, SH_UART
     li   t1, 1
     sw   t1, 4(t0)              # SR bit0 -> clr_UTCIF: drop the level
@@ -218,12 +223,14 @@ uart0_tc_isr:
     li   t1, SH_IRTR
     add  t1, t1, t0
     sw   x0, 0(t1)              # un-route MYSELF (HhENL = 0)
-    ignite                      # clear sleep_cpu: iret resumes mainline
-    lw   t0, 0(sp)
-    lw   t1, 4(sp)
-    addi sp, sp, 8
-    iret
+    ignite                      # clear sleep_cpu: the dispatcher's iret
+                                # then resumes mainline
+    ret
     .previous
+
+    # ---- env meip dispatcher (.isr_meip @0xB100) + IVT slot 85 -------------
+    MEIP_DISPATCHER()
+    IVT_ARM_MEIP()
 
     # NOTE: RVTEST_CODE_END is 'unimp' in this env (traps!) — never fall
     # through; every path above ends in a spin.

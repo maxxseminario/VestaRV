@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/10 at 17:15:54 with the generate.py chip generator
+-- Generated on 2026/07/13 at 22:33:38 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -82,20 +82,19 @@ architecture behav of MCU is
     -- harts 1-3 (hdl/common/hart_tile.vhd), and the four tile instances are
     -- STRUCTURALLY IDENTICAL (one netlist -> one hardened tile in M14).
     -- Every per-instance difference is wiring only: hart_id (mhartid port),
-    -- hart 0's flash/XIP + sleep hookup to SPI0, the IRQ enable/priority
-    -- source (SYSTEM0 on hart 0, irq_router row + hardwired CLINT slots on
-    -- tiles) and the TCM PGEN (BLOCKPWR on hart 0). The vesta and adddec
-    -- component declarations went with the inline hart-0 machinery.
+    -- hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR
+    -- on hart 0). M19: the IRQ interface is IDENTICAL on every hart —
+    -- msip/mtip from the CLINT + one meip wire from the irq_router's
+    -- claim/complete stage (SYSTEM0's vectored path is retired). The vesta
+    -- and adddec component declarations went with the inline hart-0
+    -- machinery.
 
     ----------------------------------- Peripherals --------------------------------------------------
 
     -- SYSTEMx
     component SYSTEM
-        generic (
-            NUM_IRQS    : natural := 32
-        );
         port (
-            -- Clock Inputs 
+            -- Clock Inputs
             clk_lfxt_in     : in  std_logic;
             clk_hfxt_in     : in  std_logic;
             clk_dco0_in     : in  std_logic;
@@ -106,13 +105,11 @@ architecture behav of MCU is
             resetn_por      : in  std_logic;
             resetn_sys      : out std_logic;
 
-            -- Interrupt Signals
-            irq             : in  std_logic_vector(NUM_IRQS -1 downto 0); 
-            isr_ret         : in  std_logic;
-            irq_en          : out std_logic_vector(NUM_IRQS -1 downto 0);
-            irq_priority    : out std_logic_vector(NUM_IRQS -1 downto 0);
-            irq_recursion_en: out std_logic;
+            -- Interrupt Signals (M19: WDT only — the vectored controller is
+            -- retired; routing/delivery live in the irq_router)
             irq_sys_wdt     : out std_logic;
+            wdt_irq_routed   : in  std_logic := '0';
+            wdt_irq_complete : in  std_logic := '0';
 
             -- Memory Bus
             clk_mem         : in  std_logic;
@@ -373,14 +370,13 @@ architecture behav of MCU is
     -- MCU Block Level Signal Declarations --------------------------------------
 
         -- System Signals 
-        signal resetn           : std_logic; 
+        signal resetn           : std_logic;
         signal resetn_por       : std_logic;
-        signal resetn_sys       : std_logic; 
-        signal irq_en           : std_logic_vector(NUM_IRQS-1 downto 0);
-        signal irq_priority     : std_logic_vector(NUM_IRQS-1 downto 0);
-        signal isr_ret          : std_logic; -- Interrupt Service Routine Return Signal
-        signal irq_recursion_en : std_logic; -- Allow Interrupt Recursion
-        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs 
+        signal resetn_sys       : std_logic;
+        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/
+        -- irq_recursion_en) is RETIRED — delivery is the irq_router's
+        -- per-hart meip wires (claim/complete), declared at meip-decl below.
+        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs
         signal sleep_cpu        : std_logic;
         signal PGENROM          : std_logic; -- Active low power rom power gating
         signal PGENSRAM         : std_logic; -- Active low power ram power gating
@@ -451,9 +447,8 @@ architecture behav of MCU is
         signal irq_i2c1_sxc    : std_logic;  -- I2C1 Slave Transfer Complete Interrupt
 
         signal irq_comb         : std_logic_vector(95 downto 0);
-        signal irq_deglitch     : std_logic_vector(NUM_IRQS -1 downto 0);
+        signal irq_deglitch     : std_logic_vector(NUM_IRQ_SRCS -1 downto 0);
         signal gf_out           : std_logic_vector(95 downto 0);
-        -- signal irq_cat          : std_logic_vector(95 downto NUM_IRQS);
 
 
         -- M13: the RISCV core interface signals (read_data/write_word/
@@ -577,7 +572,9 @@ architecture behav of MCU is
         signal shslv_irtr_en    : std_logic;
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
-        signal tile_irq_en_flat : std_logic_vector(18*NUM_IRQS-1 downto 0);
+        signal meip             : std_logic_vector(17 downto 0);
+        signal wdt_irq_routed   : std_logic;   -- irq_router: source 0 enabled in some row
+        signal wdt_irq_complete : std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)
         -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
         -- window slot 11 @0x4B00 (vacated by SARADC0). Its pd_* rows drive
         -- the tile power domains: pd_rstn folds into each tile's resetn
@@ -1468,12 +1465,18 @@ begin
 
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         cs1_in   <= prt2_in(pnum_gpio1_cs1);
-        miso1_in <= prt2_in(pnum_gpio1_miso1);
+        -- MISO1 relocates to P4.6 (AF7, v2 spread slot — literal index, no pnum;
+        -- completes a full SPI1 on P4.4/5/6 at AF7); home pad is the default
+        miso1_in <= prt4_in(6)
+                    when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
+                    else prt2_in(pnum_gpio1_miso1);
         mosi1_in <= prt2_in(pnum_gpio1_mosi1);
         sck1_in  <= prt2_in(pnum_gpio1_sck1);
         sck1_ren_in <= p2_ren(pnum_gpio1_sck1);
         mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);
-        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);
+        miso1_ren_in <= p4_ren(6)
+                        when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
+                        else p2_ren(pnum_gpio1_miso1);
         -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
 
         -- GPIO1 Connections (UART0)
@@ -1481,14 +1484,20 @@ begin
         -- when that pin's PxAFS field selects the function's plane (keyed on
         -- PxAFS only — peripheral inputs stay always-visible, like the direct
         -- taps they replace); otherwise it reads its home pad. The peripheral
-        -- ren_in (user pull preference) follows the same selection.
+        -- ren_in (user pull preference) follows the same selection. RX0's v2
+        -- pad is P4.5 at AF2 (a spread io slot — literal index, no pnum; pairs
+        -- with TX0 on P4.4 AF2); fixed priority: v2 pad > AF1 pad > home.
         tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
                       when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
                       else p2_ren(pnum_gpio1_tx0);
-        rx0_ren_in <= p3_ren(pnum_gpio2_af1_rx0)
+        rx0_ren_in <= p4_ren(5)
+                      when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                      else p3_ren(pnum_gpio2_af1_rx0)
                       when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                       else p2_ren(pnum_gpio1_rx0);
-        rx0_in <= prt3_in(pnum_gpio2_af1_rx0)
+        rx0_in <= prt4_in(5)
+                  when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                  else prt3_in(pnum_gpio2_af1_rx0)
                   when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
                   else prt2_in(pnum_gpio1_rx0);
 
@@ -1536,12 +1545,13 @@ begin
         );
 
         -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),
-        -- I2C0 relocation on P2.6/7 (the UART1 pins). P2.4/5 have no AF1.
+        -- I2C1 relocation on P2.4/5 (v2), I2C0 relocation on P2.6/7 (the UART1 pins)
+        -- — both I2C buses land on this port at AF1.
         afunc2_af1_out <= (
             pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (hi-Z input)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (hi-Z input)
+            pnum_gpio1_af1_scl1 => scl1_out,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_out,        -- GPIO1 pin 4
             pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3
             pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2
             pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1
@@ -1550,8 +1560,8 @@ begin
         afunc2_af1_dir <= (
             pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (input)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (input)
+            pnum_gpio1_af1_scl1 => scl1_dir,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_dir,        -- GPIO1 pin 4
             pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3
             pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2
             pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1
@@ -1560,8 +1570,8 @@ begin
         afunc2_af1_ren <= (
             pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7
             pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6
-            5 => '0',                               -- GPIO1 pin 5: unassigned (pull disabled)
-            4 => '0',                               -- GPIO1 pin 4: unassigned (pull disabled)
+            pnum_gpio1_af1_scl1 => scl1_ren,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_ren,        -- GPIO1 pin 4
             pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3
             pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2
             pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1
@@ -1838,10 +1848,11 @@ begin
         );
 
         -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,
-        -- UART0 relocation on P3.4/5. P3.6/7 have no AF1.
+        -- UART0 relocation on P3.4/5, I2C0 relocation on P3.6/7 (v2) — the
+        -- full serial-relocation row (both UARTs + both I2C buses).
         afunc3_af1_out <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (hi-Z input)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (hi-Z input)
+            pnum_gpio2_af1_scl0 => scl0_out,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_out,    -- GPIO2 pin 6
             pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5
             pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4
             pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3
@@ -1850,8 +1861,8 @@ begin
             pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0
         );
         afunc3_af1_dir <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (input)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (input)
+            pnum_gpio2_af1_scl0 => scl0_dir,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_dir,    -- GPIO2 pin 6
             pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5
             pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4
             pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3
@@ -1860,8 +1871,8 @@ begin
             pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0
         );
         afunc3_af1_ren <= (
-            7 => '0',                           -- GPIO2 pin 7: unassigned (pull disabled)
-            6 => '0',                           -- GPIO2 pin 6: unassigned (pull disabled)
+            pnum_gpio2_af1_scl0 => scl0_ren,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_ren,    -- GPIO2 pin 6
             pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5
             pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4
             pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3
@@ -2060,32 +2071,49 @@ begin
 
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
-        -- Resistor Enables (I2C0 relocates to P2.6/7, I2C1 to P3.2/3 — the
-        -- peripheral ren_in follows the same AF selection as the inputs below)
-        sda0_ren_in <= p2_ren(pnum_gpio1_af1_sda0)
+        -- Resistor Enables (I2C0 relocates to P2.6/7 or P3.6/7 (v2), I2C1 to
+        -- P3.2/3 or P2.4/5 (v2) — the peripheral ren_in follows the same AF
+        -- selection as the inputs below, fixed priority: v2 pad > AF1 pad > home)
+        sda0_ren_in <= p3_ren(pnum_gpio2_af1_sda0)
+                       when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
+                       else p2_ren(pnum_gpio1_af1_sda0)
                        when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
                        else p4_ren(pnum_gpio3_sda0);
-        scl0_ren_in <= p2_ren(pnum_gpio1_af1_scl0)
+        scl0_ren_in <= p3_ren(pnum_gpio2_af1_scl0)
+                       when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"
+                       else p2_ren(pnum_gpio1_af1_scl0)
                        when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
                        else p4_ren(pnum_gpio3_scl0);
-        sda1_ren_in <= p3_ren(pnum_gpio2_af1_sda1)
+        sda1_ren_in <= p2_ren(pnum_gpio1_af1_sda1)
+                       when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"
+                       else p3_ren(pnum_gpio2_af1_sda1)
                        when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
                        else p4_ren(pnum_gpio3_sda1);
-        scl1_ren_in <= p3_ren(pnum_gpio2_af1_scl1)
+        scl1_ren_in <= p2_ren(pnum_gpio1_af1_scl1)
+                       when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"
+                       else p3_ren(pnum_gpio2_af1_scl1)
                        when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
                        else p4_ren(pnum_gpio3_scl1);
 
         -- Inputs (relocated pad wins, home pad is the default)
-        sda0_in <= prt2_in(pnum_gpio1_af1_sda0)
+        sda0_in <= prt3_in(pnum_gpio2_af1_sda0)
+                   when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
+                   else prt2_in(pnum_gpio1_af1_sda0)
                    when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
                    else prt4_in(pnum_gpio3_sda0);
-        scl0_in <= prt2_in(pnum_gpio1_af1_scl0)
+        scl0_in <= prt3_in(pnum_gpio2_af1_scl0)
+                   when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"
+                   else prt2_in(pnum_gpio1_af1_scl0)
                    when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
                    else prt4_in(pnum_gpio3_scl0);
-        sda1_in <= prt3_in(pnum_gpio2_af1_sda1)
+        sda1_in <= prt2_in(pnum_gpio1_af1_sda1)
+                   when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"
+                   else prt3_in(pnum_gpio2_af1_sda1)
                    when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
                    else prt4_in(pnum_gpio3_sda1);
-        scl1_in <= prt3_in(pnum_gpio2_af1_scl1)
+        scl1_in <= prt2_in(pnum_gpio1_af1_scl1)
+                   when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"
+                   else prt3_in(pnum_gpio2_af1_scl1)
                    when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
                    else prt4_in(pnum_gpio3_scl1);
 
@@ -2159,7 +2187,7 @@ begin
         afunc4_af2_out <= (
             7 => t0_cmp1_out,
             6 => t0_cmp0_out,
-            5 => tx1_out,
+            5 => rx0_out,
             4 => tx0_out,
             3 => t0_cmp1_out,
             2 => t0_cmp0_out,
@@ -2169,7 +2197,7 @@ begin
         afunc4_af2_dir <= (
             7 => t0_cmp1_dir,
             6 => t0_cmp0_dir,
-            5 => tx1_dir,
+            5 => rx0_dir,
             4 => tx0_dir,
             3 => t0_cmp1_dir,
             2 => t0_cmp0_dir,
@@ -2179,7 +2207,7 @@ begin
         afunc4_af2_ren <= (
             7 => t0_cmp1_ren,
             6 => t0_cmp0_ren,
-            5 => tx1_ren,
+            5 => rx0_ren,
             4 => tx0_ren,
             3 => t0_cmp1_ren,
             2 => t0_cmp0_ren,
@@ -2308,7 +2336,7 @@ begin
         );
         afunc4_af7_out <= (
             7 => tx1_out,
-            6 => tx0_out,
+            6 => miso1_out,
             5 => mosi1_out,
             4 => sck1_out,
             3 => tx0_out,
@@ -2318,7 +2346,7 @@ begin
         );
         afunc4_af7_dir <= (
             7 => tx1_dir,
-            6 => tx0_dir,
+            6 => miso1_dir,
             5 => mosi1_dir,
             4 => sck1_dir,
             3 => tx0_dir,
@@ -2328,7 +2356,7 @@ begin
         );
         afunc4_af7_ren <= (
             7 => tx1_ren,
-            6 => tx0_ren,
+            6 => miso1_ren,
             5 => mosi1_ren,
             4 => sck1_ren,
             3 => tx0_ren,
@@ -2426,9 +2454,9 @@ begin
             IRQB_I2C1_sovf  => irq_i2c1_sovf,
             IRQB_I2C1_snr   => irq_i2c1_snr,
             IRQB_I2C1_sxc   => irq_i2c1_sxc,
-            -- M5b: hart 0's CLINT levels (harts 1-3 get theirs via tile ports)
-            IRQB_CLINT_MSIP => clint_msip(0),
-            IRQB_CLINT_MTIP => clint_mtip(0),
+            -- M19: the CLINT slots (83/84) fall through to irq_tielow — every
+            -- hart gets its own msip/mtip on dedicated wires; the source
+            -- vector feeds ONLY the irq_router (meip claim/complete delivery)
             others          => irq_tielow
         );
 
@@ -2448,11 +2476,11 @@ begin
     -- live in hart_tile.vhd now — see the rationale there. Hart 0's
     -- remaining specials are pure WIRING on the identical tile:
     --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),
-    --   * irq_en_ext/irq_prio_ext/irq_recursion_en/isr_ret -> SYSTEM0
-    --     (hw_clint_en='0': SYS_IRQ_EN's reset-all-masked semantics kept;
-    --     tiles hardwire CLINT slots 83/84 instead and take the router row),
     --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),
     --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.
+    -- M19: the IRQ interface is IDENTICAL on every hart — msip/mtip from
+    -- the CLINT + this hart's meip row from the irq_router (SYSTEM0's
+    -- vectored path and the hw_clint_en strap are retired).
     -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency
     -- insensitivity at boundary depths 0/1/2; the boot fetch through the
     -- arbiter exercises the stall path on every run).
@@ -2476,12 +2504,7 @@ begin
             hart_id   => x"00000000",
             msip_in   => clint_msip(0),
             mtip_in   => clint_mtip(0),
-            irq_ext    => irq_deglitch,
-            irq_en_ext => irq_en,
-            irq_prio_ext     => irq_priority,
-            irq_recursion_en => irq_recursion_en,
-            isr_ret          => isr_ret,
-            hw_clint_en      => '0',
+            meip_in   => meip(0),
             flash_mem_en  => mem_en_flash,
             flash_clk_mem => clk_mem_flash,
             flash_mab     => mab_flash,
@@ -2801,22 +2824,29 @@ begin
             mtip   => clint_mtip
         );
 
-    -- M7a: tile IRQ fan-out — per-hart peripheral-IRQ enable rows, written by
-    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows
-    -- 1-17 feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's
-    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,
-    -- so this block is a provable NO-OP until software routes an IRQ.
+    -- M19 PLIC-lite: THE peripheral interrupt controller — per-hart routing
+    -- rows (any hart programs any row through the arbiter; resv-gated sh_we
+    -- like the CLINT) + CLAIM/COMPLETE delivery @0x7800. The deglitched
+    -- source vector TERMINATES here; delivery to harts 0-17 is the one
+    -- registered meip wire each (IVT slot 85). sh_master attributes claim
+    -- reads (the mutex-bank idiom). Resets all-masked, so this block is a
+    -- provable NO-OP until software routes an IRQ. The wdt_* hooks carry
+    -- the D2 watchdog contract into SYSTEM0 (source 0's routed/EOI state).
     irtr0: entity work.irq_router
-        generic map (NHARTS => 18, NUM_IRQS => NUM_IRQS, ADDR_W => 7)
+        generic map (NHARTS => 18, NUM_SRCS => NUM_IRQ_SRCS, MW => 5)
         port map (
-            clk        => mclk,
-            resetn     => resetn,
-            en         => shslv_irtr_en,
-            we         => sh_we,
-            addr       => sh_addr(6 downto 0),
-            wdata      => sh_wdata,
-            rdata      => irtr_rdata,
-            irq_en_out => tile_irq_en_flat
+            clk          => mclk,
+            resetn       => resetn,
+            en           => shslv_irtr_en,
+            we           => sh_we,
+            addr         => sh_addr(9 downto 0),
+            wdata        => sh_wdata,
+            rdata        => irtr_rdata,
+            master       => sh_master,
+            irq_in       => irq_deglitch,
+            meip_out     => meip,
+            wdt_routed   => wdt_irq_routed,
+            wdt_complete => wdt_irq_complete
         );
 
     -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
@@ -3174,8 +3204,9 @@ begin
     -- window — its sh_* port maps straight onto that master's slice
     -- of the flattened arb_* buses. Each hart's a0 is brought out (a0_1/2/3);
     -- the tb latches pass AND fail, so a post-PASS corruption still fails
-    -- the run. M13: sleep/flash/tcm_pgen and the SYSTEM0-side IRQ ports ride
-    -- their entity defaults here — only hart 0 wires them.
+    -- the run. M13: sleep/flash/tcm_pgen ride their entity defaults here —
+    -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
+    -- identical on every hart.
     hart1: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
@@ -3197,16 +3228,10 @@ begin
             hart_id   => x"00000001",
             msip_in   => clint_msip(1),
             mtip_in   => clint_mtip(1),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            -- M7a: deglitched peripheral levels fan out to every tile; the
-            -- tile's row of the irq_router gates them (slots 83/84 are
-            -- overridden/hardwired inside the tile)
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(2*NUM_IRQS-1 downto 1*NUM_IRQS),
+            -- M19: ONE external-IRQ wire per tile — the irq_router's
+            -- registered claim/complete output (routing/masking lives in
+            -- the router rows; the tile hardwires its three live slots)
+            meip_in   => meip(1),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile1_req_raw,
             sh_we     => tile1_we_raw,
@@ -3253,13 +3278,7 @@ begin
             hart_id   => x"00000002",
             msip_in   => clint_msip(2),
             mtip_in   => clint_mtip(2),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(3*NUM_IRQS-1 downto 2*NUM_IRQS),
+            meip_in   => meip(2),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile2_req_raw,
             sh_we     => tile2_we_raw,
@@ -3306,13 +3325,7 @@ begin
             hart_id   => x"00000003",
             msip_in   => clint_msip(3),
             mtip_in   => clint_mtip(3),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(4*NUM_IRQS-1 downto 3*NUM_IRQS),
+            meip_in   => meip(3),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile3_req_raw,
             sh_we     => tile3_we_raw,
@@ -3359,13 +3372,7 @@ begin
             hart_id   => x"00000004",
             msip_in   => clint_msip(4),
             mtip_in   => clint_mtip(4),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(5*NUM_IRQS-1 downto 4*NUM_IRQS),
+            meip_in   => meip(4),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile4_req_raw,
             sh_we     => tile4_we_raw,
@@ -3412,13 +3419,7 @@ begin
             hart_id   => x"00000005",
             msip_in   => clint_msip(5),
             mtip_in   => clint_mtip(5),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(6*NUM_IRQS-1 downto 5*NUM_IRQS),
+            meip_in   => meip(5),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile5_req_raw,
             sh_we     => tile5_we_raw,
@@ -3465,13 +3466,7 @@ begin
             hart_id   => x"00000006",
             msip_in   => clint_msip(6),
             mtip_in   => clint_mtip(6),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(7*NUM_IRQS-1 downto 6*NUM_IRQS),
+            meip_in   => meip(6),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile6_req_raw,
             sh_we     => tile6_we_raw,
@@ -3518,13 +3513,7 @@ begin
             hart_id   => x"00000007",
             msip_in   => clint_msip(7),
             mtip_in   => clint_mtip(7),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(8*NUM_IRQS-1 downto 7*NUM_IRQS),
+            meip_in   => meip(7),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile7_req_raw,
             sh_we     => tile7_we_raw,
@@ -3571,13 +3560,7 @@ begin
             hart_id   => x"00000008",
             msip_in   => clint_msip(8),
             mtip_in   => clint_mtip(8),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(9*NUM_IRQS-1 downto 8*NUM_IRQS),
+            meip_in   => meip(8),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile8_req_raw,
             sh_we     => tile8_we_raw,
@@ -3624,13 +3607,7 @@ begin
             hart_id   => x"00000009",
             msip_in   => clint_msip(9),
             mtip_in   => clint_mtip(9),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(10*NUM_IRQS-1 downto 9*NUM_IRQS),
+            meip_in   => meip(9),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile9_req_raw,
             sh_we     => tile9_we_raw,
@@ -3677,13 +3654,7 @@ begin
             hart_id   => x"0000000a",
             msip_in   => clint_msip(10),
             mtip_in   => clint_mtip(10),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(11*NUM_IRQS-1 downto 10*NUM_IRQS),
+            meip_in   => meip(10),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile10_req_raw,
             sh_we     => tile10_we_raw,
@@ -3730,13 +3701,7 @@ begin
             hart_id   => x"0000000b",
             msip_in   => clint_msip(11),
             mtip_in   => clint_mtip(11),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(12*NUM_IRQS-1 downto 11*NUM_IRQS),
+            meip_in   => meip(11),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile11_req_raw,
             sh_we     => tile11_we_raw,
@@ -3783,13 +3748,7 @@ begin
             hart_id   => x"0000000c",
             msip_in   => clint_msip(12),
             mtip_in   => clint_mtip(12),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(13*NUM_IRQS-1 downto 12*NUM_IRQS),
+            meip_in   => meip(12),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile12_req_raw,
             sh_we     => tile12_we_raw,
@@ -3836,13 +3795,7 @@ begin
             hart_id   => x"0000000d",
             msip_in   => clint_msip(13),
             mtip_in   => clint_mtip(13),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(14*NUM_IRQS-1 downto 13*NUM_IRQS),
+            meip_in   => meip(13),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile13_req_raw,
             sh_we     => tile13_we_raw,
@@ -3889,13 +3842,7 @@ begin
             hart_id   => x"0000000e",
             msip_in   => clint_msip(14),
             mtip_in   => clint_mtip(14),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(15*NUM_IRQS-1 downto 14*NUM_IRQS),
+            meip_in   => meip(14),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile14_req_raw,
             sh_we     => tile14_we_raw,
@@ -3942,13 +3889,7 @@ begin
             hart_id   => x"0000000f",
             msip_in   => clint_msip(15),
             mtip_in   => clint_mtip(15),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(16*NUM_IRQS-1 downto 15*NUM_IRQS),
+            meip_in   => meip(15),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile15_req_raw,
             sh_we     => tile15_we_raw,
@@ -3995,13 +3936,7 @@ begin
             hart_id   => x"00000010",
             msip_in   => clint_msip(16),
             mtip_in   => clint_mtip(16),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(17*NUM_IRQS-1 downto 16*NUM_IRQS),
+            meip_in   => meip(16),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile16_req_raw,
             sh_we     => tile16_we_raw,
@@ -4048,13 +3983,7 @@ begin
             hart_id   => x"00000011",
             msip_in   => clint_msip(17),
             mtip_in   => clint_mtip(17),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(18*NUM_IRQS-1 downto 17*NUM_IRQS),
+            meip_in   => meip(17),
             -- M17: outbound signals land on _raw and pass the iso clamps
             sh_req    => tile17_req_raw,
             sh_we     => tile17_we_raw,
@@ -4080,11 +4009,9 @@ begin
             a0        => a0_17_raw
         );
 
-    -- System Peripheral
+    -- System Peripheral (M19: the vectored IRQ controller is retired — only
+    -- the WDT level source + the D2 router hooks remain on the IRQ side)
     system0: SYSTEM
-        generic map (
-            NUM_IRQS => NUM_IRQS 
-        )
         port map (
             clk_lfxt_in   => lfxt_in,
             clk_hfxt_in   => hfxt_in,
@@ -4093,14 +4020,11 @@ begin
 
             resetn_in      => resetn_in,
             resetn_por     => resetn_por,
-            resetn_sys     => resetn, 
+            resetn_sys     => resetn,
 
-            irq           => irq_deglitch,
-            isr_ret       => isr_ret,
-            irq_en        => irq_en,
-            irq_priority  => irq_priority,
-            irq_recursion_en => irq_recursion_en,
             irq_sys_wdt   => irq_sys_wdt,
+            wdt_irq_routed   => wdt_irq_routed,
+            wdt_irq_complete => wdt_irq_complete,
 
             -- Memory Bus (arbiter slave side, M11 — window slot 9 @0x04900)
             clk_mem       => mclk,
@@ -4724,7 +4648,7 @@ begin
             IrqGlitchy		=> irq_comb(95 downto 64),
             IrqDeglitched	=> gf_out(95 downto 64)
 	);
-    irq_deglitch <= gf_out(NUM_IRQS-1 downto 0);
+    irq_deglitch <= gf_out(NUM_IRQ_SRCS-1 downto 0);
 
     -- This tie-low cell is instantiated because, for some reason, Genus won't route tie cells to any of the analog blocks, instead directly connecting the pins to VSS (or VDD)
 	-- This tie-low cell buries a constant 0 one level down in the hierarchy, which tricks Genus into using an actual tie-low cell from the standard cell library and connecting it to all the constant '0' inputs to the glitch filter

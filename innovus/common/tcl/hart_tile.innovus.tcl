@@ -1146,6 +1146,7 @@ if {[info exists PG1_NREP] && $PG1_NREP > 0} {
 		-stacked_via_bottom_layer M1 \
 		-extend_to_closest_target none
 	set __rep_vdd_band [dict create]
+	set __rep_railjump {}
 	foreach __i [dbGet -p top.insts.name pgaorep_*] {
 		set __bx [lindex [dbGet $__i.box] 0]
 		foreach {__x0 __y0 __x1 __y1} $__bx {}
@@ -1182,9 +1183,35 @@ if {[info exists PG1_NREP] && $PG1_NREP > 0} {
 			if {[pg4_rep_strap VSS [expr {$__x0 + $__c}] $__y0 $__y1]} { set __vss_done 1; break }
 		}
 		if {!$__vss_done} {
-			puts "FATAL (PG4/F1): no collision-free VSS bar for repeater [dbGet $__i.name]. Aborting."
-			saveDesign dbs/pg4rep_fail.innovus
-			exit 1
+			# M19c FALLBACK (first hit: pgaorep_0 on the M19c resynth
+			# placement — both M2 VSS bands collided with column straps).
+			# The VSSG pin never actually NEEDS the M2 mini-strap: ground
+			# is unswitched, so the row follow-pin rail IS VSS and the
+			# cell's own VSS rail pin (LEF: full-width at y<=0.15) sits
+			# 0.115 um below the VSSG bar (y>=0.265) with NO foreign M1
+			# between them at the bar's x (0.36-0.53 R0; checked against
+			# the USEfix LEF OBS rects). Drop an in-cell M1 jumper from
+			# bar to rail — the FILLBIAS VPW jumper trick, LVS-proven at
+			# PG4 on 7072 pins. VDD has NO such fallback (row rails are
+			# VDD_SW, must never touch VDDG) — its collision stays FATAL.
+			if {$__or eq "MY" || $__or eq "R180"} {
+				set __jx0 [expr {$__x0 + 1.4 - 0.53}]
+				set __jx1 [expr {$__x0 + 1.4 - 0.36}]
+			} else {
+				set __jx0 [expr {$__x0 + 0.36}]
+				set __jx1 [expr {$__x0 + 0.53}]
+			}
+			if {$__or eq "MX" || $__or eq "R180"} {
+				set __jy0 [expr {$__y1 - 0.45}]
+				set __jy1 [expr {$__y1 + 0.10}]
+			} else {
+				set __jy0 [expr {$__y0 - 0.10}]
+				set __jy1 [expr {$__y0 + 0.45}]
+			}
+			add_shape -net VSS -layer M1 -rect [list $__jx0 $__jy0 $__jx1 $__jy1] -shape STRIPE -status ROUTED
+			puts "PG4/M19c: repeater [dbGet $__i.name] VSSG hooked via RAIL JUMPER at x=$__jx0 (both M2 bands collide)"
+			lappend __rep_railjump [dbGet $__i.name]
+			set __vss_done 1
 		}
 	}
 	# VDDG via (PG4 v22, GDS-real form): the v18-v21 `add_via VIA1_V` here
@@ -1212,7 +1239,14 @@ if {[info exists PG1_NREP] && $PG1_NREP > 0} {
 			incr __rep_bad
 			puts "PG4 F1: repeater [dbGet $__i.name] @$__bx has NO VDD via (VDDG unsupplied)"
 		}
-		if {![pg4_has_svia $__bx VSS]} {
+		if {[lsearch -exact $__rep_railjump [dbGet $__i.name]] >= 0} {
+			# M19c: VSSG hooked by the M1 rail jumper — no via exists by
+			# design; verify the jumper WIRE instead (non-followpin M1).
+			if {![pg4_has_wire $__bx VSS 1]} {
+				incr __rep_bad
+				puts "PG4 F1: repeater [dbGet $__i.name] @$__bx rail jumper MISSING (VSSG unsupplied)"
+			}
+		} elseif {![pg4_has_svia $__bx VSS]} {
 			incr __rep_bad
 			puts "PG4 F1: repeater [dbGet $__i.name] @$__bx has NO VSS via (VSSG unsupplied)"
 		}

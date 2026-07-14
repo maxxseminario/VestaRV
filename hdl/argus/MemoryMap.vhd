@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/10 at 17:15:54 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/13 at 22:33:38 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -126,16 +126,9 @@ package MemoryMap is
 	constant RegSlotBLOCKPWR		: natural := 02;	-- offset = 8 bytes
 	constant RegSlotCRCDATA			: natural := 03;	-- offset = 12 bytes
 	constant RegSlotCRCSTATE		: natural := 04;	-- offset = 16 bytes
-	constant RegSlotIRQENL			: natural := 05;	-- offset = 20 bytes
-	constant RegSlotIRQENM			: natural := 06;	-- offset = 24 bytes
-	constant RegSlotIRQENU			: natural := 07;	-- offset = 28 bytes
-	constant RegSlotIRQPRIL			: natural := 08;	-- offset = 32 bytes
-	constant RegSlotIRQPRIM			: natural := 09;	-- offset = 36 bytes
-	constant RegSlotIRQPRIU			: natural := 10;	-- offset = 40 bytes
-	constant RegSlotIRQCR			: natural := 11;	-- offset = 44 bytes
-	constant RegSlotWDTCR			: natural := 12;	-- offset = 48 bytes
-	constant RegSlotWDTSR			: natural := 13;	-- offset = 52 bytes
-	constant RegSlotWDTPASS			: natural := 14;	-- offset = 56 bytes
+	constant RegSlotWDTPASS			: natural := 12;	-- offset = 48 bytes
+	constant RegSlotWDTCR			: natural := 13;	-- offset = 52 bytes
+	constant RegSlotWDTSR			: natural := 14;	-- offset = 56 bytes
 	constant RegSlotWDTVAL			: natural := 15;	-- offset = 60 bytes
 	constant RegSlotDCO0BIAS		: natural := 16;	-- offset = 64 bytes
 	constant RegSlotDCO1BIAS		: natural := 17;	-- offset = 68 bytes
@@ -304,6 +297,13 @@ package MemoryMap is
 	constant RegSlotH17ENL			: natural := 68;	-- offset = 272 bytes
 	constant RegSlotH17ENM			: natural := 69;	-- offset = 276 bytes
 	constant RegSlotH17ENU			: natural := 70;	-- offset = 280 bytes
+	constant RegSlotCLAIM			: natural := 512;	-- offset = 2048 bytes
+	constant RegSlotPENDL			: natural := 516;	-- offset = 2064 bytes
+	constant RegSlotPENDM			: natural := 517;	-- offset = 2068 bytes
+	constant RegSlotPENDU			: natural := 518;	-- offset = 2072 bytes
+	constant RegSlotINSVCL			: natural := 520;	-- offset = 2080 bytes
+	constant RegSlotINSVCM			: natural := 521;	-- offset = 2084 bytes
+	constant RegSlotINSVCU			: natural := 522;	-- offset = 2088 bytes
 
 
 
@@ -644,33 +644,9 @@ package MemoryMap is
 	constant SYSCRCSTATE_MSB		: natural := 15;
 	constant SYSCRCSTATE_LSB		: natural := 00;
 
-	-- IRQENL
-	constant SYSIRQENL_MSB			: natural := 31;
-	constant SYSIRQENL_LSB			: natural := 00;
-
-	-- IRQENM
-	constant SYSIRQENM_MSB			: natural := 31;
-	constant SYSIRQENM_LSB			: natural := 00;
-
-	-- IRQENU
-	constant SYSIRQENU_MSB			: natural := 31;
-	constant SYSIRQENU_LSB			: natural := 00;
-
-	-- IRQPRIL
-	constant SYSIRQPRIL_MSB			: natural := 31;
-	constant SYSIRQPRIL_LSB			: natural := 00;
-
-	-- IRQPRIM
-	constant SYSIRQPRIM_MSB			: natural := 31;
-	constant SYSIRQPRIM_LSB			: natural := 00;
-
-	-- IRQPRIU
-	constant SYSIRQPRIU_MSB			: natural := 31;
-	constant SYSIRQPRIU_LSB			: natural := 00;
-
-	-- IRQCR
-	constant SYSIRQRECEN_LSB		: natural := 01;
-	constant SYSIRQGEN_LSB			: natural := 00;
+	-- WDTPASS
+	constant SYSWDTPASS_MSB			: natural := 31;
+	constant SYSWDTPASS_LSB			: natural := 00;
 
 	-- WDTCR
 	constant SYSWDTEN_LSB			: natural := 07;
@@ -682,10 +658,6 @@ package MemoryMap is
 	-- WDTSR
 	constant SYSWDTIF_LSB			: natural := 01;
 	constant SYSWDTRF_LSB			: natural := 00;
-
-	-- WDTPASS
-	constant SYSWDTPASS_MSB			: natural := 31;
-	constant SYSWDTPASS_LSB			: natural := 00;
 
 	-- WDTVAL
 	constant SYSWDTVAL_MSB			: natural := 23;
@@ -1376,6 +1348,34 @@ package MemoryMap is
 	constant IRQRH17ENU_MSB			: natural := 20;
 	constant IRQRH17ENU_LSB			: natural := 00;
 
+	-- CLAIM
+	constant IRQRCLAIM_MSB			: natural := 31;
+	constant IRQRCLAIM_LSB			: natural := 00;
+
+	-- PENDL
+	constant IRQRPENDL_MSB			: natural := 31;
+	constant IRQRPENDL_LSB			: natural := 00;
+
+	-- PENDM
+	constant IRQRPENDM_MSB			: natural := 31;
+	constant IRQRPENDM_LSB			: natural := 00;
+
+	-- PENDU
+	constant IRQRPENDU_MSB			: natural := 20;
+	constant IRQRPENDU_LSB			: natural := 00;
+
+	-- INSVCL
+	constant IRQRINSVCL_MSB			: natural := 31;
+	constant IRQRINSVCL_LSB			: natural := 00;
+
+	-- INSVCM
+	constant IRQRINSVCM_MSB			: natural := 31;
+	constant IRQRINSVCM_LSB			: natural := 00;
+
+	-- INSVCU
+	constant IRQRINSVCU_MSB			: natural := 20;
+	constant IRQRINSVCU_LSB			: natural := 00;
+
 
 
 	---------- MCU_MP Compatibility ----------
@@ -1436,13 +1436,6 @@ package MemoryMap is
 	constant RegSlotSYS_BLOCK_PWR	: natural := 02;						-- offset = 8 bytes
 	constant RegSlotSYS_CRC_DATA	: natural := 03;						-- offset = 12 bytes
 	constant RegSlotSYS_CRC_STATE	: natural := 04;						-- offset = 16 bytes
-	constant RegSlotSYS_IRQ_ENL		: natural := 05;						-- offset = 20 bytes
-	constant RegSlotSYS_IRQ_ENM		: natural := 06;						-- offset = 24 bytes
-	constant RegSlotSYS_IRQ_ENU		: natural := 07;						-- offset = 28 bytes
-	constant RegSlotSYS_IRQ_PRIL	: natural := 08;						-- offset = 32 bytes
-	constant RegSlotSYS_IRQ_PRIM	: natural := 09;						-- offset = 36 bytes
-	constant RegSlotSYS_IRQ_PRIU	: natural := 10;						-- offset = 40 bytes
-	constant RegSlotSYS_IRQ_CR		: natural := 11;						-- offset = 44 bytes
 	constant RegSlotSYS_WDT_PASS	: natural := 12;						-- offset = 48 bytes
 	constant RegSlotSYS_WDT_CR		: natural := 13;						-- offset = 52 bytes
 	constant RegSlotSYS_WDT_SR		: natural := 14;						-- offset = 56 bytes
@@ -1537,8 +1530,10 @@ package MemoryMap is
 	constant IRQB_I2C1_sxc			: natural := 82;						-- I2C1 slave mode transfer complete Interrupt, IVT address = 0x8148
 	constant IRQB_CLINT_MSIP		: natural := 83;						-- CLINT software interrupt (IPI), IVT address = 0x814C
 	constant IRQB_CLINT_MTIP		: natural := 84;						-- CLINT timer interrupt, IVT address = 0x8150
-	constant NUM_IRQS				: natural := 85;						-- Total number of IRQs
-	constant NUM_GF_INSTANCES		: natural := (NUM_IRQS + 31) / 32;		-- glitch-filter instance count
+	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
+	constant NUM_IRQ_SRCS			: natural := 85;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
+	constant NUM_IRQS				: natural := 86;						-- Core IVT slot count = sources + the meip slot (M19)
+	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
 	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)
 	constant CORE_ENABLE_MUL		: boolean := true;						-- M: MUL/MULH/MULHU/MULHSU
@@ -1587,21 +1582,25 @@ package MemoryMap is
 	constant pnum_gpio3_dtp2		: natural := 06;						-- P4.6
 	constant pnum_gpio3_dtp3		: natural := 07;						-- P4.7
 
-	-- GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C0 relocation
+	-- GPIO1 (P2) AF1: TIMER compare (PWM) relocations + I2C1 relocation (v2) + I2C0 relocation
 	constant pnum_gpio1_af1_t0_cmp0	: natural := 00;						-- P2.0
 	constant pnum_gpio1_af1_t0_cmp1	: natural := 01;						-- P2.1
 	constant pnum_gpio1_af1_t1_cmp0	: natural := 02;						-- P2.2
 	constant pnum_gpio1_af1_t1_cmp1	: natural := 03;						-- P2.3
+	constant pnum_gpio1_af1_sda1	: natural := 04;						-- P2.4
+	constant pnum_gpio1_af1_scl1	: natural := 05;						-- P2.5
 	constant pnum_gpio1_af1_sda0	: natural := 06;						-- P2.6
 	constant pnum_gpio1_af1_scl0	: natural := 07;						-- P2.7
 
-	-- GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations
+	-- GPIO2 (P3) AF1: UART0/UART1 + I2C1 relocations + I2C0 relocation (v2)
 	constant pnum_gpio2_af1_tx1		: natural := 00;						-- P3.0
 	constant pnum_gpio2_af1_rx1		: natural := 01;						-- P3.1
 	constant pnum_gpio2_af1_sda1	: natural := 02;						-- P3.2
 	constant pnum_gpio2_af1_scl1	: natural := 03;						-- P3.3
 	constant pnum_gpio2_af1_tx0		: natural := 04;						-- P3.4
 	constant pnum_gpio2_af1_rx0		: natural := 05;						-- P3.5
+	constant pnum_gpio2_af1_sda0	: natural := 06;						-- P3.6
+	constant pnum_gpio2_af1_scl0	: natural := 07;						-- P3.7
 
 	-- GPIO3 (P4) AF1: TIMER capture + compare relocations
 	constant pnum_gpio3_af1_t0_cap0	: natural := 00;						-- P4.0

@@ -20,10 +20,9 @@
 #   1. mtime ticks: two reads (separate arbiter txns) strictly increase.
 #   2. mtime is writable: set lo=0x40000000/hi=0, read back within a small
 #      delta (it keeps counting underneath).
-#   3. hart 0 unmask via SYSTEM: SYS_IRQ_ENU packing QUIRK — the write path
-#      maps EN bits 84:80 to write_data(28:24) (NOT the read-back packing!),
-#      so bit 83 (msip) = wd bit 27, bit 84 (mtip) = wd bit 28 -> 0x18000000.
-#      SYS_IRQ_CR bit 0 = global irq_gen.
+#   3. RETIRED (M19): the CLINT slots are hardwire-enabled on EVERY hart —
+#      the old SYS_IRQ_ENU packing-quirk unmask is gone; steps 4/5 delivering
+#      with no setup at all IS the hardwired-enable proof.
 #   4. msip self-IPI: MSIP[0]=1 -> ISR (slot 83) clears it + sets flag bit 0.
 #   5. mtip: MTIMECMP[0] = mtime+64 (lo FIRST while hi is still all-ones —
 #      no spurious window — THEN hi=0 arms it) -> ISR (slot 84) disarms by
@@ -69,12 +68,11 @@ RVTEST_CODE_BEGIN
     li   t1, 0x1000
     bgeu t0, t1, shclint_fail   # must read back close to the written value
 
-    # ---- 3. unmask CLINT IRQs on hart 0 (SYSTEM regs) ----------------------
-    li   s4, 0x4900             # SYSTEM base
-    li   t0, 0x18000000         # ENU write packing: bit27=msip(83), bit28=mtip(84)
-    sw   t0, 0x1C(s4)           # SYS_IRQ_ENU
-    li   t0, 1
-    sw   t0, 0x2C(s4)           # SYS_IRQ_CR: irq_gen (global enable)
+    # ---- 3. RETIRED (M19): hart 0's CLINT slots are HARDWIRE-ENABLED like
+    # ---- every tile's — no SYSTEM/router setup needed (SYS_IRQ_ENU/CR and
+    # ---- the ENU write-packing quirk are gone; the register slots are
+    # ---- reserved and ignore writes). Steps 4/5 firing with ZERO unmask
+    # ---- setup IS the M19 hardwired-enable proof. ---------------------------
 
     # ---- 4. msip self-IPI --------------------------------------------------
     li   t1, 1

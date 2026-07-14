@@ -4,6 +4,17 @@
 -- Standalone, self-checking testbench for the SYSTEM peripheral
 -- (hdl/myshkin/periph/SYSTEM.vhd) -- the clock/reset/IRQ/WDT/CRC controller.
 --
+-- M19: the vectored IRQ controller (NUM_IRQS generic, irq/isr_ret ports,
+-- irq_en/irq_priority/irq_recursion_en outputs, and register slots 5-11 --
+-- SYS_IRQ_ENL/M/U, PRIL/M/U, CR) is RETIRED from SYSTEM.vhd; all peripheral
+-- IRQ routing/masking now lives in irq_router's per-hart PLIC-lite rows
+-- (covered by irq_router_tb.vhd). SYSTEM keeps only the WDT level output
+-- (irq_sys_wdt = wdt_if AND wdt_ie) plus the new wdt_irq_routed/
+-- wdt_irq_complete inputs from the router (left at their defaults here --
+-- this bench never routes the WDT). This tb was trimmed to match: the
+-- irq_en/irq_priority/irq_recursion_en checks and the IRQ register R/W
+-- checks are gone; a "retired slot" check replaces them.
+--
 -- Uses the shared support package tb/periph_tb_pkg.vhd: the `scoreboard`
 -- (check_bit/check_slv/check_true + banner), the register-bus BFM
 -- (periph_bus_t + bus_write/bus_read/bus_write_hold), and crc16_byte.
@@ -15,8 +26,8 @@
 -- clock, exactly as the SoC gates each peripheral's clk_periph by its select.
 --
 -- Coverage: reset defaults, R/W of every writable register + byte lanes,
--- register->pad routing (PGEN_mem, DCO bias/en, irq_en gating, irq_priority,
--- irq_recursion_en), the CRC16 engine, the watchdog (password lock, counter,
+-- register->pad routing (PGEN_mem, DCO bias/en), a retired-slot readback/
+-- write-ignore check, the CRC16 engine, the watchdog (password lock, counter,
 -- timeout flag + clear), and clock-tree activity/divider/source-mux.
 -------------------------------------------------------------------------------
 
@@ -45,13 +56,8 @@ architecture sim of SYSTEM_tb is
     signal resetn_in    : std_logic := '1';
     signal resetn_por   : std_logic := '0';
     signal resetn_sys   : std_logic;
-    signal isr_ret      : std_logic := '0';
-    signal irq          : std_logic_vector(NUM_IRQS-1 downto 0) := (others => '0');
 
-    -- interrupt mask outputs (SoC uses NUM_IRQS = 83: L/M/U 32-bit words)
-    signal irq_en           : std_logic_vector(NUM_IRQS-1 downto 0);
-    signal irq_priority     : std_logic_vector(NUM_IRQS-1 downto 0);
-    signal irq_recursion_en : std_logic;
+    -- WDT level output (M19: wdt_irq_routed/wdt_irq_complete left at defaults)
     signal irq_sys_wdt      : std_logic;
 
     -- register bus (BFM record + observed read_data + gated clk_mem)
@@ -95,14 +101,12 @@ begin
     process(clk)          begin if rising_edge(clk)          then cnt_ref   <= cnt_ref   + 1; end if; end process;
 
     dut : entity work.SYSTEM
-        generic map ( NUM_IRQS => NUM_IRQS )
         port map (
             clk_lfxt_in => clk_lfxt_in, clk_hfxt_in => clk,
             clk_dco0_in => clk_dco0_in, clk_dco1_in => clk_dco1_in,
             resetn_in => resetn_in, resetn_por => resetn_por, resetn_sys => resetn_sys,
-            irq => irq, isr_ret => isr_ret,
-            irq_en => irq_en, irq_priority => irq_priority,
-            irq_recursion_en => irq_recursion_en, irq_sys_wdt => irq_sys_wdt,
+            irq_sys_wdt => irq_sys_wdt,
+            -- wdt_irq_routed / wdt_irq_complete left at their port defaults ('0')
             clk_mem => clk_mem, en_mem => pbus.en_mem, wen => pbus.wen,
             addr_periph => pbus.addr_periph, write_data => pbus.write_data, read_data => read_data,
             mclk_out => mclk_out, smclk_out => smclk_out,
@@ -147,10 +151,6 @@ begin
         sb.check_slv("SYS_WDT_SR resets to 0", rdw(1 downto 0), "00");
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_VAL, rdw);
         sb.check_slv("SYS_WDT_VAL resets to 0 (wdt off)", rdw(23 downto 0), (23 downto 0 => '0'));
-        bus_read(clk, pbus, read_data, RegSlotSYS_IRQ_ENL, rdw);
-        sb.check_slv("SYS_IRQ_EN resets to 0", rdw, x"00000000");
-        bus_read(clk, pbus, read_data, RegSlotSYS_IRQ_PRIL, rdw);
-        sb.check_slv("SYS_IRQ_PRI resets to 0", rdw, x"00000000");
         bus_read(clk, pbus, read_data, RegSlotDCO0_BIAS, rdw);
         sb.check_slv("SYS DCO0_BIAS reg = default 0x800", rdw(11 downto 0), x"800");
         bus_read(clk, pbus, read_data, RegSlotDCO1_BIAS, rdw);
@@ -160,8 +160,7 @@ begin
         sb.check_slv("DCO0_BIAS pad = default 0x800", DCO0_BIAS, x"800");
         sb.check_slv("DCO1_BIAS pad = default 0x800", DCO1_BIAS, x"800");
         sb.check_slv("PGEN_mem = 0 at reset (all on)", PGEN_mem, "000");
-        sb.check_slv("irq_priority = 0 at reset", irq_priority, (NUM_IRQS-1 downto 0 => '0'));
-        sb.check_bit("irq_sys_wdt hardwired 0", irq_sys_wdt, '0');
+        sb.check_bit("irq_sys_wdt low at reset (wdt_ie=0)", irq_sys_wdt, '0');
 
         ----------------------------------------------------------------
         -- GROUP 2: register read/write + pad routing
@@ -206,45 +205,16 @@ begin
         sb.check_bit("en_dco1_out clears", en_dco1_out, '0');
 
         ----------------------------------------------------------------
-        -- GROUP 3: interrupt mask registers + global enable gating
+        -- GROUP 3: retired IRQ register slots (M19)
+        --   Slots 5-11 (formerly SYS_IRQ_ENL/M/U, PRIL/M/U, CR) are now
+        --   reserved gaps: reads return 0 and writes are ignored. Slot 5
+        --   (formerly SYS_IRQ_ENL) stands in for the whole retired block.
         ----------------------------------------------------------------
-        report "=== GROUP 3: IRQ mask / enable ===" severity note;
+        report "=== GROUP 3: retired IRQ register slots ===" severity note;
 
-        -- lower and middle IRQ-enable words (L = bits 31:0, M = bits 63:32)
-        bus_write(clk, pbus, RegSlotSYS_IRQ_ENL, x"DEADBEEF");
-        bus_read(clk, pbus, read_data, RegSlotSYS_IRQ_ENL, rdw);
-        sb.check_slv("SYS_IRQ_EN L-word readback", rdw, x"DEADBEEF");
-        bus_write(clk, pbus, RegSlotSYS_IRQ_ENM, x"CAFEF00D");
-        bus_read(clk, pbus, read_data, RegSlotSYS_IRQ_ENM, rdw);
-        sb.check_slv("SYS_IRQ_EN M-word readback", rdw, x"CAFEF00D");
-
-        -- global enable off (IRQ_CR(0)=0): irq_en output must be masked to 0
-        bus_write(clk, pbus, RegSlotSYS_IRQ_CR, x"00000000");
-        sb.check_slv("irq_en gated to 0 when global IRQ off", irq_en, (NUM_IRQS-1 downto 0 => '0'));
-
-        -- global enable on: irq_en passes the mask through (check L + M words)
-        bus_write(clk, pbus, RegSlotSYS_IRQ_CR, x"00000001");
-        sb.check_slv("irq_en L passes mask when global IRQ on", irq_en(31 downto 0),  x"DEADBEEF");
-        sb.check_slv("irq_en M passes mask when global IRQ on", irq_en(63 downto 32), x"CAFEF00D");
-
-        -- recursion enable is IRQ_CR(1)
-        bus_write(clk, pbus, RegSlotSYS_IRQ_CR, x"00000002");
-        sb.check_bit("irq_recursion_en set from IRQ_CR(1)", irq_recursion_en, '1');
-        sb.check_slv("irq_en gated again (global off)", irq_en(31 downto 0), x"00000000");
-        bus_write(clk, pbus, RegSlotSYS_IRQ_CR, x"00000001");
-        sb.check_bit("irq_recursion_en clears", irq_recursion_en, '0');
-
-        -- priority mask -> irq_priority pad
-        bus_write(clk, pbus, RegSlotSYS_IRQ_PRIL, x"12345678");
-        bus_read(clk, pbus, read_data, RegSlotSYS_IRQ_PRIL, rdw);
-        sb.check_slv("SYS_IRQ_PRI readback", rdw, x"12345678");
-        sb.check_slv("irq_priority pad tracks reg", irq_priority(31 downto 0), x"12345678");
-
-        -- tidy up
-        bus_write(clk, pbus, RegSlotSYS_IRQ_ENL, x"00000000");
-        bus_write(clk, pbus, RegSlotSYS_IRQ_ENM, x"00000000");
-        bus_write(clk, pbus, RegSlotSYS_IRQ_PRIL, x"00000000");
-        bus_write(clk, pbus, RegSlotSYS_IRQ_CR, x"00000000");
+        bus_write(clk, pbus, 5, x"FFFFFFFF");
+        bus_read(clk, pbus, read_data, 5, rdw);
+        sb.check_slv("retired slot 5 reads 0 and ignores writes", rdw, x"00000000");
 
         ----------------------------------------------------------------
         -- GROUP 4: CRC16 engine

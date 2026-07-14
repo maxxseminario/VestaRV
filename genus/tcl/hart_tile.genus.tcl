@@ -35,7 +35,7 @@
 #                 10 ns, tile keeps 30 ns.
 #   flash_clk_mem GATED CLOCK OUTPUT (adddec cg_flash) -- declared as a
 #                 generated clock at the port, never given a data budget.
-#   hart_id/hw_clint_en/tcm_pgen  static straps -> false path.
+#   hart_id/tcm_pgen  static straps -> false path.
 #   trap_flag/a0  quasi-static observation -> false path.
 #
 ################################################################################
@@ -213,8 +213,8 @@ set_false_path -to pin:$TOP_MODULE/ram0/RETN
 
 # --- I/O budgets ---
 # Registered boundary (M13 depth-1 flops at both ends): half-period split.
-set REG_IN  [get_db ports {msip_in mtip_in irq_ext[*] irq_en_ext[*] irq_prio_ext[*] irq_recursion_en sh_gnt sh_done sh_rdata[*] sh_scfail}]
-set REG_OUT [get_db ports {isr_ret sh_req sh_we[*] sh_addr[*] sh_wdata[*] sh_lrsc[*] sh_lock}]
+set REG_IN  [get_db ports {msip_in mtip_in meip_in sh_gnt sh_done sh_rdata[*] sh_scfail}]
+set REG_OUT [get_db ports {sh_req sh_we[*] sh_addr[*] sh_wdata[*] sh_lrsc[*] sh_lock}]
 set_input_delay  -clock [get_db clocks mclk] $IO_BUDGET_HALF $REG_IN
 set_output_delay -clock [get_db clocks mclk] $IO_BUDGET_HALF $REG_OUT
 
@@ -226,7 +226,7 @@ set_output_delay -clock [get_db clocks mclk] $FLASH_OUT_EXT [get_db ports {flash
 # Static straps and quasi-static observation pins. M17: pd_sleep/pd_iso_en
 # are quasi-static domain controls — they only transition while the domain
 # is quiesced (pwr_ctrl sequencing), never against live logic.
-set_false_path -from [get_db ports {hart_id[*] hw_clint_en tcm_pgen tcm_retn pd_sleep pd_iso_en}]
+set_false_path -from [get_db ports {hart_id[*] tcm_pgen tcm_retn pd_sleep pd_iso_en}]
 set_false_path -to   [get_db ports {trap_flag a0[*]}]
 # Async reset: deassertion is synchronized externally by the POR/reset fabric;
 # recovery has huge margin at 25 MHz (same treatment the flat flow gave it by
