@@ -55,4 +55,11 @@ if [ -f "$XSIM" ]; then
 	strip_mods "$XSIM" out/MCU_MP.xsim.clean.v
 	echo "sim netlist: $(grep -c "^module" out/MCU_MP.xsim.clean.v) modules kept, $(grep -cE "hart_tile hart[0-3]" out/MCU_MP.xsim.clean.v) tile refs -> out/MCU_MP.xsim.clean.v"
 fi
+
+# C0: same strip for the CONNECTED chip netlist (chip_top + pads + mcu0).
+CXSIM=out/chip_top.xsim.v
+if [ -f "$CXSIM" ]; then
+	strip_mods "$CXSIM" out/chip_top.xsim.clean.v
+	echo "chip sim netlist: $(grep -c "^module" out/chip_top.xsim.clean.v) modules kept, $(grep -cE "hart_tile hart" out/chip_top.xsim.clean.v) tile refs -> out/chip_top.xsim.clean.v"
+fi
 rm -f "$TILE_MODS"
