@@ -74,6 +74,17 @@ grep -E "^ERROR" "$WORK/strmout.log" && exit 1
 if [ -f "pvs/${cell}.lvslabels" ]; then
     python3 gds_add_labels.py "$WORK/$cell.gds" "$cell" "pvs/${cell}.lvslabels" || exit 1
 fi
+# HIERARCHICAL chip LVS (chip_top / chip_top_argus): hart_tile is a boxed hcell,
+# so its switched-rail VDD_SW must be virtual-connected INSIDE the tile struct
+# (one struct definition covers all 4/18 tile refs). tile-relative coords, name
+# "VDD_SW" (matches the source tile net directly -- no cpoint). Guarded to chip
+# wrappers so the flat MCU/tile runs (which flatten the tile) are untouched.
+case "$cell" in
+  chip_top*)
+    if [ -f "pvs/hart_tile_vddsw.lvslabels" ]; then
+        python3 gds_add_labels.py "$WORK/$cell.gds" "hart_tile" "pvs/hart_tile_vddsw.lvslabels" || exit 1
+    fi ;;
+esac
 
 echo "== pegasus -lvs =="
 CTL=""

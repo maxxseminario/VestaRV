@@ -1,0 +1,18 @@
+* Empty subckt stubs for the pinless tphn pad corner + IO-filler cells.
+* The tphn LVS spice (tphn65gpgv2od3_sl_1_2.spi) ships NO subckt for these:
+* they are DEVICELESS physical cells (power-bus / seal / passivation metal
+* only), so they extract to nothing and need only an empty definition so the
+* source CDL references resolve. All are instantiated pinless in the chip
+* netlist (`PCORNER_G PAD_CORNER_BL ( );`), so the stubs are pinless too.
+.SUBCKT PCORNER_G
+.ENDS
+.SUBCKT PFILLER20_G
+.ENDS
+.SUBCKT PFILLER10_G
+.ENDS
+.SUBCKT PFILLER5_G
+.ENDS
+.SUBCKT PFILLER1_G
+.ENDS
+.SUBCKT PFILLER05_G
+.ENDS
