@@ -147,6 +147,16 @@ The address space above is the view from hart 0. Harts 1--\MaxHartIndex{} see th
 
 \newpage
 
+% Analog front-end subsystem (CQ). Config-gated: \ifcqanalog is set true only
+% when the chip config declares AFE/EIS documentation sub-slot blocks (the CQ
+% package model). For every other config the branch is skipped, so both the
+% generated CqAnalog.tex chapter and this \input are inert and the TRM is
+% byte-identical to a build without this feature.
+\ifcqanalog
+\input{include/CqAnalog.tex}
+\newpage
+\fi
+
 
 
 % Startup and reset behavior
