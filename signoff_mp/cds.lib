@@ -37,3 +37,7 @@ DEFINE mcu_trial_lib /home/mseminario2/vestarv/signoff_mp/mcu_trial_lib
 DEFINE chip_top_signoff /home/mseminario2/vestarv/signoff_mp/chip_top_signoff
 DEFINE chip_argus_signoff /home/mseminario2/vestarv/signoff_mp/chip_argus_signoff
 DEFINE chip_top_quad_signoff /home/mseminario2/vestarv/signoff_mp/chip_top_quad_signoff
+DEFINE chip_argus_a7_signoff /home/mseminario2/vestarv/signoff_mp/chip_argus_a7_signoff
+DEFINE chip_argus_a7_signoff /home/mseminario2/vestarv/signoff_mp/chip_argus_a7_signoff
+DEFINE chip_top_quad_cq8a /home/mseminario2/vestarv/signoff_mp/chip_top_quad_cq8a
+DEFINE chip_top_quad_cq8a /home/mseminario2/vestarv/signoff_mp/chip_top_quad_cq8a

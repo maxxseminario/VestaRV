@@ -11,9 +11,28 @@
 #   * include file is a parameter (tile vs MCU stitch different macro CDLs)
 # Run from ~/vestarv/signoff_mp. BATCH ONLY (shared licenses).
 #
+# CQ8b PER-RUN ISOLATION (same shape as drc.sh): every invocation gets its OWN
+# work dir  pvs/<lib>/<cell>/run_<pgid>_<epoch>/  so two concurrent sessions on
+# the same lib/cell never clobber each other's CDL / labelled GDS / pegasus
+# run_dir + reports mid-run. The report artifacts (*.rep, *.cls, *.sum,
+# pvs_lvs.log, pegasus_stdout.log) are then published back to the legacy path
+# pvs/<lib>/<cell>/ (mtime-preserving, atomic per file) so accept_*.sh
+# (`ls -t pvs/<lib>/<cell>/*.rep`, `grep ... *.cls`) keep working unchanged.
+# Cleanup is SCOPED BY PROCESS GROUP: re-exec under setsid ($$ == PGID),
+# advertise the PGID -- external cleanup does `kill -TERM -<PGID>`, never a
+# `pkill -f <pattern>` that could match a neighbour or the killer's own cmdline.
+#
 # usage: ./lvs.sh library cell lvsVerilog includeFile
 
 set -u
+
+# Re-exec once under setsid: fresh session / process group ($$ == PGID);
+# `setsid -w` forwards the child's exit status so callers' `; rc=$?` is intact.
+if [ -z "${_LVS_ISOLATED:-}" ]; then
+    export _LVS_ISOLATED=1
+    exec setsid -w "$0" "$@"
+fi
+
 cd "$(dirname "$0")"
 
 lib=$1
@@ -24,8 +43,33 @@ ctlfile=${5:-}          # optional pegasus control file (e.g. lvs_black_box)
 
 V2CDL=/opt/cadence/PVS201/tools/bin/v2cdl
 DECK=/opt/design_kits/TSMC65-PDK/kit/PVS/LVS/pvs.lvs
-WORK=pvs/$lib/$cell
+PUB_DIR=pvs/$lib/$cell                    # legacy shared path (consumers read here)
+WORK=$PUB_DIR/run_$$_$(date +%s)          # per-run isolated work dir
 mkdir -p "$WORK"
+
+# Advertise the process group so external cleanup is scoped to THIS run.
+echo "$$" > "$WORK/run.pgid"
+echo "=== lvs.sh isolated run ==================================================="
+echo "    lib/cell : $lib / $cell"
+echo "    WORK     : $WORK"
+echo "    PGID     : $$   (scoped kill:  kill -TERM -$$ )"
+echo "=========================================================================="
+ln -sfn "$(basename "$WORK")" "$PUB_DIR/latest"
+
+# Publish report artifacts back to the legacy path for accept_*.sh consumers.
+# cp -p preserves mtimes so `ls -t *.rep | head -1` still resolves the newest;
+# temp-name + mv = atomic per file (a same-cell concurrent publish is
+# last-writer-wins on whole files, never a torn read).
+publish_back() {
+    mkdir -p "$PUB_DIR"
+    shopt -s nullglob
+    for f in "$WORK"/*.rep "$WORK"/*.rep.* "$WORK"/*.cls "$WORK"/*.sum \
+             "$WORK"/pvs_lvs.log "$WORK"/pegasus_stdout.log; do
+        b=$(basename "$f")
+        cp -p "$f" "$PUB_DIR/.$b.$$" && mv -f "$PUB_DIR/.$b.$$" "$PUB_DIR/$b"
+    done
+    shopt -u nullglob
+}
 
 echo "== v2cdl =="
 # NB (PG4 forensics): v2cdl's named-$PINS output omits some pin bindings
@@ -109,5 +153,9 @@ if [ $rc -ne 0 ]; then
     echo "FATAL: pegasus rc=$rc — reports in $WORK are STALE, do not read them"
     exit $rc
 fi
+# Publish the (fresh, rc=0) reports to the legacy path for downstream consumers.
+publish_back
 rep=$(ls -t "$WORK"/*.rep 2>/dev/null | head -1)
+echo "Reports (isolated) : $WORK"
+echo "Reports (published): $PUB_DIR"
 grep -E "Run Result|MISMATCH|MATCH" "$WORK"/pvs_lvs.log "$WORK"/pegasus_stdout.log $rep 2>/dev/null | head -5
