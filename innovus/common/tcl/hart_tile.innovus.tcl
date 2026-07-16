@@ -1379,6 +1379,10 @@ set_ccopt_property target_max_trans 400ps
 create_ccopt_clock_tree_spec
 ccopt_design
 optDesign -postCTS -hold
+# Full report_power (leakage + dynamic, statistical activity) beside the
+# leakage-only ${DESIGN_NAME}_postCTS.power optDesign writes implicitly.
+# Consumed by tools/python/gen_power_dashboard.py.
+catch {report_power -outfile $REPORT_DIR/${DESIGN_NAME}_postCTS_full.power}
 timeDesign -postCTS -expandedViews -outDir $REPORT_DIR/$DESIGN_NAME.timeDesign.postcts
 report_ccopt_clock_trees -file $REPORT_DIR/$DESIGN_NAME.report_ccopt_clock_trees.postcts
 report_ccopt_skew_groups -file $REPORT_DIR/$DESIGN_NAME.report_ccopt_skew_groups.postcts
@@ -1415,6 +1419,8 @@ setOptMode -setupTargetSlack 0.025
 optDesign -postRoute -setup
 setOptMode -setupTargetSlack 0
 setDelayCalMode -SIAware false
+# Full post-route power (see postCTS note)
+catch {report_power -outfile $REPORT_DIR/${DESIGN_NAME}_postRoute_full.power}
 
 verifyGeometry \
     -error 10000 \
