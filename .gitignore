@@ -220,6 +220,9 @@ docs/publications/
 # docs/castalia_soc.html, docs/vestarv_core.html, docs/castalia_full.html) are
 # PUBLISHED since the 2026-07-16 showcase program (GitHub Pages, D1).
 
+# Generated power dashboard (rebuild with tools/python/gen_power_dashboard.py)
+power_dashboard.html
+
 # Myshkin AFE bidirectional-current design note (local, not for the repo for now)
 implementations/asic/myshkin-2025-11/docs/afe-bidirectional-current-upgrade.html
 

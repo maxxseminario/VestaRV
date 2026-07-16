@@ -629,6 +629,11 @@ set_ccopt_property target_max_trans 400ps
 create_ccopt_clock_tree_spec
 ccopt_design
 optDesign -postCTS -hold
+# Full report_power (leakage + dynamic, statistical activity) beside the
+# leakage-only MCU_postCTS.power optDesign writes implicitly; BASENAME-prefixed
+# so the Castalia assembly flow (also design MCU) cannot clobber it.
+# Consumed by tools/python/gen_power_dashboard.py.
+catch {report_power -outfile $REPORT_DIR/${BASENAME}_postCTS_full.power}
 timeDesign -postCTS -expandedViews -outDir $REPORT_DIR/$BASENAME.timeDesign.postcts
 report_ccopt_clock_trees -file $REPORT_DIR/$BASENAME.report_ccopt_clock_trees.postcts
 report_ccopt_skew_groups -file $REPORT_DIR/$BASENAME.report_ccopt_skew_groups.postcts
@@ -670,6 +675,8 @@ setDelayCalMode -SIAware true
 setOptMode -holdTargetSlack 0.01
 optDesign -postRoute -hold
 setOptMode -holdTargetSlack 0
+# Full post-route power (see postCTS note)
+catch {report_power -outfile $REPORT_DIR/${BASENAME}_postRoute_full.power}
 
 # --- DRC convergence loop: verify -> ecoRoute -fix_drc until clean (max 3).
 # v3's single blind ecoRoute pass masked a 300k-violation rout behind the
