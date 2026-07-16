@@ -10,10 +10,12 @@
 -- IRQ routing/masking now lives in irq_router's per-hart PLIC-lite rows
 -- (covered by irq_router_tb.vhd). SYSTEM keeps only the WDT level output
 -- (irq_sys_wdt = wdt_if AND wdt_ie) plus the new wdt_irq_routed/
--- wdt_irq_complete inputs from the router (left at their defaults here --
--- this bench never routes the WDT). This tb was trimmed to match: the
+-- wdt_irq_complete inputs from the router. This tb was trimmed to match: the
 -- irq_en/irq_priority/irq_recursion_en checks and the IRQ register R/W
--- checks are gone; a "retired slot" check replaces them.
+-- checks are gone; a "retired slot" check replaces them. GROUP 5b drives
+-- wdt_irq_routed to prove the M19 irq_sys_wdt output actually asserts on a
+-- WDT timeout (pre-M19 it was hardwired '0' -- WDT interrupt mode dead);
+-- wdt_irq_complete is left at its default here.
 --
 -- Uses the shared support package tb/periph_tb_pkg.vhd: the `scoreboard`
 -- (check_bit/check_slv/check_true + banner), the register-bus BFM
@@ -57,8 +59,10 @@ architecture sim of SYSTEM_tb is
     signal resetn_por   : std_logic := '0';
     signal resetn_sys   : std_logic;
 
-    -- WDT level output (M19: wdt_irq_routed/wdt_irq_complete left at defaults)
+    -- WDT level output + the router "source-0 routed" hook (GROUP 5b drives it;
+    -- wdt_irq_complete stays at its port default '0')
     signal irq_sys_wdt      : std_logic;
+    signal wdt_irq_routed   : std_logic := '0';
 
     -- register bus (BFM record + observed read_data + gated clk_mem)
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
@@ -106,7 +110,8 @@ begin
             clk_dco0_in => clk_dco0_in, clk_dco1_in => clk_dco1_in,
             resetn_in => resetn_in, resetn_por => resetn_por, resetn_sys => resetn_sys,
             irq_sys_wdt => irq_sys_wdt,
-            -- wdt_irq_routed / wdt_irq_complete left at their port defaults ('0')
+            wdt_irq_routed => wdt_irq_routed,
+            -- wdt_irq_complete left at its port default ('0')
             clk_mem => clk_mem, en_mem => pbus.en_mem, wen => pbus.wen,
             addr_periph => pbus.addr_periph, write_data => pbus.write_data, read_data => read_data,
             mclk_out => mclk_out, smclk_out => smclk_out,
@@ -279,6 +284,42 @@ begin
         -- disable the WDT again (unlock first)
         bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
         bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");
+
+        ----------------------------------------------------------------
+        -- GROUP 5b: watchdog INTERRUPT line  (irq_sys_wdt = wdt_if AND wdt_ie)
+        --   M19 fix: pre-M19 irq_sys_wdt was hardwired '0' (WDT interrupt mode
+        --   dead). With interrupts enabled (ie=1) and the router asserting
+        --   wdt_irq_routed, a timeout must RAISE the level instead of barking a
+        --   reset (resetn_wdt holds high while the IRQ is routed and not yet
+        --   completed). Confirm irq_sys_wdt tracks wdt_if AND wdt_ie.
+        --   NEGATIVE CONTROL: reverting SYSTEM.vhd's "irq_sys_wdt <= wdt_if and
+        --   wdt_ie" back to "<= '0'" fails ONLY the assertion check below.
+        ----------------------------------------------------------------
+        report "=== GROUP 5b: watchdog IRQ line ===" severity note;
+
+        wdt_irq_routed <= '1';                       -- router has source 0 routed
+        sb.check_bit("irq_sys_wdt low before WDT enable", irq_sys_wdt, '0');
+
+        -- enable WDT with interrupts on: en=1, cdiv=5, ie=1 (0x96)
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000096");
+        sb.check_bit("irq_sys_wdt still low right after enable (no timeout yet)", irq_sys_wdt, '0');
+
+        -- let WDT_VAL(5) rise (count > 32) -> wdt_if set, no reset (routed, no EOI)
+        wait for 60 * PERIOD;
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("WDT timeout sets wdt_if with ie=1 (SR bit1)", rdw(1), '1');
+        sb.check_bit("resetn_sys held (routed WDT does not reset)", resetn_sys, '1');
+        sb.check_bit("irq_sys_wdt ASSERTS on timeout (wdt_if AND wdt_ie)", irq_sys_wdt, '1');
+
+        -- clearing wdt_if (SR write-1) drops the interrupt line
+        bus_write_hold(clk, pbus, RegSlotSYS_WDT_SR, x"00000002", 3);
+        sb.check_bit("irq_sys_wdt drops after wdt_if cleared", irq_sys_wdt, '0');
+
+        -- disable + un-route
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");
+        wdt_irq_routed <= '0';
 
         ----------------------------------------------------------------
         -- GROUP 6: clock tree activity

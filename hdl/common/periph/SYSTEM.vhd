@@ -431,8 +431,22 @@ begin
     -- and may change synchronously with smclk_undiv (when it's the same clock), using
     -- opposite clock edges prevents the selector from changing at the same instant the
     -- divider outputs toggle, reducing the likelihood of glitches or metastability.
-    -- TODO: Consider adding proper synchronization of smclk_div before use in ClockMuxGlitchFree
-    -- for maximum robustness, though the risk of failure with current implementation is slim.
+    -- VERDICT (S9, was a "consider adding synchronization" TODO): no extra
+    -- synchronizer is warranted. smclk_div = SYS_CLK_DIV_CR(5:3) is written in
+    -- the clk_mem (mclk) domain and consumed as the Sel of ClockMuxGlitchFree,
+    -- whose per-slice DFF chain is clocked by the smclk SOURCE clocks -- a real
+    -- CDC. A naive 2-FF synchronizer is the WRONG fix here: (a) smclk_div is a
+    -- 3-bit BUS, so per-bit 2-FF sync would let incoherent intermediate codes
+    -- through during a multi-bit transition (classic bus-CDC hazard); and
+    -- (b) the destination IS the clock being switched, so no single stable
+    -- destination clock exists to clock a synchronizer during the switch.
+    -- ClockMuxGlitchFree already IS the correct structure: Sel -> one-hot decode
+    -- -> En, then a 3-deep DFF chain (SYNCDFF0/1 + DLYDFF0) per slice clocked by
+    -- that slice's ClkIn, with the break-before-make interlock En(i)=ClkSel(i)
+    -- AND (all other slices not enabled). Chip contract reconfigures clocks only
+    -- while the smclk peripherals are quiesced (SYS_CLK_CR=0 / management-hart
+    -- quiesce rule), so Sel is stable at each switch, and Myshkin taped out with
+    -- this exact structure.
 
     smclk_div_proc: process(resetn_sys, smclk_undiv, smclk_off, smclk_div)
     begin
