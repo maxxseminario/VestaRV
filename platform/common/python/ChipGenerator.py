@@ -742,8 +742,18 @@ class ChipGenerator():
 					tb_vhd.generateRiscvTbVhd(self.NumHarts, riscvTbTemplatePath, riscvTbPath)
 			
 			self.generateMemoryMapJson(chipConfigJsonPath)
+
+			# WP S2: machine-readable web bundle (out/web/chip_data.js) — schema
+			# constraints, defaults, ALL package pad tables, derived presets and
+			# the memory map, single-sourced from this generator so
+			# docs/chip_configurator.html can consume rather than transcribe.
+			# Only on a real build (test is False) that carries the S2 objects
+			# generate.py attaches before calling Generate().
+			if (test is False) and (getattr(self, 'PackageModels', None) is not None) and (getattr(self, 'ResolvedConfig', None) is not None):
+				import web_export
+				web_export.writeWebData(self, self.ChipRootDirectory + '/out/web/chip_data.js')
 		else:
-			
+
 			if os.path.exists(latexUserGuidePath):
 				s = input('The file ' + latexUserGuidePath + ' already exists. Overwrite? (y/n) ')
 				if s.lower() == 'y':

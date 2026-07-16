@@ -2,7 +2,7 @@
 # Source of truth: python/generate.py — everything else is generated from it.
 # All outputs stay inside platform/common/ (never touches ../../hdl, ../../software, ../../tools).
 
-.PHONY: all help chip generate pdf publish check-publish publish-chip check-chip install-hook show config verify clean install-deps
+.PHONY: all help chip generate pdf web web-copy publish check-publish publish-chip check-chip install-hook show config verify clean install-deps
 
 # Which implementations/asic/<CHIP>/docs/TRM.pdf the publish/check targets act on.
 # The default build ('make chip') is Castalia; a non-default chip also needs its CONFIG,
@@ -83,7 +83,7 @@ generate:
 	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' python3 generate.py
 	@echo ""
 	@echo "Checking docs/chip_configurator.html against the schema/pad-ring/geometry..."
-	@python3 python/check_configurator_sync.py || echo "⚠️  WARNING: docs/chip_configurator.html has drifted from the generator (see DRIFT lines above) — update the HTML's transcribed blocks. NOT fatal; the build continues."
+	@python3 python/check_configurator_sync.py --strict
 	@echo ""
 	@echo "✅ Generation complete. Outputs:"
 	@echo "  • out/software/include/MemoryMap.h, periph.S"
@@ -97,8 +97,9 @@ generate:
 # derived from what python/generate.py instantiates)
 chip: generate
 	@$(MAKE) --no-print-directory pdf
+	@$(MAKE) --no-print-directory web-copy
 	@echo ""
-	@echo "✅ Chip generation complete — RTL in out/hdl/, TRM at latex/TRM/TRM.pdf"
+	@echo "✅ Chip generation complete — RTL in out/hdl/, TRM at latex/TRM/TRM.pdf, web data in out/web/"
 
 # ---------------------------------------------------------------------------
 # TRM PDF (requires pdflatex; auto-detected from PATH or ~/texlive)
@@ -121,6 +122,31 @@ pdf:
 		done
 	@grep -E "Output written|^!" latex/TRM/build.log | head -3
 	@echo "✅ latex/TRM/TRM.pdf (reproducible; SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH))"
+
+# ---------------------------------------------------------------------------
+# Web data export (S2): out/web/chip_data.js is emitted by generate.py itself
+# (writer wired into ChipGenerator.Generate() next to generateMemoryMapJson).
+# 'make web' regenerates it and ALSO copies config/MemoryMap.json alongside it
+# for WP S8's register browser. Both outputs stay under platform/common/out/web/
+# (golden rule). 'web-copy' is the copy-only step the 'chip' chain reuses so a
+# full 'make chip' doesn't regenerate twice.
+# ---------------------------------------------------------------------------
+web: generate
+	@$(MAKE) --no-print-directory web-copy
+	@if [ -z "$(CONFIG)" ]; then \
+		python3 python/splice_web_data.py ../../docs/chip_configurator.html && \
+		echo "  • spliced VESTA_DATA into docs/chip_configurator.html (S7 consumption contract)"; \
+	else \
+		echo "  • CONFIG build — skipping the docs/ splice (the page carries the default bundle)"; \
+	fi
+
+web-copy:
+	@echo "Exporting machine-readable chip data to out/web/..."
+	@mkdir -p out/web
+	@cp config/MemoryMap.json out/web/MemoryMap.json
+	@echo "✅ Web export:"
+	@echo "  • out/web/chip_data.js   (VESTA_DATA: schema, defaults, packages, presets, memory map)"
+	@echo "  • out/web/MemoryMap.json (full peripheral→register→bitfield tree, for the register browser)"
 
 # Publish the built TRM to the repo's implementations tree (committing is left to you,
 # so a stale or broken PDF never gets pushed by accident)

@@ -1,28 +1,36 @@
 #!/usr/bin/env python3
 """check_configurator_sync.py -- guard against docs/chip_configurator.html
-drifting from the generator (G3, 2026-07-11).
+drifting from the generator (G3, 2026-07-11; reworked for the web-export
+consumption model, WP S7, 2026-07-16).
 
-The configurator HTML deliberately embeds TRANSCRIBED copies of three things
-whose authority lives in platform/common:
-  (a) the CONFIG= schema (_CONFIG_SCHEMA in generate.py) as its DEFAULTS /
-      configObject() JS,
-  (b) the QFN-44 package model (config/PadRing.json) as its PADS table,
-  (c) the derived-geometry math (A2 shared-window + A0 CLINT formulas) as its
-      derived() JS.
-This script re-checks all three so the "keep in sync" comment is a CHECK:
+Since S2/S7 the configurator no longer TRANSCRIBES the generator's data: it
+CONSUMES `out/web/chip_data.js` (the `const VESTA_DATA = {...}` bundle) spliced
+into the page between
 
-  a. configObject() export keys  ==  _CONFIG_SCHEMA keys (both directions)
-     DEFAULTS values             ==  the resolved DEFAULT build values
-                                     (skipped when out/ holds a CONFIG= build)
-  b. PADS rows (pin/name/type)   ==  config/PadRing.json pins
-  c. derived() spot values for the Castalia and Argus geometries (shAw 15/16,
-     flash 0x20000/0x40000, CLINT mtime 0x5010/0x5050) against the ledger and
-     against config/ChipConfig.resolved.json for the current build; plus
-     formula-fragment presence in the JS so silent math edits are caught.
+    /*VESTA_DATA_BEGIN*/ ... /*VESTA_DATA_END*/
 
-Wired into `make generate` as a WARNING, not a hard failure -- the HTML lives
-outside platform/common/ and must never block a chip build.
-Exit 0 = in sync; exit 1 = drift (details on stdout). Python 3.6 compatible.
+by `python/splice_web_data.py`. So the old DEFAULTS-value and PADS-table
+transcription checks are gone (those hand tables no longer exist in the HTML).
+What this script now verifies:
+
+  (a) configObject() export keys  ==  _CONFIG_SCHEMA keys (both directions).
+      The page still hand-assembles the export object, so its dotted keys must
+      still match the schema. This catches a new/renamed knob that the export
+      forgot.
+  (b) The spliced VESTA_DATA region is PRESENT and NON-STALE vs
+      out/web/chip_data.js (splice_web_data.py --check semantics). On any drift
+      it parses both sides and NAMES the differing VESTA_DATA paths -- so a
+      changed generate.py default surfaces by name. (Default builds only: a
+      CONFIG= build legitimately emits different data.)
+  (c) derived() formula fragments + the Castalia/Argus geometry spot values +
+      the current resolved build's derived block -- the JS still keeps its own
+      derived() math (cross-checked in-page against VESTA_DATA.derivedPresets),
+      so this catches a silent edit to those formulas.
+
+Modes:
+  default   WARN -- print any DRIFT lines but exit 0 (never blocks a build).
+  --strict  GATE -- exit 1 on any drift (for CI / a deliberate sync gate).
+Python 3.6 compatible.
 """
 
 import json
@@ -35,8 +43,11 @@ PC_ROOT = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(PC_ROOT))
 HTML = os.path.join(REPO, 'docs', 'chip_configurator.html')
 GENERATE = os.path.join(HERE, 'generate.py')
-PADRING = os.path.join(PC_ROOT, 'config', 'PadRing.json')
 RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
+WEBDATA = os.path.join(PC_ROOT, 'out', 'web', 'chip_data.js')
+
+BEGIN = '/*VESTA_DATA_BEGIN*/'
+END = '/*VESTA_DATA_END*/'
 
 PROBLEMS = []
 
@@ -57,7 +68,7 @@ def js_block(html, start_marker, end_marker):
 
 
 # --------------------------------------------------------------------------
-# (a) schema keys
+# (a) schema keys  <->  configObject() export keys
 # --------------------------------------------------------------------------
 def schema_keys_from_generate():
     src = open(GENERATE).read()
@@ -96,97 +107,86 @@ def export_keys_from_html(html):
     return keys
 
 
-# Mapping from the JS DEFAULTS knob names to schema dotted keys, as
-# configObject() writes them. Changes here always ride a schema change, which
-# the key check above flags first.
-DEFAULTS_TO_SCHEMA = {
-    'chipName': 'chipName',
-    'numHarts': 'numHarts',
-    'numMutexes': 'numMutexes',
-    'ENABLE_REGS_DUALPORT': 'registerFileDualPort',
-    'ENABLE_MUL': 'isa.mul',
-    'ENABLE_FAST_MUL': 'isa.fastMul',
-    'ENABLE_DIV': 'isa.div',
-    'ENABLE_ATOMICS': 'isa.atomics',
-    'COMPRESSED_ISA': 'isa.compressed',
-    'ENABLE_BITMANIP': 'isa.bitmanip',
-    'ENABLE_COUNTERS': 'isa.counters',
-    'ENABLE_COUNTERS64': 'isa.counters64',
-    'romSize': 'memory.romSize',
-    'tcmSize': 'memory.tcmSizePerHart',
-    'sharedRamSize': 'memory.sharedBulkRamSize',
-    'npuRamSize': 'memory.npuStagingRamSize',
-    'npu': 'peripherals.npu',
-    'i2c1': 'peripherals.i2c1',
-    'uart1': 'peripherals.uart1',
-    'spi1': 'peripherals.spi1',
-    'timer1': 'peripherals.timer1',
-    'packageModel': 'package.model',
-    'packagePreliminary': 'package.preliminary',
-}
-PLANNING_ONLY = {'gpio', 'uart', 'spi', 'timer', 'i2c'}  # pills, not exported
+# --------------------------------------------------------------------------
+# (b) spliced VESTA_DATA region: present + non-stale (names the drift)
+# --------------------------------------------------------------------------
+def _region(html):
+    i = html.find(BEGIN)
+    if i < 0:
+        problem('the /*VESTA_DATA_BEGIN*/ marker is MISSING from the HTML '
+                '(the page no longer consumes the generator export -- run the splice)')
+        return None
+    j = html.find(END, i + len(BEGIN))
+    if j < 0:
+        problem('the /*VESTA_DATA_END*/ marker is MISSING from the HTML')
+        return None
+    return html[i + len(BEGIN):j]
 
 
-def defaults_from_html(html):
-    block = js_block(html, 'const DEFAULTS = {', '\n};')
-    vals = {}
-    for m in re.finditer(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*("([^"]*)"|true|false|[0-9]+)\s*,', block, re.M):
-        k, raw, s = m.group(1), m.group(2), m.group(3)
-        if raw.startswith('"'):
-            vals[k] = s
-        elif raw in ('true', 'false'):
-            vals[k] = (raw == 'true')
+def _rendered(data_text):
+    return '\n' + data_text.strip('\n') + '\n'
+
+
+def load_vesta(js_text):
+    """Parse `const VESTA_DATA = {...};` (from the file or the HTML region) to a dict."""
+    m = re.search(r'const\s+VESTA_DATA\s*=\s*(\{.*\})\s*;', js_text.strip(), re.S)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(1))
+    except ValueError:
+        return None
+
+
+def json_diff(a, b, path=''):
+    diffs = []
+    if type(a) != type(b):
+        return [(path or '(root)', a, b)]
+    if isinstance(a, dict):
+        for k in sorted(set(a) | set(b)):
+            p = (path + '.' + k) if path else k
+            if k not in a:
+                diffs.append((p, '<absent-in-HTML>', b[k]))
+            elif k not in b:
+                diffs.append((p, a[k], '<absent-in-export>'))
+            else:
+                diffs += json_diff(a[k], b[k], p)
+    elif isinstance(a, list):
+        if len(a) != len(b):
+            diffs.append((path + '[length]', len(a), len(b)))
         else:
-            vals[k] = int(raw)
-    return vals
+            for i, (x, y) in enumerate(zip(a, b)):
+                diffs += json_diff(x, y, '%s[%d]' % (path, i))
+    else:
+        if a != b:
+            diffs.append((path or '(root)', a, b))
+    return diffs
 
 
-def resolved_lookup(resolved, dotted):
-    node = resolved
-    for part in dotted.split('.'):
-        if not isinstance(node, dict) or part not in node:
-            return None
-        node = node[part]
-    return node
-
-
-# --------------------------------------------------------------------------
-# (b) PADS table
-# --------------------------------------------------------------------------
-IO_TO_JS = {
-    'Input/Output': 'io',
-    'Input': 'in',
-    'Output': 'out',
-    'Power Input': 'pwr',
-    'NC': 'nc',
-}
-
-
-def norm_name(name):
-    return re.sub(r'\(GPIO\d+\)', '', name).replace(' ', '')
-
-
-def check_pads(html):
-    block = js_block(html, 'const PADS = [', '\n];')
-    js_pads = {}
-    for m in re.finditer(r'\[(\d+),"([^"]+)","(\w+)"\]', block):
-        js_pads[int(m.group(1))] = (m.group(2), m.group(3))
-    ring = json.load(open(PADRING))
-    pins = dict((p['pin'], p) for p in ring['pins'])
-    if set(js_pads) != set(pins):
-        problem('PADS pin numbers %s != PadRing.json pins %s'
-                % (sorted(set(js_pads) ^ set(pins)), len(pins)))
+def check_vesta_region(html):
+    between = _region(html)
+    if between is None:
         return
-    for n in sorted(pins):
-        jname, jtype = js_pads[n]
-        p = pins[n]
-        if norm_name(jname) != norm_name(p['name']):
-            problem('PADS pin %d name "%s" != PadRing.json "%s"' % (n, jname, p['name']))
-        expect = IO_TO_JS.get(p['io'])
-        analog_ok = (jtype == 'ana' and p.get('powerDomain') == 'Analog')
-        if jtype != expect and not analog_ok:
-            problem('PADS pin %d type "%s" != PadRing.json io "%s" (expected "%s")'
-                    % (n, jtype, p['io'], expect))
+    file_text = open(WEBDATA).read()
+    if between == _rendered(file_text):
+        return   # up to date
+    # stale -- try to name the drift by diffing the two bundles
+    html_data = load_vesta(between)
+    file_data = load_vesta(file_text)
+    if html_data is None or file_data is None:
+        problem('spliced VESTA_DATA region is STALE vs out/web/chip_data.js '
+                '(could not parse for a field-level diff -- re-run make web + splice)')
+        return
+    diffs = json_diff(html_data, file_data)
+    if not diffs:
+        problem('spliced VESTA_DATA region is STALE (whitespace only) vs '
+                'out/web/chip_data.js -- re-run the splice')
+        return
+    for (p, hv, fv) in diffs[:15]:
+        problem('spliced VESTA_DATA.%s = %r but the generator now emits %r '
+                '(stale splice -- re-run make web + splice_web_data.py)' % (p, hv, fv))
+    if len(diffs) > 15:
+        problem('...and %d more VESTA_DATA field(s) differ' % (len(diffs) - 15))
 
 
 # --------------------------------------------------------------------------
@@ -255,10 +255,10 @@ def check_derived(html, resolved):
 
 
 # --------------------------------------------------------------------------
-def main():
-    for path in (HTML, GENERATE, PADRING, RESOLVED):
+def main(strict=False):
+    for path in (HTML, GENERATE, RESOLVED, WEBDATA):
         if not os.path.isfile(path):
-            print('  SKIP: %s not found (run make generate first?)' % path)
+            print('  SKIP: %s not found (run make web first?)' % path)
             return 0
     html = open(HTML).read()
     resolved = json.load(open(RESOLVED))
@@ -271,40 +271,28 @@ def main():
     for k in sorted(exported - schema):
         problem('configObject() exports %s which is NOT a _CONFIG_SCHEMA key' % k)
 
-    # (a) DEFAULTS values vs the resolved DEFAULT build
-    defaults = defaults_from_html(html)
-    unmapped = set(defaults) - set(DEFAULTS_TO_SCHEMA) - PLANNING_ONLY
-    for k in sorted(unmapped):
-        problem('JS DEFAULTS has unmapped knob "%s" (update DEFAULTS_TO_SCHEMA here + the schema)' % k)
+    # (b) spliced VESTA_DATA region present + non-stale (default builds only;
+    #     a CONFIG= build legitimately emits different data than the page's
+    #     default Castalia bundle).
     if resolved.get('configFile') is None:
-        for jsk, dotted in sorted(DEFAULTS_TO_SCHEMA.items()):
-            if jsk not in defaults:
-                problem('JS DEFAULTS is missing knob "%s" (%s)' % (jsk, dotted))
-                continue
-            rv = resolved_lookup(resolved, dotted)
-            if rv is None:
-                problem('resolved config has no value for %s' % dotted)
-            elif rv != defaults[jsk]:
-                problem('JS DEFAULTS.%s = %r but the default build resolves %s = %r'
-                        % (jsk, defaults[jsk], dotted, rv))
+        check_vesta_region(html)
     else:
-        print('  note: out/ holds CONFIG=%s -- DEFAULTS value comparison skipped'
-              % resolved['configFile'])
+        print('  note: out/ holds CONFIG=%s -- VESTA_DATA region staleness check skipped '
+              '(the HTML carries the default bundle)' % resolved['configFile'])
 
-    # (b) PADS mirrors the DEFAULT package model; a CONFIG build may rename
-    # pins (a dropped peripheral's pads revert to plain GPIO), so only compare
-    # on default builds -- same rule as the DEFAULTS values above.
-    if resolved.get('configFile') is None:
-        check_pads(html)
-    # (c)
+    # (c) derived() math
     check_derived(html, resolved)
 
     if PROBLEMS:
         print('  %d sync problem(s) between the generator and docs/chip_configurator.html' % len(PROBLEMS))
-        return 1
-    print('  configurator sync: OK (schema keys, DEFAULTS, PADS, derived geometry)')
+        if strict:
+            print('  (--strict) exiting non-zero on drift.')
+            return 1
+        print('  (WARN mode) not failing the build -- pass --strict to gate on this.')
+        return 0
+    print('  configurator sync: OK (schema keys, spliced VESTA_DATA region, derived geometry)')
     return 0
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main(strict=('--strict' in sys.argv)))

@@ -108,6 +108,87 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 }
 
+# ---------------------------------------------------------------------------
+# _CONFIG_META (S2, 2026-07-16): declarative, MACHINE-READABLE metadata for the
+# SAME schema keys — a parallel source of truth to the opaque validator lambdas
+# above, consumed by the `make web` export (out/web/chip_data.js) so the
+# configurator/register-browser can read ranges/enums/defaults instead of
+# re-hardcoding them. The lambdas stay authoritative for VALIDATION; these
+# fields describe the same constraints declaratively. `_checkConfigMeta()` below
+# proves the two never disagree (default passes the lambda, range/enum
+# boundaries agree), so a future knob edit that touches only one side is caught.
+#   type    : 'bool' | 'int' | 'enum' | 'string'
+#   default : the Castalia default (== the _cfg(...) fallbacks further down)
+#   min/max : inclusive integer bounds ('int' only; max omitted = unbounded)
+#   step    : required integer multiple ('int' only, when the lambda demands one)
+#   enum    : allowed values ('enum' only)
+# ---------------------------------------------------------------------------
+_CONFIG_META = {
+	'chipName':             {'type': 'string', 'default': 'Castalia'},
+	'numHarts':             {'type': 'int', 'default': 4, 'min': 1, 'max': 32},
+	'numMutexes':           {'type': 'int', 'default': 16, 'min': 1, 'max': 1024},
+	'registerFileDualPort': {'type': 'bool', 'default': True},
+	'isa.mul':              {'type': 'bool', 'default': True},
+	'isa.fastMul':          {'type': 'bool', 'default': True},
+	'isa.div':              {'type': 'bool', 'default': True},
+	'isa.atomics':          {'type': 'bool', 'default': True},
+	'isa.compressed':       {'type': 'bool', 'default': True},
+	'isa.bitmanip':         {'type': 'bool', 'default': True},
+	'isa.counters':         {'type': 'bool', 'default': False},
+	'isa.counters64':       {'type': 'bool', 'default': False},
+	'memory.romSize':            {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
+	'memory.tcmSizePerHart':     {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
+	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0x10000, 'min': 0x4000, 'step': 0x4000},
+	'memory.npuStagingRamSize':  {'type': 'int', 'default': 0x4000, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
+	'peripherals.npu':      {'type': 'bool', 'default': True},
+	'peripherals.i2c1':     {'type': 'bool', 'default': True},
+	'peripherals.uart1':    {'type': 'bool', 'default': True},
+	'peripherals.spi1':     {'type': 'bool', 'default': True},
+	'peripherals.timer1':   {'type': 'bool', 'default': True},
+	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
+	'package.preliminary':  {'type': 'bool', 'default': True},
+}
+
+def _checkConfigMeta():
+	'''Consistency gate: _CONFIG_META must cover exactly the _CONFIG_SCHEMA keys,
+	   and each declared constraint must AGREE with that key's validator lambda
+	   (the lambda stays the authority; the metadata must not lie about it).'''
+	if set(_CONFIG_META) != set(_CONFIG_SCHEMA):
+		raise Exception('_CONFIG_META keys != _CONFIG_SCHEMA keys: '
+			+ str(sorted(set(_CONFIG_META) ^ set(_CONFIG_SCHEMA))))
+	for k in _CONFIG_SCHEMA:
+		desc, check = _CONFIG_SCHEMA[k]
+		meta = _CONFIG_META[k]
+		if not check(meta['default']):
+			raise Exception('_CONFIG_META["' + k + '"].default ' + repr(meta['default']) + ' fails its own validator')
+		t = meta['type']
+		if t == 'bool':
+			if not (check(True) and check(False)):
+				raise Exception('_CONFIG_META["' + k + '"] typed bool but its validator rejects True/False')
+		elif t == 'enum':
+			for c in meta['enum']:
+				if not check(c):
+					raise Exception('_CONFIG_META["' + k + '"].enum member ' + repr(c) + ' fails the validator')
+			if check('__definitely_not_a_valid_choice__'):
+				raise Exception('_CONFIG_META["' + k + '"] typed enum but the validator accepts arbitrary strings')
+		elif t == 'int':
+			lo = meta.get('min')
+			hi = meta.get('max')
+			step = meta.get('step', 1)
+			if lo is not None:
+				if not check(lo):
+					raise Exception('_CONFIG_META["' + k + '"].min ' + repr(lo) + ' fails the validator')
+				if lo - step > 0 and check(lo - step):
+					raise Exception('_CONFIG_META["' + k + '"].min is loose: ' + repr(lo - step) + ' also passes')
+			if hi is not None:
+				if not check(hi):
+					raise Exception('_CONFIG_META["' + k + '"].max ' + repr(hi) + ' fails the validator')
+				if check(hi + step):
+					raise Exception('_CONFIG_META["' + k + '"].max is loose: ' + repr(hi + step) + ' also passes')
+	return True
+
+_checkConfigMeta()
+
 def _validateChipConfig(node, path=''):
 	'''Walk the loaded JSON: leading-underscore keys are free-form comments,
 	   peripheralsPreview is a tolerated planning aid from older configurator
@@ -1200,136 +1281,146 @@ m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=
 # per-model table (_GPIO_PKG_PINS) applied to the shared AddGpio rows. Adding a
 # model = adding a branch here + a row in that table; the RTL (MCU.vhd/
 # MemoryMap) is package-agnostic and stays byte-identical across models.
-if packageModel == 'myshkin-qfn44':
-	package = m.CreatePackage(
-		packageType='QFN',
-		pinCount=44,
-		units='mm',
-		dimensions=[7, 7],
-		pinsOnEachSide={'W': 11, 'S': 11, 'E': 11, 'N': 11},
-		pinPitch=0.5,
-		pinWidth=0.25,
-		pinDepth=0.4
-	)
+def _buildPackageData(model):
+	'''Build a standalone PackageData (power domains + special/analog pins;
+	   NO GPIO) for `model`. ONE source of pin numbers drives both the
+	   selected build's m.Package AND web_export's other-model pad tables
+	   (GPIO pads are attached separately from the shared GPIO structure).'''
+	from Package import PackageData
+	if model == 'myshkin-qfn44':
+		package = PackageData(
+			packageType='QFN',
+			pinCount=44,
+			units='mm',
+			dimensions=[7, 7],
+			pinsOnEachSide={'W': 11, 'S': 11, 'E': 11, 'N': 11},
+			pinPitch=0.5,
+			pinWidth=0.25,
+			pinDepth=0.4
+		)
 
-	digitalIOPowerDomain = package.AddPowerDomain(
-		powerDomainName='Digital I/O',
-		positiveVoltage=3.3,
-		negativeVoltage=0.0,
-		positiveRailPinNumber=12,
-		positiveRailPinName='VDDPST',
-		negativeRailPinNumber=21,
-		negativeRailPinName='VSSPST',
-		isGpioPowerDomain=True
-	)
+		digitalIOPowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital I/O',
+			positiveVoltage=3.3,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=12,
+			positiveRailPinName='VDDPST',
+			negativeRailPinNumber=21,
+			negativeRailPinName='VSSPST',
+			isGpioPowerDomain=True
+		)
 
-	digitalCorePowerDomain = package.AddPowerDomain(
-		powerDomainName='Digital Core',
-		positiveVoltage=1.0,
-		negativeVoltage=0.0,
-		positiveRailPinNumber=10,
-		positiveRailPinName='VDD',
-		negativeRailPinNumber=22,
-		negativeRailPinName='VSS'
-	)
+		digitalCorePowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital Core',
+			positiveVoltage=1.0,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=10,
+			positiveRailPinName='VDD',
+			negativeRailPinNumber=22,
+			negativeRailPinName='VSS'
+		)
 
-	analogPowerDomain = package.AddPowerDomain(
-		powerDomainName='Analog',
-		positiveVoltage=3.3,
-		negativeVoltage=0.0,
-		positiveRailPinNumber=37,
-		positiveRailPinName='AVDD',
-		negativeRailPinNumber=32,
-		negativeRailPinName='AVSS'
-	)
+		analogPowerDomain = package.AddPowerDomain(
+			powerDomainName='Analog',
+			positiveVoltage=3.3,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=37,
+			positiveRailPinName='AVDD',
+			negativeRailPinNumber=32,
+			negativeRailPinName='AVSS'
+		)
 
-	# Special pins
-	package.AddPin(packagePinNumber=11, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
-	package.AddPin(packagePinNumber=23, name='NC', ioType='', noConnect=True)
-	package.AddPin(packagePinNumber=36, name='ATP-OUT', ioType='o', powerDomain=analogPowerDomain)
-	package.AddPin(packagePinNumber=35, name='ATP-IN', ioType='i', powerDomain=analogPowerDomain)
-	package.AddPin(packagePinNumber=34, name='CE', ioType='io', powerDomain=analogPowerDomain)
-	package.AddPin(packagePinNumber=33, name='RE', ioType='io', powerDomain=analogPowerDomain)
+		# Special pins
+		package.AddPin(packagePinNumber=11, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=23, name='NC', ioType='', noConnect=True)
+		package.AddPin(packagePinNumber=36, name='ATP-OUT', ioType='o', powerDomain=analogPowerDomain)
+		package.AddPin(packagePinNumber=35, name='ATP-IN', ioType='i', powerDomain=analogPowerDomain)
+		package.AddPin(packagePinNumber=34, name='CE', ioType='io', powerDomain=analogPowerDomain)
+		package.AddPin(packagePinNumber=33, name='RE', ioType='io', powerDomain=analogPowerDomain)
 
-elif packageModel == 'castalia-quad-qfn64':
-	# CQ3b Castalia-Quad QFN64 pinout (cq3b_pin_map.md / cq3b_generator_proposal.md):
-	# 16 pins/side, 9x9 mm, 0.5 mm pitch. Numbering W 1-16 (top->bottom),
-	# S 17-32 (L->R), E 33-48 (bottom->top), N 49-64 (R->L).
-	package = m.CreatePackage(
-		packageType='QFN',
-		pinCount=64,
-		units='mm',
-		dimensions=[9, 9],
-		pinsOnEachSide={'W': 16, 'S': 16, 'E': 16, 'N': 16},
-		pinPitch=0.5,
-		pinWidth=0.25,
-		pinDepth=0.4
-	)
+	elif model == 'castalia-quad-qfn64':
+		# CQ3b Castalia-Quad QFN64 pinout (cq3b_pin_map.md / cq3b_generator_proposal.md):
+		# 16 pins/side, 9x9 mm, 0.5 mm pitch. Numbering W 1-16 (top->bottom),
+		# S 17-32 (L->R), E 33-48 (bottom->top), N 49-64 (R->L).
+		package = PackageData(
+			packageType='QFN',
+			pinCount=64,
+			units='mm',
+			dimensions=[9, 9],
+			pinsOnEachSide={'W': 16, 'S': 16, 'E': 16, 'N': 16},
+			pinPitch=0.5,
+			pinWidth=0.25,
+			pinDepth=0.4
+		)
 
-	# Two physical pad pairs each for the core (L/R) and IO (T/B) supplies — a
-	# multi-pad rail (CQ1 #1); the primary pin is the die-LEFT/BOTTOM pad, the
-	# extra pin the die-RIGHT/TOP pad, both on the one rail net.
-	digitalCorePowerDomain = package.AddPowerDomain(
-		powerDomainName='Digital Core',
-		positiveVoltage=1.0,
-		negativeVoltage=0.0,
-		positiveRailPinNumber=10,
-		positiveRailPinName='VDD',
-		negativeRailPinNumber=11,
-		negativeRailPinName='VSS',
-		positiveRailExtraPins=[(39, 'VDD')],
-		negativeRailExtraPins=[(38, 'VSS')]
-	)
+		# Two physical pad pairs each for the core (L/R) and IO (T/B) supplies — a
+		# multi-pad rail (CQ1 #1); the primary pin is the die-LEFT/BOTTOM pad, the
+		# extra pin the die-RIGHT/TOP pad, both on the one rail net.
+		digitalCorePowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital Core',
+			positiveVoltage=1.0,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=10,
+			positiveRailPinName='VDD',
+			negativeRailPinNumber=11,
+			negativeRailPinName='VSS',
+			positiveRailExtraPins=[(39, 'VDD')],
+			negativeRailExtraPins=[(38, 'VSS')]
+		)
 
-	digitalIOPowerDomain = package.AddPowerDomain(
-		powerDomainName='Digital I/O',
-		positiveVoltage=3.3,
-		negativeVoltage=0.0,
-		positiveRailPinNumber=23,
-		positiveRailPinName='VDDPST',
-		negativeRailPinNumber=26,
-		negativeRailPinName='VSSPST',
-		isGpioPowerDomain=True,
-		positiveRailExtraPins=[(58, 'VDDPST')],
-		negativeRailExtraPins=[(55, 'VSSPST')]
-	)
+		digitalIOPowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital I/O',
+			positiveVoltage=3.3,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=23,
+			positiveRailPinName='VDDPST',
+			negativeRailPinNumber=26,
+			negativeRailPinName='VSSPST',
+			isGpioPowerDomain=True,
+			positiveRailExtraPins=[(58, 'VDDPST')],
+			negativeRailExtraPins=[(55, 'VSSPST')]
+		)
 
-	# Four per-quadrant analog domains (AFE0 top-left ... AFE3 bottom-right,
-	# CQ1 #1/#5), each with its own AVDD_h/AVSS_h rail.
-	analog0PowerDomain = package.AddPowerDomain(
-		powerDomainName='Analog0', positiveVoltage=3.3, negativeVoltage=0.0,
-		positiveRailPinNumber=64, positiveRailPinName='AVDD_0',
-		negativeRailPinNumber=59, negativeRailPinName='AVSS_0')
-	analog1PowerDomain = package.AddPowerDomain(
-		powerDomainName='Analog1', positiveVoltage=3.3, negativeVoltage=0.0,
-		positiveRailPinNumber=49, positiveRailPinName='AVDD_1',
-		negativeRailPinNumber=54, negativeRailPinName='AVSS_1')
-	analog2PowerDomain = package.AddPowerDomain(
-		powerDomainName='Analog2', positiveVoltage=3.3, negativeVoltage=0.0,
-		positiveRailPinNumber=17, positiveRailPinName='AVDD_2',
-		negativeRailPinNumber=22, negativeRailPinName='AVSS_2')
-	analog3PowerDomain = package.AddPowerDomain(
-		powerDomainName='Analog3', positiveVoltage=3.3, negativeVoltage=0.0,
-		positiveRailPinNumber=32, positiveRailPinName='AVDD_3',
-		negativeRailPinNumber=27, negativeRailPinName='AVSS_3')
+		# Four per-quadrant analog domains (AFE0 top-left ... AFE3 bottom-right,
+		# CQ1 #1/#5), each with its own AVDD_h/AVSS_h rail.
+		analog0PowerDomain = package.AddPowerDomain(
+			powerDomainName='Analog0', positiveVoltage=3.3, negativeVoltage=0.0,
+			positiveRailPinNumber=64, positiveRailPinName='AVDD_0',
+			negativeRailPinNumber=59, negativeRailPinName='AVSS_0')
+		analog1PowerDomain = package.AddPowerDomain(
+			powerDomainName='Analog1', positiveVoltage=3.3, negativeVoltage=0.0,
+			positiveRailPinNumber=49, positiveRailPinName='AVDD_1',
+			negativeRailPinNumber=54, negativeRailPinName='AVSS_1')
+		analog2PowerDomain = package.AddPowerDomain(
+			powerDomainName='Analog2', positiveVoltage=3.3, negativeVoltage=0.0,
+			positiveRailPinNumber=17, positiveRailPinName='AVDD_2',
+			negativeRailPinNumber=22, negativeRailPinName='AVSS_2')
+		analog3PowerDomain = package.AddPowerDomain(
+			powerDomainName='Analog3', positiveVoltage=3.3, negativeVoltage=0.0,
+			positiveRailPinNumber=32, positiveRailPinName='AVDD_3',
+			negativeRailPinNumber=27, negativeRailPinName='AVSS_3')
 
-	# Special / analog signal pins (replaces the Myshkin NC/ATP/CE/RE section).
-	package.AddPin(packagePinNumber=9, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
-	package.AddPin(packagePinNumber=40, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
-	# 16 electrode pads (PDB3A_G), each in its per-quadrant analog domain; the
-	# flat aio[4*h+e] bus, e in {0:WE, 1:RE, 2:RE2, 3:CE} (cq3b_pin_map.md §3/§4).
-	_cqElectrodes = [
-		# (pin, name, analog domain)
-		(61, 'WE_0', analog0PowerDomain), (62, 'RE_0', analog0PowerDomain), (63, 'RE2_0', analog0PowerDomain), (60, 'CE_0', analog0PowerDomain),
-		(52, 'WE_1', analog1PowerDomain), (51, 'RE_1', analog1PowerDomain), (50, 'RE2_1', analog1PowerDomain), (53, 'CE_1', analog1PowerDomain),
-		(20, 'WE_2', analog2PowerDomain), (19, 'RE_2', analog2PowerDomain), (18, 'RE2_2', analog2PowerDomain), (21, 'CE_2', analog2PowerDomain),
-		(29, 'WE_3', analog3PowerDomain), (30, 'RE_3', analog3PowerDomain), (31, 'RE2_3', analog3PowerDomain), (28, 'CE_3', analog3PowerDomain),
-	]
-	for (_epn, _enm, _edom) in _cqElectrodes:
-		package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=_edom)
+		# Special / analog signal pins (replaces the Myshkin NC/ATP/CE/RE section).
+		package.AddPin(packagePinNumber=9, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=40, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
+		# 16 electrode pads (PDB3A_G), each in its per-quadrant analog domain; the
+		# flat aio[4*h+e] bus, e in {0:WE, 1:RE, 2:RE2, 3:CE} (cq3b_pin_map.md §3/§4).
+		_cqElectrodes = [
+			# (pin, name, analog domain)
+			(61, 'WE_0', analog0PowerDomain), (62, 'RE_0', analog0PowerDomain), (63, 'RE2_0', analog0PowerDomain), (60, 'CE_0', analog0PowerDomain),
+			(52, 'WE_1', analog1PowerDomain), (51, 'RE_1', analog1PowerDomain), (50, 'RE2_1', analog1PowerDomain), (53, 'CE_1', analog1PowerDomain),
+			(20, 'WE_2', analog2PowerDomain), (19, 'RE_2', analog2PowerDomain), (18, 'RE2_2', analog2PowerDomain), (21, 'CE_2', analog2PowerDomain),
+			(29, 'WE_3', analog3PowerDomain), (30, 'RE_3', analog3PowerDomain), (31, 'RE2_3', analog3PowerDomain), (28, 'CE_3', analog3PowerDomain),
+		]
+		for (_epn, _enm, _edom) in _cqElectrodes:
+			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=_edom)
 
-else:
-	raise Exception('package model "' + packageModel + '" is declared but not implemented')
+	else:
+		raise Exception('package model "' + model + '" is declared but not implemented')
+	return package
+
+
+m.Package = _buildPackageData(packageModel)
 
 # Per-model GPIO bit -> package pin number (objGPIOk, bit b). None = unbonded
 # (kept in the RTL/register map, but no package ball — the netlist ties the
@@ -1819,32 +1910,16 @@ m.PackagePreliminary = packagePreliminary	# G4: drives the TRM §2 "Preliminary"
 # Schema key -> human description, for the TRM's generated Chip Configuration
 # section (documents the CONFIG= schema next to this build's resolved values)
 m.ConfigSchemaDoc = dict((k, _CONFIG_SCHEMA[k][0]) for k in _CONFIG_SCHEMA)
+# S2: declarative schema metadata + the resolved defaults, attached for the
+# `make web` export (out/web/chip_data.js) so the configurator can read
+# ranges/enums/defaults from the generator rather than re-hardcoding them.
+m.ConfigMeta = dict((k, dict(_CONFIG_META[k])) for k in _CONFIG_META)
+m.ConfigDefaults = dict((k, _CONFIG_META[k]['default']) for k in _CONFIG_META)
 
 # Derived pad ring: the package model above IS the pad-ring description
 # (pin order, sides, power domains). Recorded as config/PadRing.json and
 # rendered as the TRM's generated pinout diagram — there is no separate
 # hand-maintained pad list to drift out of sync.
-_padRingPins = []
-for _pp in m.Package.Pins:
-	_e = {
-		'pin': _pp.PackagePinNumber,
-		'side': _pp.Side,
-		'name': _pp.FullName if not _pp.NoConnect else 'NC',
-		'io': _pp.IOString if not _pp.NoConnect else 'NC',
-	}
-	if _pp.NoConnect:
-		_e['noConnect'] = True
-	else:
-		_e['powerDomain'] = _pp.PowerDomain.Name
-		if _pp.Gpio is not None:
-			_e['gpio'] = _pp.Gpio.GpioName
-			if len(_pp.Gpio.FuncName) > 0:
-				_e['af0'] = _pp.Gpio.FuncName
-			_af = [a for a in _pp.Gpio.AltFuncs if a.Index >= 1]
-			if _af:
-				_e['altFuncs'] = dict(('AF' + str(a.Index), a.Name) for a in sorted(_af, key=lambda a: a.Index))
-	_padRingPins.append(_e)
-
 def _padRingDomainEntry(_pd):
 	'''One PadRing.json powerDomains entry. Single-pad rails emit exactly the
 	   historical shape (name/voltage/positiveRail/negativeRail — the QFN44
@@ -1861,20 +1936,79 @@ def _padRingDomainEntry(_pd):
 		_pairs.append(('negativeRailPins', [{'pin': _p.PackagePinNumber, 'name': _p.Name} for _p in _pd.NegativeRailPins]))
 	return dict(_pairs)
 
-m.PadRing = {
-	'_comment': 'Derived pad ring — computed by make chip from the package model in generate.py '
-		+ '(pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).',
-	'package': {
-		'type': m.Package.PackageType,
-		'pinCount': m.Package.PinCount,
-		'dimensions': m.Package.Dimensions,
-		'units': m.Package.Units,
-		'pinPitch': m.Package.PinPitch,
-		'pinsOnEachSide': m.Package.PinsOnEachSide,
-	},
-	'powerDomains': [_padRingDomainEntry(_pd) for _pd in m.Package.PowerDomains],
-	'pins': _padRingPins,
-}
+def _padRingDict(pkg):
+	'''Serialize a fully-built PackageData (sides assigned) into the PadRing.json
+	   shape. Used for m.Package (the selected model → config/PadRing.json) AND
+	   for the web export's other-model pad tables — ONE serializer, so every
+	   model's pad table has the identical shape.'''
+	_pins = []
+	for _pp in pkg.Pins:
+		_e = {
+			'pin': _pp.PackagePinNumber,
+			'side': _pp.Side,
+			'name': _pp.FullName if not _pp.NoConnect else 'NC',
+			'io': _pp.IOString if not _pp.NoConnect else 'NC',
+		}
+		if _pp.NoConnect:
+			_e['noConnect'] = True
+		else:
+			_e['powerDomain'] = _pp.PowerDomain.Name
+			if _pp.Gpio is not None:
+				_e['gpio'] = _pp.Gpio.GpioName
+				if len(_pp.Gpio.FuncName) > 0:
+					_e['af0'] = _pp.Gpio.FuncName
+				_af = [a for a in _pp.Gpio.AltFuncs if a.Index >= 1]
+				if _af:
+					_e['altFuncs'] = dict(('AF' + str(a.Index), a.Name) for a in sorted(_af, key=lambda a: a.Index))
+		_pins.append(_e)
+	return {
+		'_comment': 'Derived pad ring — computed by make chip from the package model in generate.py '
+			+ '(pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).',
+		'package': {
+			'type': pkg.PackageType,
+			'pinCount': pkg.PinCount,
+			'dimensions': pkg.Dimensions,
+			'units': pkg.Units,
+			'pinPitch': pkg.PinPitch,
+			'pinsOnEachSide': pkg.PinsOnEachSide,
+		},
+		'powerDomains': [_padRingDomainEntry(_pd) for _pd in pkg.PowerDomains],
+		'pins': _pins,
+	}
+
+m.PadRing = _padRingDict(m.Package)
+
+# S2: pad tables for EVERY package model (not just the selected one) so the web
+# export can offer a live pinout for each. Built via the SAME machinery: the
+# GPIO func/altfunc STRUCTURE is model-independent (already attached to the GPIO
+# peripherals above), so a non-selected model reuses those exact gpio objects,
+# remaps each to that model's package pin number (_GPIO_PKG_PINS), and reruns
+# the CheckPackagePins side assignment. No pin number is transcribed twice.
+def _padRingForModel(_model):
+	if _model == packageModel:
+		return m.PadRing	# the authoritative, already-built + side-assigned ring
+	_pkg = _buildPackageData(_model)
+	for _gp in (GPIO0, GPIO1, GPIO2, GPIO3):
+		_gi = int(_gp.Name[len('GPIO'):])
+		for _gpio in _gp.Pins:
+			_num = _GPIO_PKG_PINS[_model].get((_gi, _gpio.BitNumber))
+			if _num is None:
+				continue	# unbonded on this model (no package ball)
+			_p = _pkg.AddGpioPin(_num, _gpio)
+			_p.PowerDomain = _pkg.GpioPowerDomain
+	# Mirror ChipGenerator.CheckPackagePins side assignment (sort then W/S/E/N).
+	_pkg.Pins.sort(key=lambda _x: _x.PackagePinNumber)
+	if len(_pkg.Pins) != _pkg.PinCount:
+		raise Exception('package model "' + _model + '" attached ' + str(len(_pkg.Pins))
+			+ ' pads but declares ' + str(_pkg.PinCount) + ' pins')
+	_i = 0
+	for _side in ('W', 'S', 'E', 'N'):
+		for _ in range(_pkg.PinsOnEachSide[_side]):
+			_pkg.Pins[_i].Side = _side
+			_i += 1
+	return _padRingDict(_pkg)
+
+m.PackageModels = dict((_model, _padRingForModel(_model)) for _model in _PACKAGE_MODELS)
 
 
 ''' Generate all output files '''
