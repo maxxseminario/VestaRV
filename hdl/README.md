@@ -21,7 +21,7 @@ hdl/
     └── tb/                — Testbenches
 ```
 
-See [`MCU/README.md`](MCU/README.md) for a detailed breakdown of the core architecture and peripheral list.
+See the [Castalia TRM](../implementations/asic/castalia/docs/TRM.pdf) for a detailed breakdown of the core architecture and peripheral list.
 
 ---
 
