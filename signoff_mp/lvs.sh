@@ -71,8 +71,13 @@ grep -E "^ERROR" "$WORK/strmout.log" && exit 1
 # VIRTUAL_CONNECT -COLON YES + metal text ATTACH, so one "VDD_SW:" text
 # per piece (layer 131 = M1 text) unifies them. Labels file is emitted by
 # the netlist-gen step; skipped silently if absent (e.g. bare macros).
-if [ -f "pvs/${cell}.lvslabels" ]; then
-    python3 gds_add_labels.py "$WORK/$cell.gds" "$cell" "pvs/${cell}.lvslabels" || exit 1
+# Labels file defaults to pvs/<cell>.lvslabels; override with LVSLABELS= (Argus
+# A6: the chip topcell is "chip_top" for BOTH Castalia C0 and Argus -- distinct
+# only by the target lib -- so Argus passes LVSLABELS=pvs/chip_top_argus.lvslabels
+# to avoid reading C0's pvs/chip_top.lvslabels).
+LABELS=${LVSLABELS:-pvs/${cell}.lvslabels}
+if [ -f "$LABELS" ]; then
+    python3 gds_add_labels.py "$WORK/$cell.gds" "$cell" "$LABELS" || exit 1
 fi
 # HIERARCHICAL chip LVS (chip_top / chip_top_argus): hart_tile is a boxed hcell,
 # so its switched-rail VDD_SW must be virtual-connected INSIDE the tile struct
