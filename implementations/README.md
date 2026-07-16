@@ -27,7 +27,12 @@ Use descriptive names that include key identifiers:
 ## Current Implementations
 
 ### ASIC
-- **[myshkin-2025-11](asic/myshkin-2025-11/)** — TSMC 65nm tape-out with NPU accelerator and analog front-end (November 2025)
+- **[myshkin-2025-11](asic/myshkin-2025-11/)** — single-core TSMC 65nm tape-out with NPU accelerator and analog front-end (November 2025). Silicon validated; potentiostat design won a best paper award at IEEE ISCAS 2026.
+- **[castalia](asic/castalia/)** — 4-hart multiprocessor derived from the same VestaRV core; digital-only configuration, signoff-closed tile and MCU.
+- **[argus](asic/argus/)** — 18-hart teaching chip built from the identical hart tile as a 3×3 tile array; generated from `config/argus.json`.
+
+All three chips are produced from one config-driven generator (`platform/common/`); see
+each chip's README and TRM for specifics.
 
 ### FPGA
 - (No FPGA implementations yet — see example template in `fpga/example-board/`)
