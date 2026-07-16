@@ -65,7 +65,7 @@ def _isMemSize(v, ceiling):
 # package model; a config SELECTS one by name. Free-form pin assignment in the
 # config is intentionally unsupported — a chip gets its own pinout by adding a
 # model here (Argus will, once its package is decided), never in JSON.
-_PACKAGE_MODELS = ('myshkin-qfn44',)
+_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64')
 
 _CONFIG_SCHEMA = {
 	'chipName':             ('non-empty string — renames the chip in the TRM/headers (docs-only; CHIP_NAME env still wins)',
@@ -102,7 +102,7 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.timer1':   ('bool — False drops the second TIMER instance (slot 7 reads zero, IRQ vectors 22-27 reserved, T1CMP*/T1CAP* pins revert to plain GPIO)',
 	                         _isBool),
-	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS; today only "myshkin-qfn44" — new pinouts are added as Python models, never as free-form config pin lists)',
+	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
 	                         _isBool),
@@ -1193,61 +1193,168 @@ m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=
 # 96: AVSS
 # 98: AVDD
 
-# G4: everything from CreatePackage down to the last AddGpio(packagePinNumber=)
-# IS the 'myshkin-qfn44' package model — the only _PACKAGE_MODELS entry today.
-# A future model (e.g. Argus's own package) becomes an alternative block
-# selected on packageModel; the schema already validates the name.
-if packageModel != 'myshkin-qfn44':
+# G4: CreatePackage + the power domains + the special/analog pins below are a
+# PER-MODEL block selected on packageModel (the schema already validates the
+# name). The GPIO port STRUCTURE further down (func/altfunc/gating) is SHARED
+# across models — only each GPIO bit's package PIN NUMBER differs, so that is a
+# per-model table (_GPIO_PKG_PINS) applied to the shared AddGpio rows. Adding a
+# model = adding a branch here + a row in that table; the RTL (MCU.vhd/
+# MemoryMap) is package-agnostic and stays byte-identical across models.
+if packageModel == 'myshkin-qfn44':
+	package = m.CreatePackage(
+		packageType='QFN',
+		pinCount=44,
+		units='mm',
+		dimensions=[7, 7],
+		pinsOnEachSide={'W': 11, 'S': 11, 'E': 11, 'N': 11},
+		pinPitch=0.5,
+		pinWidth=0.25,
+		pinDepth=0.4
+	)
+
+	digitalIOPowerDomain = package.AddPowerDomain(
+		powerDomainName='Digital I/O',
+		positiveVoltage=3.3,
+		negativeVoltage=0.0,
+		positiveRailPinNumber=12,
+		positiveRailPinName='VDDPST',
+		negativeRailPinNumber=21,
+		negativeRailPinName='VSSPST',
+		isGpioPowerDomain=True
+	)
+
+	digitalCorePowerDomain = package.AddPowerDomain(
+		powerDomainName='Digital Core',
+		positiveVoltage=1.0,
+		negativeVoltage=0.0,
+		positiveRailPinNumber=10,
+		positiveRailPinName='VDD',
+		negativeRailPinNumber=22,
+		negativeRailPinName='VSS'
+	)
+
+	analogPowerDomain = package.AddPowerDomain(
+		powerDomainName='Analog',
+		positiveVoltage=3.3,
+		negativeVoltage=0.0,
+		positiveRailPinNumber=37,
+		positiveRailPinName='AVDD',
+		negativeRailPinNumber=32,
+		negativeRailPinName='AVSS'
+	)
+
+	# Special pins
+	package.AddPin(packagePinNumber=11, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
+	package.AddPin(packagePinNumber=23, name='NC', ioType='', noConnect=True)
+	package.AddPin(packagePinNumber=36, name='ATP-OUT', ioType='o', powerDomain=analogPowerDomain)
+	package.AddPin(packagePinNumber=35, name='ATP-IN', ioType='i', powerDomain=analogPowerDomain)
+	package.AddPin(packagePinNumber=34, name='CE', ioType='io', powerDomain=analogPowerDomain)
+	package.AddPin(packagePinNumber=33, name='RE', ioType='io', powerDomain=analogPowerDomain)
+
+elif packageModel == 'castalia-quad-qfn64':
+	# CQ3b Castalia-Quad QFN64 pinout (cq3b_pin_map.md / cq3b_generator_proposal.md):
+	# 16 pins/side, 9x9 mm, 0.5 mm pitch. Numbering W 1-16 (top->bottom),
+	# S 17-32 (L->R), E 33-48 (bottom->top), N 49-64 (R->L).
+	package = m.CreatePackage(
+		packageType='QFN',
+		pinCount=64,
+		units='mm',
+		dimensions=[9, 9],
+		pinsOnEachSide={'W': 16, 'S': 16, 'E': 16, 'N': 16},
+		pinPitch=0.5,
+		pinWidth=0.25,
+		pinDepth=0.4
+	)
+
+	# Two physical pad pairs each for the core (L/R) and IO (T/B) supplies — a
+	# multi-pad rail (CQ1 #1); the primary pin is the die-LEFT/BOTTOM pad, the
+	# extra pin the die-RIGHT/TOP pad, both on the one rail net.
+	digitalCorePowerDomain = package.AddPowerDomain(
+		powerDomainName='Digital Core',
+		positiveVoltage=1.0,
+		negativeVoltage=0.0,
+		positiveRailPinNumber=10,
+		positiveRailPinName='VDD',
+		negativeRailPinNumber=11,
+		negativeRailPinName='VSS',
+		positiveRailExtraPins=[(39, 'VDD')],
+		negativeRailExtraPins=[(38, 'VSS')]
+	)
+
+	digitalIOPowerDomain = package.AddPowerDomain(
+		powerDomainName='Digital I/O',
+		positiveVoltage=3.3,
+		negativeVoltage=0.0,
+		positiveRailPinNumber=23,
+		positiveRailPinName='VDDPST',
+		negativeRailPinNumber=26,
+		negativeRailPinName='VSSPST',
+		isGpioPowerDomain=True,
+		positiveRailExtraPins=[(58, 'VDDPST')],
+		negativeRailExtraPins=[(55, 'VSSPST')]
+	)
+
+	# Four per-quadrant analog domains (AFE0 top-left ... AFE3 bottom-right,
+	# CQ1 #1/#5), each with its own AVDD_h/AVSS_h rail.
+	analog0PowerDomain = package.AddPowerDomain(
+		powerDomainName='Analog0', positiveVoltage=3.3, negativeVoltage=0.0,
+		positiveRailPinNumber=64, positiveRailPinName='AVDD_0',
+		negativeRailPinNumber=59, negativeRailPinName='AVSS_0')
+	analog1PowerDomain = package.AddPowerDomain(
+		powerDomainName='Analog1', positiveVoltage=3.3, negativeVoltage=0.0,
+		positiveRailPinNumber=49, positiveRailPinName='AVDD_1',
+		negativeRailPinNumber=54, negativeRailPinName='AVSS_1')
+	analog2PowerDomain = package.AddPowerDomain(
+		powerDomainName='Analog2', positiveVoltage=3.3, negativeVoltage=0.0,
+		positiveRailPinNumber=17, positiveRailPinName='AVDD_2',
+		negativeRailPinNumber=22, negativeRailPinName='AVSS_2')
+	analog3PowerDomain = package.AddPowerDomain(
+		powerDomainName='Analog3', positiveVoltage=3.3, negativeVoltage=0.0,
+		positiveRailPinNumber=32, positiveRailPinName='AVDD_3',
+		negativeRailPinNumber=27, negativeRailPinName='AVSS_3')
+
+	# Special / analog signal pins (replaces the Myshkin NC/ATP/CE/RE section).
+	package.AddPin(packagePinNumber=9, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
+	package.AddPin(packagePinNumber=40, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
+	# 16 electrode pads (PDB3A_G), each in its per-quadrant analog domain; the
+	# flat aio[4*h+e] bus, e in {0:WE, 1:RE, 2:RE2, 3:CE} (cq3b_pin_map.md §3/§4).
+	_cqElectrodes = [
+		# (pin, name, analog domain)
+		(61, 'WE_0', analog0PowerDomain), (62, 'RE_0', analog0PowerDomain), (63, 'RE2_0', analog0PowerDomain), (60, 'CE_0', analog0PowerDomain),
+		(52, 'WE_1', analog1PowerDomain), (51, 'RE_1', analog1PowerDomain), (50, 'RE2_1', analog1PowerDomain), (53, 'CE_1', analog1PowerDomain),
+		(20, 'WE_2', analog2PowerDomain), (19, 'RE_2', analog2PowerDomain), (18, 'RE2_2', analog2PowerDomain), (21, 'CE_2', analog2PowerDomain),
+		(29, 'WE_3', analog3PowerDomain), (30, 'RE_3', analog3PowerDomain), (31, 'RE2_3', analog3PowerDomain), (28, 'CE_3', analog3PowerDomain),
+	]
+	for (_epn, _enm, _edom) in _cqElectrodes:
+		package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=_edom)
+
+else:
 	raise Exception('package model "' + packageModel + '" is declared but not implemented')
-package = m.CreatePackage(
-	packageType='QFN',
-	pinCount=44,
-	units='mm',
-	dimensions=[7, 7],
-	pinsOnEachSide={'W': 11, 'S': 11, 'E': 11, 'N': 11},
-	pinPitch=0.5,
-	pinWidth=0.25,
-	pinDepth=0.4
-)
 
-digitalIOPowerDomain = package.AddPowerDomain(
-	powerDomainName='Digital I/O',
-	positiveVoltage=3.3,
-	negativeVoltage=0.0,
-	positiveRailPinNumber=12,
-	positiveRailPinName='VDDPST',
-	negativeRailPinNumber=21,
-	negativeRailPinName='VSSPST',
-	isGpioPowerDomain=True
-)
-
-digitalCorePowerDomain = package.AddPowerDomain(
-	powerDomainName='Digital Core',
-	positiveVoltage=1.0,
-	negativeVoltage=0.0,
-	positiveRailPinNumber=10,
-	positiveRailPinName='VDD',
-	negativeRailPinNumber=22,
-	negativeRailPinName='VSS'
-)
-
-analogPowerDomain = package.AddPowerDomain(
-	powerDomainName='Analog',
-	positiveVoltage=3.3,
-	negativeVoltage=0.0,
-	positiveRailPinNumber=37,
-	positiveRailPinName='AVDD',
-	negativeRailPinNumber=32,
-	negativeRailPinName='AVSS'
-)
-
-# Special pins
-package.AddPin(packagePinNumber=11, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
-package.AddPin(packagePinNumber=23, name='NC', ioType='', noConnect=True)
-package.AddPin(packagePinNumber=36, name='ATP-OUT', ioType='o', powerDomain=analogPowerDomain)
-package.AddPin(packagePinNumber=35, name='ATP-IN', ioType='i', powerDomain=analogPowerDomain)
-package.AddPin(packagePinNumber=34, name='CE', ioType='io', powerDomain=analogPowerDomain)
-package.AddPin(packagePinNumber=33, name='RE', ioType='io', powerDomain=analogPowerDomain)
+# Per-model GPIO bit -> package pin number (objGPIOk, bit b). None = unbonded
+# (kept in the RTL/register map, but no package ball — the netlist ties the
+# port bit). objGPIO0 = PadRing "P0" = RTL prt1 (boot flash); objGPIOk = prt(k+1).
+# myshkin-qfn44 reproduces the original QFN-44 ring byte-for-byte; the CQ model
+# is cq3b_pin_map.md §5, with objGPIO2.b0 (GPIO16/T0CMP0) and objGPIO2.b4
+# (GPIO20/T1CMP0) unbonded.
+_GPIO_PKG_PINS = {
+	'myshkin-qfn44': {
+		(0, 0): 31, (0, 1): 30, (0, 2): 29, (0, 3): 28, (0, 4): 27, (0, 5): 26, (0, 6): 25, (0, 7): 24,
+		(1, 0): 20, (1, 1): 19, (1, 2): 18, (1, 3): 17, (1, 4): 16, (1, 5): 15, (1, 6): 14, (1, 7): 13,
+		(2, 0): 9, (2, 1): 8, (2, 2): 7, (2, 3): 6, (2, 4): 5, (2, 5): 4, (2, 6): 3, (2, 7): 2,
+		(3, 0): 1, (3, 1): 44, (3, 2): 43, (3, 3): 42, (3, 4): 41, (3, 5): 40, (3, 6): 39, (3, 7): 38,
+	},
+	'castalia-quad-qfn64': {
+		(0, 0): 8, (0, 1): 7, (0, 2): 6, (0, 3): 5, (0, 4): 4, (0, 5): 3, (0, 6): 2, (0, 7): 1,
+		(1, 0): 41, (1, 1): 42, (1, 2): 43, (1, 3): 44, (1, 4): 45, (1, 5): 46, (1, 6): 47, (1, 7): 48,
+		(2, 0): None, (2, 1): 16, (2, 2): 15, (2, 3): 14, (2, 4): None, (2, 5): 13, (2, 6): 12, (2, 7): 33,
+		(3, 0): 34, (3, 1): 35, (3, 2): 36, (3, 3): 37, (3, 4): 57, (3, 5): 56, (3, 6): 24, (3, 7): 25,
+	},
+}
+def _gpioPkgPin(gpioIndex, bitNumber):
+	'''Package pin number for objGPIO<gpioIndex> bit <bitNumber> under the
+	   selected model, or None (unbonded — Peripheral.AddGpio skips the pad).'''
+	return _GPIO_PKG_PINS[packageModel].get((gpioIndex, bitNumber))
 
 
 
@@ -1258,50 +1365,50 @@ package.AddPin(packagePinNumber=33, name='RE', ioType='io', powerDomain=analogPo
 # GPIO0 (P1.0-P1.7)
 GPIO0.ChangeGPIOPortSize(8)
 
-GPIO0.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO0', funcName='CS_FLASH', funcIOType='o',	rstOUT=1, rstDIR=1, rstSEL=0, rstREN=0, description='Chip select pin for SPI flash memory'), packagePinNumber=31) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO1', funcName='MISO0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 Master In Slave Out (connected to SPI flash memory)'), packagePinNumber=30) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO2', funcName='MOSI0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 Master Out Slave In (connected to SPI flash memory)'), packagePinNumber=29) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO3', funcName='SCK0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 serial clock (connected to SPI flash memory)'), packagePinNumber=28) # necessary
-GPIO0.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO4', funcName='LFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Low frequency external clock'), packagePinNumber=27) # necessary; rstSEL=0 matches the RTL (RstValP1SEL=0x4E)
-GPIO0.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO5', funcName='HFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='High frequency external clock'), packagePinNumber=26) # necessary; rstSEL=0 matches the RTL (RstValP1SEL=0x4E)
-GPIO0.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO6', funcName='TRAP', funcIOType='o',	rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='CPU trap state'), packagePinNumber=25) # necessary; rstDIR=1 matches the RTL (RstValP1DIR=0x41)
-GPIO0.AddGpio(GpioConfigurator(bitNumber=7, primaryName='BOOT', funcName='', funcIOType='',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=1, description='Boot select pin (Boots to forth interpreter when LOW, boots from SPI flash when HIGH)'), packagePinNumber=24) # necessary
+GPIO0.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO0', funcName='CS_FLASH', funcIOType='o',	rstOUT=1, rstDIR=1, rstSEL=0, rstREN=0, description='Chip select pin for SPI flash memory'), packagePinNumber=_gpioPkgPin(0, 0)) # necessary
+GPIO0.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO1', funcName='MISO0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 Master In Slave Out (connected to SPI flash memory)'), packagePinNumber=_gpioPkgPin(0, 1)) # necessary
+GPIO0.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO2', funcName='MOSI0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 Master Out Slave In (connected to SPI flash memory)'), packagePinNumber=_gpioPkgPin(0, 2)) # necessary
+GPIO0.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO3', funcName='SCK0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='SPI0 serial clock (connected to SPI flash memory)'), packagePinNumber=_gpioPkgPin(0, 3)) # necessary
+GPIO0.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO4', funcName='LFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Low frequency external clock'), packagePinNumber=_gpioPkgPin(0, 4)) # necessary; rstSEL=0 matches the RTL (RstValP1SEL=0x4E)
+GPIO0.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO5', funcName='HFXT', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='High frequency external clock'), packagePinNumber=_gpioPkgPin(0, 5)) # necessary; rstSEL=0 matches the RTL (RstValP1SEL=0x4E)
+GPIO0.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO6', funcName='TRAP', funcIOType='o',	rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='CPU trap state'), packagePinNumber=_gpioPkgPin(0, 6)) # necessary; rstDIR=1 matches the RTL (RstValP1DIR=0x41)
+GPIO0.AddGpio(GpioConfigurator(bitNumber=7, primaryName='BOOT', funcName='', funcIOType='',		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=1, description='Boot select pin (Boots to forth interpreter when LOW, boots from SPI flash when HIGH)'), packagePinNumber=_gpioPkgPin(0, 7)) # necessary
 
 # GPIO1 (P2.0-P2.7)
 GPIO1.ChangeGPIOPortSize(8)
 
-GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName=('CS1' if spi1Present else ''), funcIOType=('i' if spi1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 chip select' if spi1Present else 'General-purpose I/O (ex-CS1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=20) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
-GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName=('MISO1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master In Slave Out' if spi1Present else 'General-purpose I/O (ex-MISO1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=19) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
-GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName=('MOSI1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master Out Slave In' if spi1Present else 'General-purpose I/O (ex-MOSI1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=18) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
-GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName=('SCK1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 serial clock' if spi1Present else 'General-purpose I/O (ex-SCK1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=17) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
-GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='UART0 transmitter', altFuncs=([(1, 'SDA1', 'io', 'I2C1 serial data (second alternate location)')] if i2c1Present else [])), packagePinNumber=16) # necessary; rstDIR=1 matches the RTL (RstValP2DIR=0x10); AF1 gated with I2C1 (pin-mux v2)
-GPIO1.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO13', funcName='RX0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 receiver', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (second alternate location)')] if i2c1Present else [])), packagePinNumber=15) # necessary; AF1 gated with I2C1 (pin-mux v2)
-GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName=('TX1' if uart1Present else ''), funcIOType=('o' if uart1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 transmitter' if uart1Present else 'General-purpose I/O (ex-TX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (alternate location)')]), packagePinNumber=14) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
-GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName=('RX1' if uart1Present else ''), funcIOType=('io' if uart1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 receiver' if uart1Present else 'General-purpose I/O (ex-RX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (alternate location)')]), packagePinNumber=13) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO8', funcName=('CS1' if spi1Present else ''), funcIOType=('i' if spi1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 chip select' if spi1Present else 'General-purpose I/O (ex-CS1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=_gpioPkgPin(1, 0)) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO9', funcName=('MISO1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master In Slave Out' if spi1Present else 'General-purpose I/O (ex-MISO1; SPI1 dropped by this configuration)'), altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=_gpioPkgPin(1, 1)) # necessary; primary gated with SPI1 (G1b), AF1 is a TIMER0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO10', funcName=('MOSI1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 Master Out Slave In' if spi1Present else 'General-purpose I/O (ex-MOSI1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(1, 2)) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
+GPIO1.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO11', funcName=('SCK1' if spi1Present else ''), funcIOType=('io' if spi1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('SPI1 serial clock' if spi1Present else 'General-purpose I/O (ex-SCK1; SPI1 dropped by this configuration)'), altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(1, 3)) # necessary; primary gated with SPI1, AF1 with TIMER1 (G1b)
+GPIO1.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO12', funcName='TX0', funcIOType='o',		rstOUT=0, rstDIR=1, rstSEL=1, rstREN=0, description='UART0 transmitter', altFuncs=([(1, 'SDA1', 'io', 'I2C1 serial data (second alternate location)')] if i2c1Present else [])), packagePinNumber=_gpioPkgPin(1, 4)) # necessary; rstDIR=1 matches the RTL (RstValP2DIR=0x10); AF1 gated with I2C1 (pin-mux v2)
+GPIO1.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO13', funcName='RX0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=1, rstREN=0, description='UART0 receiver', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (second alternate location)')] if i2c1Present else [])), packagePinNumber=_gpioPkgPin(1, 5)) # necessary; AF1 gated with I2C1 (pin-mux v2)
+GPIO1.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO14', funcName=('TX1' if uart1Present else ''), funcIOType=('o' if uart1Present else ''),		rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 transmitter' if uart1Present else 'General-purpose I/O (ex-TX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (alternate location)')]), packagePinNumber=_gpioPkgPin(1, 6)) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
+GPIO1.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO15', funcName=('RX1' if uart1Present else ''), funcIOType=('io' if uart1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('UART1 receiver' if uart1Present else 'General-purpose I/O (ex-RX1; UART1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (alternate location)')]), packagePinNumber=_gpioPkgPin(1, 7)) # necessary; primary gated with UART1 (G1b), AF1 is an I2C0 source
 
 # GPIO2 (P3.0-P3.7)
 GPIO2.ChangeGPIOPortSize(8)
 
-GPIO2.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO16', funcName='T0CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 0', altFuncs=([(1, 'TX1', 'o', 'UART1 transmitter (alternate location)')] if uart1Present else [])), packagePinNumber=9) # necessary; AF1 gated with UART1 (G1b)
-GPIO2.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO17', funcName='T0CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 1', altFuncs=([(1, 'RX1', 'io', 'UART1 receiver (alternate location)')] if uart1Present else [])), packagePinNumber=8) # necessary; AF1 gated with UART1 (G1b)
-GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 0', altFuncs=([(1, 'SDA1', 'io', 'I2C1 serial data (alternate location)')] if i2c1Present else [])), packagePinNumber=7) # necessary; AF1 gated with I2C1 (G1a)
-GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (alternate location)')] if i2c1Present else [])), packagePinNumber=6) # necessary; AF1 gated with I2C1 (G1a)
-GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName=('T1CMP0' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 0' if timer1Present else 'General-purpose I/O (ex-T1CMP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'TX0', 'o', 'UART0 transmitter (alternate location)')]), packagePinNumber=5) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
-GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName=('T1CMP1' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 1' if timer1Present else 'General-purpose I/O (ex-T1CMP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'RX0', 'io', 'UART0 receiver (alternate location)')]), packagePinNumber=4) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
-GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName=('T1CAP0' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 0' if timer1Present else 'General-purpose I/O (ex-T1CAP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (second alternate location)')]), packagePinNumber=3) # necessary; primary gated with TIMER1 (G1b), AF1 is an I2C0 source (pin-mux v2)
-GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName=('T1CAP1' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 1' if timer1Present else 'General-purpose I/O (ex-T1CAP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (second alternate location)')]), packagePinNumber=2) # necessary; primary gated with TIMER1 (G1b), AF1 is an I2C0 source (pin-mux v2)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO16', funcName='T0CMP0', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 0', altFuncs=([(1, 'TX1', 'o', 'UART1 transmitter (alternate location)')] if uart1Present else [])), packagePinNumber=_gpioPkgPin(2, 0)) # necessary; AF1 gated with UART1 (G1b)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO17', funcName='T0CMP1', funcIOType='o',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Compare 1', altFuncs=([(1, 'RX1', 'io', 'UART1 receiver (alternate location)')] if uart1Present else [])), packagePinNumber=_gpioPkgPin(2, 1)) # necessary; AF1 gated with UART1 (G1b)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO18', funcName='T0CAP0', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 0', altFuncs=([(1, 'SDA1', 'io', 'I2C1 serial data (alternate location)')] if i2c1Present else [])), packagePinNumber=_gpioPkgPin(2, 2)) # necessary; AF1 gated with I2C1 (G1a)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO19', funcName='T0CAP1', funcIOType='i',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='TIMER0 Capture 1', altFuncs=([(1, 'SCL1', 'io', 'I2C1 serial clock (alternate location)')] if i2c1Present else [])), packagePinNumber=_gpioPkgPin(2, 3)) # necessary; AF1 gated with I2C1 (G1a)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO20', funcName=('T1CMP0' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 0' if timer1Present else 'General-purpose I/O (ex-T1CMP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'TX0', 'o', 'UART0 transmitter (alternate location)')]), packagePinNumber=_gpioPkgPin(2, 4)) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
+GPIO2.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO21', funcName=('T1CMP1' if timer1Present else ''), funcIOType=('o' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Compare 1' if timer1Present else 'General-purpose I/O (ex-T1CMP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'RX0', 'io', 'UART0 receiver (alternate location)')]), packagePinNumber=_gpioPkgPin(2, 5)) # necessary; primary gated with TIMER1 (G1b), AF1 is a UART0 source
+GPIO2.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO22', funcName=('T1CAP0' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 0' if timer1Present else 'General-purpose I/O (ex-T1CAP0; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'SDA0', 'io', 'I2C0 serial data (second alternate location)')]), packagePinNumber=_gpioPkgPin(2, 6)) # necessary; primary gated with TIMER1 (G1b), AF1 is an I2C0 source (pin-mux v2)
+GPIO2.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO23', funcName=('T1CAP1' if timer1Present else ''), funcIOType=('i' if timer1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('TIMER1 Capture 1' if timer1Present else 'General-purpose I/O (ex-T1CAP1; TIMER1 dropped by this configuration)'), altFuncs=[(1, 'SCL0', 'io', 'I2C0 serial clock (second alternate location)')]), packagePinNumber=_gpioPkgPin(2, 7)) # necessary; primary gated with TIMER1 (G1b), AF1 is an I2C0 source (pin-mux v2)
 
 # GPIO3 (P4.0-P4.7)
 GPIO3.ChangeGPIOPortSize(8)
 
-GPIO3.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO24', funcName='SDA0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial data', altFuncs=[(1, 'T0CAP0', 'i', 'TIMER0 Capture 0 (alternate location)')]), packagePinNumber=1) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO25', funcName='SCL0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial clock', altFuncs=[(1, 'T0CAP1', 'i', 'TIMER0 Capture 1 (alternate location)')]), packagePinNumber=44) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO26', funcName=('SDA1' if i2c1Present else ''), funcIOType=('io' if i2c1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('I2C1 serial data' if i2c1Present else 'General-purpose I/O (ex-SDA1; I2C1 dropped by this configuration)'), altFuncs=([(1, 'T1CAP0', 'i', 'TIMER1 Capture 0 (alternate location)')] if timer1Present else [])), packagePinNumber=43) # necessary; primary gated with I2C1 (G1a), AF1 with TIMER1 (G1b)
-GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName=('SCL1' if i2c1Present else ''), funcIOType=('io' if i2c1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('I2C1 serial clock' if i2c1Present else 'General-purpose I/O (ex-SCL1; I2C1 dropped by this configuration)'), altFuncs=([(1, 'T1CAP1', 'i', 'TIMER1 Capture 1 (alternate location)')] if timer1Present else [])), packagePinNumber=42) # necessary; primary gated with I2C1 (G1a), AF1 with TIMER1 (G1b)
-GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 0', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=41) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=40) # necessary
-GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=39) # necessary; AF1 gated with TIMER1 (G1b)
-GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=38) # necessary; AF1 gated with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO24', funcName='SDA0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial data', altFuncs=[(1, 'T0CAP0', 'i', 'TIMER0 Capture 0 (alternate location)')]), packagePinNumber=_gpioPkgPin(3, 0)) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO25', funcName='SCL0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='I2C0 serial clock', altFuncs=[(1, 'T0CAP1', 'i', 'TIMER0 Capture 1 (alternate location)')]), packagePinNumber=_gpioPkgPin(3, 1)) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO26', funcName=('SDA1' if i2c1Present else ''), funcIOType=('io' if i2c1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('I2C1 serial data' if i2c1Present else 'General-purpose I/O (ex-SDA1; I2C1 dropped by this configuration)'), altFuncs=([(1, 'T1CAP0', 'i', 'TIMER1 Capture 0 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 2)) # necessary; primary gated with I2C1 (G1a), AF1 with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName=('SCL1' if i2c1Present else ''), funcIOType=('io' if i2c1Present else ''),	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description=('I2C1 serial clock' if i2c1Present else 'General-purpose I/O (ex-SCL1; I2C1 dropped by this configuration)'), altFuncs=([(1, 'T1CAP1', 'i', 'TIMER1 Capture 1 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 3)) # necessary; primary gated with I2C1 (G1a), AF1 with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 0', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=_gpioPkgPin(3, 4)) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=_gpioPkgPin(3, 5)) # necessary
+GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 6)) # necessary; AF1 gated with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 7)) # necessary; AF1 gated with TIMER1 (G1b)
 
 
 # --- GPIO alternate-function output-spread (v1): fill AF planes AF1..AF7 with the
@@ -1738,6 +1845,22 @@ for _pp in m.Package.Pins:
 				_e['altFuncs'] = dict(('AF' + str(a.Index), a.Name) for a in sorted(_af, key=lambda a: a.Index))
 	_padRingPins.append(_e)
 
+def _padRingDomainEntry(_pd):
+	'''One PadRing.json powerDomains entry. Single-pad rails emit exactly the
+	   historical shape (name/voltage/positiveRail/negativeRail — the QFN44
+	   model stays byte-identical); a multi-pad rail additionally lists ALL of
+	   its pads under positiveRailPins/negativeRailPins.'''
+	_pairs = [
+		('name', _pd.Name),
+		('voltage', _pd.PositiveVoltage),
+		('positiveRail', {'pin': _pd.PositiveRailPackagePin.PackagePinNumber, 'name': _pd.PositiveRailPackagePin.Name}),
+		('negativeRail', {'pin': _pd.NegativeRailPackagePin.PackagePinNumber, 'name': _pd.NegativeRailPackagePin.Name}),
+	]
+	if len(_pd.PositiveRailPins) > 1 or len(_pd.NegativeRailPins) > 1:
+		_pairs.append(('positiveRailPins', [{'pin': _p.PackagePinNumber, 'name': _p.Name} for _p in _pd.PositiveRailPins]))
+		_pairs.append(('negativeRailPins', [{'pin': _p.PackagePinNumber, 'name': _p.Name} for _p in _pd.NegativeRailPins]))
+	return dict(_pairs)
+
 m.PadRing = {
 	'_comment': 'Derived pad ring — computed by make chip from the package model in generate.py '
 		+ '(pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).',
@@ -1749,15 +1872,7 @@ m.PadRing = {
 		'pinPitch': m.Package.PinPitch,
 		'pinsOnEachSide': m.Package.PinsOnEachSide,
 	},
-	'powerDomains': [
-		{
-			'name': _pd.Name,
-			'voltage': _pd.PositiveVoltage,
-			'positiveRail': {'pin': _pd.PositiveRailPackagePin.PackagePinNumber, 'name': _pd.PositiveRailPackagePin.Name},
-			'negativeRail': {'pin': _pd.NegativeRailPackagePin.PackagePinNumber, 'name': _pd.NegativeRailPackagePin.Name},
-		}
-		for _pd in (digitalIOPowerDomain, digitalCorePowerDomain, analogPowerDomain)
-	],
+	'powerDomains': [_padRingDomainEntry(_pd) for _pd in m.Package.PowerDomains],
 	'pins': _padRingPins,
 }
 

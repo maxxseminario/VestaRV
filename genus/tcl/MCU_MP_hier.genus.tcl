@@ -148,6 +148,10 @@ read_hdl -vhdl -library work $MP/mp_arbiter.vhd
 read_hdl -vhdl -library work $MP/mutex_bank.vhd
 read_hdl -vhdl -library work $MP/pwr_ctrl.vhd
 read_hdl -vhdl -library work $MP/resv_unit.vhd
+# CQ2b: AFE / EIS digital register stub (5 instances in MCU.vhd: AFE0-3 @0x4C00
+# sub-slots + EIS @0x7C00). Plain arbiter-slave register file, depends only on
+# IEEE (no MP package deps) — placed with the other control-plane slaves.
+read_hdl -vhdl -library work $MP/afe_stub.vhd
 
 # --- The tile: its HARDENED GATE NETLIST as verilog source ---
 # MCU.vhd instantiates the tile by DIRECT ENTITY INSTANTIATION

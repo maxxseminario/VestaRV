@@ -1,0 +1,4 @@
+{
+  "_comment": "Castalia-Quad (CQ) respin: the Castalia defaults with ONLY the package model changed to the CQ3b QFN64 quad pinout (16/side, 9x9 mm, 0.5 mm pitch, 4 per-quadrant analog domains, 16 electrode pads, 2 unbonded GPIO). Same tile RTL as the default build (MCU.vhd/MemoryMap are package-agnostic) — only config/PadRing.json + the TRM pinout differ. See cq3b_generator_proposal.md / cq3b_pin_map.md. Build with: make chip CONFIG=config/cq.json",
+  "package": { "model": "castalia-quad-qfn64", "preliminary": false }
+}

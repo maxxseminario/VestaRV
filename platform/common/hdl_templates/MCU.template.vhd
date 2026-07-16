@@ -463,6 +463,33 @@ architecture behav of MCU is
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
+
+        -- CQ2a: AFE digital register stubs (four 64 B sub-slots of page-0 slot
+        -- 12 @0x4C00/40/80/C0) + the shared EIS engine stub (carved from the
+        -- IRQ-router page top quarter @0x7C00-0x7FFF). Each is an afe_stub
+        -- with an s_master ownership gate; the EIS block is hart-0-only.
+        -- Reads are REGISTERED (no bridge). See afe_stub.vhd.
+        signal shslv_afe_sel    : std_logic;   -- page-0 slot 12 (0x4C00) hit
+        signal shslv_afe0_sel,  shslv_afe0_en  : std_logic;
+        signal shslv_afe1_sel,  shslv_afe1_en  : std_logic;
+        signal shslv_afe2_sel,  shslv_afe2_en  : std_logic;
+        signal shslv_afe3_sel,  shslv_afe3_en  : std_logic;
+        signal shslv_eis_sel,   shslv_eis_en   : std_logic;
+        signal shslv_rd_afe0    : std_logic := '0';
+        signal shslv_rd_afe1    : std_logic := '0';
+        signal shslv_rd_afe2    : std_logic := '0';
+        signal shslv_rd_afe3    : std_logic := '0';
+        signal shslv_rd_eis     : std_logic := '0';
+        signal afe0_rdata       : std_logic_vector(31 downto 0);
+        signal afe1_rdata       : std_logic_vector(31 downto 0);
+        signal afe2_rdata       : std_logic_vector(31 downto 0);
+        signal afe3_rdata       : std_logic_vector(31 downto 0);
+        signal eis_rdata        : std_logic_vector(31 downto 0);
+        -- CQ2a: level IRQ from each stub's IF word. NOT yet routed to the
+        -- irq_router (the frozen 85-source map has only 2 reserved slots for 5
+        -- needed sources — see the CQ2a report); aggregated here for a clean
+        -- future hookup and observability.
+        signal afe_eis_irq      : std_logic_vector(4 downto 0);
         --@GEN:sh-master-decl@
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
@@ -993,6 +1020,43 @@ begin
     -- outbound tile signal. Resets all-ON -> provable NO-OP until software
     -- gates a tile. Software contract: gate only parked/quiesced tiles.
     --@GEN:pwr-instance@
+
+    -- =========================================================================
+    -- CQ2a: AFE digital register stubs + shared EIS engine stub.
+    -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots
+    -- (sub-slot = sh_addr(5:4)); each answers only for its owner hart OR hart 0
+    -- (mp_arbiter s_master gate, inside afe_stub). The EIS engine lives in the
+    -- IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode
+    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only
+    -- (OWNER_HART=0). Reads are registered; denied reads return 0, denied
+    -- writes drop — no bus error, no stall, no arbiter-contract change. Every
+    -- stub resets all-zero -> a provable NO-OP (irq low) until software writes.
+    -- =========================================================================
+    afe0: entity work.afe_stub
+        generic map (OWNER_HART => 0)   -- 0x4C00: hart 0 only
+        port map (clk => mclk, resetn => resetn, en => shslv_afe0_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe0_rdata, irq => afe_eis_irq(0));
+    afe1: entity work.afe_stub
+        generic map (OWNER_HART => 1)   -- 0x4C40: hart 1 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe1_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe1_rdata, irq => afe_eis_irq(1));
+    afe2: entity work.afe_stub
+        generic map (OWNER_HART => 2)   -- 0x4C80: hart 2 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe2_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe2_rdata, irq => afe_eis_irq(2));
+    afe3: entity work.afe_stub
+        generic map (OWNER_HART => 3)   -- 0x4CC0: hart 3 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe3_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe3_rdata, irq => afe_eis_irq(3));
+    eis0: entity work.afe_stub
+        generic map (OWNER_HART => 0)   -- 0x7C00: EIS engine, hart 0 only
+        port map (clk => mclk, resetn => resetn, en => shslv_eis_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => eis_rdata, irq => afe_eis_irq(4));
 
     -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
     -- which is also what keeps it bus-silent at the arbiter (sh_req is

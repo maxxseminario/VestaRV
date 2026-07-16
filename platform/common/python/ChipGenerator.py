@@ -634,7 +634,11 @@ class ChipGenerator():
 			if pin.NoConnect:
 				continue
 
-			names.append(pin.Name)
+			# A power rail may be bonded out on several pads sharing ONE net name
+			# (multi-pad domains); count each rail net name once so the duplicate
+			# is not flagged as a symbol collision.
+			if not (pin.IsPowerDomainPin and pin.Name in names):
+				names.append(pin.Name)
 			if pin.PrimaryName is not None:
 				names.append(pin.PrimaryName)
 			if pin.FuncName is not None:

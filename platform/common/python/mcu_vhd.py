@@ -932,6 +932,17 @@ class McuVhdEmitter():
 		for irqbName, desc in self.irqVectors:
 			if irqbName.startswith('IRQB_CLINT_'):
 				continue	# emitted below with the M5b comment
+			if irqbName == 'IRQB_RSVD55':
+				# CQ2b: ex-AFE0 slot = the AGGREGATED AFE_SHARED source. OR of the
+				# four per-hart AFE IF level lines; hart 0 (the only master that
+				# can read all four AFE IF words) demuxes it in its source-55 handler.
+				lines.append(' ' * 12 + irqbName.ljust(16)
+					+ '=> afe_eis_irq(0) or afe_eis_irq(1) or afe_eis_irq(2) or afe_eis_irq(3),')
+				continue
+			if irqbName == 'IRQB_RSVD56':
+				# CQ2b: ex-SARADC0 slot = the shared EIS engine level (hart-0-only).
+				lines.append(' ' * 12 + irqbName.ljust(16) + '=> afe_eis_irq(4),')
+				continue
 			if irqbName.startswith('IRQB_RSVD'):
 				continue	# reserved vector gap — falls through to 'others => irq_tielow'
 			lines.append(' ' * 12 + irqbName.ljust(16) + '=> ' + self.irqSignalName(irqbName) + ',')
@@ -973,7 +984,11 @@ class McuVhdEmitter():
 		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
 		lines.append(ind + 'shslv_clint_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + clintBits + '" else \'0\';')
 		lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" else \'0\';')
-		lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
+		lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
+		lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
+		lines.append(ind + '-- decode is inert above word 522, so this removes only never-used aliased space).')
+		lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
+		lines.append(ind + 'shslv_eis_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) = "11" else \'0\';')
 		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering ' + EMDASH)
 		lines.append(ind + '-- every peripheral back at its original Myshkin address, shared by')
 		lines.append(ind + '-- all ' + str(self.nHarts()) + ' harts')
@@ -988,9 +1003,22 @@ class McuVhdEmitter():
 			selName = 'shslv_' + self.shslv[name]['sel'] + '_sel'
 			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
 				+ format(self.winSlot(name), '04b') + '" else \'0\';')
+		# CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B
+		# sub-slots on sh_addr(5:4). The s_master ownership gate lives inside
+		# afe_stub; here we only address-decode the sub-slots.
+		lines.append(ind + '-- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B')
+		lines.append(ind + '-- sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.')
+		lines.append(ind + 'shslv_afe_sel'.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else \'0\';')
+		for sub in range(4):
+			lines.append(ind + ('shslv_afe' + str(sub) + '_sel').ljust(16) + ' <= shslv_afe_sel when sh_addr(5 downto 4) = "'
+				+ format(sub, '02b') + '" else \'0\';')
 		for key in self.enOrder:
 			sel = self.selOf(key)
 			lines.append(ind + ('shslv_' + sel + '_en').ljust(16) + ' <= sh_en and shslv_' + sel + '_sel;')
+		# CQ2a: AFE sub-slot + EIS enables
+		for sub in range(4):
+			lines.append(ind + ('shslv_afe' + str(sub) + '_en').ljust(16) + ' <= sh_en and shslv_afe' + str(sub) + '_sel;')
+		lines.append(ind + 'shslv_eis_en'.ljust(16) + ' <= sh_en and shslv_eis_sel;')
 		return lines
 
 	def emitShslvRdSel(self):
@@ -1001,10 +1029,14 @@ class McuVhdEmitter():
 		lines.append(ind * 2 + "if resetn = '0' then")
 		for key in self.rdOrder:
 			lines.append(ind * 3 + ('shslv_rd_' + self.selOf(key)).ljust(16) + " <= '0';")
+		for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:  # CQ2a
+			lines.append(ind * 3 + ('shslv_rd_' + sel).ljust(16) + " <= '0';")
 		lines.append(ind * 2 + 'elsif rising_edge(mclk) then')
 		lines.append(ind * 3 + "if sh_en = '1' then")
 		for key in self.rdOrder:
 			sel = self.selOf(key)
+			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
+		for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:  # CQ2a
 			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
 		lines.append(ind * 3 + 'end if;')
 		lines.append(ind * 2 + 'end if;')
@@ -1051,6 +1083,10 @@ class McuVhdEmitter():
 		for i, key in enumerate(self.rdOrder):
 			row = self.rdataOf(key).ljust(14) + ' when ' + ('shslv_rd_' + self.selOf(key)).ljust(16) + " = '1' else"
 			lines.append((prefix if i == 0 else cont) + row)
+		# CQ2a: AFE sub-slot + EIS reads (each afe_stub gates internally, so a
+		# denied read already returns 0 on these nets)
+		for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:
+			lines.append(cont + (sel + '_rdata').ljust(14) + ' when ' + ('shslv_rd_' + sel).ljust(16) + " = '1' else")
 		lines.append(cont + "(others => '0');  -- no slave (TCM page, unmapped)")
 		return lines
 

@@ -226,6 +226,8 @@ read_hdl -vhdl -library work $MP/mp_arbiter.vhd
 read_hdl -vhdl -library work $MP/mutex_bank.vhd
 read_hdl -vhdl -library work $MP/pwr_ctrl.vhd
 read_hdl -vhdl -library work $MP/resv_unit.vhd
+# CQ2b: AFE / EIS digital register stub (5 instances in MCU.vhd). IEEE-only deps.
+read_hdl -vhdl -library work $MP/afe_stub.vhd
 read_hdl -vhdl -library work $MP/hart_tile.vhd
 
 # --- Top level ---

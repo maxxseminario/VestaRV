@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/12 at 20:31:15 with the generate.py chip generator
+-- Generated on 2026/07/15 at 23:04:21 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -722,6 +722,33 @@ architecture behav of MCU is
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
+
+        -- CQ2a: AFE digital register stubs (four 64 B sub-slots of page-0 slot
+        -- 12 @0x4C00/40/80/C0) + the shared EIS engine stub (carved from the
+        -- IRQ-router page top quarter @0x7C00-0x7FFF). Each is an afe_stub
+        -- with an s_master ownership gate; the EIS block is hart-0-only.
+        -- Reads are REGISTERED (no bridge). See afe_stub.vhd.
+        signal shslv_afe_sel    : std_logic;   -- page-0 slot 12 (0x4C00) hit
+        signal shslv_afe0_sel,  shslv_afe0_en  : std_logic;
+        signal shslv_afe1_sel,  shslv_afe1_en  : std_logic;
+        signal shslv_afe2_sel,  shslv_afe2_en  : std_logic;
+        signal shslv_afe3_sel,  shslv_afe3_en  : std_logic;
+        signal shslv_eis_sel,   shslv_eis_en   : std_logic;
+        signal shslv_rd_afe0    : std_logic := '0';
+        signal shslv_rd_afe1    : std_logic := '0';
+        signal shslv_rd_afe2    : std_logic := '0';
+        signal shslv_rd_afe3    : std_logic := '0';
+        signal shslv_rd_eis     : std_logic := '0';
+        signal afe0_rdata       : std_logic_vector(31 downto 0);
+        signal afe1_rdata       : std_logic_vector(31 downto 0);
+        signal afe2_rdata       : std_logic_vector(31 downto 0);
+        signal afe3_rdata       : std_logic_vector(31 downto 0);
+        signal eis_rdata        : std_logic_vector(31 downto 0);
+        -- CQ2a: level IRQ from each stub's IF word. NOT yet routed to the
+        -- irq_router (the frozen 85-source map has only 2 reserved slots for 5
+        -- needed sources — see the CQ2a report); aggregated here for a clean
+        -- future hookup and observability.
+        signal afe_eis_irq      : std_logic_vector(4 downto 0);
         signal sh_master        : std_logic_vector(1 downto 0);
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
@@ -2365,6 +2392,8 @@ begin
             IRQB_UART1_RC   => irq_uart1_rc,
             IRQB_UART1_TE   => irq_uart1_te,
             IRQB_UART1_TC   => irq_uart1_tc,
+            IRQB_RSVD55     => afe_eis_irq(0) or afe_eis_irq(1) or afe_eis_irq(2) or afe_eis_irq(3),
+            IRQB_RSVD56     => afe_eis_irq(4),
             IRQB_I2C0_STR   => irq_i2c0_str,
             IRQB_I2C0_spr   => irq_i2c0_spr,
             IRQB_I2C0_msts  => irq_i2c0_msts,
@@ -2549,7 +2578,11 @@ begin
     shslv_pg0_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else '0';
     shslv_clint_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "01" else '0';
     shslv_mtx_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" else '0';
-    shslv_irtr_sel   <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" else '0';
+    -- CQ2a: page-3 sub-decode — irq_router keeps 0x7000-0x7BFF; the shared
+    -- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10
+    -- decode is inert above word 522, so this removes only never-used aliased space).
+    shslv_irtr_sel   <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) /= "11" else '0';
+    shslv_eis_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) = "11" else '0';
     -- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering —
     -- every peripheral back at its original Myshkin address, shared by
     -- all 4 harts
@@ -2571,6 +2604,13 @@ begin
     -- 0x4B00 — vacated by SARADC0): slot-decoded like the peripherals
     -- above, but it speaks the arbiter protocol directly (no shim).
     shslv_pwr_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1011" else '0';
+    -- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B
+    -- sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.
+    shslv_afe_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else '0';
+    shslv_afe0_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "00" else '0';
+    shslv_afe1_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "01" else '0';
+    shslv_afe2_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "10" else '0';
+    shslv_afe3_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "11" else '0';
     shslv_rom_en     <= sh_en and shslv_rom_sel;
     shslv_npuram_en  <= sh_en and shslv_npuram_sel;
     shslv_bank0_en   <= sh_en and shslv_bank0_sel;
@@ -2595,6 +2635,11 @@ begin
     shslv_gpio3_en   <= sh_en and shslv_gpio3_sel;
     shslv_i2c0_en    <= sh_en and shslv_i2c0_sel;
     shslv_i2c1_en    <= sh_en and shslv_i2c1_sel;
+    shslv_afe0_en    <= sh_en and shslv_afe0_sel;
+    shslv_afe1_en    <= sh_en and shslv_afe1_sel;
+    shslv_afe2_en    <= sh_en and shslv_afe2_sel;
+    shslv_afe3_en    <= sh_en and shslv_afe3_sel;
+    shslv_eis_en     <= sh_en and shslv_eis_sel;
 
     shslv_rd_sel: process(mclk, resetn)
     begin
@@ -2623,6 +2668,11 @@ begin
             shslv_rd_gpio3   <= '0';
             shslv_rd_i2c0    <= '0';
             shslv_rd_i2c1    <= '0';
+            shslv_rd_afe0    <= '0';
+            shslv_rd_afe1    <= '0';
+            shslv_rd_afe2    <= '0';
+            shslv_rd_afe3    <= '0';
+            shslv_rd_eis     <= '0';
         elsif rising_edge(mclk) then
             if sh_en = '1' then
                 shslv_rd_rom     <= shslv_rom_sel;
@@ -2649,6 +2699,11 @@ begin
                 shslv_rd_gpio3   <= shslv_gpio3_sel;
                 shslv_rd_i2c0    <= shslv_i2c0_sel;
                 shslv_rd_i2c1    <= shslv_i2c1_sel;
+                shslv_rd_afe0    <= shslv_afe0_sel;
+                shslv_rd_afe1    <= shslv_afe1_sel;
+                shslv_rd_afe2    <= shslv_afe2_sel;
+                shslv_rd_afe3    <= shslv_afe3_sel;
+                shslv_rd_eis     <= shslv_eis_sel;
             end if;
         end if;
     end process;
@@ -2702,6 +2757,11 @@ begin
                     gpio3_sh_rdata when shslv_rd_gpio3   = '1' else
                     i2c0_sh_rdata  when shslv_rd_i2c0    = '1' else
                     i2c1_sh_rdata  when shslv_rd_i2c1    = '1' else
+                    afe0_rdata     when shslv_rd_afe0    = '1' else
+                    afe1_rdata     when shslv_rd_afe1    = '1' else
+                    afe2_rdata     when shslv_rd_afe2    = '1' else
+                    afe3_rdata     when shslv_rd_afe3    = '1' else
+                    eis_rdata      when shslv_rd_eis     = '1' else
                     (others => '0');  -- no slave (TCM page, unmapped)
 
     -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
@@ -2834,6 +2894,43 @@ begin
             pd_sleep  => pd_sleep,
             pd_rstn   => pd_rstn
         );
+
+    -- =========================================================================
+    -- CQ2a: AFE digital register stubs + shared EIS engine stub.
+    -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots
+    -- (sub-slot = sh_addr(5:4)); each answers only for its owner hart OR hart 0
+    -- (mp_arbiter s_master gate, inside afe_stub). The EIS engine lives in the
+    -- IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode
+    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only
+    -- (OWNER_HART=0). Reads are registered; denied reads return 0, denied
+    -- writes drop — no bus error, no stall, no arbiter-contract change. Every
+    -- stub resets all-zero -> a provable NO-OP (irq low) until software writes.
+    -- =========================================================================
+    afe0: entity work.afe_stub
+        generic map (OWNER_HART => 0)   -- 0x4C00: hart 0 only
+        port map (clk => mclk, resetn => resetn, en => shslv_afe0_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe0_rdata, irq => afe_eis_irq(0));
+    afe1: entity work.afe_stub
+        generic map (OWNER_HART => 1)   -- 0x4C40: hart 1 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe1_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe1_rdata, irq => afe_eis_irq(1));
+    afe2: entity work.afe_stub
+        generic map (OWNER_HART => 2)   -- 0x4C80: hart 2 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe2_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe2_rdata, irq => afe_eis_irq(2));
+    afe3: entity work.afe_stub
+        generic map (OWNER_HART => 3)   -- 0x4CC0: hart 3 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe3_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe3_rdata, irq => afe_eis_irq(3));
+    eis0: entity work.afe_stub
+        generic map (OWNER_HART => 0)   -- 0x7C00: EIS engine, hart 0 only
+        port map (clk => mclk, resetn => resetn, en => shslv_eis_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => eis_rdata, irq => afe_eis_irq(4));
 
     -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
     -- which is also what keeps it bus-silent at the arbiter (sh_req is
