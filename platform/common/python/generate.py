@@ -1849,6 +1849,70 @@ m.CheckPackagePins()
 
 
 # ---------------------------------------------------------------------------
+# CQ analog front-end — DOCUMENTATION-ONLY sub-slot blocks (AFE0-3 + EIS)
+# ---------------------------------------------------------------------------
+# The Castalia-Quad respin instantiates five s_master-gated register-stub
+# arbiter slaves (afe_stub.vhd, wired in the generated MCU.vhd): four per-hart
+# AFE sites in the four 64 B sub-slots of page-0 slot 12 (0x4C00) and one
+# hart-0 EIS engine in the top quarter of the IRQ-router page (0x7C00). These
+# sit at SUB-SLOT / page-carved base addresses that a native arbiter slave is
+# forbidden from (the whole-slot cross-checks in Peripheral assume one slave per
+# whole slot), so they are NOT CreatePeripheral()'d — documenting them that way
+# would require weakening those checks for every config. Instead they are
+# DOCUMENTATION sub-slot blocks: their own data model, validated by
+# m.CheckDocSubSlotBlocks() (its own sub-slot alignment / containment / no-shadow
+# rules), feeding ONLY the TRM (a config-gated generated chapter). They never
+# enter the peripheral / address / interrupt tables, MemoryMap.vhd, or MCU.vhd.
+# Populated only for the CQ package model, so the default TRM stays byte-identical.
+if packageModel == 'castalia-quad-qfn64':
+	# The 16-word (64 B) register file shared by every afe_stub instance (AFE and
+	# EIS are the same entity — only the ownership gate differs). Word offset,
+	# name, access, description; byte offset = 4 x word offset.
+	_afeRegisters = [
+		(0x0, 'CTRL',   'RW',  'Control. Placeholder for the analog IP. As a bring-up test hook (until the analog IP drives real events), a write whose data bit 0 is 1 soft-sets \\register{IF} bit 0, which exercises the block\'s level-interrupt path end to end.'),
+		(0x1, 'DACPAT', 'RW',  'DAC excitation-pattern control. Placeholder for the analog IP.'),
+		(0x2, 'TIA',    'RW',  'Transimpedance-amplifier gain-range select. Placeholder for the analog IP.'),
+		(0x3, 'SWM',    'RW',  'Switch-matrix / analog-multiplexer configuration. Placeholder for the analog IP.'),
+		(0x4, 'ADCC',   'RW',  'ADC control. Placeholder for the analog IP.'),
+		(0x5, 'ADCD',   'RW',  'ADC data. Placeholder for the analog IP.'),
+		(0x6, 'STAT',   'RW',  'Status. Placeholder for the analog IP.'),
+		(0x7, 'IF',     'W1C', 'Interrupt-flag word. While any bit is set the block drives its level interrupt high; write a 1 to a bit to clear that bit (write-1-to-clear). Reads are side-effect-free. This is the word hart 0 reads to demultiplex which site raised the shared AFE interrupt.'),
+		(0x8, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0x9, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0xA, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0xB, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0xC, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0xD, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0xE, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+		(0xF, '—', 'RW',  'Scratch / reserved (plain read-write storage).'),
+	]
+	_cqDocBlocks = []
+	for _h in range(4):
+		_cqDocBlocks.append({
+			'name':      'AFE' + str(_h),
+			'base':      0x4C00 + 0x40 * _h,
+			'sizeBytes': 0x40,
+			'parent':    ('page-0 slot 12 (0x4C00-0x4CFF, the reserved ex-SARADC/AFE slot)', 0x4C00, 0x4CFF),
+			'ownerHart': _h,
+			'gate':      ('s\\_master = 0' if _h == 0 else 's\\_master = ' + str(_h) + ' or s\\_master = 0'),
+			'irqSource': 55,
+			'registers': _afeRegisters,
+		})
+	_cqDocBlocks.append({
+		'name':      'EIS',
+		'base':      0x7C00,
+		'sizeBytes': 0x40,
+		'parent':    ('IRQ-router page top quarter (0x7C00-0x7FFF)', 0x7C00, 0x7FFF),
+		'ownerHart': 0,
+		'gate':      's\\_master = 0',
+		'irqSource': 56,
+		'registers': _afeRegisters,
+	})
+	m.DocSubSlotBlocks = _cqDocBlocks
+	m.CheckDocSubSlotBlocks()
+
+
+# ---------------------------------------------------------------------------
 # THE unified configuration record. One dict holds every knob the CONFIG=
 # schema accepts plus everything derived from them; it is (a) attached to the
 # generator so the TRM's generated Chip Configuration section renders from it,

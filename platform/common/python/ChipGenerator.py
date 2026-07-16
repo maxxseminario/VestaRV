@@ -60,6 +60,7 @@ class ChipGenerator():
 	ExtraMemorySections = None	# [(SECTION_NAME (rwx), ORIGIN = 0x?, LENGTH = 0x?, notes), ...]
 	SharedWindowSections = None	# [(name, startAddress, endAddress, description), ...] — multi-core shared window regions drawn in the address space diagram
 	ExtraLatexIntroFiles = None	# [filename, ...] — extra PeripheralIntroductions tex files input by the master template itself (e.g. the multi-core architecture chapter)
+	DocSubSlotBlocks = None	# [dict, ...] — DOCUMENTATION-ONLY sub-slot register blocks (CQ AFE/EIS). These document RTL slaves that sit at SUB-SLOT / page-carved base addresses which the whole-slot native-slave cross-checks in Peripheral deliberately forbid, so they are NOT Peripherals: they never enter self.Peripherals, the register address table, the interrupt-priority table, MemoryMap.vhd, or MCU.vhd. They are validated by CheckDocSubSlotBlocks() (its OWN sub-slot alignment/containment/non-overlap rules) and feed only the TRM (a config-gated generated chapter). None (default) = the whole mechanism is absent → default TRM is byte-identical.
 	McuMpCompat = None	# dict of MCU_MP drop-in compatibility facts (see generate.py) — when set, generateMemoryMapVHD emits an "MCU_MP compatibility" section and RTL-numbered GPIO reset values so the generated package drops into the hdl/common build
 
 	NeedToCheckPeripheralTemplates = None
@@ -604,9 +605,62 @@ class ChipGenerator():
 		self.Peripherals = sorted(self.Peripherals, key=lambda p: p.BaseAddress)
 		
 		self.NeedToCheckPeripherals = False
-		
+
 		return
-	
+
+	def CheckDocSubSlotBlocks(self):
+		# Validate the DOCUMENTATION-ONLY sub-slot blocks (CQ AFE/EIS) with rules
+		# of their OWN — deliberately SEPARATE from CheckPeripherals so the
+		# whole-slot native-slave cross-checks that govern real Peripherals are
+		# never touched or weakened. These blocks are docs-only; the guarantee we
+		# enforce is that what the TRM documents is self-consistent and lands in
+		# genuinely reserved address space (no real register is shadowed).
+		#
+		# Each block is a dict: name, base, sizeBytes, parent=(label, lo, hi),
+		# gate, ownerHart, irqSource, registers=[(wordOffset, name, access, desc)].
+		blocks = self.DocSubSlotBlocks
+		if not blocks:
+			return
+		# The concrete register addresses of the REAL peripherals (must exist).
+		if self.NeedToCheckPeripherals is not False:
+			raise Exception('CheckDocSubSlotBlocks must run after CheckPeripherals')
+		peripheralAddrs = set(addr for (_name, addr) in self.AddressTable)
+		occupied = []	# (lo, hi, name) ranges claimed by doc blocks so far
+		for blk in blocks:
+			name = blk['name']
+			base = blk['base']
+			size = blk['sizeBytes']
+			(plabel, plo, phi) = blk['parent']
+			# base is a 64 B-aligned sub-slot inside its declared parent window
+			if type(base) != int or base < 0:
+				raise Exception('DocSubSlotBlock "' + name + '": base must be an int >= 0')
+			if size != 0x40:
+				raise Exception('DocSubSlotBlock "' + name + '": sizeBytes must be 0x40 (one 16-word sub-slot), got ' + hex(size))
+			if base % 0x40 != 0:
+				raise Exception('DocSubSlotBlock "' + name + '": base ' + hex(base) + ' is not 64 B-aligned (sub-slot boundary)')
+			blkLo = base
+			blkHi = base + size - 1
+			if blkLo < plo or blkHi > phi:
+				raise Exception('DocSubSlotBlock "' + name + '": ' + hex(blkLo) + '-' + hex(blkHi)
+					+ ' is not fully inside its parent window ' + plabel + ' (' + hex(plo) + '-' + hex(phi) + ')')
+			# no overlap with another doc block
+			for (olo, ohi, oname) in occupied:
+				if not (blkHi < olo or blkLo > ohi):
+					raise Exception('DocSubSlotBlock "' + name + '" (' + hex(blkLo) + '-' + hex(blkHi)
+						+ ') overlaps "' + oname + '" (' + hex(olo) + '-' + hex(ohi) + ')')
+			# the block must sit in RESERVED space — never shadow a real register
+			for a in range(blkLo, blkHi + 1, 4):
+				if a in peripheralAddrs:
+					raise Exception('DocSubSlotBlock "' + name + '": word address ' + hex(a)
+						+ ' collides with a real peripheral register (docs blocks must be in reserved space)')
+			# register list: exactly the 16 words, offsets 0..15, unique
+			regs = blk['registers']
+			offs = [r[0] for r in regs]
+			if sorted(offs) != list(range(0, 16)):
+				raise Exception('DocSubSlotBlock "' + name + '": registers must define word offsets 0..15 exactly once each, got ' + str(sorted(offs)))
+			occupied.append((blkLo, blkHi, name))
+		return
+
 	def CheckPackagePins(self):
 		# Sort the pins by the pin number
 		self.Package.Pins.sort(key=lambda x: x.PackagePinNumber)

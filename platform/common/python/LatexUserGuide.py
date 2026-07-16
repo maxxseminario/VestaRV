@@ -56,6 +56,7 @@ class LatexUserGuide():
 		self.GenerateSystemConfigurationListFile()
 		self.GenerateFeaturesList()
 		self.GenerateExtraIntroChapters()
+		self.GenerateCqAnalogChapter()
 		self.GenerateAddressSpaceDiagram()
 		self.GenerateChipConfigurationSection()
 		self.GenerateSystemBlockDiagram()
@@ -221,7 +222,14 @@ class LatexUserGuide():
 		s += '\\newif\\ifpackagepreliminary\n'
 		s += ('\\packagepreliminarytrue' if getattr(self.Gen, 'PackagePreliminary', True)
 			else '\\packagepreliminaryfalse') + '\n'
-		
+		# CQ: analog front-end (AFE/EIS) chapter conditional. True only when the
+		# config declares documentation sub-slot blocks (the CQ package model);
+		# false (default) leaves the \input skipped so the default TRM is byte-
+		# identical and the generated CqAnalog.tex chapter never renders.
+		s += '\\newif\\ifcqanalog\n'
+		s += ('\\cqanalogtrue' if getattr(self.Gen, 'DocSubSlotBlocks', None)
+			else '\\cqanalogfalse') + '\n'
+
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
 		
@@ -398,6 +406,145 @@ class LatexUserGuide():
 		with open(path, 'w') as f:
 			f.write(s)
 
+		return
+
+	def GenerateCqAnalogChapter(self):
+		# Config-gated chapter for the CQ analog front-end (AFE0-3 + EIS). Rendered
+		# ONLY when the config declares DocSubSlotBlocks (the CQ package model); the
+		# master template guards the \input with \ifcqanalog, so for the default
+		# build this file is a bare comment and the default TRM stays byte-identical.
+		# The register table is emitted from the validated sub-slot block data — the
+		# same single-source discipline as the rest of the TRM, but on a docs-only
+		# path that never touches the peripheral / MemoryMap / MCU.vhd machinery.
+		if not os.path.isdir(self.IncludeDirectory):
+			os.makedirs(self.IncludeDirectory)
+		path = self.IncludeDirectory + '/CqAnalog.tex'
+
+		blocks = getattr(self.Gen, 'DocSubSlotBlocks', None)
+		if not blocks:
+			with open(path, 'w') as f:
+				f.write('% No analog front-end sub-slot blocks in this configuration (guarded by \\ifcqanalog).\n')
+			return
+
+		afeBlocks = [b for b in blocks if b['name'].startswith('AFE')]
+		eisBlocks = [b for b in blocks if b['name'] == 'EIS']
+
+		s = '% Generated from ChipGenerator.DocSubSlotBlocks — do not edit. Rendered only under \\ifcqanalog.\n'
+		s += '\\section{Analog Front-End Subsystem} \\label{s:cqanalog}\n\n'
+		s += ('This chip carries a bipolar-potentiostat analog front-end (AFE) for '
+			'electrochemical impedance measurement, organised as four per-quadrant '
+			'measurement \\emph{sites} plus one shared electrochemical-impedance-'
+			'spectroscopy (EIS) sweep engine. Each site drives its own electrode group '
+			'(counter/working/reference/RE2) brought out on the package (Section '
+			'\\ref{s:pinsConfig}). The analog blocks themselves --- the potentiostat, '
+			'the transimpedance ADC path, and the shared EIS engine + analog multiplexer '
+			'--- are analog IP that is not yet integrated; what \\emph{is} present is the '
+			'complete \\emph{digital access path}: a register stub for each site and for '
+			'the EIS engine, each a fully-functional shared-window arbiter slave with the '
+			'ownership gate and interrupt path described below. Software (and the '
+			'verification suite) programs and reads these exactly as it will the final '
+			'analog blocks; the stubs hold placeholder storage and drive their interrupt '
+			'from a software-settable flag until the analog IP replaces them.\n\n')
+
+		# --- Address map + ownership table -------------------------------------
+		s += '\\subsection{Blocks, addresses, and ownership} \\label{ss:cqanalog-map}\n\n'
+		s += ('The five blocks live in otherwise-reserved shared-window space, so they '
+			'do not disturb the peripheral memory map: the four AFE sites occupy the four '
+			'64-byte sub-slots of the reserved page-0 slot 12 at \\texttt{0x4C00}, and the '
+			'EIS engine occupies the top quarter of the IRQ-router page at \\texttt{0x7C00}. '
+			'Every block is a 16-word (64-byte) register file reached through the multi-core '
+			'arbiter like any other shared slave; access is qualified by the '
+			'\\emph{ownership gate} (Section \\ref{ss:cqanalog-gate}).\n\n')
+		s += '\\begin{tabularx}{\\textwidth}{ l l l X }\n'
+		s += '\\textbf{Block} & \\textbf{Base} & \\textbf{IRQ source} & \\textbf{Access allowed when} \\\\ \\hline\n'
+		for b in afeBlocks + eisBlocks:
+			s += ('\\texttt{' + b['name'] + '} & \\texttt{' + fmthex(b['base']) + '} & '
+				+ str(b['irqSource']) + ' & ' + b['gate'] + ' \\\\\n\\hline\n')
+		s += '\\end{tabularx}\n\n'
+		s += ('Here \\texttt{s\\_master} is the granted-master (hart) index that the '
+			'multi-core arbiter attributes to the in-flight transaction --- the same '
+			'attribution the hardware mutex bank and the IRQ-router CLAIM use. Because '
+			'each block decodes only its low four address bits, its 16 words fill its '
+			'64-byte sub-slot exactly; the EIS block additionally aliases across the '
+			'\\texttt{0x7C00}--\\texttt{0x7FFF} quarter it owns.\n\n')
+
+		# --- Ownership / gating semantics --------------------------------------
+		s += '\\subsection{Ownership gating} \\label{ss:cqanalog-gate}\n\n'
+		s += ('Each AFE site is owned by the hart of its quadrant: site \\texttt{AFE}$h$ '
+			'answers only when \\texttt{s\\_master} = $h$ \\emph{or} \\texttt{s\\_master} = 0. '
+			'Hart 0 is the management hart, so it reaches every site (this is what lets it '
+			'demultiplex the shared interrupt, below); every other hart sees only its own '
+			'site. The EIS engine is instantiated hart-0-only (\\texttt{s\\_master} = 0), so '
+			'other harts request a sweep through a software mailbox convention rather than '
+			'touching it directly. The gate is hardware-enforced inside the slave and keys '
+			'off \\texttt{s\\_master} alone --- there is no way to forge ownership, and no '
+			'cross-hart data leaks. A \\emph{denied} read returns 0 and a \\emph{denied} '
+			'write is silently dropped: no bus error, no stall, no change to the arbiter '
+			'contract. All registers reset to 0, so a block is a provable no-op (interrupt '
+			'low, reads 0) until its owner writes it.\n\n')
+
+		# --- Register map -------------------------------------------------------
+		s += '\\subsection{Register map (per block)} \\label{ss:cqanalog-regs}\n\n'
+		s += ('All five blocks share one 16-word register layout (they are the same '
+			'hardware entity, differing only in the ownership gate). Offsets are byte '
+			'offsets from the block base; each word is 32 bits. Detailed bit fields for '
+			'the placeholder registers are owned by the analog IP specification and will '
+			'be filled in when that IP is integrated.\n\n')
+		regs = afeBlocks[0]['registers']
+		s += '\\begin{tabularx}{\\textwidth}{ l l l X }\n'
+		s += '\\textbf{Offset} & \\textbf{Name} & \\textbf{Access} & \\textbf{Description} \\\\ \\hline\n'
+		i = 0
+		n = len(regs)
+		while i < n:
+			(woff, name, access, desc) = regs[i]
+			# collapse a run of identical (name placeholder + access + desc) rows
+			j = i
+			while (j + 1 < n) and (regs[j + 1][1] == name) and (regs[j + 1][2] == access) and (regs[j + 1][3] == desc):
+				j += 1
+			loByte = regs[i][0] * 4
+			hiByte = regs[j][0] * 4
+			if j > i:
+				offStr = '\\texttt{' + fmthex(loByte, 2) + '}--\\texttt{' + fmthex(hiByte, 2) + '}'
+			else:
+				offStr = '\\texttt{' + fmthex(loByte, 2) + '}'
+			if name in ('—', '-', ''):
+				nameStr = '\\textit{reserved}'
+			else:
+				nameStr = '\\texttt{' + name + '}'
+			s += offStr + ' & ' + nameStr + ' & ' + access + ' & ' + desc + ' \\\\\n\\hline\n'
+			i = j + 1
+		s += '\\end{tabularx}\n\n'
+
+		# --- Interrupt relay contract ------------------------------------------
+		afeSrc = afeBlocks[0]['irqSource']
+		eisSrc = eisBlocks[0]['irqSource'] if eisBlocks else None
+		s += '\\subsection{Interrupt relay} \\label{ss:cqanalog-irq}\n\n'
+		s += ('The AFE/EIS interrupts reuse two vector numbers that the digital-only '
+			'respin left reserved, so nothing is renumbered: the four AFE sites are '
+			'OR-combined onto a single shared interrupt at source ' + str(afeSrc)
+			+ ' (formerly the AFE0 vector), and the EIS engine drives source '
+			+ str(eisSrc) + ' (formerly the SARADC0 vector). Both are delivered through '
+			'the IRQ router (Section \\ref{peripheralIRQROUTER}) like any other peripheral '
+			'source, and both are routed --- by software convention in the routing rows --- '
+			'to \\emph{hart 0 only}.\n\n')
+		s += ('Routing source ' + str(afeSrc) + ' to hart 0 is forced, not merely chosen: '
+			'because the ownership gate lets only hart 0 read all four AFE flag registers, '
+			'hart 0 is the only hart that can tell which site fired. The relay is: hart 0 '
+			'takes the external interrupt, CLAIMs source ' + str(afeSrc) + ' at the router, '
+			'reads the four \\register{IF} words to demultiplex the originating site(s), '
+			'clears the level at each firing site (write-1-to-clear on \\register{IF}), '
+			'COMPLETEs source ' + str(afeSrc) + ', and then notifies the owning hart '
+			'through the usual \\peripheral{CLINT} software-interrupt (msip) mailbox. '
+			'Sensor-rate latency through this relay is immaterial. Source ' + str(eisSrc)
+			+ ' (EIS) is intrinsically hart-0-only and needs no demultiplex.\n\n')
+		s += ('Giving each AFE site its own interrupt identity (growing the source map, so '
+			'a site can interrupt its quadrant hart directly without the hart-0 relay) is a '
+			'deliberately deferred option: it would renumber the CLINT and external-'
+			'interrupt vectors and disturb the boot-ROM park contract, so it is only worth '
+			'doing if a future workload needs hart-local AFE interrupt latency.\n\n')
+
+		with open(path, 'w') as f:
+			f.write(s)
 		return
 
 	def GenerateAddressSpaceDiagram(self):
