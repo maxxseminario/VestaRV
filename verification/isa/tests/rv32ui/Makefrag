@@ -21,6 +21,7 @@ rv32ui_sc_tests = \
 	shexec \
 	shfault \
 	shpwr \
+	shafe \
 	afsel afselv2 \
 	add addi \
 	and andi \

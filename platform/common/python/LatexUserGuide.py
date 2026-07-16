@@ -863,7 +863,7 @@ class LatexUserGuide():
 				s += '\\textit{NC} & -- & -- & -- \\\\\n'
 				continue
 
-			s += pin.Name + ' & ' + pin.IOString + ' & ' + pin.PowerDomain.Description + ' & ' + pin.PowerDomain.PositiveRailPackagePin.Name + '/' + pin.PowerDomain.NegativeRailPackagePin.Name + ' \\\\\n'
+			s += fmttex(pin.Name) + ' & ' + pin.IOString + ' & ' + pin.PowerDomain.Description + ' & ' + fmttex(pin.PowerDomain.PositiveRailPackagePin.Name) + '/' + fmttex(pin.PowerDomain.NegativeRailPackagePin.Name) + ' \\\\\n'
 		
 		# Remove the \\ from the final entry and add an ending horizontal line
 		s = s[:-3] + r'\\' + '\n' + r'\hline' + '\n'

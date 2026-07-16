@@ -124,9 +124,25 @@ SECTIONS
     . = ALIGN(4);
   }
 
+  /* CQ2b: the two ex-analog reserved sources (55/56) get real meip handler
+   * slots ABOVE the 0xBB00 parking word (still inside the private TCM, inside
+   * the uniform 4096-word tile stage/copy). Empty unless a test (shafe.S)
+   * invokes the source-55/56 handlers; DEFINE_IVT points slots 55/56 here. */
+  . = 0x0BC00;  /* IRQ 55 - AFE_SHARED (OR of the four AFE IF levels) */
+  .isr_afe_shared : {
+    KEEP(*(.isr_afe_shared))
+    . = ALIGN(4);
+  }
+
+  . = 0x0BD00;  /* IRQ 56 - EIS engine level */
+  .isr_eis : {
+    KEEP(*(.isr_eis))
+    . = ALIGN(4);
+  }
 
 
- 
+
+
   /* End marker */
   _end = .;
 }

@@ -40,6 +40,7 @@ TEST_FILES=(
     "../rcf/xxrv32ui-p-shmutex.rcf"
     "../rcf/xxxrv32ui-p-shexec.rcf"
     "../rcf/xxxxrv32ui-p-shpwr.rcf"
+    "../rcf/xxxxrv32ui-p-shafe.rcf"
     "../rcf/xxxxrv32ui-p-afsel.rcf"
     "../rcf/xxrv32ui-p-afselv2.rcf"
     "../rcf/xxxrv32ua-p-shspin.rcf"

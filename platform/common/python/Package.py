@@ -62,10 +62,16 @@ class PackageData():
 				raise Exception
 
 		self.Pins = []
+		self.PowerDomains = []	# creation order; consumed by the PadRing.json emitter
 
 		return
-	
-	def AddPowerDomain(self, powerDomainName:str, positiveVoltage:float, negativeVoltage:float, positiveRailPinNumber:int, positiveRailPinName:str, negativeRailPinNumber:int, negativeRailPinName:str, isGpioPowerDomain:bool=False):
+
+	def AddPowerDomain(self, powerDomainName:str, positiveVoltage:float, negativeVoltage:float, positiveRailPinNumber:int, positiveRailPinName:str, negativeRailPinNumber:int, negativeRailPinName:str, isGpioPowerDomain:bool=False, positiveRailExtraPins=None, negativeRailExtraPins=None):
+		'''A power domain's + and - rails each land on ONE package pin by default.
+		positiveRailExtraPins/negativeRailExtraPins (lists of (pinNumber, pinName))
+		bond the SAME rail net out on ADDITIONAL package pads — a multi-pad rail
+		(e.g. the CQ QFN-64 core/IO supplies, one pair per die edge). Single-pad
+		domains pass neither and behave exactly as before.'''
 		pd = PowerDomain(name=powerDomainName, positiveVoltage=positiveVoltage, negativeVoltage=negativeVoltage)
 		vddPin = self.AddPin(packagePinNumber=positiveRailPinNumber, name=positiveRailPinName, ioType='pi', powerDomain=pd)
 		vddPin.IsPowerDomainPin = True
@@ -73,11 +79,25 @@ class PackageData():
 		vssPin.IsPowerDomainPin = True
 		pd.PositiveRailPackagePin = vddPin
 		pd.NegativeRailPackagePin = vssPin
+		pd.PositiveRailPins = [vddPin]
+		pd.NegativeRailPins = [vssPin]
+
+		# Additional pads sharing the same rail net (multi-pad rails).
+		for (num, nm) in (positiveRailExtraPins or []):
+			ep = self.AddPin(packagePinNumber=num, name=nm, ioType='pi', powerDomain=pd)
+			ep.IsPowerDomainPin = True
+			pd.PositiveRailPins.append(ep)
+		for (num, nm) in (negativeRailExtraPins or []):
+			ep = self.AddPin(packagePinNumber=num, name=nm, ioType='pi', powerDomain=pd)
+			ep.IsPowerDomainPin = True
+			pd.NegativeRailPins.append(ep)
 
 		if isGpioPowerDomain:
 			if self.GpioPowerDomain is not None:
 				raise Exception('GPIO Power Domain is already defined')
 			self.GpioPowerDomain = pd
+
+		self.PowerDomains.append(pd)
 
 		return pd
 
@@ -183,13 +203,17 @@ class PowerDomain():
 	Name = None
 	PositiveVoltage = None
 	NegativeVoltage = None
-	PositiveRailPackagePin = None
-	NegativeRailPackagePin = None
+	PositiveRailPackagePin = None	# the primary + rail pad
+	NegativeRailPackagePin = None	# the primary - rail pad
+	PositiveRailPins = None	# ALL + rail pads (>=1; multi-pad rails)
+	NegativeRailPins = None	# ALL - rail pads (>=1; multi-pad rails)
 
 	def __init__(self, name:str, positiveVoltage:float, negativeVoltage:float):
 		if len(name) < 1:
 			raise Exception('name must not be empty')
 		self.Name = name
+		self.PositiveRailPins = []
+		self.NegativeRailPins = []
 
 		if type(positiveVoltage) != float:
 			raise Exception('positiveVoltage must be a float')

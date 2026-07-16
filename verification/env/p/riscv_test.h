@@ -169,8 +169,8 @@
   jal zero, 0x0B200;   /* IRQ 52 - UART1_RC    - ISR bank 0x0B200 (.isr_uart1_rc) */ \
   jal zero, 0x0B300;   /* IRQ 53 - UART1_TE    - ISR bank 0x0B300 (.isr_uart1_te) */ \
   jal zero, 0x0B400;   /* IRQ 54 - UART1_TC    - ISR bank 0x0B400 (.isr_uart1_tc) */ \
-  jal zero, 0x0BB00;   /* IRQ 55 - AFE0_RC     - unused -> TCM parking */ \
-  jal zero, 0x0BB00;   /* IRQ 56 - SAR0_RC     - unused -> TCM parking */ \
+  jal zero, 0x0BC00;   /* IRQ 55 - AFE_SHARED  - ISR bank 0x0BC00 (.isr_afe_shared) */ \
+  jal zero, 0x0BD00;   /* IRQ 56 - EIS         - ISR bank 0x0BD00 (.isr_eis) */ \
   jal zero, 0x0BB00;   /* IRQ 57 - I2C0_STR    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 58 - I2C0_SPR    - unused -> TCM parking */ \
   jal zero, 0x0BB00;   /* IRQ 59 - I2C0_MSTS   - unused -> TCM parking */ \
