@@ -20,6 +20,7 @@ make chip                # generate every chip artifact AND build the TRM PDF
 make chip CHIP_NAME=Foo  # same configuration, renamed chip (TRM title/prose, file headers)
 make chip CONFIG=f.json  # apply a JSON configuration (see "Configuring a chip" below)
 make generate            # artifacts only (no PDF); make pdf = PDF only
+make web                 # export the machine-readable web bundle (see "Web data export")
 make show                # print the resolved configuration + derived pad ring
 make verify              # PROVE the configuration boots: stage the generated RTL into
                          # an Xcelium behavioral flow + run the ISA/sh smoke suite
@@ -100,6 +101,45 @@ flow and otherwise appear as raw macro source in the figure.
 | `config/MemoryMap.json` | Machine-readable full memory map |
 | `config/ChipConfig.resolved.json` | The resolved configuration: every knob + derived geometry (`make show` prints it) |
 | `config/PadRing.json` | The derived pad ring (package model → pin/side/power-domain list) |
+| `out/web/chip_data.js` | Web data bundle (`const VESTA_DATA = {…}`) — see below |
+| `out/web/MemoryMap.json` | Copy of `config/MemoryMap.json` for the web register browser (`make web`) |
+
+## Web data export (`make web`)
+
+`make web` (also part of `make chip`) emits **`out/web/chip_data.js`**, a single
+`const VESTA_DATA = { … };` bundle so the web tooling — `../docs/chip_configurator.html`
+and a future register browser — can **consume the generator instead of transcribing it**
+(the old configurator carried a hand-copied second source of truth; see
+`~/vesta_docs/vesta_showcase/audit_findings.md` §4.1). It is written by
+`python/web_export.py`, wired into `ChipGenerator.Generate()` next to
+`generateMemoryMapJson`, and is deterministic (no timestamps). Top-level keys:
+
+| Key | Contents |
+|-----|----------|
+| `schema` | Every `_CONFIG_SCHEMA` key: description **plus** machine-readable constraints — `type`, `min`/`max`/`step`, `enum`, `default` (from the declarative `_CONFIG_META`, cross-checked against the validator lambdas) |
+| `defaults` | Schema key → default value |
+| `packages` | Pad table for **every** `_PACKAGE_MODELS` model (myshkin-qfn44 **and** castalia-quad-qfn64): pin/side/name/io-type/power-domain + GPIO alt-function map, built via the same `Package`/`CreatePackage` machinery |
+| `derivedPresets` | Derived geometry for the shipped configs (`castalia`, `argus`, `cq`): ISA string, shared-window width, bank count, flash base, CLINT layout |
+| `verifiedHarts` | `{ values: [4, 18], note }` — the sim-proven hart counts |
+| `memoryRegions` | Region-level address map (ROM, peripheral window, CLINT/mutex/IRQ-router, TCM, shared RAM, flash) |
+| `meta` | Provenance (chip name, source config, note) |
+
+`make web` also copies `config/MemoryMap.json` to `out/web/MemoryMap.json` for the
+register browser. All outputs stay under `platform/common/out/web/` (golden rule).
+
+**Drift gate.** `python/check_configurator_sync.py` compares the configurator HTML
+against the generator; it now takes **`--strict`** (exit non-zero on any drift) while the
+default stays WARN-only (used by `make generate`). **Consumption contract for the HTML:**
+the configurator declares a spliceable region
+
+```html
+/*VESTA_DATA_BEGIN*/ … /*VESTA_DATA_END*/
+```
+
+and `python/splice_web_data.py --data out/web/chip_data.js ../docs/chip_configurator.html`
+injects the current bundle between those markers (idempotent; `--data` defaults to
+`out/web/chip_data.js`; `--check` reports staleness). The markers
+are added on the HTML side by its owner; the splice tool only needs to exist here.
 
 ---
 
