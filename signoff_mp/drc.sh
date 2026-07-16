@@ -55,7 +55,7 @@ cat << EOF > "$RUN_DIR/calibre.runset"
 *drcSummaryFile: results/$rule.rpt
 *cmnWarnLayoutOverwrite: 0
 *cmnResolution: 5
-*cmnNumTurbo: 7
+*cmnNumTurbo: 2
 *cmnRunMT: 1
 EOF
 
