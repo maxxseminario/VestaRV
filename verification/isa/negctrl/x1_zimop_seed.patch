@@ -1,0 +1,14 @@
+diff --git a/hdl/common/vesta/datapath.vhd b/hdl/common/vesta/datapath.vhd
+index 101f95e..a595ea8 100644
+--- a/hdl/common/vesta/datapath.vhd
++++ b/hdl/common/vesta/datapath.vhd
+@@ -329,7 +329,8 @@ begin
+             pc_plus_4           when result_Src = "010" else  -- Return address (JAL/JALR)
+             pc_target           when result_Src = "011" else  -- PC + immediate (AUIPC)
+             csr_rdata           when result_Src = "100" else  -- CSR read data
+-            (others => '0');    
++            rs1_value           when result_Src = "101" else  -- X1_ZIMOP_NEGCTRL_SEED: rd<-rs1 (BUG; correct=0)
++            (others => '0');
+     
+     -- ==========================================
+     -- Load Extension Unit Instance

@@ -46,6 +46,18 @@ include $(src_dir)/spifem/Makefrag
 # Create build directories
 $(shell mkdir -p $(build_dir))
 
+# Build-time ISA-extension feature dispatch (X1 Zimop etc.): extract just the
+# CORE_ENABLE_* #defines from the platform/common make-chip output into a tiny
+# dependency-free header (the full generated MemoryMap.h pulls in bits.h /
+# custom_ops.S / stdint.h, unsuitable for an ISA .S). Regenerated every parse so
+# it always reflects the config last `make chip`'d; empty (all-off) if absent.
+# ext-probes #include "core_features.h" and #ifdef CORE_ENABLE_<EXT> on it.
+CORE_FEATURES_H := $(build_dir)/core_features.h
+# Regenerate into a temp and replace only on real change, so the mtime flips
+# only when the config polarity actually changes — that makes it a safe compile
+# prerequisite (see the per-test rule) without over-rebuilding every make.
+$(shell { echo '/* auto-generated from platform/common make-chip output; do not edit */'; grep -h '^#define CORE_ENABLE' ../../platform/common/out/software/include/MemoryMap.h 2>/dev/null; } > $(CORE_FEATURES_H).tmp; if ! cmp -s $(CORE_FEATURES_H).tmp $(CORE_FEATURES_H) 2>/dev/null; then mv $(CORE_FEATURES_H).tmp $(CORE_FEATURES_H); else rm -f $(CORE_FEATURES_H).tmp; fi)
+
 default: all
 
 #--------------------------------------------------------------------
@@ -222,8 +234,8 @@ $$(shell mkdir -p $$(build_dir)/$(1))
 # Update test names to include build directory path
 $(1)_p_tests_build = $$(patsubst %,$$(build_dir)/$(1)/%,$$(notdir $$($(1)_p_tests)))
 
-$$($(1)_p_tests_build): $$(build_dir)/$(1)/$(1)-p-%: $$(src_dir)/$(1)/%.S
-	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) -I../env/p -I./macros/scalar -I../../platform/myshkin/gcc/lib/include -T../env/p/link.ld $$< -o $$@
+$$($(1)_p_tests_build): $$(build_dir)/$(1)/$(1)-p-%: $$(src_dir)/$(1)/%.S $$(CORE_FEATURES_H)
+	$$(RISCV_GCC) $(2) $$(RISCV_GCC_OPTS) -I../env/p -I./macros/scalar -I$$(build_dir) -I../../platform/myshkin/gcc/lib/include -T../env/p/link.ld $$< -o $$@
 	$$(MAKE) $$@.rcf  
 $(1)_tests += $$($(1)_p_tests_build)
 

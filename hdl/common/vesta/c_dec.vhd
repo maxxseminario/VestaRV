@@ -235,7 +235,23 @@ begin
                                     imm(16 downto 12) := instr16(6 downto 2);
                                     
                                     if rd = "00000" or unsigned(imm(17 downto 12)) = 0 then
-                                        dec := (others => '0');  -- Reserved
+                                        -- Reserved region of C.LUI (rd=x0, or the
+                                        -- nzimm=0 hole). Zcmop (X1) lives in the
+                                        -- odd-rd slots of the nzimm=0 hole:
+                                        -- c.mop.N (N in 1,3,5,7,9,11,13,15) =
+                                        -- 15..13=011, 12=0, 11..7=N (odd => bit7=1),
+                                        -- 6..2=00000, 1..0=01. Expand to a canonical
+                                        -- 32-bit nop (addi x0,x0,0) => pure nop, no
+                                        -- register/memory change, PC+2. Gated by
+                                        -- ENABLE_ZIMOP; when off this stays the
+                                        -- all-zero reserved word (illegal-instruction).
+                                        if ENABLE_ZIMOP and instr16(7) = '1' and
+                                           instr16(6 downto 2) = "00000" and
+                                           instr16(12) = '0' then
+                                            dec := x"00000013";  -- c.mop.N -> nop
+                                        else
+                                            dec := (others => '0');  -- Reserved
+                                        end if;
                                     else
                                         -- LUI rd, imm
                                         dec(6 downto 0)   := "0110111";  -- LUI

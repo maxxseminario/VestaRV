@@ -11,6 +11,7 @@ rv32ua_sc_tests = \
 	shlock \
 	shamo \
 	extprobe \
+	extzimop \
 	extmul \
 	extdiv \
 	extamo \
