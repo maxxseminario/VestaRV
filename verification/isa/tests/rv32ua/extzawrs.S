@@ -4,7 +4,14 @@
 # extzawrs.S   (X1 Zawrs ext-probe)
 #-----------------------------------------------------------------------------
 # Single-hart adaptive probe for Zawrs (wrs.nto / wrs.sto), dispatched at BUILD
-# TIME on the generator's CORE_ENABLE_ZAWRS #define (Zawrs has no misa bit).
+# TIME on the CORE_ENABLE_ZAWRS macro (Zawrs has no misa bit). Per the phase
+# convention the macro is NEVER auto-derived and NEVER pulled from an include:
+#   * OFF arm = the DEFAULT build (macro undefined) — keeps the suite green.
+#   * ON arm  = built by EXPLICITLY appending the define, e.g.
+#       rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
+#         -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZAWRS"
+#       ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf
+#     (the ON RTL is staged separately by flipping MemoryMap CORE_ENABLE_ZAWRS).
 #
 #   ON  (#ifdef CORE_ENABLE_ZAWRS):
 #     (i)   no valid reservation -> BOTH wrs retire immediately (tiny mcycle
@@ -32,7 +39,7 @@
 #include "riscv_test.h"
 #include "test_macros.h"
 #include "mp_boot.h"                 /* NHARTS, CLINT base */
-#include "core_features.h"          /* CORE_ENABLE_ZAWRS (assembly-safe companion) */
+# CORE_ENABLE_ZAWRS comes from the build command (-DCORE_ENABLE_ZAWRS), never an include.
 
 # CLINT offsets from base 0x5000 (N-parameterized; = 0x10/0x20 at N=4)
 #define MTIME_OFF     ((4*NHARTS + 15) & ~15)

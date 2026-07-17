@@ -26,14 +26,16 @@
 #     SH_BACKSTOP = 0x104A8   B sets = 1 immediately before firing the backstop
 #     SH_B_DONE   = 0x104AC   B progress marker
 #
-# Build-time #ifdef: the OFF (Zawrs-disabled) image degrades to a trivially
-# passing single-hart variant so the DEFAULT suite stays green.
+# Build-time dispatch on CORE_ENABLE_ZAWRS (never from an include): OFF = the
+# DEFAULT build (macro undefined) degrades to a trivially-passing single-hart
+# variant so the suite stays green; ON = built by explicitly appending the -D
+# flag (see the extzawrs.S header for the exact RISCV_GCC_OPTS command).
 #*****************************************************************************
 
 #include "riscv_test.h"
 #include "test_macros.h"
 #include "mp_boot.h"
-#include "core_features.h"          /* CORE_ENABLE_ZAWRS (assembly-safe companion) */
+# CORE_ENABLE_ZAWRS comes from the build command (-DCORE_ENABLE_ZAWRS), never an include.
 
 #define WRS_NTO      .word 0x00d00073
 
