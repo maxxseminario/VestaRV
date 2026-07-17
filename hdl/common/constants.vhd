@@ -192,6 +192,24 @@ package constants is
     constant CSR_TIMEH      : std_logic_vector(11 downto 0) := x"C81"; -- Timer high (often memory-mapped)
     constant CSR_INSTRETH   : std_logic_vector(11 downto 0) := x"C82"; -- Instructions retired high
 
+    -- X1 Zihpm: hardware performance-monitor CSRs. Counters 3/4 are real 64-bit
+    -- event counters when ENABLE_ZIHPM; counters 5-31 are hardwired zero. The
+    -- full ranges (0xB03-0xB1F/0xB83-0xB9F machine, 0x323-0x33F event selectors,
+    -- 0xC03-0xC1F/0xC83-0xC9F user-view) are LEGAL CSR addresses (csr_valid map)
+    -- so unimplemented indices read-zero/write-ignore WITHOUT an illegal trap.
+    constant CSR_MCOUNTINHIBIT : std_logic_vector(11 downto 0) := x"320"; -- Counter-inhibit (bits 3/4 gate hpm3/4; 0/2 gate mcycle/minstret)
+    constant CSR_MCOUNTEREN    : std_logic_vector(11 downto 0) := x"306"; -- Counter-enable (M-mode-only core: read-zero/write-ignore)
+    constant CSR_MHPMEVENT3    : std_logic_vector(11 downto 0) := x"323"; -- Event selector for mhpmcounter3
+    constant CSR_MHPMEVENT4    : std_logic_vector(11 downto 0) := x"324"; -- Event selector for mhpmcounter4
+    constant CSR_MHPMCOUNTER3  : std_logic_vector(11 downto 0) := x"B03"; -- Machine perf counter 3 low
+    constant CSR_MHPMCOUNTER4  : std_logic_vector(11 downto 0) := x"B04"; -- Machine perf counter 4 low
+    constant CSR_MHPMCOUNTER3H : std_logic_vector(11 downto 0) := x"B83"; -- Machine perf counter 3 high
+    constant CSR_MHPMCOUNTER4H : std_logic_vector(11 downto 0) := x"B84"; -- Machine perf counter 4 high
+    constant CSR_HPMCOUNTER3   : std_logic_vector(11 downto 0) := x"C03"; -- User-view perf counter 3 low
+    constant CSR_HPMCOUNTER4   : std_logic_vector(11 downto 0) := x"C04"; -- User-view perf counter 4 low
+    constant CSR_HPMCOUNTER3H  : std_logic_vector(11 downto 0) := x"C83"; -- User-view perf counter 3 high
+    constant CSR_HPMCOUNTER4H  : std_logic_vector(11 downto 0) := x"C84"; -- User-view perf counter 4 high
+
 
 
     -- I2C constants
