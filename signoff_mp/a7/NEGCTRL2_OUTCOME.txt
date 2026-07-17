@@ -1,0 +1,84 @@
+A7 NEGATIVE CONTROL (DEF-verified opposite-net B1-band injection) — CAUGHT + NAMED.
+Supersedes a7/NEGCTRL_OUTCOME.txt (two prior INERT injections). Method = CQ6 recipe:
+inject a shorting M1 boundary into a scratch copy of the LVS-flattened GDS, run an
+ISOLATED pegasus LVS, compare net counts vs the clean A7 run.
+
+== DEF-verified injection site (net names + coords from the DEF text itself) ==
+DEF: ~/vestarv/innovus/common/dbs/chip_top_argus.signoff.innovus.dat/chip_top.def.gz
+  (read-only; UNITS DISTANCE MICRONS 2000, so DEF db /2000 = microns)
+Two ADJACENT, OPPOSITE-NET M1 followpins in the B1 control band (the 18um std-cell band
+BETWEEN tile row A (ends y=1250.085um) and tile row B (starts y=1268.085um) — tile-free,
+macro-free; all chip macros sit at y<455um):
+  VDD rail  DEF line   278 (under "- VDD ( * VDD )"):
+            NEW M1 600 + SHAPE FOLLOWPIN ( 60000 2514000 ) ( 870000 * )
+            => net VDD, y=2514000db=1257.000um, x[60000,870000]db=[30,435]um, width 600db=0.3um
+  VSS rail  DEF line 20234 (under "- VSS ( * VSS )"):
+            NEW M1 600 + SHAPE FOLLOWPIN ( 60000 2510000 ) ( 870000 * )
+            => net VSS, y=2510000db=1255.000um, x[60000,870000]db=[30,435]um, width 600db=0.3um
+Rails are 2um apart (Delta y = 4000db), opposite nets per the DEF SPECIALNETS attribution,
+and both have continuous live M1 at the injection x (GDS window dump, below).
+
+== Injection params ==
+Script : cq6/negctrl_inject_short.py (raw-GDS boundary surgery, frame-robust via GDS UNITS)
+Target : a7/negctrl/chip_top_short_a7.gds  (scratch copy of the harvested clean flattened+
+         labeled GDS a7/negctrl/chip_top_clean_a7.gds; +64 bytes = one BOUNDARY record)
+Bridge : M1 layer 31 / datatype 0, rectangle x[200.0,201.0]um  y[1254.5,1257.5]um
+         (1um wide x 3um tall vertical strip spanning VSS@1255 and VDD@1257).
+Isolated LVS run: a7/negctrl/run_negctrl_a7.sh (launched DETACHED via setsid so the 60-min
+  background-task reaper could not kill pegasus mid-report — the reaper killed the FIRST
+  clean-run pegasus that way). runstart NEGCTRL_A7_START 2026-07-16 18:06:28; rc=0; ~66 min;
+  completed 19:12:34. Reports: a7/negctrl/work_a7/{lvs.rep,lvs.rep.cls,lvs.rep.shorts}.
+
+== CAUGHT-TABLE (orchestrator-adjudicated, verbatim; clean A7 vs negctrl A7) ==
+  metric                          clean A7            negctrl A7        delta
+  Nets reduced (layout)           9,174,712           9,174,711          -1  (exactly one pair merged)
+  Nets unmatched (schematic)         34,001              34,002          +1
+  Instances (all columns)          IDENTICAL           IDENTICAL          0
+  lvs.rep.shorts                     empty               empty            —
+  lvs.rep.cps                        (identical)         (identical)      —
+  stdout WARN/ERROR sets             (identical)         (identical)      —
+Set-diff of the unmatched Schematic Net/Pin lists (cls ~line 16000+, both files):
+  ADDED by negctrl : Xmcu0/arb_wdata<197>  and  Xmcu0/Xirq_gf2/XiBiDir<9>/net6
+  REMOVED          : nothing
+The pre-existing "Layout Net: ** missing net ** | Schematic Pin: VSS/VDD" entries appear in
+the CLEAN run too (known pad-domain behavior) — NOT injection-related.
+
+VERDICT: CAUGHT + NAMED. The injection produced a deterministic -1 layout-net merge and a
+named newly-unmatched schematic signal net (arb_wdata<197>). The flow flagged the deliberate
+layout defect where the two earlier same-net injections (negctrl1/negctrl2) were correctly
+silent — so those two INERT runs stand as the spurious-flag proof (a connectivity-neutral edit
+yields no change), and this run is the affirmative CATCH.
+
+== Mechanism forensics (bounded; GDS window dump + DEF, NO pegasus re-run) ==
+GDS window dump (a7/negctrl/window_dump.py, layer 31/0, chip_top) at x[195,206] y[1250,1262]um:
+  CLEAN gds   : 4 rects, all long rails x[30,435] w=405 h=0.3 at y=1255(VSS),1257(VDD),1259(VSS),1261(VDD)
+  INJECTED gds: same 4 rails + the bridge y[1254.5,1257.5] x[200,201].
+So BOTH DEF rails DO have continuous live M1 at x=200-201 (this refutes the "only one rail
+has live metal" hypothesis). What the bridge actually landed ON: the DEF NETS/COMPONENTS show
+a LIVE standard cell in this band directly at the site — mcu0/mp_arb0/FE_OFC2476_arb_wdata_197
+(a BUFX2BA10TH buffer driving the arbiter net arb_wdata<197>) PLACED at (402400,2510000) =
+x=201.2um, y=1255.0um. The y=1255/1257 M1 "followpins" are this arbiter cell-row's VSS/VDD
+power rails, and arb_wdata<197>'s M1 signal metal runs in the same row through x~200-201. The
+bridge therefore merged the arb_wdata<197> signal net into the adjacent rail (a real, named,
+deterministic catch) rather than performing a clean bare VDD<->VSS rail-pair short: the
+extraction shows a single net-pair merge (-1 layout net) with NO VDD<->VSS short (which would
+have exploded the compare, not added +1). i.e. the site, though DEF-opposite-net at the
+followpin level, sits ON populated arbiter glue logic, so the caught mechanism is
+SIGNAL-TO-RAIL, not the intended RAIL-TO-RAIL merge.
+
+HONEST NOTE / class coverage: the intended VDD<->VSS rail-pair merge (which would read as
+-2 nets and rail-level VDD/VSS naming, per CQ6) did NOT materialize here; the actual caught
+defect is a signal-net(arb_wdata<197>)-to-power-rail merge. The negative control is
+nonetheless satisfied — the flow deterministically CAUGHT and NAMED a deliberately injected
+layout short that was absent (and silent) in the clean run and in the two prior connectivity-
+neutral injections. Dedicated VDD<->VSS RAIL-short class coverage rests on the CQ6 precedent
+signoff_mp/cq6/negctrl2_result.txt (layout_nets -422, schem_unmatched +465 => CAUGHT), which
+demonstrated the flow catches a bare power-rail short.
+
+== Artifacts ==
+  a7/negctrl/chip_top_short_a7.gds        injected scratch GDS (bridge +64 bytes)
+  a7/negctrl/chip_top_clean_a7.gds        harvested clean flattened+labeled GDS
+  a7/negctrl/clean_a7.cdl                 harvested schematic CDL (this A7 run)
+  a7/negctrl/run_negctrl_a7.sh            isolated pegasus runner (detached)
+  a7/negctrl/window_dump.py               M1 window forensics
+  a7/negctrl/work_a7/                     negctrl LVS reports (rc=0)

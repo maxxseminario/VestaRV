@@ -1,0 +1,9 @@
+INVARIANT (for the docs WP -- a named rule, not a fix):
+"Any re-P&R invalidates saved LVS netlists. Regenerate LVS collateral from EACH
+CUT's OWN post-route DB. The input RTL/synthesis netlist being unchanged does NOT
+make the implementation netlist reusable -- placement, CTS, and optimization change
+the gate-level instances/nets (FE_OFN opt nets, CTS buffers, antenna diodes)."
+
+Evidence (A7-3): reusing the A6-cut LVS netlist against the A7 04:38 layout ballooned
+LVS unmatched 41,396 -> 1,037,717 instances; the A7 cut's own netlist had 4408 FE_OFN
+nets vs A6's 5293, CTS_ 45 vs 52, total instances 27,922 vs 28,271.
