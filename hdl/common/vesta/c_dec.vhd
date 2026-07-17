@@ -135,11 +135,87 @@ begin
                                 dec(19 downto 15) := rs1;
                                 dec(24 downto 20) := rs2;
                                 dec(31 downto 25) := imm(11 downto 5);
-                                
+
+                            -- Zcb byte/halfword loads and stores (funct3=100).
+                            -- Reserved on this core unless ENABLE_ZCB (off ->
+                            -- dec:=0 -> illegal, i.e. today's behavior).
+                            when "100" =>
+                                if ENABLE_ZCB then
+                                    rs1_p := instr16(9 downto 7);
+                                    rs1 := "01" & rs1_p;  -- x8-x15
+                                    rd_p := instr16(4 downto 2);
+                                    rd := "01" & rd_p;    -- rd' (loads)
+                                    rs2_p := instr16(4 downto 2);
+                                    rs2 := "01" & rs2_p;  -- rs2' (stores)
+
+                                    case instr16(12 downto 10) is
+                                        -- C.LBU rd',uimm(rs1')
+                                        -- uimm[1]=inst[5], uimm[0]=inst[6]
+                                        when "000" =>
+                                            imm := (others => '0');
+                                            imm(1) := instr16(5);
+                                            imm(0) := instr16(6);
+                                            dec(6 downto 0)   := "0000011";  -- LOAD
+                                            dec(11 downto 7)  := rd;
+                                            dec(14 downto 12) := "100";      -- LBU
+                                            dec(19 downto 15) := rs1;
+                                            dec(31 downto 20) := imm(11 downto 0);
+
+                                        -- C.LHU (inst[6]=0) / C.LH (inst[6]=1)
+                                        -- uimm[1]=inst[5], uimm[0]=0 (half-aligned)
+                                        when "001" =>
+                                            imm := (others => '0');
+                                            imm(1) := instr16(5);
+                                            dec(6 downto 0)   := "0000011";  -- LOAD
+                                            dec(11 downto 7)  := rd;
+                                            if instr16(6) = '0' then
+                                                dec(14 downto 12) := "101"; -- LHU
+                                            else
+                                                dec(14 downto 12) := "001"; -- LH
+                                            end if;
+                                            dec(19 downto 15) := rs1;
+                                            dec(31 downto 20) := imm(11 downto 0);
+
+                                        -- C.SB rs2',uimm(rs1')
+                                        -- uimm[1]=inst[5], uimm[0]=inst[6]
+                                        when "010" =>
+                                            imm := (others => '0');
+                                            imm(1) := instr16(5);
+                                            imm(0) := instr16(6);
+                                            dec(6 downto 0)   := "0100011";  -- STORE
+                                            dec(11 downto 7)  := imm(4 downto 0);
+                                            dec(14 downto 12) := "000";      -- SB
+                                            dec(19 downto 15) := rs1;
+                                            dec(24 downto 20) := rs2;
+                                            dec(31 downto 25) := imm(11 downto 5);
+
+                                        -- C.SH rs2',uimm(rs1') (inst[6]=0 required)
+                                        -- uimm[1]=inst[5], uimm[0]=0
+                                        when "011" =>
+                                            if instr16(6) = '0' then
+                                                imm := (others => '0');
+                                                imm(1) := instr16(5);
+                                                dec(6 downto 0)   := "0100011";  -- STORE
+                                                dec(11 downto 7)  := imm(4 downto 0);
+                                                dec(14 downto 12) := "001";      -- SH
+                                                dec(19 downto 15) := rs1;
+                                                dec(24 downto 20) := rs2;
+                                                dec(31 downto 25) := imm(11 downto 5);
+                                            else
+                                                dec := (others => '0');  -- reserved
+                                            end if;
+
+                                        when others =>
+                                            dec := (others => '0');  -- reserved
+                                    end case;
+                                else
+                                    dec := (others => '0');  -- Zcb off -> illegal
+                                end if;
+
                             when others =>
                                 dec := (others => '0');  -- Reserved
                         end case;
-                        
+
                     -- ========== QUADRANT 1 (01) ==========
                     when "01" =>
                         case funct3 is
@@ -298,11 +374,16 @@ begin
                                         
                                     -- Register-Register operations
                                     when "11" =>
-                                        funct6 := instr16(15 downto 10);
                                         rs2_p := instr16(4 downto 2);
                                         rs2 := "01" & rs2_p;  -- x8-x15
-                                        
-                                        case instr16(6 downto 5) is
+
+                                        -- inst[12] splits funct6: 100011 = base
+                                        -- RVC reg-reg (SUB/XOR/OR/AND); 100111 =
+                                        -- Zcb unary ops + C.MUL (RV64 SUBW/ADDW
+                                        -- reserved on RV32). rs1 (== rd'/rs1') is
+                                        -- already set above for this funct3 arm.
+                                        if instr16(12) = '0' then
+                                          case instr16(6 downto 5) is
                                             -- C.SUB -> sub rd', rd', rs2'
                                             when "00" =>
                                                 dec(6 downto 0)   := "0110011";  -- SUB
@@ -311,7 +392,7 @@ begin
                                                 dec(19 downto 15) := rs1;
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0100000";
-                                                
+
                                             -- C.XOR -> xor rd', rd', rs2'
                                             when "01" =>
                                                 dec(6 downto 0)   := "0110011";  -- XOR
@@ -320,7 +401,7 @@ begin
                                                 dec(19 downto 15) := rs1;
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0000000";
-                                                
+
                                             -- C.OR -> or rd', rd', rs2'
                                             when "10" =>
                                                 dec(6 downto 0)   := "0110011";  -- OR
@@ -329,7 +410,7 @@ begin
                                                 dec(19 downto 15) := rs1;
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0000000";
-                                                
+
                                             -- C.AND -> and rd', rd', rs2'
                                             when "11" =>
                                                 dec(6 downto 0)   := "0110011";  -- AND
@@ -338,10 +419,84 @@ begin
                                                 dec(19 downto 15) := rs1;
                                                 dec(24 downto 20) := rs2;
                                                 dec(31 downto 25) := "0000000";
-                                                
+
                                             when others =>
                                                 dec := (others => '0');
-                                        end case;
+                                          end case;
+                                        elsif ENABLE_ZCB then
+                                          -- ==== Zcb (funct6 = 100111) ====
+                                          case instr16(6 downto 5) is
+                                            -- C.MUL rd', rd', rs2'  (gated by
+                                            -- ENABLE_MUL at the base MUL op: when
+                                            -- MUL is off maindec traps this as
+                                            -- illegal, giving both-polarity cover)
+                                            when "10" =>
+                                                dec(6 downto 0)   := "0110011";  -- OP (MUL)
+                                                dec(11 downto 7)  := rs1;
+                                                dec(14 downto 12) := "000";
+                                                dec(19 downto 15) := rs1;
+                                                dec(24 downto 20) := rs2;
+                                                dec(31 downto 25) := "0000001";
+
+                                            -- unary ops, selected by inst[4:2]
+                                            when "11" =>
+                                                case instr16(4 downto 2) is
+                                                    -- C.ZEXT.B -> andi rd',rd',0xff
+                                                    when "000" =>
+                                                        dec(6 downto 0)   := "0010011";  -- ANDI
+                                                        dec(11 downto 7)  := rs1;
+                                                        dec(14 downto 12) := "111";
+                                                        dec(19 downto 15) := rs1;
+                                                        dec(31 downto 20) := x"0FF";
+                                                    -- C.SEXT.B -> sext.b rd',rd' (Zbb;
+                                                    -- base op traps when BITMANIP off)
+                                                    when "001" =>
+                                                        dec(6 downto 0)   := "0010011";  -- OP-IMM
+                                                        dec(11 downto 7)  := rs1;
+                                                        dec(14 downto 12) := "001";
+                                                        dec(19 downto 15) := rs1;
+                                                        dec(24 downto 20) := "00100";
+                                                        dec(31 downto 25) := "0110000";
+                                                    -- C.ZEXT.H -> zext.h rd',rd' (Zbb,
+                                                    -- RV32 pack form)
+                                                    when "010" =>
+                                                        dec(6 downto 0)   := "0110011";  -- OP
+                                                        dec(11 downto 7)  := rs1;
+                                                        dec(14 downto 12) := "100";
+                                                        dec(19 downto 15) := rs1;
+                                                        dec(24 downto 20) := "00000";
+                                                        dec(31 downto 25) := "0000100";
+                                                    -- C.SEXT.H -> sext.h rd',rd' (Zbb)
+                                                    when "011" =>
+                                                        dec(6 downto 0)   := "0010011";  -- OP-IMM
+                                                        dec(11 downto 7)  := rs1;
+                                                        dec(14 downto 12) := "001";
+                                                        dec(19 downto 15) := rs1;
+                                                        dec(24 downto 20) := "00101";
+                                                        dec(31 downto 25) := "0110000";
+                                                    -- C.NOT -> xori rd',rd',-1
+                                                    when "101" =>
+                                                        dec(6 downto 0)   := "0010011";  -- XORI
+                                                        dec(11 downto 7)  := rs1;
+                                                        dec(14 downto 12) := "100";
+                                                        dec(19 downto 15) := rs1;
+                                                        dec(31 downto 20) := x"FFF";
+                                                    -- "100" = C.ZEXT.W (RV64 only,
+                                                    -- excluded); "110"/"111" reserved
+                                                    when others =>
+                                                        dec := (others => '0');
+                                                end case;
+
+                                            -- "00"/"01" = C.SUBW/C.ADDW (RV64) —
+                                            -- reserved on RV32
+                                            when others =>
+                                                dec := (others => '0');
+                                          end case;
+                                        else
+                                          -- Zcb disabled: funct6=100111 space is
+                                          -- reserved -> illegal instruction.
+                                          dec := (others => '0');
+                                        end if;
                                         
                                     when others =>
                                         dec := (others => '0');

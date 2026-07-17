@@ -152,6 +152,11 @@ TEST_FILES=(
     "../rcf/xxxxrv32ua-p-extzb.rcf"
     "../rcf/xrv32ua-p-extzihpm.rcf"
     "../rcf/rv32ua-p-extzicond.rcf"
+    # X1 Zcb: build-time-dispatch probe. Default (Zcb-off) build compiles the
+    # OFF arm (base-ISA sanity + PASS); the ON arm + trap proof run on staged
+    # builds (see the X1-zcb self-report).
+    "../rcf/xxxrv32ua-p-extzcb.rcf"
+
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the
