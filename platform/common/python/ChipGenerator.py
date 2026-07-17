@@ -86,6 +86,22 @@ class ChipGenerator():
 	ENABLE_DIV = None			# Enables/disables the hardware divider and remainder calculator
 	ENABLE_ATOMICS = None		# Enables/disables the RV32A atomic extension (LR/SC + AMOs) in the vesta core
 	ENABLE_BITMANIP = None		# Enables/disables the Zba/Zbb/Zbs/Zbc bit-manipulation extensions in the vesta core
+	# X0 ISA-extension scaffolding (2026-07-16): 13 generics plumbed to the vesta
+	# core, all default false. Decode/logic NOT implemented yet — the phase agents
+	# (X1-X4) add it. Drive CORE_ENABLE_Z* in MemoryMap.vhd + the C-header #defines.
+	ENABLE_ZICOND = None		# X1: Zicond czero.eqz/nez
+	ENABLE_ZCB = None			# X1: Zcb extra compressed instructions
+	ENABLE_ZIMOP = None			# X1: Zimop+Zcmop may-be-operations
+	ENABLE_ZIHINT = None		# X1: Zihintpause+Zihintntl hints
+	ENABLE_ZIHPM = None			# X1: Zihpm hardware performance counters
+	ENABLE_ZAWRS = None			# X1: Zawrs wait-on-reservation-set
+	ENABLE_ZABHA = None			# X2: Zabha byte/halfword AMOs
+	ENABLE_ZACAS = None			# X2: Zacas amocas.w
+	ENABLE_ZBKB = None			# X3: Zbkb crypto bit-manip
+	ENABLE_ZBKC = None			# X3: Zbkc carryless multiply (crypto)
+	ENABLE_ZBKX = None			# X3: Zbkx crossbar permute
+	ENABLE_ZKN = None			# X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
+	ENABLE_ZFINX = None			# X4: Zfinx single-precision FP in x-registers
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
 	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
 	MASKED_IRQ = None			# Any '1' bit corresponds to a permenantely disabled IRQ
@@ -137,7 +153,22 @@ class ChipGenerator():
 		lastRamMemorySlotSize:int=None,
 		numHarts:int=1,
 		ENABLE_ATOMICS:bool=True,
-		ENABLE_BITMANIP:bool=True):
+		ENABLE_BITMANIP:bool=True,
+		# X0 scaffolded ISA extensions — default False so every existing caller
+		# (and testbench) keeps its RV32IMAC+Zb* core with the extensions OFF.
+		ENABLE_ZICOND:bool=False,
+		ENABLE_ZCB:bool=False,
+		ENABLE_ZIMOP:bool=False,
+		ENABLE_ZIHINT:bool=False,
+		ENABLE_ZIHPM:bool=False,
+		ENABLE_ZAWRS:bool=False,
+		ENABLE_ZABHA:bool=False,
+		ENABLE_ZACAS:bool=False,
+		ENABLE_ZBKB:bool=False,
+		ENABLE_ZBKC:bool=False,
+		ENABLE_ZBKX:bool=False,
+		ENABLE_ZKN:bool=False,
+		ENABLE_ZFINX:bool=False):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -384,6 +415,20 @@ class ChipGenerator():
 		self.ENABLE_DIV = ENABLE_DIV
 		self.ENABLE_ATOMICS = ENABLE_ATOMICS
 		self.ENABLE_BITMANIP = ENABLE_BITMANIP
+		# X0 scaffolded ISA extensions (default false)
+		self.ENABLE_ZICOND = ENABLE_ZICOND
+		self.ENABLE_ZCB = ENABLE_ZCB
+		self.ENABLE_ZIMOP = ENABLE_ZIMOP
+		self.ENABLE_ZIHINT = ENABLE_ZIHINT
+		self.ENABLE_ZIHPM = ENABLE_ZIHPM
+		self.ENABLE_ZAWRS = ENABLE_ZAWRS
+		self.ENABLE_ZABHA = ENABLE_ZABHA
+		self.ENABLE_ZACAS = ENABLE_ZACAS
+		self.ENABLE_ZBKB = ENABLE_ZBKB
+		self.ENABLE_ZBKC = ENABLE_ZBKC
+		self.ENABLE_ZBKX = ENABLE_ZBKX
+		self.ENABLE_ZKN = ENABLE_ZKN
+		self.ENABLE_ZFINX = ENABLE_ZFINX
 		self.ENABLE_IRQ_FAST_CONTEXT_SWITCHING = ENABLE_IRQ_FAST_CONTEXT_SWITCHING
 		self.ENABLE_IRQ_QREGS = ENABLE_IRQ_QREGS
 		self.ENABLE_IRQ_TIMER = ENABLE_IRQ_TIMER
@@ -1014,7 +1059,35 @@ class ChipGenerator():
 			t.AddRow(['#define CORE_ENABLE_COMPRESSED'])
 		if self.ENABLE_BITMANIP:
 			t.AddRow(['#define CORE_ENABLE_BITMANIP'])
-		
+		# X0 scaffolded ISA extensions (default off; the ext-probe .S tests
+		# dispatch on these CORE_ENABLE_Z* defines — Z-extensions have no misa bit).
+		if self.ENABLE_ZICOND:
+			t.AddRow(['#define CORE_ENABLE_ZICOND'])
+		if self.ENABLE_ZCB:
+			t.AddRow(['#define CORE_ENABLE_ZCB'])
+		if self.ENABLE_ZIMOP:
+			t.AddRow(['#define CORE_ENABLE_ZIMOP'])
+		if self.ENABLE_ZIHINT:
+			t.AddRow(['#define CORE_ENABLE_ZIHINT'])
+		if self.ENABLE_ZIHPM:
+			t.AddRow(['#define CORE_ENABLE_ZIHPM'])
+		if self.ENABLE_ZAWRS:
+			t.AddRow(['#define CORE_ENABLE_ZAWRS'])
+		if self.ENABLE_ZABHA:
+			t.AddRow(['#define CORE_ENABLE_ZABHA'])
+		if self.ENABLE_ZACAS:
+			t.AddRow(['#define CORE_ENABLE_ZACAS'])
+		if self.ENABLE_ZBKB:
+			t.AddRow(['#define CORE_ENABLE_ZBKB'])
+		if self.ENABLE_ZBKC:
+			t.AddRow(['#define CORE_ENABLE_ZBKC'])
+		if self.ENABLE_ZBKX:
+			t.AddRow(['#define CORE_ENABLE_ZBKX'])
+		if self.ENABLE_ZKN:
+			t.AddRow(['#define CORE_ENABLE_ZKN'])
+		if self.ENABLE_ZFINX:
+			t.AddRow(['#define CORE_ENABLE_ZFINX'])
+
 		t.AddBlankLines(3)
 		
 		s += t.ToString()
@@ -2174,6 +2247,20 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_ENABLE_ATOMICS', ': boolean := ' + str(bool(self.ENABLE_ATOMICS)).lower() + ';', '-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_COMPRESSED', ': boolean := ' + str(bool(self.COMPRESSED_ISA)).lower() + ';', '-- C: 16-bit instructions'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_BITMANIP', ': boolean := ' + str(bool(self.ENABLE_BITMANIP)).lower() + ';', '-- Zba/Zbb/Zbs/Zbc'], prefixTabs=1)
+		# X0 scaffolded ISA extensions (default false; decode/logic added X1-X4)
+		t.AddRow(['constant CORE_ENABLE_ZICOND', ': boolean := ' + str(bool(self.ENABLE_ZICOND)).lower() + ';', '-- X1: Zicond czero.eqz/nez'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZCB', ': boolean := ' + str(bool(self.ENABLE_ZCB)).lower() + ';', '-- X1: Zcb extra compressed insns'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZIMOP', ': boolean := ' + str(bool(self.ENABLE_ZIMOP)).lower() + ';', '-- X1: Zimop+Zcmop may-be-ops'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZIHINT', ': boolean := ' + str(bool(self.ENABLE_ZIHINT)).lower() + ';', '-- X1: Zihintpause+Zihintntl'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZIHPM', ': boolean := ' + str(bool(self.ENABLE_ZIHPM)).lower() + ';', '-- X1: Zihpm hw perf counters'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZAWRS', ': boolean := ' + str(bool(self.ENABLE_ZAWRS)).lower() + ';', '-- X1: Zawrs wait-on-reservation'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZABHA', ': boolean := ' + str(bool(self.ENABLE_ZABHA)).lower() + ';', '-- X2: Zabha byte/half AMOs'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZACAS', ': boolean := ' + str(bool(self.ENABLE_ZACAS)).lower() + ';', '-- X2: Zacas amocas.w'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZBKB', ': boolean := ' + str(bool(self.ENABLE_ZBKB)).lower() + ';', '-- X3: Zbkb crypto bit-manip'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZBKC', ': boolean := ' + str(bool(self.ENABLE_ZBKC)).lower() + ';', '-- X3: Zbkc carryless multiply'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZBKX', ': boolean := ' + str(bool(self.ENABLE_ZBKX)).lower() + ';', '-- X3: Zbkx crossbar permute'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZKN', ': boolean := ' + str(bool(self.ENABLE_ZKN)).lower() + ';', '-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZFINX', ': boolean := ' + str(bool(self.ENABLE_ZFINX)).lower() + ';', '-- X4: Zfinx single-prec FP in x-regs'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names
@@ -2515,6 +2602,20 @@ class ChipGenerator():
 		chip['ENABLE_DIV'] = self.ENABLE_DIV
 		chip['ENABLE_ATOMICS'] = self.ENABLE_ATOMICS
 		chip['ENABLE_BITMANIP'] = self.ENABLE_BITMANIP
+		# X0 scaffolded ISA extensions
+		chip['ENABLE_ZICOND'] = self.ENABLE_ZICOND
+		chip['ENABLE_ZCB'] = self.ENABLE_ZCB
+		chip['ENABLE_ZIMOP'] = self.ENABLE_ZIMOP
+		chip['ENABLE_ZIHINT'] = self.ENABLE_ZIHINT
+		chip['ENABLE_ZIHPM'] = self.ENABLE_ZIHPM
+		chip['ENABLE_ZAWRS'] = self.ENABLE_ZAWRS
+		chip['ENABLE_ZABHA'] = self.ENABLE_ZABHA
+		chip['ENABLE_ZACAS'] = self.ENABLE_ZACAS
+		chip['ENABLE_ZBKB'] = self.ENABLE_ZBKB
+		chip['ENABLE_ZBKC'] = self.ENABLE_ZBKC
+		chip['ENABLE_ZBKX'] = self.ENABLE_ZBKX
+		chip['ENABLE_ZKN'] = self.ENABLE_ZKN
+		chip['ENABLE_ZFINX'] = self.ENABLE_ZFINX
 		chip['ENABLE_IRQ_QREGS'] = self.ENABLE_IRQ_QREGS
 		chip['MASKED_IRQ'] = self.MASKED_IRQ
 		chip['PROGADDR_IRQ'] = self.PROGADDR_IRQ

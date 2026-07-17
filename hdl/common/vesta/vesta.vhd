@@ -18,7 +18,24 @@ entity vesta is
         ENABLE_DIV        : boolean := true;   -- M: DIV/DIVU/REM/REMU + div unit
         ENABLE_ATOMICS    : boolean := true;   -- A: LR/SC + AMOs
         ENABLE_COMPRESSED : boolean := true;   -- C: 16-bit instructions (c_dec)
-        ENABLE_BITMANIP   : boolean := true    -- Zba/Zbb/Zbs/Zbc
+        ENABLE_BITMANIP   : boolean := true;   -- Zba/Zbb/Zbs/Zbc
+        -- X0 ISA-extension scaffolding: all default false, zero behavioral change.
+        -- Fanned out to the sub-blocks that will consume them (maindec/alu/c_dec/
+        -- csr_unit); ZAWRS/ZACAS/ZABHA/ZIHINT are consumed at THIS (FSM/sequencer)
+        -- level from their phase on. -- consumed from phase X<n> on; scaffolded X0
+        ENABLE_ZICOND     : boolean := false;  -- X1 (Zicond): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZCB        : boolean := false;  -- X1 (Zcb): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIMOP      : boolean := false;  -- X1 (Zimop/Zcmop): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIHINT     : boolean := false;  -- X1 (Zihint): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIHPM      : boolean := false;  -- X1 (Zihpm): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZAWRS      : boolean := false;  -- X1 (Zawrs): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZABHA      : boolean := false;  -- X2 (Zabha): consumed from phase X2 on; scaffolded X0
+        ENABLE_ZACAS      : boolean := false;  -- X2 (Zacas): consumed from phase X2 on; scaffolded X0
+        ENABLE_ZBKB       : boolean := false;  -- X3 (Zbkb): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZKN        : boolean := false;  -- X3 (Zkn): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZFINX      : boolean := false   -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
     );
     port (
         clk        : in  std_logic;
@@ -84,7 +101,19 @@ architecture struct of vesta is
             ENABLE_MUL      : boolean := true;
             ENABLE_DIV      : boolean := true;
             ENABLE_ATOMICS  : boolean := true;
-            ENABLE_BITMANIP : boolean := true
+            ENABLE_BITMANIP : boolean := true;
+            -- X0 scaffolding: the subset maindec will consume (default false)
+            ENABLE_ZICOND   : boolean := false;
+            ENABLE_ZIMOP    : boolean := false;
+            ENABLE_ZIHINT   : boolean := false;
+            ENABLE_ZAWRS    : boolean := false;
+            ENABLE_ZABHA    : boolean := false;
+            ENABLE_ZACAS    : boolean := false;
+            ENABLE_ZBKB     : boolean := false;
+            ENABLE_ZBKC     : boolean := false;
+            ENABLE_ZBKX     : boolean := false;
+            ENABLE_ZKN      : boolean := false;
+            ENABLE_ZFINX    : boolean := false
         );
         port (
             resetn           : in  std_logic;
@@ -129,7 +158,14 @@ architecture struct of vesta is
             ENABLE_MUL      : boolean := true;
             ENABLE_DIV      : boolean := true;
             ENABLE_ATOMICS  : boolean := true;
-            ENABLE_BITMANIP : boolean := true
+            ENABLE_BITMANIP : boolean := true;
+            -- X0 scaffolding: the subset alu will consume (default false)
+            ENABLE_ZICOND   : boolean := false;
+            ENABLE_ZBKB     : boolean := false;
+            ENABLE_ZBKC     : boolean := false;
+            ENABLE_ZBKX     : boolean := false;
+            ENABLE_ZKN      : boolean := false;
+            ENABLE_ZFINX    : boolean := false
         );
         port (
             clk          : in  std_logic;
@@ -190,6 +226,11 @@ architecture struct of vesta is
     end component;
 
     component c_dec
+        generic (
+            -- X0 scaffolding: Zcb expansions + Zcmop (c.mop), default false
+            ENABLE_ZCB   : boolean := false;
+            ENABLE_ZIMOP : boolean := false
+        );
         port (
             resetn        : in  std_logic;
             instr_in      : in  std_logic_vector(31 downto 0);
@@ -204,7 +245,10 @@ architecture struct of vesta is
             ENABLE_DIV        : boolean := true;
             ENABLE_ATOMICS    : boolean := true;
             ENABLE_COMPRESSED : boolean := true;
-            ENABLE_BITMANIP   : boolean := true
+            ENABLE_BITMANIP   : boolean := true;
+            -- X0 scaffolding: hpm counters + Zfinx fcsr, default false
+            ENABLE_ZIHPM      : boolean := false;
+            ENABLE_ZFINX      : boolean := false
         );
         port (
             clk            : in  std_logic;
@@ -1194,7 +1238,18 @@ architecture struct of vesta is
             ENABLE_MUL      => ENABLE_MUL,
             ENABLE_DIV      => ENABLE_DIV,
             ENABLE_ATOMICS  => ENABLE_ATOMICS,
-            ENABLE_BITMANIP => ENABLE_BITMANIP
+            ENABLE_BITMANIP => ENABLE_BITMANIP,
+            ENABLE_ZICOND   => ENABLE_ZICOND,
+            ENABLE_ZIMOP    => ENABLE_ZIMOP,
+            ENABLE_ZIHINT   => ENABLE_ZIHINT,
+            ENABLE_ZAWRS    => ENABLE_ZAWRS,
+            ENABLE_ZABHA    => ENABLE_ZABHA,
+            ENABLE_ZACAS    => ENABLE_ZACAS,
+            ENABLE_ZBKB     => ENABLE_ZBKB,
+            ENABLE_ZBKC     => ENABLE_ZBKC,
+            ENABLE_ZBKX     => ENABLE_ZBKX,
+            ENABLE_ZKN      => ENABLE_ZKN,
+            ENABLE_ZFINX    => ENABLE_ZFINX
         )
         port map (
             resetn           => resetn,
@@ -1256,7 +1311,13 @@ architecture struct of vesta is
             ENABLE_MUL      => ENABLE_MUL,
             ENABLE_DIV      => ENABLE_DIV,
             ENABLE_ATOMICS  => ENABLE_ATOMICS,
-            ENABLE_BITMANIP => ENABLE_BITMANIP
+            ENABLE_BITMANIP => ENABLE_BITMANIP,
+            ENABLE_ZICOND   => ENABLE_ZICOND,
+            ENABLE_ZBKB     => ENABLE_ZBKB,
+            ENABLE_ZBKC     => ENABLE_ZBKC,
+            ENABLE_ZBKX     => ENABLE_ZBKX,
+            ENABLE_ZKN      => ENABLE_ZKN,
+            ENABLE_ZFINX    => ENABLE_ZFINX
         )
         port map (
             clk         => clk_cpu,
@@ -1320,6 +1381,10 @@ architecture struct of vesta is
     -- halfword-aligned fetch case before it gets this far).
     gen_cdec: if ENABLE_COMPRESSED generate
         c_dec_inst: c_dec
+            generic map (
+                ENABLE_ZCB   => ENABLE_ZCB,
+                ENABLE_ZIMOP => ENABLE_ZIMOP
+            )
             port map (
                 resetn        => resetn,
                 instr_in      => instr_to_decomp,
@@ -1342,7 +1407,9 @@ architecture struct of vesta is
             ENABLE_DIV        => ENABLE_DIV,
             ENABLE_ATOMICS    => ENABLE_ATOMICS,
             ENABLE_COMPRESSED => ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => ENABLE_BITMANIP
+            ENABLE_BITMANIP   => ENABLE_BITMANIP,
+            ENABLE_ZIHPM      => ENABLE_ZIHPM,
+            ENABLE_ZFINX      => ENABLE_ZFINX
         )
         port map (
             clk            => clk,

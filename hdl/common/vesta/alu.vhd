@@ -11,7 +11,15 @@ entity alu is
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_ATOMICS  : boolean := true;
-        ENABLE_BITMANIP : boolean := true
+        ENABLE_BITMANIP : boolean := true;
+        -- X0 ISA-extension scaffolding (default false; the arithmetic/crypto
+        -- op cases are added by the named phase -- these arrive unused for now).
+        ENABLE_ZICOND   : boolean := false;  -- X1 (Zicond): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZBKB     : boolean := false;  -- X3 (Zbkb): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZBKC     : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZBKX     : boolean := false;  -- X3 (Zbkx): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZKN      : boolean := false;  -- X3 (Zkn): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZFINX    : boolean := false   -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
     );
     port (
         resetn      : in  std_logic;

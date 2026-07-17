@@ -13,7 +13,20 @@
     "compressed": true,
     "bitmanip": true,
     "counters": false,
-    "counters64": false
+    "counters64": false,
+    "zicond": false,
+    "zcb": false,
+    "zimop": false,
+    "zihint": false,
+    "zihpm": false,
+    "zawrs": false,
+    "zabha": false,
+    "zacas": false,
+    "zbkb": false,
+    "zbkc": false,
+    "zbkx": false,
+    "zkn": false,
+    "zfinx": false
   },
   "memory": {
     "romSize": 16384,

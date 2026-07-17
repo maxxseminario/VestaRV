@@ -8,7 +8,19 @@ entity controller is
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_ATOMICS  : boolean := true;
-        ENABLE_BITMANIP : boolean := true
+        ENABLE_BITMANIP : boolean := true;
+        -- X0 scaffolding: passed straight through to maindec (default false)
+        ENABLE_ZICOND   : boolean := false;
+        ENABLE_ZIMOP    : boolean := false;
+        ENABLE_ZIHINT   : boolean := false;
+        ENABLE_ZAWRS    : boolean := false;
+        ENABLE_ZABHA    : boolean := false;
+        ENABLE_ZACAS    : boolean := false;
+        ENABLE_ZBKB     : boolean := false;
+        ENABLE_ZBKC     : boolean := false;
+        ENABLE_ZBKX     : boolean := false;
+        ENABLE_ZKN      : boolean := false;
+        ENABLE_ZFINX    : boolean := false
     );
     port(
         -- ==========================================
@@ -85,7 +97,19 @@ architecture struct of controller is
             ENABLE_MUL      : boolean := true;
             ENABLE_DIV      : boolean := true;
             ENABLE_ATOMICS  : boolean := true;
-            ENABLE_BITMANIP : boolean := true
+            ENABLE_BITMANIP : boolean := true;
+            -- X0 scaffolding (default false)
+            ENABLE_ZICOND   : boolean := false;
+            ENABLE_ZIMOP    : boolean := false;
+            ENABLE_ZIHINT   : boolean := false;
+            ENABLE_ZAWRS    : boolean := false;
+            ENABLE_ZABHA    : boolean := false;
+            ENABLE_ZACAS    : boolean := false;
+            ENABLE_ZBKB     : boolean := false;
+            ENABLE_ZBKC     : boolean := false;
+            ENABLE_ZBKX     : boolean := false;
+            ENABLE_ZKN      : boolean := false;
+            ENABLE_ZFINX    : boolean := false
         );
         port(
             resetn           : in  std_logic;
@@ -155,7 +179,18 @@ begin
             ENABLE_MUL      => ENABLE_MUL,
             ENABLE_DIV      => ENABLE_DIV,
             ENABLE_ATOMICS  => ENABLE_ATOMICS,
-            ENABLE_BITMANIP => ENABLE_BITMANIP
+            ENABLE_BITMANIP => ENABLE_BITMANIP,
+            ENABLE_ZICOND   => ENABLE_ZICOND,
+            ENABLE_ZIMOP    => ENABLE_ZIMOP,
+            ENABLE_ZIHINT   => ENABLE_ZIHINT,
+            ENABLE_ZAWRS    => ENABLE_ZAWRS,
+            ENABLE_ZABHA    => ENABLE_ZABHA,
+            ENABLE_ZACAS    => ENABLE_ZACAS,
+            ENABLE_ZBKB     => ENABLE_ZBKB,
+            ENABLE_ZBKC     => ENABLE_ZBKC,
+            ENABLE_ZBKX     => ENABLE_ZBKX,
+            ENABLE_ZKN      => ENABLE_ZKN,
+            ENABLE_ZFINX    => ENABLE_ZFINX
         )
         port map(
             resetn           => resetn,

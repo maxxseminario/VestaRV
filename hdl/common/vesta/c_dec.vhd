@@ -3,7 +3,13 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity c_dec is
-    port ( 
+    generic (
+        -- X0 ISA-extension scaffolding (default false; the new quadrant
+        -- expansions are added by the named phase -- unused here for now).
+        ENABLE_ZCB   : boolean := false;  -- X1 (Zcb): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIMOP : boolean := false   -- X1 (Zcmop c.mop): consumed from phase X1 on; scaffolded X0
+    );
+    port (
         resetn        : in  std_logic;
         instr_in      : in  std_logic_vector(31 downto 0);  -- Instruction word fetched from memory
         instr_out     : out std_logic_vector(31 downto 0);  -- 32-bit decompressed or original instruction

@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/08 at 02:41:26 with the generate.py chip generator
+-- Generated on 2026/07/16 at 23:08:41 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -68,20 +68,19 @@ architecture behav of MCU is
     -- harts 1-3 (hdl/common/hart_tile.vhd), and the four tile instances are
     -- STRUCTURALLY IDENTICAL (one netlist -> one hardened tile in M14).
     -- Every per-instance difference is wiring only: hart_id (mhartid port),
-    -- hart 0's flash/XIP + sleep hookup to SPI0, the IRQ enable/priority
-    -- source (SYSTEM0 on hart 0, irq_router row + hardwired CLINT slots on
-    -- tiles) and the TCM PGEN (BLOCKPWR on hart 0). The vesta and adddec
-    -- component declarations went with the inline hart-0 machinery.
+    -- hart 0's flash/XIP + sleep hookup to SPI0 and the TCM PGEN (BLOCKPWR
+    -- on hart 0). M19: the IRQ interface is IDENTICAL on every hart —
+    -- msip/mtip from the CLINT + one meip wire from the irq_router's
+    -- claim/complete stage (SYSTEM0's vectored path is retired). The vesta
+    -- and adddec component declarations went with the inline hart-0
+    -- machinery.
 
     ----------------------------------- Peripherals --------------------------------------------------
 
     -- SYSTEMx
     component SYSTEM
-        generic (
-            NUM_IRQS    : natural := 32
-        );
         port (
-            -- Clock Inputs 
+            -- Clock Inputs
             clk_lfxt_in     : in  std_logic;
             clk_hfxt_in     : in  std_logic;
             clk_dco0_in     : in  std_logic;
@@ -92,13 +91,11 @@ architecture behav of MCU is
             resetn_por      : in  std_logic;
             resetn_sys      : out std_logic;
 
-            -- Interrupt Signals
-            irq             : in  std_logic_vector(NUM_IRQS -1 downto 0); 
-            isr_ret         : in  std_logic;
-            irq_en          : out std_logic_vector(NUM_IRQS -1 downto 0);
-            irq_priority    : out std_logic_vector(NUM_IRQS -1 downto 0);
-            irq_recursion_en: out std_logic;
+            -- Interrupt Signals (M19: WDT only — the vectored controller is
+            -- retired; routing/delivery live in the irq_router)
             irq_sys_wdt     : out std_logic;
+            wdt_irq_routed   : in  std_logic := '0';
+            wdt_irq_complete : in  std_logic := '0';
 
             -- Memory Bus
             clk_mem         : in  std_logic;
@@ -135,7 +132,8 @@ architecture behav of MCU is
             RstValPxOUT     : std_logic_vector(31 downto 0) := (others => '0');
             RstValPxDIR     : std_logic_vector(31 downto 0) := (others => '0');
             RstValPxSEL		: std_logic_vector(31 downto 0) := (others => '0');
-            RstValPxREN     : std_logic_vector(31 downto 0) := (others => '0')
+            RstValPxREN     : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxAFS     : std_logic_vector(31 downto 0) := (others => '0')
         );
         port (
             resetn           : in  std_logic;
@@ -156,10 +154,14 @@ architecture behav of MCU is
             PxOUT_out		: out	std_logic_vector(num_pins - 1 downto 0);
             PxDIR_out		: out	std_logic_vector(num_pins - 1 downto 0);
             PxREN_out		: out	std_logic_vector(num_pins - 1 downto 0);
+            PxSEL_out		: out	std_logic_vector(num_pins - 1 downto 0);
+            PxAFS_out		: out	std_logic_vector(3 * num_pins - 1 downto 0);
 
-            alt_func_out_in		: in	slv(num_pins - 1 downto 0);	
-            alt_func_dir_in		: in	slv(num_pins - 1 downto 0);	
-            alt_func_ren_in		: in	slv(num_pins - 1 downto 0)	
+            -- GPIO_NUM_AFS flattened alternate-function planes: plane k, pin i
+            -- at bit (k * num_pins + i). Plane 0 = the legacy AF0 functions.
+            alt_func_out_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
+            alt_func_dir_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0);
+            alt_func_ren_in		: in	slv(GPIO_NUM_AFS * num_pins - 1 downto 0)
         );
     end component;
 
@@ -400,14 +402,13 @@ architecture behav of MCU is
     -- MCU Block Level Signal Declarations --------------------------------------
 
         -- System Signals 
-        signal resetn           : std_logic; 
+        signal resetn           : std_logic;
         signal resetn_por       : std_logic;
-        signal resetn_sys       : std_logic; 
-        signal irq_en           : std_logic_vector(NUM_IRQS-1 downto 0);
-        signal irq_priority     : std_logic_vector(NUM_IRQS-1 downto 0);
-        signal isr_ret          : std_logic; -- Interrupt Service Routine Return Signal
-        signal irq_recursion_en : std_logic; -- Allow Interrupt Recursion
-        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs 
+        signal resetn_sys       : std_logic;
+        -- M19: SYSTEM0's vectored IRQ fabric (irq_en/irq_priority/isr_ret/
+        -- irq_recursion_en) is RETIRED — delivery is the irq_router's
+        -- per-hart meip wires (claim/complete), declared at meip-decl below.
+        signal irq_tielow       : std_logic; -- Tielo cell for unused glitch filter inputs
         signal sleep_cpu        : std_logic;
         signal PGENROM          : std_logic; -- Active low power rom power gating
         signal PGENSRAM         : std_logic; -- Active low power ram power gating
@@ -478,9 +479,8 @@ architecture behav of MCU is
         signal irq_i2c1_sxc    : std_logic;  -- I2C1 Slave Transfer Complete Interrupt
 
         signal irq_comb         : std_logic_vector(95 downto 0);
-        signal irq_deglitch     : std_logic_vector(NUM_IRQS -1 downto 0);
+        signal irq_deglitch     : std_logic_vector(NUM_IRQ_SRCS -1 downto 0);
         signal gf_out           : std_logic_vector(95 downto 0);
-        -- signal irq_cat          : std_logic_vector(95 downto NUM_IRQS);
 
 
         -- M13: the RISCV core interface signals (read_data/write_word/
@@ -587,7 +587,52 @@ architecture behav of MCU is
         signal shslv_irtr_en    : std_logic;
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
-        signal tile_irq_en_flat : std_logic_vector(4*NUM_IRQS-1 downto 0);
+        signal meip             : std_logic_vector(3 downto 0);
+        signal wdt_irq_routed   : std_logic;   -- irq_router: source 0 enabled in some row
+        signal wdt_irq_complete : std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)
+        -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
+        -- window slot 11 @0x4B00 (vacated by SARADC0). Its pd_* rows drive
+        -- the tile power domains: pd_rstn folds into each tile's resetn
+        -- (cold-gate: the reset IS what functional sims observe), pd_sleep/
+        -- pd_iso_en go to the tiles' CPF-hook ports (HEAD switch SLEEP
+        -- chain + A2ISO clamp enable in the physical flow). Hart 0 has no
+        -- row: always-on by construction.
+        signal shslv_pwr_sel    : std_logic;
+        signal shslv_pwr_en     : std_logic;
+        signal shslv_rd_pwr     : std_logic := '0'; -- registered: last access was pwr_ctrl
+        signal pwr_rdata        : std_logic_vector(31 downto 0);
+        signal pd_iso_en        : std_logic_vector(3 downto 1);
+        signal pd_sleep         : std_logic_vector(3 downto 1);
+        signal pd_rstn          : std_logic_vector(3 downto 1);
+        signal tile_rstn        : std_logic_vector(3 downto 1);
+        -- M17 isolation: the tile outputs land on these _raw nets and are
+        -- AND-clamped LOW onto the arbiter/observation buses by pd_iso_en —
+        -- the EXPLICIT always-on-side isolation cells (electrically the
+        -- same structure as the pmk A2ISO: an AND on AO power with the
+        -- possibly-floating tile pin on one input). Clamp-low == the
+        -- boundary registers' reset values, so a clamped master looks
+        -- exactly like a reset one to the arbiter (no M5a-class hazard).
+        signal tile1_req_raw    : std_logic;
+        signal tile2_req_raw    : std_logic;
+        signal tile3_req_raw    : std_logic;
+        signal tile1_we_raw     : std_logic_vector(3 downto 0);
+        signal tile2_we_raw     : std_logic_vector(3 downto 0);
+        signal tile3_we_raw     : std_logic_vector(3 downto 0);
+        signal tile1_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
+        signal tile2_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
+        signal tile3_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
+        signal tile1_wdata_raw  : std_logic_vector(31 downto 0);
+        signal tile2_wdata_raw  : std_logic_vector(31 downto 0);
+        signal tile3_wdata_raw  : std_logic_vector(31 downto 0);
+        signal tile1_lrsc_raw   : std_logic_vector(1 downto 0);
+        signal tile2_lrsc_raw   : std_logic_vector(1 downto 0);
+        signal tile3_lrsc_raw   : std_logic_vector(1 downto 0);
+        signal tile1_lock_raw   : std_logic;
+        signal tile2_lock_raw   : std_logic;
+        signal tile3_lock_raw   : std_logic;
+        signal a0_1_raw         : std_logic_vector(31 downto 0);
+        signal a0_2_raw         : std_logic_vector(31 downto 0);
+        signal a0_3_raw         : std_logic_vector(31 downto 0);
         -- M7b movers: TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)
         signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
         signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
@@ -677,6 +722,33 @@ architecture behav of MCU is
         signal shslv_mtx_sel,   shslv_mtx_en    : std_logic;
         signal shslv_rd_mtx     : std_logic := '0';
         signal mtx_rdata        : std_logic_vector(31 downto 0);
+
+        -- CQ2a: AFE digital register stubs (four 64 B sub-slots of page-0 slot
+        -- 12 @0x4C00/40/80/C0) + the shared EIS engine stub (carved from the
+        -- IRQ-router page top quarter @0x7C00-0x7FFF). Each is an afe_stub
+        -- with an s_master ownership gate; the EIS block is hart-0-only.
+        -- Reads are REGISTERED (no bridge). See afe_stub.vhd.
+        signal shslv_afe_sel    : std_logic;   -- page-0 slot 12 (0x4C00) hit
+        signal shslv_afe0_sel,  shslv_afe0_en  : std_logic;
+        signal shslv_afe1_sel,  shslv_afe1_en  : std_logic;
+        signal shslv_afe2_sel,  shslv_afe2_en  : std_logic;
+        signal shslv_afe3_sel,  shslv_afe3_en  : std_logic;
+        signal shslv_eis_sel,   shslv_eis_en   : std_logic;
+        signal shslv_rd_afe0    : std_logic := '0';
+        signal shslv_rd_afe1    : std_logic := '0';
+        signal shslv_rd_afe2    : std_logic := '0';
+        signal shslv_rd_afe3    : std_logic := '0';
+        signal shslv_rd_eis     : std_logic := '0';
+        signal afe0_rdata       : std_logic_vector(31 downto 0);
+        signal afe1_rdata       : std_logic_vector(31 downto 0);
+        signal afe2_rdata       : std_logic_vector(31 downto 0);
+        signal afe3_rdata       : std_logic_vector(31 downto 0);
+        signal eis_rdata        : std_logic_vector(31 downto 0);
+        -- CQ2a: level IRQ from each stub's IF word. NOT yet routed to the
+        -- irq_router (the frozen 85-source map has only 2 reserved slots for 5
+        -- needed sources — see the CQ2a report); aggregated here for a clean
+        -- future hookup and observability.
+        signal afe_eis_irq      : std_logic_vector(4 downto 0);
         signal sh_master        : std_logic_vector(1 downto 0);
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
@@ -713,13 +785,108 @@ architecture behav of MCU is
         signal DCO1_BIAS        : std_logic_vector(11 downto 0);
         signal reset_dco       : std_logic; --special reset for DCO to ensure proper startup
 
+    -- Multi-AF plumbing (shared by all four ports) ---------------------------------------
+        -- Each GPIO port takes GPIO_NUM_AFS flattened alternate-function
+        -- planes (plane k, pin i at bit k*8+i). The per-plane afuncN_* /
+        -- afuncN_afK_* vectors below are concatenated into afuncN_all_*.
+        -- An unassigned plane slice behaves as a high-impedance input:
+        -- out='0', dir='0' (input), ren='0' (pull disabled) — pre-polarity.
+        constant afunc_none				: std_logic_vector(7 downto 0) := (others => '0');
+
+    -- Multi-AF output-function spread planes (v1): shared timer/UART/SPI
+    -- outputs fanned across all four ports. Dormant at reset (PxAFS=0).
+        -- GPIO0 (port 1) planes AF1-AF7
+        signal afunc1_af1_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af1_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af1_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc1_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO1 (port 2) planes AF2-AF7
+        signal afunc2_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc2_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO2 (port 3) planes AF2-AF7
+        signal afunc3_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc3_af7_ren		: std_logic_vector(7 downto 0);
+        -- GPIO3 (port 4) planes AF2-AF7
+        signal afunc4_af2_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af2_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af2_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af3_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af4_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af5_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af6_ren		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_out		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_dir		: std_logic_vector(7 downto 0);
+        signal afunc4_af7_ren		: std_logic_vector(7 downto 0);
+
+
     -- GPIO0 Signals (Port 1) ------------------------------------------------------------
         signal p1_out					: std_logic_vector(7 downto 0);
         signal p1_dir					: std_logic_vector(7 downto 0);
         signal p1_ren					: std_logic_vector(7 downto 0);
-        signal afunc1_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc1_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc1_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc1_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- GPIO0 deliberately has no AF1+ functions (flash/clock/boot straps)
+        signal afunc1_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc1_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc1_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
 
         -- -- P1.0: cs_flash (output only)
         signal cs_flash_in              : std_logic;
@@ -780,9 +947,17 @@ architecture behav of MCU is
         signal p2_out					: std_logic_vector(7 downto 0);
         signal p2_dir					: std_logic_vector(7 downto 0);
         signal p2_ren					: std_logic_vector(7 downto 0);
-        signal afunc2_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc2_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc2_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc2_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- AF1 plane: TIMER compare (PWM) relocations on P2.0-3, I2C0 on P2.6/7
+        signal afunc2_af1_out			: std_logic_vector(7 downto 0);
+        signal afunc2_af1_dir			: std_logic_vector(7 downto 0);
+        signal afunc2_af1_ren			: std_logic_vector(7 downto 0);
+        signal afunc2_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc2_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc2_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal p2_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
         -- P2.0: cs1 
         signal cs1_in                : std_logic;
@@ -839,9 +1014,17 @@ architecture behav of MCU is
         signal p3_out					: std_logic_vector(7 downto 0);
         signal p3_dir					: std_logic_vector(7 downto 0);
         signal p3_ren					: std_logic_vector(7 downto 0);
-        signal afunc3_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc3_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc3_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc3_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- AF1 plane: UART1 on P3.0/1, I2C1 on P3.2/3, UART0 on P3.4/5
+        signal afunc3_af1_out			: std_logic_vector(7 downto 0);
+        signal afunc3_af1_dir			: std_logic_vector(7 downto 0);
+        signal afunc3_af1_ren			: std_logic_vector(7 downto 0);
+        signal afunc3_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc3_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc3_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal p3_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
         -- P3.0: T0_CMP0 (output)
         signal t0_cmp0_out           : std_logic;
@@ -899,9 +1082,17 @@ architecture behav of MCU is
         signal p4_out					: std_logic_vector(7 downto 0);
         signal p4_dir					: std_logic_vector(7 downto 0);
         signal p4_ren					: std_logic_vector(7 downto 0);
-        signal afunc4_out				: std_logic_vector(7 downto 0); -- Alternate Function Output
+        signal afunc4_out				: std_logic_vector(7 downto 0); -- Alternate Function Output (plane 0 = AF0)
         signal afunc4_dir				: std_logic_vector(7 downto 0); -- Alternate Function Direction
         signal afunc4_ren				: std_logic_vector(7 downto 0); -- Alternate Function Resistor Enable
+        -- AF1 plane: TIMER capture relocations on P4.0-3, TIMER compares on P4.4-7
+        signal afunc4_af1_out			: std_logic_vector(7 downto 0);
+        signal afunc4_af1_dir			: std_logic_vector(7 downto 0);
+        signal afunc4_af1_ren			: std_logic_vector(7 downto 0);
+        signal afunc4_all_out			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc4_all_dir			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc4_all_ren			: std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal p4_afs					: std_logic_vector(23 downto 0);	-- exported AF select (3 bits per pin), routes relocated inputs
 
         -- P4.0: SDA0 (input and output)
         signal sda0_in               : std_logic;
@@ -1019,25 +1210,271 @@ begin
 
         );
 
+        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the
+        -- boot/flash/clock port keeps exactly one alternate function per pin.
+        -- GPIO0 AF output-function spread: aggregates + 8-plane flatten
+        afunc1_af1_out <= (
+            7 => mosi1_out,
+            6 => sck1_out,
+            5 => t1_cmp1_out,
+            4 => t1_cmp0_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => tx1_out,
+            0 => tx0_out
+        );
+        afunc1_af1_dir <= (
+            7 => mosi1_dir,
+            6 => sck1_dir,
+            5 => t1_cmp1_dir,
+            4 => t1_cmp0_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => tx1_dir,
+            0 => tx0_dir
+        );
+        afunc1_af1_ren <= (
+            7 => mosi1_ren,
+            6 => sck1_ren,
+            5 => t1_cmp1_ren,
+            4 => t1_cmp0_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => tx1_ren,
+            0 => tx0_ren
+        );
+        afunc1_af2_out <= (
+            7 => tx0_out,
+            6 => mosi1_out,
+            5 => sck1_out,
+            4 => t1_cmp1_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => t0_cmp0_out,
+            0 => tx1_out
+        );
+        afunc1_af2_dir <= (
+            7 => tx0_dir,
+            6 => mosi1_dir,
+            5 => sck1_dir,
+            4 => t1_cmp1_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => t0_cmp0_dir,
+            0 => tx1_dir
+        );
+        afunc1_af2_ren <= (
+            7 => tx0_ren,
+            6 => mosi1_ren,
+            5 => sck1_ren,
+            4 => t1_cmp1_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => t0_cmp0_ren,
+            0 => tx1_ren
+        );
+        afunc1_af3_out <= (
+            7 => tx1_out,
+            6 => tx0_out,
+            5 => mosi1_out,
+            4 => sck1_out,
+            3 => t1_cmp1_out,
+            2 => t1_cmp0_out,
+            1 => t0_cmp1_out,
+            0 => t0_cmp0_out
+        );
+        afunc1_af3_dir <= (
+            7 => tx1_dir,
+            6 => tx0_dir,
+            5 => mosi1_dir,
+            4 => sck1_dir,
+            3 => t1_cmp1_dir,
+            2 => t1_cmp0_dir,
+            1 => t0_cmp1_dir,
+            0 => t0_cmp0_dir
+        );
+        afunc1_af3_ren <= (
+            7 => tx1_ren,
+            6 => tx0_ren,
+            5 => mosi1_ren,
+            4 => sck1_ren,
+            3 => t1_cmp1_ren,
+            2 => t1_cmp0_ren,
+            1 => t0_cmp1_ren,
+            0 => t0_cmp0_ren
+        );
+        afunc1_af4_out <= (
+            7 => t0_cmp0_out,
+            6 => tx1_out,
+            5 => tx0_out,
+            4 => mosi1_out,
+            3 => sck1_out,
+            2 => t1_cmp1_out,
+            1 => t1_cmp0_out,
+            0 => t0_cmp1_out
+        );
+        afunc1_af4_dir <= (
+            7 => t0_cmp0_dir,
+            6 => tx1_dir,
+            5 => tx0_dir,
+            4 => mosi1_dir,
+            3 => sck1_dir,
+            2 => t1_cmp1_dir,
+            1 => t1_cmp0_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc1_af4_ren <= (
+            7 => t0_cmp0_ren,
+            6 => tx1_ren,
+            5 => tx0_ren,
+            4 => mosi1_ren,
+            3 => sck1_ren,
+            2 => t1_cmp1_ren,
+            1 => t1_cmp0_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc1_af5_out <= (
+            7 => t0_cmp1_out,
+            6 => t0_cmp0_out,
+            5 => tx1_out,
+            4 => tx0_out,
+            3 => mosi1_out,
+            2 => sck1_out,
+            1 => t1_cmp1_out,
+            0 => t1_cmp0_out
+        );
+        afunc1_af5_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t0_cmp0_dir,
+            5 => tx1_dir,
+            4 => tx0_dir,
+            3 => mosi1_dir,
+            2 => sck1_dir,
+            1 => t1_cmp1_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc1_af5_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t0_cmp0_ren,
+            5 => tx1_ren,
+            4 => tx0_ren,
+            3 => mosi1_ren,
+            2 => sck1_ren,
+            1 => t1_cmp1_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc1_af6_out <= (
+            7 => t1_cmp0_out,
+            6 => t0_cmp1_out,
+            5 => t0_cmp0_out,
+            4 => tx1_out,
+            3 => tx0_out,
+            2 => mosi1_out,
+            1 => sck1_out,
+            0 => t1_cmp1_out
+        );
+        afunc1_af6_dir <= (
+            7 => t1_cmp0_dir,
+            6 => t0_cmp1_dir,
+            5 => t0_cmp0_dir,
+            4 => tx1_dir,
+            3 => tx0_dir,
+            2 => mosi1_dir,
+            1 => sck1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc1_af6_ren <= (
+            7 => t1_cmp0_ren,
+            6 => t0_cmp1_ren,
+            5 => t0_cmp0_ren,
+            4 => tx1_ren,
+            3 => tx0_ren,
+            2 => mosi1_ren,
+            1 => sck1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc1_af7_out <= (
+            7 => t1_cmp1_out,
+            6 => t1_cmp0_out,
+            5 => t0_cmp1_out,
+            4 => t0_cmp0_out,
+            3 => tx1_out,
+            2 => tx0_out,
+            1 => mosi1_out,
+            0 => sck1_out
+        );
+        afunc1_af7_dir <= (
+            7 => t1_cmp1_dir,
+            6 => t1_cmp0_dir,
+            5 => t0_cmp1_dir,
+            4 => t0_cmp0_dir,
+            3 => tx1_dir,
+            2 => tx0_dir,
+            1 => mosi1_dir,
+            0 => sck1_dir
+        );
+        afunc1_af7_ren <= (
+            7 => t1_cmp1_ren,
+            6 => t1_cmp0_ren,
+            5 => t0_cmp1_ren,
+            4 => t0_cmp0_ren,
+            3 => tx1_ren,
+            2 => tx0_ren,
+            1 => mosi1_ren,
+            0 => sck1_ren
+        );
+        afunc1_all_out <= afunc1_af7_out & afunc1_af6_out & afunc1_af5_out & afunc1_af4_out & afunc1_af3_out & afunc1_af2_out & afunc1_af1_out & afunc1_out;
+        afunc1_all_dir <= afunc1_af7_dir & afunc1_af6_dir & afunc1_af5_dir & afunc1_af4_dir & afunc1_af3_dir & afunc1_af2_dir & afunc1_af1_dir & afunc1_dir;
+        afunc1_all_ren <= afunc1_af7_ren & afunc1_af6_ren & afunc1_af5_ren & afunc1_af4_ren & afunc1_af3_ren & afunc1_af2_ren & afunc1_af1_ren & afunc1_ren;
+
     -- GPIO1 Connections (SPI1, UART0, UART1) ---------------------------------------
         cs1_in   <= prt2_in(pnum_gpio1_cs1);
-        miso1_in <= prt2_in(pnum_gpio1_miso1);
+        -- MISO1 relocates to P4.6 (AF7, v2 spread slot — literal index, no pnum;
+        -- completes a full SPI1 on P4.4/5/6 at AF7); home pad is the default
+        miso1_in <= prt4_in(6)
+                    when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
+                    else prt2_in(pnum_gpio1_miso1);
         mosi1_in <= prt2_in(pnum_gpio1_mosi1);
         sck1_in  <= prt2_in(pnum_gpio1_sck1);
         sck1_ren_in <= p2_ren(pnum_gpio1_sck1);
         mosi1_ren_in <= p2_ren(pnum_gpio1_mosi1);
-        miso1_ren_in <= p2_ren(pnum_gpio1_miso1);
+        miso1_ren_in <= p4_ren(6)
+                        when p4_afs((3 * 6) + 2 downto 3 * 6) = "111"
+                        else p2_ren(pnum_gpio1_miso1);
         -- cs1_ren_in <= p2_ren(pnum_gpio1_cs1);
 
         -- GPIO1 Connections (UART0)
-        tx0_ren_in <= p2_ren(pnum_gpio1_tx0);
-        rx0_ren_in <= p2_ren(pnum_gpio1_rx0);
-        rx0_in <= prt2_in(pnum_gpio1_rx0);
+        -- Multi-AF input routing: a relocated function reads its alternate pad
+        -- when that pin's PxAFS field selects the function's plane (keyed on
+        -- PxAFS only — peripheral inputs stay always-visible, like the direct
+        -- taps they replace); otherwise it reads its home pad. The peripheral
+        -- ren_in (user pull preference) follows the same selection. RX0's v2
+        -- pad is P4.5 at AF2 (a spread io slot — literal index, no pnum; pairs
+        -- with TX0 on P4.4 AF2); fixed priority: v2 pad > AF1 pad > home.
+        tx0_ren_in <= p3_ren(pnum_gpio2_af1_tx0)
+                      when p3_afs((3 * pnum_gpio2_af1_tx0) + 2 downto 3 * pnum_gpio2_af1_tx0) = "001"
+                      else p2_ren(pnum_gpio1_tx0);
+        rx0_ren_in <= p4_ren(5)
+                      when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                      else p3_ren(pnum_gpio2_af1_rx0)
+                      when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
+                      else p2_ren(pnum_gpio1_rx0);
+        rx0_in <= prt4_in(5)
+                  when p4_afs((3 * 5) + 2 downto 3 * 5) = "010"
+                  else prt3_in(pnum_gpio2_af1_rx0)
+                  when p3_afs((3 * pnum_gpio2_af1_rx0) + 2 downto 3 * pnum_gpio2_af1_rx0) = "001"
+                  else prt2_in(pnum_gpio1_rx0);
 
         -- GPIO1 Connections (UART1)
-        tx1_ren_in <= p2_ren(pnum_gpio1_tx1);
-        rx1_ren_in <= p2_ren(pnum_gpio1_rx1);
-        rx1_in <= prt2_in(pnum_gpio1_rx1);
+        tx1_ren_in <= p3_ren(pnum_gpio2_af1_tx1)
+                      when p3_afs((3 * pnum_gpio2_af1_tx1) + 2 downto 3 * pnum_gpio2_af1_tx1) = "001"
+                      else p2_ren(pnum_gpio1_tx1);
+        rx1_ren_in <= p3_ren(pnum_gpio2_af1_rx1)
+                      when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"
+                      else p2_ren(pnum_gpio1_rx1);
+        rx1_in <= prt3_in(pnum_gpio2_af1_rx1)
+                  when p3_afs((3 * pnum_gpio2_af1_rx1) + 2 downto 3 * pnum_gpio2_af1_rx1) = "001"
+                  else prt2_in(pnum_gpio1_rx1);
 
 
         afunc2_out <= (
@@ -1071,20 +1508,277 @@ begin
             0 => p2_ren(0)
         );
 
+        -- AF1 plane: TIMER0/1 compare (PWM) outputs on P2.0-3 (the SPI1 pins),
+        -- I2C1 relocation on P2.4/5 (v2), I2C0 relocation on P2.6/7 (the UART1 pins)
+        -- — both I2C buses land on this port at AF1.
+        afunc2_af1_out <= (
+            pnum_gpio1_af1_scl0 => scl0_out,        -- GPIO1 pin 7
+            pnum_gpio1_af1_sda0 => sda0_out,        -- GPIO1 pin 6
+            pnum_gpio1_af1_scl1 => scl1_out,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_out,        -- GPIO1 pin 4
+            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO1 pin 3
+            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO1 pin 2
+            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO1 pin 1
+            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_out   -- GPIO1 pin 0
+        );
+        afunc2_af1_dir <= (
+            pnum_gpio1_af1_scl0 => scl0_dir,        -- GPIO1 pin 7
+            pnum_gpio1_af1_sda0 => sda0_dir,        -- GPIO1 pin 6
+            pnum_gpio1_af1_scl1 => scl1_dir,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_dir,        -- GPIO1 pin 4
+            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO1 pin 3
+            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO1 pin 2
+            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO1 pin 1
+            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_dir   -- GPIO1 pin 0
+        );
+        afunc2_af1_ren <= (
+            pnum_gpio1_af1_scl0 => scl0_ren,        -- GPIO1 pin 7
+            pnum_gpio1_af1_sda0 => sda0_ren,        -- GPIO1 pin 6
+            pnum_gpio1_af1_scl1 => scl1_ren,        -- GPIO1 pin 5
+            pnum_gpio1_af1_sda1 => sda1_ren,        -- GPIO1 pin 4
+            pnum_gpio1_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO1 pin 3
+            pnum_gpio1_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO1 pin 2
+            pnum_gpio1_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO1 pin 1
+            pnum_gpio1_af1_t0_cmp0 => t0_cmp0_ren   -- GPIO1 pin 0
+        );
+
+        -- Flattened AF planes (7 downto 2 unassigned)
+        -- GPIO1 AF output-function spread: aggregates + 8-plane flatten
+        afunc2_af2_out <= (
+            7 => mosi1_out,
+            6 => tx0_out,
+            5 => t1_cmp1_out,
+            4 => sck1_out,
+            3 => mosi1_out,
+            2 => t1_cmp1_out,
+            1 => t0_cmp0_out,
+            0 => tx1_out
+        );
+        afunc2_af2_dir <= (
+            7 => mosi1_dir,
+            6 => tx0_dir,
+            5 => t1_cmp1_dir,
+            4 => sck1_dir,
+            3 => mosi1_dir,
+            2 => t1_cmp1_dir,
+            1 => t0_cmp0_dir,
+            0 => tx1_dir
+        );
+        afunc2_af2_ren <= (
+            7 => mosi1_ren,
+            6 => tx0_ren,
+            5 => t1_cmp1_ren,
+            4 => sck1_ren,
+            3 => mosi1_ren,
+            2 => t1_cmp1_ren,
+            1 => t0_cmp0_ren,
+            0 => tx1_ren
+        );
+        afunc2_af3_out <= (
+            7 => tx0_out,
+            6 => t0_cmp0_out,
+            5 => sck1_out,
+            4 => mosi1_out,
+            3 => tx0_out,
+            2 => sck1_out,
+            1 => t1_cmp0_out,
+            0 => t0_cmp1_out
+        );
+        afunc2_af3_dir <= (
+            7 => tx0_dir,
+            6 => t0_cmp0_dir,
+            5 => sck1_dir,
+            4 => mosi1_dir,
+            3 => tx0_dir,
+            2 => sck1_dir,
+            1 => t1_cmp0_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc2_af3_ren <= (
+            7 => tx0_ren,
+            6 => t0_cmp0_ren,
+            5 => sck1_ren,
+            4 => mosi1_ren,
+            3 => tx0_ren,
+            2 => sck1_ren,
+            1 => t1_cmp0_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc2_af4_out <= (
+            7 => tx1_out,
+            6 => t0_cmp1_out,
+            5 => mosi1_out,
+            4 => tx1_out,
+            3 => tx1_out,
+            2 => tx0_out,
+            1 => t1_cmp1_out,
+            0 => t1_cmp0_out
+        );
+        afunc2_af4_dir <= (
+            7 => tx1_dir,
+            6 => t0_cmp1_dir,
+            5 => mosi1_dir,
+            4 => tx1_dir,
+            3 => tx1_dir,
+            2 => tx0_dir,
+            1 => t1_cmp1_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc2_af4_ren <= (
+            7 => tx1_ren,
+            6 => t0_cmp1_ren,
+            5 => mosi1_ren,
+            4 => tx1_ren,
+            3 => tx1_ren,
+            2 => tx0_ren,
+            1 => t1_cmp1_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc2_af5_out <= (
+            7 => t0_cmp0_out,
+            6 => t1_cmp0_out,
+            5 => tx0_out,
+            4 => t0_cmp0_out,
+            3 => t0_cmp0_out,
+            2 => tx1_out,
+            1 => sck1_out,
+            0 => t1_cmp1_out
+        );
+        afunc2_af5_dir <= (
+            7 => t0_cmp0_dir,
+            6 => t1_cmp0_dir,
+            5 => tx0_dir,
+            4 => t0_cmp0_dir,
+            3 => t0_cmp0_dir,
+            2 => tx1_dir,
+            1 => sck1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc2_af5_ren <= (
+            7 => t0_cmp0_ren,
+            6 => t1_cmp0_ren,
+            5 => tx0_ren,
+            4 => t0_cmp0_ren,
+            3 => t0_cmp0_ren,
+            2 => tx1_ren,
+            1 => sck1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc2_af6_out <= (
+            7 => t0_cmp1_out,
+            6 => t1_cmp1_out,
+            5 => tx1_out,
+            4 => t0_cmp1_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => mosi1_out,
+            0 => sck1_out
+        );
+        afunc2_af6_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t1_cmp1_dir,
+            5 => tx1_dir,
+            4 => t0_cmp1_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => mosi1_dir,
+            0 => sck1_dir
+        );
+        afunc2_af6_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t1_cmp1_ren,
+            5 => tx1_ren,
+            4 => t0_cmp1_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => mosi1_ren,
+            0 => sck1_ren
+        );
+        afunc2_af7_out <= (
+            7 => t1_cmp0_out,
+            6 => sck1_out,
+            5 => t0_cmp0_out,
+            4 => t1_cmp0_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => tx0_out,
+            0 => mosi1_out
+        );
+        afunc2_af7_dir <= (
+            7 => t1_cmp0_dir,
+            6 => sck1_dir,
+            5 => t0_cmp0_dir,
+            4 => t1_cmp0_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => tx0_dir,
+            0 => mosi1_dir
+        );
+        afunc2_af7_ren <= (
+            7 => t1_cmp0_ren,
+            6 => sck1_ren,
+            5 => t0_cmp0_ren,
+            4 => t1_cmp0_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => tx0_ren,
+            0 => mosi1_ren
+        );
+        afunc2_all_out <= afunc2_af7_out & afunc2_af6_out & afunc2_af5_out & afunc2_af4_out & afunc2_af3_out & afunc2_af2_out & afunc2_af1_out & afunc2_out;
+        afunc2_all_dir <= afunc2_af7_dir & afunc2_af6_dir & afunc2_af5_dir & afunc2_af4_dir & afunc2_af3_dir & afunc2_af2_dir & afunc2_af1_dir & afunc2_dir;
+        afunc2_all_ren <= afunc2_af7_ren & afunc2_af6_ren & afunc2_af5_ren & afunc2_af4_ren & afunc2_af3_ren & afunc2_af2_ren & afunc2_af1_ren & afunc2_ren;
+
     -- GPIO2 Connections (TIMER0, TIMER1) -------------------------------------------------
-        t0_cmp0_ren_in  <= p3_ren(pnum_gpio2_t0_cmp0);
-        t0_cmp1_ren_in  <= p3_ren(pnum_gpio2_t0_cmp1);
-        t0_cap0_in      <= prt3_in(pnum_gpio2_t0_cap0);
-        t0_cap1_in      <= prt3_in(pnum_gpio2_t0_cap1);
-        t1_cmp0_ren_in  <= p3_ren(pnum_gpio2_t1_cmp0);
-        t1_cmp1_ren_in  <= p3_ren(pnum_gpio2_t1_cmp1);
-        t1_cap0_in      <= prt3_in(pnum_gpio2_t1_cap0);
-        t1_cap1_in      <= prt3_in(pnum_gpio2_t1_cap1);
-        t0_cap0_ren_in  <= p3_ren(pnum_gpio2_t0_cap0);
-        t1_cap0_ren_in  <= p3_ren(pnum_gpio2_t1_cap0);
-        t0_cap1_ren_in  <= p3_ren(pnum_gpio2_t0_cap1);
-        t1_cap1_ren_in  <= p3_ren(pnum_gpio2_t1_cap1);
-        
+        -- Compare (PWM) outputs are available at three locations (home P3.0/1/4/5,
+        -- AF1 on P2.0-3, AF1 on P4.4-7): the peripheral ren_in follows the
+        -- selection with fixed priority P2 > P4 > home.
+        t0_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp0)
+                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp0) + 2 downto 3 * pnum_gpio1_af1_t0_cmp0) = "001"
+                           else p4_ren(pnum_gpio3_af1_t0_cmp0)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp0) + 2 downto 3 * pnum_gpio3_af1_t0_cmp0) = "001"
+                           else p3_ren(pnum_gpio2_t0_cmp0);
+        t0_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t0_cmp1)
+                           when p2_afs((3 * pnum_gpio1_af1_t0_cmp1) + 2 downto 3 * pnum_gpio1_af1_t0_cmp1) = "001"
+                           else p4_ren(pnum_gpio3_af1_t0_cmp1)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cmp1) + 2 downto 3 * pnum_gpio3_af1_t0_cmp1) = "001"
+                           else p3_ren(pnum_gpio2_t0_cmp1);
+        t1_cmp0_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp0)
+                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp0) + 2 downto 3 * pnum_gpio1_af1_t1_cmp0) = "001"
+                           else p4_ren(pnum_gpio3_af1_t1_cmp0)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp0) + 2 downto 3 * pnum_gpio3_af1_t1_cmp0) = "001"
+                           else p3_ren(pnum_gpio2_t1_cmp0);
+        t1_cmp1_ren_in  <= p2_ren(pnum_gpio1_af1_t1_cmp1)
+                           when p2_afs((3 * pnum_gpio1_af1_t1_cmp1) + 2 downto 3 * pnum_gpio1_af1_t1_cmp1) = "001"
+                           else p4_ren(pnum_gpio3_af1_t1_cmp1)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cmp1) + 2 downto 3 * pnum_gpio3_af1_t1_cmp1) = "001"
+                           else p3_ren(pnum_gpio2_t1_cmp1);
+
+        -- Capture inputs relocate to P4.0-3 (AF1); home pads stay the default
+        t0_cap0_in      <= prt4_in(pnum_gpio3_af1_t0_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"
+                           else prt3_in(pnum_gpio2_t0_cap0);
+        t0_cap1_in      <= prt4_in(pnum_gpio3_af1_t0_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"
+                           else prt3_in(pnum_gpio2_t0_cap1);
+        t1_cap0_in      <= prt4_in(pnum_gpio3_af1_t1_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"
+                           else prt3_in(pnum_gpio2_t1_cap0);
+        t1_cap1_in      <= prt4_in(pnum_gpio3_af1_t1_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"
+                           else prt3_in(pnum_gpio2_t1_cap1);
+        t0_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap0) + 2 downto 3 * pnum_gpio3_af1_t0_cap0) = "001"
+                           else p3_ren(pnum_gpio2_t0_cap0);
+        t1_cap0_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap0)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap0) + 2 downto 3 * pnum_gpio3_af1_t1_cap0) = "001"
+                           else p3_ren(pnum_gpio2_t1_cap0);
+        t0_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t0_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t0_cap1) + 2 downto 3 * pnum_gpio3_af1_t0_cap1) = "001"
+                           else p3_ren(pnum_gpio2_t0_cap1);
+        t1_cap1_ren_in  <= p4_ren(pnum_gpio3_af1_t1_cap1)
+                           when p4_afs((3 * pnum_gpio3_af1_t1_cap1) + 2 downto 3 * pnum_gpio3_af1_t1_cap1) = "001"
+                           else p3_ren(pnum_gpio2_t1_cap1);
+
 
         afunc3_out <= (
             pnum_gpio2_t1_cap1 => t1_cap1_out,                  -- GPIO2 pin 7
@@ -1117,21 +1811,275 @@ begin
             pnum_gpio2_t0_cmp0 => t0_cmp0_ren  -- GPIO2 pin 0
         );
 
+        -- AF1 plane: UART1 relocation on P3.0/1, I2C1 relocation on P3.2/3,
+        -- UART0 relocation on P3.4/5, I2C0 relocation on P3.6/7 (v2) — the
+        -- full serial-relocation row (both UARTs + both I2C buses).
+        afunc3_af1_out <= (
+            pnum_gpio2_af1_scl0 => scl0_out,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_out,    -- GPIO2 pin 6
+            pnum_gpio2_af1_rx0  => rx0_out,     -- GPIO2 pin 5
+            pnum_gpio2_af1_tx0  => tx0_out,     -- GPIO2 pin 4
+            pnum_gpio2_af1_scl1 => scl1_out,    -- GPIO2 pin 3
+            pnum_gpio2_af1_sda1 => sda1_out,    -- GPIO2 pin 2
+            pnum_gpio2_af1_rx1  => rx1_out,     -- GPIO2 pin 1
+            pnum_gpio2_af1_tx1  => tx1_out      -- GPIO2 pin 0
+        );
+        afunc3_af1_dir <= (
+            pnum_gpio2_af1_scl0 => scl0_dir,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_dir,    -- GPIO2 pin 6
+            pnum_gpio2_af1_rx0  => rx0_dir,     -- GPIO2 pin 5
+            pnum_gpio2_af1_tx0  => tx0_dir,     -- GPIO2 pin 4
+            pnum_gpio2_af1_scl1 => scl1_dir,    -- GPIO2 pin 3
+            pnum_gpio2_af1_sda1 => sda1_dir,    -- GPIO2 pin 2
+            pnum_gpio2_af1_rx1  => rx1_dir,     -- GPIO2 pin 1
+            pnum_gpio2_af1_tx1  => tx1_dir      -- GPIO2 pin 0
+        );
+        afunc3_af1_ren <= (
+            pnum_gpio2_af1_scl0 => scl0_ren,    -- GPIO2 pin 7
+            pnum_gpio2_af1_sda0 => sda0_ren,    -- GPIO2 pin 6
+            pnum_gpio2_af1_rx0  => rx0_ren,     -- GPIO2 pin 5
+            pnum_gpio2_af1_tx0  => tx0_ren,     -- GPIO2 pin 4
+            pnum_gpio2_af1_scl1 => scl1_ren,    -- GPIO2 pin 3
+            pnum_gpio2_af1_sda1 => sda1_ren,    -- GPIO2 pin 2
+            pnum_gpio2_af1_rx1  => rx1_ren,     -- GPIO2 pin 1
+            pnum_gpio2_af1_tx1  => tx1_ren      -- GPIO2 pin 0
+        );
+
+        -- Flattened AF planes (7 downto 2 unassigned)
+        -- GPIO2 AF output-function spread: aggregates + 8-plane flatten
+        afunc3_af2_out <= (
+            7 => mosi1_out,
+            6 => sck1_out,
+            5 => tx0_out,
+            4 => t0_cmp1_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => t1_cmp0_out,
+            0 => sck1_out
+        );
+        afunc3_af2_dir <= (
+            7 => mosi1_dir,
+            6 => sck1_dir,
+            5 => tx0_dir,
+            4 => t0_cmp1_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => t1_cmp0_dir,
+            0 => sck1_dir
+        );
+        afunc3_af2_ren <= (
+            7 => mosi1_ren,
+            6 => sck1_ren,
+            5 => tx0_ren,
+            4 => t0_cmp1_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => t1_cmp0_ren,
+            0 => sck1_ren
+        );
+        afunc3_af3_out <= (
+            7 => tx0_out,
+            6 => mosi1_out,
+            5 => tx1_out,
+            4 => t1_cmp1_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => t1_cmp1_out,
+            0 => mosi1_out
+        );
+        afunc3_af3_dir <= (
+            7 => tx0_dir,
+            6 => mosi1_dir,
+            5 => tx1_dir,
+            4 => t1_cmp1_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => t1_cmp1_dir,
+            0 => mosi1_dir
+        );
+        afunc3_af3_ren <= (
+            7 => tx0_ren,
+            6 => mosi1_ren,
+            5 => tx1_ren,
+            4 => t1_cmp1_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => t1_cmp1_ren,
+            0 => mosi1_ren
+        );
+        afunc3_af4_out <= (
+            7 => tx1_out,
+            6 => tx0_out,
+            5 => t0_cmp0_out,
+            4 => sck1_out,
+            3 => t1_cmp1_out,
+            2 => t1_cmp0_out,
+            1 => sck1_out,
+            0 => tx0_out
+        );
+        afunc3_af4_dir <= (
+            7 => tx1_dir,
+            6 => tx0_dir,
+            5 => t0_cmp0_dir,
+            4 => sck1_dir,
+            3 => t1_cmp1_dir,
+            2 => t1_cmp0_dir,
+            1 => sck1_dir,
+            0 => tx0_dir
+        );
+        afunc3_af4_ren <= (
+            7 => tx1_ren,
+            6 => tx0_ren,
+            5 => t0_cmp0_ren,
+            4 => sck1_ren,
+            3 => t1_cmp1_ren,
+            2 => t1_cmp0_ren,
+            1 => sck1_ren,
+            0 => tx0_ren
+        );
+        afunc3_af5_out <= (
+            7 => t0_cmp0_out,
+            6 => tx1_out,
+            5 => t0_cmp1_out,
+            4 => mosi1_out,
+            3 => sck1_out,
+            2 => t1_cmp1_out,
+            1 => mosi1_out,
+            0 => t0_cmp1_out
+        );
+        afunc3_af5_dir <= (
+            7 => t0_cmp0_dir,
+            6 => tx1_dir,
+            5 => t0_cmp1_dir,
+            4 => mosi1_dir,
+            3 => sck1_dir,
+            2 => t1_cmp1_dir,
+            1 => mosi1_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc3_af5_ren <= (
+            7 => t0_cmp0_ren,
+            6 => tx1_ren,
+            5 => t0_cmp1_ren,
+            4 => mosi1_ren,
+            3 => sck1_ren,
+            2 => t1_cmp1_ren,
+            1 => mosi1_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc3_af6_out <= (
+            7 => t0_cmp1_out,
+            6 => t0_cmp0_out,
+            5 => t1_cmp0_out,
+            4 => tx1_out,
+            3 => mosi1_out,
+            2 => sck1_out,
+            1 => tx0_out,
+            0 => t1_cmp0_out
+        );
+        afunc3_af6_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t0_cmp0_dir,
+            5 => t1_cmp0_dir,
+            4 => tx1_dir,
+            3 => mosi1_dir,
+            2 => sck1_dir,
+            1 => tx0_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc3_af6_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t0_cmp0_ren,
+            5 => t1_cmp0_ren,
+            4 => tx1_ren,
+            3 => mosi1_ren,
+            2 => sck1_ren,
+            1 => tx0_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc3_af7_out <= (
+            7 => t1_cmp0_out,
+            6 => t0_cmp1_out,
+            5 => sck1_out,
+            4 => t0_cmp0_out,
+            3 => tx0_out,
+            2 => mosi1_out,
+            1 => tx1_out,
+            0 => t1_cmp1_out
+        );
+        afunc3_af7_dir <= (
+            7 => t1_cmp0_dir,
+            6 => t0_cmp1_dir,
+            5 => sck1_dir,
+            4 => t0_cmp0_dir,
+            3 => tx0_dir,
+            2 => mosi1_dir,
+            1 => tx1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc3_af7_ren <= (
+            7 => t1_cmp0_ren,
+            6 => t0_cmp1_ren,
+            5 => sck1_ren,
+            4 => t0_cmp0_ren,
+            3 => tx0_ren,
+            2 => mosi1_ren,
+            1 => tx1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc3_all_out <= afunc3_af7_out & afunc3_af6_out & afunc3_af5_out & afunc3_af4_out & afunc3_af3_out & afunc3_af2_out & afunc3_af1_out & afunc3_out;
+        afunc3_all_dir <= afunc3_af7_dir & afunc3_af6_dir & afunc3_af5_dir & afunc3_af4_dir & afunc3_af3_dir & afunc3_af2_dir & afunc3_af1_dir & afunc3_dir;
+        afunc3_all_ren <= afunc3_af7_ren & afunc3_af6_ren & afunc3_af5_ren & afunc3_af4_ren & afunc3_af3_ren & afunc3_af2_ren & afunc3_af1_ren & afunc3_ren;
+
 
 
     -- GPIO3 Connections (I2C0, I2C1, DTP) ------------------------------------------------------------
 
-        -- Resistor Enables
-        sda0_ren_in <= p4_ren(pnum_gpio3_sda0);
-        scl0_ren_in <= p4_ren(pnum_gpio3_scl0);
-        sda1_ren_in <= p4_ren(pnum_gpio3_sda1);
-        scl1_ren_in <= p4_ren(pnum_gpio3_scl1);
+        -- Resistor Enables (I2C0 relocates to P2.6/7 or P3.6/7 (v2), I2C1 to
+        -- P3.2/3 or P2.4/5 (v2) — the peripheral ren_in follows the same AF
+        -- selection as the inputs below, fixed priority: v2 pad > AF1 pad > home)
+        sda0_ren_in <= p3_ren(pnum_gpio2_af1_sda0)
+                       when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
+                       else p2_ren(pnum_gpio1_af1_sda0)
+                       when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
+                       else p4_ren(pnum_gpio3_sda0);
+        scl0_ren_in <= p3_ren(pnum_gpio2_af1_scl0)
+                       when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"
+                       else p2_ren(pnum_gpio1_af1_scl0)
+                       when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
+                       else p4_ren(pnum_gpio3_scl0);
+        sda1_ren_in <= p2_ren(pnum_gpio1_af1_sda1)
+                       when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"
+                       else p3_ren(pnum_gpio2_af1_sda1)
+                       when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
+                       else p4_ren(pnum_gpio3_sda1);
+        scl1_ren_in <= p2_ren(pnum_gpio1_af1_scl1)
+                       when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"
+                       else p3_ren(pnum_gpio2_af1_scl1)
+                       when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
+                       else p4_ren(pnum_gpio3_scl1);
 
-        -- Inputs
-        sda0_in <= prt4_in(pnum_gpio3_sda0);
-        scl0_in <= prt4_in(pnum_gpio3_scl0);
-        sda1_in <= prt4_in(pnum_gpio3_sda1);
-        scl1_in <= prt4_in(pnum_gpio3_scl1);
+        -- Inputs (relocated pad wins, home pad is the default)
+        sda0_in <= prt3_in(pnum_gpio2_af1_sda0)
+                   when p3_afs((3 * pnum_gpio2_af1_sda0) + 2 downto 3 * pnum_gpio2_af1_sda0) = "001"
+                   else prt2_in(pnum_gpio1_af1_sda0)
+                   when p2_afs((3 * pnum_gpio1_af1_sda0) + 2 downto 3 * pnum_gpio1_af1_sda0) = "001"
+                   else prt4_in(pnum_gpio3_sda0);
+        scl0_in <= prt3_in(pnum_gpio2_af1_scl0)
+                   when p3_afs((3 * pnum_gpio2_af1_scl0) + 2 downto 3 * pnum_gpio2_af1_scl0) = "001"
+                   else prt2_in(pnum_gpio1_af1_scl0)
+                   when p2_afs((3 * pnum_gpio1_af1_scl0) + 2 downto 3 * pnum_gpio1_af1_scl0) = "001"
+                   else prt4_in(pnum_gpio3_scl0);
+        sda1_in <= prt2_in(pnum_gpio1_af1_sda1)
+                   when p2_afs((3 * pnum_gpio1_af1_sda1) + 2 downto 3 * pnum_gpio1_af1_sda1) = "001"
+                   else prt3_in(pnum_gpio2_af1_sda1)
+                   when p3_afs((3 * pnum_gpio2_af1_sda1) + 2 downto 3 * pnum_gpio2_af1_sda1) = "001"
+                   else prt4_in(pnum_gpio3_sda1);
+        scl1_in <= prt2_in(pnum_gpio1_af1_scl1)
+                   when p2_afs((3 * pnum_gpio1_af1_scl1) + 2 downto 3 * pnum_gpio1_af1_scl1) = "001"
+                   else prt3_in(pnum_gpio2_af1_scl1)
+                   when p3_afs((3 * pnum_gpio2_af1_scl1) + 2 downto 3 * pnum_gpio2_af1_scl1) = "001"
+                   else prt4_in(pnum_gpio3_scl1);
 
         afunc4_out <= (
             pnum_gpio3_dtp3     => dtp3_out,  -- GPIO3 pin 7
@@ -1163,6 +2111,226 @@ begin
             pnum_gpio3_scl0 => scl0_ren,      -- GPIO3 pin 1
             pnum_gpio3_sda0 => sda0_ren       -- GPIO3 pin 0
         );
+
+        -- AF1 plane: TIMER0/1 capture inputs relocate to P4.0-3 (the I2C pins),
+        -- TIMER0/1 compare (PWM) outputs relocate to P4.4-7 (the dead DTP pins).
+        -- Captures are inputs: out slice '0', dir/ren from the timer.
+        afunc4_af1_out <= (
+            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_out,  -- GPIO3 pin 7
+            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_out,  -- GPIO3 pin 6
+            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_out,  -- GPIO3 pin 5
+            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_out,  -- GPIO3 pin 4
+            pnum_gpio3_af1_t1_cap1 => '0',          -- GPIO3 pin 3
+            pnum_gpio3_af1_t1_cap0 => '0',          -- GPIO3 pin 2
+            pnum_gpio3_af1_t0_cap1 => '0',          -- GPIO3 pin 1
+            pnum_gpio3_af1_t0_cap0 => '0'           -- GPIO3 pin 0
+        );
+        afunc4_af1_dir <= (
+            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_dir,  -- GPIO3 pin 7
+            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_dir,  -- GPIO3 pin 6
+            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_dir,  -- GPIO3 pin 5
+            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_dir,  -- GPIO3 pin 4
+            pnum_gpio3_af1_t1_cap1 => t1_cap1_dir,  -- GPIO3 pin 3
+            pnum_gpio3_af1_t1_cap0 => t1_cap0_dir,  -- GPIO3 pin 2
+            pnum_gpio3_af1_t0_cap1 => t0_cap1_dir,  -- GPIO3 pin 1
+            pnum_gpio3_af1_t0_cap0 => t0_cap0_dir   -- GPIO3 pin 0
+        );
+        afunc4_af1_ren <= (
+            pnum_gpio3_af1_t1_cmp1 => t1_cmp1_ren,  -- GPIO3 pin 7
+            pnum_gpio3_af1_t1_cmp0 => t1_cmp0_ren,  -- GPIO3 pin 6
+            pnum_gpio3_af1_t0_cmp1 => t0_cmp1_ren,  -- GPIO3 pin 5
+            pnum_gpio3_af1_t0_cmp0 => t0_cmp0_ren,  -- GPIO3 pin 4
+            pnum_gpio3_af1_t1_cap1 => t1_cap1_ren,  -- GPIO3 pin 3
+            pnum_gpio3_af1_t1_cap0 => t1_cap0_ren,  -- GPIO3 pin 2
+            pnum_gpio3_af1_t0_cap1 => t0_cap1_ren,  -- GPIO3 pin 1
+            pnum_gpio3_af1_t0_cap0 => t0_cap0_ren   -- GPIO3 pin 0
+        );
+
+        -- Flattened AF planes (7 downto 2 unassigned)
+        -- GPIO3 AF output-function spread: aggregates + 8-plane flatten
+        afunc4_af2_out <= (
+            7 => t0_cmp1_out,
+            6 => t0_cmp0_out,
+            5 => rx0_out,
+            4 => tx0_out,
+            3 => t0_cmp1_out,
+            2 => t0_cmp0_out,
+            1 => tx1_out,
+            0 => tx0_out
+        );
+        afunc4_af2_dir <= (
+            7 => t0_cmp1_dir,
+            6 => t0_cmp0_dir,
+            5 => rx0_dir,
+            4 => tx0_dir,
+            3 => t0_cmp1_dir,
+            2 => t0_cmp0_dir,
+            1 => tx1_dir,
+            0 => tx0_dir
+        );
+        afunc4_af2_ren <= (
+            7 => t0_cmp1_ren,
+            6 => t0_cmp0_ren,
+            5 => rx0_ren,
+            4 => tx0_ren,
+            3 => t0_cmp1_ren,
+            2 => t0_cmp0_ren,
+            1 => tx1_ren,
+            0 => tx0_ren
+        );
+        afunc4_af3_out <= (
+            7 => t1_cmp0_out,
+            6 => t0_cmp1_out,
+            5 => t0_cmp0_out,
+            4 => tx1_out,
+            3 => t1_cmp0_out,
+            2 => t0_cmp1_out,
+            1 => t0_cmp0_out,
+            0 => tx1_out
+        );
+        afunc4_af3_dir <= (
+            7 => t1_cmp0_dir,
+            6 => t0_cmp1_dir,
+            5 => t0_cmp0_dir,
+            4 => tx1_dir,
+            3 => t1_cmp0_dir,
+            2 => t0_cmp1_dir,
+            1 => t0_cmp0_dir,
+            0 => tx1_dir
+        );
+        afunc4_af3_ren <= (
+            7 => t1_cmp0_ren,
+            6 => t0_cmp1_ren,
+            5 => t0_cmp0_ren,
+            4 => tx1_ren,
+            3 => t1_cmp0_ren,
+            2 => t0_cmp1_ren,
+            1 => t0_cmp0_ren,
+            0 => tx1_ren
+        );
+        afunc4_af4_out <= (
+            7 => sck1_out,
+            6 => t1_cmp1_out,
+            5 => t1_cmp0_out,
+            4 => t0_cmp1_out,
+            3 => t1_cmp1_out,
+            2 => t1_cmp0_out,
+            1 => t0_cmp1_out,
+            0 => t0_cmp0_out
+        );
+        afunc4_af4_dir <= (
+            7 => sck1_dir,
+            6 => t1_cmp1_dir,
+            5 => t1_cmp0_dir,
+            4 => t0_cmp1_dir,
+            3 => t1_cmp1_dir,
+            2 => t1_cmp0_dir,
+            1 => t0_cmp1_dir,
+            0 => t0_cmp0_dir
+        );
+        afunc4_af4_ren <= (
+            7 => sck1_ren,
+            6 => t1_cmp1_ren,
+            5 => t1_cmp0_ren,
+            4 => t0_cmp1_ren,
+            3 => t1_cmp1_ren,
+            2 => t1_cmp0_ren,
+            1 => t0_cmp1_ren,
+            0 => t0_cmp0_ren
+        );
+        afunc4_af5_out <= (
+            7 => mosi1_out,
+            6 => sck1_out,
+            5 => t1_cmp1_out,
+            4 => t1_cmp0_out,
+            3 => sck1_out,
+            2 => t1_cmp1_out,
+            1 => t1_cmp0_out,
+            0 => t0_cmp1_out
+        );
+        afunc4_af5_dir <= (
+            7 => mosi1_dir,
+            6 => sck1_dir,
+            5 => t1_cmp1_dir,
+            4 => t1_cmp0_dir,
+            3 => sck1_dir,
+            2 => t1_cmp1_dir,
+            1 => t1_cmp0_dir,
+            0 => t0_cmp1_dir
+        );
+        afunc4_af5_ren <= (
+            7 => mosi1_ren,
+            6 => sck1_ren,
+            5 => t1_cmp1_ren,
+            4 => t1_cmp0_ren,
+            3 => sck1_ren,
+            2 => t1_cmp1_ren,
+            1 => t1_cmp0_ren,
+            0 => t0_cmp1_ren
+        );
+        afunc4_af6_out <= (
+            7 => tx0_out,
+            6 => mosi1_out,
+            5 => sck1_out,
+            4 => t1_cmp1_out,
+            3 => mosi1_out,
+            2 => sck1_out,
+            1 => t1_cmp1_out,
+            0 => t1_cmp0_out
+        );
+        afunc4_af6_dir <= (
+            7 => tx0_dir,
+            6 => mosi1_dir,
+            5 => sck1_dir,
+            4 => t1_cmp1_dir,
+            3 => mosi1_dir,
+            2 => sck1_dir,
+            1 => t1_cmp1_dir,
+            0 => t1_cmp0_dir
+        );
+        afunc4_af6_ren <= (
+            7 => tx0_ren,
+            6 => mosi1_ren,
+            5 => sck1_ren,
+            4 => t1_cmp1_ren,
+            3 => mosi1_ren,
+            2 => sck1_ren,
+            1 => t1_cmp1_ren,
+            0 => t1_cmp0_ren
+        );
+        afunc4_af7_out <= (
+            7 => tx1_out,
+            6 => miso1_out,
+            5 => mosi1_out,
+            4 => sck1_out,
+            3 => tx0_out,
+            2 => mosi1_out,
+            1 => sck1_out,
+            0 => t1_cmp1_out
+        );
+        afunc4_af7_dir <= (
+            7 => tx1_dir,
+            6 => miso1_dir,
+            5 => mosi1_dir,
+            4 => sck1_dir,
+            3 => tx0_dir,
+            2 => mosi1_dir,
+            1 => sck1_dir,
+            0 => t1_cmp1_dir
+        );
+        afunc4_af7_ren <= (
+            7 => tx1_ren,
+            6 => miso1_ren,
+            5 => mosi1_ren,
+            4 => sck1_ren,
+            3 => tx0_ren,
+            2 => mosi1_ren,
+            1 => sck1_ren,
+            0 => t1_cmp1_ren
+        );
+        afunc4_all_out <= afunc4_af7_out & afunc4_af6_out & afunc4_af5_out & afunc4_af4_out & afunc4_af3_out & afunc4_af2_out & afunc4_af1_out & afunc4_out;
+        afunc4_all_dir <= afunc4_af7_dir & afunc4_af6_dir & afunc4_af5_dir & afunc4_af4_dir & afunc4_af3_dir & afunc4_af2_dir & afunc4_af1_dir & afunc4_dir;
+        afunc4_all_ren <= afunc4_af7_ren & afunc4_af6_ren & afunc4_af5_ren & afunc4_af4_ren & afunc4_af3_ren & afunc4_af2_ren & afunc4_af1_ren & afunc4_ren;
 
 
     -- =============================================================================
@@ -1224,6 +2392,8 @@ begin
             IRQB_UART1_RC   => irq_uart1_rc,
             IRQB_UART1_TE   => irq_uart1_te,
             IRQB_UART1_TC   => irq_uart1_tc,
+            IRQB_RSVD55     => afe_eis_irq(0) or afe_eis_irq(1) or afe_eis_irq(2) or afe_eis_irq(3),
+            IRQB_RSVD56     => afe_eis_irq(4),
             IRQB_I2C0_STR   => irq_i2c0_str,
             IRQB_I2C0_spr   => irq_i2c0_spr,
             IRQB_I2C0_msts  => irq_i2c0_msts,
@@ -1250,9 +2420,9 @@ begin
             IRQB_I2C1_sovf  => irq_i2c1_sovf,
             IRQB_I2C1_snr   => irq_i2c1_snr,
             IRQB_I2C1_sxc   => irq_i2c1_sxc,
-            -- M5b: hart 0's CLINT levels (harts 1-3 get theirs via tile ports)
-            IRQB_CLINT_MSIP => clint_msip(0),
-            IRQB_CLINT_MTIP => clint_mtip(0),
+            -- M19: the CLINT slots (83/84) fall through to irq_tielow — every
+            -- hart gets its own msip/mtip on dedicated wires; the source
+            -- vector feeds ONLY the irq_router (meip claim/complete delivery)
             others          => irq_tielow
         );
 
@@ -1278,11 +2448,11 @@ begin
     -- live in hart_tile.vhd now — see the rationale there. Hart 0's
     -- remaining specials are pure WIRING on the identical tile:
     --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),
-    --   * irq_en_ext/irq_prio_ext/irq_recursion_en/isr_ret -> SYSTEM0
-    --     (hw_clint_en='0': SYS_IRQ_EN's reset-all-masked semantics kept;
-    --     tiles hardwire CLINT slots 83/84 instead and take the router row),
     --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),
     --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.
+    -- M19: the IRQ interface is IDENTICAL on every hart — msip/mtip from
+    -- the CLINT + this hart's meip row from the irq_router (SYSTEM0's
+    -- vectored path and the hw_clint_en strap are retired).
     -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency
     -- insensitivity at boundary depths 0/1/2; the boot fetch through the
     -- arbiter exercises the stall path on every run).
@@ -1297,7 +2467,20 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
@@ -1306,12 +2489,7 @@ begin
             hart_id   => x"00000000",
             msip_in   => clint_msip(0),
             mtip_in   => clint_mtip(0),
-            irq_ext    => irq_deglitch,
-            irq_en_ext => irq_en,
-            irq_prio_ext     => irq_priority,
-            irq_recursion_en => irq_recursion_en,
-            isr_ret          => isr_ret,
-            hw_clint_en      => '0',
+            meip_in   => meip(0),
             flash_mem_en  => mem_en_flash,
             flash_clk_mem => clk_mem_flash,
             flash_mab     => mab_flash,
@@ -1327,6 +2505,11 @@ begin
             sh_scfail => arb_scfail(0),
             sh_lock   => arb_lock(0),
             tcm_pgen  => pgen_mem(1),
+            tcm_retn  => '1',
+            -- M17: hart 0 is ALWAYS-ON — its domain controls are strapped
+            -- inactive (explicit, per the M14 netlist-boundary rule)
+            pd_sleep  => '0',
+            pd_iso_en => '0',
             trap_flag => trap_out,
             a0        => a0
         );
@@ -1408,7 +2591,11 @@ begin
     shslv_pg0_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else '0';
     shslv_clint_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "01" else '0';
     shslv_mtx_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" else '0';
-    shslv_irtr_sel   <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" else '0';
+    -- CQ2a: page-3 sub-decode — irq_router keeps 0x7000-0x7BFF; the shared
+    -- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10
+    -- decode is inert above word 522, so this removes only never-used aliased space).
+    shslv_irtr_sel   <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) /= "11" else '0';
+    shslv_eis_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) = "11" else '0';
     -- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering —
     -- every peripheral back at its original Myshkin address, shared by
     -- all 4 harts
@@ -1426,6 +2613,17 @@ begin
     shslv_gpio3_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "1101" else '0';
     shslv_i2c0_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "1110" else '0';
     shslv_i2c1_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "1111" else '0';
+    -- M17: the power controller is a NATIVE slave IN a page-0 slot (11,
+    -- 0x4B00 — vacated by SARADC0): slot-decoded like the peripherals
+    -- above, but it speaks the arbiter protocol directly (no shim).
+    shslv_pwr_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1011" else '0';
+    -- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B
+    -- sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.
+    shslv_afe_sel    <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else '0';
+    shslv_afe0_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "00" else '0';
+    shslv_afe1_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "01" else '0';
+    shslv_afe2_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "10" else '0';
+    shslv_afe3_sel   <= shslv_afe_sel when sh_addr(5 downto 4) = "11" else '0';
     shslv_rom_en     <= sh_en and shslv_rom_sel;
     shslv_npuram_en  <= sh_en and shslv_npuram_sel;
     shslv_bank0_en   <= sh_en and shslv_bank0_sel;
@@ -1435,6 +2633,7 @@ begin
     shslv_clint_en   <= sh_en and shslv_clint_sel;
     shslv_mtx_en     <= sh_en and shslv_mtx_sel;
     shslv_irtr_en    <= sh_en and shslv_irtr_sel;
+    shslv_pwr_en     <= sh_en and shslv_pwr_sel;
     shslv_gpio0_en   <= sh_en and shslv_gpio0_sel;
     shslv_gpio1_en   <= sh_en and shslv_gpio1_sel;
     shslv_spi0_en    <= sh_en and shslv_spi0_sel;
@@ -1449,6 +2648,11 @@ begin
     shslv_gpio3_en   <= sh_en and shslv_gpio3_sel;
     shslv_i2c0_en    <= sh_en and shslv_i2c0_sel;
     shslv_i2c1_en    <= sh_en and shslv_i2c1_sel;
+    shslv_afe0_en    <= sh_en and shslv_afe0_sel;
+    shslv_afe1_en    <= sh_en and shslv_afe1_sel;
+    shslv_afe2_en    <= sh_en and shslv_afe2_sel;
+    shslv_afe3_en    <= sh_en and shslv_afe3_sel;
+    shslv_eis_en     <= sh_en and shslv_eis_sel;
 
     shslv_rd_sel: process(mclk, resetn)
     begin
@@ -1462,6 +2666,7 @@ begin
             shslv_rd_clint   <= '0';
             shslv_rd_mtx     <= '0';
             shslv_rd_irtr    <= '0';
+            shslv_rd_pwr     <= '0';
             shslv_rd_gpio0   <= '0';
             shslv_rd_gpio1   <= '0';
             shslv_rd_spi0    <= '0';
@@ -1476,6 +2681,11 @@ begin
             shslv_rd_gpio3   <= '0';
             shslv_rd_i2c0    <= '0';
             shslv_rd_i2c1    <= '0';
+            shslv_rd_afe0    <= '0';
+            shslv_rd_afe1    <= '0';
+            shslv_rd_afe2    <= '0';
+            shslv_rd_afe3    <= '0';
+            shslv_rd_eis     <= '0';
         elsif rising_edge(mclk) then
             if sh_en = '1' then
                 shslv_rd_rom     <= shslv_rom_sel;
@@ -1487,6 +2697,7 @@ begin
                 shslv_rd_clint   <= shslv_clint_sel;
                 shslv_rd_mtx     <= shslv_mtx_sel;
                 shslv_rd_irtr    <= shslv_irtr_sel;
+                shslv_rd_pwr     <= shslv_pwr_sel;
                 shslv_rd_gpio0   <= shslv_gpio0_sel;
                 shslv_rd_gpio1   <= shslv_gpio1_sel;
                 shslv_rd_spi0    <= shslv_spi0_sel;
@@ -1501,6 +2712,11 @@ begin
                 shslv_rd_gpio3   <= shslv_gpio3_sel;
                 shslv_rd_i2c0    <= shslv_i2c0_sel;
                 shslv_rd_i2c1    <= shslv_i2c1_sel;
+                shslv_rd_afe0    <= shslv_afe0_sel;
+                shslv_rd_afe1    <= shslv_afe1_sel;
+                shslv_rd_afe2    <= shslv_afe2_sel;
+                shslv_rd_afe3    <= shslv_afe3_sel;
+                shslv_rd_eis     <= shslv_eis_sel;
             end if;
         end if;
     end process;
@@ -1539,6 +2755,7 @@ begin
                     clint_rdata    when shslv_rd_clint   = '1' else
                     mtx_rdata      when shslv_rd_mtx     = '1' else
                     irtr_rdata     when shslv_rd_irtr    = '1' else
+                    pwr_rdata      when shslv_rd_pwr     = '1' else
                     gpio0_sh_rdata when shslv_rd_gpio0   = '1' else
                     gpio1_sh_rdata when shslv_rd_gpio1   = '1' else
                     spi0_sh_rdata  when shslv_rd_spi0    = '1' else
@@ -1553,6 +2770,11 @@ begin
                     gpio3_sh_rdata when shslv_rd_gpio3   = '1' else
                     i2c0_sh_rdata  when shslv_rd_i2c0    = '1' else
                     i2c1_sh_rdata  when shslv_rd_i2c1    = '1' else
+                    afe0_rdata     when shslv_rd_afe0    = '1' else
+                    afe1_rdata     when shslv_rd_afe1    = '1' else
+                    afe2_rdata     when shslv_rd_afe2    = '1' else
+                    afe3_rdata     when shslv_rd_afe3    = '1' else
+                    eis_rdata      when shslv_rd_eis     = '1' else
                     (others => '0');  -- no slave (TCM page, unmapped)
 
     -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
@@ -1618,22 +2840,29 @@ begin
             mtip   => clint_mtip
         );
 
-    -- M7a: tile IRQ fan-out — per-hart peripheral-IRQ enable rows, written by
-    -- any hart through the arbiter (resv-gated sh_we, like the CLINT). Rows
-    -- 1-3 feed the tiles' irq_en_ext; row 0 exists for symmetry but hart 0's
-    -- enables stay with SYSTEM0 (the management monarch). Resets all-masked,
-    -- so this block is a provable NO-OP until software routes an IRQ.
+    -- M19 PLIC-lite: THE peripheral interrupt controller — per-hart routing
+    -- rows (any hart programs any row through the arbiter; resv-gated sh_we
+    -- like the CLINT) + CLAIM/COMPLETE delivery @0x7800. The deglitched
+    -- source vector TERMINATES here; delivery to harts 0-3 is the one
+    -- registered meip wire each (IVT slot 85). sh_master attributes claim
+    -- reads (the mutex-bank idiom). Resets all-masked, so this block is a
+    -- provable NO-OP until software routes an IRQ. The wdt_* hooks carry
+    -- the D2 watchdog contract into SYSTEM0 (source 0's routed/EOI state).
     irtr0: entity work.irq_router
-        generic map (NHARTS => 4, NUM_IRQS => NUM_IRQS)
+        generic map (NHARTS => 4, NUM_SRCS => NUM_IRQ_SRCS)
         port map (
-            clk        => mclk,
-            resetn     => resetn,
-            en         => shslv_irtr_en,
-            we         => sh_we,
-            addr       => sh_addr(3 downto 0),
-            wdata      => sh_wdata,
-            rdata      => irtr_rdata,
-            irq_en_out => tile_irq_en_flat
+            clk          => mclk,
+            resetn       => resetn,
+            en           => shslv_irtr_en,
+            we           => sh_we,
+            addr         => sh_addr(9 downto 0),
+            wdata        => sh_wdata,
+            rdata        => irtr_rdata,
+            master       => sh_master,
+            irq_in       => irq_deglitch,
+            meip_out     => meip,
+            wdt_routed   => wdt_irq_routed,
+            wdt_complete => wdt_irq_complete
         );
 
     -- M7c LOCKING: HW mutex bank @0x13000 (page-3 slot 0). READ = atomic
@@ -1654,6 +2883,102 @@ begin
             master => sh_master,
             rdata  => mtx_rdata
         );
+
+    -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
+    -- One gate bit per tile hart; a per-tile FSM sequences the domain
+    -- controls in the only legal order (iso -> rst -> rail off; rail on ->
+    -- settle -> un-iso -> un-rst). COLD-GATE: pd_rstn folds into the tile's
+    -- resetn below, so a wake IS an M12 cold boot (shared-ROM fetch, WFI
+    -- park, loader relaunch) — and the reset also makes the functional sims
+    -- honest, since reset values equal the A2ISO clamp-0 values on every
+    -- outbound tile signal. Resets all-ON -> provable NO-OP until software
+    -- gates a tile. Software contract: gate only parked/quiesced tiles.
+    pwr0: entity work.pwr_ctrl
+        generic map (T_SEQ => 4, T_RAIL => 256)
+        port map (
+            clk       => mclk,
+            resetn    => resetn,
+            en        => shslv_pwr_en,
+            we        => sh_we,
+            addr      => sh_addr(3 downto 0),
+            wdata     => sh_wdata,
+            rdata     => pwr_rdata,
+            pd_iso_en => pd_iso_en,
+            pd_sleep  => pd_sleep,
+            pd_rstn   => pd_rstn
+        );
+
+    -- =========================================================================
+    -- CQ2a: AFE digital register stubs + shared EIS engine stub.
+    -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots
+    -- (sub-slot = sh_addr(5:4)); each answers only for its owner hart OR hart 0
+    -- (mp_arbiter s_master gate, inside afe_stub). The EIS engine lives in the
+    -- IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode
+    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only
+    -- (OWNER_HART=0). Reads are registered; denied reads return 0, denied
+    -- writes drop — no bus error, no stall, no arbiter-contract change. Every
+    -- stub resets all-zero -> a provable NO-OP (irq low) until software writes.
+    -- =========================================================================
+    afe0: entity work.afe_stub
+        generic map (OWNER_HART => 0)   -- 0x4C00: hart 0 only
+        port map (clk => mclk, resetn => resetn, en => shslv_afe0_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe0_rdata, irq => afe_eis_irq(0));
+    afe1: entity work.afe_stub
+        generic map (OWNER_HART => 1)   -- 0x4C40: hart 1 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe1_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe1_rdata, irq => afe_eis_irq(1));
+    afe2: entity work.afe_stub
+        generic map (OWNER_HART => 2)   -- 0x4C80: hart 2 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe2_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe2_rdata, irq => afe_eis_irq(2));
+    afe3: entity work.afe_stub
+        generic map (OWNER_HART => 3)   -- 0x4CC0: hart 3 or hart 0
+        port map (clk => mclk, resetn => resetn, en => shslv_afe3_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => afe3_rdata, irq => afe_eis_irq(3));
+    eis0: entity work.afe_stub
+        generic map (OWNER_HART => 0)   -- 0x7C00: EIS engine, hart 0 only
+        port map (clk => mclk, resetn => resetn, en => shslv_eis_en,
+            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
+            master => sh_master, rdata => eis_rdata, irq => afe_eis_irq(4));
+
+    -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
+    -- which is also what keeps it bus-silent at the arbiter (sh_req is
+    -- qualified by the tile's resetn since M12).
+    tile_rstn(1) <= resetn and pd_rstn(1);
+    tile_rstn(2) <= resetn and pd_rstn(2);
+    tile_rstn(3) <= resetn and pd_rstn(3);
+
+    -- M17 isolation clamps (see the _raw signal comment): every outbound
+    -- tile signal is forced to its reset value while pd_iso_en(h) is high,
+    -- so the arbiter and the tb never sample a floating pin of a dark
+    -- domain. These gates synthesize into the ALWAYS-ON control plane.
+    arb_req(1)              <= tile1_req_raw   when pd_iso_en(1) = '0' else '0';
+    arb_we(7 downto 4)      <= tile1_we_raw    when pd_iso_en(1) = '0' else (others => '0');
+    arb_addr(2*SH_AW-1 downto SH_AW) <= tile1_addr_raw when pd_iso_en(1) = '0' else (others => '0');
+    arb_wdata(2*32-1 downto 32)      <= tile1_wdata_raw when pd_iso_en(1) = '0' else (others => '0');
+    arb_lrsc(3 downto 2)    <= tile1_lrsc_raw  when pd_iso_en(1) = '0' else "00";
+    arb_lock(1)             <= tile1_lock_raw  when pd_iso_en(1) = '0' else '0';
+    a0_1                    <= a0_1_raw        when pd_iso_en(1) = '0' else (others => '0');
+
+    arb_req(2)              <= tile2_req_raw   when pd_iso_en(2) = '0' else '0';
+    arb_we(11 downto 8)     <= tile2_we_raw    when pd_iso_en(2) = '0' else (others => '0');
+    arb_addr(3*SH_AW-1 downto 2*SH_AW) <= tile2_addr_raw when pd_iso_en(2) = '0' else (others => '0');
+    arb_wdata(3*32-1 downto 2*32)      <= tile2_wdata_raw when pd_iso_en(2) = '0' else (others => '0');
+    arb_lrsc(5 downto 4)    <= tile2_lrsc_raw  when pd_iso_en(2) = '0' else "00";
+    arb_lock(2)             <= tile2_lock_raw  when pd_iso_en(2) = '0' else '0';
+    a0_2                    <= a0_2_raw        when pd_iso_en(2) = '0' else (others => '0');
+
+    arb_req(3)              <= tile3_req_raw   when pd_iso_en(3) = '0' else '0';
+    arb_we(15 downto 12)    <= tile3_we_raw    when pd_iso_en(3) = '0' else (others => '0');
+    arb_addr(4*SH_AW-1 downto 3*SH_AW) <= tile3_addr_raw when pd_iso_en(3) = '0' else (others => '0');
+    arb_wdata(4*32-1 downto 3*32)      <= tile3_wdata_raw when pd_iso_en(3) = '0' else (others => '0');
+    arb_lrsc(7 downto 6)    <= tile3_lrsc_raw  when pd_iso_en(3) = '0' else "00";
+    arb_lock(3)             <= tile3_lock_raw  when pd_iso_en(3) = '0' else '0';
+    a0_3                    <= a0_3_raw        when pd_iso_en(3) = '0' else (others => '0');
 
     -- =========================================================================
     -- M11: shared bulk RAM = 4 x sram1p16k macros (64 KB, 0x10000-0x1FFFF),
@@ -1747,8 +3072,9 @@ begin
     -- window — its sh_* port maps straight onto that master's slice
     -- of the flattened arb_* buses. Each hart's a0 is brought out (a0_1/2/3);
     -- the tb latches pass AND fail, so a post-PASS corruption still fails
-    -- the run. M13: sleep/flash/tcm_pgen and the SYSTEM0-side IRQ ports ride
-    -- their entity defaults here — only hart 0 wires them.
+    -- the run. M13: sleep/flash/tcm_pgen ride their entity defaults here —
+    -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
+    -- identical on every hart.
     hart1: entity work.hart_tile
         generic map (
             PC_RST_VAL     => x"00000000",
@@ -1759,37 +3085,57 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
-            resetn    => resetn,
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
+            -- and pd_rstn) — a gated/waking tile is held in reset
+            resetn    => tile_rstn(1),
             sleep     => '0',
             hart_id   => x"00000001",
             msip_in   => clint_msip(1),
             mtip_in   => clint_mtip(1),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            -- M7a: deglitched peripheral levels fan out to every tile; the
-            -- tile's row of the irq_router gates them (slots 83/84 are
-            -- overridden/hardwired inside the tile)
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(2*NUM_IRQS-1 downto 1*NUM_IRQS),
-            sh_req    => arb_req(1),
-            sh_we     => arb_we(7 downto 4),
-            sh_addr   => arb_addr(2*SH_AW-1 downto SH_AW),
-            sh_wdata  => arb_wdata(2*32-1 downto 32),
+            -- M19: ONE external-IRQ wire per tile — the irq_router's
+            -- registered claim/complete output (routing/masking lives in
+            -- the router rows; the tile hardwires its three live slots)
+            meip_in   => meip(1),
+            -- M17: outbound signals land on _raw and pass the iso clamps
+            sh_req    => tile1_req_raw,
+            sh_we     => tile1_we_raw,
+            sh_addr   => tile1_addr_raw,
+            sh_wdata  => tile1_wdata_raw,
             sh_gnt    => arb_gnt(1),
             sh_done   => arb_done(1),
             sh_rdata  => arb_rdata,
-            sh_lrsc   => arb_lrsc(3 downto 2),
+            sh_lrsc   => tile1_lrsc_raw,
             sh_scfail => arb_scfail(1),
-            sh_lock   => arb_lock(1),
+            sh_lock   => tile1_lock_raw,
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
+            -- its own native PGEN power-down whenever the domain gates —
+            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            tcm_pgen  => pd_sleep(1),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
+            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
+            pd_sleep  => pd_sleep(1),
+            pd_iso_en => pd_iso_en(1),
             trap_flag => open,
-            a0        => a0_1
+            a0        => a0_1_raw
         );
 
     hart2: entity work.hart_tile
@@ -1802,34 +3148,54 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
-            resetn    => resetn,
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
+            -- and pd_rstn) — a gated/waking tile is held in reset
+            resetn    => tile_rstn(2),
             sleep     => '0',
             hart_id   => x"00000002",
             msip_in   => clint_msip(2),
             mtip_in   => clint_mtip(2),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(3*NUM_IRQS-1 downto 2*NUM_IRQS),
-            sh_req    => arb_req(2),
-            sh_we     => arb_we(11 downto 8),
-            sh_addr   => arb_addr(3*SH_AW-1 downto 2*SH_AW),
-            sh_wdata  => arb_wdata(3*32-1 downto 2*32),
+            meip_in   => meip(2),
+            -- M17: outbound signals land on _raw and pass the iso clamps
+            sh_req    => tile2_req_raw,
+            sh_we     => tile2_we_raw,
+            sh_addr   => tile2_addr_raw,
+            sh_wdata  => tile2_wdata_raw,
             sh_gnt    => arb_gnt(2),
             sh_done   => arb_done(2),
             sh_rdata  => arb_rdata,
-            sh_lrsc   => arb_lrsc(5 downto 4),
+            sh_lrsc   => tile2_lrsc_raw,
             sh_scfail => arb_scfail(2),
-            sh_lock   => arb_lock(2),
+            sh_lock   => tile2_lock_raw,
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
+            -- its own native PGEN power-down whenever the domain gates —
+            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            tcm_pgen  => pd_sleep(2),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
+            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
+            pd_sleep  => pd_sleep(2),
+            pd_iso_en => pd_iso_en(2),
             trap_flag => open,
-            a0        => a0_2
+            a0        => a0_2_raw
         );
 
     hart3: entity work.hart_tile
@@ -1842,41 +3208,59 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
-            resetn    => resetn,
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
+            -- and pd_rstn) — a gated/waking tile is held in reset
+            resetn    => tile_rstn(3),
             sleep     => '0',
             hart_id   => x"00000003",
             msip_in   => clint_msip(3),
             mtip_in   => clint_mtip(3),
-            -- M14: EXPLICIT strap -- the entity default (:= '1') does NOT survive
-            -- a netlist boundary: the hierarchical top flow elaborates hart_tile
-            -- as a VERILOG netlist (no port defaults), and the open pin was tied
-            -- LOW -> tiles had no CLINT slot enables and never woke on msip.
-            hw_clint_en => '1',
-            irq_ext    => irq_deglitch,
-            irq_en_ext => tile_irq_en_flat(4*NUM_IRQS-1 downto 3*NUM_IRQS),
-            sh_req    => arb_req(3),
-            sh_we     => arb_we(15 downto 12),
-            sh_addr   => arb_addr(4*SH_AW-1 downto 3*SH_AW),
-            sh_wdata  => arb_wdata(4*32-1 downto 3*32),
+            meip_in   => meip(3),
+            -- M17: outbound signals land on _raw and pass the iso clamps
+            sh_req    => tile3_req_raw,
+            sh_we     => tile3_we_raw,
+            sh_addr   => tile3_addr_raw,
+            sh_wdata  => tile3_wdata_raw,
             sh_gnt    => arb_gnt(3),
             sh_done   => arb_done(3),
             sh_rdata  => arb_rdata,
-            sh_lrsc   => arb_lrsc(7 downto 6),
+            sh_lrsc   => tile3_lrsc_raw,
             sh_scfail => arb_scfail(3),
-            sh_lock   => arb_lock(3),
+            sh_lock   => tile3_lock_raw,
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
+            -- its own native PGEN power-down whenever the domain gates —
+            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            tcm_pgen  => pd_sleep(3),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
+            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
+            pd_sleep  => pd_sleep(3),
+            pd_iso_en => pd_iso_en(3),
             trap_flag => open,
-            a0        => a0_3
+            a0        => a0_3_raw
         );
 
-    -- System Peripheral
+    -- System Peripheral (M19: the vectored IRQ controller is retired — only
+    -- the WDT level source + the D2 router hooks remain on the IRQ side)
     system0: SYSTEM
-        generic map (
-            NUM_IRQS => NUM_IRQS 
-        )
         port map (
             clk_lfxt_in   => lfxt_in,
             clk_hfxt_in   => hfxt_in,
@@ -1885,14 +3269,11 @@ begin
 
             resetn_in      => resetn_in,
             resetn_por     => resetn_por,
-            resetn_sys     => resetn, 
+            resetn_sys     => resetn,
 
-            irq           => irq_deglitch,
-            isr_ret       => isr_ret,
-            irq_en        => irq_en,
-            irq_priority  => irq_priority,
-            irq_recursion_en => irq_recursion_en,
             irq_sys_wdt   => irq_sys_wdt,
+            wdt_irq_routed   => wdt_irq_routed,
+            wdt_irq_complete => wdt_irq_complete,
 
             -- Memory Bus (arbiter slave side, M11 — window slot 9 @0x04900)
             clk_mem       => mclk,
@@ -1928,9 +3309,10 @@ begin
             PadDIRPosLogic  => false, -- Configured such that setting PxDIR to '1' will set the pad to OUTPUT mode
             PadRENPosLogic  => false, -- Configured such that setting PxREN to '1' will enable the pad pullup/pulldown resistor
             RstValPxOUT     => RstValP1OUT,
-            RstValPxDIR     => RstValP1DIR, 
+            RstValPxDIR     => RstValP1DIR,
             RstValPxSEL		=> RstValP1SEL,
-            RstValPxREN     => RstValP1REN
+            RstValPxREN     => RstValP1REN,
+            RstValPxAFS     => RstValP1AFS
         )
         port map (
             resetn           => resetn, 
@@ -1953,10 +3335,12 @@ begin
             PxOUT_out		=> p1_out,
             PxDIR_out		=> p1_dir,
             PxREN_out		=> p1_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> open,	-- no relocated inputs source from port 1
 
-            alt_func_out_in	=>	afunc1_out,
-            alt_func_dir_in	=>	afunc1_dir,
-            alt_func_ren_in	=>	afunc1_ren	
+            alt_func_out_in	=>	afunc1_all_out,
+            alt_func_dir_in	=>	afunc1_all_dir,
+            alt_func_ren_in	=>	afunc1_all_ren
     );
 
     -- GPIO1 (SPI1, UART0, UART1)
@@ -1971,7 +3355,8 @@ begin
             RstValPxOUT     => RstValP2OUT,
             RstValPxDIR     => RstValP2DIR,  -- Pins default to output
             RstValPxSEL		=> RstValP2SEL,
-            RstValPxREN     => RstValP2REN
+            RstValPxREN     => RstValP2REN,
+            RstValPxAFS     => RstValP2AFS
         )
         port map (
             resetn           => resetn,
@@ -1993,10 +3378,12 @@ begin
             PxOUT_out		=> p2_out,
             PxDIR_out		=> p2_dir,
             PxREN_out		=> p2_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> p2_afs,
 
-            alt_func_out_in	=>	afunc2_out,
-            alt_func_dir_in	=>	afunc2_dir,
-            alt_func_ren_in	=>	afunc2_ren	
+            alt_func_out_in	=>	afunc2_all_out,
+            alt_func_dir_in	=>	afunc2_all_dir,
+            alt_func_ren_in	=>	afunc2_all_ren
     );
 
     -- GPIO2 (TIMER0, TIMER1)
@@ -2009,7 +3396,8 @@ begin
             RstValPxOUT     => RstValP3OUT,
             RstValPxDIR     => RstValP3DIR,  -- Pins default to output
             RstValPxSEL		=> RstValP3SEL,
-            RstValPxREN     => RstValP3REN
+            RstValPxREN     => RstValP3REN,
+            RstValPxAFS     => RstValP3AFS
         )
         port map (
             resetn           => resetn, 
@@ -2031,10 +3419,12 @@ begin
             PxOUT_out		=> p3_out,
             PxDIR_out		=> p3_dir,
             PxREN_out		=> p3_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> p3_afs,
 
-            alt_func_out_in	=>	afunc3_out,
-            alt_func_dir_in	=>	afunc3_dir,
-            alt_func_ren_in	=>	afunc3_ren	
+            alt_func_out_in	=>	afunc3_all_out,
+            alt_func_dir_in	=>	afunc3_all_dir,
+            alt_func_ren_in	=>	afunc3_all_ren
     );
 
     -- GPIO3 (I2C0, I2C1, DTP)
@@ -2047,7 +3437,8 @@ begin
             RstValPxOUT     => RstValP4OUT,
             RstValPxDIR     => RstValP4DIR,  -- Pins default to output
             RstValPxSEL		=> RstValP4SEL,
-            RstValPxREN     => RstValP4REN
+            RstValPxREN     => RstValP4REN,
+            RstValPxAFS     => RstValP4AFS
         )
         port map (
             resetn          => resetn, 
@@ -2069,10 +3460,12 @@ begin
             PxOUT_out		=> p4_out,
             PxDIR_out		=> p4_dir,
             PxREN_out		=> p4_ren,
+            PxSEL_out		=> open,
+            PxAFS_out		=> p4_afs,
 
-            alt_func_out_in	=>	afunc4_out,
-            alt_func_dir_in	=>	afunc4_dir,
-            alt_func_ren_in	=>	afunc4_ren	
+            alt_func_out_in	=>	afunc4_all_out,
+            alt_func_dir_in	=>	afunc4_all_dir,
+            alt_func_ren_in	=>	afunc4_all_ren
     );
 
     spi0: SPI
@@ -2567,7 +3960,7 @@ begin
             IrqGlitchy		=> irq_comb(95 downto 64),
             IrqDeglitched	=> gf_out(95 downto 64)
 	);
-    irq_deglitch <= gf_out(NUM_IRQS-1 downto 0);
+    irq_deglitch <= gf_out(NUM_IRQ_SRCS-1 downto 0);
 
     -- This tie-low cell is instantiated because, for some reason, Genus won't route tie cells to any of the analog blocks, instead directly connecting the pins to VSS (or VDD)
 	-- This tie-low cell buries a constant 0 one level down in the hierarchy, which tricks Genus into using an actual tie-low cell from the standard cell library and connecting it to all the constant '0' inputs to the glitch filter
