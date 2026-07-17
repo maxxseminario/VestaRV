@@ -75,8 +75,23 @@ RVTEST_CODE_BEGIN
     nop
     nop
     nop                             # let resv_valid_ext settle through the boundary
+    .option push
+    .option arch, +zicsr
+    csrr s5, mcycle                 # timestamp BEFORE the stall
+    .option pop
     WRS_NTO                         # stall until B's store kills the reservation
     # ---- woke ----
+    .option push
+    .option arch, +zicsr
+    csrr s6, mcycle                 # timestamp AFTER the wake
+    .option pop
+    # A must have GENUINELY STALLED (B stores ~ms after A parks here): the mcycle
+    # delta across the wrs must be large. A tiny delta = immediate-retire / a
+    # degraded wake / a silently-OFF build masquerading — all FAIL here, so the
+    # test cannot pass without actually exercising the wait.
+    sub  s7, s6, s5
+    li   s8, 1000
+    bltu s7, s8, shwrs_fail         # did not stall -> the wait was never exercised
     li   t1, 1
     li   s3, SH_A_WOKE
     sw   t1, 0(s3)                  # tell B we woke (so B skips its backstop)

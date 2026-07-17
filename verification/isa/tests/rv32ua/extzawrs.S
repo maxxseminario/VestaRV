@@ -7,11 +7,19 @@
 # TIME on the CORE_ENABLE_ZAWRS macro (Zawrs has no misa bit). Per the phase
 # convention the macro is NEVER auto-derived and NEVER pulled from an include:
 #   * OFF arm = the DEFAULT build (macro undefined) — keeps the suite green.
-#   * ON arm  = built by EXPLICITLY appending the define, e.g.
-#       rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
-#         -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZAWRS"
+#   * ON arm  = built by EXPLICITLY appending the define. ORDER MATTERS:
+#     build_mp_images.sh FIRST (it rm -rf build/ + rebuilds ALL groups with the
+#     Makefile-default opts + -DNHARTS, so it DROPS a -D put on the earlier make;
+#     it also stamps .nharts), THEN rebuild rv32ua ON on top:
 #       ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf
+#       rm -rf build/
+#       make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
+#         -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZAWRS"
 #     (the ON RTL is staged separately by flipping MemoryMap CORE_ENABLE_ZAWRS).
+#     NOTE: the sim reads xcelium/riscv_test/rcf, a SYMLINK -> verification/isa/rcf
+#     (present in the main checkout; a fresh git worktree of the gitignored
+#     xcelium/ tree may get a real dir — recreate the symlink or the sim runs a
+#     stale image).
 #
 #   ON  (#ifdef CORE_ENABLE_ZAWRS):
 #     (i)   no valid reservation -> BOTH wrs retire immediately (tiny mcycle
