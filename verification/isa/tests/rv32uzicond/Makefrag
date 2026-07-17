@@ -1,0 +1,14 @@
+#=======================================================================
+# Makefrag for rv32uzicond tests (X1 Zicond)
+#-----------------------------------------------------------------------
+# Directed czero.eqz/czero.nez coverage. Built with -march=rv32imac_zicond
+# (mnemonics). ON-polarity only -- not part of the default (off) suite runner;
+# the adaptive rv32ua/extzicond.S owns both-polarity/trap coverage.
+
+# NOTE: test basename kept short ("cz") so the padded rcf path fits riscv_tb's
+# fixed TEST_FILE : string(1 to 29) generic (../rcf/ + 22-char padded name).
+rv32uzicond_sc_tests = \
+	cz \
+
+rv32uzicond_p_tests = $(addprefix rv32uzicond-p-, $(rv32uzicond_sc_tests))
+rv32uzicond_v_tests = $(addprefix rv32uzicond-v-, $(rv32uzicond_sc_tests))

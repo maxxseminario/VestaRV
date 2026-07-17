@@ -36,6 +36,7 @@ include $(src_dir)/rv32uzba/Makefrag
 include $(src_dir)/rv32uzbb/Makefrag
 include $(src_dir)/rv32uzbc/Makefrag
 include $(src_dir)/rv32uzbs/Makefrag
+include $(src_dir)/rv32uzicond/Makefrag
 include $(src_dir)/rv32si/Makefrag
 include $(src_dir)/rv32ziscr/Makefrag # Added by Maxx Seminario 10/21/2025
 include $(src_dir)/rv32mi/Makefrag
@@ -258,6 +259,15 @@ $(eval $(call compile_template,periph,-march=rv32im -mabi=ilp32))
 $(eval $(call compile_template,rv32ui,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32uc,-march=rv32imc -mabi=ilp32)) 
 $(eval $(call compile_template,rv32um,-march=rv32imc -mabi=ilp32))
+# rv32ua: the extzicond ext-probe dispatches at build time on CORE_ENABLE_ZICOND.
+# The DEFAULT build always compiles the OFF arm (no -D) -- it NEVER auto-derives
+# the symbol from the gitignored make-chip header (a stale header would silently
+# compile the ON arm against OFF RTL and hang the suite). To build the ON arm,
+# EXPLICITLY append -DCORE_ENABLE_ZICOND to RISCV_GCC_OPTS when staging the ON
+# polarity, e.g. (after rm -rf build/):
+#   make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden \
+#       -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZICOND"
+# See verification/isa/tests/rv32ua/extzicond.S.
 $(eval $(call compile_template,rv32ua,-march=rv32imac -mabi=ilp32))
 $(eval $(call compile_template,rv32uf,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32ud,-march=rv32imc -mabi=ilp32))
@@ -266,6 +276,10 @@ $(eval $(call compile_template,rv32uzba,-march=rv32gc_zba -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbb,-march=rv32gc_zbb -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbc,-march=rv32gc_zbc -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbs,-march=rv32gc_zbs -mabi=ilp32))
+# rv32uzicond (X1): directed czero.eqz/czero.nez via mnemonics. The installed
+# gas/gcc 13.2 accept _zicond in -march, so no .insn fallback is needed. This
+# suite is ON-polarity only and is NOT wired into the default (off) suite runner.
+$(eval $(call compile_template,rv32uzicond,-march=rv32imac_zicond -mabi=ilp32))
 $(eval $(call compile_template,rv32si,-march=rv32g -mabi=ilp32))
 $(eval $(call compile_template,rv32ziscr,-march=rv32gc -mabi=ilp32)) # Added by Maxx Seminario 10/21/2025 
 $(eval $(call compile_template,rv32mi,-march=rv32g -mabi=ilp32))
@@ -429,6 +443,12 @@ rv32ziscr-flash: riscv32ziscr-clean rv32ziscr
 	@echo "Flashing: Prepending binary header lines to rv32ziscr .rcf files ..."
 	@echo "Files to flash: " rcf/*rv32ziscr*.rcf
 	@./flash_prepend.sh "rcf/*rv32ziscr*.rcf"
+
+.PHONY: rv32uzicond-flash
+rv32uzicond-flash: rv32uzicond
+	@echo "Flashing: Prepending binary header lines to rv32uzicond .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzicond*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzicond*.rcf"
 
 .PHONY: spifem-flash
 spifem-flash: spifem
