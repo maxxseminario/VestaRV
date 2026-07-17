@@ -539,6 +539,28 @@ begin
                         ResultSignal <= mult_result(62 downto 31);
                     end if;
 
+                -- ==========================================
+                -- RV32 Zicond Conditional-Zero Instructions
+                -- (a = rs1, b = rs2)
+                -- ==========================================
+                when "110011" => -- CZERO.EQZ: rd = (rs2==0) ? 0 : rs1
+                    if ENABLE_ZICOND then
+                        if b = x"00000000" then
+                            ResultSignal <= (others => '0');
+                        else
+                            ResultSignal <= a;
+                        end if;
+                    end if;
+
+                when "110100" => -- CZERO.NEZ: rd = (rs2!=0) ? 0 : rs1
+                    if ENABLE_ZICOND then
+                        if b /= x"00000000" then
+                            ResultSignal <= (others => '0');
+                        else
+                            ResultSignal <= a;
+                        end if;
+                    end if;
+
 
                 when others =>
                     ResultSignal <= (others => '0');
