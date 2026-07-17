@@ -43,8 +43,10 @@
 ../../../hdl/common/irq_router.vhd
 ../../../hdl/common/mp_arbiter.vhd
 ../../../hdl/common/mutex_bank.vhd
+../../../hdl/common/pwr_ctrl.vhd
 ../../../hdl/common/resv_unit.vhd
 ../../../hdl/common/hart_tile.vhd
+../../../hdl/common/afe_stub.vhd
 ./stripped_hdl/MCU.vhd
 ../../../hdl/common/tb/tb_defs.vhd
 ../../../hdl/common/tb/riscv_tb.vhd

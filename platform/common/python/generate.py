@@ -84,6 +84,25 @@ _CONFIG_SCHEMA = {
 	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs', _isBool),
 	'isa.counters':         ('bool — Zicntr mcycle/minstret', _isBool),
 	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters)', _isBool),
+	# ISA extension SCAFFOLDING (X0, 2026-07-16): 13 generics plumbed end-to-end,
+	# all default false. The RTL decode/logic is NOT implemented yet — these knobs
+	# exist so a config may name them (false = a no-op) and so the generic chain is
+	# in place for the X1-X4 phase agents. Setting ANY of them true HARD-ERRORS
+	# below ("scaffolded (X0) but not implemented yet") — a config must never
+	# advertise an extension the hardware does not have.
+	'isa.zicond':           ('bool — Zicond czero.eqz/nez. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zcb':              ('bool — Zcb extra compressed insns. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zimop':            ('bool — Zimop+Zcmop may-be-ops. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zihint':           ('bool — Zihintpause+Zihintntl. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zihpm':            ('bool — Zihpm hw perf counters. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zawrs':            ('bool — Zawrs wait-on-reservation. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zabha':            ('bool — Zabha byte/half AMOs. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zacas':            ('bool — Zacas amocas.w. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zbkb':             ('bool — Zbkb crypto bit-manip. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zbkc':             ('bool — Zbkc carryless multiply. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zbkx':             ('bool — Zbkx crossbar permute. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh). SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zfinx':            ('bool — Zfinx single-precision FP in x-regs. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
 	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
 	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000 (region 0x8000-0xBFFF)',
@@ -136,6 +155,20 @@ _CONFIG_META = {
 	'isa.bitmanip':         {'type': 'bool', 'default': True},
 	'isa.counters':         {'type': 'bool', 'default': False},
 	'isa.counters64':       {'type': 'bool', 'default': False},
+	# X0 scaffolded ISA extensions (default false; hard-error if set true)
+	'isa.zicond':           {'type': 'bool', 'default': False},
+	'isa.zcb':              {'type': 'bool', 'default': False},
+	'isa.zimop':            {'type': 'bool', 'default': False},
+	'isa.zihint':           {'type': 'bool', 'default': False},
+	'isa.zihpm':            {'type': 'bool', 'default': False},
+	'isa.zawrs':            {'type': 'bool', 'default': False},
+	'isa.zabha':            {'type': 'bool', 'default': False},
+	'isa.zacas':            {'type': 'bool', 'default': False},
+	'isa.zbkb':             {'type': 'bool', 'default': False},
+	'isa.zbkc':             {'type': 'bool', 'default': False},
+	'isa.zbkx':             {'type': 'bool', 'default': False},
+	'isa.zkn':              {'type': 'bool', 'default': False},
+	'isa.zfinx':            {'type': 'bool', 'default': False},
 	'memory.romSize':            {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.tcmSizePerHart':     {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0x10000, 'min': 0x4000, 'step': 0x4000},
@@ -273,7 +306,33 @@ _isa = {
 	'bitmanip':   _cfg('isa.bitmanip', True),
 	'counters':   _cfg('isa.counters', False),
 	'counters64': _cfg('isa.counters64', False),
+	# X0 scaffolded extensions (default false, plumbed to the vesta ENABLE_* generics)
+	'zicond':     _cfg('isa.zicond', False),
+	'zcb':        _cfg('isa.zcb', False),
+	'zimop':      _cfg('isa.zimop', False),
+	'zihint':     _cfg('isa.zihint', False),
+	'zihpm':      _cfg('isa.zihpm', False),
+	'zawrs':      _cfg('isa.zawrs', False),
+	'zabha':      _cfg('isa.zabha', False),
+	'zacas':      _cfg('isa.zacas', False),
+	'zbkb':       _cfg('isa.zbkb', False),
+	'zbkc':       _cfg('isa.zbkc', False),
+	'zbkx':       _cfg('isa.zbkx', False),
+	'zkn':        _cfg('isa.zkn', False),
+	'zfinx':      _cfg('isa.zfinx', False),
 }
+
+# X0 scaffolding gate: the 13 ISA-extension generics are plumbed end-to-end but
+# their decode/logic is NOT implemented yet. A config may name them (false is a
+# no-op), but setting one true would advertise hardware that does not exist —
+# HARD-ERROR so nothing downstream (misa/ISA-string/tests) can lie about it.
+# Remove a name from this tuple as its phase (X1-X4) lands its real logic.
+_SCAFFOLDED_ISA = ('zicond', 'zcb', 'zimop', 'zihint', 'zihpm', 'zawrs',
+	'zabha', 'zacas', 'zbkb', 'zbkc', 'zbkx', 'zkn', 'zfinx')
+for _sx in _SCAFFOLDED_ISA:
+	if _isa[_sx]:
+		raise Exception('isa.' + _sx + ': scaffolded (X0) but not implemented yet')
+
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
 _tcmSize = _cfg('memory.tcmSizePerHart', 16384)
@@ -411,6 +470,20 @@ m = ChipGenerator(
 	ENABLE_DIV=_isa['div'],
 	ENABLE_ATOMICS=_isa['atomics'],
 	ENABLE_BITMANIP=_isa['bitmanip'],
+	# X0 scaffolded ISA extensions (default false; drive the vesta ENABLE_Z* generics)
+	ENABLE_ZICOND=_isa['zicond'],
+	ENABLE_ZCB=_isa['zcb'],
+	ENABLE_ZIMOP=_isa['zimop'],
+	ENABLE_ZIHINT=_isa['zihint'],
+	ENABLE_ZIHPM=_isa['zihpm'],
+	ENABLE_ZAWRS=_isa['zawrs'],
+	ENABLE_ZABHA=_isa['zabha'],
+	ENABLE_ZACAS=_isa['zacas'],
+	ENABLE_ZBKB=_isa['zbkb'],
+	ENABLE_ZBKC=_isa['zbkc'],
+	ENABLE_ZBKX=_isa['zbkx'],
+	ENABLE_ZKN=_isa['zkn'],
+	ENABLE_ZFINX=_isa['zfinx'],
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,

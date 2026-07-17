@@ -3,16 +3,17 @@
 # (configurable ENABLE_MUL/DIV/ATOMICS/COMPRESSED/BITMANIP generics).
 #
 # ./stripped_hdl/{MCU.vhd,MemoryMap.vhd} are a `make chip` product generated
-# with EVERY extension disabled (CORE_ENABLE_* all false). To refresh them:
-#   cd platform/common/python
-#   sed -e 's/COMPRESSED_ISA=True/COMPRESSED_ISA=False/' \
-#       -e 's/ENABLE_\(FAST_\)\?MUL=True/ENABLE_\1MUL=False/' \
-#       -e 's/ENABLE_DIV=True/ENABLE_DIV=False/' \
-#       -e 's/ENABLE_ATOMICS=True/ENABLE_ATOMICS=False/' \
-#       -e 's/ENABLE_BITMANIP=True/ENABLE_BITMANIP=False/' \
-#       generate.py > generate_stripped.py && python3 generate_stripped.py
-#   cp ../out/hdl/{MCU,MemoryMap}.vhd <here>/stripped_hdl/
-#   rm generate_stripped.py && cd .. && make generate   # restore all-on out/
+# with EVERY extension disabled (CORE_ENABLE_* all false). To refresh them,
+# generate against an all-false config (the isa.* knobs live in _CONFIG_SCHEMA;
+# the old sed-the-generator recipe is obsolete since the _isa[...] rework):
+#   cd platform/common
+#   cat > /tmp/stripped_cfg.json <<'EOF'
+#   {"isa": {"mul": false, "div": false, "atomics": false,
+#            "compressed": false, "bitmanip": false}}
+#   EOF
+#   CHIP_CONFIG=/tmp/stripped_cfg.json make chip
+#   cp out/hdl/{MCU,MemoryMap}.vhd <here>/stripped_hdl/
+#   make chip   # restore the default all-on out/ + resolved config
 #
 # Expected verdicts on the stripped build:
 #   extprobe                          -> PASS      (base RV32I + misa work;

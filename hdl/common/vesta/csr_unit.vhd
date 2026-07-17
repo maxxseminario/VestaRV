@@ -11,7 +11,11 @@ entity csr_unit is
         ENABLE_DIV        : boolean := true;
         ENABLE_ATOMICS    : boolean := true;
         ENABLE_COMPRESSED : boolean := true;
-        ENABLE_BITMANIP   : boolean := true
+        ENABLE_BITMANIP   : boolean := true;
+        -- X0 ISA-extension scaffolding (default false; the real hpm counters and
+        -- fcsr/fflags/frm CSRs are added by the named phase -- unused here now).
+        ENABLE_ZIHPM      : boolean := false;  -- X1 (Zihpm): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZFINX      : boolean := false   -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
     );
     port (
         clk              : in  std_logic;

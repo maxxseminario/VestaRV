@@ -1020,6 +1020,19 @@ package MemoryMap is
 	constant CORE_ENABLE_ATOMICS	: boolean := true;						-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)
 	constant CORE_ENABLE_COMPRESSED	: boolean := true;						-- C: 16-bit instructions
 	constant CORE_ENABLE_BITMANIP	: boolean := true;						-- Zba/Zbb/Zbs/Zbc
+	constant CORE_ENABLE_ZICOND		: boolean := false;						-- X1: Zicond czero.eqz/nez
+	constant CORE_ENABLE_ZCB		: boolean := false;						-- X1: Zcb extra compressed insns
+	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- X1: Zimop+Zcmop may-be-ops
+	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- X1: Zihintpause+Zihintntl
+	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- X1: Zihpm hw perf counters
+	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- X1: Zawrs wait-on-reservation
+	constant CORE_ENABLE_ZABHA		: boolean := false;						-- X2: Zabha byte/half AMOs
+	constant CORE_ENABLE_ZACAS		: boolean := false;						-- X2: Zacas amocas.w
+	constant CORE_ENABLE_ZBKB		: boolean := false;						-- X3: Zbkb crypto bit-manip
+	constant CORE_ENABLE_ZBKC		: boolean := false;						-- X3: Zbkc carryless multiply
+	constant CORE_ENABLE_ZBKX		: boolean := false;						-- X3: Zbkx crossbar permute
+	constant CORE_ENABLE_ZKN		: boolean := false;						-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
+	constant CORE_ENABLE_ZFINX		: boolean := false;						-- X4: Zfinx single-prec FP in x-regs
 
 	-- GPIO0 Pin Assignments (Serial Flash)
 	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0

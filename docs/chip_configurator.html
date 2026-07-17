@@ -779,6 +779,71 @@ const VESTA_DATA = {
       "type": "bool",
       "default": false
     },
+    "isa.zicond": {
+      "description": "bool \u2014 Zicond czero.eqz/nez. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zcb": {
+      "description": "bool \u2014 Zcb extra compressed insns. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zimop": {
+      "description": "bool \u2014 Zimop+Zcmop may-be-ops. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zihint": {
+      "description": "bool \u2014 Zihintpause+Zihintntl. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zihpm": {
+      "description": "bool \u2014 Zihpm hw perf counters. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zawrs": {
+      "description": "bool \u2014 Zawrs wait-on-reservation. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zabha": {
+      "description": "bool \u2014 Zabha byte/half AMOs. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zacas": {
+      "description": "bool \u2014 Zacas amocas.w. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zbkb": {
+      "description": "bool \u2014 Zbkb crypto bit-manip. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zbkc": {
+      "description": "bool \u2014 Zbkc carryless multiply. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zbkx": {
+      "description": "bool \u2014 Zbkx crossbar permute. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zkn": {
+      "description": "bool \u2014 Zkn AES+SHA (Zknd+Zkne+Zknh). SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "isa.zfinx": {
+      "description": "bool \u2014 Zfinx single-precision FP in x-regs. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
     "memory.romSize": {
       "description": "int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)",
       "type": "int",
@@ -863,6 +928,19 @@ const VESTA_DATA = {
     "isa.bitmanip": true,
     "isa.counters": false,
     "isa.counters64": false,
+    "isa.zicond": false,
+    "isa.zcb": false,
+    "isa.zimop": false,
+    "isa.zihint": false,
+    "isa.zihpm": false,
+    "isa.zawrs": false,
+    "isa.zabha": false,
+    "isa.zacas": false,
+    "isa.zbkb": false,
+    "isa.zbkc": false,
+    "isa.zbkx": false,
+    "isa.zkn": false,
+    "isa.zfinx": false,
     "memory.romSize": 16384,
     "memory.tcmSizePerHart": 16384,
     "memory.sharedBulkRamSize": 65536,
@@ -2659,6 +2737,13 @@ const SCHEMA_TO_CFG = {
   "isa.atomics":"ENABLE_ATOMICS", "isa.compressed":"COMPRESSED_ISA",
   "isa.bitmanip":"ENABLE_BITMANIP", "isa.counters":"ENABLE_COUNTERS",
   "isa.counters64":"ENABLE_COUNTERS64",
+  // X0 scaffolded ISA extensions (no UI toggle; DEFAULTS pulls their false
+  // seed from VESTA_DATA.defaults so configObject() always exports false).
+  "isa.zicond":"ENABLE_ZICOND", "isa.zcb":"ENABLE_ZCB", "isa.zimop":"ENABLE_ZIMOP",
+  "isa.zihint":"ENABLE_ZIHINT", "isa.zihpm":"ENABLE_ZIHPM", "isa.zawrs":"ENABLE_ZAWRS",
+  "isa.zabha":"ENABLE_ZABHA", "isa.zacas":"ENABLE_ZACAS", "isa.zbkb":"ENABLE_ZBKB",
+  "isa.zbkc":"ENABLE_ZBKC", "isa.zbkx":"ENABLE_ZBKX", "isa.zkn":"ENABLE_ZKN",
+  "isa.zfinx":"ENABLE_ZFINX",
   "memory.romSize":"romSize", "memory.tcmSizePerHart":"tcmSize",
   "memory.sharedBulkRamSize":"sharedRamSize", "memory.npuStagingRamSize":"npuRamSize",
   "peripherals.npu":"npu", "peripherals.i2c1":"i2c1",
@@ -3276,6 +3361,14 @@ function configObject(){
       mul: cfg.ENABLE_MUL, fastMul: cfg.ENABLE_FAST_MUL, div: cfg.ENABLE_DIV,
       atomics: cfg.ENABLE_ATOMICS, compressed: cfg.COMPRESSED_ISA, bitmanip: cfg.ENABLE_BITMANIP,
       counters: cfg.ENABLE_COUNTERS, counters64: cfg.ENABLE_COUNTERS64,
+      // X0 scaffolded ISA extensions: plumbed but NOT implemented (generate.py
+      // hard-errors if any is true). No interactive toggle — always exported
+      // false so a config can never advertise an unimplemented extension.
+      zicond: cfg.ENABLE_ZICOND, zcb: cfg.ENABLE_ZCB, zimop: cfg.ENABLE_ZIMOP,
+      zihint: cfg.ENABLE_ZIHINT, zihpm: cfg.ENABLE_ZIHPM, zawrs: cfg.ENABLE_ZAWRS,
+      zabha: cfg.ENABLE_ZABHA, zacas: cfg.ENABLE_ZACAS, zbkb: cfg.ENABLE_ZBKB,
+      zbkc: cfg.ENABLE_ZBKC, zbkx: cfg.ENABLE_ZBKX, zkn: cfg.ENABLE_ZKN,
+      zfinx: cfg.ENABLE_ZFINX,
     },
     memory: {
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,

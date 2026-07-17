@@ -11,7 +11,21 @@ entity maindec is
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_ATOMICS  : boolean := true;
-        ENABLE_BITMANIP : boolean := true
+        ENABLE_BITMANIP : boolean := true;
+        -- X0 ISA-extension scaffolding (default false; decode logic added by the
+        -- named phase). These arrive here but are not yet read by valid_funct/
+        -- alu_control -- adding the decode is the phase agent's job.
+        ENABLE_ZICOND   : boolean := false;  -- X1 (Zicond): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIMOP    : boolean := false;  -- X1 (Zimop): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIHINT   : boolean := false;  -- X1 (Zihint): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZAWRS    : boolean := false;  -- X1 (Zawrs): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZABHA    : boolean := false;  -- X2 (Zabha): consumed from phase X2 on; scaffolded X0
+        ENABLE_ZACAS    : boolean := false;  -- X2 (Zacas): consumed from phase X2 on; scaffolded X0
+        ENABLE_ZBKB     : boolean := false;  -- X3 (Zbkb): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZBKC     : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZBKX     : boolean := false;  -- X3 (Zbkx): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZKN      : boolean := false;  -- X3 (Zkn): consumed from phase X3 on; scaffolded X0
+        ENABLE_ZFINX    : boolean := false   -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
     );
     port (
         resetn           : in  STD_LOGIC;

@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/15 at 23:04:21 with the generate.py chip generator
+-- Generated on 2026/07/16 at 23:04:04 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -2467,7 +2467,20 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
@@ -3072,7 +3085,20 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
@@ -3122,7 +3148,20 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,
@@ -3169,7 +3208,20 @@ begin
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
             ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
         )
         port map (
             clk       => mclk,

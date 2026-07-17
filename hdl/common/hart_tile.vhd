@@ -105,7 +105,22 @@ entity hart_tile is
         ENABLE_DIV        : boolean := true;
         ENABLE_ATOMICS    : boolean := true;
         ENABLE_COMPRESSED : boolean := true;
-        ENABLE_BITMANIP   : boolean := true
+        ENABLE_BITMANIP   : boolean := true;
+        -- X0 ISA-extension scaffolding: all default false, routed straight to
+        -- the vesta core. Decode/logic consumed from each generic's phase on.
+        ENABLE_ZICOND     : boolean := false;  -- X1 (Zicond)
+        ENABLE_ZCB        : boolean := false;  -- X1 (Zcb)
+        ENABLE_ZIMOP      : boolean := false;  -- X1 (Zimop/Zcmop)
+        ENABLE_ZIHINT     : boolean := false;  -- X1 (Zihintpause/ntl)
+        ENABLE_ZIHPM      : boolean := false;  -- X1 (Zihpm)
+        ENABLE_ZAWRS      : boolean := false;  -- X1 (Zawrs)
+        ENABLE_ZABHA      : boolean := false;  -- X2 (Zabha)
+        ENABLE_ZACAS      : boolean := false;  -- X2 (Zacas)
+        ENABLE_ZBKB       : boolean := false;  -- X3 (Zbkb)
+        ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc)
+        ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx)
+        ENABLE_ZKN        : boolean := false;  -- X3 (Zkn = Zknd+Zkne+Zknh)
+        ENABLE_ZFINX      : boolean := false   -- X4 (Zfinx)
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
@@ -209,7 +224,21 @@ architecture behav of hart_tile is
             ENABLE_DIV        : boolean := true;
             ENABLE_ATOMICS    : boolean := true;
             ENABLE_COMPRESSED : boolean := true;
-            ENABLE_BITMANIP   : boolean := true
+            ENABLE_BITMANIP   : boolean := true;
+            -- X0 ISA-extension scaffolding (all default false)
+            ENABLE_ZICOND     : boolean := false;
+            ENABLE_ZCB        : boolean := false;
+            ENABLE_ZIMOP      : boolean := false;
+            ENABLE_ZIHINT     : boolean := false;
+            ENABLE_ZIHPM      : boolean := false;
+            ENABLE_ZAWRS      : boolean := false;
+            ENABLE_ZABHA      : boolean := false;
+            ENABLE_ZACAS      : boolean := false;
+            ENABLE_ZBKB       : boolean := false;
+            ENABLE_ZBKC       : boolean := false;
+            ENABLE_ZBKX       : boolean := false;
+            ENABLE_ZKN        : boolean := false;
+            ENABLE_ZFINX      : boolean := false
         );
         port (
             clk              : in  std_logic;
@@ -488,7 +517,20 @@ begin
             ENABLE_DIV        => ENABLE_DIV,
             ENABLE_ATOMICS    => ENABLE_ATOMICS,
             ENABLE_COMPRESSED => ENABLE_COMPRESSED,
-            ENABLE_BITMANIP   => ENABLE_BITMANIP
+            ENABLE_BITMANIP   => ENABLE_BITMANIP,
+            ENABLE_ZICOND     => ENABLE_ZICOND,
+            ENABLE_ZCB        => ENABLE_ZCB,
+            ENABLE_ZIMOP      => ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => ENABLE_ZAWRS,
+            ENABLE_ZABHA      => ENABLE_ZABHA,
+            ENABLE_ZACAS      => ENABLE_ZACAS,
+            ENABLE_ZBKB       => ENABLE_ZBKB,
+            ENABLE_ZBKC       => ENABLE_ZBKC,
+            ENABLE_ZBKX       => ENABLE_ZBKX,
+            ENABLE_ZKN        => ENABLE_ZKN,
+            ENABLE_ZFINX      => ENABLE_ZFINX
         )
         port map (
             clk         => clk,
