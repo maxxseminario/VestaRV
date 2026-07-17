@@ -5,11 +5,21 @@
 #-----------------------------------------------------------------------------
 # Build-time-dispatched probe for Zimop (mop.r.N / mop.rr.N) and Zcmop
 # (c.mop.N). These extensions have NO misa bit, so — like the extprobe_template
-# it derives from — this file dispatches at COMPILE time on the generator's
-# CORE_ENABLE_ZIMOP #define (emitted into the make-chip product
-# platform/common/out/software/include/MemoryMap.h only when isa.zimop=true;
-# the rv32ua compile line was extended with -I.../platform/common/out/software/include
-# so that header wins over the frozen Myshkin MemoryMap.h).
+# it derives from — this file dispatches at COMPILE time on the CORE_ENABLE_ZIMOP
+# preprocessor macro.
+#
+# EXPLICIT-APPEND CONVENTION (phase-standard; matches zcb/zicond):
+#   The macro is NEVER auto-derived — the default build always compiles the OFF
+#   arm, and the ON arm is built by explicitly appending -DCORE_ENABLE_ZIMOP to
+#   the compile flags. So the image polarity is a function of the build command
+#   alone, not of hidden make-chip state:
+#     OFF (default):   cd verification/isa && rm -rf build/ && make rv32ua-flash
+#     ON  (explicit):  cd verification/isa && rm -rf build/ && \
+#         make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
+#         -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZIMOP"
+#   (The ON hardware itself is still staged separately — flip CORE_ENABLE_ZIMOP
+#   in hdl/common/MemoryMap.vhd false->true, or `make chip CONFIG` with
+#   isa.zimop=true — the -D only selects which arm of THIS test compiles.)
 #
 #   feature ON  (#ifdef CORE_ENABLE_ZIMOP):  execute the encodings, CHECK that
 #       mop.r/mop.rr write rd<-0 (a real x0-safe zero write) and that c.mop.N is
@@ -35,13 +45,6 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
-
-# CORE_ENABLE_* build-time feature defines. The verification/isa Makefile
-# extracts these from the current platform/common make-chip output into a tiny
-# dependency-free build/core_features.h (-I$(build_dir)); it is empty (all
-# features OFF) when no ON make-chip product is present, so the default build
-# takes the #else (OFF) arm.
-#include "core_features.h"
 
 .option norvc
 .option norelax
