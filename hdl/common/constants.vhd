@@ -173,6 +173,12 @@ package constants is
     constant CSRRWI_FN3  : std_logic_vector(2 downto 0) := "101"; -- CSR Read/Write Immediate
     constant CSRRSI_FN3  : std_logic_vector(2 downto 0) := "110"; -- CSR Read and Set Immediate
     constant CSRRCI_FN3  : std_logic_vector(2 downto 0) := "111"; -- CSR Read and Clear Immediate
+
+    -- Zimop may-be-operations (mop.r.N / mop.rr.N) share this SYSTEM funct3;
+    -- it is not a CSR/PRIV funct3, so it is a decode hole today (X1 Zimop).
+    -- Authoritative encoding (riscv-opcodes rv_zimop): SYSTEM opcode, funct3=100,
+    -- bit31=1, bits29..28=00, bit25=0 -> mop.r (bits25..22=0111), bit25=1 -> mop.rr.
+    constant MOP_FN3     : std_logic_vector(2 downto 0) := "100"; -- Zimop mop.r/mop.rr funct3
     
     -- Minimal CSR addresses - only performance counters
     -- Machine Information Registers (Read-only)

@@ -90,6 +90,7 @@ architecture behave of maindec is
     signal is_zbs_i_instr  : STD_LOGIC; 
     signal is_zbc_instr    : STD_LOGIC;
     signal is_csr_instr    : STD_LOGIC;
+    signal is_zimop_instr  : STD_LOGIC;  -- X1 Zimop: mop.r.N / mop.rr.N (rd<-0)
 
 
 begin
@@ -156,9 +157,25 @@ begin
     is_zbc_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and funct7 = CLMUL_FN7 and
                             (funct3 = CLMUL_FN3 or funct3 = CLMULH_FN3 or funct3 = CLMULR_FN3)) else '0';
 
-    is_csr_instr <= '1' when (op = SYSTEM_OPCODE and 
+    is_csr_instr <= '1' when (op = SYSTEM_OPCODE and
                               (funct3 = CSRRW_FN3 or funct3 = CSRRS_FN3 or funct3 = CSRRC_FN3 or
                                funct3 = CSRRWI_FN3 or funct3 = CSRRSI_FN3 or funct3 = CSRRCI_FN3)) else '0';
+
+    -- ==========================================
+    -- Zimop may-be-operations (X1): mop.r.N / mop.rr.N
+    -- ==========================================
+    -- SYSTEM opcode, funct3=100 (MOP_FN3) -- a decode hole today, so gated purely
+    -- on ENABLE_ZIMOP. Fixed bits per the ratified/riscv-opcodes encoding:
+    --   funct7(6)=instr31=1, funct7(4:3)=instr29..28="00".
+    --   mop.r.N  : funct7(0)=instr25=0 AND imm12(4:2)=instr24..22="111" (bits25..22=0111);
+    --              index bits {30,27,26,21,20} are don't-care (all 32 variants admitted).
+    --   mop.rr.N : funct7(0)=instr25=1; bits24..20=rs2, index bits {30,27,26} don't-care.
+    -- Semantics: rd <- 0 (a real x0-safe zero write). No memory, no CSR, no trap
+    -- when enabled. Disabled -> is_zimop_instr='0' -> illegal-instruction (hole).
+    is_zimop_instr <= '1' when (ENABLE_ZIMOP and op = SYSTEM_OPCODE and funct3 = MOP_FN3 and
+                                funct7(6) = '1' and funct7(4 downto 3) = "00" and
+                                ( (funct7(0) = '0' and imm12(4 downto 2) = "111") or  -- mop.r.N
+                                  (funct7(0) = '1') )) else '0';                        -- mop.rr.N
 
     -- ==========================================
     -- RV32ZISCR CSR Control Signals
@@ -201,7 +218,7 @@ begin
         op = SYSTEM_OPCODE     -- SYSTEM instruction
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr, is_zimop_instr)
     begin
         valid_funct <= '1';
         
@@ -310,6 +327,8 @@ begin
                 when SYSTEM_OPCODE =>
                     if is_csr_instr = '1' then
                         valid_funct <= '1';  -- All CSR instructions are valid
+                    elsif is_zimop_instr = '1' then
+                        valid_funct <= '1';  -- Zimop mop.r.N / mop.rr.N (rd<-0)
                     -- elsif funct3 = PRIV_FN3 then
                     --     -- ECALL/EBREAK/MRET instructions
                     --     if imm12 = x"000" or imm12 = x"001" or imm12 = x"302" then
@@ -356,7 +375,8 @@ begin
                  '1' when op = I_JALR_OPCODE    else  -- JALR
                  '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct5 /= SC_FN5) else -- All AMO except SC (SC writes conditionally)
                  '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct5 = SC_FN5)  else -- SC also writes (success/fail flag)
-                 '1' when is_csr_instr = '1'    else 
+                 '1' when is_zimop_instr = '1'  else  -- Zimop mop.r/mop.rr write rd<-0
+                 '1' when is_csr_instr = '1'    else
                  '0' when (op = FENCE_OPCODE)        else  -- FENCE instruction
                  '0';  -- No write for stores, branches, custom instructions
 
@@ -432,6 +452,7 @@ begin
                   "001" when (op = AMO_OPCODE and lr_op = '1') else  -- Memory data for LR
                   "000" when (op = AMO_OPCODE and sc_op = '1') else  -- Success/fail for SC
                   "001" when (op = AMO_OPCODE and amo_op = '1') else -- Memory data for AMO
+                  "101" when is_zimop_instr = '1'  else  -- Zimop: unused mux code -> Result forced 0 (rd<-0)
                   "100" when is_csr_instr = '1'    else  -- CSR read value
                   "001";
 
