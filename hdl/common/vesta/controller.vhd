@@ -62,6 +62,8 @@ entity controller is
         -- ==========================================
         sleep_rq         : out std_logic;                      -- Sleep request
         wake_rq          : out std_logic;                      -- Wake request
+        wrs_op           : out std_logic;                      -- X1 Zawrs: wrs.nto/wrs.sto
+        wrs_sto          : out std_logic;                      -- X1 Zawrs: timeout variant
         isr_ret          : out std_logic;                      -- ISR return instruction
 
         -- ==========================================
@@ -136,6 +138,8 @@ architecture struct of controller is
             isr_ret          : out std_logic;
             sleep_rq         : out std_logic;
             wake_rq          : out std_logic;
+            wrs_op           : out std_logic;
+            wrs_sto          : out std_logic;
 
             -- Atomic memory operation outputs
             amo_op           : out std_logic;
@@ -217,6 +221,8 @@ begin
             isr_ret          => isr_ret,
             sleep_rq         => sleep_rq,
             wake_rq          => wake_rq,
+            wrs_op           => wrs_op,
+            wrs_sto          => wrs_sto,
                    
             -- Atomic memory operation outputs
             amo_op           => amo_op,

@@ -1,0 +1,55 @@
+X1 Zawrs negative control — "never wake on reservation invalidation"
+=====================================================================
+
+SEED: x1_zawrs_seed.patch removes the reservation-kill term from the Zawrs wake
+condition in hdl/common/vesta/vesta.vhd:
+
+    wrs_wake <= '1' when (resv_valid_ext = '0' or wrs_int_pending = '1' or wrs_timeout = '1') else '0';
+  ->
+    wrs_wake <= '1' when (                       wrs_int_pending = '1' or wrs_timeout = '1') else '0';
+
+i.e. the interrupt and timeout wakes are KEPT; only the "a foreign store killed
+my reservation" wake is disabled. This is the exact fault the shwrs directed
+test is designed to catch, and it also validates that test's software watchdog.
+
+EXPECTED RESULT
+  - Baseline (no seed):  shwrs PASSES  (a0 = 0xCAFEBABE). Hart A's wrs.nto wakes
+    promptly on hart B's store; A reads BACKSTOP_FIRED == 0 -> reservation-kill won.
+  - Seeded:              shwrs FAILS   (a0 = 0xDEADBEEF) via "TEST FAILED" — a
+    CLEAN watchdog verdict, NOT "SIMULATION TIMEOUT REACHED". With kill-wake
+    gone, A's wrs.nto never wakes on the store; hart B's bounded poll expires,
+    B raises BACKSTOP_FIRED and msips hart 0; A wakes on the interrupt-pending
+    path, reads BACKSTOP_FIRED == 1, and FAILs. The sim terminates well inside
+    the 100 ms tb watchdog (the never-wake bug becomes a bounded FAIL, proving
+    both the reservation-kill wake is load-bearing AND the test watchdog works).
+
+REPRO (from the repo/worktree root; ON = Zawrs-enabled build)
+  # 1. Stage the ON polarity and build ON images
+  printf '{"isa": {"zawrs": true}}' > /tmp/x1_zawrs_on.json
+  ( cd platform/common && make chip CONFIG=/tmp/x1_zawrs_on.json )
+  cp platform/common/out/hdl/MemoryMap.vhd hdl/common/MemoryMap.vhd
+  ( cd verification/isa && rm -rf build/ && make rv32ua-flash \
+        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )
+
+  # 2. Baseline: shwrs PASSES
+  ( cd xcelium/riscv_test/behavioral_mp \
+        && printf '../rcf/xxxxrv32ua-p-shwrs.rcf\n' > smoke_seed.txt \
+        && source ~/vestarv/cdspaths.sh \
+        && TESTS_FILE=smoke_seed.txt MAX_PARALLEL=1 ./xrun_parallel.sh )   # -> PASS
+
+  # 3. Apply the seed and re-run: shwrs FAILS (watchdog, not hang)
+  git apply verification/isa/negctrl/x1_zawrs_seed.patch
+  ( cd xcelium/riscv_test/behavioral_mp \
+        && source ~/vestarv/cdspaths.sh \
+        && TESTS_FILE=smoke_seed.txt MAX_PARALLEL=1 ./xrun_parallel.sh )   # -> FAIL (TEST FAILED)
+
+  # 4. Revert the seed: shwrs PASSES again
+  git apply -R verification/isa/negctrl/x1_zawrs_seed.patch
+
+  # 5. Restore the committed (default, Zawrs-off) polarity before committing
+  git checkout -- hdl/common/MemoryMap.vhd
+  ( cd verification/isa && rm -rf build/ && make rv32ua-flash \
+        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )
+
+NOTE: the live committed RTL must NOT contain the seed (verify:
+  grep -c 'NEGCTRL SEED' hdl/common/vesta/vesta.vhd   -> 0).

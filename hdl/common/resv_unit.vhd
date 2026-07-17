@@ -69,7 +69,15 @@ entity resv_unit is
         s_addr  : in  std_logic_vector(ADDR_WIDTH-1 downto 0);
 
         s_we_gated : out std_logic_vector(3 downto 0);  -- to the shared RAM
-        sc_fail    : out std_logic_vector(N-1 downto 0) -- valid with done(i)
+        sc_fail    : out std_logic_vector(N-1 downto 0); -- valid with done(i)
+
+        -- X1 Zawrs: per-master reservation-valid LEVEL. Exposes the exact snoop
+        -- the SC path already relies on so a hart stalled in wrs.nto/wrs.sto can
+        -- wake when a FOREIGN committed store kills its reservation (resv_valid(i)
+        -- 1->0). Registered on mclk here; the tile re-registers it across its
+        -- depth-1 boundary alongside sc_fail/msip/mtip. A pure observation port —
+        -- it changes no adjudication logic, so LR/SC/AMO behaviour is unaffected.
+        resv_valid_o : out std_logic_vector(N-1 downto 0)
     );
 end entity;
 
@@ -155,5 +163,8 @@ begin
     end process;
 
     sc_fail <= sc_fail_r;
+
+    -- X1 Zawrs: expose the reservation-valid table as a level (Zawrs wake source).
+    resv_valid_o <= resv_valid;
 
 end architecture;

@@ -66,6 +66,14 @@ entity vesta is
         lr_sc_bus   : out std_logic_vector(1 downto 0);
         sc_fail_ext : in  std_logic := '0';
 
+        -- X1 Zawrs: this hart's GLOBAL reservation-valid level from resv_unit
+        -- (registered through the tile boundary). A hart stalled in wrs.nto/
+        -- wrs.sto wakes when this drops to '0' (a foreign committed store killed
+        -- the reservation — the exact snoop the LR/SC unit already relies on).
+        -- Defaults '1' so single-master tops (no resv_unit) treat every
+        -- reservation as live and fall back to the interrupt/timeout wakes.
+        resv_valid_ext : in  std_logic := '1';
+
         -- M8: cross-hart AMO atomicity. '1' for the whole AMO read-modify-write
         -- flow (the EXECUTE dispatch cycle — where the shared READ transaction
         -- runs, like LR's — through AMO_WRITE, where the WRITE transaction
@@ -138,8 +146,10 @@ architecture struct of vesta is
             isr_ret          : out std_logic;
             sleep_rq         : out std_logic;
             wake_rq          : out std_logic;
-            
-            
+            wrs_op           : out std_logic;
+            wrs_sto          : out std_logic;
+
+
             -- RV32A signals
             amo_op           : out std_logic;
             lr_op            : out std_logic;
@@ -289,7 +299,8 @@ architecture struct of vesta is
         AMO_COMPLETE, -- Complete AMO operation
         LR_READ,      -- Load-Reserved read
         SC_CHECK,      -- Store-Conditional check and write
-        FENCE_WAIT    -- FENCE operation wait state
+        FENCE_WAIT,   -- FENCE operation wait state
+        WRS_WAIT      -- X1 Zawrs: wait-on-reservation-set stall (wrs.nto/wrs.sto)
     );
 
     signal current_state, next_state : cpu_state;
@@ -389,6 +400,18 @@ architecture struct of vesta is
     signal sleep_rq               : std_logic;  -- Sleep request from instruction
     signal wake_rq                : std_logic;  -- Wake request from instruction
     signal sleep_cpu              : std_logic;  -- CPU sleep state
+
+    -- X1 Zawrs wait-on-reservation-set. WRS_TIMEOUT_CYCLES = the wrs.sto short
+    -- timeout, in clk_cpu cycles (named, parameterizable — one line to retune).
+    constant WRS_TIMEOUT_CYCLES   : integer := 1024;
+    signal wrs_op                 : std_logic;  -- decoded wrs.nto or wrs.sto
+    signal wrs_sto                : std_logic;  -- '1' for wrs.sto (has timeout)
+    signal wrs_int_pending        : std_logic;  -- any IRQ source asserted (raw, enable-agnostic)
+    signal wrs_timeout            : std_logic;  -- wrs.sto short-timeout elapsed
+    signal wrs_wake               : std_logic;  -- combined wake condition
+    signal wrs_cnt                : integer range 0 to WRS_TIMEOUT_CYCLES;  -- timeout counter (clk_cpu cycles)
+    signal wrs_is_sto             : std_logic;  -- latched-at-entry: this WRS is the timeout variant
+                                                -- (instr_curr does not persist through the stall)
     
     -- ==========================================
     -- RV32A Atomic Operation Signals
@@ -744,7 +767,8 @@ architecture struct of vesta is
                              pc_plus_4, pc_plus_2, alu_done, irq_save_ack, isr_ret, 
                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
-                             reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext)
+                             reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext,
+                             wrs_op, wrs_wake, resv_valid_ext)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -818,6 +842,15 @@ architecture struct of vesta is
                                 elsif sleep_rq = '1' then
                                     next_state <= SLEEPING;
                                     pc_en <= '0';
+                                elsif wrs_op = '1' then
+                                    -- X1 Zawrs: stall only if a global reservation
+                                    -- is live; else the hint retires immediately.
+                                    if resv_valid_ext = '1' then
+                                        next_state <= WRS_WAIT;
+                                        pc_en <= '0';
+                                    else
+                                        next_state <= EXECUTE;  -- pc_en defaults '1'
+                                    end if;
                                 elsif lr_op = '1' then
                                     -- Load-Reserved operation
                                     mem_access_instr <= '1';
@@ -909,6 +942,15 @@ architecture struct of vesta is
                             elsif sleep_rq = '1' then
                                 next_state <= SLEEPING;
                                 pc_en <= '0';
+                            elsif wrs_op = '1' then
+                                -- X1 Zawrs: stall only if a global reservation is
+                                -- live; else the hint retires immediately.
+                                if resv_valid_ext = '1' then
+                                    next_state <= WRS_WAIT;
+                                    pc_en <= '0';
+                                else
+                                    next_state <= EXECUTE;  -- pc_en defaults '1'
+                                end if;
                             elsif lr_op = '1' then
                                 -- Load-Reserved operation
                                 mem_access_instr <= '1';
@@ -1187,13 +1229,36 @@ architecture struct of vesta is
                 -- ==========================================
                 when SLEEPING =>
                     pc_en <= '0';
-                    
+
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                     else
                         next_state <= SLEEPING;
                     end if;
-                
+
+                -- ==========================================
+                -- WRS_WAIT State  (X1 Zawrs wait-on-reservation-set)
+                -- ==========================================
+                -- Stall with the PC frozen (the wrs hint has NOT retired) while
+                -- clk_cpu keeps running and wrs_wake is polled. On any wake the
+                -- hint retires like a nop (pc_en='1', next=EXECUTE): if the wake
+                -- was a pending+enabled interrupt, the standard EXECUTE->IRQ_SV
+                -- path then takes it with the return PC = the instruction after
+                -- wrs (a WRS is never a trap and changes no architectural state).
+                -- Deliberately does NOT set sleep_cpu, so an interrupt taken here
+                -- does not leave the hart in the return-to-sleep contract.
+                when WRS_WAIT =>
+                    pc_en <= '0';
+                    wen <= (others => '1');   -- no memory access while stalled
+                    mem_access_instr <= '0';
+                    reg_write_dp <= '0';
+                    if wrs_wake = '1' then
+                        next_state <= EXECUTE;
+                        pc_en <= '1';         -- retire the hint, advance the PC
+                    else
+                        next_state <= WRS_WAIT;
+                    end if;
+
                 -- ==========================================
                 -- TRAP State
                 -- ==========================================
@@ -1226,6 +1291,53 @@ architecture struct of vesta is
                 sleep_cpu <= '0';
             elsif sleep_rq = '1' then
                 sleep_cpu <= '1';
+            end if;
+        end if;
+    end process;
+
+    -- ==========================================
+    -- X1 Zawrs — Wait-on-Reservation-Set wake logic
+    -- ==========================================
+    -- wrs.nto/wrs.sto stall the hart in the dedicated WRS_WAIT FSM state. Unlike
+    -- WFI/extinguish, WRS_WAIT does NOT gate clk_cpu and does NOT touch sleep_cpu:
+    -- the FSM simply spins with pc_en frozen while the wake conditions are polled
+    -- each clk_cpu edge, so the CLINT ignite / return-to-sleep contract is
+    -- provably untouched (a WRS stall is invisible to the sleep machinery). The
+    -- core issues no bus transaction while waiting (arbiter req de-asserted).
+    --
+    -- Wake sources (any one, per the spec):
+    --   (a) reservation invalidated — resv_valid_ext dropped to '0' (a foreign
+    --       committed store hit the LR address; the snoop resv_unit implements),
+    --   (b) an interrupt is pending — RAW irq_vector, enable-agnostic, so it
+    --       fires even for a source that would not be taken (spec: wake even if
+    --       globally disabled). This core hardwires the CLINT/meip enables on,
+    --       so a pending source is also serviced after the WRS retires,
+    --   (c) wrs.sto only: the short timeout (WRS_TIMEOUT clk_cpu cycles) elapsed.
+    wrs_int_pending <= '1' when irq_vector /= (irq_vector'range => '0') else '0';
+    wrs_timeout     <= '1' when (wrs_is_sto = '1' and wrs_cnt = WRS_TIMEOUT_CYCLES) else '0';
+    wrs_wake        <= '1' when (resv_valid_ext = '0' or wrs_int_pending = '1' or wrs_timeout = '1') else '0';
+
+    -- Timeout counter: free-runs on clk_cpu only while stalled; cleared whenever
+    -- the hart is not in WRS_WAIT. Saturates at WRS_TIMEOUT (wrs.nto never reads
+    -- it). Same clock domain as mcycle, so the stall is measurable via mcycle.
+    wrs_timeout_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            wrs_cnt <= 0;
+            wrs_is_sto <= '0';
+        elsif rising_edge(clk_cpu) then
+            if current_state = WRS_WAIT then
+                -- stalled: freeze the sto flag (instr_curr no longer holds the
+                -- wrs encoding here) and advance the timeout counter.
+                if wrs_cnt /= WRS_TIMEOUT_CYCLES then
+                    wrs_cnt <= wrs_cnt + 1;
+                end if;
+            else
+                wrs_cnt <= 0;
+                -- capture the pending WRS variant each pre-entry cycle; the last
+                -- non-WRS_WAIT cycle before entry is the EXECUTE decode of the
+                -- wrs, where wrs_sto is valid.
+                wrs_is_sto <= wrs_sto;
             end if;
         end if;
     end process;
@@ -1272,6 +1384,8 @@ architecture struct of vesta is
             isr_ret          => isr_ret,
             sleep_rq         => sleep_rq,
             wake_rq          => wake_rq,
+            wrs_op           => wrs_op,
+            wrs_sto          => wrs_sto,
             mem_access_instr => mem_access_controller,
             trap             => trap,
             amo_op           => amo_op,

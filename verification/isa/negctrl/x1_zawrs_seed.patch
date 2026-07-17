@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1315,7 +1315,7 @@
+     --   (c) wrs.sto only: the short timeout (WRS_TIMEOUT clk_cpu cycles) elapsed.
+     wrs_int_pending <= '1' when irq_vector /= (irq_vector'range => '0') else '0';
+     wrs_timeout     <= '1' when (wrs_is_sto = '1' and wrs_cnt = WRS_TIMEOUT_CYCLES) else '0';
+-    wrs_wake        <= '1' when (resv_valid_ext = '0' or wrs_int_pending = '1' or wrs_timeout = '1') else '0';
++    wrs_wake        <= '1' when (wrs_int_pending = '1' or wrs_timeout = '1') else '0';  -- NEGCTRL SEED: reservation-kill wake removed
+ 
+     -- Timeout counter: free-runs on clk_cpu only while stalled; cleared whenever
+     -- the hart is not in WRS_WAIT. Saturates at WRS_TIMEOUT (wrs.nto never reads

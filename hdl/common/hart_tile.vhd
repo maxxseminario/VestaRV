@@ -173,6 +173,11 @@ entity hart_tile is
         -- attempt), resv_unit SC verdict in (valid with sh_done; latched here)
         sh_lrsc   : out std_logic_vector(1 downto 0);
         sh_scfail : in  std_logic := '0';
+        -- X1 Zawrs: this hart's GLOBAL reservation-valid level from resv_unit
+        -- (a level, valid every cycle; boundary-registered like sh_scfail). The
+        -- Zawrs wait wakes when it drops to '0' (foreign store killed the LR).
+        -- Defaults '1' so a single-master top is a no-op.
+        sh_resv_valid : in std_logic := '1';
         -- M8: grant-lock request to mp_arbiter — the core's amo_lock, high
         -- for the whole AMO read-modify-write flow so the arbiter pins the
         -- grant to this hart between the AMO's read and write transactions.
@@ -256,6 +261,7 @@ architecture behav of hart_tile is
 
             lr_sc_bus        : out std_logic_vector(1 downto 0);
             sc_fail_ext      : in  std_logic := '0';
+            resv_valid_ext   : in  std_logic := '1';
             amo_lock         : out std_logic;
 
             irq_vector      : in  std_logic_vector(NUM_IRQS-1 downto 0);
@@ -416,6 +422,7 @@ architecture behav of hart_tile is
     signal bnd_done_r     : std_logic := '0';
     signal bnd_rdata_r    : std_logic_vector(31 downto 0) := (others => '0');
     signal bnd_scfail_r   : std_logic := '0';
+    signal bnd_resvvld_r  : std_logic := '1';   -- X1 Zawrs: registered resv-valid level
     signal bnd_msip_r     : std_logic := '0';
     signal bnd_mtip_r     : std_logic := '0';
     signal bnd_meip_r     : std_logic := '0';
@@ -458,6 +465,7 @@ begin
             bnd_done_r     <= '0';
             bnd_rdata_r    <= (others => '0');
             bnd_scfail_r   <= '0';
+            bnd_resvvld_r  <= '1';
             bnd_msip_r     <= '0';
             bnd_mtip_r     <= '0';
             bnd_meip_r     <= '0';
@@ -466,6 +474,7 @@ begin
             bnd_done_r     <= sh_done;
             bnd_rdata_r    <= sh_rdata;
             bnd_scfail_r   <= sh_scfail;
+            bnd_resvvld_r  <= sh_resv_valid;
             bnd_msip_r     <= msip_in;
             bnd_mtip_r     <= mtip_in;
             bnd_meip_r     <= meip_in;
@@ -548,6 +557,7 @@ begin
 
             lr_sc_bus    => lr_sc_bus,
             sc_fail_ext  => sh_scfail_reg,
+            resv_valid_ext => bnd_resvvld_r,   -- X1 Zawrs: registered resv-valid level
             amo_lock     => amo_lock_int,
 
             irq_vector       => tile_irq_vec,
