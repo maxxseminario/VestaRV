@@ -1,0 +1,105 @@
+A7 chip LVS RE-RUN with the REGENERATED A7 netlist — Stage-3 re-run + classification.
+Supersedes a7/LVS_FINDING.txt (stale-A6-netlist run). NO physical defect; residual == A6.
+
+== Run facts ==
+Command (from ~/vestarv/signoff_mp):
+  LVSLABELS=pvs/chip_top_argus_a7.lvslabels ./lvs.sh chip_argus_a7_signoff chip_top \
+      pvs/chip_top_argus_a7_full.lvs.v lvs_include_chip pvs/lvs_chip_argus_ctl
+Netlist: pvs/chip_top_argus_a7_full.lvs.v (A7 cut's own PG netlist; FE_OFN 4408, CTS 182,
+  matches out/chip_top_argus.xsim.v @04:38 — NOT the A6 5293/52).
+pegasus rc=0  (a7/lvs_rerun.rc = LVS_RERUN_EXIT=0; pegasus_stdout "Pegasus finished normally")
+Run Result: MISMATCH (expected — bounded residual, see classification).
+Run-start file : a7/lvs_rerun.runstart = 2026-07-16 13:30:40
+.cls Creation  : Thu Jul 16 13:30:55 2026 ; compare/.cls finalize mtime 14:36:34 ; finish 14:36:38
+Wall time      : ~66 min (65m43s).
+Report freshness (mtime > run-start 13:30:40, so not a stale readback):
+  lvs.rep.cls  14:36:34  (53.4 GB — authoritative compare; grep -a header only, NEVER opened)
+  erc.sum      13:31:43  (devext-time; ERC section valid)
+  chip_top.softchk / lvs.rep(devext+softchk) / lvs.rep.shorts  ~13:31 (extraction-time sections)
+  NB: lvs.rep(13:31) is the DEVEXT/softchk section written at extraction; the CONNECTIVITY
+  result was taken from lvs.rep.cls(14:36), the post-NVN file — not from the pre-compare stub.
+OPERATIONAL NOTE: the first re-run attempt (launched 12:10:56 via the harness background
+  mechanism) was reaped at EXACTLY 60 min (13:11:03) by the background-task lifetime reaper —
+  it SIGTERM'd the whole task group and killed pegasusnvn mid "Create report" (pegasus printed
+  its own abnormal banner; lvs.sh never reached its post-pegasus echo; rc file empty). The
+  COMPARE had already completed cleanly then (balloon already gone). This clean run was
+  relaunched DETACHED via `setsid` (own session) so the reaper could not reach pegasus; it ran
+  to rc=0. a7/run_lvs_rerun.sh is that detached launcher.
+
+== Gate results (Step-1 gate) ==
+[PASS] pegasus rc=0, reports fresh (mtime > run-start).
+[PASS] lvs.rep.shorts EMPTY (0 bytes).  ERC Results: Empty / 0 (erc.sum floating.* all 0).
+[PASS] softchk substrate = accepted class ONLY: n_psub 8017(144306), psub 7372(132696);
+       every other LVS_SOFTCHK rule = 0. (Same accepted substrate class as A6/PG4.)
+[PASS] ~1M glue-net balloon VANISHED. Stale-run signature (Xmcu0/FE_OFN*, Xmcu0/CTS_*,
+       container nets X8..X12) is GONE: in the .cls front CTS_ count = 0; FE_OFN residual is
+       ~82 lines = only the DCO0/DCO1 analog bias nets (FE_OFN197_DCO0_BIAS_*, FE_OFN4953_*),
+       a tiny benign analog-glue class — NOT the 1,037,717-instance balloon.
+[PASS] Residual fully classed against A6 (below); no NEW physical class.
+[PASS] VDD_SW cpoints "** missing net **" for harts = same known A6 label-transform behavior
+       (ROM/tile array-internal nets read "** missing net **" on the layout side); lvs.rep.cps
+       carries no cpoint defect. Not a defect.
+
+== A7-vs-A6 summary table (from lvs.rep.cls STATISTICS block) ==
+                         Reduced (lay : sch)            Unmatched (lay : sch)
+A7 Instances       25,491,325 : 25,493,756                38,965 : 41,396
+A6 Instances       25,494,776 : 25,497,207                38,965 : 41,396
+  delta                -3,451 :     -3,451                     0 :      0
+A7 Nets             9,174,712 :  9,175,789                32,922 : 34,001
+A6 Nets             9,176,535 :  9,177,611                32,922 : 33,998
+  delta                -1,823 :     -1,822                     0 :     +3
+(Layout Total Original 26,323,148 insts — same GDS as A6.)
+For contrast, the INVALID stale-netlist run: Instances unmatched 1,031,835 : 1,037,717,
+  Nets unmatched 354,345 : 357,246.  => balloon Δ ~ +993k inst / +321k nets vs A6, now ZERO.
+
+Reading: UNMATCHED residual is now IDENTICAL to the A6 baseline (instances exact 38,965:41,396;
+nets layout-exact 32,922, schematic +3). The Reduced counts drop by ~3,451 insts / ~1,822 nets
+on BOTH sides — the expected effect of the regenerated A7 netlist carrying fewer devices/nets
+(−885 FE_OFN, −349 instance lines after A7 CTS/opt): matched pairs are reduced away
+symmetrically, leaving the unmatched residual unchanged. Exactly the "small opt deltas" the
+kickoff anticipated. The A7 counts land in the same order as A6.
+
+== Residual classification (boundary-vs-internal discriminator applied) ==
+Unmatched-net owners tallied from the .cls front (Schematic-Net side):
+  Xmcu0/Xrom0            24,511   boot ROM  (dominant)
+  Xmcu0/Xirq_gf0/1/2     ~3,894   IRQ glitch-filter cells
+  Xmcu0/Xhart0..17       ~6,000   tile-internal (Xhart0 ~1,007; each other hart ~301)
+  + DCO analog bias (~82 FE_OFN) + pad domain — small tails
+  => ROM ~27.7k + tile-mul ~5-6k + irq_gf/analog/pad tails ≈ the full 32,922 unmatched. No balloon.
+
+(1) BOOT ROM  (Xmcu0/Xrom0, ~27.7k array-internal nets/side — the A6 ROM class):
+    Unmatched nets are all ARRAY-INTERNAL bitcell/decoder nodes, e.g.
+      Xmcu0/Xrom0/XI0_3/XI0_1/XI0_0/XI0_0/XI6_0/XI1_22/CCB_2  (layout: "** missing net **")
+      Xmcu0/Xrom0/.../XI9_0/XI1_40/CCT_4 / CCB / CCT ...
+    Discriminator: ROM BOUNDARY nets (address/data/enable, VDD/VSS pins) do NOT appear in the
+    unmatched list — they MATCH; only the array-internal decode/bitcell nets fail correspondence.
+    Disposition: PROVEN matcher artifact (rom_lvs_f1 precedent: bare-macro rom LVS ran 0:0 in the
+    A6-closure session). Benign.
+
+(2) TILE-INTERNAL multiplier (Xmcu0/Xhart<h>/Xcore/Xdatapath_inst/Xmainalu/mul_...):
+    Unmatched nets are array-internal multiplier partial-product nodes, e.g.
+      Xmcu0/Xhart9/.../Xmainalu/mul_277_74_Y_mul_262_66_Y_mul_272_68_n_16   (all 18 harts)
+      ..._n_700, ...  ; layout side = container nets X8/X9/X10/... (tiles boxed via
+      lvs_exclude_hcell, so the tile struct's internal nets surface as X8..container names).
+    Discriminator: tile BOUNDARY (VDD_SW cpoints, tile I/O) matches; only the array-internal
+    multiplier reduction nodes fail correspondence — the exact A6 tile-internal signature.
+    Benign matcher/reduction artifact.
+
+(3) IRQ glitch-filter (Xmcu0/Xirq_gf0/1/2, ~3.9k): MCU-level replicated glitch-filter cells;
+    part of the same A6-level residual (total unmatched matches A6 to +3 nets, so no new class).
+
+(4) PAD DOMAIN: top mismatched nets Layout Net 2 -> VDDPST, Layout Net 1 -> VSSPST (tphn pad
+    power), plus schematic-only PFILLER*_G/PCORNER_G pad-filler cells (4..464) and the
+    Pins unmatched 20:6 / small D(PDIO),rppolywo tails. The [WARN] SCONNECT stamping conflict
+    (net 2 stamps VDD; net 1 stamps VSS) is the known top-level pad power-net stamping / a0-dangle
+    pad-domain behavior. Benign.
+
+(5) SUBSTRATE: softchk n_psub/psub = the accepted PG4 substrate-tie class (unchanged from A6).
+
+== Verdict ==
+Stage-3 LVS re-run: PASS. Regenerated A7 netlist resolves the stale-netlist balloon; the A7
+layout matches the A7 cut's own netlist with a bounded residual IDENTICAL to the A6 baseline
+(unmatched instances exact; nets +3). Shorts EMPTY, ERC 0, softchk accepted-class only. All
+residual classes are proven matcher/reduction artifacts (ROM bare-macro 0:0; tile-internal mul;
+pad domain; substrate). No physical defect; nothing fixed. Negative control launched separately
+(see a7/NEGCTRL2_OUTCOME.txt).

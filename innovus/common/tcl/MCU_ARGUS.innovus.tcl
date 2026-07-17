@@ -72,6 +72,28 @@
 # the LEF macro. Output: top-only netlist/SDF (tile interiors come from the
 # tile harden's out/hart_tile_argus.{xsim.v,sdf} at gate-sim time).
 ################################################################################
+#
+# === v5 (A7) SUPERSEDES v4 -- 2-axis interior symmetry (2026-07-16) ===========
+# FROZEN geometry: ~/vesta_docs/argus/a7/a7_architecture.md (Option A + B1 rule).
+# The v4 MX-flip + single-B2 topology described above is HISTORY. v5 layout:
+#   banks 8..391.085 / B1 395.085..561.085 (unchanged)
+#   row0 R0 @565.085    (pins DOWN into B1, as v4)
+#   bandA    1250.085..1268.085  (18um std-cell escape band; row1 pins face it)
+#   row1 R0  @1268.085  (pins DOWN into bandA -- the MX flip is GONE)
+#   bandB    1953.085..1971.085  (18um; row2 pins face it)
+#   row2 R0  @1971.085  (pins DOWN into bandB)
+#   GRID_TOP 2656.085   ROW_ORIENT {R0 R0 R0}  ROW_XOFF {0 0 0}
+# Every row's pins face DOWN into its own band => no two pin edges ever face
+# each other => the MX twin-pin M4 short class is dead by construction, so
+# ROW_XOFF is 0 on all rows (via arrays coincident on all three rows ->
+# VIA7.S.1/S.2 retired by construction, not just rows 0/1). Interior symmetric
+# about the x=1345 die axis (columns already symmetric; B1 analog macros now
+# balanced -- dco0<->dco1, irq_gf0<->irq_gf2 EXACT mirror pairs, por+irq_gf1
+# approx) AND about the array centerline y=1610.585 (middle row centered, two
+# equal bands). Everything the single B2 band owned is now done PER BAND (kill
+# zones, channel/margin blockages, relief screens, M8 pair, corePin sroute).
+# PG lane pass A/B formulas unchanged (the y vars flow through).
+# ==============================================================================
 
 source tcl/constants.tcl
 source $SCRIPT_DIR/procedures.tcl
@@ -145,29 +167,31 @@ set NROWS         3
 set SRAM16K_WIDTH  319.650
 set SRAM16K_HEIGHT 383.085
 
-# --- v4 vertical budget (ring inner edge ~2661; see header).
-# v4.2: B2 30->37 um. At 30 um the band held ~11 usable rows (~53k um2 after
-# halos + channel/margin cuts) against ~44k um2 of demand (irtr0 ~21k, ~2k
-# tile_irq_en buffers ~16k, ties, welltaps) -- place_opt failed to legalize
-# 940-993 irtr0 flops/buffers (IMPSP-2021). Funded by SH_Y 11->8 and the top
-# slack; grid top 2657.085 leaves 3.9 um to the inner ring (M8-M8 spacing at
-# these widths needs ~2). ---
+# --- v5 (A7) vertical budget: two equal 18um escape bands, uniform R0 rows.
+# SH_Y=8 kept from v4 (funded the band budget when SH_Y went 11->8; see the v4
+# war story). v5 has TWO 18um bands (bandA, bandB) instead of the single 37um
+# B2: BAND_H*2 = 36um total inter-row gap vs v4's 37, grid top 2656.085 leaves
+# 1.415um to the FATAL cap 2657.5 (M8-M8 spacing at these widths needs ~2, and
+# the top-of-grid M8 pair sits inside bandB not at GRID_TOP). Bands even-um
+# (2.0 row-grid parity, CQ lesson). ~/vesta_docs/argus/a7/a7_architecture.md. ---
 set SH_Y     8
 set SH_GAP   10
 set SH_SPAN  [expr {8 * $SRAM16K_WIDTH + 7 * $SH_GAP}]
 set SH_X0    [expr {($DESIGN_WIDTH - $SH_SPAN) / 2.0}]
-set BANK_TOP     [expr {$SH_Y + $SRAM16K_HEIGHT}]        ;# 394.085
-set B1_Y0        [expr {$BANK_TOP + 4}]                  ;# 398.085
+set BANK_TOP     [expr {$SH_Y + $SRAM16K_HEIGHT}]        ;# 391.085
+set B1_Y0        [expr {$BANK_TOP + 4}]                  ;# 395.085
 set B1_H         166
-set B1_Y1        [expr {$B1_Y0 + $B1_H}]                 ;# 564.085
-set Y_R0         [expr {$B1_Y1 + 4}]                     ;# 568.085
-set Y_R1         [expr {$Y_R0 + $TILE_H}]                ;# 1253.085 (flush on row0)
-set B2_Y0        [expr {$Y_R1 + $TILE_H}]                ;# 1938.085 = row1 top (MX pins face up here)
-set B2_H         37
-set B2_Y1        [expr {$B2_Y0 + $B2_H}]                 ;# 1968.085
-set Y_R2         $B2_Y1                                  ;# row2 pins (bottom edge) face B2 top
-set GRID_TOP     [expr {$Y_R2 + $TILE_H}]                ;# 2653.085
-plog "### UNL STATUS ### : v4 y-map  banks $SH_Y..[format %.1f $BANK_TOP]  B1 [format %.1f $B1_Y0]..[format %.1f $B1_Y1]  row0 [format %.1f $Y_R0]  row1(MX) [format %.1f $Y_R1]  B2 [format %.1f $B2_Y0]..[format %.1f $B2_Y1]  row2 [format %.1f $Y_R2]  grid top [format %.1f $GRID_TOP] (ring ~2661)"
+set B1_Y1        [expr {$B1_Y0 + $B1_H}]                 ;# 561.085
+set BAND_H       18
+set Y_R0         [expr {$B1_Y1 + 4}]                     ;# 565.085 (row0 pins face B1)
+set Y_R1         [expr {$Y_R0 + $TILE_H + $BAND_H}]      ;# 1268.085 (row1 pins face bandA)
+set Y_R2         [expr {$Y_R1 + $TILE_H + $BAND_H}]      ;# 1971.085 (row2 pins face bandB)
+set GRID_TOP     [expr {$Y_R2 + $TILE_H}]               ;# 2656.085
+set BANDA_Y0     [expr {$Y_R1 - $BAND_H}]               ;# 1250.085 (row0 top .. row1 bottom)
+set BANDA_Y1     $Y_R1                                  ;# 1268.085
+set BANDB_Y0     [expr {$Y_R2 - $BAND_H}]               ;# 1953.085 (row1 top .. row2 bottom)
+set BANDB_Y1     $Y_R2                                  ;# 1971.085
+plog "### UNL STATUS ### : v5(A7) y-map  banks $SH_Y..[format %.1f $BANK_TOP]  B1 [format %.1f $B1_Y0]..[format %.1f $B1_Y1]  row0 [format %.1f $Y_R0]  bandA [format %.1f $BANDA_Y0]..[format %.1f $BANDA_Y1]  row1 [format %.1f $Y_R1]  bandB [format %.1f $BANDB_Y0]..[format %.1f $BANDB_Y1]  row2 [format %.1f $Y_R2]  grid top [format %.1f $GRID_TOP] (ring ~2661)"
 if {$GRID_TOP > 2657.5} { plog "### UNL FATAL ### : grid top $GRID_TOP crowds the top ring (~2661)"; exit 1 }
 
 # --- Shared-RAM row ---
@@ -179,7 +203,14 @@ foreach m {shbank0 shbank1 shbank2 shbank3 shbank4 shbank5 shbank6 shbank7} {
 }
 cutRow
 
-# --- B1 control band: ROM R90 + analog macros; std cells fill around them ---
+# --- B1 control band: ROM R90 + analog macros; std cells fill around them.
+# v5/A7: analog macros balanced about the x=1345 die axis (rom0 is unique --
+# no mirror partner exists -- so it stays at its v4 left slot). Identical-macro
+# pairs at EXACT mirror x (x_R = 2690 - x_L - w): dco0<->dco1 (w=58.17),
+# irq_gf0<->irq_gf2 (w=31.195). por (w=26.41) + irq_gf1 (w=31.195) at
+# approximately mirrored slots (different widths -- visual balance, not exact
+# footprint mirror). All within B1, clear of the rom0 R90 span (x 40..365) and
+# of each other's halos. ~/vesta_docs/argus/a7/a7_architecture.md. ---
 set MACRO_Y [expr {$B1_Y0 + 6}]
 placeInstance rom0 40 $MACRO_Y R90
 addHaloToBlock 6 6 6 6 rom0
@@ -187,33 +218,38 @@ placeInstance por     420 $MACRO_Y R0
 addHaloToBlock 4 4 4 4 por
 placeInstance dco0    560 $MACRO_Y R0
 addHaloToBlock 4 4 4 4 dco0
-placeInstance dco1    700 $MACRO_Y R0
-addHaloToBlock 4 4 4 4 dco1
-placeInstance irq_gf0 840  $MACRO_Y R0
+placeInstance irq_gf0 840 $MACRO_Y R0
 addHaloToBlock 4 4 4 4 irq_gf0
-placeInstance irq_gf1 940  $MACRO_Y R0
-addHaloToBlock 4 4 4 4 irq_gf1
-placeInstance irq_gf2 1040 $MACRO_Y R0
+placeInstance irq_gf2 1818.805 $MACRO_Y R0
 addHaloToBlock 4 4 4 4 irq_gf2
+placeInstance dco1    2071.83 $MACRO_Y R0
+addHaloToBlock 4 4 4 4 dco1
+placeInstance irq_gf1 2238.805 $MACRO_Y R0
+addHaloToBlock 4 4 4 4 irq_gf1
 cutRow
 
-# --- 18-tile grid: 6 full-width cols; rows 0/2 R0 (pins down), row 1 MX
-# (pins up). Row 0/1 stack flush (OBS-on-OBS -- both facing edges are
-# blockage-only after the flip); B2 separates rows 1/2 so BOTH rows' pin
-# edges open onto its std rows. Column x-geometry identical to v3. ---
+# --- 18-tile grid (v5/A7): 6 full-width cols; ALL rows R0 (pins DOWN). Two
+# equal 18um escape bands (bandA between rows 0/1, bandB between rows 1/2) each
+# host ONE row's pin escapes -- row0's pins face B1, row1's face bandA, row2's
+# face bandB. No two pin edges ever face each other (the point of the design),
+# so the MX twin-pin M4 short class is dead by construction. Symmetric about
+# x=1345 (columns) and about the array centerline y=1610.585. Column x-geometry
+# unchanged: TILE_X0=30, gap 40. ---
 set TILE_SIDE_MARGIN 30
 set TILE_GRID_GAP [expr {($DESIGN_WIDTH - 2*$TILE_SIDE_MARGIN - $NCOLS*$TILE_W) / double($NCOLS - 1)}]
 set TILE_X0 $TILE_SIDE_MARGIN
 set ROW_Y      [list $Y_R0 $Y_R1 $Y_R2]
-set ROW_ORIENT [list R0 MX R0]
-# v4.10: row 2 is x-shifted 0.5 um. MX preserves x, so every row-1 pin and its
-# row-2 twin sat at IDENTICAL x facing each other across B2, competing for the
-# same M4 access track -- 4 shorts (2 spots) were geometrically FORCED and
-# reproduced by every router strategy (v4.6-v4.9: plain eco, ripped-net eco,
-# selected-net reroute all returned the same 4 at the same coords). 0.5 um =
-# ~2.5 M4 tracks of de-alignment; the M7 lanes keep 4.5 of 5 um overlap with
-# row-2's PG pin stripes (same-net parallel overlap -- PG gate verifies).
-set ROW_XOFF   [list 0 0 0.5]
+set ROW_ORIENT [list R0 R0 R0]
+# v5/A7: ROW_XOFF = {0 0 0}. The v4 MX flip is GONE (uniform R0), so the
+# row-1/row-2 twin-pin M4 short that the v4.10 0.5um / v4.11 0.9um row-2 offset
+# fought no longer exists structurally -- every row's pins face DOWN into its
+# own band. VIA-PHASE RULE (A6 chip-signoff DRC post-mortem): every deliberate
+# offset must be a MULTIPLE OF THE 0.9um VIA7 stacked-via array pitch; 0 is the
+# trivial multiple, so on ALL THREE rows the assembly-grid VIA7 arrays and the
+# tile's own M7->M8 PG via arrays land COINCIDENT (legal merged cuts) -- the
+# zero-violation rows-0/1 property now extends to row 2 => VIA7.S.1/S.2 retired
+# by construction (verdict still proven at signoff, per the a7 plan).
+set ROW_XOFF   [list 0 0 0]
 for {set row 0} {$row < $NROWS} {incr row} {
 	for {set col 0} {$col < $NCOLS} {incr col} {
 		set h [expr {$row * $NCOLS + $col}]
@@ -223,49 +259,52 @@ for {set row 0} {$row < $NROWS} {incr row} {
 	}
 }
 cutRow
-plog "### UNL STATUS ### : placed 18 tiles (6 cols, rows R0/MX/R0, col gap [format %.1f $TILE_GRID_GAP]), B2 band [format %.1f $B2_Y0]..[format %.1f $B2_Y1]"
+plog "### UNL STATUS ### : placed 18 tiles (6 cols, all rows R0, col gap [format %.1f $TILE_GRID_GAP]), bandA [format %.1f $BANDA_Y0]..[format %.1f $BANDA_Y1] bandB [format %.1f $BANDB_Y0]..[format %.1f $BANDB_Y1]"
 printStatus "Placed all macros"
 
-# --- Kill every row outside B1/B2: rows surviving in the channels, margins,
-# RAM-band gaps or the top sliver would carry FLOATING follow-pin rails (the
-# MCU_MP orphaned-PG war stories). cutRow -area only cuts under an obstacle,
-# so blockage first (M17 lesson); the blockages also stop placement/welltaps
-# from re-entering when later steps re-fracture rows.
-# v4.1: the low block starts at B1_Y1 (not Y_R0) -- the 2um fringe row that
-# fit in the B1->row0 gap was fractured by the tile halos into 32um channel
-# fragments with floating rails (seen at y~567 in the v4.0 PG gate). Same
-# treatment for B2's edge rows: halos fracture them, so the channel x-ranges
-# and side margins are blocked/cut across the B2 band too. ---
+# --- Kill every row outside B1/bandA/bandB (v5/A7): FOUR kill zones -- below
+# B1, the row0 tile span, the row1 tile span, and the row2 span + top sliver.
+# Rows surviving in the channels, margins, RAM-band gaps or the top sliver
+# would carry FLOATING follow-pin rails (the MCU_MP orphaned-PG war stories).
+# cutRow -area only cuts under an obstacle, so blockage first (M17 lesson); the
+# blockages also stop placement/welltaps from re-entering when later steps
+# re-fracture rows. v4.1 fringe lesson preserved: the low block starts at B1_Y1
+# (not Y_R0), and each band's channel x-ranges + side margins are blocked/cut
+# (tile halos fracture the band's edge rows into floating fragments). ---
 createPlaceBlockage -type hard -name below_b1 -box [list 0 0 $DESIGN_WIDTH $B1_Y0]
 cutRow -area [list 0 0 $DESIGN_WIDTH $B1_Y0]
-createPlaceBlockage -type hard -name tilerows_low -box [list 0 $B1_Y1 $DESIGN_WIDTH $B2_Y0]
-cutRow -area [list 0 $B1_Y1 $DESIGN_WIDTH $B2_Y0]
-createPlaceBlockage -type hard -name tilerows_high -box [list 0 $B2_Y1 $DESIGN_WIDTH $DESIGN_HEIGHT]
-cutRow -area [list 0 $B2_Y1 $DESIGN_WIDTH $DESIGN_HEIGHT]
-for {set g 0} {$g < [expr {$NCOLS - 1}]} {incr g} {
-	set gx0 [expr {$TILE_X0 + $TILE_W + $g * ($TILE_W + $TILE_GRID_GAP)}]
-	createPlaceBlockage -type hard -name b2chan$g \
-		-box [list $gx0 $B2_Y0 [expr {$gx0 + $TILE_GRID_GAP}] $B2_Y1]
-	cutRow -area [list $gx0 $B2_Y0 [expr {$gx0 + $TILE_GRID_GAP}] $B2_Y1]
+createPlaceBlockage -type hard -name row0span -box [list 0 $B1_Y1 $DESIGN_WIDTH $BANDA_Y0]
+cutRow -area [list 0 $B1_Y1 $DESIGN_WIDTH $BANDA_Y0]
+createPlaceBlockage -type hard -name row1span -box [list 0 $BANDA_Y1 $DESIGN_WIDTH $BANDB_Y0]
+cutRow -area [list 0 $BANDA_Y1 $DESIGN_WIDTH $BANDB_Y0]
+createPlaceBlockage -type hard -name row2span -box [list 0 $BANDB_Y1 $DESIGN_WIDTH $DESIGN_HEIGHT]
+cutRow -area [list 0 $BANDB_Y1 $DESIGN_WIDTH $DESIGN_HEIGHT]
+# per-band channel-gap + side-margin kills: bandA and bandB EACH get what the
+# single v4 B2 band had (b2chan/b2marL/b2marR pattern, per band).
+foreach {band by0 by1} [list A $BANDA_Y0 $BANDA_Y1 B $BANDB_Y0 $BANDB_Y1] {
+	for {set g 0} {$g < [expr {$NCOLS - 1}]} {incr g} {
+		set gx0 [expr {$TILE_X0 + $TILE_W + $g * ($TILE_W + $TILE_GRID_GAP)}]
+		createPlaceBlockage -type hard -name band${band}chan$g \
+			-box [list $gx0 $by0 [expr {$gx0 + $TILE_GRID_GAP}] $by1]
+		cutRow -area [list $gx0 $by0 [expr {$gx0 + $TILE_GRID_GAP}] $by1]
+	}
+	createPlaceBlockage -type hard -name band${band}marL -box [list 0 $by0 $TILE_X0 $by1]
+	cutRow -area [list 0 $by0 $TILE_X0 $by1]
+	createPlaceBlockage -type hard -name band${band}marR -box [list [expr {$DESIGN_WIDTH - $TILE_SIDE_MARGIN}] $by0 $DESIGN_WIDTH $by1]
+	cutRow -area [list [expr {$DESIGN_WIDTH - $TILE_SIDE_MARGIN}] $by0 $DESIGN_WIDTH $by1]
 }
-createPlaceBlockage -type hard -name b2marL -box [list 0 $B2_Y0 $TILE_X0 $B2_Y1]
-cutRow -area [list 0 $B2_Y0 $TILE_X0 $B2_Y1]
-createPlaceBlockage -type hard -name b2marR -box [list [expr {$DESIGN_WIDTH - $TILE_SIDE_MARGIN}] $B2_Y0 $DESIGN_WIDTH $B2_Y1]
-cutRow -area [list [expr {$DESIGN_WIDTH - $TILE_SIDE_MARGIN}] $B2_Y0 $DESIGN_WIDTH $B2_Y1]
-# v4.15: the col-3 channel mouth (x ~1365-1420 at B2) is the ONE spot every
-# run re-shorts (v4.10-v4.14: 3 residual shorts always cluster there; blast-
-# radius re-solves just reshuffle them within it) -- the local track supply
-# is saturated by cell/pin density. 50% soft-density screen = fewer pins,
-# more routing slack. The mirror strip left of the channel gets the same.
-# v4.16: relieve ALL five channel mouths (the residual short migrated to
-# whichever mouth was unscreened: x 478, 1295-1420, 1745-1885 across runs;
-# 1295 landed exactly at the old 1300 box edge). +/-70um around each channel.
-for {set g 0} {$g < [expr {$NCOLS - 1}]} {incr g} {
-	set chx [expr {$TILE_X0 + $TILE_W + $g * ($TILE_W + $TILE_GRID_GAP)}]
-	createPlaceBlockage -type partial -density 50 -name b2relief$g \
-		-box [list [expr {$chx - 70}] $B2_Y0 [expr {$chx + $TILE_GRID_GAP + 70}] $B2_Y1]
+# v4.15/v4.16 relief preserved, PER BAND: the residual channel-mouth short
+# migrates to whichever of the 5 mouths is unscreened; 50% soft-density screen
+# +/-70um around each mouth = fewer pins, more routing slack. Each band now
+# hosts ONE row's escapes (half the v4 single-B2 load), same screen recipe.
+foreach {band by0 by1} [list A $BANDA_Y0 $BANDA_Y1 B $BANDB_Y0 $BANDB_Y1] {
+	for {set g 0} {$g < [expr {$NCOLS - 1}]} {incr g} {
+		set chx [expr {$TILE_X0 + $TILE_W + $g * ($TILE_W + $TILE_GRID_GAP)}]
+		createPlaceBlockage -type partial -density 50 -name band${band}relief$g \
+			-box [list [expr {$chx - 70}] $by0 [expr {$chx + $TILE_GRID_GAP + 70}] $by1]
+	}
 }
-plog "### UNL STATUS ### : rows restricted to B1 + B2 bands (channel/margin/fringe rails killed)"
+plog "### UNL STATUS ### : rows restricted to B1 + bandA + bandB (channel/margin/fringe rails killed)"
 
 # --- Chip pins: all on the BOTTOM edge (digital-only, north face empty) ---
 set ALL_PINS [dbGet top.terms.name]
@@ -368,7 +407,7 @@ set LANE_VSS {}
 foreach spec $LANE_SPECS {
 	if {[lindex $spec 0] eq "VDD"} { lappend LANE_VDD [lindex $spec 1] } else { lappend LANE_VSS [lindex $spec 1] }
 }
-foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
+foreach m {por dco0 irq_gf0 irq_gf2 dco1 irq_gf1} {
 	set ip [dbGet -p top.insts.name $m]
 	if {$ip eq "" || $ip eq "0x0"} { plog "### UNL WARN ### : rescue-pair skip, inst $m not found"; continue }
 	set x0 [expr {[dbGet $ip.box_llx] + 1}]
@@ -390,10 +429,14 @@ foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
 # --- Analog-macro GAP pairs (v4.2): a row sliver BETWEEN two adjacent analog
 # macros is fractured by their halos; if no lane crosses the gap its rails
 # float (v4.1: 10 fragments in the 61um gf0-gf1 gap -- both neighbors had
-# center-pairs, the gap itself had nothing). One pair per uncovered gap. ---
+# center-pairs, the gap itself had nothing). One pair per uncovered gap.
+# v5/A7: this loop AND the rescue loop above iterate the macro list in ASCENDING
+# FINAL X (por dco0 irq_gf0 irq_gf2 dco1 irq_gf1) -- the prev_urx running
+# variable assumes monotonic x, so the balanced (full-width) placement must be
+# walked left-to-right or the gap detection sees negative spans. ---
 set prev_urx -1
 set prev_name {}
-foreach m {por dco0 dco1 irq_gf0 irq_gf1 irq_gf2} {
+foreach m {por dco0 irq_gf0 irq_gf2 dco1 irq_gf1} {
 	set ip [dbGet -p top.insts.name $m]
 	if {$ip eq "" || $ip eq "0x0"} { continue }
 	set llx [dbGet $ip.box_llx]
@@ -460,27 +503,30 @@ foreach my [list [expr {$RY0 + 21}] [expr {$RY0 + 71}] [expr {$RY0 + 121}]] {
 }
 plog "### UNL STATUS ### : ROM M8 mini-straps drawn over x [format %.1f $RX0]..[format %.1f $RX1]"
 
-# --- B2 M8 pair: full width across the band (no tiles at this y), bottom M7
-# -> VIA7 onto every crossing lane; extends to the M7 ring legs. ---
+# --- band M8 pairs (v5/A7): one VDD/VSS pair across EACH 18um escape band (no
+# tiles at these y), bottom M7 -> VIA7 onto every crossing lane; extends to the
+# M7 ring legs. v4's single B2 pair -> one per band (bandA, bandB). ---
 setAddStripeMode \
     -remove_floating_stripe_over_block true \
     -trim_antenna_back_to_shape core_ring \
 	-stacked_via_top_layer M8 \
 	-stacked_via_bottom_layer M7 \
     -extend_to_closest_target ring
-addStripe \
-	-layer M8 \
-	-nets {VDD VSS} \
-	-direction horizontal \
-	-start_from bottom \
-	-area [list 0 $B2_Y0 $DESIGN_WIDTH $B2_Y1] \
-	-set_to_set_distance 1000 \
-	-spacing $POWER_STRIPE_PATH_SPACING \
-	-width $POWER_STRIPE_PATH_WIDTH \
-	-block_ring_bottom_layer_limit M1 \
-	-start_offset 8 \
-	-stop_offset 0
-plog "### UNL STATUS ### : B2 M8 pair drawn"
+foreach {by0 by1} [list $BANDA_Y0 $BANDA_Y1 $BANDB_Y0 $BANDB_Y1] {
+	addStripe \
+		-layer M8 \
+		-nets {VDD VSS} \
+		-direction horizontal \
+		-start_from bottom \
+		-area [list 0 $by0 $DESIGN_WIDTH $by1] \
+		-set_to_set_distance 1000 \
+		-spacing $POWER_STRIPE_PATH_SPACING \
+		-width $POWER_STRIPE_PATH_WIDTH \
+		-block_ring_bottom_layer_limit M1 \
+		-start_offset 8 \
+		-stop_offset 0
+}
+plog "### UNL STATUS ### : band M8 pairs drawn (bandA + bandB)"
 
 editTrim -all
 setCheckMode -globalNet true -io true -route true -tapeOut true
@@ -496,17 +542,24 @@ sroute \
 	-blockPin useLef \
 	-area [list 0 0 $DESIGN_WIDTH $Y_R0] \
     -corePinWidth 0.3
-# B2 follow-pins (corePin only -- the tiles' PG is owned by the lanes).
-sroute \
-	-nets { VSS VDD } \
-	-allowLayerChange 0 \
-	-allowJogging 0 \
-	-connect {corePin} \
-	-area [list 0 [expr {$B2_Y0 - 2}] $DESIGN_WIDTH [expr {$B2_Y1 + 2}]] \
-    -corePinWidth 0.3
+# band follow-pins (corePin only -- the tiles' PG is owned by the lanes). One
+# corePin pass per escape band (v4's single B2 pass -> bandA + bandB).
+foreach {by0 by1} [list $BANDA_Y0 $BANDA_Y1 $BANDB_Y0 $BANDB_Y1] {
+	sroute \
+		-nets { VSS VDD } \
+		-allowLayerChange 0 \
+		-allowJogging 0 \
+		-connect {corePin} \
+		-area [list 0 [expr {$by0 - 2}] $DESIGN_WIDTH [expr {$by1 + 2}]] \
+	    -corePinWidth 0.3
+}
 # Jogging block-pin backstop over the ROM + analog band (MCU_MP M17b pattern:
 # a macro nudge must never silently strand an M3/M4 PG strip). v4.1: x starts
 # at 30 to include rom0, range up to M8 to reach the lanes/minis.
+# v5/A7: the analog macros are now BALANCED across the full width (irq_gf1 ends
+# ~x2274), so the backstop x bound extends 1200 -> 2280 to still cover the
+# right-half macros -- exactly the "macro nudge must not strand a PG strip"
+# case this backstop exists for.
 printStatus "Routing ROM + analog-macro PG pins (jogging backstop)"
 sroute \
 	-nets { VSS VDD } \
@@ -515,7 +568,7 @@ sroute \
 	-allowLayerChange 1 \
 	-allowJogging 1 \
 	-layerChangeRange { M3(3) M8(8) } \
-	-area [list 30 $B1_Y0 1200 $Y_R0]
+	-area [list 30 $B1_Y0 2280 $Y_R0]
 
 # --- EARLY PG SANITY GATE: verify the special grid BEFORE spending an hour on
 # place/route. v3 sailed to signoff with 3057 PG opens; never again. ---

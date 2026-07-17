@@ -1,0 +1,54 @@
+A7 chip LVS — STOP-AND-REPORT: unmatched balloon root-caused to a STALE NETLIST
+(reused A6 netlist vs the A7 04:38 layout). NOT a physical defect. No fix attempted.
+
+== A7 LVS run facts ==
+Command: LVSLABELS=pvs/chip_top_argus_a7.lvslabels ./lvs.sh chip_argus_a7_signoff \
+         chip_top pvs/chip_top_argus_full.lvs.v lvs_include_chip pvs/lvs_chip_argus_ctl
+pegasus rc=0 ; Run Result MISMATCH ; real 3936s (66 min) ; cls 54 GB (mtime 08:41 > run-start 07:35)
+lvs.rep.shorts = EMPTY (0 shorts) ; ERC Results 0 ; softchk substrate n_psub/psub = accepted class
+
+== Summary table (A7 vs A6 baseline) ==
+                  Reduced (lay:sch)            Unmatched (lay:sch)
+A7 Instances:  25,491,325 : 25,497,207      1,031,835 : 1,037,717
+A6 Instances:  25,494,776 : 25,497,207         38,965 :    41,396
+A7 Nets:        9,174,712 :  9,177,611        354,345 :   357,246
+A6 Nets:        9,176,535 :  9,177,611         32,922 :    33,998
+=> schematic REDUCED identical (25,497,207 -- same reused netlist), but schematic
+   UNMATCHED jumped 41,396 -> 1,037,717 (~25x). A ~1M-instance balloon.
+
+== What is unmatched (diagnostic) ==
+Dominated by MCU-level glue/clock logic, NOT tile internals:
+  Xmcu0/Xirtr0/FE_OFN*_n_8, Xmcu0/Xclint0/FE_OFN*_resetn, Xmcu0/Xtimer0|1/FE_*,
+  Xmcu0/Xspi0|1/n_*, Xmcu0/Xpwr0/FE_*, Xmcu0/CTS_*, Xmcu0/FE_OFN*_resetn, Xmcu0/n_*
+  (layout side: container nets X8/.. X9/.. X10/.. X11/.. X12/..)
+A6's balloon was Xhart<h>/Xcore/..mul.. (tile-internal) + ROM -- a DIFFERENT signature.
+VDD_SW cpoints: "** missing net **" for most harts -- SAME behaviour as A6 (label
+transform is fine; the A7 labels were verified at the correct new tile positions).
+
+== ROOT CAUSE (proven) ==
+The reused LVS netlist pvs/chip_top_argus_full.lvs.v (built from pvs/chip_top_argus.lvs.v,
+saveNetlist'd Jul 14 22:07 from chip_top_argus.final.innovus.dat = the A6 cut) is STALE:
+the A7 re-P&R OVERWROTE that same DB path at 04:38 and emitted a DIFFERENT gate netlist.
+Direct netlist comparison (A6 lvs.v  vs  A7 out/chip_top_argus.xsim.v @04:38):
+  distinct FE_OFN* nets : A6 5293  vs  A7 4408   (-885)
+  distinct CTS_* nets   : A6   52  vs  A7   45   (-7)
+  highest FE_OFN index  : A6 19747 vs  A7 19340
+  total instance lines  : A6 28271 vs  A7 27922  (-349)
+=> A7 re-ran optimization/CTS; the cut is NOT placement-only at the gate level. The
+   kickoff premise "netlist side unchanged, reuse A6's" is therefore invalid for A7.
+A6 netlist matched the A6 layout (bounded residual); the A7 layout differs from the
+A6 netlist at CTS/opt-buffer topology -> ~1M unmatched. Layout must be LVS'd against
+the A7 CUT's own netlist.
+
+== CORRECT PATH (for the orchestrator; NOT executed here) ==
+Regenerate the PG-aware LVS netlist from the A7 DB (chip_top_argus.final.innovus.dat @04:38)
+via tcl/chip_argus_lvs_netlist.tcl (saveNetlist -includePowerGround) + the pad patch
+(prep/patch_chip_pads), rebuild chip_top_argus_full.lvs.v, then re-run lvs.sh.
+CAVEAT: restoreDesign of the A7 DB FATALs in tapeout mode in this env
+("13 cells ... timing not defined ... tape out mode": the tphn pads + 3 analog macros
+lack timing .libs) -- same FATAL that blocked the placements dump. Needs the chip flow's
+own lib setup (or a non-tapeout restore) to emit the netlist. Not a signoff_mp-only action.
+
+== Gates ==
+LVS pegasus rc=0 PASS ; shorts EMPTY PASS ; residual NOT fully classed against A6
+(BALLOON) -> Stage-3 GATE FAILS on the reused-netlist input. Root-caused, no fix attempted.

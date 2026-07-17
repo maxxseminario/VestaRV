@@ -1,0 +1,4 @@
+ROW0-h0 y[565,1250] x[30,435] coincident=84 interleave=0
+ROW1-h6 y[1268,1953] x[30,435] coincident=84 interleave=0
+ROW2-h12 y[1971,2656] x[30,435] coincident=84 interleave=0
+ROW2-h15-mid y[1971,2656] x[1365,1770] coincident=84 interleave=0
