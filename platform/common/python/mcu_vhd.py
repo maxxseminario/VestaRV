@@ -1159,6 +1159,7 @@ class McuVhdEmitter():
 		lines = []
 		lines.append(self.sigDecl('arb_lrsc', 'std_logic_vector(' + str(n) + '*2-1 downto 0);'))
 		lines.append(self.sigDecl('arb_scfail', 'std_logic_vector(' + nm1 + ' downto 0);'))
+		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + nm1 + ' downto 0);  -- X1 Zawrs: per-master reservation-valid level'))
 		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
 		lines.append(' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles).')
 		lines.append(' ' * 8 + '-- we = 4 active-high byte-lane strobes per master (M4a).')
@@ -1272,6 +1273,7 @@ class McuVhdEmitter():
 		lines.append('            sh_rdata  => arb_rdata,')
 		lines.append('            sh_lrsc   => arb_lrsc(1 downto 0),')
 		lines.append('            sh_scfail => arb_scfail(0),')
+		lines.append('            sh_resv_valid => arb_resvvld(0),')
 		lines.append('            sh_lock   => arb_lock(0),')
 		lines.append('            tcm_pgen  => pgen_mem(1),')
 		lines.append("            tcm_retn  => '1',")
@@ -2047,6 +2049,7 @@ class McuVhdEmitter():
 		lines.append('            sh_rdata  => arb_rdata,')
 		lines.append('            sh_lrsc   => tile' + hs + '_lrsc_raw,')
 		lines.append('            sh_scfail => arb_scfail(' + hs + '),')
+		lines.append('            sh_resv_valid => arb_resvvld(' + hs + '),')
 		lines.append('            sh_lock   => tile' + hs + '_lock_raw,')
 		lines.append("            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides")
 		lines.append('            -- its own native PGEN power-down whenever the domain gates ' + EMDASH)

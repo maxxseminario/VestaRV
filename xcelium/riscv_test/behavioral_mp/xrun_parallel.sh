@@ -150,6 +150,12 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-extamo.rcf"
     "../rcf/xxxrv32ua-p-extrvc.rcf"
     "../rcf/xxxxrv32ua-p-extzb.rcf"
+    # X1 Zawrs: adaptive ext-probe + directed multi-core wake test. Both use a
+    # build-time #ifdef CORE_ENABLE_ZAWRS and trivially pass in the DEFAULT
+    # (Zawrs-off) build; the OFF illegal-instruction trap control is
+    # extzawrsx (neg-ctrl harness only, it deliberately traps).
+    "../rcf/xrv32ua-p-extzawrs.rcf"
+    "../rcf/xxxxrv32ua-p-shwrs.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

@@ -52,6 +52,11 @@ entity maindec is
         isr_ret          : out STD_LOGIC;
         sleep_rq         : out STD_LOGIC;
         wake_rq          : out STD_LOGIC;
+
+        -- X1 Zawrs: wrs_op = decoded wrs.nto or wrs.sto (illegal unless
+        -- ENABLE_ZAWRS and ENABLE_ATOMICS); wrs_sto = the timeout variant.
+        wrs_op           : out STD_LOGIC;
+        wrs_sto          : out STD_LOGIC;
         
         -- RV32A atomic operation signals
         amo_op           : out STD_LOGIC;
@@ -90,6 +95,7 @@ architecture behave of maindec is
     signal is_zbs_i_instr  : STD_LOGIC; 
     signal is_zbc_instr    : STD_LOGIC;
     signal is_csr_instr    : STD_LOGIC;
+    signal is_wrs_instr    : STD_LOGIC;  -- X1 Zawrs (wrs.nto / wrs.sto)
 
 
 begin
@@ -102,6 +108,13 @@ begin
     is_custom_instr <= '1' when (op = CUSTOM_OPCODE) else '0';
     is_amo_instr <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE) else '0';
     is_fence <= '1' when (op = FENCE_OPCODE and funct3 = FENCE_FN3) else '0';
+    -- X1 Zawrs: SYSTEM opcode, funct3=000, funct12 (imm12) = 0x00D (nto) / 0x01D
+    -- (sto). rs1/rd are architecturally x0 but not decoded here (maindec has no
+    -- rs1/rd ports — the funct12 uniquely identifies these, as WFI is decoded).
+    -- Gated on BOTH ENABLE_ZAWRS and ENABLE_ATOMICS (spec: useful only with A).
+    is_wrs_instr <= '1' when (ENABLE_ZAWRS and ENABLE_ATOMICS and op = SYSTEM_OPCODE
+                              and funct3 = "000"
+                              and (imm12 = WRS_NTO_IMM12 or imm12 = WRS_STO_IMM12)) else '0';
     funct5 <= funct7(6 downto 2);
     rtype_sub <= funct7(5) and op(5);  -- TRUE for R-type subtract
 
@@ -201,7 +214,7 @@ begin
         op = SYSTEM_OPCODE     -- SYSTEM instruction
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr, is_wrs_instr)
     begin
         valid_funct <= '1';
         
@@ -310,6 +323,8 @@ begin
                 when SYSTEM_OPCODE =>
                     if is_csr_instr = '1' then
                         valid_funct <= '1';  -- All CSR instructions are valid
+                    elsif is_wrs_instr = '1' then
+                        valid_funct <= '1';  -- X1 Zawrs wrs.nto/wrs.sto (legal when enabled)
                     -- elsif funct3 = PRIV_FN3 then
                     --     -- ECALL/EBREAK/MRET instructions
                     --     if imm12 = x"000" or imm12 = x"001" or imm12 = x"302" then
@@ -343,6 +358,10 @@ begin
     isr_ret  <= '1' when (op = CUSTOM_OPCODE and funct3 = IRET_FN3 and funct7 = IRET_FN7) else '0';
     sleep_rq <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and funct7 = SLEEP_FN7) else '0';
     wake_rq  <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and funct7 = WAKE_FN7) else '0';
+
+    -- X1 Zawrs decode outputs (both '0' unless the extension is enabled).
+    wrs_op  <= is_wrs_instr;
+    wrs_sto <= '1' when (is_wrs_instr = '1' and imm12 = WRS_STO_IMM12) else '0';
 
     -- ==========================================
     -- Register Write Enable

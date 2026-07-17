@@ -327,7 +327,7 @@ _isa = {
 # no-op), but setting one true would advertise hardware that does not exist —
 # HARD-ERROR so nothing downstream (misa/ISA-string/tests) can lie about it.
 # Remove a name from this tuple as its phase (X1-X4) lands its real logic.
-_SCAFFOLDED_ISA = ('zicond', 'zcb', 'zimop', 'zihint', 'zihpm', 'zawrs',
+_SCAFFOLDED_ISA = ('zicond', 'zcb', 'zimop', 'zihint', 'zihpm',
 	'zabha', 'zacas', 'zbkb', 'zbkc', 'zbkx', 'zkn', 'zfinx')
 for _sx in _SCAFFOLDED_ISA:
 	if _isa[_sx]:
