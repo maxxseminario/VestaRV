@@ -12,6 +12,14 @@ i.e. the interrupt and timeout wakes are KEPT; only the "a foreign store killed
 my reservation" wake is disabled. This is the exact fault the shwrs directed
 test is designed to catch, and it also validates that test's software watchdog.
 
+DISPATCH CONVENTION (phase standard): CORE_ENABLE_ZAWRS is NEVER auto-derived and
+NEVER pulled from an include. The DEFAULT rv32ua build compiles the OFF arm; the
+ON arm is built by EXPLICITLY appending -DCORE_ENABLE_ZAWRS to the gcc opts. The
+RTL polarity is staged separately (MemoryMap.vhd CORE_ENABLE_ZAWRS flip).
+
+Reusable env for the commands below (from the repo/worktree root):
+    ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZAWRS"
+
 EXPECTED RESULT
   - Baseline (no seed):  shwrs PASSES  (a0 = 0xCAFEBABE). Hart A's wrs.nto wakes
     promptly on hart B's store; A reads BACKSTOP_FIRED == 0 -> reservation-kill won.
@@ -23,12 +31,13 @@ EXPECTED RESULT
     the 100 ms tb watchdog (the never-wake bug becomes a bounded FAIL, proving
     both the reservation-kill wake is load-bearing AND the test watchdog works).
 
-REPRO (from the repo/worktree root; ON = Zawrs-enabled build)
-  # 1. Stage the ON polarity and build ON images
+REPRO (from the repo/worktree root; ON = Zawrs-enabled RTL + -D image)
+  # 1. Stage the ON RTL polarity and build the ON images with the explicit -D
   printf '{"isa": {"zawrs": true}}' > /tmp/x1_zawrs_on.json
   ( cd platform/common && make chip CONFIG=/tmp/x1_zawrs_on.json )
   cp platform/common/out/hdl/MemoryMap.vhd hdl/common/MemoryMap.vhd
-  ( cd verification/isa && rm -rf build/ && make rv32ua-flash \
+  ( cd verification/isa && rm -rf build/ \
+        && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS" \
         && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )
 
   # 2. Baseline: shwrs PASSES
@@ -46,10 +55,10 @@ REPRO (from the repo/worktree root; ON = Zawrs-enabled build)
   # 4. Revert the seed: shwrs PASSES again
   git apply -R verification/isa/negctrl/x1_zawrs_seed.patch
 
-  # 5. Restore the committed (default, Zawrs-off) polarity before committing
+  # 5. Restore the committed (default, Zawrs-off) polarity + stock (no -D) images
   git checkout -- hdl/common/MemoryMap.vhd
   ( cd verification/isa && rm -rf build/ && make rv32ua-flash \
-        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )
+        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )   # default (no -D) = OFF arm
 
 NOTE: the live committed RTL must NOT contain the seed (verify:
   grep -c 'NEGCTRL SEED' hdl/common/vesta/vesta.vhd   -> 0).
