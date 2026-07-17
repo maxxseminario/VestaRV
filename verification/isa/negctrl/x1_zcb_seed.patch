@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/c_dec.vhd
++++ b/hdl/common/vesta/c_dec.vhd
+@@ -169,7 +169,7 @@
+                                             dec(6 downto 0)   := "0000011";  -- LOAD
+                                             dec(11 downto 7)  := rd;
+                                             if instr16(6) = '0' then
+-                                                dec(14 downto 12) := "101"; -- LHU
++                                                dec(14 downto 12) := "001"; -- LHU  [NEGCTRL SEED: c.lhu->lh]
+                                             else
+                                                 dec(14 downto 12) := "001"; -- LH
+                                             end if;
