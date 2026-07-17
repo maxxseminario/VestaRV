@@ -46,6 +46,7 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-shspin.rcf"
     "../rcf/xxxrv32ua-p-shlock.rcf"
     "../rcf/xxxxrv32ua-p-shamo.rcf"
+    "../rcf/xxrv32ua-p-shpause.rcf"
     "../rcf/xrv32ua-p-amoadd_w.rcf"
     "../rcf/xrv32ua-p-amoand_w.rcf"
     "../rcf/xrv32ua-p-amomax_w.rcf"
@@ -150,6 +151,7 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-extamo.rcf"
     "../rcf/xxxrv32ua-p-extrvc.rcf"
     "../rcf/xxxxrv32ua-p-extzb.rcf"
+    "../rcf/rv32ua-p-extzihint.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

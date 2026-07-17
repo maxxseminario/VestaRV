@@ -10,7 +10,9 @@ rv32ua_sc_tests = \
 	shspin \
 	shlock \
 	shamo \
+	shpause \
 	extprobe \
+	extzihint \
 	extmul \
 	extdiv \
 	extamo \

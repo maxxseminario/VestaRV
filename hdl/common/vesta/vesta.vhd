@@ -145,7 +145,8 @@ architecture struct of vesta is
             lr_op            : out std_logic;
             sc_op            : out std_logic;
             fence_op         : out std_logic;
-            
+            pause_hint       : out std_logic;
+
             csr_op           : out std_logic_vector(2 downto 0);
             csr_valid        : out std_logic;
 
@@ -288,8 +289,9 @@ architecture struct of vesta is
         AMO_WRITE,    -- Write phase of atomic operation
         AMO_COMPLETE, -- Complete AMO operation
         LR_READ,      -- Load-Reserved read
-        SC_CHECK,      -- Store-Conditional check and write
-        FENCE_WAIT    -- FENCE operation wait state
+        SC_CHECK,     -- Store-Conditional check and write
+        FENCE_WAIT,   -- FENCE operation wait state
+        PAUSE_WAIT    -- X1 Zihintpause: arbiter-yield hold window (D6)
     );
 
     signal current_state, next_state : cpu_state;
@@ -397,6 +399,11 @@ architecture struct of vesta is
     signal lr_op                  : std_logic;  -- Load-Reserved operation
     signal sc_op                  : std_logic;  -- Store-Conditional operation
     signal fence_op               : std_logic;  -- FENCE instruction indicator
+    signal pause_hint             : std_logic;  -- X1 Zihintpause: exact PAUSE hint (fence w,0), '0' when ENABLE_ZIHINT off
+    -- X1 Zihintpause window counter (clk_cpu domain). Range is a fixed generous
+    -- span (NOT tied to PAUSE_WINDOW_CYCLES) so the negative-control seed can set
+    -- the window to 0 without a dead-branch static-range elaboration issue.
+    signal pause_cnt              : natural range 0 to 1023 := 0;
     signal amo_read_data          : std_logic_vector(31 downto 0);  -- Saved read data for AMO
     signal amo_new_data           : std_logic_vector(31 downto 0);  -- Computed data for AMO write
     signal reservation_valid      : std_logic;  -- LR/SC reservation valid
@@ -552,6 +559,27 @@ architecture struct of vesta is
             -- Latch lower half of instruction for split fetch
             if ltch_lh_inst = '1' then
                 instr_lower_half <= instr(31 downto 16);
+            end if;
+        end if;
+    end process;
+
+    -- ==========================================
+    -- X1 Zihintpause window counter (clk_cpu domain)
+    -- ==========================================
+    -- Loaded when the FSM enters PAUSE_WAIT, then counts down one per clk_cpu
+    -- edge. Loading WINDOW-1 makes the hart spend exactly PAUSE_WINDOW_CYCLES
+    -- clk_cpu cycles in PAUSE_WAIT (counter values WINDOW-1..0 inclusive). The
+    -- load arm is only reachable when PAUSE_WINDOW_CYCLES>0 (the FSM routing
+    -- guard), so WINDOW-1 is never negative at runtime.
+    pause_cnt_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            pause_cnt <= 0;
+        elsif rising_edge(clk_cpu) then
+            if next_state = PAUSE_WAIT and current_state /= PAUSE_WAIT then
+                pause_cnt <= PAUSE_WINDOW_CYCLES - 1;
+            elsif current_state = PAUSE_WAIT and pause_cnt /= 0 then
+                pause_cnt <= pause_cnt - 1;
             end if;
         end if;
     end process;
@@ -744,7 +772,8 @@ architecture struct of vesta is
                              pc_plus_4, pc_plus_2, alu_done, irq_save_ack, isr_ret, 
                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
-                             reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext)
+                             reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext,
+                             pause_hint, pause_cnt)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -846,8 +875,20 @@ architecture struct of vesta is
                                     reg_write_dp <= '0';
                                     wen <= (others => '1'); -- TODO - added
                                 elsif fence_op = '1' then
-                                    next_state <= FENCE_WAIT;
-                                    pc_en <= '1';
+                                    -- X1 Zihintpause (D6): the exact PAUSE hint
+                                    -- enters the arbiter-yield window instead of
+                                    -- the 1-cycle FENCE nop. pc_en frozen so the
+                                    -- PAUSE holds (retires when the window closes);
+                                    -- ENABLE_ZIHINT + window>0 are static, so a
+                                    -- disabled/seeded build takes the FENCE arm =
+                                    -- bit-identical today.
+                                    if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
+                                        next_state <= PAUSE_WAIT;
+                                        pc_en <= '0';
+                                    else
+                                        next_state <= FENCE_WAIT;
+                                        pc_en <= '1';
+                                    end if;
                                 elsif mem_access_controller = '1' then
                                     mem_access_instr <= '1';
                                     next_state <= MEMORY_WAIT;
@@ -934,8 +975,16 @@ architecture struct of vesta is
                                 reg_write_dp <= '0';
                                 wen <= (others => '1'); -- TODO - added
                             elsif fence_op = '1' then
-                                next_state <= FENCE_WAIT;
-                                pc_en <= '1';  
+                                -- X1 Zihintpause (D6): PAUSE -> arbiter-yield
+                                -- window; any other FENCE -> 1-cycle nop. See the
+                                -- half-word path above for the rationale.
+                                if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
+                                    next_state <= PAUSE_WAIT;
+                                    pc_en <= '0';
+                                else
+                                    next_state <= FENCE_WAIT;
+                                    pc_en <= '1';
+                                end if;
                             elsif mem_access_controller = '1' then
                                 mem_access_instr <= '1';
                                 next_state <= MEMORY_WAIT;
@@ -1082,6 +1131,36 @@ architecture struct of vesta is
                     pc_en <= '1';
                     WEN <= (others => '1');  -- No memory write
                     reg_write_dp <= '0';     -- No register write
+
+                -- ==========================================
+                -- PAUSE_WAIT State - X1 Zihintpause arbiter-yield window (D6)
+                -- ==========================================
+                -- The retiring PAUSE parks the hart here for PAUSE_WINDOW_CYCLES
+                -- clk_cpu cycles. Why this cannot wedge the arbiter:
+                --  * NO new shared transaction is issued while waiting:
+                --    mem_access_instr='0' and the PC is frozen, so data_addr
+                --    defaults to pc_next -- for a TCM-resident spin loop that is
+                --    a TCM address => sh_sel='0' => this hart's sh_req stays low,
+                --    which is exactly the arbiter-yield the spec asks for.
+                --  * The PAUSE's OWN fetch already completed before this state
+                --    (it was decoded in EXECUTE), so no in-flight/granted txn is
+                --    ever masked -- this is not the M5a ghost-txn shape.
+                --  * The window is a finite down-counter, so forward progress is
+                --    guaranteed: the hart always returns to EXECUTE and retires.
+                -- Modeled on DIV_WAIT/DIV_DONE (a stall with pc_en frozen). The
+                -- window is uninterruptible-short, so (like DIV_WAIT) IRQs are
+                -- re-checked on the EXECUTE cycle after the window, not mid-hold.
+                when PAUSE_WAIT =>
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    reg_write_dp     <= '0';
+                    if pause_cnt = 0 then
+                        next_state <= EXECUTE;
+                        pc_en <= '1';   -- window closed: PAUSE retires, PC advances
+                    else
+                        next_state <= PAUSE_WAIT;
+                        pc_en <= '0';
+                    end if;
 
                 -- ==========================================
                 -- MEMORY_WAIT State
@@ -1278,6 +1357,7 @@ architecture struct of vesta is
             lr_op            => lr_op,
             sc_op            => sc_op,
             fence_op         => fence_op,
+            pause_hint       => pause_hint,
             csr_op           => csr_op,
             csr_valid        => csr_valid
         );
