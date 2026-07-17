@@ -79,6 +79,16 @@ strmin \
     -wildCardInCellMap \
     -noWarn "$noWarn" \
     -logfile "strmin/$targetLib.$topcell.strmin.log" > /dev/null
+# rc + log-existence gate (found 2026-07-16 via the Makefile bring-up): if
+# strmin itself never ran (env not sourced -> command not found) or died
+# before logging, every grep-the-log gate below reads a MISSING file and
+# passes vacuously -- the script exited 0 with no lib built. Fail loud instead.
+strmin_rc=$?
+if [ $strmin_rc -ne 0 ] || [ ! -f "strmin/$targetLib.$topcell.strmin.log" ]; then
+    echo "---- FATAL: strmin did not run/complete (rc=$strmin_rc, log missing?) ----"
+    echo "     (is the Cadence env sourced?  source ~/vestarv/cdspaths.sh)"
+    exit 1
+fi
 
 sed -n -e '/INFO (XSTRM-234):/,$p' "strmin/$targetLib.$topcell.strmin.log"
 # LESSON: a failed translation (e.g. wrong -topCell: the MCU_MP.gds2 top
