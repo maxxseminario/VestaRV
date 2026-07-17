@@ -84,18 +84,17 @@ _CONFIG_SCHEMA = {
 	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs', _isBool),
 	'isa.counters':         ('bool — Zicntr mcycle/minstret', _isBool),
 	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters)', _isBool),
-	# ISA extension SCAFFOLDING (X0, 2026-07-16): 13 generics plumbed end-to-end,
-	# all default false. The RTL decode/logic is NOT implemented yet — these knobs
-	# exist so a config may name them (false = a no-op) and so the generic chain is
-	# in place for the X1-X4 phase agents. Setting ANY of them true HARD-ERRORS
-	# below ("scaffolded (X0) but not implemented yet") — a config must never
-	# advertise an extension the hardware does not have.
-	'isa.zicond':           ('bool — Zicond czero.eqz/nez. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zcb':              ('bool — Zcb extra compressed insns. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zimop':            ('bool — Zimop+Zcmop may-be-ops. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zihint':           ('bool — Zihintpause+Zihintntl. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zihpm':            ('bool — Zihpm hw perf counters. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zawrs':            ('bool — Zawrs wait-on-reservation. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	# ISA extensions. X1 (2026-07-17) implemented the six Tier-1 knobs below
+	# (zicond zcb zimop zihint zihpm zawrs) — default false, decode + tests +
+	# both-polarity gates landed. The remaining 7 (zabha..zfinx) are still X0
+	# SCAFFOLDING: plumbed end-to-end but NOT implemented; setting one true
+	# HARD-ERRORS below — a config must never advertise hardware it lacks.
+	'isa.zicond':           ('bool — Zicond conditional-zero ops (czero.eqz/czero.nez)', _isBool),
+	'isa.zcb':              ('bool — Zcb extra compressed insns (c.lbu/lhu/lh/sb/sh, zext/sext, c.not, c.mul; needs isa.compressed)', _isBool),
+	'isa.zimop':            ('bool — Zimop+Zcmop may-be-ops (mop.r/mop.rr rd<-0, c.mop.n nops)', _isBool),
+	'isa.zihint':           ('bool — Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window; ntl.* nops)', _isBool),
+	'isa.zihpm':            ('bool — Zihpm perf counters 3/4 (events: arbiter-stall, bus-grants, sleep, trap-entry)', _isBool),
+	'isa.zawrs':            ('bool — Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)', _isBool),
 	'isa.zabha':            ('bool — Zabha byte/half AMOs. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
 	'isa.zacas':            ('bool — Zacas amocas.w. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
 	'isa.zbkb':             ('bool — Zbkb crypto bit-manip. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
@@ -351,6 +350,21 @@ def _isaString():
 		s += '_zba_zbb_zbs'
 	if _isa['counters']:
 		s += '_zicntr'
+	# X1 extensions (2026-07-17). Simplified march order, matching web_export.py.
+	if _isa['zihpm']:
+		s += '_zihpm'
+	if _isa['zicond']:
+		s += '_zicond'
+	if _isa['zihint']:
+		s += '_zihintpause_zihintntl'
+	if _isa['zimop']:
+		s += '_zimop'
+		if _isa['compressed']:
+			s += '_zcmop'
+	if _isa['zcb'] and _isa['compressed']:
+		s += '_zca_zcb'
+	if _isa['zawrs']:
+		s += '_zawrs'
 	return s
 
 # Cross-knob sanity (WARN, not raise — these are legal but suspicious)
