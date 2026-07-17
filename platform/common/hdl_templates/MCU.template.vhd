@@ -982,7 +982,8 @@ begin
             s_we       => sh_we_raw,
             s_addr     => sh_addr,
             s_we_gated => sh_we,
-            sc_fail    => arb_scfail
+            sc_fail    => arb_scfail,
+            resv_valid_o => arb_resvvld   -- X1 Zawrs: per-master reservation-valid level to the tiles
         );
 
     -- =========================================================================

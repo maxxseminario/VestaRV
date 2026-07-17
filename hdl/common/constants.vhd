@@ -121,6 +121,13 @@ package constants is
     constant AMOMINU_FN5 : std_logic_vector(4 downto 0) := "11000"; -- Atomic MIN (unsigned)
     constant AMOMAXU_FN5 : std_logic_vector(4 downto 0) := "11100"; -- Atomic MAX (unsigned)
 
+    -- X1 Zawrs (Wait-on-Reservation-Set). SYSTEM opcode (1110011), funct3=000,
+    -- rs1=x0, rd=x0; distinguished by the 12-bit funct12 (imm12) field. These
+    -- are currently-illegal SYSTEM encodings when ENABLE_ZAWRS is false.
+    constant WRS_NTO_IMM12 : std_logic_vector(11 downto 0) := x"00D"; -- wrs.nto (wait, no timeout)
+    constant WRS_STO_IMM12 : std_logic_vector(11 downto 0) := x"01D"; -- wrs.sto (wait, short timeout)
+    -- (wrs.sto short-timeout count lives as WRS_TIMEOUT_CYCLES in vesta.vhd.)
+
 
 	-- RV32 Zba (Bit Manipulation - Address Generation) constants (R-type instructions)
     constant ZBA_FN7     : std_logic_vector(6 downto 0) := "0010000"; -- funct7 for Zba instructions

@@ -159,6 +159,9 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-extzcb.rcf"
 
     "../rcf/rv32ua-p-extzihint.rcf"
+    # extzawrsx (neg-ctrl harness only, it deliberately traps).
+    "../rcf/xrv32ua-p-extzawrs.rcf"
+    "../rcf/xxxxrv32ua-p-shwrs.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

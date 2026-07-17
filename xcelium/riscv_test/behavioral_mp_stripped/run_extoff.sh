@@ -44,6 +44,7 @@ POISON_RCFS=(
     "../rcf/xxxxrv32ua-p-extzb.rcf"
     "../rcf/rv32ua-p-extbadcsr.rcf"
     "../rcf/xrv32ua-p-extzimop.rcf"
+    "../rcf/rv32ua-p-extzawrsx.rcf"   # X1 Zawrs OFF poison: wrs.nto must trap illegal
 )
 
 snap_name() { basename "$1" .rcf | sed 's/^x*//' | tr '-' '_' | sed 's/^/tb_/'; }
