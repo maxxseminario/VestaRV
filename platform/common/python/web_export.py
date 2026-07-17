@@ -62,6 +62,21 @@ def _isaString(isa):
 		s += '_zba_zbb_zbs'
 	if isa.get('counters'):
 		s += '_zicntr'
+	# X1 extensions (2026-07-17). Keep IDENTICAL to generate.py._isaString().
+	if isa.get('zihpm'):
+		s += '_zihpm'
+	if isa.get('zicond'):
+		s += '_zicond'
+	if isa.get('zihint'):
+		s += '_zihintpause_zihintntl'
+	if isa.get('zimop'):
+		s += '_zimop'
+		if isa.get('compressed'):
+			s += '_zcmop'
+	if isa.get('zcb') and isa.get('compressed'):
+		s += '_zca_zcb'
+	if isa.get('zawrs'):
+		s += '_zawrs'
 	return s
 
 

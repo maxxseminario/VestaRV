@@ -15,10 +15,6 @@
   a fresh platform/common/out/web/MemoryMap.json without touching the page code.
   Provenance is checked by tools/python/check_register_browser.py.
 -->
-<style> block below between VESTA_THEME_BEGIN / VESTA_THEME_END is spliced
-  verbatim from docs/vesta_theme.css (the canonical source). Do not hand-edit it
-  here in isolation — change vesta_theme.css and re-splice.
--->
 <style>
 /* VESTA_THEME_BEGIN */
 :root{
@@ -555,6 +551,19 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 	"ENABLE_DIV": true,
 	"ENABLE_ATOMICS": true,
 	"ENABLE_BITMANIP": true,
+	"ENABLE_ZICOND": false,
+	"ENABLE_ZCB": false,
+	"ENABLE_ZIMOP": false,
+	"ENABLE_ZIHINT": false,
+	"ENABLE_ZIHPM": false,
+	"ENABLE_ZAWRS": false,
+	"ENABLE_ZABHA": false,
+	"ENABLE_ZACAS": false,
+	"ENABLE_ZBKB": false,
+	"ENABLE_ZBKC": false,
+	"ENABLE_ZBKX": false,
+	"ENABLE_ZKN": false,
+	"ENABLE_ZFINX": false,
 	"ENABLE_IRQ_QREGS": false,
 	"MASKED_IRQ": 0,
 	"PROGADDR_IRQ": 36864,

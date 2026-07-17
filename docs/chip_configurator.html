@@ -780,32 +780,32 @@ const VESTA_DATA = {
       "default": false
     },
     "isa.zicond": {
-      "description": "bool \u2014 Zicond czero.eqz/nez. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zicond conditional-zero ops (czero.eqz/czero.nez)",
       "type": "bool",
       "default": false
     },
     "isa.zcb": {
-      "description": "bool \u2014 Zcb extra compressed insns. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zcb extra compressed insns (c.lbu/lhu/lh/sb/sh, zext/sext, c.not, c.mul; needs isa.compressed)",
       "type": "bool",
       "default": false
     },
     "isa.zimop": {
-      "description": "bool \u2014 Zimop+Zcmop may-be-ops. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zimop+Zcmop may-be-ops (mop.r/mop.rr rd<-0, c.mop.n nops)",
       "type": "bool",
       "default": false
     },
     "isa.zihint": {
-      "description": "bool \u2014 Zihintpause+Zihintntl. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window; ntl.* nops)",
       "type": "bool",
       "default": false
     },
     "isa.zihpm": {
-      "description": "bool \u2014 Zihpm hw perf counters. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zihpm perf counters 3/4 (events: arbiter-stall, bus-grants, sleep, trap-entry)",
       "type": "bool",
       "default": false
     },
     "isa.zawrs": {
-      "description": "bool \u2014 Zawrs wait-on-reservation. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)",
       "type": "bool",
       "default": false
     },
