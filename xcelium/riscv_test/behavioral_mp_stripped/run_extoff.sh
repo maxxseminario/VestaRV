@@ -42,6 +42,7 @@ POISON_RCFS=(
     "../rcf/xxxrv32ua-p-extamo.rcf"
     "../rcf/xxxrv32ua-p-extrvc.rcf"
     "../rcf/xxxxrv32ua-p-extzb.rcf"
+    "../rcf/rv32ua-p-extbadcsr.rcf"
 )
 
 snap_name() { basename "$1" .rcf | sed 's/^x*//' | tr '-' '_' | sed 's/^/tb_/'; }

@@ -263,7 +263,12 @@ architecture struct of vesta is
             csr_read_data  : out std_logic_vector(31 downto 0);
 
             -- Performance counter input
-            inst_retired   : in  std_logic
+            inst_retired   : in  std_logic;
+
+            -- X1 Zihpm event inputs (internal vesta signals, not tile ports)
+            ev_bus_stall   : in  std_logic := '0';
+            ev_sleep       : in  std_logic := '0';
+            ev_trap_entry  : in  std_logic := '0'
         );
     end component;
 
@@ -414,6 +419,16 @@ architecture struct of vesta is
     signal csr_valid              : std_logic;
     signal en_cg_insret           : std_logic;
     signal inst_retired          : std_logic;
+
+    -- X1 Zihpm event levels (fed to csr_unit's hpm counters). Sourced ONLY from
+    -- signals already visible inside vesta -- no hart_tile/MCU boundary ports.
+    --   hpm_ev_stall: mem_ready low = this hart is requesting a shared txn the
+    --                 arbiter has not granted+completed (grant not held).
+    --   hpm_ev_sleep: WFI SLEEPING state OR the external tile sleep input.
+    --   hpm_ev_trap : in an interrupt- or exception-entry state (IRQ_SV/TRAP).
+    signal hpm_ev_stall           : std_logic;
+    signal hpm_ev_sleep           : std_logic;
+    signal hpm_ev_trap            : std_logic;
 
     begin
 
@@ -1401,6 +1416,12 @@ architecture struct of vesta is
  
     csr_addr <= instr_curr(31 downto 20);
 
+    -- X1 Zihpm event levels (see signal declarations). mem_ready is the arbiter
+    -- back-pressure: '0' = pending shared request not yet granted/completed.
+    hpm_ev_stall <= not mem_ready;
+    hpm_ev_sleep <= '1' when (current_state = SLEEPING or sleep = '1') else '0';
+    hpm_ev_trap  <= '1' when (current_state = IRQ_SV or current_state = TRAP_STATE) else '0';
+
     csr_unit_inst : csr_unit
         generic map (
             ENABLE_MUL        => ENABLE_MUL,
@@ -1420,7 +1441,10 @@ architecture struct of vesta is
             csr_op         => csr_op,
             csr_valid      => csr_valid,
             csr_read_data  => csr_rdata,
-            inst_retired   => inst_retired
+            inst_retired   => inst_retired,
+            ev_bus_stall   => hpm_ev_stall,
+            ev_sleep       => hpm_ev_sleep,
+            ev_trap_entry  => hpm_ev_trap
         );
 
 end architecture;

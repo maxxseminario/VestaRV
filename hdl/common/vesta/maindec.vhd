@@ -1,5 +1,6 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
+use IEEE.NUMERIC_STD.all;
 use work.constants.all;
 
 entity maindec is
@@ -90,6 +91,11 @@ architecture behave of maindec is
     signal is_zbs_i_instr  : STD_LOGIC; 
     signal is_zbc_instr    : STD_LOGIC;
     signal is_csr_instr    : STD_LOGIC;
+    -- X1 Zihpm base repair (UNCONDITIONAL): '1' iff the CSR address (imm12 =
+    -- instr(31:20)) is architecturally KNOWN. A CSR instruction to an unknown
+    -- address now drops valid_funct -> illegal-instruction trap, closing the
+    -- priv-spec gap where every unknown CSR silently read zero.
+    signal csr_addr_valid  : STD_LOGIC;
 
 
 begin
@@ -156,9 +162,27 @@ begin
     is_zbc_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and funct7 = CLMUL_FN7 and
                             (funct3 = CLMUL_FN3 or funct3 = CLMULH_FN3 or funct3 = CLMULR_FN3)) else '0';
 
-    is_csr_instr <= '1' when (op = SYSTEM_OPCODE and 
+    is_csr_instr <= '1' when (op = SYSTEM_OPCODE and
                               (funct3 = CSRRW_FN3 or funct3 = CSRRS_FN3 or funct3 = CSRRC_FN3 or
                                funct3 = CSRRWI_FN3 or funct3 = CSRRSI_FN3 or funct3 = CSRRCI_FN3)) else '0';
+
+    -- CSR-address validity map (Deliverable A, ships regardless of any generic).
+    -- KNOWN = every CSR the csr_unit implements + the full hpm ranges (legal
+    -- read-zero/write-ignore) + mcountinhibit/mcounteren. Everything else is an
+    -- unknown CSR -> illegal instruction. hpm ranges use unsigned compares.
+    csr_addr_valid <= '1' when (
+        imm12 = CSR_MHARTID   or imm12 = CSR_MISA      or
+        imm12 = CSR_MCYCLE    or imm12 = CSR_MINSTRET  or
+        imm12 = CSR_MCYCLEH   or imm12 = CSR_MINSTRETH or
+        imm12 = CSR_CYCLE     or imm12 = CSR_TIME      or imm12 = CSR_INSTRET or
+        imm12 = CSR_CYCLEH    or imm12 = CSR_TIMEH     or imm12 = CSR_INSTRETH or
+        imm12 = CSR_MCOUNTINHIBIT or imm12 = CSR_MCOUNTEREN or
+        (unsigned(imm12) >= unsigned(CSR_MHPMCOUNTER3)  and unsigned(imm12) <= x"B1F") or -- mhpmcounter3-31
+        (unsigned(imm12) >= unsigned(CSR_MHPMCOUNTER3H) and unsigned(imm12) <= x"B9F") or -- mhpmcounter3h-31h
+        (unsigned(imm12) >= unsigned(CSR_MHPMEVENT3)    and unsigned(imm12) <= x"33F") or -- mhpmevent3-31
+        (unsigned(imm12) >= unsigned(CSR_HPMCOUNTER3)   and unsigned(imm12) <= x"C1F") or -- hpmcounter3-31 (user)
+        (unsigned(imm12) >= unsigned(CSR_HPMCOUNTER3H)  and unsigned(imm12) <= x"C9F")    -- hpmcounter3h-31h (user)
+    ) else '0';
 
     -- ==========================================
     -- RV32ZISCR CSR Control Signals
@@ -201,7 +225,7 @@ begin
         op = SYSTEM_OPCODE     -- SYSTEM instruction
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr, csr_addr_valid)
     begin
         valid_funct <= '1';
         
@@ -309,7 +333,9 @@ begin
                 -- SYSTEM instructions (CSR, ECALL, EBREAK)
                 when SYSTEM_OPCODE =>
                     if is_csr_instr = '1' then
-                        valid_funct <= '1';  -- All CSR instructions are valid
+                        -- CSR instruction legal ONLY for a known CSR address;
+                        -- unknown addresses trap (Deliverable A base repair).
+                        valid_funct <= csr_addr_valid;
                     -- elsif funct3 = PRIV_FN3 then
                     --     -- ECALL/EBREAK/MRET instructions
                     --     if imm12 = x"000" or imm12 = x"001" or imm12 = x"302" then
