@@ -90,6 +90,7 @@ architecture behave of maindec is
     signal is_zbs_r_instr  : STD_LOGIC;  
     signal is_zbs_i_instr  : STD_LOGIC; 
     signal is_zbc_instr    : STD_LOGIC;
+    signal is_zicond_instr : STD_LOGIC;
     signal is_csr_instr    : STD_LOGIC;
     -- X1 Zihpm base repair (UNCONDITIONAL): '1' iff the CSR address (imm12 =
     -- instr(31:20)) is architecturally KNOWN. A CSR instruction to an unknown
@@ -162,6 +163,10 @@ begin
     is_zbc_instr <= '1' when (ENABLE_BITMANIP and op = R_OPCODE and funct7 = CLMUL_FN7 and
                             (funct3 = CLMUL_FN3 or funct3 = CLMULH_FN3 or funct3 = CLMULR_FN3)) else '0';
 
+    -- RV32 Zicond: czero.eqz (funct3=101) / czero.nez (funct3=111), OP funct7=0000111
+    is_zicond_instr <= '1' when (ENABLE_ZICOND and op = R_OPCODE and funct7 = ZICOND_FN7 and
+                            (funct3 = CZERO_EQZ_FN3 or funct3 = CZERO_NEZ_FN3)) else '0';
+
     is_csr_instr <= '1' when (op = SYSTEM_OPCODE and
                               (funct3 = CSRRW_FN3 or funct3 = CSRRS_FN3 or funct3 = CSRRC_FN3 or
                                funct3 = CSRRWI_FN3 or funct3 = CSRRSI_FN3 or funct3 = CSRRCI_FN3)) else '0';
@@ -225,7 +230,7 @@ begin
         op = SYSTEM_OPCODE     -- SYSTEM instruction
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_csr_instr, csr_addr_valid)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_csr_instr, csr_addr_valid)
     begin
         valid_funct <= '1';
         
@@ -249,6 +254,8 @@ begin
                         valid_funct <= '1';
                     elsif is_zbc_instr = '1' then
                         valid_funct <= '1';  -- Zbc instructions are valid
+                    elsif is_zicond_instr = '1' then
+                        valid_funct <= '1';  -- Zicond czero.eqz/czero.nez are valid
                     elsif funct7 = "0000000" or funct7 = "0100000" then
                         -- Standard R-type instructions
                         if funct3 = SRL_FN3 then
@@ -555,8 +562,12 @@ begin
         "110000" when (op = R_OPCODE and funct7 = CLMUL_FN7 and funct3 = CLMUL_FN3) else   -- CLMUL
         "110001" when (op = R_OPCODE and funct7 = CLMULH_FN7 and funct3 = CLMULH_FN3) else -- CLMULH
         "110010" when (op = R_OPCODE and funct7 = CLMULR_FN7 and funct3 = CLMULR_FN3) else -- CLMULR
-        
-        
+
+        -- RV32 Zicond conditional-zero operations
+        "110011" when (op = R_OPCODE and funct7 = ZICOND_FN7 and funct3 = CZERO_EQZ_FN3) else -- CZERO.EQZ
+        "110100" when (op = R_OPCODE and funct7 = ZICOND_FN7 and funct3 = CZERO_NEZ_FN3) else -- CZERO.NEZ
+
+
         -- RV32A Atomic operations
         "000000" when (op = AMO_OPCODE and (lr_op = '1' or sc_op = '1')) else  -- LR/SC use address directly
         "000000" when (op = AMO_OPCODE and funct5 = AMOADD_FN5)  else  -- AMOADD uses ADD

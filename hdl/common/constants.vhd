@@ -165,6 +165,12 @@ package constants is
     constant CLMULR_FN3  : std_logic_vector(2 downto 0) := "010"; -- CLMULR funct3
 
 
+	-- RV32 Zicond (Integer Conditional Operations) constants (R-type instructions)
+    constant ZICOND_FN7    : std_logic_vector(6 downto 0) := "0000111"; -- funct7 for czero.eqz/czero.nez
+    constant CZERO_EQZ_FN3 : std_logic_vector(2 downto 0) := "101";     -- czero.eqz: rd = (rs2==0) ? 0 : rs1
+    constant CZERO_NEZ_FN3 : std_logic_vector(2 downto 0) := "111";     -- czero.nez: rd = (rs2!=0) ? 0 : rs1
+
+
 	-- RV32 CSR (Control and Status Register) instruction constants
     -- CSR instruction funct3 codes (use SYSTEM_OPCODE)
     constant CSRRW_FN3   : std_logic_vector(2 downto 0) := "001"; -- CSR Read/Write

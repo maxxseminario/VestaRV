@@ -151,6 +151,7 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-extrvc.rcf"
     "../rcf/xxxxrv32ua-p-extzb.rcf"
     "../rcf/xrv32ua-p-extzihpm.rcf"
+    "../rcf/rv32ua-p-extzicond.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the
