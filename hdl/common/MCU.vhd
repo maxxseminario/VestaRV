@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/16 at 23:04:04 with the generate.py chip generator
+-- Generated on 2026/07/17 at 00:29:11 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -507,6 +507,7 @@ architecture behav of MCU is
         -- M4b: global LR/SC reservation unit
         signal arb_lrsc         : std_logic_vector(4*2-1 downto 0);
         signal arb_scfail       : std_logic_vector(3 downto 0);
+        signal arb_resvvld      : std_logic_vector(3 downto 0);  -- X1 Zawrs: per-master reservation-valid level
         signal sh_we_raw        : std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating
         -- arbiter master buses (master 0 = hart 0; masters 1-3 = hart tiles).
         -- we = 4 active-high byte-lane strobes per master (M4a).
@@ -2503,6 +2504,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => arb_lrsc(1 downto 0),
             sh_scfail => arb_scfail(0),
+            sh_resv_valid => arb_resvvld(0),
             sh_lock   => arb_lock(0),
             tcm_pgen  => pgen_mem(1),
             tcm_retn  => '1',
@@ -2552,7 +2554,8 @@ begin
             s_we       => sh_we_raw,
             s_addr     => sh_addr,
             s_we_gated => sh_we,
-            sc_fail    => arb_scfail
+            sc_fail    => arb_scfail,
+            resv_valid_o => arb_resvvld   -- X1 Zawrs: per-master reservation-valid level to the tiles
         );
 
     -- =========================================================================
@@ -3123,6 +3126,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => tile1_lrsc_raw,
             sh_scfail => arb_scfail(1),
+            sh_resv_valid => arb_resvvld(1),
             sh_lock   => tile1_lock_raw,
             -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
             -- its own native PGEN power-down whenever the domain gates —
@@ -3183,6 +3187,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => tile2_lrsc_raw,
             sh_scfail => arb_scfail(2),
+            sh_resv_valid => arb_resvvld(2),
             sh_lock   => tile2_lock_raw,
             -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
             -- its own native PGEN power-down whenever the domain gates —
@@ -3243,6 +3248,7 @@ begin
             sh_rdata  => arb_rdata,
             sh_lrsc   => tile3_lrsc_raw,
             sh_scfail => arb_scfail(3),
+            sh_resv_valid => arb_resvvld(3),
             sh_lock   => tile3_lock_raw,
             -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
             -- its own native PGEN power-down whenever the domain gates —

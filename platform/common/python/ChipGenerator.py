@@ -1493,9 +1493,36 @@ class ChipGenerator():
 		f = open(outPath, 'w', newline='\n')
 		f.write(s)
 		f.close()
-		
+
 		print('C Header file saved to ' + outPath)
-		
+
+		# X0/X1: a tiny ASSEMBLY-SAFE companion carrying ONLY the CORE_ENABLE_*
+		# feature #defines. MemoryMap.h itself pulls in <stdint.h> and C
+		# register-struct typedefs, so it cannot be #included from an .S; the
+		# ext-probe / directed .S tests dispatch on these feature switches
+		# (Z-extensions have no misa bit) by #including "core_features.h".
+		cf = '/**\n **\tcore_features.h  (generated companion to MemoryMap.h)\n'
+		cf += ' **\tAssembly-safe CORE_ENABLE_* feature switches. Do not edit;\n'
+		cf += ' **\tuse the generate.py chip generator.\n **/\n'
+		cf += '#pragma once\n\n'
+		for _name, _flag in [
+			('MUL', self.ENABLE_MUL), ('DIV', self.ENABLE_DIV),
+			('ATOMICS', self.ENABLE_ATOMICS), ('COMPRESSED', self.COMPRESSED_ISA),
+			('BITMANIP', self.ENABLE_BITMANIP), ('ZICOND', self.ENABLE_ZICOND),
+			('ZCB', self.ENABLE_ZCB), ('ZIMOP', self.ENABLE_ZIMOP),
+			('ZIHINT', self.ENABLE_ZIHINT), ('ZIHPM', self.ENABLE_ZIHPM),
+			('ZAWRS', self.ENABLE_ZAWRS), ('ZABHA', self.ENABLE_ZABHA),
+			('ZACAS', self.ENABLE_ZACAS), ('ZBKB', self.ENABLE_ZBKB),
+			('ZBKC', self.ENABLE_ZBKC), ('ZBKX', self.ENABLE_ZBKX),
+			('ZKN', self.ENABLE_ZKN), ('ZFINX', self.ENABLE_ZFINX)]:
+			if _flag:
+				cf += '#define CORE_ENABLE_' + _name + '\n'
+		cfPath = os.path.dirname(outPath) + '/core_features.h'
+		cff = open(cfPath, 'w', newline='\n')
+		cff.write(cf)
+		cff.close()
+		print('Core-features header saved to ' + cfPath)
+
 		return
 	
 	def generateMemoryX(self, outPath):
