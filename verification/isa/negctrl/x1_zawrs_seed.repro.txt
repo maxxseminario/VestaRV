@@ -20,6 +20,24 @@ RTL polarity is staged separately (MemoryMap.vhd CORE_ENABLE_ZAWRS flip).
 Reusable env for the commands below (from the repo/worktree root):
     ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZAWRS"
 
+BUILD-ORDER GOTCHAS (both cost a "seeded control passes" false negative):
+  1. build_mp_images.sh rm -rf build/ and rebuilds ALL groups with the Makefile
+     default opts + -DNHARTS, DROPPING a -DCORE_ENABLE_ZAWRS put on an earlier
+     make. So the ON rv32ua rebuild MUST come AFTER build_mp_images, not before.
+  2. The sim reads xcelium/riscv_test/rcf, a SYMLINK -> verification/isa/rcf in
+     the main checkout. A fresh git worktree of the gitignored xcelium/ tree can
+     get a REAL directory there instead; then every make ...-flash writes ON to
+     verification/isa/rcf while the sim keeps reading the stale image in the real
+     xcelium/riscv_test/rcf dir. Verify/repair before trusting any result:
+       ls -ld xcelium/riscv_test/rcf   # must be a symlink -> ../../verification/isa/rcf
+       # if a real dir:  cp xcelium/riscv_test/rcf/.nharts verification/isa/rcf/ ;
+       #  rm -rf xcelium/riscv_test/rcf ; ln -s ../../verification/isa/rcf xcelium/riscv_test/rcf
+  Sanity check the ON image actually loaded: the ON shwrs rcf contains the arm
+  dispatch word 0x0a0d1663 (bnez s10,hart_b_entry) — the OFF trivial-pass image
+  does not:  grep -c 00001010000011010001011001100011 xcelium/riscv_test/rcf/xxxxrv32ua-p-shwrs.rcf
+  A live run also shows hart 1 leaving SLEEPING and hart 0 entering WRS_WAIT; the
+  test's own mcycle-delta assertion FAILs a build that never actually stalls.
+
 EXPECTED RESULT
   - Baseline (no seed):  shwrs PASSES  (a0 = 0xCAFEBABE). Hart A's wrs.nto wakes
     promptly on hart B's store; A reads BACKSTOP_FIRED == 0 -> reservation-kill won.
@@ -32,13 +50,14 @@ EXPECTED RESULT
     both the reservation-kill wake is load-bearing AND the test watchdog works).
 
 REPRO (from the repo/worktree root; ON = Zawrs-enabled RTL + -D image)
-  # 1. Stage the ON RTL polarity and build the ON images with the explicit -D
+  # 1. Stage the ON RTL polarity, then build the ON images (base first, ON on top)
   printf '{"isa": {"zawrs": true}}' > /tmp/x1_zawrs_on.json
   ( cd platform/common && make chip CONFIG=/tmp/x1_zawrs_on.json )
   cp platform/common/out/hdl/MemoryMap.vhd hdl/common/MemoryMap.vhd
-  ( cd verification/isa && rm -rf build/ \
-        && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS" \
-        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )
+  ( cd verification/isa \
+        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf \
+        && rm -rf build/ \
+        && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS" )   # ON AFTER base (see gotcha 1)
 
   # 2. Baseline: shwrs PASSES
   ( cd xcelium/riscv_test/behavioral_mp \
@@ -57,8 +76,7 @@ REPRO (from the repo/worktree root; ON = Zawrs-enabled RTL + -D image)
 
   # 5. Restore the committed (default, Zawrs-off) polarity + stock (no -D) images
   git checkout -- hdl/common/MemoryMap.vhd
-  ( cd verification/isa && rm -rf build/ && make rv32ua-flash \
-        && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )   # default (no -D) = OFF arm
+  ( cd verification/isa && ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf )   # default (no -D) = OFF arm
 
 NOTE: the live committed RTL must NOT contain the seed (verify:
   grep -c 'NEGCTRL SEED' hdl/common/vesta/vesta.vhd   -> 0).
