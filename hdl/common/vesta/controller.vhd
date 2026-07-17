@@ -71,6 +71,7 @@ entity controller is
         lr_op            : out std_logic;                      -- Load-reserved operation indicator
         sc_op            : out std_logic;                      -- Store-conditional operation indicator
         fence_op         : out std_logic;                      -- FENCE instruction indicator
+        pause_hint       : out std_logic;                      -- X1 Zihintpause: exact PAUSE hint (fence w,0)
 
         -- ==========================================
         -- CSR instruction outputs
@@ -142,6 +143,7 @@ architecture struct of controller is
             lr_op            : out std_logic;
             sc_op            : out std_logic;
             fence_op         : out std_logic;
+            pause_hint       : out std_logic;
 
             -- CSR instruction outputs
             csr_op           : out STD_LOGIC_VECTOR(2 downto 0); 
@@ -222,7 +224,8 @@ begin
             amo_op           => amo_op,
             lr_op            => lr_op,
             sc_op            => sc_op,
-            fence_op         => fence_op, 
+            fence_op         => fence_op,
+            pause_hint       => pause_hint,
 
             csr_op           => csr_op,
             csr_valid        => csr_valid,

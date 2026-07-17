@@ -1,0 +1,13 @@
+diff --git a/hdl/common/constants.vhd b/hdl/common/constants.vhd
+index 42cd850..82745b3 100644
+--- a/hdl/common/constants.vhd
++++ b/hdl/common/constants.vhd
+@@ -83,7 +83,7 @@ package constants is
+     -- and far below any timeout scale. 0 = no side-effect (PAUSE is a plain
+     -- fence-nop) -- the value the negative-control seed forces to prove the
+     -- directed mp latency test actually observes the window.
+-    constant PAUSE_WINDOW_CYCLES : natural := 16;
++    constant PAUSE_WINDOW_CYCLES : natural := 0;
+ 
+     -- Function 7 codes for ALU
+     constant POS_FN7  : std_logic_vector(6 downto 0) := "0000000";

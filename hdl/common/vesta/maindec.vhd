@@ -60,6 +60,12 @@ entity maindec is
         sc_op            : out STD_LOGIC;
         fence_op         : out STD_LOGIC;
 
+        -- X1 Zihintpause: '1' for the exact PAUSE hint (fence w,0) when
+        -- ENABLE_ZIHINT; statically '0' otherwise (so a disabled build's FENCE
+        -- path is bit-identical). Consumed by vesta's FSM to open the PAUSE
+        -- arbiter-yield window; never affects legality/trap (PAUSE is a FENCE).
+        pause_hint       : out STD_LOGIC;
+
         -- CSR control signals
         csr_op           : out STD_LOGIC_VECTOR(2 downto 0); 
         csr_valid        : out STD_LOGIC;                    
@@ -98,6 +104,7 @@ architecture behave of maindec is
     -- priv-spec gap where every unknown CSR silently read zero.
     signal csr_addr_valid  : STD_LOGIC;
     signal is_zimop_instr  : STD_LOGIC;  -- X1 Zimop: mop.r.N / mop.rr.N (rd<-0)
+    signal is_pause        : STD_LOGIC;
 
 
 begin
@@ -226,6 +233,14 @@ begin
                         funct5 /= LR_FN5 and funct5 /= SC_FN5) else '0';
 
     fence_op <= is_fence;
+
+    -- X1 Zihintpause detect (helper-signal pattern). PAUSE = `fence w,0`
+    -- (imm12 = 0x010, funct3 = 000). Gated by ENABLE_ZIHINT so an OFF build
+    -- leaves pause_hint statically '0' and the FENCE nop path unchanged. This
+    -- NEVER touches valid_opcode/valid_funct: PAUSE is a legal FENCE encoding
+    -- in both polarities (the generic gates only the arbiter-yield side-effect).
+    is_pause <= '1' when (ENABLE_ZIHINT and is_fence = '1' and imm12 = PAUSE_IMM12) else '0';
+    pause_hint <= is_pause;
 
     -- ==========================================
     -- Valid Instruction Detection

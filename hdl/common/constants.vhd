@@ -70,6 +70,21 @@ package constants is
 	constant FENCE_FN3       : std_logic_vector(2 downto 0) := "000"; -- FENCE
 	constant FENCE_I_FN3     : std_logic_vector(2 downto 0) := "001"; -- FENCE.I (instruction fence)
 
+    -- X1 Zihintpause: PAUSE = `fence w,0` = 0x0100000F. Its FENCE immediate
+    -- field instr[31:20] = fm(0) | pred(W=0001) | succ(0000) = 0x010. maindec
+    -- detects the exact PAUSE hint on (FENCE_OPCODE, FENCE_FN3, imm12=PAUSE_IMM12)
+    -- gated by ENABLE_ZIHINT; every other FENCE encoding stays an ordering nop.
+    constant PAUSE_IMM12     : std_logic_vector(11 downto 0) := "000000010000"; -- 0x010
+
+    -- X1 Zihintpause side-effect window (decision D6): when ENABLE_ZIHINT, a
+    -- retiring PAUSE holds this hart OUT of the shared-bus request contest for
+    -- this many clk_cpu cycles (its arbiter req stays low while it waits in the
+    -- PAUSE_WAIT state), long enough for a competing hart to win arbitration
+    -- and far below any timeout scale. 0 = no side-effect (PAUSE is a plain
+    -- fence-nop) -- the value the negative-control seed forces to prove the
+    -- directed mp latency test actually observes the window.
+    constant PAUSE_WINDOW_CYCLES : natural := 16;
+
     -- Function 7 codes for ALU
     constant POS_FN7  : std_logic_vector(6 downto 0) := "0000000";
     constant NEG_FN7  : std_logic_vector(6 downto 0) := "0100000";
