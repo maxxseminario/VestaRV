@@ -89,9 +89,22 @@ entity maindec is
         pause_hint       : out STD_LOGIC;
 
         -- CSR control signals
-        csr_op           : out STD_LOGIC_VECTOR(2 downto 0); 
-        csr_valid        : out STD_LOGIC;                    
-        
+        csr_op           : out STD_LOGIC_VECTOR(2 downto 0);
+        csr_valid        : out STD_LOGIC;
+
+        -- X4 Zfinx FP decode outputs. Each is statically '0' unless ENABLE_ZFINX
+        -- (the FP opcodes are absent from valid_opcode when off -> the encodings
+        -- trap illegal, bit-identical to base). is_fp_singlecycle retires in
+        -- EXECUTE via fpu_simple; is_fp_multicycle/is_fp_fma launch vesta's
+        -- FPU_WAIT/FPU_FETCH3 stall states (fma needs the extra rs3-fetch cycle).
+        is_fp_singlecycle : out STD_LOGIC;
+        is_fp_multicycle  : out STD_LOGIC;
+        is_fp_fma         : out STD_LOGIC;
+
+        -- X4 Zfinx: current frm validity (from csr_unit). Used ONLY for the
+        -- dynamic-rm (rm=111) legality check on rounding-mode-carrying FP ops.
+        frm_valid        : in  STD_LOGIC := '1';
+
         -- Trap signal for invalid instructions
         trap             : out STD_LOGIC
     );
@@ -144,6 +157,15 @@ architecture behave of maindec is
     -- each gated on ENABLE_ZKN. Disabled -> both '0' -> the encodings trap illegal.
     signal is_sha256_instr : STD_LOGIC;  -- sha256sig0/sig1/sum0/sum1
     signal is_sha512_instr : STD_LOGIC;  -- sha512sig0l/h, sig1l/h, sum0r, sum1r
+    -- X4 Zfinx single-precision FP decode helpers (all ENABLE_ZFINX-gated ->
+    -- constant '0' when off). fp_rm_ok legalizes the funct3=rm field for the
+    -- rounding-mode-carrying ops; is_fp_single = the single-cycle op-selector
+    -- family; is_fp_arith_mc = the multi-cycle rounding OP-FP ops (2 src);
+    -- is_fp_fma_op = the FMA family (3 src).
+    signal fp_rm_ok        : STD_LOGIC;
+    signal is_fp_single    : STD_LOGIC;
+    signal is_fp_arith_mc  : STD_LOGIC;
+    signal is_fp_fma_op    : STD_LOGIC;
 
 
 begin
@@ -306,6 +328,9 @@ begin
         -- X3 Zcmt jvt: a KNOWN CSR only when ENABLE_ZCMT (else read/write to 0x017
         -- is an unknown CSR -> illegal instruction, the both-polarity gate).
         (ENABLE_ZCMT and imm12 = CSR_JVT) or
+        -- X4 Zfinx fflags/frm/fcsr: KNOWN CSRs only when ENABLE_ZFINX (else
+        -- 0x001/0x002/0x003 are unknown CSRs -> illegal, the both-polarity gate).
+        (ENABLE_ZFINX and (imm12 = CSR_FFLAGS or imm12 = CSR_FRM or imm12 = CSR_FCSR)) or
         (unsigned(imm12) >= unsigned(CSR_MHPMCOUNTER3)  and unsigned(imm12) <= x"B1F") or -- mhpmcounter3-31
         (unsigned(imm12) >= unsigned(CSR_MHPMCOUNTER3H) and unsigned(imm12) <= x"B9F") or -- mhpmcounter3h-31h
         (unsigned(imm12) >= unsigned(CSR_MHPMEVENT3)    and unsigned(imm12) <= x"33F") or -- mhpmevent3-31
@@ -384,6 +409,45 @@ begin
     zcm_op <= is_zcm;
 
     -- ==========================================
+    -- X4 Zfinx single-precision FP decode
+    -- ==========================================
+    -- rm-field (funct3) legality for the rounding-mode-carrying ops: 000..100
+    -- legal, 101/110 illegal, 111 (dynamic) legal iff frm is a valid mode. The
+    -- op-selector ops (fsgnj*/fmin/fmax/fcmp/fclass) do NOT consult this — their
+    -- funct3 is checked exactly below. imm12(4:0) = instr[24:20] = the rs2 field.
+    fp_rm_ok <= '1' when (funct3 = "000" or funct3 = "001" or funct3 = "010" or
+                          funct3 = "011" or funct3 = "100" or
+                          (funct3 = FRM_DYN and frm_valid = '1')) else '0';
+
+    -- Single-cycle OP-FP (op-selector funct3, no rounding, retire in EXECUTE).
+    -- FCLASS shares funct7 with fmv.x.w; only rm=001/rs2=0 (fclass) is legalized,
+    -- so fmv.x.w (rm=000) stays illegal — Zfinx has no fmv.
+    is_fp_single <= '1' when (ENABLE_ZFINX and op = OPFP_OPCODE and (
+        (funct7 = FSGNJ_FN7   and (funct3 = "000" or funct3 = "001" or funct3 = "010")) or  -- fsgnj/n/x
+        (funct7 = FMINMAX_FN7 and (funct3 = "000" or funct3 = "001")) or                    -- fmin/fmax
+        (funct7 = FCMP_FN7    and (funct3 = "000" or funct3 = "001" or funct3 = "010")) or  -- fle/flt/feq
+        (funct7 = FCLASS_FN7  and funct3 = "001" and imm12(4 downto 0) = "00000")           -- fclass
+    )) else '0';
+
+    -- Multi-cycle OP-FP that rounds (2 source regs, no rs3). fmv.w.x (funct7
+    -- 1111000) is NOT in this list -> stays illegal.
+    is_fp_arith_mc <= '1' when (ENABLE_ZFINX and op = OPFP_OPCODE and fp_rm_ok = '1' and (
+        funct7 = FADD_FN7 or funct7 = FSUB_FN7 or funct7 = FMUL_FN7 or funct7 = FDIV_FN7 or
+        (funct7 = FSQRT_FN7 and imm12(4 downto 0) = FP_RS2_W) or
+        (funct7 = FCVTW_FN7 and (imm12(4 downto 0) = FP_RS2_W or imm12(4 downto 0) = FP_RS2_WU)) or
+        (funct7 = FCVTS_FN7 and (imm12(4 downto 0) = FP_RS2_W or imm12(4 downto 0) = FP_RS2_WU))
+    )) else '0';
+
+    -- FMA family (3 source regs). fmt = funct7(1:0) must be 00 (single); rs3 =
+    -- funct7(6:2) is a don't-care. Distinct opcodes (0x43/0x47/0x4B/0x4F).
+    is_fp_fma_op <= '1' when (ENABLE_ZFINX and fp_rm_ok = '1' and funct7(1 downto 0) = "00" and
+        (op = FMADD_OPCODE or op = FMSUB_OPCODE or op = FNMSUB_OPCODE or op = FNMADD_OPCODE)) else '0';
+
+    is_fp_singlecycle <= is_fp_single;
+    is_fp_multicycle  <= is_fp_arith_mc;
+    is_fp_fma         <= is_fp_fma_op;
+
+    -- ==========================================
     -- Valid Instruction Detection
     -- ==========================================
     -- Check for valid RV32IMAC+Zba+Zbb opcodes
@@ -401,10 +465,17 @@ begin
         op = CUSTOM_OPCODE   or  -- Custom Vesta instructions
         op = FENCE_OPCODE    or  -- FENCE instruction
         op = SYSTEM_OPCODE   or  -- SYSTEM instruction
-        ((ENABLE_ZCMP or ENABLE_ZCMT) and op = ZCM_SENTINEL_OP)  -- X3 Zcmp/Zcmt cm.* sentinel
+        ((ENABLE_ZCMP or ENABLE_ZCMT) and op = ZCM_SENTINEL_OP) or  -- X3 Zcmp/Zcmt cm.* sentinel
+        -- X4 Zfinx FP opcodes (each ENABLE_ZFINX-gated so OFF = current
+        -- illegal-trap behaviour, bit-identical).
+        (ENABLE_ZFINX and op = OPFP_OPCODE)   or  -- OP-FP (0x53)
+        (ENABLE_ZFINX and op = FMADD_OPCODE)  or  -- fmadd.s
+        (ENABLE_ZFINX and op = FMSUB_OPCODE)  or  -- fmsub.s
+        (ENABLE_ZFINX and op = FNMSUB_OPCODE) or  -- fnmsub.s
+        (ENABLE_ZFINX and op = FNMADD_OPCODE)     -- fnmadd.s
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_aes_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5, is_sha256_instr, is_sha512_instr, is_zbkb_new_r_instr, is_zbkb_new_i_instr, is_zbkb_shared_r_instr, is_zbkb_shared_i_instr, is_zbkx_instr)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_aes_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5, is_sha256_instr, is_sha512_instr, is_zbkb_new_r_instr, is_zbkb_new_i_instr, is_zbkb_shared_r_instr, is_zbkb_shared_i_instr, is_zbkx_instr, is_fp_single, is_fp_arith_mc, is_fp_fma_op)
     begin
         valid_funct <= '1';
         
@@ -605,6 +676,26 @@ begin
                 when ZCM_SENTINEL_OP =>
                     valid_funct <= '1';
 
+                -- X4 Zfinx OP-FP: legal iff the exact funct7/funct3/rs2 encoding
+                -- decodes to a supported Zfinx op (single- or multi-cycle). This
+                -- arm is reached ONLY when ENABLE_ZFINX (valid_opcode gates it);
+                -- rm-illegal, fmv.w.x/fmv.x.w, and reserved encodings fall through
+                -- to '0' = illegal.
+                when OPFP_OPCODE =>
+                    if is_fp_single = '1' or is_fp_arith_mc = '1' then
+                        valid_funct <= '1';
+                    else
+                        valid_funct <= '0';
+                    end if;
+
+                -- X4 Zfinx FMA opcodes: legal iff fmt=00 (single) and rm legal.
+                when FMADD_OPCODE | FMSUB_OPCODE | FNMSUB_OPCODE | FNMADD_OPCODE =>
+                    if is_fp_fma_op = '1' then
+                        valid_funct <= '1';
+                    else
+                        valid_funct <= '0';
+                    end if;
+
                 -- J, LUI, AUIPC don't use funct3/funct7
                 when others =>
                     -- TODO
@@ -646,6 +737,7 @@ begin
                  '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct5 = SC_FN5)  else -- SC also writes (success/fail flag)
                  '1' when is_zimop_instr = '1'  else  -- Zimop mop.r/mop.rr write rd<-0
                  '1' when is_csr_instr = '1'    else
+                 '1' when (is_fp_single = '1' or is_fp_arith_mc = '1' or is_fp_fma_op = '1') else  -- X4 Zfinx: all FP ops write rd
                  '0' when (op = FENCE_OPCODE)        else  -- FENCE instruction
                  '0';  -- No write for stores, branches, custom instructions
 
@@ -723,6 +815,8 @@ begin
                   "001" when (op = AMO_OPCODE and amo_op = '1') else -- Memory data for AMO
                   "101" when is_zimop_instr = '1'  else  -- Zimop: unused mux code -> Result forced 0 (rd<-0)
                   "100" when is_csr_instr = '1'    else  -- CSR read value
+                  RSRC_FP_SINGLE when is_fp_single = '1' else  -- X4 single-cycle FP (fpu_simple, EXECUTE)
+                  RSRC_FP_MULTI  when (is_fp_arith_mc = '1' or is_fp_fma_op = '1') else  -- X4 multi-cycle FP (fpu, FPU_DONE)
                   "001";
 
     -- ==========================================

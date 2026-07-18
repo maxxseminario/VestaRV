@@ -1,0 +1,49 @@
+# =========================================================================
+# X4 Zfinx negative-control seed (c): rd=x0 DROPS fflags
+# STATUS: DRAFT -- the FSM flag-strobe (Stage 2b vesta.vhd FPU_DONE / single-
+#   cycle FP retire) does not exist in this worktree (base 26e3980). Written
+#   against the FROZEN design in x4_stage1_proposal.md §6 ("rd=x0 still sets
+#   fflags: guaranteed because fp_flags_we is driven by the FP op's completion
+#   state, INDEPENDENT of rd/reg_write"). Stage 3 finalizes the hunk
+#   offset/context against the real vesta.vhd.
+#
+# WHAT IT MUTATES:
+#   Target file      : hdl/common/vesta/vesta.vhd  (Stage 2b)
+#   Design construct : the fp_flags_we strobe raised at FP-op completion
+#                      (FPU_DONE and the single-cycle EXECUTE-retire arm). The
+#                      architected strobe is orthogonal to rd -- the regfile
+#                      already suppresses the x0 write, but the flag OR must
+#                      still commit. The seed GATES the strobe on rd/=x0, so an
+#                      fp op with rd=x0 discards its exception flags too.
+#
+# DETECTING TEST : rv32uzf-p-drdx0  (tools/gen_directed.py :: gen_drdx0)
+#   drdx0 clears fflags, runs `fadd.s x0,s2,s3` with an inexact sum, reads
+#   fflags expecting NX (0x01); and `fsub.s x0,inf,inf` expecting NV (0x10).
+#   With the seed, rd=x0 => fp_flags_we=0 => fflags stays 0 => `bne s6,a5,fail`
+#   fires --> BOUNDED FAIL (a0=0xDEADBEEF). Compare-and-branch: no hang path.
+#
+# EXPECTED:  clean vesta.vhd -> rv32uzf-p-drdx0 = TEST PASSED  (NX, then NV set)
+#            seeded vesta.vhd -> rv32uzf-p-drdx0 = TEST FAILED  (fflags=0x00)
+# =========================================================================
+#
+# STAGE-3 FINALIZED (2026-07-18) against the real Stage-2b vesta.vhd. The
+#   fp_flags_we strobe is a CONCURRENT conditional assignment (not an FSM-state
+#   assignment); the seed gates BOTH arms (FPU_DONE and the single-cycle EXECUTE
+#   retire) on instr_curr(11 downto 7) /= "00000" so an fp op with rd=x0 drops
+#   its flags (mutation semantics unchanged). Detecting rv32uzf-p-drdx0 hits the
+#   FPU_DONE arm (fadd.s/fsub.s x0). Applies cleanly to the merged tree.
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index 33b8361..ce46754 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -905,8 +905,9 @@ architecture struct of vesta is
+     -- inherit the EXECUTE sub-arm structure that protects the FSM dispatch arms, so
+     -- it must qualify its own EXECUTE term — exactly as amo_lock does (vesta:~1207,
+     -- qualifying its EXECUTE term to the real dispatch: amo_op and mem_access_instr).
+-    fp_flags_we <= '1' when (current_state = FPU_DONE) else
++    fp_flags_we <= '1' when (current_state = FPU_DONE and instr_curr(11 downto 7) /= "00000") else  -- SEED(c): gate flag strobe on rd/=x0 (rd=x0-drops-fflags bug)
+                    '1' when (current_state = EXECUTE and is_fp_singlecycle = '1' and trap = '0'
++                             and instr_curr(11 downto 7) /= "00000"
+                              and (ENABLE_COMPRESSED or pc(1) = '0')
+                              and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else
+                    '0';

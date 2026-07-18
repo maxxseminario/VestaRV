@@ -102,7 +102,19 @@ entity datapath is
         csr_valid   : in  std_logic;                          -- Valid CSR operation
         csr_rdata   : in  std_logic_vector(XLEN-1 downto 0);      -- Data read from CSR
         csr_wdata   : out std_logic_vector(XLEN-1 downto 0);      -- Data to write to CSR
-        
+
+        -- ==========================================
+        -- X4 Zfinx FPU control / status (all default inert; the whole FP datapath
+        -- is behind gen_fpu, so an OFF build is bit-identical to base).
+        -- ==========================================
+        fp_op_latch  : in  std_logic := '0';                   -- EXECUTE-dispatch strobe: latch rs1/rs2
+        fp_fetch3    : in  std_logic := '0';                   -- FPU_FETCH3: steer a2 -> rs3, latch rs3
+        fpu_start    : in  std_logic := '0';                   -- FPU_WAIT: run the multi-cycle unit (§C1)
+        frm_value    : in  std_logic_vector(2 downto 0) := "000"; -- current frm (dynamic-rm resolution)
+        fpu_done     : out std_logic;                          -- multi-cycle FP complete (like alu_done)
+        fp_flags     : out std_logic_vector(4 downto 0);       -- flags of the completing FP op (mc at FPU_DONE / sc in EXECUTE)
+
+
         -- ==========================================
         -- Test Output - Stores pass /fail result of instruction tests
         -- ==========================================
@@ -184,6 +196,34 @@ architecture struct of datapath is
         );
     end component;
 
+    -- X4 Zfinx FP units (interfaces FROZEN by Stage-1 §C2/§C3; Stage-2b
+    -- instantiates them behind gen_fpu; Stage-2a provides the real datapath).
+    component fpu
+        port (
+            clk       : in  std_logic;
+            resetn    : in  std_logic;
+            fpu_start : in  std_logic;
+            fp_op     : in  std_logic_vector(3 downto 0);
+            rm        : in  std_logic_vector(2 downto 0);
+            fp_a      : in  std_logic_vector(31 downto 0);
+            fp_b      : in  std_logic_vector(31 downto 0);
+            fp_c      : in  std_logic_vector(31 downto 0);
+            fpu_done  : out std_logic;
+            fp_result : out std_logic_vector(31 downto 0);
+            fp_flags  : out std_logic_vector(4 downto 0)
+        );
+    end component;
+
+    component fpu_simple
+        port (
+            fp_s_op     : in  std_logic_vector(3 downto 0);
+            fp_s_a      : in  std_logic_vector(31 downto 0);
+            fp_s_b      : in  std_logic_vector(31 downto 0);
+            fp_s_result : out std_logic_vector(31 downto 0);
+            fp_s_flags  : out std_logic_vector(4 downto 0)
+        );
+    end component;
+
     -- ==========================================
     -- Internal Signal Declarations
     -- ==========================================
@@ -229,6 +269,23 @@ architecture struct of datapath is
     signal rf_a3_addr         : std_logic_vector(4 downto 0);   -- X3 Zcmp: write-port address (steered to the sequencer reg index)
 
     signal rd_amo            : std_logic_vector(XLEN-1 downto 0);  -- Data read during AMO operations
+
+    -- X4 Zfinx FP signals. The registered operand copies are the ONLY thing the
+    -- multi-cycle unit consumes across FPU_WAIT (regfile-port audit): rs1/rs2
+    -- latched at EXECUTE dispatch (pre-writeback), rs3 latched in FPU_FETCH3 from
+    -- the steered rs2 read port. Declared at architecture level so the Result mux
+    -- can reference them; driven in gen_fpu, tied to 0 in gen_no_fpu.
+    signal fp_rs1_reg   : std_logic_vector(31 downto 0);
+    signal fp_rs2_reg   : std_logic_vector(31 downto 0);
+    signal fp_rs3_reg   : std_logic_vector(31 downto 0);
+    signal fp_op        : std_logic_vector(3 downto 0);
+    signal fp_s_op      : std_logic_vector(3 downto 0);
+    signal eff_rm       : std_logic_vector(2 downto 0);
+    signal fp_result_mc : std_logic_vector(31 downto 0);
+    signal fp_s_result  : std_logic_vector(31 downto 0);
+    signal fp_flags_mc  : std_logic_vector(4 downto 0);
+    signal fp_s_flags   : std_logic_vector(4 downto 0);
+    signal fpu_done_i   : std_logic;
 
 begin
 
@@ -282,7 +339,11 @@ begin
     -- rd index (instr[11:7]) ONLY during the CAS AMO_WRITEBACK cycle so amo_cmp_reg
     -- can capture the original rd (the compare value) before rd is overwritten. All
     -- other cycles (and every non-CAS AMO) keep rs2 -- bit-identical to pre-X2.
-    rf_a2_addr <= instr(11 downto 7) when (cas_op = '1' and amo_phase = "110") else
+    -- X4 Zfinx: during FPU_FETCH3 steer the rs2 read port to the FMA rs3 index
+    -- (instr[31:27]) so fp_rs3_reg captures reg[rs3] with NO third read port
+    -- (the Zacas rf_a2_addr idiom). ENABLE_ZFINX-gated -> folds away in OFF.
+    rf_a2_addr <= instr(31 downto 27) when (ENABLE_ZFINX and fp_fetch3 = '1') else
+                  instr(11 downto 7)  when (cas_op = '1' and amo_phase = "110") else
                   instr(24 downto 20);
 
     -- X2 Zacas: sign-extend the captured compare value to the AMO width, matching
@@ -449,7 +510,9 @@ begin
             pc_plus_4           when result_Src = "010" else  -- Return address (JAL/JALR)
             pc_target           when result_Src = "011" else  -- PC + immediate (AUIPC)
             csr_rdata           when result_Src = "100" else  -- CSR read data
-            (others => '0');    
+            fp_s_result         when result_Src = RSRC_FP_SINGLE else  -- X4 single-cycle FP (EXECUTE)
+            fp_result_mc        when result_Src = RSRC_FP_MULTI  else  -- X4 multi-cycle FP (FPU_DONE)
+            (others => '0');
     
     -- ==========================================
     -- Load Extension Unit Instance
@@ -474,6 +537,111 @@ begin
             read_data     => write_data_reg_val,     -- Data from rs2
             extended_data => write_data              -- Formatted data for memory
         );
+
+    -- ==========================================
+    -- X4 Zfinx FP datapath (behind gen_fpu -> 100% pruned in the OFF build)
+    -- ==========================================
+    gen_fpu: if ENABLE_ZFINX generate
+        -- Effective rounding mode: instruction rm, or frm when rm=111 (dynamic).
+        eff_rm <= frm_value when instr(14 downto 12) = FRM_DYN else instr(14 downto 12);
+
+        -- Multi-cycle op decode (fp_op[3:0], constants FPOP_*). imm12-equivalent
+        -- rs2 field = instr[24:20]; funct7 = instr[31:25].
+        fp_op <= FPOP_FADD     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FADD_FN7) else
+                 FPOP_FSUB     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FSUB_FN7) else
+                 FPOP_FMUL     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FMUL_FN7) else
+                 FPOP_FDIV     when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FDIV_FN7) else
+                 FPOP_FSQRT    when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FSQRT_FN7) else
+                 FPOP_FCVT_W_S when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FCVTW_FN7 and instr(24 downto 20) = FP_RS2_W)  else
+                 FPOP_FCVT_WU_S when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FCVTW_FN7 and instr(24 downto 20) = FP_RS2_WU) else
+                 FPOP_FCVT_S_W when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FCVTS_FN7 and instr(24 downto 20) = FP_RS2_W)  else
+                 FPOP_FCVT_S_WU when (instr(6 downto 0) = OPFP_OPCODE and instr(31 downto 25) = FCVTS_FN7 and instr(24 downto 20) = FP_RS2_WU) else
+                 FPOP_FMADD    when (instr(6 downto 0) = FMADD_OPCODE)  else
+                 FPOP_FMSUB    when (instr(6 downto 0) = FMSUB_OPCODE)  else
+                 FPOP_FNMSUB   when (instr(6 downto 0) = FNMSUB_OPCODE) else
+                 FPOP_FNMADD   when (instr(6 downto 0) = FNMADD_OPCODE) else
+                 FPOP_FADD;
+
+        -- Single-cycle op decode (fp_s_op[3:0], constants FPSOP_*).
+        fp_s_op <= FPSOP_FSGNJ  when (instr(31 downto 25) = FSGNJ_FN7   and instr(14 downto 12) = "000") else
+                   FPSOP_FSGNJN when (instr(31 downto 25) = FSGNJ_FN7   and instr(14 downto 12) = "001") else
+                   FPSOP_FSGNJX when (instr(31 downto 25) = FSGNJ_FN7   and instr(14 downto 12) = "010") else
+                   FPSOP_FMIN   when (instr(31 downto 25) = FMINMAX_FN7 and instr(14 downto 12) = "000") else
+                   FPSOP_FMAX   when (instr(31 downto 25) = FMINMAX_FN7 and instr(14 downto 12) = "001") else
+                   FPSOP_FLE    when (instr(31 downto 25) = FCMP_FN7    and instr(14 downto 12) = "000") else
+                   FPSOP_FLT    when (instr(31 downto 25) = FCMP_FN7    and instr(14 downto 12) = "001") else
+                   FPSOP_FEQ    when (instr(31 downto 25) = FCMP_FN7    and instr(14 downto 12) = "010") else
+                   FPSOP_FCLASS when (instr(31 downto 25) = FCLASS_FN7  and instr(14 downto 12) = "001") else
+                   FPSOP_FSGNJ;
+
+        -- Operand latches. rs1/rs2 captured at the EXECUTE dispatch edge from the
+        -- live read ports (src_a=rd1, write_data_reg_val=rd2), consumed pre-
+        -- writeback that cycle; rs3 captured in FPU_FETCH3 from the rs2 port
+        -- steered to instr[31:27]. NOTHING reads a live port across FPU_WAIT.
+        fp_lat_proc: process(clk, resetn)
+        begin
+            if resetn = '0' then
+                fp_rs1_reg <= (others => '0');
+                fp_rs2_reg <= (others => '0');
+                fp_rs3_reg <= (others => '0');
+            elsif rising_edge(clk) then
+                if fp_op_latch = '1' then
+                    fp_rs1_reg <= src_a;               -- rd1 = reg[rs1]
+                    fp_rs2_reg <= write_data_reg_val;  -- rd2 = reg[rs2]
+                end if;
+                if fp_fetch3 = '1' then
+                    fp_rs3_reg <= write_data_reg_val;  -- rd2 (a2 steered to rs3)
+                end if;
+            end if;
+        end process;
+
+        -- Multi-cycle unit: runs only on the REGISTERED operand copies.
+        fpu_i: fpu
+            port map (
+                clk       => clk,
+                resetn    => resetn,
+                fpu_start => fpu_start,
+                fp_op     => fp_op,
+                rm        => eff_rm,
+                fp_a      => fp_rs1_reg,
+                fp_b      => fp_rs2_reg,
+                fp_c      => fp_rs3_reg,
+                fpu_done  => fpu_done_i,
+                fp_result => fp_result_mc,
+                fp_flags  => fp_flags_mc
+            );
+
+        -- Single-cycle unit: fed LIVE rd1/rd2, consumed same-cycle in EXECUTE.
+        fpu_s_i: fpu_simple
+            port map (
+                fp_s_op     => fp_s_op,
+                fp_s_a      => src_a,
+                fp_s_b      => write_data_reg_val,
+                fp_s_result => fp_s_result,
+                fp_s_flags  => fp_s_flags
+            );
+    end generate;
+
+    gen_no_fpu: if not ENABLE_ZFINX generate
+        fp_op        <= (others => '0');
+        fp_s_op      <= (others => '0');
+        eff_rm       <= (others => '0');
+        fp_rs1_reg   <= (others => '0');
+        fp_rs2_reg   <= (others => '0');
+        fp_rs3_reg   <= (others => '0');
+        fp_result_mc <= (others => '0');
+        fp_s_result  <= (others => '0');
+        fp_flags_mc  <= (others => '0');
+        fp_s_flags   <= (others => '0');
+        fpu_done_i   <= '0';
+    end generate;
+
+    -- FP status to vesta. fpu_done paces the FPU_WAIT->FPU_DONE transition. The
+    -- flag bus presents the single-cycle op's flags when a single-cycle FP op is
+    -- retiring (result_Src=110), else the multi-cycle op's flags (valid at
+    -- FPU_DONE, result_Src=111); vesta's fp_flags_we picks the commit cycle.
+    fpu_done <= fpu_done_i;
+    fp_flags <= fp_s_flags when result_Src = RSRC_FP_SINGLE else fp_flags_mc;
 
 end architecture struct;
 

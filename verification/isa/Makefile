@@ -42,6 +42,7 @@ include $(src_dir)/rv32uzacas/Makefrag
 include $(src_dir)/rv32uzkne/Makefrag
 include $(src_dir)/rv32uzknd/Makefrag
 include $(src_dir)/rv32uzknh/Makefrag
+include $(src_dir)/rv32uzf/Makefrag
 include $(src_dir)/rv32si/Makefrag
 include $(src_dir)/rv32ziscr/Makefrag # Added by Maxx Seminario 10/21/2025
 include $(src_dir)/rv32mi/Makefrag
@@ -307,6 +308,14 @@ $(eval $(call compile_template,rv32uzknd,-march=rv32imac -mabi=ilp32))
 # .insn forms and build under the base -march. ON-polarity only; NOT wired into
 # the default (off) suite runner.
 $(eval $(call compile_template,rv32uzknh,-march=rv32imac -mabi=ilp32))
+# rv32uzf (X4 Zfinx): converted rv32uf + directed FP vectors. gas 13.2 DOES
+# accept every single-precision mnemonic on x-registers under an `_zfinx' arch
+# string (verified: fadd.s a0,a1,a2 -> 0x00c5f553, identical to the F form), so
+# NO .insn fallback is needed -- the suite is built with -march=rv32imc_zfinx.
+# ON-polarity only (runs at Stage 3 against the FPU RTL); NOT wired into the
+# default (Zfinx-off) suite runner. Regenerate the .S with
+# tools/zfinx_convert.py + tools/gen_directed.py (both deterministic).
+$(eval $(call compile_template,rv32uzf,-march=rv32imc_zfinx -mabi=ilp32))
 $(eval $(call compile_template,rv32si,-march=rv32g -mabi=ilp32))
 $(eval $(call compile_template,rv32ziscr,-march=rv32gc -mabi=ilp32)) # Added by Maxx Seminario 10/21/2025 
 $(eval $(call compile_template,rv32mi,-march=rv32g -mabi=ilp32))
@@ -505,6 +514,12 @@ rv32uzknh-flash: rv32uzknh
 	@echo "Flashing: Prepending binary header lines to rv32uzknh .rcf files ..."
 	@echo "Files to flash: " rcf/*rv32uzknh*.rcf
 	@./flash_prepend.sh "rcf/*rv32uzknh*.rcf"
+
+.PHONY: rv32uzf-flash
+rv32uzf-flash: rv32uzf
+	@echo "Flashing: Prepending binary header lines to rv32uzf .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzf*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzf*.rcf"
 
 .PHONY: spifem-flash
 spifem-flash: spifem

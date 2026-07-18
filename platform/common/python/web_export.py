@@ -99,6 +99,9 @@ def _isaString(isa):
 		s += '_zknd_zkne_zknh'
 		if isa.get('zbkb') and isa.get('zbkc') and isa.get('zbkx'):
 			s += '_zkn'
+	# X4 Zfinx (keep IDENTICAL to generate.py._isaString). misa.F stays 0.
+	if isa.get('zfinx'):
+		s += '_zfinx'
 	return s
 
 

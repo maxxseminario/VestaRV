@@ -368,6 +368,75 @@ package constants is
     -- through the csr_valid map so a read/write is illegal when ENABLE_ZCMT is off.
     constant CSR_JVT           : std_logic_vector(11 downto 0) := x"017"; -- Zcmt jump-vector-table base (URW)
 
+    -- ==========================================================================
+    -- X4 Zfinx (single-precision FP in x-registers) constants
+    -- ==========================================================================
+    -- FP status CSRs. LEGAL only when ENABLE_ZFINX (csr_addr_valid gates them);
+    -- otherwise these three addresses are unknown CSRs -> illegal instruction.
+    constant CSR_FFLAGS  : std_logic_vector(11 downto 0) := x"001"; -- accrued flags {NV,DZ,OF,UF,NX}
+    constant CSR_FRM     : std_logic_vector(11 downto 0) := x"002"; -- dynamic rounding mode [2:0]
+    constant CSR_FCSR    : std_logic_vector(11 downto 0) := x"003"; -- frm[7:5] | fflags[4:0]
+
+    -- OP-FP and FMA opcodes (RV32F encodings, reused by Zfinx on x-registers).
+    -- fmv.w.x / fmv.x.w are DELIBERATELY absent (no separate F regfile in Zfinx),
+    -- so their funct7 codes never appear in the legal decode -> stay illegal.
+    constant OPFP_OPCODE   : std_logic_vector(6 downto 0) := "1010011"; -- 0x53 OP-FP
+    constant FMADD_OPCODE  : std_logic_vector(6 downto 0) := "1000011"; -- 0x43 FMADD
+    constant FMSUB_OPCODE  : std_logic_vector(6 downto 0) := "1000111"; -- 0x47 FMSUB
+    constant FNMSUB_OPCODE : std_logic_vector(6 downto 0) := "1001011"; -- 0x4B FNMSUB
+    constant FNMADD_OPCODE : std_logic_vector(6 downto 0) := "1001111"; -- 0x4F FNMADD
+
+    -- OP-FP funct7 fields (single precision, fmt=00).
+    constant FADD_FN7    : std_logic_vector(6 downto 0) := "0000000"; -- fadd.s
+    constant FSUB_FN7    : std_logic_vector(6 downto 0) := "0000100"; -- fsub.s
+    constant FMUL_FN7    : std_logic_vector(6 downto 0) := "0001000"; -- fmul.s
+    constant FDIV_FN7    : std_logic_vector(6 downto 0) := "0001100"; -- fdiv.s
+    constant FSQRT_FN7   : std_logic_vector(6 downto 0) := "0101100"; -- fsqrt.s   (rs2=00000)
+    constant FSGNJ_FN7   : std_logic_vector(6 downto 0) := "0010000"; -- fsgnj/n/x (rm 000/001/010)
+    constant FMINMAX_FN7 : std_logic_vector(6 downto 0) := "0010100"; -- fmin/fmax (rm 000/001)
+    constant FCMP_FN7    : std_logic_vector(6 downto 0) := "1010000"; -- fle/flt/feq (rm 000/001/010)
+    constant FCVTW_FN7   : std_logic_vector(6 downto 0) := "1100000"; -- fcvt.w.s/fcvt.wu.s (rs2 00000/00001)
+    constant FCVTS_FN7   : std_logic_vector(6 downto 0) := "1101000"; -- fcvt.s.w/fcvt.s.wu (rs2 00000/00001)
+    constant FCLASS_FN7  : std_logic_vector(6 downto 0) := "1110000"; -- fclass.s (rm=001); fmv.x.w (rm=000) stays illegal
+
+    -- rs2 selector field for the two-operand converts / sqrt (instr[24:20]).
+    constant FP_RS2_W    : std_logic_vector(4 downto 0) := "00000"; -- .w  / sqrt rs2
+    constant FP_RS2_WU   : std_logic_vector(4 downto 0) := "00001"; -- .wu
+
+    -- Dynamic rounding-mode selector in funct3 (rm=111 -> use frm).
+    constant FRM_DYN     : std_logic_vector(2 downto 0) := "111";
+
+    -- FPU op encodings (Stage-1 §C3, FROZEN). Multi-cycle unit fp_op[3:0]:
+    constant FPOP_FADD     : std_logic_vector(3 downto 0) := "0000"; -- 0
+    constant FPOP_FSUB     : std_logic_vector(3 downto 0) := "0001"; -- 1
+    constant FPOP_FMUL     : std_logic_vector(3 downto 0) := "0010"; -- 2
+    constant FPOP_FDIV     : std_logic_vector(3 downto 0) := "0011"; -- 3
+    constant FPOP_FSQRT    : std_logic_vector(3 downto 0) := "0100"; -- 4
+    constant FPOP_FMADD    : std_logic_vector(3 downto 0) := "0101"; -- 5
+    constant FPOP_FMSUB    : std_logic_vector(3 downto 0) := "0110"; -- 6
+    constant FPOP_FNMSUB   : std_logic_vector(3 downto 0) := "0111"; -- 7
+    constant FPOP_FNMADD   : std_logic_vector(3 downto 0) := "1000"; -- 8
+    constant FPOP_FCVT_W_S : std_logic_vector(3 downto 0) := "1001"; -- 9
+    constant FPOP_FCVT_WU_S: std_logic_vector(3 downto 0) := "1010"; -- 10
+    constant FPOP_FCVT_S_W : std_logic_vector(3 downto 0) := "1011"; -- 11
+    constant FPOP_FCVT_S_WU: std_logic_vector(3 downto 0) := "1100"; -- 12
+
+    -- Single-cycle unit fp_s_op[3:0]:
+    constant FPSOP_FSGNJ   : std_logic_vector(3 downto 0) := "0000"; -- 0
+    constant FPSOP_FSGNJN  : std_logic_vector(3 downto 0) := "0001"; -- 1
+    constant FPSOP_FSGNJX  : std_logic_vector(3 downto 0) := "0010"; -- 2
+    constant FPSOP_FEQ     : std_logic_vector(3 downto 0) := "0011"; -- 3
+    constant FPSOP_FLT     : std_logic_vector(3 downto 0) := "0100"; -- 4
+    constant FPSOP_FLE     : std_logic_vector(3 downto 0) := "0101"; -- 5
+    constant FPSOP_FMIN    : std_logic_vector(3 downto 0) := "0110"; -- 6
+    constant FPSOP_FMAX    : std_logic_vector(3 downto 0) := "0111"; -- 7
+    constant FPSOP_FCLASS  : std_logic_vector(3 downto 0) := "1000"; -- 8
+
+    -- FP writeback result_src codes (110 = single-cycle fpu_simple result in
+    -- EXECUTE; 111 = multi-cycle fpu result at FPU_DONE). 101 is taken by Zimop.
+    constant RSRC_FP_SINGLE : std_logic_vector(2 downto 0) := "110";
+    constant RSRC_FP_MULTI  : std_logic_vector(2 downto 0) := "111";
+
 
 
     -- I2C constants

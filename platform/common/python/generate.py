@@ -344,11 +344,11 @@ _isa = {
 # no-op), but setting one true would advertise hardware that does not exist —
 # HARD-ERROR so nothing downstream (misa/ISA-string/tests) can lie about it.
 # Remove a name from this tuple as its phase (X1-X4) lands its real logic.
-_SCAFFOLDED_ISA = (
-	'zfinx',)   # NOTE: trailing comma is load-bearing -- without it this is the
-	            # STRING 'zfinx' (iterated char-by-char -> KeyError 'z'). Latent
-	            # since the list shrank to one entry in X3 Stage B; fixed here (X3
-	            # Stage C) so `make generate` runs.
+_SCAFFOLDED_ISA = ()   # X4 landed Zfinx (the last scaffolded name); this is now a
+	                   # VALID EMPTY TUPLE. Keep it `()` -- never a bare string like
+	                   # ('zfinx') without a trailing comma (iterated char-by-char ->
+	                   # KeyError). Re-add a name here only if a future extension is
+	                   # scaffolded ahead of its implementation.
 for _sx in _SCAFFOLDED_ISA:
 	if _isa[_sx]:
 		raise Exception('isa.' + _sx + ': scaffolded (X0) but not implemented yet')
@@ -433,6 +433,10 @@ def _isaString():
 		s += '_zknd_zkne_zknh'
 		if _isa['zbkb'] and _isa['zbkc'] and _isa['zbkx']:
 			s += '_zkn'
+	# X4 Zfinx: single-precision FP in the integer regfile (misa.F stays 0 — Zfinx
+	# explicitly does not set F). Keep IDENTICAL to web_export.py._isaString().
+	if _isa['zfinx']:
+		s += '_zfinx'
 	return s
 
 # Cross-knob sanity (WARN, not raise — these are legal but suspicious)

@@ -49,6 +49,19 @@ rv32ua_sc_tests = \
 	extzawrs \
 	extzawrsx \
 	extzknh \
+	extzfinx \
+	zfopfp \
+	zffma \
+	zffms \
+	zfnms \
+	zfnma \
+	zfflw \
+	zffsw \
+	zfmvwx \
+	zfmvxw \
+	zffflags \
+	zffrm \
+	zffcsr \
 
 rv32ua_p_tests = $(addprefix rv32ua-p-, $(rv32ua_sc_tests))
 rv32ua_v_tests = $(addprefix rv32ua-v-, $(rv32ua_sc_tests))

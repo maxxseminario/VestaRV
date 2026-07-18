@@ -1,0 +1,49 @@
+# =========================================================================
+# X4 Zfinx negative-control seed (a): ROUNDING-MODE-IGNORED
+# STATUS: DRAFT -- the FPU RTL (Stage 2a fpu.vhd) does not exist in this
+#   worktree (base 26e3980). This patch is written against the FROZEN design
+#   in x4_stage1_proposal.md (§4 shared normalize+round back-end; the effective
+#   rounding mode is the instruction rm, or frm when rm=111). Stage 3 finalizes
+#   the hunk offset/context against the real fpu.vhd.
+#
+# WHAT IT MUTATES:
+#   Target file      : hdl/common/vesta/fpu.vhd  (Stage 2a)
+#   Design construct : the shared round stage's EFFECTIVE-ROUNDING-MODE mux
+#                      (proposal §4: "The effective mode is the instruction rm
+#                      field, or frm when rm=111 dynamic"). The seed replaces
+#                      that mux with a hard-wired RNE ("000"), so EVERY op
+#                      rounds to nearest-even regardless of the requested mode.
+#
+# DETECTING TEST : rv32uzf-p-dround  (tools/gen_directed.py :: gen_dround)
+#   dround drives exact-halfway ties (16777217, etc.) through fcvt.s.w / fadd.s
+#   under all five modes. RNE/RTZ/RDN give one tie result, RUP/RMM the other
+#   (and the sign flips for negatives). With the seed forcing RNE, the RTZ is
+#   still fine but the RUP/RMM/RDN checks read the RNE value and MISMATCH -->
+#   the test's own `bne s5,a4,fail` fires --> BOUNDED FAIL (a0=0xDEADBEEF).
+#   A wrong value can never HANG the test (it is a compare-and-branch, not a
+#   spin/handshake), satisfying the "bounded FAIL, never watchdog" rule.
+#
+# EXPECTED:  clean fpu.vhd -> rv32uzf-p-dround = TEST PASSED
+#            seeded fpu.vhd -> rv32uzf-p-dround = TEST FAILED (first RUP tie
+#                              of 16777217: got 0x4b800000, expected 0x4b800001)
+# =========================================================================
+#
+# STAGE-3 FINALIZED (2026-07-18) against the real Stage-2a fpu.vhd. The frozen
+#   design has NO `eff_rm` mux; the effective rounding mode is the input `rm`
+#   latched into `rm_lat` at S_IDLE and consumed by every round_pack() call.
+#   Forcing `rm_lat <= "000"` at the latch is the faithful realization of
+#   "eff_rm -> RNE in the round path" (mutation semantics unchanged). Applies
+#   cleanly to the merged tree; detecting test rv32uzf-p-dround unchanged.
+diff --git a/hdl/common/vesta/fpu.vhd b/hdl/common/vesta/fpu.vhd
+index e8c57aa..deb59e5 100644
+--- a/hdl/common/vesta/fpu.vhd
++++ b/hdl/common/vesta/fpu.vhd
+@@ -406,7 +406,7 @@ begin
+                         b_lat  <= fp_b;
+                         c_lat  <= fp_c;
+                         op_lat <= fp_op;
+-                        rm_lat <= rm;
++                        rm_lat <= "000";  -- SEED(a): force RNE regardless of rm (rounding-mode-ignored)
+                         state  <= S_UNPACK;
+                     end if;
+                     start_reg <= fpu_start;
