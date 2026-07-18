@@ -1,0 +1,82 @@
+X3 Zknh negative control — "sha256sig0 first rotate amount is wrong (ror 7 -> ror 8)"
+=====================================================================================
+
+SEED: x3_sha256_rotate_seed.patch changes the first rotate term of the
+sha256sig0 ALU arm (hdl/common/vesta/alu.vhd, alu_control "1000000") from the
+ratified `ror32(x,7)` to `ror32(x,8)`:
+
+    when "1000000" => -- sha256sig0: ror(a,7) ^ ror(a,18) ^ (a>>3)
+        if ENABLE_ZKN then
+            ResultSignal <= std_logic_vector(
+-               rotate_right(unsigned(a),  7) xor
++               rotate_right(unsigned(a),  8) xor
+                rotate_right(unsigned(a), 18) xor
+                shift_right (unsigned(a),  3));
+
+sha256sig0 is used in the SHA-256 message schedule (W[t] = sig1(W[t-2]) +
+W[t-7] + sig0(W[t-15]) + W[t-16]). A wrong sig0 rotate corrupts the expanded
+message words, so BOTH the directed per-op check (sha256.S / extzknh) AND the
+full-block SHA-256("abc") KAT in extzknh compute a wrong digest and the test's
+own `bne`-to-fail check fires -> a0 = 0xDEADBEEF -> tb "TEST FAILED", BOUNDED
+(inside the 100 ms watchdog). sha512.S is UNAFFECTED (proves the seed is
+targeted, not a blanket break).
+
+WHY BOUNDED, NOT A HANG: the mismatch is caught by the test's explicit compare,
+not by a trap or a timeout — the observed seeded failure fired at ~11.248 ms of
+sim time (the tests run post-boot at LFXT 32.768 kHz, so ms-scale sim time is
+normal; still far inside the 100 ms tb watchdog), not a SIMULATION TIMEOUT.
+
+DISPATCH / STAGING (phase standard, verbatim from extzabha/extzacas):
+  * CORE_ENABLE_ZKN is supplied EXPLICITLY via -DCORE_ENABLE_ZKN to gcc when
+    building the ON images (extzknh dispatches on it; the rv32uzknh sha256/
+    sha512 directed tests always execute their encodings).
+  * The RTL polarity is staged by flipping hdl/common/MemoryMap.vhd's
+    CORE_ENABLE_ZKN constant to true (the sim compiles hdl/common/ directly).
+
+Reusable env (from the worktree root):
+    ROOT=$(git rev-parse --show-toplevel)
+    ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZKN"
+    source ~/vestarv/cdspaths.sh
+
+STAGE THE ON RTL + ON IMAGES:
+    sed -i 's/\(CORE_ENABLE_ZKN\t\t: boolean := \)false/\1true/' \
+        $ROOT/hdl/common/MemoryMap.vhd
+    cd $ROOT/verification/isa && rm -rf build/
+    make rv32ua-flash    RISCV_GCC_OPTS="$ON_OPTS"
+    make rv32uzknh-flash RISCV_GCC_OPTS="$ON_OPTS"
+    printf '4' > rcf/.nharts
+    # sanity: sha256sig0 (0x10251613) present in the extzknh rcf actually simulated
+    grep -c 00010000001001010001011000010011 \
+        $ROOT/xcelium/riscv_test/rcf/xxrv32ua-p-extzknh.rcf   # must be >= 1
+
+RUN THE CONTROL (from $ROOT/xcelium/riscv_test/behavioral_mp):
+    cat > zknh_on.txt <<EOF
+    ../rcf/xxrv32ua-p-extzknh.rcf
+    ../rcf/rv32uzknh-p-sha256.rcf
+    ../rcf/rv32uzknh-p-sha512.rcf
+    EOF
+
+    # (a) SEEDED -> FAIL
+    git -C $ROOT apply verification/isa/negctrl/x3_sha256_rotate_seed.patch
+    TESTS_FILE=zknh_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh
+    #   EXPECT: sha256 FAIL, extzknh FAIL, sha512 PASS
+    git -C $ROOT checkout hdl/common/vesta/alu.vhd   # revert the seed
+
+    # (b) REVERTED -> PASS
+    TESTS_FILE=zknh_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh
+    #   EXPECT: all 3 PASS
+
+    # (c) DEFAULT build -> restore OFF RTL
+    git -C $ROOT checkout hdl/common/MemoryMap.vhd
+
+OBSERVED AT X3 BRING-UP (2026-07-17):
+    seeded   -> sha256 FAIL + extzknh FAIL (bounded ~11.248 ms), sha512 PASS
+    reverted -> all 3 PASS
+                (extzknh = per-op goldens + SHA-256("abc") full-block KAT
+                 [digest ba7816bf...] + SHA-512 64-bit ror64 KAT)
+
+NOTE (test-harness trap that cost the bring-up a false failure): test INPUTS
+must NOT be loaded into a0/a1 (x10/x11) — those are the tb PASS/FAIL watch
+registers, and loading the value 0xdeadbeef as a sha256 input trips the tb's
+DEADBEEF fail latch spuriously. All X3 tests put inputs in a3/a4 and the
+checked result in a2; a0 stays pristine until RVTEST_PASS/FAIL.

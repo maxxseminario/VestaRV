@@ -1,0 +1,296 @@
+/* ==========================================================================
+   vesta_theme.css — CANONICAL Vesta design system (ember, dark-first)
+   ==========================================================================
+
+   THIS FILE IS A SOURCE OF TRUTH, NOT A RUNTIME STYLESHEET.
+
+   Every VestaRV showcase page MUST stay fully SELF-CONTAINED (single-file HTML,
+   zero external stylesheet/script/font/image requests at runtime — the site is
+   served from static islands and, in places, sandboxed iframes / file:// ).
+   Therefore pages DO NOT <link> this file. Instead they INLINE the token +
+   component block below, verbatim, inside their own <style> element.
+
+   The canonical copy-in block is delimited by the markers:
+         /* VESTA_THEME_BEGIN * /   ...   /* VESTA_THEME_END * /
+   (written without the space in the real markers below). Automation re-splices
+   updates by replacing whatever sits between those two markers in each page.
+   When you change a token or component here, re-run the splice so every page
+   picks it up. Do not add anything page-specific between the markers.
+
+   THEME CONTRACT (matches docs/chip_configurator.html — keep compatible):
+     - Dark is the default (no attribute on <html>).
+     - Light is opt-in:  <html data-theme="light">.
+     - Persistence:  localStorage key "vesta-theme", value "light" or "".
+     - First visit with no stored value: honour prefers-color-scheme.
+   The toggle/boot JS is NOT part of the CSS block — see THEME_ADOPTION.md for
+   the canonical <script> snippet and the header/nav markup.
+
+   IDENTITY: Vesta = the hearth. Deep warm charcoal like cooling forge-iron;
+   flame orange + amber accents; the light variant is warm off-white ("ash").
+   ========================================================================== */
+
+/* VESTA_THEME_BEGIN */
+:root{
+  /* ---- Ember palette: DARK (default) ---------------------------------- */
+  --bg:            #14100e;  /* near-black warm charcoal (the cold hearth)   */
+  --bg-2:          #0e0b09;  /* deepest well — page gutters / behind elev    */
+  --surface:       #1d1713;  /* card / panel base                            */
+  --surface-2:     #271f19;  /* raised surface, table header, input          */
+  --surface-3:     #322820;  /* hover / active surface                       */
+  --border:        #3a2e25;  /* hairline dividers                            */
+  --border-strong: #4d3d30;  /* emphasised borders                          */
+
+  --text:          #f5ede4;  /* warm off-white primary                       */
+  --text-muted:    #bcab9c;  /* secondary                                    */
+  --text-dim:      #8b7a6c;  /* tertiary / captions / disabled               */
+
+  --accent:        #ff6a1a;  /* flame orange — primary accent                */
+  --accent-hover:  #ff8438;  /* brighter flame on hover                      */
+  --accent-press:  #e6560d;  /* pressed                                      */
+  --amber:         #ffb020;  /* ember amber — secondary accent / highlights  */
+  --amber-deep:    #d98a12;  /* amber on light or as underlays               */
+  --accent-soft:   rgba(255,106,26,.14);  /* tinted fills (badges, hero glow)*/
+  --amber-soft:    rgba(255,176,32,.14);
+  --on-accent:     #1a0f07;  /* text on a solid flame button                 */
+
+  --ok:            #4bbf73;  /* pass / green                                 */
+  --warn:          #ffb020;  /* caution (reuses amber)                       */
+  --err:           #f0553d;  /* fail / danger                                */
+  --link:          #ff8f52;  /* inline links on dark                         */
+
+  --ok-soft:       rgba(75,191,115,.15);
+  --err-soft:      rgba(240,85,61,.15);
+
+  /* ---- Type scale ------------------------------------------------------- */
+  --font-sans: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono: ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
+  --fs-xs:   .75rem;    /* 12 */
+  --fs-sm:   .8125rem;  /* 13 */
+  --fs-base: .9375rem;  /* 15 */
+  --fs-md:   1.0625rem; /* 17 */
+  --fs-lg:   1.375rem;  /* 22 */
+  --fs-xl:   1.875rem;  /* 30 */
+  --fs-2xl:  2.5rem;    /* 40 */
+  --fs-3xl:  3.25rem;   /* 52 hero */
+  --lh-tight: 1.15;
+  --lh-body:  1.6;
+  --fw-normal: 400;
+  --fw-med:    500;
+  --fw-semi:   600;
+  --fw-bold:   700;
+
+  /* ---- Spacing (4px base) ---------------------------------------------- */
+  --sp-1: .25rem;  --sp-2: .5rem;   --sp-3: .75rem;  --sp-4: 1rem;
+  --sp-5: 1.5rem;  --sp-6: 2rem;    --sp-8: 3rem;    --sp-10: 4rem;
+  --sp-12: 6rem;
+
+  /* ---- Radii ------------------------------------------------------------ */
+  --r-xs: 4px;  --r-sm: 6px;  --r-md: 10px;  --r-lg: 16px;  --r-pill: 999px;
+
+  /* ---- Elevation / effects --------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 6px 20px rgba(0,0,0,.45);
+  --shadow-glow: 0 0 40px rgba(255,106,26,.18);
+  --ring: 0 0 0 3px var(--accent-soft);
+  --maxw: 1120px;
+  --header-h: 60px;
+  --trans: 160ms ease;
+}
+
+/* ---- Ember palette: LIGHT ("ash") — warm off-white + ember accents ----- */
+:root[data-theme="light"]{
+  --bg:            #f7f1ea;
+  --bg-2:          #efe6db;
+  --surface:       #fffaf3;
+  --surface-2:     #f3e9dd;
+  --surface-3:     #ece0d2;
+  --border:        #e2d3c2;
+  --border-strong: #cdb9a4;
+
+  --text:          #241b14;
+  --text-muted:    #6c5b4c;
+  --text-dim:      #93806f;
+
+  --accent:        #d2560a;  /* deeper flame for AA contrast on light        */
+  --accent-hover:  #b8480a;
+  --accent-press:  #9c3d06;
+  --amber:         #c07d10;
+  --amber-deep:    #a3690b;
+  --accent-soft:   rgba(210,86,10,.12);
+  --amber-soft:    rgba(192,125,16,.14);
+  --on-accent:     #fff6ee;
+
+  --ok:            #2f9e57;
+  --warn:          #b8791a;
+  --err:           #c8331d;
+  --link:          #c04d07;
+
+  --ok-soft:       rgba(47,158,87,.14);
+  --err-soft:      rgba(200,51,29,.12);
+
+  --shadow-sm: 0 1px 2px rgba(60,40,20,.10);
+  --shadow-md: 0 8px 24px rgba(90,60,30,.14);
+  --shadow-glow: 0 0 40px rgba(210,86,10,.14);
+  --ring: 0 0 0 3px var(--accent-soft);
+}
+
+/* Honour OS preference on first visit (before any stored choice is applied).
+   The boot script promotes a stored choice by setting data-theme explicitly,
+   which wins over this @media rule via specificity of the [data-theme] tokens. */
+@media (prefers-color-scheme: light){
+  :root:not([data-theme]){
+    --bg:#f7f1ea; --bg-2:#efe6db; --surface:#fffaf3; --surface-2:#f3e9dd;
+    --surface-3:#ece0d2; --border:#e2d3c2; --border-strong:#cdb9a4;
+    --text:#241b14; --text-muted:#6c5b4c; --text-dim:#93806f;
+    --accent:#d2560a; --accent-hover:#b8480a; --accent-press:#9c3d06;
+    --amber:#c07d10; --amber-deep:#a3690b;
+    --accent-soft:rgba(210,86,10,.12); --amber-soft:rgba(192,125,16,.14);
+    --on-accent:#fff6ee; --ok:#2f9e57; --warn:#b8791a; --err:#c8331d; --link:#c04d07;
+    --ok-soft:rgba(47,158,87,.14); --err-soft:rgba(200,51,29,.12);
+    --shadow-sm:0 1px 2px rgba(60,40,20,.10); --shadow-md:0 8px 24px rgba(90,60,30,.14);
+    --shadow-glow:0 0 40px rgba(210,86,10,.14);
+  }
+}
+
+/* ---- Base ------------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:dark}
+:root[data-theme="light"]{color-scheme:light}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--font-sans); font-size:var(--fs-base); line-height:var(--lh-body);
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+a{color:var(--link); text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{line-height:var(--lh-tight); font-weight:var(--fw-bold); margin:0 0 var(--sp-4)}
+code,kbd,samp{font-family:var(--font-mono); font-size:.92em}
+hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
+.vesta-wrap{max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5)}
+.vesta-muted{color:var(--text-muted)}
+.vesta-dim{color:var(--text-dim)}
+.vesta-accent{color:var(--accent)}
+.vesta-mono{font-family:var(--font-mono)}
+
+/* ---- Shared header / nav --------------------------------------------- */
+.vesta-header{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.vesta-header-inner{
+  max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5);
+  height:var(--header-h); display:flex; align-items:center; gap:var(--sp-5);
+}
+.vesta-brand{display:flex; align-items:center; gap:var(--sp-3); flex:0 0 auto; text-decoration:none}
+.vesta-brand:hover{text-decoration:none}
+.vesta-logo{height:30px; width:auto; display:block}
+.vesta-logo.is-light{display:none}
+:root[data-theme="light"] .vesta-logo.is-dark{display:none}
+:root[data-theme="light"] .vesta-logo.is-light{display:block}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme]) .vesta-logo.is-dark{display:none}
+  :root:not([data-theme]) .vesta-logo.is-light{display:block}
+}
+.vesta-brand-name{
+  font-weight:var(--fw-bold); font-size:var(--fs-md); letter-spacing:.3px; color:var(--text);
+}
+.vesta-brand-name b{color:var(--accent)}
+.vesta-nav{display:flex; align-items:center; gap:var(--sp-1); margin-left:auto; flex-wrap:wrap}
+.vesta-nav a{
+  color:var(--text-muted); font-size:var(--fs-sm); font-weight:var(--fw-med);
+  padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm); transition:var(--trans);
+}
+.vesta-nav a:hover{color:var(--text); background:var(--surface-2); text-decoration:none}
+.vesta-nav a[aria-current="page"]{color:var(--accent); background:var(--accent-soft)}
+
+/* ---- Theme toggle ----------------------------------------------------- */
+.vesta-toggle{
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:var(--sp-2);
+  background:var(--surface-2); color:var(--text); border:1px solid var(--border);
+  border-radius:var(--r-pill); padding:var(--sp-2) var(--sp-3);
+  font:inherit; font-size:var(--fs-sm); cursor:pointer; transition:var(--trans); line-height:1;
+}
+.vesta-toggle:hover{background:var(--surface-3); border-color:var(--border-strong)}
+.vesta-toggle:focus-visible{outline:none; box-shadow:var(--ring)}
+.vesta-toggle .icon-sun{display:none}
+.vesta-toggle .icon-moon{display:inline}
+:root[data-theme="light"] .vesta-toggle .icon-sun{display:inline}
+:root[data-theme="light"] .vesta-toggle .icon-moon{display:none}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme]) .vesta-toggle .icon-sun{display:inline}
+  :root:not([data-theme]) .vesta-toggle .icon-moon{display:none}
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+.vesta-btn{
+  display:inline-flex; align-items:center; gap:var(--sp-2);
+  padding:var(--sp-3) var(--sp-5); border-radius:var(--r-md);
+  font:inherit; font-weight:var(--fw-semi); font-size:var(--fs-base);
+  cursor:pointer; border:1px solid transparent; transition:var(--trans); text-decoration:none;
+}
+.vesta-btn-primary{background:var(--accent); color:var(--on-accent); box-shadow:var(--shadow-sm)}
+.vesta-btn-primary:hover{background:var(--accent-hover); text-decoration:none; box-shadow:var(--shadow-glow)}
+.vesta-btn-primary:active{background:var(--accent-press)}
+.vesta-btn-ghost{background:transparent; color:var(--text); border-color:var(--border-strong)}
+.vesta-btn-ghost:hover{background:var(--surface-2); border-color:var(--accent); text-decoration:none}
+.vesta-btn:focus-visible{outline:none; box-shadow:var(--ring)}
+
+/* ---- Cards ------------------------------------------------------------ */
+.vesta-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+  padding:var(--sp-5); transition:var(--trans);
+}
+.vesta-card-link{display:block; color:inherit}
+.vesta-card-link:hover{
+  border-color:var(--accent); box-shadow:var(--shadow-md); text-decoration:none;
+  transform:translateY(-2px);
+}
+.vesta-card h3{margin-bottom:var(--sp-2)}
+.vesta-card-eyebrow{
+  font-size:var(--fs-xs); font-weight:var(--fw-bold); letter-spacing:.12em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:var(--sp-2);
+}
+
+/* ---- Badges ----------------------------------------------------------- */
+.vesta-badge{
+  display:inline-flex; align-items:center; gap:var(--sp-1);
+  padding:2px var(--sp-2); border-radius:var(--r-pill);
+  font-size:var(--fs-xs); font-weight:var(--fw-semi); line-height:1.5;
+  background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border);
+}
+.vesta-badge-accent{background:var(--accent-soft); color:var(--accent); border-color:transparent}
+.vesta-badge-amber{background:var(--amber-soft); color:var(--amber-deep); border-color:transparent}
+.vesta-badge-ok{background:var(--ok-soft); color:var(--ok); border-color:transparent}
+
+/* ---- Tables ----------------------------------------------------------- */
+.vesta-table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--r-lg)}
+.vesta-table{width:100%; border-collapse:collapse; font-size:var(--fs-base)}
+.vesta-table th,.vesta-table td{
+  text-align:left; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+.vesta-table thead th{
+  background:var(--surface-2); color:var(--text-muted);
+  font-size:var(--fs-xs); font-weight:var(--fw-bold); letter-spacing:.08em; text-transform:uppercase;
+}
+.vesta-table tbody tr:last-child td{border-bottom:0}
+.vesta-table tbody tr:hover{background:var(--surface)}
+.vesta-table th:first-child{color:var(--text); font-weight:var(--fw-semi); white-space:nowrap}
+
+/* ---- Footer ----------------------------------------------------------- */
+.vesta-footer{
+  border-top:1px solid var(--border); margin-top:var(--sp-12);
+  padding:var(--sp-8) 0; color:var(--text-dim); font-size:var(--fs-sm);
+}
+.vesta-footer a{color:var(--text-muted)}
+.vesta-footer a:hover{color:var(--accent)}
+/* VESTA_THEME_END */
+
+/* ==========================================================================
+   Below the END marker: page-scoped helpers that are NOT part of the shared
+   copy-in block (index.html-specific hero / gallery). Kept here for reference
+   so the landing page's inline styles have a documented source too, but pages
+   need only splice the BEGIN..END block above.
+   ========================================================================== */

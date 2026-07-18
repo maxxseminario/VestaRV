@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 816 1056"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="i2c-connection-diagram.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="px"
+     showgrid="true"
+     units="in"
+     inkscape:snap-object-midpoints="true"
+     inkscape:snap-center="true"
+     inkscape:snap-text-baseline="true"
+     inkscape:zoom="5.7045454"
+     inkscape:cx="143.30677"
+     inkscape:cy="66.525897"
+     inkscape:window-width="2560"
+     inkscape:window-height="1361"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid16"
+       units="in"
+       spacingx="3"
+       spacingy="3"
+       empspacing="8" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <rect
+       x="270"
+       y="90"
+       width="15"
+       height="36"
+       id="rect4577" />
+    <symbol
+       id="solder-dot">
+      <title
+         id="title4">Solder Dot</title>
+      <circle
+         style="fill:#000000;fill-rule:evenodd;fill-opacity:1"
+         id="path36"
+         cx="12"
+         cy="15"
+         r="3" />
+    </symbol>
+    <symbol
+       id="resistor">
+      <title
+         id="title27">Resistor</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 216,24 h 6 l 3,-6 6,12 6,-12 6,12 6,-12 6,12 3,-6 h 6"
+         id="path4591" />
+    </symbol>
+    <symbol
+       id="vdd-simple">
+      <title
+         id="title58">VDD Simple</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 336,24 V 18"
+         id="path4545" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 327,18 h 18"
+         id="path4645" />
+    </symbol>
+    <symbol
+       id="vdd-labeled">
+      <title
+         id="title73">VDD Labeled</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 456,24 V 18"
+         id="path29585" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 447,18 h 18"
+         id="path29737" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:13.3333px;line-height:1.25;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none"
+         x="455.95767"
+         y="12.854156"
+         id="text31454"><tspan
+           sodipodi:role="line"
+           id="tspan31452"
+           x="455.95767"
+           y="12.854156">$V_{DD}$</tspan></text>
+    </symbol>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="72"
+       y="117"
+       id="text2409"><tspan
+         sodipodi:role="line"
+         x="72"
+         y="117"
+         id="tspan2413">I$^2$C</tspan><tspan
+         sodipodi:role="line"
+         x="72"
+         y="133.66663"
+         id="tspan2461">Device 1</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="264"
+       y="117"
+       id="text2409-9"><tspan
+         sodipodi:role="line"
+         x="264"
+         y="117"
+         id="tspan4037">I$^2$C</tspan><tspan
+         sodipodi:role="line"
+         x="264"
+         y="133.66663"
+         id="tspan6241">Device 2</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 120,108 h 96"
+       id="path5040" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 216,132 H 120"
+       id="path5042" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="123"
+       y="105"
+       id="text8817"><tspan
+         sodipodi:role="line"
+         id="tspan8815"
+         x="123"
+         y="105">SDA</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="123"
+       y="129"
+       id="text8817-6"><tspan
+         sodipodi:role="line"
+         id="tspan8815-0"
+         x="123"
+         y="129">SCL</tspan></text>
+    <text
+       xml:space="preserve"
+       id="text4575"
+       style="line-height:1.25;font-family:sans-serif;font-size:13.33333333px;white-space:pre;shape-inside:url(#rect4577)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 114,114 6,-6 -6,-6 -6,6 z"
+       id="path10406" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 114,138 6,-6 -6,-6 -6,6 z"
+       id="path10406-2" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 222,138 6,-6 -6,-6 -6,6 z"
+       id="path10406-8" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 222,114 6,-6 -6,-6 -6,6 z"
+       id="path10406-85" />
+    <rect
+       style="fill:none;stroke:#000000;stroke-miterlimit:4.1"
+       id="rect16960"
+       width="96"
+       height="48"
+       x="216"
+       y="96" />
+    <rect
+       style="fill:none;stroke:#000000;stroke-miterlimit:4.1"
+       id="rect17260"
+       width="96"
+       height="48"
+       x="23.999998"
+       y="96" />
+    <use
+       xlink:href="#resistor"
+       id="use1743"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="rotate(90,180,11.999999)" />
+    <use
+       xlink:href="#resistor"
+       id="use1743-9"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="rotate(90,192,23.999999)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 168,96 v 12"
+       id="path1925" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 192,96 v 36"
+       id="path1927" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2018"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(156,93)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2018-6"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(180,117)" />
+    <use
+       xlink:href="#vdd-labeled"
+       id="use2214"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-276,12)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 168,48 v -6 h 24 v 6"
+       id="path2276" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 180,36 v 6"
+       id="path2391" />
+    <use
+       xlink:href="#solder-dot"
+       id="use2482"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(168,27)" />
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif"
+       x="201"
+       y="75"
+       id="text3975"><tspan
+         sodipodi:role="line"
+         id="tspan3973"
+         x="201"
+         y="75">4.7 k$\Omega$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:13.3333px;line-height:1.25;font-family:sans-serif;text-align:end;text-anchor:end"
+       x="159"
+       y="75"
+       id="text7039"><tspan
+         sodipodi:role="line"
+         id="tspan7037"
+         x="159"
+         y="75">4.7 k$\Omega$</tspan></text>
+  </g>
+</svg>

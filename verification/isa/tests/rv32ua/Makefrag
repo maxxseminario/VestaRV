@@ -4,7 +4,64 @@
 
 rv32ua_sc_tests = \
 	amoadd_w amoand_w amomax_w amomaxu_w amomin_w amominu_w amoor_w amoxor_w amoswap_w \
+	amoalias \
 	lrsc \
+	shlrsc \
+	shcount \
+	shspin \
+	shlock \
+	shamo \
+	shzabha \
+	shzacas \
+	shcaslr \
+	shmixw \
+	shpause \
+	shwrs \
+	shcboz \
+	shcmp \
+	shcmppush \
+	shcmt \
+	extzcmp \
+	extzcmt \
+	extjvt \
+	extzabha \
+	extzacas \
+	extzicboz \
+	extzkne \
+	extzknd \
+	extzbkb \
+	extzbkx \
+	extzbkrsv \
+	casill \
+	cbozill \
+	extprobe \
+	extzimop \
+	extzihint \
+	extmul \
+	extdiv \
+	extamo \
+	extrvc \
+	extzb \
+	extzihpm \
+	extbadcsr \
+	extzicond \
+	extzcb \
+	extzawrs \
+	extzawrsx \
+	extzknh \
+	extzfinx \
+	zfopfp \
+	zffma \
+	zffms \
+	zfnms \
+	zfnma \
+	zfflw \
+	zffsw \
+	zfmvwx \
+	zfmvxw \
+	zffflags \
+	zffrm \
+	zffcsr \
 
 rv32ua_p_tests = $(addprefix rv32ua-p-, $(rv32ua_sc_tests))
 rv32ua_v_tests = $(addprefix rv32ua-v-, $(rv32ua_sc_tests))

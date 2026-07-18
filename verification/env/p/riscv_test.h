@@ -109,90 +109,171 @@
 // Macro to define the complete IVT section
 #define DEFINE_IVT()                                                           \
 .section .ivt, "ax";                                                          \ 
-  jal zero, 0x05A00;   /* IRQ 0  - SYS_WDT     - IVT: 0xA000 -> ISR: 0x05A00 */ \
-  jal zero, 0x05C00;   /* IRQ 1  - GPIO0_B0    - IVT: 0xA004 -> ISR: 0x05C00 */ \
-  jal zero, 0x05E00;   /* IRQ 2  - GPIO0_B1    - IVT: 0xA008 -> ISR: 0x05E00 */ \
-  jal zero, 0x06000;   /* IRQ 3  - GPIO0_B2    - IVT: 0xA00C -> ISR: 0x06000 */ \
-  jal zero, 0x06200;   /* IRQ 4  - GPIO0_B3    - IVT: 0xA010 -> ISR: 0x06200 */ \
-  jal zero, 0x06400;   /* IRQ 5  - GPIO0_B4    - IVT: 0xA014 -> ISR: 0x06400 */ \
-  jal zero, 0x06600;   /* IRQ 6  - GPIO0_B5    - IVT: 0xA018 -> ISR: 0x06600 */ \
-  jal zero, 0x06800;   /* IRQ 7  - GPIO0_B6    - IVT: 0xA01C -> ISR: 0x06800 */ \
-  jal zero, 0x06A00;   /* IRQ 8  - GPIO0_B7    - IVT: 0xA020 -> ISR: 0x06A00 */ \
-  jal zero, 0x0FC00;   /* IRQ 9  - SPI0_TC     - IVT: 0xA024 -> ISR: 0x06C00 changed */ \
-  jal zero, 0x0FE00;   /* IRQ 10 - SPI0_TE     - ivt: 0xA028 -> ISR: 0x06E00 changed */ \
-  jal zero, 0x07000;   /* IRQ 11 - SPI1_TC     - IVT: 0xA02C -> ISR: 0x07000 */ \
-  jal zero, 0x07200;   /* IRQ 12 - SPI1_TE     - IVT: 0xA030 -> ISR: 0x07200 */ \
-  jal zero, 0x0F400;   /* IRQ 13 - UART0_RC    - IVT: 0xA034 -> ISR: 0x07400  changed*/ \
-  jal zero, 0x0F600;   /* IRQ 14 - UART0_TE    - IVT: 0xA038 -> ISR: 0x07600 changed */ \
-  jal zero, 0x0F800;   /* IRQ 15 - UART0_TC    - IVT: 0xA03C -> ISR: 0x07800 changed*/ \
-  jal zero, 0x07A00;   /* IRQ 16 - TIM0_CAP0   - IVT: 0xA040 -> ISR: 0x07A00 */ \
-  jal zero, 0x07C00;   /* IRQ 17 - TIM0_CAP1   - IVT: 0xA044 -> ISR: 0x07C00 */ \
-  jal zero, 0x07E00;   /* IRQ 18 - TIM0_OVF    - IVT: 0xA048 -> ISR: 0x07E00 */ \
-  jal zero, 0x08000;   /* IRQ 19 - TIM0_CMP0   - IVT: 0xA04C -> ISR: 0x08000 */ \
-  jal zero, 0x08200;   /* IRQ 20 - TIM0_CMP1   - IVT: 0xA050 -> ISR: 0x08200 */ \
-  jal zero, 0x08400;   /* IRQ 21 - TIM0_CMP2   - IVT: 0xA054 -> ISR: 0x08400 */ \
-  jal zero, 0x08600;   /* IRQ 22 - TIM1_CAP0   - IVT: 0xA058 -> ISR: 0x08600 */ \
-  jal zero, 0x08800;   /* IRQ 23 - TIM1_CAP1   - IVT: 0xA05C -> ISR: 0x08800 */ \
-  jal zero, 0x08A00;   /* IRQ 24 - TIM1_OVF    - IVT: 0xA060 -> ISR: 0x08A00 */ \
-  jal zero, 0x08C00;   /* IRQ 25 - TIM1_CMP0   - IVT: 0xA064 -> ISR: 0x08C00 */ \
-  jal zero, 0x08E00;   /* IRQ 26 - TIM1_CMP1   - IVT: 0xA068 -> ISR: 0x08E00 */ \
-  jal zero, 0x09000;   /* IRQ 27 - TIM1_CMP2   - IVT: 0xA06C -> ISR: 0x09000 */ \
-  jal zero, 0x09200;   /* IRQ 28 - GPIO1_B0    - IVT: 0xA070 -> ISR: 0x09200 */ \
-  jal zero, 0x09400;   /* IRQ 29 - GPIO1_B1    - IVT: 0xA074 -> ISR: 0x09400 */ \
-  jal zero, 0x09600;   /* IRQ 30 - GPIO1_B2    - IVT: 0xA078 -> ISR: 0x09600 */ \
-  jal zero, 0x09800;   /* IRQ 31 - GPIO1_B3    - IVT: 0xA07C -> ISR: 0x09800 */ \
-  jal zero, 0x09A00;   /* IRQ 32 - GPIO1_B4    - IVT: 0xA080 -> ISR: 0x09A00 */ \
-  jal zero, 0x09C00;   /* IRQ 33 - GPIO1_B5    - IVT: 0xA084 -> ISR: 0x09C00 */ \
-  jal zero, 0x09E00;   /* IRQ 34 - GPIO1_B6    - IVT: 0xA088 -> ISR: 0x09E00 */ \
-  jal zero, 0x0A000;   /* IRQ 35 - GPIO1_B7    - IVT: 0xA08C -> ISR: 0x0A000 */ \
-  jal zero, 0x0A200;   /* IRQ 36 - GPIO2_B0    - IVT: 0xA090 -> ISR: 0x0A200 */ \
-  jal zero, 0x0A400;   /* IRQ 37 - GPIO2_B1    - IVT: 0xA094 -> ISR: 0x0A400 */ \
-  jal zero, 0x0A600;   /* IRQ 38 - GPIO2_B2    - IVT: 0xA098 -> ISR: 0x0A600 */ \
-  jal zero, 0x0A800;   /* IRQ 39 - GPIO2_B3    - IVT: 0xA09C -> ISR: 0x0A800 */ \
-  jal zero, 0x0AA00;   /* IRQ 40 - GPIO2_B4    - IVT: 0xA0A0 -> ISR: 0x0AA00 */ \
-  jal zero, 0x0AC00;   /* IRQ 41 - GPIO2_B5    - IVT: 0xA0A4 -> ISR: 0x0AC00 */ \
-  jal zero, 0x0AE00;   /* IRQ 42 - GPIO2_B6    - IVT: 0xA0A8 -> ISR: 0x0AE00 */ \
-  jal zero, 0x0B000;   /* IRQ 43 - GPIO2_B7    - IVT: 0xA0AC -> ISR: 0x0B000 */ \
-  jal zero, 0x0B200;   /* IRQ 44 - GPIO3_B0    - IVT: 0xA0B0 -> ISR: 0x0B200 */ \
-  jal zero, 0x0B400;   /* IRQ 45 - GPIO3_B1    - IVT: 0xA0B4 -> ISR: 0x0B400 */ \
-  jal zero, 0x0B600;   /* IRQ 46 - GPIO3_B2    - IVT: 0xA0B8 -> ISR: 0x0B600 */ \
-  jal zero, 0x0B800;   /* IRQ 47 - GPIO3_B3    - IVT: 0xA0BC -> ISR: 0x0B800 */ \
-  jal zero, 0x0BA00;   /* IRQ 48 - GPIO3_B4    - IVT: 0xA0C0 -> ISR: 0x0BA00 */ \
-  jal zero, 0x0BC00;   /* IRQ 49 - GPIO3_B5    - IVT: 0xA0C4 -> ISR: 0x0BC00 */ \
-  jal zero, 0x0BE00;   /* IRQ 50 - GPIO3_B6    - IVT: 0xA0C8 -> ISR: 0x0BE00 */ \
-  jal zero, 0x0C000;   /* IRQ 51 - GPIO3_B7    - IVT: 0xA0CC -> ISR: 0x0C000 */ \
-  jal zero, 0x0ED00;   /* IRQ 52 - UART1_RC    - IVT: 0xA0D0 -> ISR: 0x0C200 changed*/ \
-  jal zero, 0x0F000;   /* IRQ 53 - UART1_TE    - IVT: 0xA0D4 -> ISR: 0x0C400 changed*/ \
-  jal zero, 0x0F200;   /* IRQ 54 - UART1_TC    - IVT: 0xA0D8 -> ISR: 0x0C600 changed*/ \
-  jal zero, 0x0C800;   /* IRQ 55 - AFE0_RC     - IVT: 0xA0DC -> ISR: 0x0C800 */ \
-  jal zero, 0x0CA00;   /* IRQ 56 - SAR0_RC     - IVT: 0xA0E0 -> ISR: 0x0CA00 */ \
-  jal zero, 0x0CC00;   /* IRQ 57 - I2C0_STR    - IVT: 0xA0E4 -> ISR: 0x0CC00 */ \
-  jal zero, 0x0CE00;   /* IRQ 58 - I2C0_SPR    - IVT: 0xA0E8 -> ISR: 0x0CE00 */ \
-  jal zero, 0x0D000;   /* IRQ 59 - I2C0_MSTS   - IVT: 0xA0EC -> ISR: 0x0D000 */ \
-  jal zero, 0x0D200;   /* IRQ 60 - I2C0_MSPS   - IVT: 0xA0F0 -> ISR: 0x0D200 */ \
-  jal zero, 0x0D400;   /* IRQ 61 - I2C0_MARB   - IVT: 0xA0F4 -> ISR: 0x0D400 */ \
-  jal zero, 0x0D600;   /* IRQ 62 - I2C0_MTXE   - IVT: 0xA0F8 -> ISR: 0x0D600 */ \
-  jal zero, 0x0D800;   /* IRQ 63 - I2C0_MNR    - IVT: 0xA0FC -> ISR: 0x0D800 */ \
-  jal zero, 0x0DA00;   /* IRQ 64 - I2C0_MXC    - IVT: 0xA100 -> ISR: 0x0DA00 */ \
-  jal zero, 0x0DC00;   /* IRQ 65 - I2C0_SA     - IVT: 0xA104 -> ISR: 0x0DC00 */ \
-  jal zero, 0x0DE00;   /* IRQ 66 - I2C0_STXE   - IVT: 0xA108 -> ISR: 0x0DE00 */ \
-  jal zero, 0x0E000;   /* IRQ 67 - I2C0_SOVF   - IVT: 0xA10C -> ISR: 0x0E000 */ \
-  jal zero, 0x0E200;   /* IRQ 68 - I2C0_SNR    - IVT: 0xA110 -> ISR: 0x0E200 */ \
-  jal zero, 0x0E400;   /* IRQ 69 - I2C0_SXC    - IVT: 0xA114 -> ISR: 0x0E400 */ \
-  jal zero, 0x0E600;   /* IRQ 70 - I2C1_STR    - IVT: 0xA118 -> ISR: 0x0E600 */ \
-  jal zero, 0x0E800;   /* IRQ 71 - I2C1_SPR    - IVT: 0xA11C -> ISR: 0x0E800 */ \
-  jal zero, 0x0EA00;   /* IRQ 72 - I2C1_MSTS   - IVT: 0xA120 -> ISR: 0x0EA00 */ \
-  jal zero, 0x0EC00;   /* IRQ 73 - I2C1_MSPS   - IVT: 0xA124 -> ISR: 0x0EC00 */ \
-  jal zero, 0x0EE00;   /* IRQ 74 - I2C1_MARB   - IVT: 0xA128 -> ISR: 0x0EE00 */ \
-  jal zero, 0x0F000;   /* IRQ 75 - I2C1_MTXE   - IVT: 0xA12C -> ISR: 0x0F000 */ \
-  jal zero, 0x0F200;   /* IRQ 76 - I2C1_MNR    - IVT: 0xA130 -> ISR: 0x0F200 */ \
-  jal zero, 0x0F400;   /* IRQ 77 - I2C1_MXC    - IVT: 0xA134 -> ISR: 0x0F400 */ \
-  jal zero, 0x0F600;   /* IRQ 78 - I2C1_SA     - IVT: 0xA138 -> ISR: 0x0F600 */ \
-  jal zero, 0x0F800;   /* IRQ 79 - I2C1_STXE   - IVT: 0xA13C -> ISR: 0x0F800 */ \
-  jal zero, 0x0FA00;   /* IRQ 80 - I2C1_SOVF   - IVT: 0xA140 -> ISR: 0x0FA00 */ \
-  jal zero, 0x0FC00;   /* IRQ 81 - I2C1_SNR    - IVT: 0xA144 -> ISR: 0x0FC00 */ \
-  jal zero, 0x0FE00;   /* IRQ 82 - I2C1_SXC    - IVT: 0xA148 -> ISR: 0x0FE00 */
-  
+  /* M11 memory-map rework: every ISR target lives INSIDE the private TCM   */ \
+  /* (0x8000-0xBFFF). Slots with a real linker section point at the ISR     */ \
+  /* bank 0xB200-0xBAFF (256 B each, env/p/link.ld); every UNUSED slot      */ \
+  /* parks at 0xBB00 (dead TCM word) -- a spuriously taken IRQ can no       */ \
+  /* longer execute from the shared window or masquerade as a restart.     */ \
+  jal zero, 0x0B800;   /* IRQ 0  - SYS_WDT     - ISR bank 0x0B800 (.isr_sys_wdt) */ \
+  jal zero, 0x0BB00;   /* IRQ 1  - GPIO0_B0    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 2  - GPIO0_B1    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 3  - GPIO0_B2    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 4  - GPIO0_B3    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 5  - GPIO0_B4    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 6  - GPIO0_B5    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 7  - GPIO0_B6    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 8  - GPIO0_B7    - unused -> TCM parking */ \
+  jal zero, 0x0B900;   /* IRQ 9  - SPI0_TC     - ISR bank 0x0B900 (.isr_spi0_tc) */ \
+  jal zero, 0x0BA00;   /* IRQ 10 - SPI0_TE     - ISR bank 0x0BA00 (.isr_spi0_te) */ \
+  jal zero, 0x0BB00;   /* IRQ 11 - SPI1_TC     - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 12 - SPI1_TE     - unused -> TCM parking */ \
+  jal zero, 0x0B500;   /* IRQ 13 - UART0_RC    - ISR bank 0x0B500 (.isr_uart0_rc) */ \
+  jal zero, 0x0B600;   /* IRQ 14 - UART0_TE    - ISR bank 0x0B600 (.isr_uart0_te) */ \
+  jal zero, 0x0B700;   /* IRQ 15 - UART0_TC    - ISR bank 0x0B700 (.isr_uart0_tc) */ \
+  jal zero, 0x0BB00;   /* IRQ 16 - TIM0_CAP0   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 17 - TIM0_CAP1   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 18 - TIM0_OVF    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 19 - TIM0_CMP0   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 20 - TIM0_CMP1   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 21 - TIM0_CMP2   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 22 - TIM1_CAP0   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 23 - TIM1_CAP1   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 24 - TIM1_OVF    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 25 - TIM1_CMP0   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 26 - TIM1_CMP1   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 27 - TIM1_CMP2   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 28 - GPIO1_B0    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 29 - GPIO1_B1    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 30 - GPIO1_B2    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 31 - GPIO1_B3    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 32 - GPIO1_B4    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 33 - GPIO1_B5    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 34 - GPIO1_B6    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 35 - GPIO1_B7    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 36 - GPIO2_B0    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 37 - GPIO2_B1    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 38 - GPIO2_B2    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 39 - GPIO2_B3    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 40 - GPIO2_B4    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 41 - GPIO2_B5    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 42 - GPIO2_B6    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 43 - GPIO2_B7    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 44 - GPIO3_B0    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 45 - GPIO3_B1    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 46 - GPIO3_B2    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 47 - GPIO3_B3    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 48 - GPIO3_B4    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 49 - GPIO3_B5    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 50 - GPIO3_B6    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 51 - GPIO3_B7    - unused -> TCM parking */ \
+  jal zero, 0x0B200;   /* IRQ 52 - UART1_RC    - ISR bank 0x0B200 (.isr_uart1_rc) */ \
+  jal zero, 0x0B300;   /* IRQ 53 - UART1_TE    - ISR bank 0x0B300 (.isr_uart1_te) */ \
+  jal zero, 0x0B400;   /* IRQ 54 - UART1_TC    - ISR bank 0x0B400 (.isr_uart1_tc) */ \
+  jal zero, 0x0BC00;   /* IRQ 55 - AFE_SHARED  - ISR bank 0x0BC00 (.isr_afe_shared) */ \
+  jal zero, 0x0BD00;   /* IRQ 56 - EIS         - ISR bank 0x0BD00 (.isr_eis) */ \
+  jal zero, 0x0BB00;   /* IRQ 57 - I2C0_STR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 58 - I2C0_SPR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 59 - I2C0_MSTS   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 60 - I2C0_MSPS   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 61 - I2C0_MARB   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 62 - I2C0_MTXE   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 63 - I2C0_MNR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 64 - I2C0_MXC    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 65 - I2C0_SA     - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 66 - I2C0_STXE   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 67 - I2C0_SOVF   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 68 - I2C0_SNR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 69 - I2C0_SXC    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 70 - I2C1_STR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 71 - I2C1_SPR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 72 - I2C1_MSTS   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 73 - I2C1_MSPS   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 74 - I2C1_MARB   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 75 - I2C1_MTXE   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 76 - I2C1_MNR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 77 - I2C1_MXC    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 78 - I2C1_SA     - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 79 - I2C1_STXE   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 80 - I2C1_SOVF   - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 81 - I2C1_SNR    - unused -> TCM parking */ \
+  jal zero, 0x0BB00;   /* IRQ 82 - I2C1_SXC    - unused -> TCM parking */
+
+/* ===========================================================================
+ * M19 CLAIM/COMPLETE DELIVERY (PLIC-lite irq_router rework)
+ * ===========================================================================
+ * Peripheral IRQs are no longer hardware-vectored to their per-source IVT
+ * slots: every hart takes ONE external interrupt (meip, IVT slot 85 =
+ * IRQB_EXT_MEIP), raised by the irq_router whenever some source is pending,
+ * enabled in THAT hart's routing row (0x7000 + 0x10*h), and not already
+ * under service. The slot-85 dispatcher below reads CLAIM (0x7800) to
+ * atomically discover+claim the source, dispatches THROUGH THE EXISTING IVT
+ * (jalr into slot id: the slot's `jal zero, isr` preserves ra, so the
+ * per-source .isr_* sections double as the dispatch table for free), then
+ * writes the id back to CLAIM (complete) and irets. A parked slot (0xBB00)
+ * reached via claim never returns -> tb watchdog = loud FAIL.
+ *
+ * HANDLER ABI (per-source .isr_* sections, meip-delivered sources ONLY —
+ * CLINT slots 83/84 keep the classic hardware-vectored iret ISRs):
+ *   - plain function: END WITH ret (the dispatcher completes + irets)
+ *   - t0/t1/t2 are dispatcher-saved scratch: free to clobber
+ *   - ra must survive (or be saved/restored); anything else: save/restore
+ *   - clear the source LEVEL at the peripheral BEFORE returning (complete
+ *     happens after return; a still-high level re-pends = new event)
+ *   - a handler on a slept hart still does its own `ignite`
+ * The CLINT slots (83/84) are hardwire-enabled on EVERY hart since M19 (no
+ * SYSTEM/router setup needed); all peripheral routing = the router rows.
+ * ======================================================================== */
+
+#define IRQR_BASE_ADDR   0x7000
+#define IRQR_CLAIM_ADDR  0x7800
+#define IRQB_EXT_MEIP_N  85
+
+/* The slot-85 dispatcher, in its own 256 B TCM section (link.ld: 0xB100).
+ * The claimed id is stashed ON THE STACK across the handler call — handlers
+ * are allowed to clobber t0/t1/t2, so nothing live may stay in them (the
+ * first cut kept id in t1 and COMPLETEd garbage; the out-of-range write was
+ * ignored and the source stayed under service forever — shirq round 2). */
+#define MEIP_DISPATCHER()                                                      \
+  .section .isr_meip, "ax";                                                    \
+meip_dispatch:                                                                 \
+  addi sp, sp, -20;                                                            \
+  sw   ra, 0(sp);                                                              \
+  sw   t0, 4(sp);                                                              \
+  sw   t1, 8(sp);                                                              \
+  sw   t2, 12(sp);                                                             \
+  li   t2, IRQR_CLAIM_ADDR;                                                    \
+  lw   t1, 0(t2);              /* CLAIM (atomic read-and-claim) */             \
+  li   t0, -1;                                                                 \
+  beq  t1, t0, 99f;            /* sentinel: spurious -> just iret */           \
+  sw   t1, 16(sp);             /* stash id (handlers may clobber t0-t2) */     \
+  slli t0, t1, 2;                                                              \
+  li   ra, 0x8000;                                                             \
+  add  t0, t0, ra;             /* &IVT[id] */                                  \
+  jalr ra, 0(t0);              /* slot jal preserves ra; handler rets here */  \
+  lw   t1, 16(sp);             /* reload id + claim address */                 \
+  li   t2, IRQR_CLAIM_ADDR;                                                    \
+  sw   t1, 0(t2);              /* COMPLETE(id) */                              \
+99:;                                                                           \
+  lw   ra, 0(sp);                                                              \
+  lw   t0, 4(sp);                                                              \
+  lw   t1, 8(sp);                                                              \
+  lw   t2, 12(sp);                                                             \
+  addi sp, sp, 20;                                                             \
+  iret;                                                                        \
+  .previous;
+
+/* Arm IVT slot 85 -> the dispatcher, for tests that did NOT emit their own
+ * slots 83/84 (parks them; gap-free .org from the DEFINE_IVT end). Tests
+ * with their own CLINT ISRs at .org 0x14C instead add a third jal:
+ *     jal zero, 0x0B100    # slot 85 = meip -> dispatcher            */
+#define IVT_ARM_MEIP()                                                         \
+  .section .ivt, "ax";                                                         \
+  .org 0x14C;                                                                  \
+  jal zero, 0x0BB00;           /* 83 msip: parked (test uses none) */          \
+  jal zero, 0x0BB00;           /* 84 mtip: parked */                           \
+  jal zero, 0x0B100;           /* 85 meip -> dispatcher (.isr_meip) */         \
+  .previous;
+
 #define INIT_XREG                                                       \
   li x1, 0;                                                             \
   li x2, 0;                                                             \

@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/datapath.vhd b/hdl/common/vesta/datapath.vhd
+index d075ce2..12fc665 100644
+--- a/hdl/common/vesta/datapath.vhd
++++ b/hdl/common/vesta/datapath.vhd
+@@ -339,7 +339,7 @@ begin
+     ALU_A <= src_a           when amo_phase = "000" else  -- Normal: use rs1
+              src_a           when amo_phase = "001" else  -- AMO_READ: use rs1 for address
+              rd_amo          when amo_phase = "010" else  -- AMO_COMPUTE: use saved read data
+-             amo_addr_reg    when amo_phase = "011" else  -- AMO_WRITE: use saved address
++             src_a           when amo_phase = "011" else  -- REDTEAM SEED (addr/lane decouple): live rs1 addr vs registered lane-select
+              src_a;
+ 
+     -- ALU input B selection based on AMO phase

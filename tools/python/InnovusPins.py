@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # Global constants
-outputFile = '../innovus/in/MCU.io'
+outputFile = '../innovus/myshkin/in/MCU.io'
 
 PathWidth		= 02.770
 Space			= 01.000

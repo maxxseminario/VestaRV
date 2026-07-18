@@ -1,0 +1,23 @@
+{
+  "chipName": "Argus",
+  "numHarts": 18,
+  "numMutexes": 32,
+  "memory": {
+    "romSize": 16384,
+    "tcmSizePerHart": 16384,
+    "sharedBulkRamSize": 131072
+  },
+  "peripherals": {
+    "npu": false
+  },
+  "isa": {
+    "compressed": true,
+    "mul": true,
+    "fastMul": true,
+    "div": true,
+    "atomics": true,
+    "bitmanip": true,
+    "counters": false,
+    "counters64": false
+  }
+}

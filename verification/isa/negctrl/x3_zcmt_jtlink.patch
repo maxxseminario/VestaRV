@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..dddc60f 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1709,7 +1709,7 @@ architecture struct of vesta is
+ 
+                 when ZCM_JT_WB =>
+                     pc_en            <= '1';
+-                    reg_write_dp     <= zcm_jt_link;
++                    reg_write_dp     <= '1';  -- NEGCTRL: cm.jt wrongly links ra
+                     mem_access_instr <= '0';
+                     wen              <= (others => '1');
+                     next_state       <= EXECUTE;

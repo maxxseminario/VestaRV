@@ -1,0 +1,37 @@
+The interrupt router is the chip's peripheral interrupt controller. Every deglitched peripheral interrupt level terminates here, and delivery to the harts follows the claim/complete model of a RISC-V platform-level interrupt controller (PLIC): the router raises a single external-interrupt wire (\texttt{meip}, interrupt vector 85) to each hart, and the servicing hart reads the \register{CLAIM} register to discover --- and atomically claim --- the pending source. Routing is per-hart and per-vector: software can steer any peripheral's interrupt to whichever hart currently owns that peripheral --- for example, a hart that has taken over \peripheral{TIMER1} through the shared peripheral page can also receive \peripheral{TIMER1}'s interrupts. The main features are listed below:
+
+\begin{itemize}
+	\item One row of three 32-bit routing/enable registers per hart, covering interrupt vectors 0--84
+	\item Claim/complete delivery: one \texttt{meip} wire per hart (vector 85), \register{CLAIM} read = atomic claim of the lowest pending enabled vector, \register{CLAIM} write = complete
+	\item Exactly-once delivery: a claimed vector is masked from every hart's \texttt{meip} until completed, so a vector routed to several harts is serviced by exactly one of them
+	\item Programmable by \textit{any} hart through the shared window; claims are attributed to the reading hart by the shared-bus arbiter
+	\item Fixed priority: the lowest pending vector number wins
+	\item Read-only \register{PENDx} (raw levels) and \register{INSVCx} (under-service) status words for debugging and recovery
+	\item Resets fully masked (all zeros): the router is inert until software programs it
+	\item The \peripheral{CLINT} vectors (83 and 84) are never delivered through \texttt{meip} --- each hart receives its own \texttt{msip}/\texttt{mtip} on dedicated hardwired wires --- so their row bits are writable but have no effect
+	\item Runs on the free-running MCLK, so a routed interrupt can wake a hart whose gated CPU clock is off
+\end{itemize}
+
+\subsection{Delivery Model}
+
+Hart $h$'s \texttt{meip} wire is asserted while some vector $v$ is pending (deglitched level high), enabled in hart $h$'s row (bit $v$), and not under service. The hart takes vector 85 through its interrupt vector table like any other interrupt; its handler then:
+
+\begin{enumerate}
+	\item Reads \register{CLAIM}. The router returns the lowest such $v$ for the reading hart and marks it under service, hiding it from every hart's \texttt{meip}. A return value of \texttt{0xFFFFFFFF} means nothing was pending for this hart (for example, another hart claimed the source first) --- the handler treats the interrupt as spurious and simply returns.
+	\item Services the source and \textit{clears the interrupt level at the peripheral} (the usual level-interrupt contract).
+	\item Writes $v$ back to \register{CLAIM} (complete). The vector becomes deliverable again; if its level is still asserted --- a new event --- it pends again immediately.
+\end{enumerate}
+
+Completion is deliberately not qualified by owner: a supervising hart can complete a vector on behalf of a hart that died mid-service (the \register{INSVCx} words show which vectors are stuck). Every hart, hart 0 included, uses this same path --- the single-core chip's vectored controller in the \peripheral{SYSTEM} peripheral is retired, and row 0 is hart 0's live routing row.
+
+Note that the vector packing of the \register{HxENU} registers is contiguous (bit $b$ of \register{HxENU} is vector $64 + b$, for $b = 0 \ldots 20$), unlike the write-packing quirk of the retired single-core \register{IRQENU} register.
+
+A typical hand-off of a peripheral to hart 2 looks like:
+
+\begin{enumerate}
+	\item Hart 2 (or any hart) sets the peripheral's vector bits in \register{H2ENL}/\register{H2ENM}/\register{H2ENU}.
+	\item The previous owner clears the same bits in its own row.
+	\item Hart 2 starts operating the peripheral through the shared peripheral page; its vector-85 handler dispatches on the claimed vector number.
+\end{enumerate}
+
+The routing rows live at the block base (16 bytes per hart); the \register{CLAIM} register and the status words sit at fixed offsets \texttt{+0x800}, \texttt{+0x810} and \texttt{+0x820}, independent of the hart count.

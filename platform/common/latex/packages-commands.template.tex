@@ -1,0 +1,183 @@
+% Headers file
+
+% Standard packages
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{epstopdf}               % Auto convert eps to pdf for pdflatex
+\usepackage{amsmath}                % Support math
+\usepackage{booktabs}               % Required by siunitx, adds toprule, midrule, and bottomrule lines
+%\usepackage{cancel}                 % Required by siunitx
+\usepackage{caption}                % Required by siunitx
+%\usepackage{cleveref}               % Required by siunitx
+%\usepackage{colortbl}               % Required by siunitx
+%\usepackage{helvet}                 % Required by siunitx
+%\usepackage{mathpazo}               % Required by siunitx (changes font to libertine)
+\usepackage{pgfplots}               % Required by siunitx
+\usetikzlibrary{shapes.geometric}   % Diamond decision nodes (generated flow charts)
+\usetikzlibrary{arrows.meta}        % Stealth arrow tips (generated diagrams)
+\usetikzlibrary{positioning}        % Relative node placement (generated diagrams)
+\usepackage{xcolor}                 % Required by siunitx
+\usepackage{listings}               % Code listings
+\usepackage{siunitx}                % SI unit formatting
+%\usepackage{upgreek}                % Better greek symbols (not needed with libertinust1math)
+%\sisetup{math-micro=\mu}            % Uses a better mu symbol for siunitx (not needed with libertinust1math)
+\usepackage{rotating}               % Rotate figures
+\usepackage{longtable}              % Split table between multiple pages
+\usepackage{mathrsfs}               % Fancy cursive math characters
+\usepackage{subcaption}             % Newest/best way to add multiple figures in one figure
+\usepackage{cite}                   % Fancy ordering of multi-citations
+\usepackage{lipsum}                 % Add text filler
+\usepackage{colortbl}
+%\usepackage{float}                  % Figures that can float around the document
+\usepackage{svg}
+%\usepackage[off]{svg-extract}
+\usepackage{relsize}
+
+% Extra packages
+\usepackage{acronym}
+\usepackage{verbatim}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\usepackage{lastpage}
+\usepackage{amssymb}
+\usepackage{gensymb}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{hhline}
+\usepackage{multirow}
+\usepackage{multicol}               % Two column code listings
+
+\usepackage{tikz}                   % Graphic element creator (needed for circuitikz)
+\usetikzlibrary{calc}
+%\usepackage{tikzit}	% Enables support of the tikzit GUI for making tikz figures. Requires the tikzit.sty file to be in the root latex directory
+%\usepackage[american, siunitx, arrowmos, smartlabels, betterproportions, emptypmoscircle]{circuitikz} % Makes circuit schematics
+\usepackage{tikz-timing}
+\usetikztiminglibrary[new={char=Q,reset char=R}]{counters}
+\usetikztiminglibrary{nicetabs} % a bit strange with \Huge; use belowrulesep to adjust
+
+\usepackage{amsmath}
+
+\usepackage{ltablex}
+\usepackage[margins=raggedright]{floatrow}
+
+\usepackage{bytefield}
+\usepackage{soul}	% For highlighting with \hi command
+\usepackage{textcomp}
+
+% Fonts
+\usepackage{libertine}	% Libertine (the main font)
+\usepackage[lcgreekalpha]{libertinust1math}	% Libertine (as the math font)
+\usepackage[varl]{inconsolata}	% A monospace font similar to Consolas. The varl option makes the lowercase l look different than a numeral 1.
+%\usepackage{cascadia-code}
+
+% Last packages
+\usepackage{csquotes}               % Required by siunitx
+\usepackage[hidelinks]{hyperref}    % Hyperlinks
+
+
+% declare the path(s) where your graphic files are
+\graphicspath{{./}, {./figures/}}
+% and their extensions so you won't have to specify these with
+% every instance of \includegraphics
+\DeclareGraphicsExtensions{.pdf,.eps,.svg,.SVG,.png,.PNG,.jpeg,.jpg,.JPEG,.JPG}
+
+% Table highlight color
+\definecolor{tablehighlightcolor}{gray}{0.925}
+\definecolor{linuxhighlightcolor}{gray}{0.85}
+\sethlcolor{linuxhighlightcolor}
+
+% A handy macro for the address space table
+\newcommand{\memsection}[4]{%
+	% define the height of the memsection
+	\bytefieldsetup{bitheight=#3\baselineskip}%
+	\bitbox[]{10}{%
+		\texttt{#1} % print start address
+		\\
+		%   do some spacing
+		\vspace{#3\baselineskip}
+		\vspace{-2\baselineskip}
+		\vspace{-#3pt}
+		\texttt{#2} % print end address
+	}%
+	\bitbox{16}{#4}	% print box with caption
+}
+
+% Add a macro for tikz-timing time axis (from https://tex.stackexchange.com/questions/67821/tikz-timing-is-there-a-straightforward-way-to-add-a-numbered-time-axis)
+\newcommand{\timingaxis}[2][]{% arg 1 is a default argument (not given), argument #2 is the time increment. Call with \timingaxis{time_increment}
+	\begin{scope}[#1]
+		\draw [timing/table/axis] (0,-\nrows-1) -- (\twidth+1,-\nrows-1);
+		\foreach \n in {0,1,...,\twidth} {
+			\draw [timing/table/axis ticks] (\n,-\nrows-1+.1) -- +(0,-.2);
+		}
+		\foreach \n in {0,#2,...,\twidth} {
+			\draw (\n,-\nrows-1-.1) node [below,inner sep=2pt] {\scriptsize\n};
+		}
+	\end{scope}
+}
+\tikzset{%
+	timing/table/axis/.style={->,>=latex},
+	timing/table/axis ticks/.style={},
+}
+
+% Listing definitions
+\definecolor{lstgreen}{rgb}{0,0.6,0}
+\definecolor{lstgray}{rgb}{0.4,0.4,0.4}
+\lstdefinestyle{customC}{
+	language=C,
+	basicstyle=\scriptsize\ttfamily,
+	numbers=left,
+	numberstyle=\footnotesize,
+	keywordstyle=\color{blue},
+	identifierstyle=\color{black},
+	commentstyle=\color{lstgreen},
+	stringstyle=\color{lstgray},
+	stepnumber=1,
+	numbersep=10pt,
+	backgroundcolor=\color{white},
+	frame=single,
+	captionpos=b,
+	breaklines=true,
+	breakatwhitespace=false,
+	tabsize=4,
+	showstringspaces=false,
+	morekeywords={uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t},
+}
+
+% Set up the default behavior of listings
+\lstset{
+	basicstyle=\ttfamily,
+	keywordstyle=\ttfamily,
+	identifierstyle=\ttfamily,
+	commentstyle=\ttfamily,
+	stringstyle=\ttfamily,
+	captionpos=b,
+	breaklines=true,
+	breakatwhitespace=false,
+	tabsize=4,
+	showstringspaces=false
+}
+
+% New commands
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\textoverline}[1]{$\mkern 1.5mu\overline{\mkern-1.5mu\mbox{#1}\mkern-1.5mu}\mkern 1.5mu$}
+%\newcommand{\truetype}[1]{{\texttt{#1}}}
+\newcommand{\bashinline}[1]{\lstinline[language=bash]{#1}}
+\newcommand{\bashinlinehl}[1]{\colorbox{linuxhighlightcolor}{\lstinline[language=bash]{#1}}}
+\newcommand{\forthinline}[1]{\lstinline{#1}}
+\newcommand{\forthinlinehl}[1]{\colorbox{linuxhighlightcolor}{\lstinline{#1}}}
+\newcommand{\cinline}[1]{\lstinline[language=C]{#1}}
+\newcommand{\cinlinehl}[1]{\colorbox{linuxhighlightcolor}{\lstinline[language=C]{#1}}}
+\newcommand{\asminline}[1]{\texttt{#1}}
+\newcommand{\asminlinehl}[1]{\colorbox{linuxhighlightcolor}{\texttt{#1}}}
+\newcommand{\pin}[1]{\texttt{#1}}
+\newcommand{\peripheral}[1]{\texttt{#1}}
+\newcommand{\register}[1]{\texttt{#1}}
+\newcommand{\bitfield}[1]{\texttt{#1}}
+
+% Import defines
+\input{include/defines.tex}
+
+% Import tikzit style
+%\input{murray.tikzstyles}

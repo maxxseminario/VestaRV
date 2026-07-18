@@ -1,7 +1,0 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/periph/SPI.vhd
-../../../hdl/MCU/tb/periph_tb_pkg.vhd
-../../../hdl/MCU/tb/spi_bfm_pkg.vhd
-../../../hdl/MCU/tb/SPI_tb.vhd

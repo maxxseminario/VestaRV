@@ -1,0 +1,5 @@
+{
+  "_comment": "G1a proof configuration: the Castalia defaults with the second I2C instance dropped. Slot 15 reads zero, IRQ vectors 70-82 are reserved (numbering frozen), SDA1/SCL1 pins revert to plain GPIO26/27. Prove with: make verify CONFIG=config/castalia_noi2c1.json",
+  "chipName": "CastaliaNoI2C1",
+  "peripherals": { "i2c1": false }
+}

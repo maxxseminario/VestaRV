@@ -1,0 +1,17 @@
+diff --git a/hdl/common/vesta/datapath.vhd b/hdl/common/vesta/datapath.vhd
+index 41c3e7e..1b7c5c7 100644
+--- a/hdl/common/vesta/datapath.vhd
++++ b/hdl/common/vesta/datapath.vhd
+@@ -291,9 +291,9 @@ begin
+     -- unsigned min/max forms: sext is monotonic in the unsigned sub-word value,
+     -- so unsigned(sext(x)) ordering == unsigned(x) ordering. Word AMOs and every
+     -- non-AMO op keep the full register (bit-identical).
+-    amo_b_ext <= (31 downto 8 => amo_rs2_reg(7)) & amo_rs2_reg(7 downto 0)   when funct3 = "000" else
+-                 (31 downto 16 => amo_rs2_reg(15)) & amo_rs2_reg(15 downto 0) when funct3 = "001" else
+-                 amo_rs2_reg;
++    amo_b_ext <= (31 downto 8 => write_data_reg_val(7)) & write_data_reg_val(7 downto 0)   when funct3 = "000" else  -- ALIAS SEED F2: live rs2
++                 (31 downto 16 => write_data_reg_val(15)) & write_data_reg_val(15 downto 0) when funct3 = "001" else
++                 write_data_reg_val;
+ 
+     ALU_B <= SrcB                     when amo_phase = "000" else  -- Normal: use SrcB (rs2 or immediate)
+             x"00000001"               when amo_phase = "100" else  -- SC fail: write nonzero to rd

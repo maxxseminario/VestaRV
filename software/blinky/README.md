@@ -46,7 +46,7 @@ The application uses the platform-generated memory configuration:
 - **Peripherals**: 0x4000 - 0x4FFF (4KB)  
 - **RAM**: 0x8000 - 0xFFFF (32KB)
 
-See `platform/gcc/lib/linker/` for generated linker scripts and memory definitions.
+See `platform/myshkin/gcc/lib/linker/` for generated linker scripts and memory definitions.
 
 ## Xcelium Simulation
 

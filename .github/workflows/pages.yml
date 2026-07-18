@@ -1,0 +1,54 @@
+name: Deploy docs to GitHub Pages
+
+# CD for the public site: docs/ is self-contained HTML (theme, configurator,
+# register browser, figures, roadmap), so deployment is a straight upload of the
+# directory — gated on the link check so a broken page never publishes. The
+# configurator/register-browser data coupling to the generator is enforced
+# upstream by ci.yml's generator-gates (check_configurator_sync --strict +
+# check_register_browser), which run on every push to main.
+#
+# One-time repo setting: Settings → Pages → Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Link gate
+        run: python3 tools/python/check_doc_links.py
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload docs/
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

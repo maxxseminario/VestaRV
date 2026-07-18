@@ -1,0 +1,40 @@
+The hardware mutex bank provides \NumMutexesWord{} word-mapped advisory locks with \textbf{single-instruction} cross-hart mutual exclusion --- no \texttt{LR}/\texttt{SC} retry loop and no reservation state. Atomicity comes for free from the multi-core arbiter, which serializes whole shared-window transactions. The main features are listed below:
+
+\begin{itemize}
+	\item \NumMutexes{} independent mutexes, one 32-bit word each
+	\item Claim with one load: reading a free mutex returns 0 \textit{and claims it} in the same transaction
+	\item Reading a held mutex returns the owner's marker ($\mathrm{hartid} + 1$) without disturbing it
+	\item Release with one store of 0
+	\item Force-release supported: any hart may write 0, so a supervisor can recover a dead hart's mutex
+	\item Ownership cannot be forged: nonzero writes are ignored
+	\item All mutexes reset to free
+\end{itemize}
+
+\subsection{Usage}
+
+To claim mutex $i$, read it once and test the result:
+
+\begin{verbatim}
+    lw      t0, (MUTEXi)      # t0 == 0  ->  you now hold the mutex
+    bnez    t0, retry         # t0 == h+1 ->  held by hart h, back off and retry
+\end{verbatim}
+
+To release a mutex you hold:
+
+\begin{verbatim}
+    sw      x0, (MUTEXi)      # owner := free
+\end{verbatim}
+
+Re-reading a mutex you already hold returns your own marker ($\mathrm{mhartid} + 1$) and does not disturb the lock, so an accidental double claim-read is harmless.
+
+When a claim fails, spin with a hart-scaled backoff and a bounded retry count (see the Multi-Core Architecture chapter): \NumHartsWord{} harts re-reading a contested mutex in lockstep waste arbiter bandwidth and can starve useful work.
+
+\subsection{Rules}
+
+\begin{itemize}
+	\item These are \textbf{advisory} locks: the hardware does not block a hart that ignores the protocol and accesses the protected resource directly. Correct software claims the mutex before touching the resource it guards.
+	\item \textbf{Never} access a mutex address with \texttt{LR}/\texttt{SC} or \texttt{AMO} instructions --- only plain \asminline{lw}/\asminline{sw}. A suppressed store-conditional arrives at the bank indistinguishable from a claim-read and will corrupt the ownership protocol.
+	\item Release (write 0) is deliberately \textit{not} qualified by owner so that a supervisory hart can force-release the mutex of a hung or dead hart. Correct software releases only mutexes it holds.
+\end{itemize}
+
+The bank occupies shared-window page 2 at base address \texttt{\MutexBaseAddress}; the \NumMutexesWord{} mutexes are word-mapped, with mutex $i$ at \texttt{\MutexBaseAddress}${}+4i$. The bank decodes only the low bits of the address, so its words alias throughout the page. Always use the canonical addresses.

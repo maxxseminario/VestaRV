@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Myshkin Forth Dashboard</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- ============================ HEADER / F1 ============================ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">&#9670;</span>
+      <span class="brand-name">Myshkin</span>
+      <span class="brand-sub">Forth Dashboard</span>
+    </div>
+
+    <div class="conn" id="conn-manager">
+      <label class="field">
+        <span>Port</span>
+        <select id="port-select" aria-label="Serial port"></select>
+      </label>
+      <button id="ports-refresh" class="btn ghost" title="Rescan ports" aria-label="Rescan ports">&#8635;</button>
+      <label class="field">
+        <span>Baud</span>
+        <select id="baud-select" aria-label="Baud rate">
+          <option>9600</option>
+          <option>19200</option>
+          <option>38400</option>
+          <option>57600</option>
+          <option selected>115200</option>
+          <option>230400</option>
+        </select>
+      </label>
+      <button id="connect-btn" class="btn primary">Connect</button>
+      <button id="reset-btn" class="btn warn" title="Pulse chip reset">Reset</button>
+    </div>
+
+    <div class="status-cluster">
+      <span id="banner-dot" class="banner-dot" title="rv4th banner seen">banner</span>
+      <span id="state-badge" class="badge state-unknown">OFFLINE</span>
+    </div>
+  </header>
+
+  <!-- ============================ WORKSPACE ============================ -->
+  <div class="workspace">
+    <nav class="sidenav" id="sidenav" aria-label="Tools">
+      <button class="nav-item active" data-view="registers">Registers</button>
+      <button class="nav-item" data-view="memory">Memory</button>
+      <button class="nav-item" data-view="code">Code Runner</button>
+      <button class="nav-item" data-view="flash">Flash</button>
+      <button class="nav-item" data-view="gpio">GPIO</button>
+      <button class="nav-item" data-view="clock">Clock / System</button>
+      <button class="nav-item" data-view="macros">Macros</button>
+      <button class="nav-item" data-view="log">Session Log</button>
+    </nav>
+
+    <main class="panel-host" id="panel-host">
+      <section class="view active" id="view-registers"></section>
+      <section class="view" id="view-memory"></section>
+      <section class="view" id="view-code"></section>
+      <section class="view" id="view-flash"></section>
+      <section class="view" id="view-gpio"></section>
+      <section class="view" id="view-clock"></section>
+      <section class="view" id="view-macros"></section>
+      <section class="view" id="view-log"></section>
+    </main>
+  </div>
+
+  <!-- ======================= TERMINAL DRAWER / F2 ======================= -->
+  <section class="terminal-drawer" id="terminal-drawer">
+    <div class="drawer-grip" id="drawer-grip" title="Drag to resize"></div>
+    <div class="drawer-head">
+      <button id="drawer-toggle" class="btn ghost drawer-title" aria-expanded="true">
+        <span class="chev">&#9660;</span> Terminal
+      </button>
+      <div class="drawer-tools">
+        <span id="term-hint" class="term-hint">Tab: complete &middot; &uarr;/&darr;: history &middot; Ctrl-L: clear</span>
+        <button id="term-record" class="btn ghost" title="Record typed commands into a macro">&#9679; Rec</button>
+        <button id="term-export" class="btn ghost" title="Download session buffer">Export</button>
+        <button id="term-clear" class="btn ghost" title="Clear (Ctrl-L)">Clear</button>
+      </div>
+    </div>
+    <div class="term-scroll" id="term-scroll" tabindex="-1"></div>
+    <div class="term-inputrow">
+      <span class="term-prompt" id="term-prompt">&gt;</span>
+      <input id="term-input" class="term-input" type="text" autocomplete="off"
+             autocapitalize="off" spellcheck="false" aria-label="Terminal input"
+             placeholder="type a Forth command&hellip;">
+    </div>
+    <div class="term-complete" id="term-complete" hidden></div>
+  </section>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
