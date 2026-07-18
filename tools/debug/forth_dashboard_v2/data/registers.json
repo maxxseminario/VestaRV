@@ -1,0 +1,4608 @@
+{
+  "generated_from": "tools/debug/forth_dashboard/peripherals_config.py + tools/debug/forth_dashboard/bitfields_config.py",
+  "chip": "myshkin",
+  "peripherals": {
+    "DSADC": {
+      "description": "Delta-Sigma ADC",
+      "base_addr": 19456,
+      "registers": {
+        "ADC_VAL": {
+          "addr": 19468,
+          "size": 2,
+          "type": "DATA",
+          "description": "DSADC result register",
+          "fields": {}
+        },
+        "BIAS_LC_DSADC": {
+          "addr": 19520,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias LC DSADC register",
+          "fields": {}
+        },
+        "BIAS_RFB_DSADC": {
+          "addr": 19528,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias RFB DSADC register",
+          "fields": {}
+        },
+        "BIAS_RIN_DSADC": {
+          "addr": 19524,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias RIN DSADC register",
+          "fields": {}
+        },
+        "BIAS_TC_DSADC": {
+          "addr": 19516,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias TC DSADC register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 19456,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "AFE control register",
+          "fields": {
+            "ADCEN": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "DSADC enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "ADCEXTIN": {
+              "lsb": 8,
+              "width": 1,
+              "desc": "DSADC input source select",
+              "values": {
+                "0": "External pin",
+                "1": "Potentiostat output pad"
+              }
+            },
+            "ADCSEL": {
+              "lsb": 11,
+              "width": 1,
+              "desc": "ADC output multiplexer select",
+              "values": {
+                "0": "DSADC result",
+                "1": "SARADC result"
+              }
+            },
+            "ATPEN": {
+              "lsb": 9,
+              "width": 1,
+              "desc": "Analog test port enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "ATPSEL": {
+              "lsb": 10,
+              "width": 1,
+              "desc": "Analog test port signal select",
+              "values": {
+                "0": "Potentiostat output",
+                "1": "DSADC output"
+              }
+            },
+            "CONTMEAS": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Continuous measurement mode",
+              "values": {
+                "0": "Single conversion",
+                "1": "Continuous"
+              }
+            },
+            "DACEN": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Enable the bias DACs",
+              "values": {
+                "0": "DACs disabled",
+                "1": "DACs enabled"
+              }
+            },
+            "DATARDYIE": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Data-ready interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "EN": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "AFE enable",
+              "values": {
+                "0": "AFE clock disabled",
+                "1": "AFE clock enabled"
+              }
+            },
+            "RAMPNUM": {
+              "lsb": 12,
+              "width": 12,
+              "desc": "Number of DSADC ramp cycles per conversion",
+              "values": null
+            }
+          }
+        },
+        "SR": {
+          "addr": 19464,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "AFE status register (read status, write 1 to clear flags)",
+          "fields": {
+            "ADC_ACTIVE": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "ADC active status (read-only) - high while a conversion is in progress",
+              "values": {
+                "0": "Idle",
+                "1": "Conversion in progress"
+              }
+            },
+            "ADC_DATA_RDY_IF": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "ADC data ready interrupt flag - new conversion result available in AFE_ADC_VAL (write 1 to clear)",
+              "values": {
+                "0": "No new data",
+                "1": "New data available"
+              }
+            },
+            "ADC_OVF_IF": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "ADC overflow interrupt flag - AFE_ADC_VAL was overwritten before being read (write 1 to clear)",
+              "values": {
+                "0": "No overflow",
+                "1": "Overflow occurred"
+              }
+            },
+            "RESERVED": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Reserved (always 0)",
+              "values": {
+                "0": "Reserved",
+                "1": "Reserved"
+              }
+            }
+          }
+        },
+        "TPR": {
+          "addr": 19460,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "AFE test port register",
+          "fields": {}
+        }
+      }
+    },
+    "GPIO0": {
+      "description": "General Purpose I/O Port 0 (8 pins)",
+      "base_addr": 16384,
+      "registers": {
+        "PDIR": {
+          "addr": 16404,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO pin direction register",
+          "fields": {
+            "DIR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            }
+          }
+        },
+        "PIE": {
+          "addr": 16424,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt enable register",
+          "fields": {
+            "IE0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PIES": {
+          "addr": 16420,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt edge select register",
+          "fields": {
+            "IES0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            }
+          }
+        },
+        "PIF": {
+          "addr": 16416,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO interrupt flag register",
+          "fields": {}
+        },
+        "PIN": {
+          "addr": 16384,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO read pin register",
+          "fields": {}
+        },
+        "POUT": {
+          "addr": 16388,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive register",
+          "fields": {
+            "OUT0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            }
+          }
+        },
+        "POUTC": {
+          "addr": 16396,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive clear register",
+          "fields": {
+            "CLR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Clear pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Clear pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Clear pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Clear pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Clear pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Clear pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Clear pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Clear pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            }
+          }
+        },
+        "POUTS": {
+          "addr": 16392,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive set register",
+          "fields": {
+            "SET0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Set pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Set pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Set pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Set pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Set pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Set pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Set pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Set pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            }
+          }
+        },
+        "POUTT": {
+          "addr": 16400,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive toggle register",
+          "fields": {
+            "TOG0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Toggle pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Toggle pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Toggle pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Toggle pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Toggle pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Toggle pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Toggle pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Toggle pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            }
+          }
+        },
+        "PREN": {
+          "addr": 16408,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO resistor enable register",
+          "fields": {
+            "REN0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PSEL": {
+          "addr": 16412,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO peripheral select register",
+          "fields": {
+            "SEL0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            }
+          }
+        }
+      }
+    },
+    "GPIO1": {
+      "description": "General Purpose I/O Port 1 (8 pins)",
+      "base_addr": 16640,
+      "registers": {
+        "PDIR": {
+          "addr": 16660,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO pin direction register",
+          "fields": {
+            "DIR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            }
+          }
+        },
+        "PIE": {
+          "addr": 16680,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt enable register",
+          "fields": {
+            "IE0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PIES": {
+          "addr": 16676,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt edge select register",
+          "fields": {
+            "IES0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            }
+          }
+        },
+        "PIF": {
+          "addr": 16672,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO interrupt flag register",
+          "fields": {}
+        },
+        "PIN": {
+          "addr": 16640,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO read pin register",
+          "fields": {}
+        },
+        "POUT": {
+          "addr": 16644,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive register",
+          "fields": {
+            "OUT0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            }
+          }
+        },
+        "POUTC": {
+          "addr": 16652,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive clear register",
+          "fields": {
+            "CLR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Clear pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Clear pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Clear pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Clear pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Clear pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Clear pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Clear pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Clear pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            }
+          }
+        },
+        "POUTS": {
+          "addr": 16648,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive set register",
+          "fields": {
+            "SET0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Set pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Set pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Set pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Set pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Set pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Set pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Set pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Set pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            }
+          }
+        },
+        "POUTT": {
+          "addr": 16656,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive toggle register",
+          "fields": {
+            "TOG0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Toggle pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Toggle pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Toggle pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Toggle pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Toggle pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Toggle pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Toggle pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Toggle pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            }
+          }
+        },
+        "PREN": {
+          "addr": 16664,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO resistor enable register",
+          "fields": {
+            "REN0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PSEL": {
+          "addr": 16668,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO peripheral select register",
+          "fields": {
+            "SEL0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            }
+          }
+        }
+      }
+    },
+    "GPIO2": {
+      "description": "General Purpose I/O Port 2 (8 pins)",
+      "base_addr": 18432,
+      "registers": {
+        "PDIR": {
+          "addr": 18452,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO pin direction register",
+          "fields": {
+            "DIR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            }
+          }
+        },
+        "PIE": {
+          "addr": 18472,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt enable register",
+          "fields": {
+            "IE0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PIES": {
+          "addr": 18468,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt edge select register",
+          "fields": {
+            "IES0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            }
+          }
+        },
+        "PIF": {
+          "addr": 18464,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO interrupt flag register",
+          "fields": {}
+        },
+        "PIN": {
+          "addr": 18432,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO read pin register",
+          "fields": {}
+        },
+        "POUT": {
+          "addr": 18436,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive register",
+          "fields": {
+            "OUT0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            }
+          }
+        },
+        "POUTC": {
+          "addr": 18444,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive clear register",
+          "fields": {
+            "CLR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Clear pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Clear pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Clear pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Clear pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Clear pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Clear pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Clear pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Clear pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            }
+          }
+        },
+        "POUTS": {
+          "addr": 18440,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive set register",
+          "fields": {
+            "SET0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Set pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Set pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Set pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Set pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Set pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Set pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Set pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Set pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            }
+          }
+        },
+        "POUTT": {
+          "addr": 18448,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive toggle register",
+          "fields": {
+            "TOG0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Toggle pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Toggle pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Toggle pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Toggle pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Toggle pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Toggle pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Toggle pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Toggle pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            }
+          }
+        },
+        "PREN": {
+          "addr": 18456,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO resistor enable register",
+          "fields": {
+            "REN0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PSEL": {
+          "addr": 18460,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO peripheral select register",
+          "fields": {
+            "SEL0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            }
+          }
+        }
+      }
+    },
+    "GPIO3": {
+      "description": "General Purpose I/O Port 3 (8 pins)",
+      "base_addr": 19712,
+      "registers": {
+        "PDIR": {
+          "addr": 19732,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO pin direction register",
+          "fields": {
+            "DIR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            },
+            "DIR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 direction",
+              "values": {
+                "0": "Input",
+                "1": "Output"
+              }
+            }
+          }
+        },
+        "PIE": {
+          "addr": 19752,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt enable register",
+          "fields": {
+            "IE0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "IE7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PIES": {
+          "addr": 19748,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO interrupt edge select register",
+          "fields": {
+            "IES0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            },
+            "IES7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 interrupt edge",
+              "values": {
+                "0": "Rising edge",
+                "1": "Falling edge"
+              }
+            }
+          }
+        },
+        "PIF": {
+          "addr": 19744,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO interrupt flag register",
+          "fields": {}
+        },
+        "PIN": {
+          "addr": 19712,
+          "size": 1,
+          "type": "STATUS",
+          "description": "GPIO read pin register",
+          "fields": {}
+        },
+        "POUT": {
+          "addr": 19716,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive register",
+          "fields": {
+            "OUT0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            },
+            "OUT7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 output",
+              "values": {
+                "0": "Low",
+                "1": "High"
+              }
+            }
+          }
+        },
+        "POUTC": {
+          "addr": 19724,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive clear register",
+          "fields": {
+            "CLR0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Clear pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Clear pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Clear pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Clear pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Clear pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Clear pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Clear pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            },
+            "CLR7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Clear pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set low"
+              }
+            }
+          }
+        },
+        "POUTS": {
+          "addr": 19720,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive set register",
+          "fields": {
+            "SET0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Set pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Set pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Set pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Set pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Set pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Set pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Set pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            },
+            "SET7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Set pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Set high"
+              }
+            }
+          }
+        },
+        "POUTT": {
+          "addr": 19728,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO output drive toggle register",
+          "fields": {
+            "TOG0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Toggle pin 0 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Toggle pin 1 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Toggle pin 2 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Toggle pin 3 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Toggle pin 4 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Toggle pin 5 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Toggle pin 6 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            },
+            "TOG7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Toggle pin 7 output",
+              "values": {
+                "0": "No action",
+                "1": "Toggle"
+              }
+            }
+          }
+        },
+        "PREN": {
+          "addr": 19736,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO resistor enable register",
+          "fields": {
+            "REN0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "REN7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 resistor",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            }
+          }
+        },
+        "PSEL": {
+          "addr": 19740,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "GPIO peripheral select register",
+          "fields": {
+            "SEL0": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Pin 0 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL1": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Pin 1 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL2": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Pin 2 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL3": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Pin 3 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL4": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Pin 4 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL5": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Pin 5 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL6": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Pin 6 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            },
+            "SEL7": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "Pin 7 function",
+              "values": {
+                "0": "GPIO",
+                "1": "Peripheral"
+              }
+            }
+          }
+        }
+      }
+    },
+    "I2C0": {
+      "description": "Inter-Integrated Circuit Interface 0 (Master/Slave)",
+      "base_addr": 19968,
+      "registers": {
+        "AMR": {
+          "addr": 20000,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "I2C address mask register",
+          "fields": {}
+        },
+        "AR": {
+          "addr": 19996,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "I2C address register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 19968,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "I2C control register",
+          "fields": {}
+        },
+        "FCR": {
+          "addr": 19972,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "I2C frequency control register",
+          "fields": {}
+        },
+        "MRX": {
+          "addr": 19984,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C master RX register",
+          "fields": {}
+        },
+        "MTX": {
+          "addr": 19980,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C master TX register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 19976,
+          "size": 2,
+          "type": "STATUS",
+          "description": "I2C status register",
+          "fields": {}
+        },
+        "SRX": {
+          "addr": 19992,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C slave RX register",
+          "fields": {}
+        },
+        "STX": {
+          "addr": 19988,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C slave TX register",
+          "fields": {}
+        }
+      }
+    },
+    "I2C1": {
+      "description": "Inter-Integrated Circuit Interface 1 (Master/Slave)",
+      "base_addr": 20224,
+      "registers": {
+        "AMR": {
+          "addr": 20256,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "I2C address mask register",
+          "fields": {}
+        },
+        "AR": {
+          "addr": 20252,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "I2C address register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 20224,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "I2C control register",
+          "fields": {}
+        },
+        "FCR": {
+          "addr": 20228,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "I2C frequency control register",
+          "fields": {}
+        },
+        "MRX": {
+          "addr": 20240,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C master RX register",
+          "fields": {}
+        },
+        "MTX": {
+          "addr": 20236,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C master TX register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 20232,
+          "size": 2,
+          "type": "STATUS",
+          "description": "I2C status register",
+          "fields": {}
+        },
+        "SRX": {
+          "addr": 20248,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C slave RX register",
+          "fields": {}
+        },
+        "STX": {
+          "addr": 20244,
+          "size": 1,
+          "type": "DATA",
+          "description": "I2C slave TX register",
+          "fields": {}
+        }
+      }
+    },
+    "NPU": {
+      "description": "Neural Processing Unit - ML Accelerator",
+      "base_addr": 18944,
+      "registers": {
+        "CR": {
+          "addr": 18944,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "NPU control register",
+          "fields": {}
+        },
+        "IVSAR": {
+          "addr": 18948,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "NPU input vector start address register",
+          "fields": {}
+        },
+        "OVSAR": {
+          "addr": 18956,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "NPU output vector start address register",
+          "fields": {}
+        },
+        "WVSAR": {
+          "addr": 18952,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "NPU weight vector start address register",
+          "fields": {}
+        }
+      }
+    },
+    "POTENTIOSTAT": {
+      "description": "Potentiostat with DACs and Bias Generators",
+      "base_addr": 19456,
+      "registers": {
+        "BIAS_ADJ": {
+          "addr": 19476,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias adjustment register",
+          "fields": {}
+        },
+        "BIAS_CR": {
+          "addr": 19472,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "Bias control register",
+          "fields": {
+            "BUFEN": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Bias voltage buffer enable",
+              "values": {
+                "0": "Buffers disabled",
+                "1": "Buffers enabled"
+              }
+            },
+            "EN": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Internal bias generator enable",
+              "values": {
+                "0": "Generator disabled",
+                "1": "Generator enabled"
+              }
+            },
+            "USEDAC": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Bias source select",
+              "values": {
+                "0": "Internal bias generator",
+                "1": "Bias DACs"
+              }
+            }
+          }
+        },
+        "BIAS_DBN": {
+          "addr": 19492,
+          "size": 2,
+          "type": "BIAS",
+          "description": "Bias DAC BN register",
+          "fields": {}
+        },
+        "BIAS_DBNC": {
+          "addr": 19488,
+          "size": 2,
+          "type": "BIAS",
+          "description": "Bias DAC BNC register",
+          "fields": {}
+        },
+        "BIAS_DBP": {
+          "addr": 19480,
+          "size": 2,
+          "type": "BIAS",
+          "description": "Bias DAC BP register",
+          "fields": {}
+        },
+        "BIAS_DBPC": {
+          "addr": 19484,
+          "size": 2,
+          "type": "BIAS",
+          "description": "Bias DAC BPC register",
+          "fields": {}
+        },
+        "BIAS_DSADC_VCM": {
+          "addr": 19508,
+          "size": 2,
+          "type": "BIAS",
+          "description": "Bias DSADC VCM register",
+          "fields": {}
+        },
+        "BIAS_LC_POT": {
+          "addr": 19500,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias LC potentiostat register",
+          "fields": {}
+        },
+        "BIAS_REV_POT": {
+          "addr": 19512,
+          "size": 2,
+          "type": "BIAS",
+          "description": "Bias REV potentiostat register",
+          "fields": {}
+        },
+        "BIAS_TC_POT": {
+          "addr": 19496,
+          "size": 1,
+          "type": "BIAS",
+          "description": "Bias TC potentiostat register",
+          "fields": {}
+        },
+        "BIAS_TIA_G_POT": {
+          "addr": 19504,
+          "size": 4,
+          "type": "BIAS",
+          "description": "Bias TIA gain potentiostat register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 19456,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "AFE control register",
+          "fields": {
+            "ADCEN": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "DSADC enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "ADCEXTIN": {
+              "lsb": 8,
+              "width": 1,
+              "desc": "DSADC input source select",
+              "values": {
+                "0": "External pin",
+                "1": "Potentiostat output pad"
+              }
+            },
+            "ADCSEL": {
+              "lsb": 11,
+              "width": 1,
+              "desc": "ADC output multiplexer select",
+              "values": {
+                "0": "DSADC result",
+                "1": "SARADC result"
+              }
+            },
+            "ATPEN": {
+              "lsb": 9,
+              "width": 1,
+              "desc": "Analog test port enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "ATPSEL": {
+              "lsb": 10,
+              "width": 1,
+              "desc": "Analog test port signal select",
+              "values": {
+                "0": "Potentiostat output",
+                "1": "DSADC output"
+              }
+            },
+            "CONTMEAS": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Continuous measurement mode",
+              "values": {
+                "0": "Single conversion",
+                "1": "Continuous"
+              }
+            },
+            "DACEN": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Enable the bias DACs",
+              "values": {
+                "0": "DACs disabled",
+                "1": "DACs enabled"
+              }
+            },
+            "DATARDYIE": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Data-ready interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "EN": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "AFE enable",
+              "values": {
+                "0": "AFE clock disabled",
+                "1": "AFE clock enabled"
+              }
+            },
+            "RAMPNUM": {
+              "lsb": 12,
+              "width": 12,
+              "desc": "Number of DSADC ramp cycles per conversion",
+              "values": null
+            }
+          }
+        },
+        "SR": {
+          "addr": 19464,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "AFE status register (read status, write 1 to clear flags)",
+          "fields": {
+            "ADC_ACTIVE": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "ADC active status (read-only) - high while a conversion is in progress",
+              "values": {
+                "0": "Idle",
+                "1": "Conversion in progress"
+              }
+            },
+            "ADC_DATA_RDY_IF": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "ADC data ready interrupt flag - new conversion result available in AFE_ADC_VAL (write 1 to clear)",
+              "values": {
+                "0": "No new data",
+                "1": "New data available"
+              }
+            },
+            "ADC_OVF_IF": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "ADC overflow interrupt flag - AFE_ADC_VAL was overwritten before being read (write 1 to clear)",
+              "values": {
+                "0": "No overflow",
+                "1": "Overflow occurred"
+              }
+            },
+            "RESERVED": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "Reserved (always 0)",
+              "values": {
+                "0": "Reserved",
+                "1": "Reserved"
+              }
+            }
+          }
+        },
+        "TPR": {
+          "addr": 19460,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "AFE test port register",
+          "fields": {
+            "DTP0": {
+              "lsb": 0,
+              "width": 5,
+              "desc": "Digital test port 0 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            },
+            "DTP1": {
+              "lsb": 5,
+              "width": 5,
+              "desc": "Digital test port 1 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            },
+            "DTP2": {
+              "lsb": 10,
+              "width": 5,
+              "desc": "Digital test port 2 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            },
+            "DTP3": {
+              "lsb": 15,
+              "width": 5,
+              "desc": "Digital test port 3 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SARADC": {
+      "description": "10-bit Successive Approximation ADC",
+      "base_addr": 19200,
+      "registers": {
+        "CR": {
+          "addr": 19200,
+          "size": 2,
+          "type": "CONTROL",
+          "description": "SARADC control register (9 bits)",
+          "fields": {
+            "CONTMEAS": {
+              "lsb": 8,
+              "width": 1,
+              "desc": "Continuous measurement mode",
+              "values": {
+                "0": "Single conversion",
+                "1": "Continuous conversion"
+              }
+            },
+            "DATAIE": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "ADC data valid interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "DEBUG": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Debug mode enable",
+              "values": {
+                "0": "Normal mode",
+                "1": "Debug mode"
+              }
+            },
+            "EN": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "SARADC enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "RESET": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "ADC reset",
+              "values": {
+                "0": "Normal operation",
+                "1": "Reset ADC"
+              }
+            },
+            "SAMPLESTEP": {
+              "lsb": 1,
+              "width": 4,
+              "desc": "Sample step counter initial value (0-15)",
+              "values": null
+            }
+          }
+        },
+        "DATA": {
+          "addr": 19212,
+          "size": 2,
+          "type": "DATA",
+          "description": "SARADC 10-bit data register (read-only)",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 19208,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "SARADC status register (read status, write 1 to clear flags)",
+          "fields": {
+            "ADC_READY": {
+              "lsb": 3,
+              "width": 1,
+              "desc": "ADC ready status (read-only)",
+              "values": {
+                "0": "Not ready",
+                "1": "Ready"
+              }
+            },
+            "CONV_BUSY": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Conversion busy status (read-only)",
+              "values": {
+                "0": "Idle",
+                "1": "Conversion in progress"
+              }
+            },
+            "DATA_VALID": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "ADC data valid flag (write 1 to clear)",
+              "values": {
+                "0": "No new data",
+                "1": "New data available"
+              }
+            },
+            "OVF_IF": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "ADC overflow interrupt flag (write 1 to clear)",
+              "values": {
+                "0": "No overflow",
+                "1": "Overflow occurred"
+              }
+            }
+          }
+        },
+        "TPR": {
+          "addr": 19216,
+          "size": 1,
+          "type": "CONFIG",
+          "description": "SARADC test port register",
+          "fields": {}
+        }
+      }
+    },
+    "SPI0": {
+      "description": "Serial Peripheral Interface 0 (with Flash access)",
+      "base_addr": 16896,
+      "registers": {
+        "CR": {
+          "addr": 16896,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "SPI control register",
+          "fields": {
+            "BR": {
+              "lsb": 8,
+              "width": 8,
+              "desc": "SPI clock baud rate (SMCLK/(2*(1+BR)))",
+              "values": null
+            },
+            "CPHA": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Clock phase",
+              "values": {
+                "0": "Sample on leading edge",
+                "1": "Sample on trailing edge"
+              }
+            },
+            "CPOL": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Clock polarity",
+              "values": {
+                "0": "SCK idles low",
+                "1": "SCK idles high"
+              }
+            },
+            "DL": {
+              "lsb": 2,
+              "width": 2,
+              "desc": "Data length select",
+              "values": {
+                "0": "8-bit transfers",
+                "1": "16-bit transfers",
+                "2": "32-bit transfers",
+                "3": "Reserved"
+              }
+            },
+            "EN": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "SPI enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "FEN": {
+              "lsb": 19,
+              "width": 1,
+              "desc": "SPI Flash extended memory enable",
+              "values": {
+                "0": "Flash extended memory disabled",
+                "1": "Flash extended memory enabled"
+              }
+            },
+            "MSB": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Bit endianness",
+              "values": {
+                "0": "LSB-first",
+                "1": "MSB-first"
+              }
+            },
+            "RXSB": {
+              "lsb": 16,
+              "width": 1,
+              "desc": "SPI RX swap bytes",
+              "values": {
+                "0": "Bytes not swapped",
+                "1": "Bytes swapped"
+              }
+            },
+            "SM": {
+              "lsb": 18,
+              "width": 1,
+              "desc": "SPI slave mode select",
+              "values": {
+                "0": "Master mode",
+                "1": "Slave mode"
+              }
+            },
+            "TCIE": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Transmit complete interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "TEIE": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Transmit empty interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "TXSB": {
+              "lsb": 17,
+              "width": 1,
+              "desc": "SPI TX swap bytes",
+              "values": {
+                "0": "Bytes not swapped",
+                "1": "Bytes swapped"
+              }
+            }
+          }
+        },
+        "FOS": {
+          "addr": 16912,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "SPI flash offset address register",
+          "fields": {}
+        },
+        "RX": {
+          "addr": 16908,
+          "size": 4,
+          "type": "DATA",
+          "description": "SPI receive data register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 16900,
+          "size": 1,
+          "type": "STATUS",
+          "description": "SPI status register",
+          "fields": {}
+        },
+        "TX": {
+          "addr": 16904,
+          "size": 4,
+          "type": "DATA",
+          "description": "SPI transmit data register",
+          "fields": {}
+        }
+      }
+    },
+    "SPI1": {
+      "description": "Serial Peripheral Interface 1",
+      "base_addr": 17152,
+      "registers": {
+        "CR": {
+          "addr": 17152,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "SPI control register",
+          "fields": {
+            "BR": {
+              "lsb": 8,
+              "width": 8,
+              "desc": "SPI clock baud rate (SMCLK/(2*(1+BR)))",
+              "values": null
+            },
+            "CPHA": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Clock phase",
+              "values": {
+                "0": "Sample on leading edge",
+                "1": "Sample on trailing edge"
+              }
+            },
+            "CPOL": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Clock polarity",
+              "values": {
+                "0": "SCK idles low",
+                "1": "SCK idles high"
+              }
+            },
+            "DL": {
+              "lsb": 2,
+              "width": 2,
+              "desc": "Data length select",
+              "values": {
+                "0": "8-bit transfers",
+                "1": "16-bit transfers",
+                "2": "32-bit transfers",
+                "3": "Reserved"
+              }
+            },
+            "EN": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "SPI enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "FEN": {
+              "lsb": 19,
+              "width": 1,
+              "desc": "SPI Flash extended memory enable",
+              "values": {
+                "0": "Flash extended memory disabled",
+                "1": "Flash extended memory enabled"
+              }
+            },
+            "MSB": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Bit endianness",
+              "values": {
+                "0": "LSB-first",
+                "1": "MSB-first"
+              }
+            },
+            "RXSB": {
+              "lsb": 16,
+              "width": 1,
+              "desc": "SPI RX swap bytes",
+              "values": {
+                "0": "Bytes not swapped",
+                "1": "Bytes swapped"
+              }
+            },
+            "SM": {
+              "lsb": 18,
+              "width": 1,
+              "desc": "SPI slave mode select",
+              "values": {
+                "0": "Master mode",
+                "1": "Slave mode"
+              }
+            },
+            "TCIE": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Transmit complete interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "TEIE": {
+              "lsb": 4,
+              "width": 1,
+              "desc": "Transmit empty interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "TXSB": {
+              "lsb": 17,
+              "width": 1,
+              "desc": "SPI TX swap bytes",
+              "values": {
+                "0": "Bytes not swapped",
+                "1": "Bytes swapped"
+              }
+            }
+          }
+        },
+        "FOS": {
+          "addr": 17168,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "SPI flash offset address register",
+          "fields": {}
+        },
+        "RX": {
+          "addr": 17164,
+          "size": 4,
+          "type": "DATA",
+          "description": "SPI receive data register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 17156,
+          "size": 1,
+          "type": "STATUS",
+          "description": "SPI status register",
+          "fields": {}
+        },
+        "TX": {
+          "addr": 17160,
+          "size": 4,
+          "type": "DATA",
+          "description": "SPI transmit data register",
+          "fields": {}
+        }
+      }
+    },
+    "SYSTEM": {
+      "description": "System Control - Clock, Power, Interrupts, Watchdog, CRC",
+      "base_addr": 18688,
+      "registers": {
+        "BLOCKPWR": {
+          "addr": 18696,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "Block power control register",
+          "fields": {}
+        },
+        "CLKCR": {
+          "addr": 18688,
+          "size": 2,
+          "type": "CONTROL",
+          "description": "System clock control register",
+          "fields": {}
+        },
+        "CLKDIVCR": {
+          "addr": 18692,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "Clock divider control register",
+          "fields": {}
+        },
+        "CRCDATA": {
+          "addr": 18700,
+          "size": 1,
+          "type": "DATA",
+          "description": "CRC data register",
+          "fields": {}
+        },
+        "CRCSTATE": {
+          "addr": 18704,
+          "size": 2,
+          "type": "DATA",
+          "description": "CRC state register",
+          "fields": {}
+        },
+        "DCO0BIAS": {
+          "addr": 18752,
+          "size": 2,
+          "type": "BIAS",
+          "description": "DCO0 bias control register",
+          "fields": {}
+        },
+        "DCO1BIAS": {
+          "addr": 18756,
+          "size": 2,
+          "type": "BIAS",
+          "description": "DCO1 bias control register",
+          "fields": {}
+        },
+        "IRQCR": {
+          "addr": 18732,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "IRQ control register",
+          "fields": {}
+        },
+        "IRQENL": {
+          "addr": 18708,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "IRQ enable lower register",
+          "fields": {}
+        },
+        "IRQENM": {
+          "addr": 18712,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "IRQ enable middle register",
+          "fields": {}
+        },
+        "IRQENU": {
+          "addr": 18716,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "IRQ enable upper register",
+          "fields": {}
+        },
+        "IRQPRIL": {
+          "addr": 18720,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "IRQ priority lower register",
+          "fields": {}
+        },
+        "IRQPRIM": {
+          "addr": 18724,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "IRQ priority middle register",
+          "fields": {}
+        },
+        "IRQPRIU": {
+          "addr": 18728,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "IRQ priority upper register",
+          "fields": {}
+        },
+        "WDTCR": {
+          "addr": 18736,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "Watchdog timer control register",
+          "fields": {}
+        },
+        "WDTPASS": {
+          "addr": 18744,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Watchdog timer password register",
+          "fields": {}
+        },
+        "WDTSR": {
+          "addr": 18740,
+          "size": 1,
+          "type": "STATUS",
+          "description": "Watchdog timer status register",
+          "fields": {}
+        },
+        "WDTVAL": {
+          "addr": 18748,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Watchdog timer value register",
+          "fields": {}
+        }
+      }
+    },
+    "TIMER0": {
+      "description": "32-bit Timer 0 with PWM and Input Capture",
+      "base_addr": 17920,
+      "registers": {
+        "CAP0": {
+          "addr": 17944,
+          "size": 4,
+          "type": "DATA",
+          "description": "Timer capture 0 register",
+          "fields": {}
+        },
+        "CAP1": {
+          "addr": 17948,
+          "size": 4,
+          "type": "DATA",
+          "description": "Timer capture 1 register",
+          "fields": {}
+        },
+        "CMP0": {
+          "addr": 17932,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Timer compare 0 register",
+          "fields": {}
+        },
+        "CMP1": {
+          "addr": 17936,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Timer compare 1 register",
+          "fields": {}
+        },
+        "CMP2": {
+          "addr": 17940,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Timer compare 2 register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 17920,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "Timer control register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 17924,
+          "size": 1,
+          "type": "STATUS",
+          "description": "Timer status register",
+          "fields": {}
+        },
+        "VAL": {
+          "addr": 17928,
+          "size": 4,
+          "type": "DATA",
+          "description": "Timer value register",
+          "fields": {}
+        }
+      }
+    },
+    "TIMER1": {
+      "description": "32-bit Timer 1 with PWM and Input Capture",
+      "base_addr": 18176,
+      "registers": {
+        "CAP0": {
+          "addr": 18200,
+          "size": 4,
+          "type": "DATA",
+          "description": "Timer capture 0 register",
+          "fields": {}
+        },
+        "CAP1": {
+          "addr": 18204,
+          "size": 4,
+          "type": "DATA",
+          "description": "Timer capture 1 register",
+          "fields": {}
+        },
+        "CMP0": {
+          "addr": 18188,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Timer compare 0 register",
+          "fields": {}
+        },
+        "CMP1": {
+          "addr": 18192,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Timer compare 1 register",
+          "fields": {}
+        },
+        "CMP2": {
+          "addr": 18196,
+          "size": 4,
+          "type": "CONFIG",
+          "description": "Timer compare 2 register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 18176,
+          "size": 4,
+          "type": "CONTROL",
+          "description": "Timer control register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 18180,
+          "size": 1,
+          "type": "STATUS",
+          "description": "Timer status register",
+          "fields": {}
+        },
+        "VAL": {
+          "addr": 18184,
+          "size": 4,
+          "type": "DATA",
+          "description": "Timer value register",
+          "fields": {}
+        }
+      }
+    },
+    "UART0": {
+      "description": "Universal Asynchronous Receiver/Transmitter 0",
+      "base_addr": 17408,
+      "registers": {
+        "BR": {
+          "addr": 17416,
+          "size": 2,
+          "type": "CONFIG",
+          "description": "UART baud rate register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 17408,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "UART control register",
+          "fields": {
+            "EN": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "UART enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "PEN": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Parity enable",
+              "values": {
+                "0": "Parity disabled",
+                "1": "Parity enabled"
+              }
+            },
+            "PSEL": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Parity select",
+              "values": {
+                "0": "Even parity",
+                "1": "Odd parity"
+              }
+            },
+            "RXIE": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Receive interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "SB": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Stop bits",
+              "values": {
+                "0": "1 stop bit",
+                "1": "2 stop bits"
+              }
+            },
+            "TXIE": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Transmit interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            }
+          }
+        },
+        "RX": {
+          "addr": 17420,
+          "size": 1,
+          "type": "DATA",
+          "description": "UART receive data register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 17412,
+          "size": 1,
+          "type": "STATUS",
+          "description": "UART status register",
+          "fields": {}
+        },
+        "TX": {
+          "addr": 17424,
+          "size": 1,
+          "type": "DATA",
+          "description": "UART transmit data register",
+          "fields": {}
+        }
+      }
+    },
+    "UART1": {
+      "description": "Universal Asynchronous Receiver/Transmitter 1",
+      "base_addr": 17664,
+      "registers": {
+        "BR": {
+          "addr": 17672,
+          "size": 2,
+          "type": "CONFIG",
+          "description": "UART baud rate register",
+          "fields": {}
+        },
+        "CR": {
+          "addr": 17664,
+          "size": 1,
+          "type": "CONTROL",
+          "description": "UART control register",
+          "fields": {
+            "EN": {
+              "lsb": 7,
+              "width": 1,
+              "desc": "UART enable",
+              "values": {
+                "0": "Disabled",
+                "1": "Enabled"
+              }
+            },
+            "PEN": {
+              "lsb": 1,
+              "width": 1,
+              "desc": "Parity enable",
+              "values": {
+                "0": "Parity disabled",
+                "1": "Parity enabled"
+              }
+            },
+            "PSEL": {
+              "lsb": 0,
+              "width": 1,
+              "desc": "Parity select",
+              "values": {
+                "0": "Even parity",
+                "1": "Odd parity"
+              }
+            },
+            "RXIE": {
+              "lsb": 6,
+              "width": 1,
+              "desc": "Receive interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            },
+            "SB": {
+              "lsb": 2,
+              "width": 1,
+              "desc": "Stop bits",
+              "values": {
+                "0": "1 stop bit",
+                "1": "2 stop bits"
+              }
+            },
+            "TXIE": {
+              "lsb": 5,
+              "width": 1,
+              "desc": "Transmit interrupt enable",
+              "values": {
+                "0": "Interrupt disabled",
+                "1": "Interrupt enabled"
+              }
+            }
+          }
+        },
+        "RX": {
+          "addr": 17676,
+          "size": 1,
+          "type": "DATA",
+          "description": "UART receive data register",
+          "fields": {}
+        },
+        "SR": {
+          "addr": 17668,
+          "size": 1,
+          "type": "STATUS",
+          "description": "UART status register",
+          "fields": {}
+        },
+        "TX": {
+          "addr": 17680,
+          "size": 1,
+          "type": "DATA",
+          "description": "UART transmit data register",
+          "fields": {}
+        }
+      }
+    }
+  }
+}
