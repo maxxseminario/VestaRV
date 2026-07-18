@@ -14,13 +14,20 @@ share a working tree with interactive sessions):
 ```bash
 mkdir -p ~/actions-runner && cd ~/actions-runner
 # download + extract per the GitHub instructions page, then:
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1   # SUSE ICU sonames aren't .NET-probeable
 ./config.sh --url https://github.com/maxxseminario/VestaRV \
             --token <registration-token> \
             --labels cadence \
-            --work _work
+            --unattended
 ```
 
 The `cadence` label is what `runs-on: [self-hosted, cadence]` selects.
+
+STATE 2026-07-18: runner v2.335.1 is already downloaded/extracted at
+`~/actions-runner` with `.env` (LANG + the DOTNET invariant-globalization flag —
+this box's libicu ships SUSE-suffixed sonames .NET cannot probe) and `.path`
+(riscv-none-elf toolchain first) pre-written; only `config.sh` (needs a fresh
+registration token from the GUI) and the service install remain.
 
 ## 2. Seed the runner workspace (one-time)
 
