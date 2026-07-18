@@ -3,20 +3,20 @@ use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
 use work.constants.all;
 
--- This code implements the restoring division algorithm for 32-bit signed and unsigned integers.
+-- This code implements the restoring division algorithm for XLEN-bit signed and unsigned integers.
 -- It supports both division and remainder operations, as specified by the RISC-V ISA.
--- Takes 32 clock cycles +1 start cycle +1 done cycle (34 total) to complete the operation.
+-- Takes XLEN clock cycles +1 start cycle +1 done cycle (XLEN+2 total) to complete the operation.
 
 entity div is
     port (
         resetn     : in  std_logic;
         clk        : in  std_logic;
         start      : in  std_logic;
-        a          : in  std_logic_vector(31 downto 0);  -- Dividend
-        b          : in  std_logic_vector(31 downto 0);  -- Divisor
+        a          : in  std_logic_vector(XLEN-1 downto 0);  -- Dividend
+        b          : in  std_logic_vector(XLEN-1 downto 0);  -- Divisor
         sel_signed : in  std_logic;                      -- '1' for signed division, '0' for unsigned
         sel_rem    : in  std_logic;                      -- '1' for remainder (rem/remu), '0' for quotient (div/divu)
-        result     : out std_logic_vector(31 downto 0);  -- Quotient or Remainder
+        result     : out std_logic_vector(XLEN-1 downto 0);  -- Quotient or Remainder
         complete   : out std_logic;                      -- '1' when division is in progress
         rdy        : out std_logic
     );
@@ -26,14 +26,14 @@ architecture rtl of div is
 
     type state_t is (IDLE, WORK, COMPLETED);
     signal state : state_t;
-    signal N, D  : signed(31 downto 0);
-    signal N_u, D_u : unsigned(31 downto 0);
-    signal Q : signed(31 downto 0);
-    signal R : signed(31 downto 0);
-    signal cnt : integer range 0 to 32;
-    signal Q_unsigned : unsigned(31 downto 0);
-    signal R_unsigned : unsigned(31 downto 0);
-    signal N_Abs, D_Abs : signed(31 downto 0);
+    signal N, D  : signed(XLEN-1 downto 0);
+    signal N_u, D_u : unsigned(XLEN-1 downto 0);
+    signal Q : signed(XLEN-1 downto 0);
+    signal R : signed(XLEN-1 downto 0);
+    signal cnt : integer range 0 to XLEN;
+    signal Q_unsigned : unsigned(XLEN-1 downto 0);
+    signal R_unsigned : unsigned(XLEN-1 downto 0);
+    signal N_Abs, D_Abs : signed(XLEN-1 downto 0);
     signal neg_result : std_logic;
     signal neg_rem : std_logic;
     signal start_reg : std_logic;
@@ -45,7 +45,13 @@ architecture rtl of div is
     -- discipline the core uses elsewhere (rs1_value for LR/SC/AMO). This keeps
     -- the divider immune to any regfile activity on its a/b ports during the
     -- multi-cycle run.
-    signal a_lat, b_lat : std_logic_vector(31 downto 0);
+    signal a_lat, b_lat : std_logic_vector(XLEN-1 downto 0);
+
+    -- XLEN-wide special-case values (RISC-V div/rem spec): all-ones (-1 /
+    -- unsigned max) and the most-negative signed integer (overflow operand).
+    constant DIV_ZERO_X    : std_logic_vector(XLEN-1 downto 0) := (others => '0');
+    constant DIV_ALLONES_X : std_logic_vector(XLEN-1 downto 0) := (others => '1');
+    constant DIV_MININT_X  : std_logic_vector(XLEN-1 downto 0) := (XLEN-1 => '1', others => '0');
 
 begin
 
@@ -54,10 +60,10 @@ begin
     -- complete <= '1' when state = COMPLETED else '0';
 
     process(clk, resetn)
-        variable R_var : signed(31 downto 0);
-        variable Q_var : signed(31 downto 0);
-        variable R_u_var : unsigned(31 downto 0);
-        variable Q_u_var : unsigned(31 downto 0);
+        variable R_var : signed(XLEN-1 downto 0);
+        variable Q_var : signed(XLEN-1 downto 0);
+        variable R_u_var : unsigned(XLEN-1 downto 0);
+        variable Q_u_var : unsigned(XLEN-1 downto 0);
     begin
 
         if resetn = '0' then
@@ -97,8 +103,8 @@ begin
                             D <= signed(b);
                             N_Abs <= abs(signed(a));
                             D_Abs <= abs(signed(b));
-                            neg_result <= (a(31) xor b(31));
-                            neg_rem <= a(31);       -- only dividend sign for remainder
+                            neg_result <= (a(XLEN-1) xor b(XLEN-1));
+                            neg_rem <= a(XLEN-1);       -- only dividend sign for remainder
                         else
                             N_u <= unsigned(a);
                             D_u <= unsigned(b);
@@ -107,7 +113,7 @@ begin
                         R <= (others => '0');
                         Q_unsigned <= (others => '0');
                         R_unsigned <= (others => '0');
-                        cnt <= 31;
+                        cnt <= XLEN-1;
                         state <= WORK;
                     else 
                         state <= IDLE;
@@ -168,22 +174,22 @@ begin
         elsif complete = '1' then
             -- Division by zero cases (RISC-V spec) — decided from the LATCHED
             -- operands (a_lat/b_lat), never the live a/b ports.
-            if b_lat = x"00000000" then
+            if b_lat = DIV_ZERO_X then
                 if sel_rem = '1' then
                     result <= a_lat; -- remu: operand a, rem: operand a
                 else
                     if sel_signed = '1' then
-                        result <= x"FFFFFFFF"; -- div: -1 (all 1's)
+                        result <= DIV_ALLONES_X; -- div: -1 (all 1's)
                     else
-                        result <= x"FFFFFFFF"; -- divu: all 1's
+                        result <= DIV_ALLONES_X; -- divu: all 1's
                     end if;
                 end if;
-            -- Overflow case for signed division/remainder: a = 0x80000000, b = 0xFFFFFFFF
-            elsif (sel_signed = '1') and (a_lat = x"80000000") and (b_lat = x"FFFFFFFF") then
+            -- Overflow case for signed division/remainder: a = MIN_INT, b = -1
+            elsif (sel_signed = '1') and (a_lat = DIV_MININT_X) and (b_lat = DIV_ALLONES_X) then
                 if sel_rem = '1' then
-                    result <= x"00000000"; -- rem: 0
+                    result <= DIV_ZERO_X; -- rem: 0
                 else
-                    result <= x"80000000"; -- div: 0x80000000
+                    result <= DIV_MININT_X; -- div: MIN_INT
                 end if;
             else
                 if sel_signed = '1' then

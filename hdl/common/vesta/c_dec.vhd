@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.constants.all;
 
 entity c_dec is
     generic (
@@ -11,8 +12,8 @@ entity c_dec is
     );
     port (
         resetn        : in  std_logic;
-        instr_in      : in  std_logic_vector(31 downto 0);  -- Instruction word fetched from memory
-        instr_out     : out std_logic_vector(31 downto 0);  -- 32-bit decompressed or original instruction
+        instr_in      : in  std_logic_vector(ILEN-1 downto 0);  -- Instruction word fetched from memory
+        instr_out     : out std_logic_vector(ILEN-1 downto 0);  -- Decompressed or original instruction (always ILEN=32-bit encodings)
         is_compressed : out std_logic                       -- '1' if input was compressed
     );
 end c_dec;
@@ -30,7 +31,7 @@ begin
     decompress_proc: process(instr_in, resetn)
         variable instr16 : std_logic_vector(15 downto 0);
         variable is_compressed_var : std_logic;
-        variable dec : std_logic_vector(31 downto 0);
+        variable dec : std_logic_vector(ILEN-1 downto 0);
         
         -- Field extraction variables
         variable opcode : std_logic_vector(1 downto 0);
@@ -44,7 +45,7 @@ begin
         
         -- Immediate construction helpers
         variable imm_sign : std_logic;
-        variable imm : std_logic_vector(31 downto 0);
+        variable imm : std_logic_vector(ILEN-1 downto 0);
         
     begin
         -- Initialize outputs

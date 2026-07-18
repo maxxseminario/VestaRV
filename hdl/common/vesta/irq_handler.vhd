@@ -36,7 +36,7 @@ entity irq_handler is
         irq_restore     : out std_logic;                              -- Request CPU to restore context
         irq_restore_ack : in  std_logic;                              -- CPU acknowledges context restore
         ivt_jump        : out std_logic;                              -- Jump to interrupt vector
-        ivt_entry       : out std_logic_vector(31 downto 0)           -- Interrupt vector address
+        ivt_entry       : out std_logic_vector(XLEN-1 downto 0)           -- Interrupt vector address
     );
 end irq_handler;
 
