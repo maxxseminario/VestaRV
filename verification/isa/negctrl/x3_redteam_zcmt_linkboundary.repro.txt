@@ -1,0 +1,38 @@
+X3 Stage-D red-team (D2) — Zcmt cm.jt/cm.jalt LINK boundary (index 31<->32)
+==========================================================================
+DELIVERABLE D (seed 2): a distinct failure mode with a PROVEN detector gap.
+For Zcmt the index value ALONE selects the mnemonic: index<32 = cm.jt (no link),
+index>=32 = cm.jalt (links ra=PC+2). shcmt.S formerly tested only index=3 and
+index=40, so a seed that moves the link threshold by ONE slips through. (Distinct
+from the existing x3_zcmt_jtlink seed, which makes cm.jt link at a NON-boundary
+index; this targets the exact 31/32 threshold.)
+
+TEST STRENGTHENING (committed, verification/isa/tests/rv32ua/shcmt.S): added two
+boundary cases inside the #ifdef CORE_ENABLE_ZCMT arm (JVT entries at 31*4=124
+and 32*4=128; encodings cm.jt 31 = 0xA07E, cm.jalt 32 = 0xA082):
+  * cm.jt index=31 (highest no-link): control reaches entry[31] AND ra UNCHANGED.
+  * cm.jalt index=32 (lowest link): control reaches entry[32] AND ra == site+2.
+OFF bit-identical: the additions are inside the ZCMT-on arm; the #else stub and
+the default image are unchanged.
+
+SEED (x3_redteam_zcmt_linkboundary.patch): move the link threshold down by one
+(hdl/common/vesta/vesta.vhd):
+-   zcm_jt_link <= '1' when unsigned(zcm_index) >= 32 else '0';
++   zcm_jt_link <= '1' when unsigned(zcm_index) >= 31 else '0';
+Now index=31 wrongly LINKS ra (cm.jt writes ra). index=3 (<31) and index=40
+(>=31) are unaffected — which is exactly why the OLD shcmt could not catch it.
+
+DETECTOR-GAP NEGATIVE CONTROL (M8 "prove the detector" rule), PERSONALLY OBSERVED:
+  BASE shcmt (index 3,40 only) + boundary seed -> PASS  (the gap is real)
+  STRENGTHENED shcmt + boundary seed           -> FAIL  (index=31 ra-unchanged bne)
+
+STAGING: ON = ZCMP+ZCMT true + -DCORE_ENABLE_ZCMP -DCORE_ENABLE_ZCMT (as in (B)).
+RUN (behavioral_mp), list = ../rcf/xxxxrv32ua-p-shcmt.rcf
+  (a) apply x3_redteam_zcmt_linkboundary.patch -> run ; (b) checkout vesta.vhd -> run.
+
+PERSONALLY OBSERVED (2026-07-17, base 5e39d58):
+  BASELINE (strengthened, correct RTL) -> shcmt PASS
+  SEEDED   -> shcmt FAIL (a0_reached_fail @ 10.939 ms; NOT a timeout)
+  REVERTED -> shcmt PASS
+  BASE-shcmt + seed -> PASS (negative control: the gap the strengthening closes)
+  DEFAULT (OFF) -> shcmt #else stub PASS (image bit-identical)

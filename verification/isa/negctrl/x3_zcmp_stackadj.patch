@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..3740f43 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -613,7 +613,7 @@ architecture struct of vesta is
+         if r <= 7 then
+             base := 16;
+         elsif r <= 11 then
+-            base := 32;
++            base := 48;  -- NEGCTRL: wrong base 32->48
+         elsif r <= 14 then
+             base := 48;
+         else

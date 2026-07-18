@@ -39,6 +39,9 @@ include $(src_dir)/rv32uzbs/Makefrag
 include $(src_dir)/rv32uzicond/Makefrag
 include $(src_dir)/rv32uzabha/Makefrag
 include $(src_dir)/rv32uzacas/Makefrag
+include $(src_dir)/rv32uzkne/Makefrag
+include $(src_dir)/rv32uzknd/Makefrag
+include $(src_dir)/rv32uzknh/Makefrag
 include $(src_dir)/rv32si/Makefrag
 include $(src_dir)/rv32ziscr/Makefrag # Added by Maxx Seminario 10/21/2025
 include $(src_dir)/rv32mi/Makefrag
@@ -292,6 +295,18 @@ $(eval $(call compile_template,rv32uzabha,-march=rv32imac -mabi=ilp32))
 # explicit .insn R-types and build under the base -march. ON-polarity only;
 # NOT wired into the default (off) suite runner.
 $(eval $(call compile_template,rv32uzacas,-march=rv32imac -mabi=ilp32))
+# rv32uzkne / rv32uzknd (X3 Zkne/Zknd AES-32): directed aes32e*/aes32d* per-op
+# tests + the AES-128 FIPS-197 KAT. gas 13.2 has no `zkne'/`zknd' -march suffix
+# and no aes32* mnemonics, so the tests emit explicit `.insn` R-types and build
+# under the base -march. ON-polarity only (built with -DCORE_ENABLE_ZKN); NOT
+# wired into the default (off) suite runner.
+$(eval $(call compile_template,rv32uzkne,-march=rv32imac -mabi=ilp32))
+$(eval $(call compile_template,rv32uzknd,-march=rv32imac -mabi=ilp32))
+# rv32uzknh (X3): directed sha256*/sha512* per-op tests. gas 13.2 has no zknh
+# -march suffix and no sha256*/sha512* mnemonics, so the tests emit explicit
+# .insn forms and build under the base -march. ON-polarity only; NOT wired into
+# the default (off) suite runner.
+$(eval $(call compile_template,rv32uzknh,-march=rv32imac -mabi=ilp32))
 $(eval $(call compile_template,rv32si,-march=rv32g -mabi=ilp32))
 $(eval $(call compile_template,rv32ziscr,-march=rv32gc -mabi=ilp32)) # Added by Maxx Seminario 10/21/2025 
 $(eval $(call compile_template,rv32mi,-march=rv32g -mabi=ilp32))
@@ -473,6 +488,23 @@ rv32uzacas-flash: rv32uzacas
 	@echo "Flashing: Prepending binary header lines to rv32uzacas .rcf files ..."
 	@echo "Files to flash: " rcf/*rv32uzacas*.rcf
 	@./flash_prepend.sh "rcf/*rv32uzacas*.rcf"
+
+.PHONY: rv32uzkne-flash
+rv32uzkne-flash: rv32uzkne
+	@echo "Flashing: Prepending binary header lines to rv32uzkne .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzkne*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzkne*.rcf"
+
+.PHONY: rv32uzknd-flash
+rv32uzknd-flash: rv32uzknd
+	@echo "Flashing: Prepending binary header lines to rv32uzknd .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzknd*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzknd*.rcf"
+.PHONY: rv32uzknh-flash
+rv32uzknh-flash: rv32uzknh
+	@echo "Flashing: Prepending binary header lines to rv32uzknh .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzknh*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzknh*.rcf"
 
 .PHONY: spifem-flash
 spifem-flash: spifem

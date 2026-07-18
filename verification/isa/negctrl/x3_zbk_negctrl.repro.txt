@@ -1,0 +1,82 @@
+X3 Stage B (Zbkb + Zbkx + Zbkc) negative controls
+==================================================================================
+
+Two seeds, each a single-line RTL fault in hdl/common/vesta/alu.vhd caught by the
+directed test verification/isa/tests/rv32ui/zbk.S (a bounded, self-checking FAIL
+via the test's own TEST_CASE compares -> a0 = 0xDEADBEEF; NEVER a watchdog hang).
+
+  (a) x3_zbkx_xperm_identity.patch  — xperm8 out-of-range index returns rs1's byte
+      at lane i (identity permutation) instead of the spec-mandated 0. Breaks the
+      "index >= 4 -> 0" rule. zbk.S TEST_CASE 12 (xperm8 with rs2 byte3 = 0x04)
+      expects 0x00AABBCC; the seed yields 0xAAAABBCC -> FAIL.
+
+  (b) x3_zbkb_pack_swap.patch       — pack swaps its halves: it writes rs1 to the
+      HIGH half and rs2 to the LOW half (a(15:0) & b(15:0)) instead of the correct
+      rs2-high/rs1-low (b(15:0) & a(15:0)). zbk.S TEST_CASE 2 expects 0xDEF05678;
+      the seed yields 0x5678DEF0 -> FAIL.
+
+DISPATCH / STAGING CONVENTION (phase standard, verbatim from extzbkb.S):
+  * CORE_ENABLE_ZBKB/ZBKX/ZBKC are supplied EXPLICITLY via -D to gcc when building
+    the ON image; NEVER auto-derived from a header or platform/common/out/ state.
+  * The RTL polarity is staged SEPARATELY by flipping MemoryMap.vhd's three
+    CORE_ENABLE_ZBK* constants to true (the sim compiles hdl/common/ directly).
+
+REPRODUCE (run from the worktree root):
+    ROOT=$(git rev-parse --show-toplevel)
+    source ~/vestarv/cdspaths.sh
+
+    # --- 1. Stage the ON RTL polarity (all three generics true) ---
+    sed -i '/CORE_ENABLE_ZBKB\|CORE_ENABLE_ZBKC\|CORE_ENABLE_ZBKX/s/:= false/:= true /' \
+        $ROOT/hdl/common/MemoryMap.vhd
+
+    # --- 2. Build the ON zbk image (explicit -D per the dispatch convention) ---
+    cd $ROOT/verification/isa && rm -rf build/
+    BASE="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
+    make rv32ui-flash RISCV_GCC_OPTS="$BASE -DNHARTS=4 -DCORE_ENABLE_ZBKB -DCORE_ENABLE_ZBKX -DCORE_ENABLE_ZBKC"
+
+    # --- 3. Run list = simple (sanity) + zbk ---
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    printf '../rcf/xxxrv32ui-p-simple.rcf\n../rcf/xxxxxxrv32ui-p-zbk.rcf\n' > zbk_list.txt
+    run() { TESTS_FILE=zbk_list.txt MAX_PARALLEL=2 ./xrun_parallel.sh 2>&1 | grep -E 'PASS|FAIL|Passed'; }
+
+    # baseline (reverted / clean RTL): zbk PASS
+    run
+
+    # seed (a): xperm out-of-range identity -> zbk FAIL
+    git apply $ROOT/verification/isa/negctrl/x3_zbkx_xperm_identity.patch
+    run
+    git apply -R $ROOT/verification/isa/negctrl/x3_zbkx_xperm_identity.patch   # revert -> PASS
+
+    # seed (b): pack half-swap -> zbk FAIL
+    git apply $ROOT/verification/isa/negctrl/x3_zbkb_pack_swap.patch
+    run
+    git apply -R $ROOT/verification/isa/negctrl/x3_zbkb_pack_swap.patch        # revert -> PASS
+
+    # --- 4. Restore default RTL polarity ---
+    sed -i '/CORE_ENABLE_ZBKB\|CORE_ENABLE_ZBKC\|CORE_ENABLE_ZBKX/s/:= true /:= false/' \
+        $ROOT/hdl/common/MemoryMap.vhd
+
+RECORDED OUTPUTS (personally observed, 2026-07-17, worktree agent-adbcc8caffcd9f1fa,
+NHARTS=4, xmsim 20.09; ON RTL polarity staged as above):
+
+  DEFAULT build (all CORE_ENABLE_ZBK* false, no -D, clean RTL):
+      [ 1/ 2]  PASS  tb_rv32ui_p_simple
+      [ 2/ 2]  PASS  tb_rv32ui_p_zbk          <- OFF trivial arm (no ops executed)
+
+  ON build, CLEAN RTL (baseline):
+      [ 1/ 2]  PASS  tb_rv32ui_p_simple
+      [ 2/ 2]  PASS  tb_rv32ui_p_zbk          <- all 16 known-answer vectors pass
+
+  ON build, SEED (a) x3_zbkx_xperm_identity applied:
+      [ 1/ 2]  PASS  tb_rv32ui_p_simple
+      [ 2/ 2]  FAIL  tb_rv32ui_p_zbk          <- xperm8 OOR vector caught (a0=DEADBEEF)
+  reverted -> PASS (baseline restored).
+
+  ON build, SEED (b) x3_zbkb_pack_swap applied:
+      [ 1/ 2]  PASS  tb_rv32ui_p_simple
+      [ 2/ 2]  FAIL  tb_rv32ui_p_zbk          <- pack vector caught (a0=DEADBEEF)
+  reverted -> PASS (baseline restored).
+
+Both seeds are bounded FAILs by the test's own TEST_CASE compares (well inside the
+100 ms tb watchdog), never a hang. simple stays green throughout (the seed touches
+only the Zbkb/Zbkx ALU arms).

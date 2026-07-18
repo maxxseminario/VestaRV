@@ -16,11 +16,19 @@ entity csr_unit is
         -- generic. Default false => counters 3-31 hardwired zero (read-zero /
         -- write-ignore / no trap), fully back-compatible with the X0 scaffold.
         ENABLE_ZIHPM      : boolean := false;  -- X1 (Zihpm): real hpm counters
+        -- X3 Zcmt: the jvt (jump-vector-table base) CSR (0x017, URW) lives here.
+        -- Default false => jvt hardwired zero, and maindec's csr_valid map makes
+        -- 0x017 an illegal CSR, so read/write traps (both-polarity gate).
+        ENABLE_ZCMT       : boolean := false;  -- X3 (Zcmt): jvt CSR
         ENABLE_ZFINX      : boolean := false   -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
     );
     port (
         clk              : in  std_logic;
         resetn           : in  std_logic;
+
+        -- X3 Zcmt: jvt base exported to vesta's table-jump FSM ({jvt[31:6],6'b0}
+        -- is the table base). Held zero when ENABLE_ZCMT is off.
+        jvt_value        : out std_logic_vector(31 downto 0);
 
         -- M13: hart id is a PORT (was the HARTID generic) so all four hart
         -- tiles share ONE netlist (tile hardening, M14); wired per instance.
@@ -88,6 +96,11 @@ architecture behave of csr_unit is
     signal mhpmevent3 : std_logic_vector(XLEN-1 downto 0);
     signal mhpmevent4 : std_logic_vector(XLEN-1 downto 0);
     signal mcountinhibit : std_logic_vector(XLEN-1 downto 0);
+
+    -- X3 Zcmt jvt CSR (0x017). WARL: mode = bits(5:0) pinned 0 (Jump Table Mode
+    -- only), base = bits(31:6) writable (64-byte aligned). Held zero and never
+    -- written when ENABLE_ZCMT is false, so both read arm and export return zero.
+    signal jvt        : std_logic_vector(XLEN-1 downto 0);
     -- Edge trackers (clk domain) for the grant (stall falling edge) and
     -- trap-entry (rising edge) events.
     signal prev_stall : std_logic;
@@ -133,12 +146,16 @@ begin
 
     -- CSR read process
     process(csr_addr, mcycle, minstret, hart_id,
-            hpm3, hpm4, mhpmevent3, mhpmevent4, mcountinhibit)
+            hpm3, hpm4, mhpmevent3, mhpmevent4, mcountinhibit, jvt)
     begin
         case csr_addr is
             -- Machine Information Registers (Read-only)
             when CSR_MHARTID   => csr_read_val <= hart_id;
             when CSR_MISA      => csr_read_val <= MISA_VALUE;
+
+            -- X3 Zcmt jvt (read arm unconditional; jvt is held zero when
+            -- ENABLE_ZCMT is off, and 0x017 is an illegal CSR there anyway).
+            when CSR_JVT       => csr_read_val <= jvt;
 
             -- Machine Counters (Read/Write)
             when CSR_MCYCLE    => csr_read_val <= mcycle(XLEN-1 downto 0);
@@ -199,6 +216,7 @@ begin
             mhpmevent3 <= (others => '0');
             mhpmevent4 <= (others => '0');
             mcountinhibit <= (others => '0');
+            jvt        <= (others => '0');
             prev_stall <= '0';
             prev_trap  <= '0';
 
@@ -273,6 +291,14 @@ begin
                             mcountinhibit <= csr_new_val and MCOUNTINHIBIT_MASK;
                         end if;
 
+                    -- X3 Zcmt jvt write (WARL): mode(5:0) pinned 0, base(31:6)
+                    -- writable. Gated on ENABLE_ZCMT so it stays hardwired zero for
+                    -- the OFF polarity (and 0x017 traps illegal there via csr_valid).
+                    when CSR_JVT =>
+                        if ENABLE_ZCMT then
+                            jvt <= csr_new_val(31 downto 6) & "000000";
+                        end if;
+
                     when others =>
                         null;  -- Read-only CSRs, user-view aliases, or hardwired-zero hpm indices
                 end case;
@@ -282,5 +308,8 @@ begin
 
     -- Output read data
     csr_read_data <= csr_read_val;
+
+    -- X3 Zcmt: export the jvt base (held zero when ENABLE_ZCMT is off).
+    jvt_value <= jvt;
 
 end behave;

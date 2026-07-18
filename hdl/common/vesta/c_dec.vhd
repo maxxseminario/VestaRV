@@ -8,7 +8,14 @@ entity c_dec is
         -- X0 ISA-extension scaffolding (default false; the new quadrant
         -- expansions are added by the named phase -- unused here for now).
         ENABLE_ZCB   : boolean := false;  -- X1 (Zcb): consumed from phase X1 on; scaffolded X0
-        ENABLE_ZIMOP : boolean := false   -- X1 (Zcmop c.mop): consumed from phase X1 on; scaffolded X0
+        ENABLE_ZIMOP : boolean := false;  -- X1 (Zcmop c.mop): consumed from phase X1 on; scaffolded X0
+        -- X3 Zcmp/Zcmt: the C2 funct3=101 slot (c.fsdsp on an F/D core; free here).
+        -- When either is on, c_dec emits a fixed 32-bit SENTINEL for a LEGAL cm.*
+        -- (see constants.vhd ZCM_*). Both OFF -> the slot stays reserved/illegal =
+        -- bit-identical to the base. Push/pop/moves need ENABLE_ZCMP; jt/jalt need
+        -- ENABLE_ZCMT (each sub-encoding gated on its OWN generic below).
+        ENABLE_ZCMP  : boolean := false;  -- X3 (Zcmp): compressed push/pop + reg-moves
+        ENABLE_ZCMT  : boolean := false   -- X3 (Zcmt): compressed table jump (cm.jt/jalt)
     );
     port (
         resetn        : in  std_logic;
@@ -703,11 +710,72 @@ begin
                                 dec(19 downto 15) := "00010";    -- sp
                                 dec(24 downto 20) := rs2;
                                 dec(31 downto 25) := imm(11 downto 5);
-                                
+
+                            -- ==== X3 Zcmp / Zcmt (C2 funct3=101) ====
+                            -- The c.fsdsp slot on an F/D core; reserved (illegal)
+                            -- on this core at the base. cm.push/pop/popret[z],
+                            -- cm.mvsa01/mva01s (Zcmp) and cm.jt/cm.jalt (Zcmt) all
+                            -- live here. c_dec does NOT expand them to a single
+                            -- 32-bit insn (each is multi-write / a memory burst /
+                            -- a redirect): it emits the fixed ZCM SENTINEL that
+                            -- maindec+vesta's FSM consume. A LEGAL, enabled cm.*
+                            -- sets dec; every illegal pattern (and both generics
+                            -- off) leaves dec = all-zero = illegal-instruction
+                            -- (base behavior -> OFF build bit-identical). The
+                            -- embedded instr16 (dec(31:16)) carries the operand
+                            -- fields at their spec bit positions.
+                            when "101" =>
+                                if ENABLE_ZCMP or ENABLE_ZCMT then
+                                    if instr16(12) = '0' then
+                                        if instr16(11 downto 10) = "00" then
+                                            -- cm.jt / cm.jalt (Zcmt); index bits 9:2
+                                            if ENABLE_ZCMT then
+                                                dec(6 downto 0)   := ZCM_SENTINEL_OP;
+                                                dec(14 downto 12) := ZCM_SUB_TABJUMP;
+                                                dec(31 downto 16) := instr16;
+                                            end if;
+                                        elsif instr16(11 downto 10) = "11" then
+                                            -- cm.mvsa01 (6:5=01) / cm.mva01s (6:5=11).
+                                            -- r1s' /= r2s' required (specifiers differ;
+                                            -- the sreg map is injective).
+                                            if ENABLE_ZCMP and
+                                               instr16(9 downto 7) /= instr16(4 downto 2) then
+                                                if instr16(6 downto 5) = "01" then
+                                                    dec(6 downto 0)   := ZCM_SENTINEL_OP;
+                                                    dec(14 downto 12) := ZCM_SUB_MVSA01;
+                                                    dec(31 downto 16) := instr16;
+                                                elsif instr16(6 downto 5) = "11" then
+                                                    dec(6 downto 0)   := ZCM_SENTINEL_OP;
+                                                    dec(14 downto 12) := ZCM_SUB_MVA01S;
+                                                    dec(31 downto 16) := instr16;
+                                                end if;
+                                            end if;
+                                        end if;
+                                        -- bits(11:10) = 01/10 with bit12=0 reserved -> illegal
+                                    else
+                                        -- bit12=1: push/pop family (Zcmp). Require
+                                        -- bit11=1, bit8=0, rlist(7:4) >= 4 (0-3 illegal).
+                                        -- bits(10:9): 00 push / 01 pop / 10 popretz /
+                                        -- 11 popret.
+                                        if ENABLE_ZCMP and instr16(11) = '1' and instr16(8) = '0'
+                                           and unsigned(instr16(7 downto 4)) >= 4 then
+                                            dec(6 downto 0)   := ZCM_SENTINEL_OP;
+                                            dec(31 downto 16) := instr16;
+                                            case instr16(10 downto 9) is
+                                                when "00"   => dec(14 downto 12) := ZCM_SUB_PUSH;
+                                                when "01"   => dec(14 downto 12) := ZCM_SUB_POP;
+                                                when "10"   => dec(14 downto 12) := ZCM_SUB_POPRETZ;
+                                                when others => dec(14 downto 12) := ZCM_SUB_POPRET;  -- "11"
+                                            end case;
+                                        end if;
+                                    end if;
+                                end if;
+                                -- else / no match: dec stays all-zero (illegal)
+
                             when others =>
                                 dec := (others => '0');
                         end case;
-                        
+
                     when others =>
                         dec := (others => '0');
                 end case;

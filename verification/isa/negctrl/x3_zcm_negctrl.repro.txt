@@ -1,0 +1,50 @@
+X3 Stage C (Zcmp + Zcmt) negative controls
+==========================================
+Each patch is a single-hunk RTL SEED that plants one spec-class bug. The seed
+makes an ON-polarity directed test FAIL by its OWN check (bounded — the test's
+bne -> RVTEST_FAIL writes 0xDEADBEEF quickly, NEVER a watchdog hang), proving
+the test is not vacuous. Reverting the seed restores PASS.
+
+HOW TO RUN (ON polarity)
+------------------------
+  1. hdl/common/MemoryMap.vhd: set CORE_ENABLE_ZCMP := true; CORE_ENABLE_ZCMT := true
+  2. rm -rf verification/isa/build/
+  3. cd verification/isa && make rv32ua-flash \
+       RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib \
+       -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZCMP -DCORE_ENABLE_ZCMT"
+  4. baseline: cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh <rcf>  -> TEST PASSED
+  5. seed:     git apply verification/isa/negctrl/<patch>
+  6. rerun the same rcf                                                     -> TEST FAILED (bounded)
+  7. revert:   git apply -R verification/isa/negctrl/<patch>               -> TEST PASSED again
+  8. revert MemoryMap to false when done.
+  rcf basenames (ON build): xxxxrv32ua-p-shcmp / xxxxrv32ua-p-shcmt.
+
+CONTROLS
+--------
+x3_zcmp_offdir.patch    [VERIFIED, shcmp]  push frame address +k instead of -k
+    -> stores land the wrong way from the anchor; the memory-layout check and
+       the pop round-trip both mismatch. Observed: TEST FAILED (bounded).
+x3_zcmp_stackadj.patch  [VERIFIED, shcmp]  stack_adj_base 32->48 for rlist 8-11
+    -> sp commits the wrong delta; sp-restore check mismatches. Observed: FAILED.
+x3_zcmt_jtlink.patch    [VERIFIED, shcmt]  cm.jt wrongly links ra (reg_write=1)
+    -> the "cm.jt does not link" (ra unchanged) assertion fails. Observed: FAILED.
+x3_zcmp_reglist.patch   [VERIFIED, shcmp]  push saves N-1 regs (stop one early)
+    -> the highest listed reg is never stored; its slot holds garbage; the pop
+       round-trip mismatches -> FAIL by the test's own compare.
+x3_zcmt_idxscale.patch  [VERIFIED, shcmt]  Zcmt index scaled <<1 instead of <<2
+    -> the table entry address is wrong -> loads the wrong/zero target -> the
+       control-flow lands off the intended target -> FAIL.
+x3_zcmt_jvtmask.patch   [VERIFIED, shcmt]  jvt write drops the 64B base mask
+    -> jvt base keeps its low bits. shcmt's WARL-mask sub-test writes a
+       DELIBERATELY UNALIGNED base (t0 | 0x3f) and asserts the readback == the
+       aligned base t0; with the mask dropped the readback keeps the low bits
+       (!= t0) -> the bne-to-cmt_fail fires -> bounded FAIL. (The original
+       already-aligned write could NOT observe this seed -- fixed by adding the
+       unaligned sub-test; gatekeeper-caught detector gap.)
+
+All six controls bite: offdir/stackadj/jtlink personally observed during Stage C
+bring-up; reglist/idxscale confirmed by the gatekeeper re-run; jvtmask verified
+after the shcmt WARL-mask sub-test fix (clean PASS -> seed bounded FAIL -> revert
+PASS, all personally observed). They span the Zcmp memory-path (frame address,
+frame size, reg-list length) and Zcmt control-flow (link, index scale, jvt base
+alignment) danger classes.

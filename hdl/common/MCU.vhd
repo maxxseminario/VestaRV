@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/17 at 00:29:11 with the generate.py chip generator
+-- Generated on 2026/07/17 at 20:03:20 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -2477,6 +2477,9 @@ begin
             ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
             ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
             ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,
+            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,
+            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,
             ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
@@ -3097,6 +3100,9 @@ begin
             ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
             ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
             ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,
+            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,
+            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,
             ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
@@ -3161,6 +3167,9 @@ begin
             ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
             ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
             ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,
+            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,
+            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,
             ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
@@ -3222,6 +3231,9 @@ begin
             ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
             ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
             ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,
+            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,
+            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,
             ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,

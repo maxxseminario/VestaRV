@@ -144,6 +144,58 @@ package constants is
     constant WRS_STO_IMM12 : std_logic_vector(11 downto 0) := x"01D"; -- wrs.sto (wait, short timeout)
     -- (wrs.sto short-timeout count lives as WRS_TIMEOUT_CYCLES in vesta.vhd.)
 
+    -- X3 Zicboz (cache-block zero — cbo.zero). MISC-MEM/FENCE opcode (0001111),
+    -- funct3=010 (CBO_FN3), rd-field=00000; the imm12 field selects the op:
+    --   cbo.zero  = 0x004  (legal only under ENABLE_ZICBOZ)
+    --   cbo.clean = 0x001 / cbo.flush = 0x002 / cbo.inval = 0x000 -> ALWAYS
+    --   ILLEGAL in both polarities (D4; otherwise-reserved MISC-MEM funct3=010).
+    -- Effective address = X[rs1] (no offset); cbo.zero writes 0x00000000 to the
+    -- 16 words of the naturally-aligned CBOZ_BLOCK_SIZE-byte block containing it.
+    constant CBO_FN3         : std_logic_vector(2 downto 0)  := "010";  -- cbo.* funct3 (MISC-MEM)
+    constant CBOZ_IMM12      : std_logic_vector(11 downto 0) := x"004"; -- cbo.zero imm[11:0]
+    -- Spec-fixed granule (x35_specs.md §X3.5.1): a future bump is a one-line
+    -- change here (cboz_idx range + base mask in vesta.vhd derive from these).
+    constant CBOZ_BLOCK_SIZE : natural := 64;                    -- bytes (16 words)
+    constant CBOZ_WORDS      : natural := CBOZ_BLOCK_SIZE / 4;   -- word stores per cbo.zero
+
+    -- ==========================================================================
+    -- X3 Zcmp / Zcmt (compressed push/pop + table jump)
+    -- ==========================================================================
+    -- These live in the C2 quadrant funct3=101 slot (the c.fsdsp slot, free on
+    -- this no-F/D core). c_dec.vhd recognises the compressed encodings and, for a
+    -- LEGAL cm.* (generic on + valid fields), emits a fixed-shape 32-bit SENTINEL
+    -- word (below); an illegal cm.* pattern or generic-off leaves dec=0 (illegal),
+    -- so the OFF build is bit-identical. The sentinel is consumed by maindec
+    -- (op = ZCM_SENTINEL_OP -> zcm_op, valid) and by vesta's push/pop/move/jump
+    -- SEQUENCER. All six push/pop/move insns and cm.jt/cm.jalt need multiple
+    -- register writes / a memory burst / a control-flow redirect, so none can be a
+    -- single expanded 32-bit instruction (unlike Zcb) -- they run in the FSM.
+    --
+    -- Sentinel opcode: bits(1:0) = "10" so NO real decompressed instruction (which
+    -- always ends "11") and no reserved-compressed hole (dec = all-zero, op
+    -- "0000000") can ever collide with it. The ONLY producer of this op pattern is
+    -- c_dec's sentinel synthesis, itself gated on ENABLE_ZCMP/ENABLE_ZCMT -- so a
+    -- raw 32-bit word can never be mistaken for a cm.* (a raw custom-opcode word
+    -- keeps trapping illegal exactly as in the base).
+    constant ZCM_SENTINEL_OP : std_logic_vector(6 downto 0) := "0101010"; -- Zcmp/Zcmt sentinel opcode (bits 1:0 = 10)
+    -- Sub-op selector, carried in sentinel bits(14:12) (the funct3 field position):
+    constant ZCM_SUB_PUSH    : std_logic_vector(2 downto 0) := "000"; -- cm.push
+    constant ZCM_SUB_POP     : std_logic_vector(2 downto 0) := "001"; -- cm.pop
+    constant ZCM_SUB_POPRET  : std_logic_vector(2 downto 0) := "010"; -- cm.popret
+    constant ZCM_SUB_POPRETZ : std_logic_vector(2 downto 0) := "011"; -- cm.popretz
+    constant ZCM_SUB_MVSA01  : std_logic_vector(2 downto 0) := "100"; -- cm.mvsa01 (a0/a1 -> s-regs)
+    constant ZCM_SUB_MVA01S  : std_logic_vector(2 downto 0) := "101"; -- cm.mva01s (s-regs -> a0/a1)
+    constant ZCM_SUB_TABJUMP : std_logic_vector(2 downto 0) := "110"; -- cm.jt / cm.jalt (index selects)
+    -- The original 16-bit compressed instruction is embedded in sentinel(31:16),
+    -- so vesta slices the operand fields directly at their spec bit positions:
+    --   rlist = i16(7:4)  = sentinel(23:20)     spimm = i16(3:2) = sentinel(19:18)
+    --   sreg1 = i16(9:7)  = sentinel(25:23)     sreg2 = i16(4:2) = sentinel(20:18)
+    --   index = i16(9:2)  = sentinel(25:18)
+    -- rlist -> reg count (Zcmp): rlist 4..14 -> rlist-3 regs; rlist 15 -> 13 regs
+    -- (adds s10+s11); rlist 0..3 are reserved (c_dec emits illegal). stack_adj =
+    -- stack_adj_base + spimm*16; base 16 (rlist 4-7) / 32 (8-11) / 48 (12-14) /
+    -- 64 (15). Zcmt table = 256 x 32b at {jvt[31:6],6'b0}; target = mem[base+idx*4].
+
 
 	-- RV32 Zba (Bit Manipulation - Address Generation) constants (R-type instructions)
     constant ZBA_FN7     : std_logic_vector(6 downto 0) := "0010000"; -- funct7 for Zba instructions
@@ -202,11 +254,61 @@ package constants is
     constant CLMULH_FN3  : std_logic_vector(2 downto 0) := "011"; -- CLMULH funct3
     constant CLMULR_FN3  : std_logic_vector(2 downto 0) := "010"; -- CLMULR funct3
 
+	-- RV32 Zbkb / Zbkx (scalar-crypto bit-manip, X3 Stage B) constants.
+    -- pack/packh share funct7 with Zbb ZEXT.H (both 0000100); pack rs2=x0 == zext.h.
+    constant PACK_FN7    : std_logic_vector(6 downto 0)  := "0000100";      -- pack / packh (R-type)
+    constant PACK_FN3    : std_logic_vector(2 downto 0)  := "100";          -- pack
+    constant PACKH_FN3   : std_logic_vector(2 downto 0)  := "111";          -- packh
+    -- brev8/zip/unzip are OP-IMM (funct7+rs2 fixed -> imm12 = instr[31:20]).
+    constant BREV8_IMM12 : std_logic_vector(11 downto 0) := "011010000111"; -- brev8 (0x687: funct7=0110100,rs2=00111,funct3=101)
+    constant ZIP_IMM12   : std_logic_vector(11 downto 0) := "000010001111"; -- zip   (0x08F: funct7=0000100,rs2=01111,funct3=001)
+    constant UNZIP_IMM12 : std_logic_vector(11 downto 0) := "000010001111"; -- unzip (0x08F: funct7=0000100,rs2=01111,funct3=101)
+    -- xperm8/xperm4 crossbar permute (R-type; funct7 0010100 == BSETI_FN7 but
+    -- distinguished by funct3 100/010 vs BSET's 001, so no decode overlap).
+    constant XPERM_FN7   : std_logic_vector(6 downto 0)  := "0010100";      -- xperm8 / xperm4 (R-type)
+    constant XPERM8_FN3  : std_logic_vector(2 downto 0)  := "100";          -- xperm8
+    constant XPERM4_FN3  : std_logic_vector(2 downto 0)  := "010";          -- xperm4
+
 
 	-- RV32 Zicond (Integer Conditional Operations) constants (R-type instructions)
     constant ZICOND_FN7    : std_logic_vector(6 downto 0) := "0000111"; -- funct7 for czero.eqz/czero.nez
     constant CZERO_EQZ_FN3 : std_logic_vector(2 downto 0) := "101";     -- czero.eqz: rd = (rs2==0) ? 0 : rs1
     constant CZERO_NEZ_FN3 : std_logic_vector(2 downto 0) := "111";     -- czero.nez: rd = (rs2!=0) ? 0 : rs1
+
+    -- RV32 Zknd/Zkne (AES-32) constants (X3). OP opcode 0110011, funct3=000, with
+    -- instruction bits 31..30 = bs (the byte-select, a SEPARATE ALU input) and
+    -- bits 29..25 = funct5 (funct7(4 downto 0)). All four ops share funct3=000; the
+    -- funct5 field selects the operation and bs is a don't-care in decode (all four
+    -- bs values legal). Authoritative from riscv-opcodes rv32_zknd / rv32_zkne.
+    constant AES_FN3       : std_logic_vector(2 downto 0) := "000";     -- funct3 for all aes32* ops
+    constant AES32ESI_FN5  : std_logic_vector(4 downto 0) := "10001";   -- aes32esi  (encrypt, SubBytes only)
+    constant AES32ESMI_FN5 : std_logic_vector(4 downto 0) := "10011";   -- aes32esmi (encrypt, SubBytes + MixColumns)
+    constant AES32DSI_FN5  : std_logic_vector(4 downto 0) := "10101";   -- aes32dsi  (decrypt, inv-SubBytes)
+    constant AES32DSMI_FN5 : std_logic_vector(4 downto 0) := "10111";   -- aes32dsmi (decrypt, inv-SubBytes + inv-MixColumns)
+    -- ==========================================
+    -- RV32 Zknh (SHA-256 / SHA-512) scalar-crypto constants (X3 Stage B)
+    -- ==========================================
+    -- SHA-256 sigma/sum: UNARY, OP-IMM opcode (I_ARITH_OPCODE), funct3=001,
+    -- bits[31:25]=0001000 (SHA256_FN7); the rs2-field (imm12[4:0]) selects the op.
+    -- Encoded here as the full 12-bit funct12 (imm12 = 0001000_<rs2field>) so the
+    -- alu_control emitter can match it exactly (and take priority over SLLI).
+    -- Authoritative: riscv-opcodes rv32_zknh / ratified Zknh spec.
+    constant SHA256_FN3       : std_logic_vector(2 downto 0)  := "001";           -- OP-IMM funct3 for sha256*
+    constant SHA256_FN7       : std_logic_vector(6 downto 0)  := "0001000";       -- bits[31:25] for sha256*
+    constant SHA256SUM0_IMM12 : std_logic_vector(11 downto 0) := "000100000000";  -- rs2field=00000
+    constant SHA256SUM1_IMM12 : std_logic_vector(11 downto 0) := "000100000001";  -- rs2field=00001
+    constant SHA256SIG0_IMM12 : std_logic_vector(11 downto 0) := "000100000010";  -- rs2field=00010
+    constant SHA256SIG1_IMM12 : std_logic_vector(11 downto 0) := "000100000011";  -- rs2field=00011
+
+    -- SHA-512 sigma/sum (RV32): BINARY, OP opcode (R_OPCODE), funct3=000, full
+    -- funct7 selects the op (bits[31:30]=01). rs1,rs2 supply the two 32-bit halves.
+    constant SHA512_FN3       : std_logic_vector(2 downto 0)  := "000";           -- OP funct3 for sha512*
+    constant SHA512SUM0R_FN7  : std_logic_vector(6 downto 0)  := "0101000";       -- funct5=01000
+    constant SHA512SUM1R_FN7  : std_logic_vector(6 downto 0)  := "0101001";       -- funct5=01001
+    constant SHA512SIG0L_FN7  : std_logic_vector(6 downto 0)  := "0101010";       -- funct5=01010
+    constant SHA512SIG1L_FN7  : std_logic_vector(6 downto 0)  := "0101011";       -- funct5=01011
+    constant SHA512SIG0H_FN7  : std_logic_vector(6 downto 0)  := "0101110";       -- funct5=01110
+    constant SHA512SIG1H_FN7  : std_logic_vector(6 downto 0)  := "0101111";       -- funct5=01111
 
 
 	-- RV32 CSR (Control and Status Register) instruction constants
@@ -259,6 +361,12 @@ package constants is
     constant CSR_HPMCOUNTER4   : std_logic_vector(11 downto 0) := x"C04"; -- User-view perf counter 4 low
     constant CSR_HPMCOUNTER3H  : std_logic_vector(11 downto 0) := x"C83"; -- User-view perf counter 3 high
     constant CSR_HPMCOUNTER4H  : std_logic_vector(11 downto 0) := x"C84"; -- User-view perf counter 4 high
+
+    -- X3 Zcmt: jump-vector-table base CSR. Address 0x017, permission URW. On this
+    -- M-mode-only core URW = accessible. WARL: mode = bits(5:0) pinned 0 (only Jump
+    -- Table Mode), base = bits(31:6) writable (64-byte aligned table). Routed
+    -- through the csr_valid map so a read/write is illegal when ENABLE_ZCMT is off.
+    constant CSR_JVT           : std_logic_vector(11 downto 0) := x"017"; -- Zcmt jump-vector-table base (URW)
 
 
 

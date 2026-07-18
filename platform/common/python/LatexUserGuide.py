@@ -316,6 +316,15 @@ class LatexUserGuide():
 		if self.Gen.ENABLE_ATOMICS and self.Gen.ENABLE_ZACAS:
 			config += ['Supports the RISC-V Zacas extension, adding word compare-and-swap (amocas.w), and — when Zabha is also present — byte/halfword compare-and-swap (amocas.b/.h); the CAS is a single globally-coherent read-compare-conditional-write transaction on the shared window (amocas.d is unsupported on RV32)']
 
+		if self.Gen.ENABLE_ZICBOZ:
+			config += ['Supports the RISC-V Zicboz extension, adding the cbo.zero instruction, which zeroes the naturally-aligned 64-byte block containing the addressed byte (16 word stores through the memory path); the cbo.clean/flush/inval management encodings are unsupported and trap illegal']
+
+		if self.Gen.ENABLE_ZCMP:
+			config += ['Supports the RISC-V Zcmp extension, adding the compressed push/pop stack-frame instructions (cm.push/cm.pop/cm.popret/cm.popretz) and the register-move pairs (cm.mvsa01/cm.mva01s); the push/pop run as an uninterruptible multi-cycle memory sequencer with the stack pointer committed last']
+
+		if self.Gen.ENABLE_ZCMT:
+			config += ['Supports the RISC-V Zcmt extension, adding the compressed table-jump instructions (cm.jt/cm.jalt) and the jvt CSR: the instruction indexes a 256-entry jump-vector table at the jvt base and redirects to the fetched target (cm.jalt also links the return address)']
+
 		if self.Gen.ENABLE_BITMANIP:
 			config += ['Supports the RISC-V bit-manipulation extensions Zba (address generation), Zbb (basic bit manipulation), Zbs (single-bit operations), and Zbc (carry-less multiplication)']
 

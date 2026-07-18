@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -605,7 +605,7 @@
+                and next_state = CBOZ_WRITE then
+                 -- dispatch edge (EXECUTE -> CBOZ_WRITE): latch base, reset index
+                 cboz_base <= std_logic_vector(unsigned(rs1_value)
+-                                 and not to_unsigned(CBOZ_BLOCK_SIZE - 1, 32));
++                                 and not to_unsigned(31, 32));  -- NEGCTRL x3_zicboz_mask: ~63 -> ~31
+                 cboz_idx  <= 0;
+             elsif current_state = CBOZ_GAP and cboz_idx /= CBOZ_WORDS - 1 then
+                 cboz_idx <= cboz_idx + 1;

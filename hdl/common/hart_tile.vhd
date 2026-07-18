@@ -116,6 +116,9 @@ entity hart_tile is
         ENABLE_ZAWRS      : boolean := false;  -- X1 (Zawrs)
         ENABLE_ZABHA      : boolean := false;  -- X2 (Zabha)
         ENABLE_ZACAS      : boolean := false;  -- X2 (Zacas)
+        ENABLE_ZICBOZ     : boolean := false;  -- X3 (Zicboz cbo.zero)
+        ENABLE_ZCMP       : boolean := false;  -- X3 (Zcmp push/pop + moves)
+        ENABLE_ZCMT       : boolean := false;  -- X3 (Zcmt table jump)
         ENABLE_ZBKB       : boolean := false;  -- X3 (Zbkb)
         ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc)
         ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx)
@@ -239,6 +242,9 @@ architecture behav of hart_tile is
             ENABLE_ZAWRS      : boolean := false;
             ENABLE_ZABHA      : boolean := false;
             ENABLE_ZACAS      : boolean := false;
+            ENABLE_ZICBOZ     : boolean := false;
+            ENABLE_ZCMP       : boolean := false;
+            ENABLE_ZCMT       : boolean := false;
             ENABLE_ZBKB       : boolean := false;
             ENABLE_ZBKC       : boolean := false;
             ENABLE_ZBKX       : boolean := false;
@@ -535,6 +541,9 @@ begin
             ENABLE_ZAWRS      => ENABLE_ZAWRS,
             ENABLE_ZABHA      => ENABLE_ZABHA,
             ENABLE_ZACAS      => ENABLE_ZACAS,
+            ENABLE_ZICBOZ     => ENABLE_ZICBOZ,
+            ENABLE_ZCMP       => ENABLE_ZCMP,
+            ENABLE_ZCMT       => ENABLE_ZCMT,
             ENABLE_ZBKB       => ENABLE_ZBKB,
             ENABLE_ZBKC       => ENABLE_ZBKC,
             ENABLE_ZBKX       => ENABLE_ZBKX,
