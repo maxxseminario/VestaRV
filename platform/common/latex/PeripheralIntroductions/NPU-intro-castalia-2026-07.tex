@@ -1,6 +1,6 @@
-The \peripheral{NPU} is a fixed-point neural network processing unit that accelerates the computation of a single fully-connected (dense) layer of a multilayer perceptron (MLP). The peripheral operates on data stored in hart 0's private RAM1 (the 16\,KiB SRAM at \texttt{0xC000}), which is multiplexed between hart 0 and the NPU. Software is responsible for loading input data and weights into RAM1, configuring the NPU, and reading the results after the computation is complete.
+The \peripheral{NPU} is a fixed-point neural network processing unit that accelerates the computation of a single fully-connected (dense) layer of a multilayer perceptron (MLP). The peripheral operates on data staged in the shared NPU staging RAM (the 16\,KiB SRAM occupying \texttt{0xC000}--\texttt{0xFFFF}), which is multiplexed between the harts --- reaching it through the multi-core arbiter --- and the NPU's own compute port. Software is responsible for staging the input data and weights into the staging RAM, configuring the NPU, and reading the results after the computation is complete.
 
-On Castalia the NPU's \textit{register bus} is in the shared peripheral page (see Section \ref{s:multicore}), so any hart may configure the NPU, start a computation, and poll for completion. The \textit{data path} is not shared: the input vector, weight matrix, and output vector always live in hart 0's private RAM1. When another hart uses the NPU, hart 0 (or a shared-RAM staging protocol agreed with hart 0) must place the operands in RAM1 and retrieve the results. While a computation is running, the SRAM port is switched over to the NPU and \textbf{hart 0 is put to sleep for the duration}, regardless of which hart started the computation --- hart 0 resumes automatically when the NPU finishes.
+The NPU's \textit{register bus} is in the shared peripheral page (see Section \ref{s:multicore}), so any hart may configure the NPU, start a computation, and poll for completion. The \textit{data path} is likewise shared: the input vector, weight matrix, and output vector all live in the shared NPU staging RAM at \texttt{0xC000}--\texttt{0xFFFF}, and any hart may stage operands there or retrieve results through the arbiter. While a computation is running, the in-NPU port multiplexer switches the staging RAM over to the NPU's compute port for the duration of the \texttt{THINK}, and \textbf{no hart is put to sleep}. Because the staging RAM belongs to the NPU during a run, software of any hart \textbf{must not read or write \texttt{0xC000}--\texttt{0xFFFF} while a computation may be active}: poll \register{NPUCR} bit 16 (\texttt{NPUTHINK}) and wait for it to read 0 before touching the staging RAM.
 
 \subsubsection*{Data Formats}
 
@@ -14,18 +14,18 @@ All NPU operands are fixed-point numbers, each stored in its own 32-bit SRAM wor
 
 \subsubsection*{Memory Layout}
 
-The input vector, weight matrix, and output vector must all reside within hart 0's 16\,KiB RAM1, and all three start addresses must be 4-byte aligned. Each operand (input, weight, or output) occupies exactly one 32-bit SRAM word. The start address registers \texttt{NPUIVSAR}, \texttt{NPUWVSAR}, and \texttt{NPUOVSAR} hold \textit{word indices within RAM1}: the byte offset from the start of RAM1 (\texttt{0xC000}) divided by 4. For example, a vector at byte address \texttt{0xC100} has word index \texttt{0x40}. See the register descriptions for details.
+The input vector, weight matrix, and output vector must all reside within the 16\,KiB NPU staging RAM, and all three start addresses must be 4-byte aligned. Each operand (input, weight, or output) occupies exactly one 32-bit SRAM word. The start address registers \texttt{NPUIVSAR}, \texttt{NPUWVSAR}, and \texttt{NPUOVSAR} hold \textit{word indices within the staging RAM}: the byte offset from the start of the staging RAM (\texttt{0xC000}) divided by 4. For example, a vector at byte address \texttt{0xC100} has word index \texttt{0x40}. See the register descriptions for details.
 
 If bias is enabled (\texttt{NPUBEN}~=~1), the weight matrix contains \texttt{NPUNN}~+~1 rows of \texttt{NPUNI}~+~2 words each: one bias weight (the first word of the row, multiplied by an implicit input of 1.0) followed by \texttt{NPUNI}~+~1 synaptic weights per output neuron. If bias is disabled, each row contains \texttt{NPUNI}~+~1 synaptic weights.
 
 \subsubsection*{Operation}
 
 \begin{enumerate}
-    \item Load the input vector into RAM1 at the desired address and write its RAM1 word index to \texttt{NPUIVSAR}.
-    \item Load the weight matrix into RAM1 at the desired address and write its RAM1 word index to \texttt{NPUWVSAR}.
-    \item Write the desired output RAM1 word index to \texttt{NPUOVSAR}.
+    \item Stage the input vector into the staging RAM at the desired address and write its word index to \texttt{NPUIVSAR}.
+    \item Stage the weight matrix into the staging RAM at the desired address and write its word index to \texttt{NPUWVSAR}.
+    \item Write the desired output word index to \texttt{NPUOVSAR}.
     \item Configure \texttt{NPUCR}: set \texttt{NPUNI} to (number of inputs~$-$~1), \texttt{NPUNN} to (number of output neurons~$-$~1), and configure \texttt{NPUBEN} and \texttt{NPUAEN} as required.
-    \item Set \texttt{NPUTHINK} to~1 to start the computation. If the starting hart is hart 0, it is put to sleep here and wakes when the computation completes.
-    \item Poll \texttt{NPUTHINK} until it reads~0, indicating that the computation is complete. (Only meaningful from harts 1--3; hart 0 sleeps through the computation.)
-    \item Read the output vector from RAM1 at the word index stored in \texttt{NPUOVSAR}.
+    \item Set \texttt{NPUTHINK} (\register{NPUCR} bit 16) to~1 to start the computation. The staging RAM is now owned by the NPU; no hart may access \texttt{0xC000}--\texttt{0xFFFF} until the computation completes.
+    \item Poll \register{NPUCR} bit 16 (\texttt{NPUTHINK}) until it reads~0, indicating that the computation is complete and the staging RAM has been released back to the harts.
+    \item Read the output vector from the staging RAM at the word index stored in \texttt{NPUOVSAR}.
 \end{enumerate}

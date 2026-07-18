@@ -37,7 +37,7 @@ The SPI bus has four pins: \pin{SCKx}, \pin{MOSIx}, \pin{MISOx}, and \pin{CSx} (
 Note that \peripheral{SPI1}'s \pin{SCK1} and \pin{MOSI1} outputs are also members of the shared alternate-function output pool, so they can be relocated onto other GPIO pins through the \register{PxAFS} plane selects (see the GPIO chapter).
 
 
-\subsection{Shared Access on Castalia}
+\subsection{Shared Access on \AsicNameForUserGuide}
 
 The SPI peripherals live in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}), so any hart can use them, each at its original memory-mapped slot: \peripheral{SPI0} at \texttt{0x4200}, and \peripheral{SPI1} (in configurations that include it) at \texttt{0x4300}. \peripheral{SPI0} is the boot-flash master: its bus pins are wired to the external SPI flash, it is used by the boot ROM to load programs, and it provides the flash extended memory feature.
 

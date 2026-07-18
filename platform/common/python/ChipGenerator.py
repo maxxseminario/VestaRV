@@ -1029,7 +1029,12 @@ class ChipGenerator():
 		
 		t = TabbedTable()
 		if self.NativeSpiFlashMemoryReadAccess or self.NativeSpiFlashMemoryReadAccess:
-			t.AddRow(['#define SPI_FLASH_MEM_ADDRESS', '(0x01000000)'])
+			# Memory-mapped SPI-flash (XIP) read window. In the multi-core map this
+			# is hart 0's extended-flash decode base (the strict complement of the
+			# shared window, 2^(shAw+2)) — config-driven, not the Myshkin-era
+			# hardcoded 0x01000000. 0x20000 (Castalia) / 0x40000 (Argus).
+			_spiFlashMemBase = 1 << (self.McuMpGeometry['shAw'] + 2)
+			t.AddRow(['#define SPI_FLASH_MEM_ADDRESS', '(' + self.fmthex(_spiFlashMemBase, minDigits=5) + ')'])
 			t.AddRow(['#define SPI_FLASH_MEM', '((volatile uint32_t *) (SPI_FLASH_MEM_ADDRESS))'])
 
 		t.AddBlankLines(3)
@@ -1250,9 +1255,11 @@ class ChipGenerator():
 						
 						if numUnused == 4:
 							t.AddRow(['volatile uint32_t', '__unused' + str(unusedIndex) + ';'], prefixTabs=1)
+							unusedIndex += 1
 						elif numUnused > 4:
 							t.AddRow(['volatile uint32_t', '__unused' + str(unusedIndex) + '[' + str(numUnused // 4) + '];'], prefixTabs=1)
-					
+							unusedIndex += 1
+
 					s += t.ToString()
 					s += '}' + pt.NameTemplate + '_' + str(bitCount) + 'bit_t;\n'
 					s += '\n'
@@ -1348,9 +1355,11 @@ class ChipGenerator():
 				
 				if numUnused == 4:
 					t.AddRow(['volatile uint32_t', '__unused' + str(unusedIndex) + ';'], prefixTabs=1)
+					unusedIndex += 1
 				elif numUnused > 4:
 					t.AddRow(['volatile uint32_t', '__unused' + str(unusedIndex) + '[' + str(numUnused // 4) + '];'], prefixTabs=1)
-			
+					unusedIndex += 1
+
 			s += t.ToString()
 			s += '} ' + pt.NameTemplate + '_t;\n'
 			if 'x' in pt.NameTemplate:

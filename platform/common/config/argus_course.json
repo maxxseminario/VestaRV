@@ -1,0 +1,24 @@
+{
+  "_comment": "Argus course chip: the 18-hart Argus config with the NPU RESTORED. This is the chip students receive as silicon (future respin tapeout). Identical to config/argus.json except peripherals.npu = true.",
+  "chipName": "Argus",
+  "numHarts": 18,
+  "numMutexes": 32,
+  "memory": {
+    "romSize": 16384,
+    "tcmSizePerHart": 16384,
+    "sharedBulkRamSize": 131072
+  },
+  "peripherals": {
+    "npu": true
+  },
+  "isa": {
+    "compressed": true,
+    "mul": true,
+    "fastMul": true,
+    "div": true,
+    "atomics": true,
+    "bitmanip": true,
+    "counters": false,
+    "counters64": false
+  }
+}

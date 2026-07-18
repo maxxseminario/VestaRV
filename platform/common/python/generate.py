@@ -262,6 +262,15 @@ numHarts = _cfg('numHarts', 4)
 # RTL addr port width is clog2(numMutexes) (mutex_bank NMUTEX generic).
 numMutexes = _cfg('numMutexes', 16)
 
+# Watchdog passwords — SINGLE SOURCE for the TRM must equal the RTL constants in
+# hdl/common/constants.vhd (WDT_UNLCK_PASSWD / WDT_CLR_PASSWD). These feed BOTH
+# the SYSTEM register descriptions (below) and the \WdtUnlockPassword /
+# \WdtClearPassword TRM defines (LatexUserGuide, via m.Wdt*Password).
+wdtUnlockPassword = 0x5F3759DF	# hdl/common/constants.vhd: WDT_UNLCK_PASSWD x"5f3759df"
+wdtClearPassword  = 0xA0C8A620	# hdl/common/constants.vhd: WDT_CLR_PASSWD   x"A0C8A620"
+_wdtUnlockHex = '0x%08X' % wdtUnlockPassword
+_wdtClearHex  = '0x%08X' % wdtClearPassword
+
 # NPU presence (A2/Argus: the A0 decision DROPS the NPU — window slot 10
 # @0x4A00 becomes a reserved gap like slots 11/12's analog blocks, and the
 # 0xC000 staging-RAM window reads zero through the arbiter). True = the
@@ -526,6 +535,12 @@ if _sharedRamLen % 0x4000 != 0 or _sharedRamLen < 0x4000:
 _sharedRamBanks = _sharedRamLen // 0x4000
 shAw = _clog2(0x10000 + _sharedRamLen) - 2
 flashBase = 1 << (shAw + 2)
+# Watchdog passwords exposed to LatexUserGuide's \WdtUnlockPassword /
+# \WdtClearPassword defines (single source: the wdt*Password constants above,
+# which equal hdl/common/constants.vhd).
+m.WdtUnlockPassword = wdtUnlockPassword
+m.WdtClearPassword = wdtClearPassword
+
 m.ExtraMemorySections = []
 if npuPresent:
 	m.ExtraMemorySections.append(
@@ -623,10 +638,10 @@ r.AddBitField(BitField(name='SYSWDTIF', msb=1, accessibility='rw1', description=
 r.AddBitField(BitField(name='SYSWDTRF', msb=0, accessibility='rw1', description='Watchdog timer reset flag. Set when system reset was caused by watchdog timer. Persists across resets until cleared by software. Cleared by writing 1 to this bit.', valueDescriptions=[(0b0, 'Reset not caused by watchdog'), (0b1, 'Reset caused by watchdog')]))
 
 # WDTPASS
-r = RegisterTemplate(nameTemplate='WDTPASS', registerMemorySlot=12, size=32, description='Watchdog timer password register. Write-only register for two security functions: (1) Write 0x3FB0AD1C to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write 0xD6F402BC to clear watchdog counter to 0, preventing timeout. Reading always returns 0.')
+r = RegisterTemplate(nameTemplate='WDTPASS', registerMemorySlot=12, size=32, description='Watchdog timer password register. Write-only register for two security functions: (1) Write ' + _wdtUnlockHex + ' to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write ' + _wdtClearHex + ' to clear watchdog counter to 0, preventing timeout. Reading always returns 0.')
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(name='SYSWDTPASS', msb=31, lsb=0, accessibility='w', description='Watchdog password. Write 0x3FB0AD1C (unlock password) to enable WDTCR writes for 64 MCLK cycles. Write 0xD6F402BC (clear password) to reset watchdog counter to 0.'))
+r.AddBitField(BitField(name='SYSWDTPASS', msb=31, lsb=0, accessibility='w', description='Watchdog password. Write ' + _wdtUnlockHex + ' (unlock password) to enable WDTCR writes for 64 MCLK cycles. Write ' + _wdtClearHex + ' (clear password) to reset watchdog counter to 0.'))
 
 # WDTVAL
 r = RegisterTemplate(nameTemplate='WDTVAL', registerMemorySlot=15, size=32, description='Watchdog timer value register. Read-only register containing current watchdog counter value. Counter increments on MCLK when watchdog is enabled. Returns 0 when watchdog is disabled.')
@@ -1017,7 +1032,7 @@ r.AddBitField(BitField(name='I2CxAMR', msb=6, lsb=0, accessibility='rw'))
 r.AddBitField(BitField(msb=7, unused=True))
 
 ''' NPU '''
-p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in hart 0\'s private RAM1 (the 16 KiB SRAM at 0xC000, multiplexed between hart 0 and the NPU). The registers are reachable by every hart through the shared window, but the data path is not: hart 0 (or software staging through shared RAM) must place the operands in RAM1. Hart 0 is put to sleep for the duration of every computation, regardless of which hart started it.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-castalia-2026-07.tex', latexFeatureSummary='A neural processing unit (NPU) co-processor for hardware acceleration of machine learning tasks')
+p = PeripheralTemplate(nameTemplate='NPU', description='Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in the shared NPU staging RAM (the 16 KiB SRAM at 0xC000-0xFFFF, multiplexed between the harts and the NPU compute port). Both the registers and the data path are reachable by every hart through the shared window: any hart may stage the operands in the staging RAM. No hart is put to sleep during a computation; while THINK is set the staging RAM is owned by the NPU, so no hart may access 0xC000-0xFFFF until NPUCR bit 16 (NPUTHINK) reads 0 again.', registerPrefix='NPU', bitFieldPrefix='NPU', latexIntroFileName='NPU-intro-castalia-2026-07.tex', latexFeatureSummary='A neural processing unit (NPU) co-processor for hardware acceleration of machine learning tasks')
 # A2 (Argus): the template is only registered when the NPU exists — an
 # unregistered template emits no MemoryMap.h structs and no TRM chapter
 # (same end state as the removed AFE/SARADC blocks).
@@ -1036,25 +1051,25 @@ r.AddBitField(BitField(name='NPUNI', msb=15, lsb=8, description='Number of input
 r.AddBitField(BitField(name='NPUNN', msb=7, lsb=0, description='Number of output neurons minus 1. The actual number of outputs is NPUNN + 1.', accessibility='rw'))
 
 # NPUIVSAR
-r = RegisterTemplate(nameTemplate='NPUIVSAR', registerMemorySlot=1, description='Input vector start word index within hart 0\'s RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words.', size=32)
+r = RegisterTemplate(nameTemplate='NPUIVSAR', registerMemorySlot=1, description='Input vector start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=12, unused=True))
-r.AddBitField(BitField(name='NPUIVSAR', msb=11, lsb=0, description='Input vector start word index within RAM1 (byte offset from 0xC000 divided by 4)', accessibility='rw'))
+r.AddBitField(BitField(name='NPUIVSAR', msb=11, lsb=0, description='Input vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 # NPUWVSAR
-r = RegisterTemplate(nameTemplate='NPUWVSAR', registerMemorySlot=2, description='Synaptic weight matrix start word index within hart 0\'s RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only.', size=32)
+r = RegisterTemplate(nameTemplate='NPUWVSAR', registerMemorySlot=2, description='Synaptic weight matrix start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=12, unused=True))
-r.AddBitField(BitField(name='NPUWVSAR', msb=11, lsb=0, description='Synaptic weight matrix start word index within RAM1 (byte offset from 0xC000 divided by 4)', accessibility='rw'))
+r.AddBitField(BitField(name='NPUWVSAR', msb=11, lsb=0, description='Synaptic weight matrix start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 # NPUOVSAR
-r = RegisterTemplate(nameTemplate='NPUOVSAR', registerMemorySlot=3, description='Output vector start word index within hart 0\'s RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. Each output is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. The output at index 0 is written to word index NPUOVSAR. The output at index 1 is at word index NPUOVSAR + 1, and so on.', size=32)
+r = RegisterTemplate(nameTemplate='NPUOVSAR', registerMemorySlot=3, description='Output vector start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. Each output is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. The output at index 0 is written to word index NPUOVSAR. The output at index 1 is at word index NPUOVSAR + 1, and so on.', size=32)
 p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=12, unused=True))
-r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vector start word index within RAM1 (byte offset from 0xC000 divided by 4)', accessibility='rw'))
+r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)', accessibility='rw'))
 
 
 

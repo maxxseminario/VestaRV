@@ -448,7 +448,7 @@ const tileNotes=[
 TXS.forEach((tx,h)=>{
   push({id:"tile"+h, x:tx, y:TILEY, w:TW, h:TILEH, cls:"tile", container:true,
     t:"TILE "+h, s:h===0?"boot / management hart":"worker hart",
-    cap:tileNotes[h], titleTop:true});
+    cap:tileNotes[h], titleTop:true, subRight:true});
   push({id:"core"+h, x:tx+16, y:TILEY+34, w:150, h:70, cls:"core",
     t:"vesta core", s:"RV32IMAC + Zicsr", a:"multi-cycle FSM",
     cap:"The VestaRV CPU: a multi-cycle (Harris-style FSM) RISC-V core implementing RV32I + M (mul/div) + A (atomics) + C (compressed) + Zicsr, with vectored interrupt handling. mhartid = "+h+" arrives on the hart_id port (one netlist for all four tiles). See Figure 1 for its internals."});
@@ -511,17 +511,16 @@ L.push({d:`M140,424 L1350,424`, cls:"bus"});                                // h
 [["rom",140],["npuram",360],["bulk",620],["clint",870],["mutex",1070],["router",1350]].forEach(([id,x])=>{
   L.push({d:`M${x},424 L${x},454`, cls:"bus", arrow:"arrowbus"});
 });
-L.push({d:`M700,424 L700,556`, cls:"bus", arrow:"arrowbus"});               // bus to peripheral window
+L.push({d:`M770,424 L770,556`, cls:"bus", arrow:"arrowbus"});               // bus to peripheral window (routed through the bulk/CLINT gutter)
 // ---- signal / clock nets (toggle): interrupt fan-out rail + clock note ----
 // interrupt delivery (CLINT msip/mtip + router meip) -> every hart, routed up
 // the right margin to a rail above the tiles (kept clear of the master-port arrows).
 L.push({d:`M1520,495 L1545,495 L1545,258 L120,258`, cls:"sig", sig:true});     // router feeder + rail
 L.push({d:`M960,454 L960,440 L1545,440`, cls:"sig", sig:true});                 // CLINT feeder into the rail
-TXS.forEach((tx)=>{ const cx=tx+TW/2-70; L.push({d:`M${cx},258 L${cx},237`, cls:"sig", arrow:"arrowsig", sig:true}); });
+TXS.forEach((tx)=>{ const cx=tx+TW/2-70; L.push({d:`M${cx},258 L${cx},230`, cls:"sig", arrow:"arrowsig", sig:true}); });
 L.push({d:``, cls:"sig", sig:true, labelonly:true, label:"CLINT msip / mtip  +  router meip  →  every hart", lx:210, ly:251});
-// clock-domain note: SYSTEM0 generates mclk / smclk
-L.push({d:`M960,722 L960,700`, cls:"sig", arrow:"arrowsig", sig:true});
-L.push({d:``, cls:"sig", sig:true, labelonly:true, label:"SYSTEM0 → mclk / smclk (clock domain)", lx:838, ly:694});
+// clock-domain note: SYSTEM0 generates mclk / smclk (tidy label in the peripheral-window header, clear of the slot grid)
+L.push({d:``, cls:"sig", sig:true, labelonly:true, label:"SYSTEM0 → mclk / smclk  (clock domain)", lx:1249, ly:578});
 
 /* ================= render ================= */
 const NS="http://www.w3.org/2000/svg";
@@ -553,7 +552,10 @@ B.forEach(b=>{
   if(b.container && b.titleTop){
     const t=el("text",{x:b.x+14,y:b.y+22,class:"t","text-anchor":"start",fill:c.ink});
     t.textContent=b.t; g.appendChild(t);
-    if(b.s){const s=el("text",{x:b.x+14,y:b.y+39,class:"s",fill:c.ink,"fill-opacity":".85"});s.textContent=b.s;g.appendChild(s);}
+    if(b.s){
+      if(b.subRight){const s=el("text",{x:b.x+b.w-14,y:b.y+22,class:"s","text-anchor":"end",fill:c.ink,"fill-opacity":".8"});s.textContent=b.s;g.appendChild(s);}
+      else{const s=el("text",{x:b.x+14,y:b.y+39,class:"s",fill:c.ink,"fill-opacity":".85"});s.textContent=b.s;g.appendChild(s);}
+    }
   } else {
     let yy=b.pill? b.y+b.h/2-4 : b.y+ (b.h<=42? b.h/2-2 : 26);
     const t=el("text",{x:cx,y:yy,class:"t","text-anchor":"middle",fill:c.ink});

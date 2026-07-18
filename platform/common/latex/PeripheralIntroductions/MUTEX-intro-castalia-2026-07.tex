@@ -1,7 +1,7 @@
-The hardware mutex bank provides sixteen word-mapped advisory locks with \textbf{single-instruction} cross-hart mutual exclusion --- no \texttt{LR}/\texttt{SC} retry loop and no reservation state. Atomicity comes for free from the multi-core arbiter, which serializes whole shared-window transactions. The main features are listed below:
+The hardware mutex bank provides \NumMutexesWord{} word-mapped advisory locks with \textbf{single-instruction} cross-hart mutual exclusion --- no \texttt{LR}/\texttt{SC} retry loop and no reservation state. Atomicity comes for free from the multi-core arbiter, which serializes whole shared-window transactions. The main features are listed below:
 
 \begin{itemize}
-	\item Sixteen independent mutexes, one 32-bit word each
+	\item \NumMutexes{} independent mutexes, one 32-bit word each
 	\item Claim with one load: reading a free mutex returns 0 \textit{and claims it} in the same transaction
 	\item Reading a held mutex returns the owner's marker ($\mathrm{hartid} + 1$) without disturbing it
 	\item Release with one store of 0
@@ -27,7 +27,7 @@ To release a mutex you hold:
 
 Re-reading a mutex you already hold returns your own marker ($\mathrm{mhartid} + 1$) and does not disturb the lock, so an accidental double claim-read is harmless.
 
-When a claim fails, spin with a hart-scaled backoff and a bounded retry count (see the Multi-Core Architecture chapter): four harts re-reading a contested mutex in lockstep waste arbiter bandwidth and can starve useful work.
+When a claim fails, spin with a hart-scaled backoff and a bounded retry count (see the Multi-Core Architecture chapter): \NumHartsWord{} harts re-reading a contested mutex in lockstep waste arbiter bandwidth and can starve useful work.
 
 \subsection{Rules}
 
@@ -37,4 +37,4 @@ When a claim fails, spin with a hart-scaled backoff and a bounded retry count (s
 	\item Release (write 0) is deliberately \textit{not} qualified by owner so that a supervisory hart can force-release the mutex of a hung or dead hart. Correct software releases only mutexes it holds.
 \end{itemize}
 
-The bank decodes only the low bits of the address, so the sixteen mutex words alias throughout the 256-byte slot at \texttt{0x13000}--\texttt{0x130FF}. Always use the canonical addresses.
+The bank occupies shared-window page 2 at base address \texttt{\MutexBaseAddress}; the \NumMutexesWord{} mutexes are word-mapped, with mutex $i$ at \texttt{\MutexBaseAddress}${}+4i$. The bank decodes only the low bits of the address, so its words alias throughout the page. Always use the canonical addresses.

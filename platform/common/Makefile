@@ -82,6 +82,9 @@ generate:
 	@if [ -n "$(CONFIG)" ]; then echo "  • using config file: $(CONFIG)"; fi
 	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' python3 generate.py
 	@echo ""
+	@echo "C-compiling the emitted MemoryMap.h (riscv-none-elf-gcc -fsyntax-only)..."
+	@python3 python/check_memorymap_h.py out/software/include/MemoryMap.h
+	@echo ""
 	@echo "Checking docs/chip_configurator.html against the schema/pad-ring/geometry..."
 	@python3 python/check_configurator_sync.py --strict
 	@echo ""

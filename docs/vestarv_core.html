@@ -511,11 +511,11 @@ const lab=(x,y,t,sig)=>L.push({label:t,lx:x,ly:y,sig:sig});
 dl("M135,100 L135,162","wide","arrowd");                     lab(141,131,"read_data ≡ instr / load");
 dl("M630,158 L630,100","wide","arrowd");                     lab(636,127,"data_addr (fetch / EA)");
 dl("M480,545 L452,545 L452,100","wide","arrowd");            lab(456,116,"write_data");   // store_ext -> bus (far-left channel)
-dl("M225,100 L225,408","sig","arrows");                      lab(230,150,"mem_ready");    // bus -> FSM (gap channel)
+dl("M225,100 L225,280 L48,280 L48,559 L60,559","sig","arrows");                      lab(231,140,"mem_ready");    // bus -> FSM (gap channel)
 // ---- fetch / decode ----
 dl("M210,194 L236,194","","arrow");                          // c_dec -> imux
-dl("M329,226 L329,300 L240,300 L240,408","","arrow");        lab(250,258,"instr");        // imux -> FSM/controller
-dl("M420,150 L1250,150 L1250,162","","arrow");               lab(812,145,"csr_addr");     // imux -> csr (top channel)
+dl("M329,226 L329,300 L240,300 L240,322","","arrow");        lab(250,258,"instr");        // imux -> FSM/controller
+dl("M420,177 L440,177 L440,150 L1240,150 L1240,162","","arrow");               lab(830,144,"csr_addr");     // imux -> csr (top channel)
 // ---- control ----
 dl("M240,392 L240,408","","arrow");                          // controller -> FSM
 dl("M420,480 L478,480","sig","arrows");                      lab(452,474,"control",true); // FSM -> datapath control word
@@ -530,18 +530,18 @@ dl("M1000,462 L1000,672 L468,672 L468,300 L480,300","wide","arrowd"); lab(690,66
 dl("M710,325 L732,325 L732,545 L710,545","wide","arrowd");   lab(736,432,"store data");
 // ---- CSR ----
 dl("M1345,120 L1345,162","","arrow");                        lab(1350,138,"hart_id");
-dl("M1345,250 L1345,482 L1100,482 L1100,462","wide","arrowd"); lab(1200,476,"csr_rdata");
+dl("M1345,250 L1154,250 L1154,440 L1100,440","wide","arrowd"); lab(1200,262,"csr_rdata");
 // ---- interrupts (IVT) ----
 dl("M1520,374 L1500,374","","arrow");                        lab(1372,318,"meip · msip · mtip");
-dl("M1190,410 L1160,410 L1160,730 L432,730 L432,710","sig","arrows"); lab(690,726,"irq_save handshake",true);
-dl("M1190,479 L1175,479 L1175,738 L826,738 L826,190 L780,190","sig","arrows"); lab(832,430,"ivt_entry → PC",true);
+dl("M1190,410 L1160,410 L1160,728 L400,728 L400,710","sig","arrows"); lab(740,722,"irq_save handshake",true);
+dl("M1190,479 L1166,479 L1166,738 L826,738 L826,190 L780,190","sig","arrows"); lab(834,620,"ivt_entry → PC",true);
 // ---- clock & power ----
-dl("M420,700 L1160,700 L1160,618 L1190,618","sig","arrows"); lab(700,714,"en_clk_cpu",true);
+dl("M420,700 L1154,700 L1154,618 L1190,618","sig","arrows"); lab(740,694,"en_clk_cpu",true);
 dl("M1190,632 L1152,632","sig","arrows");                    lab(1116,628,"clk_cpu",true);
 // ---- atomics ----
-dl("M240,710 L240,804 L370,804","","arrow");                 lab(250,745,"amo_phase / lr_sc");
+dl("M200,710 L200,772","","arrow");                          lab(206,748,"amo_phase / lr_sc");
 dl("M340,804 L370,804","","arrow");
-dl("M690,804 L730,804","dash","arrow");                      lab(600,796,"lr_sc / lock / sc_fail");
+dl("M690,804 L730,804","dash","arrow");                      lab(652,762,"lr_sc / lock / sc_fail");
 
 /* ================= render (shared engine) ================= */
 const NS="http://www.w3.org/2000/svg";

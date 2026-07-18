@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VestaRV — a from-scratch RISC-V core, three chips in silicon</title>
-<meta name="description" content="VestaRV: a from-scratch RV32IMAC+Zb* RISC-V core, three tape-outs on TSMC 65nm, and a chip generator that emits verified RTL, C headers, linker scripts and a full reference manual from one config file.">
+<meta name="description" content="VestaRV: a from-scratch RV32IMAC+Zb* RISC-V core taped out on TSMC 65nm (plus two more signoff-closed, tape-out-ready designs), and a chip generator that emits verified RTL, C headers, linker scripts and a full reference manual from one config file.">
 <!--
   SELF-CONTAINED landing page. No external stylesheet/script/font/image loads.
   The <style> block below between VESTA_THEME_BEGIN / VESTA_THEME_END is spliced
@@ -148,9 +148,10 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 
 .vesta-header{
   position:sticky; top:0; z-index:50;
-  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  background:var(--bg);
   backdrop-filter:saturate(1.4) blur(10px);
-  border-bottom:1px solid var(--border);
+  border-bottom:1px solid var(--border-strong);
+  box-shadow:var(--shadow-sm);
 }
 .vesta-header-inner{
   max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5);
@@ -310,6 +311,18 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .award .body{flex:1 1 320px}
 .award .body h3{margin:0 0 var(--sp-1)}
 .award .body p{margin:0; color:var(--text-muted)}
+.award-photos{display:grid; grid-template-columns:repeat(2,1fr); gap:var(--sp-4); margin-top:var(--sp-5)}
+@media (max-width:560px){ .award-photos{grid-template-columns:1fr} }
+.award-photo-frame{
+  border:1px dashed var(--border-strong); border-radius:var(--r-md);
+  background:
+    repeating-linear-gradient(45deg,var(--surface),var(--surface) 12px,var(--surface-2) 12px,var(--surface-2) 24px);
+  aspect-ratio:4/3; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:var(--sp-2); color:var(--text-dim); text-align:center; padding:var(--sp-4);
+}
+.award-photo-frame .cam{font-size:1.6rem; line-height:1; opacity:.7}
+.award-photo-frame .cap{font-size:var(--fs-sm); font-weight:var(--fw-med); color:var(--text-muted)}
+.award-photo-frame .await{font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--text-dim)}
 
 /* gallery */
 .gallery-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5)}
@@ -325,12 +338,240 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 }
 .gallery-frame .ph{font-size:var(--fs-sm); font-weight:var(--fw-med)}
 .gallery-frame .ph small{display:block; margin-top:var(--sp-1); font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--text-dim)}
+/* frames that actually hold a render: solid neutral inset + padding so the
+   dark-background GDS PNGs read cleanly on both light and dark themes */
+.gallery-frame.has-image{
+  border:1px solid var(--border-strong); background:#0e0b09; padding:var(--sp-2);
+}
+.gallery-frame.has-image img{display:block; border-radius:var(--r-xs)}
+/* line-art diagram (black strokes, transparent bg): needs a light backing
+   so it reads in BOTH themes */
+.gallery-frame.has-diagram{
+  border:1px solid var(--border-strong); background:#fdfdfb; padding:var(--sp-3);
+}
+.gallery-frame.has-diagram img{display:block}
+/* per-die aspect ratios matching the real dies */
+.gallery-frame.ar-myshkin{aspect-ratio:1.5/1}
+.gallery-frame.ar-square{aspect-ratio:1/1}
 .gallery-item figcaption{margin-top:var(--sp-3); font-size:var(--fs-sm); color:var(--text-muted)}
 .gallery-item figcaption b{color:var(--text); font-weight:var(--fw-semi)}
 .gallery-item{margin:0}
 
 /* footer layout */
 .footer-inner{display:flex; gap:var(--sp-5); flex-wrap:wrap; justify-content:space-between; align-items:center}
+
+/* ---- theme toggle: make it an unmistakable "view in dark/light mode" control.
+   Page-specific overrides (the base .vesta-toggle lives in the shared theme
+   block); the #themeToggle id + vesta-theme storage contract are untouched. ---- */
+#themeToggle{
+  background:var(--accent-soft); color:var(--accent);
+  border:1px solid var(--accent); font-weight:var(--fw-semi);
+  padding:var(--sp-2) var(--sp-4); box-shadow:var(--shadow-sm);
+}
+#themeToggle:hover{
+  background:var(--accent); color:var(--on-accent); border-color:var(--accent);
+  box-shadow:var(--shadow-glow);
+}
+#themeToggle .label{font-weight:var(--fw-semi); white-space:nowrap}
+#themeToggle .icon-sun,#themeToggle .icon-moon{font-size:1.05em; line-height:1}
+/* Icon shows the DESTINATION (what a click gives you): dark default -> offers a
+   sun (light); light -> offers a moon (dark). Overrides the theme block's
+   current-state convention. */
+#themeToggle .icon-sun{display:inline}
+#themeToggle .icon-moon{display:none}
+:root[data-theme="light"] #themeToggle .icon-sun{display:none}
+:root[data-theme="light"] #themeToggle .icon-moon{display:inline}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme]) #themeToggle .icon-sun{display:none}
+  :root:not([data-theme]) #themeToggle .icon-moon{display:inline}
+}
+
+/* ---- connect / author section --------------------------------------- */
+.connect-grid{margin-top:var(--sp-6)}
+.connect-card{display:flex; align-items:center; gap:var(--sp-4)}
+.connect-icon{
+  flex:0 0 auto; width:46px; height:46px; display:inline-flex;
+  align-items:center; justify-content:center; border-radius:var(--r-md);
+  background:var(--accent-soft); color:var(--accent); transition:var(--trans);
+}
+.connect-icon svg{width:24px; height:24px; display:block}
+.connect-card:hover .connect-icon{background:var(--accent); color:var(--on-accent)}
+.connect-body{display:flex; flex-direction:column; min-width:0; gap:2px}
+.connect-label{font-weight:var(--fw-semi); color:var(--text); font-size:var(--fs-md)}
+.connect-sub{
+  font-size:var(--fs-sm); color:var(--text-muted);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* ---- scroll-driven ember wick (left gutter) --------------------------
+   A bold travelling flame rides the wick as you scroll. The wick above the
+   ember is a bright, glowing "burned/traced" line; below it a dim unlit wick.
+   Everything animates on transform/opacity only (rAF-driven --p + CSS
+   keyframes) — no layout thrash — and the whole thing is gutter-only,
+   hidden below 1100px and under prefers-reduced-motion.               ---- */
+.wick{
+  position:fixed; top:0; bottom:0; z-index:40; width:2px;
+  left:max(16px, calc((100vw - var(--maxw))/2 - 30px));
+  pointer-events:none;
+  --p:0;             /* scroll progress 0..1, set by JS */
+  --ember-h:64px;    /* ember box height (kept in sync with the JS travel calc) */
+}
+/* dim, unlit wick below the ember */
+.wick-track{
+  position:absolute; inset:0; width:2px; border-radius:2px;
+  background:linear-gradient(to bottom,
+    var(--border-strong) 0%, var(--border) 65%, transparent 100%);
+  opacity:.5;
+}
+/* bright glowing traced wick above the ember (thicker + vividly lit) */
+.wick-trace{
+  position:absolute; top:0; left:-1px; width:4px; height:100%; border-radius:4px;
+  transform:scaleY(var(--p)); transform-origin:top center;
+  background:linear-gradient(to bottom, var(--amber) 0%, var(--accent) 70%, var(--accent-press) 100%);
+  box-shadow:
+    0 0 6px 1px var(--accent),
+    0 0 16px 2px var(--amber-soft);
+}
+/* the travelling ember: box centred on the wick, translated by scroll --p */
+.wick-ember{
+  position:absolute; top:0; left:-28px; width:56px; height:var(--ember-h);
+  transform:translateY(calc(var(--p) * (100vh - var(--ember-h))));
+  transition:transform .10s linear;
+}
+/* soft blurred halo behind the flame — the "strong glow" */
+.wick-glow{
+  position:absolute; left:50%; top:38%; width:70px; height:70px;
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,
+    var(--accent) 0%, var(--amber-soft) 42%, transparent 72%);
+  opacity:.85; filter:blur(6px);
+  animation:wick-glow-pulse 2.6s ease-in-out infinite;
+}
+/* the layered flame itself; the flicker rides on transform/opacity only */
+.wick-flame{
+  position:absolute; left:50%; bottom:6px; width:44px; height:56px;
+  transform:translateX(-50%);
+  transform-origin:50% 100%;
+  filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 12px var(--amber-soft));
+}
+.wick-flame svg{display:block; width:100%; height:100%}
+.wick-flame .flame-anim{
+  transform-box:fill-box; transform-origin:50% 100%;
+  animation:wick-flicker 1.6s ease-in-out infinite;
+}
+/* flame gradient stops — CSS-styled so both themes get the right palette */
+.fl-out-0{stop-color:var(--accent-press)}
+.fl-out-1{stop-color:var(--accent)}
+.fl-out-2{stop-color:var(--amber)}
+.fl-in-0{stop-color:var(--accent)}
+.fl-in-1{stop-color:var(--amber)}
+.fl-in-2{stop-color:var(--on-accent)}
+/* rising ember sparks */
+.wick-spark{
+  position:absolute; left:50%; bottom:44px; width:4px; height:4px;
+  margin-left:-2px; border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 5px 1px var(--accent);
+  opacity:0;
+}
+.wick-spark.s1{animation:wick-rise 2.3s ease-out infinite}
+.wick-spark.s2{left:calc(50% - 6px); animation:wick-rise 2.9s .7s ease-out infinite}
+.wick-spark.s3{left:calc(50% + 7px); width:3px; height:3px; animation:wick-rise 2.5s 1.4s ease-out infinite}
+
+@keyframes wick-flicker{
+  0%,100%{transform:scaleY(1)    scaleX(1);    opacity:1}
+  20%    {transform:scaleY(1.07) scaleX(.95);  opacity:.9}
+  45%    {transform:scaleY(.96)  scaleX(1.04); opacity:1}
+  70%    {transform:scaleY(1.05) scaleX(.97);  opacity:.94}
+}
+@keyframes wick-glow-pulse{
+  0%,100%{opacity:.7;  transform:translate(-50%,-50%) scale(1)}
+  50%    {opacity:1;   transform:translate(-50%,-50%) scale(1.15)}
+}
+@keyframes wick-rise{
+  0%  {opacity:0; transform:translateY(0)     scale(1)}
+  12% {opacity:1}
+  100%{opacity:0; transform:translateY(-30px) scale(.35)}
+}
+
+/* narrow band (1100–1199px): the gutter is thin, so shrink the ember and
+   keep its right edge clear of the body text; still hidden below 1100px */
+@media (max-width:1199px){
+  .wick{--ember-h:40px}
+  .wick-ember{left:-28px; width:34px}
+  .wick-glow{width:44px; height:44px; top:42%}
+  .wick-flame{width:28px; height:36px; bottom:4px}
+  .wick-spark{bottom:30px}
+}
+@media (max-width:1099px){ .wick{display:none} }
+@media (prefers-reduced-motion:reduce){
+  .wick{display:none}
+  .wick-flame .flame-anim,.wick-glow,.wick-spark{animation:none}
+}
+
+/* ---- in-page nav overlay (view the other docs pages WITHOUT leaving index) --
+   Plain left-clicks on the header nav are intercepted and the target page is
+   shown in a full-viewport iframe ABOVE everything (sticky header z 50, wick
+   z 40). The bar is OPAQUE (same --bg rule as the sticky header); the scrim
+   behind it is --bg too. Modifier-clicks / middle-clicks fall through to the
+   real href, so new-tab / middle-click still work naturally. ----------------- */
+.nav-overlay{
+  position:fixed; inset:0; z-index:1000;
+  display:flex; flex-direction:column;
+  background:var(--bg);
+}
+.nav-overlay[hidden]{display:none}
+.nav-overlay-bar{
+  flex:0 0 auto; display:flex; align-items:center; gap:var(--sp-4);
+  height:var(--header-h); padding:0 var(--sp-5);
+  background:var(--bg);                       /* opaque — matches sticky header */
+  border-bottom:1px solid var(--border-strong);
+  box-shadow:var(--shadow-sm);
+}
+.nav-overlay-brand{display:flex; align-items:center; gap:var(--sp-3); min-width:0}
+.nav-overlay-title{
+  font-weight:var(--fw-bold); font-size:var(--fs-md); color:var(--text);
+  letter-spacing:.2px; min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;
+}
+.nav-overlay-eyebrow{
+  font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--text-dim);
+  padding:2px 8px; border:1px solid var(--border); border-radius:var(--r-pill);
+  white-space:nowrap; flex:0 0 auto;
+}
+.nav-overlay-spacer{margin-left:auto}
+.nav-overlay-open-tab{
+  color:var(--text-muted); font-size:var(--fs-sm); font-weight:var(--fw-med);
+  padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
+  border:1px solid var(--border); transition:var(--trans); white-space:nowrap;
+}
+.nav-overlay-open-tab:hover{
+  color:var(--text); background:var(--surface-2);
+  text-decoration:none; border-color:var(--border-strong);
+}
+.nav-overlay-close{
+  display:inline-flex; align-items:center; gap:var(--sp-2);
+  font-family:inherit; font-size:var(--fs-sm); font-weight:var(--fw-semi);
+  cursor:pointer; white-space:nowrap;
+  background:var(--accent); color:var(--on-accent);
+  border:1px solid var(--accent);
+  padding:var(--sp-2) var(--sp-4); border-radius:var(--r-sm);
+  box-shadow:var(--shadow-sm); transition:var(--trans);
+}
+.nav-overlay-close:hover{
+  background:var(--accent-hover); border-color:var(--accent-hover);
+  box-shadow:var(--shadow-glow);
+}
+.nav-overlay-close .x{font-size:1.2em; line-height:1}
+.nav-overlay-frame{
+  flex:1 1 auto; width:100%; border:0; display:block; background:var(--bg);
+}
+/* lock the landing-page scroll while the overlay is up */
+html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
+@media (max-width:560px){
+  .nav-overlay-open-tab{display:none}   /* keep the bar uncluttered on narrow */
+}
 </style>
 <script>
 /* Boot theme BEFORE first paint. Matches docs/chip_configurator.html:
@@ -365,13 +606,49 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
       <a href="register_browser.html">Registers</a>
       <a href="vestarv_roadmap.html">Roadmap</a>
     </nav>
-    <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Toggle colour theme" title="Toggle light / dark">
+    <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Switch colour theme" title="Switch colour theme">
       <span class="icon-moon" aria-hidden="true">&#9789;</span>
       <span class="icon-sun" aria-hidden="true">&#9788;</span>
-      <span class="label">Theme</span>
+      <span class="label">Light mode</span>
     </button>
   </div>
 </header>
+
+<!-- scroll-driven ember wick (decorative; gutter-only, hidden on narrow / reduced-motion) -->
+<div class="wick" id="wick" aria-hidden="true">
+  <span class="wick-track"></span>
+  <span class="wick-trace"></span>
+  <span class="wick-ember">
+    <span class="wick-glow"></span>
+    <span class="wick-flame">
+      <svg viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="wickFlameOuter" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0"   class="fl-out-0"/>
+            <stop offset="0.55" class="fl-out-1"/>
+            <stop offset="1"   class="fl-out-2"/>
+          </linearGradient>
+          <linearGradient id="wickFlameInner" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0"   class="fl-in-0"/>
+            <stop offset="0.55" class="fl-in-1"/>
+            <stop offset="1"   class="fl-in-2"/>
+          </linearGradient>
+        </defs>
+        <g class="flame-anim">
+          <!-- outer flame body: deep-orange base rising to amber tip -->
+          <path fill="url(#wickFlameOuter)"
+                d="M22 2 C 30 14, 38 22, 33 38 A 13 13 0 1 1 11 38 C 7 30, 14 26, 13 17 C 16 22, 19 23, 22 16 Z"/>
+          <!-- inner core: brighter, hotter -->
+          <path fill="url(#wickFlameInner)"
+                d="M22 20 C 26 27, 30 32, 26.5 41 A 6 6 0 1 1 17.5 40.5 C 16 34, 20 30, 22 20 Z"/>
+        </g>
+      </svg>
+    </span>
+    <span class="wick-spark s1"></span>
+    <span class="wick-spark s2"></span>
+    <span class="wick-spark s3"></span>
+  </span>
+</div>
 
 <main>
 
@@ -383,8 +660,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
       <p class="hero-lede">
         VestaRV is a from-scratch <b>RV32IMAC&#8202;+&#8202;Zba/Zbb/Zbc/Zbs</b> RISC-V core &mdash;
         designed straight from the ISA manual, not forked from anyone's reference. It has been
-        taped out <b>three times on TSMC 65&nbsp;nm</b>. And it comes with a chip generator
-        that turns <b>one config file</b> into verified RTL, C headers, linker scripts, and a
+        <b>taped out on TSMC 65&nbsp;nm</b> &mdash; one chip in silicon and two more designs
+        signed off and regression-proven, ready for their own tape-outs. And it comes with a
+        chip generator that turns <b>one config file</b> into verified RTL, C headers, linker scripts, and a
         ~160-page reference manual. Vesta is the Roman hearth; each chip is another fire lit
         from the same flame.
       </p>
@@ -393,7 +671,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
         <a class="vesta-btn vesta-btn-ghost" href="vestarv_core.html">Explore the microarchitecture</a>
       </div>
       <div class="hero-pills">
-        <span class="vesta-badge vesta-badge-accent">3 tape-outs</span>
+        <span class="vesta-badge vesta-badge-accent">1 tape-out + 2 tape-out-ready</span>
         <span class="vesta-badge vesta-badge-amber">1&ndash;18 harts</span>
         <span class="vesta-badge">NPU accelerator</span>
         <span class="vesta-badge">Recursive interrupts</span>
@@ -404,7 +682,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   </section>
 
   <!-- ================= HEADLINE SPECS ================= -->
-  <section class="section-tight">
+  <section class="section-tight" id="specs">
     <div class="vesta-wrap">
       <p class="eyebrow">At a glance</p>
       <h2 class="section-title">Headline specifications</h2>
@@ -422,7 +700,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
             <tr><th scope="row">Synchronization</th><td><b>Hardware mutex bank</b> (1-instruction acquire), <b>LR/SC</b> reservations, and <b>cross-hart AMOs</b> made atomic through the shared-bus arbiter.</td></tr>
             <tr><th scope="row">Accelerator</th><td><b>NPU</b> &mdash; a fixed-point neural-network accelerator with a MAC datapath and shared staging RAM, shared across all harts.</td></tr>
             <tr><th scope="row">Process</th><td><b>TSMC 65&nbsp;nm</b>, full RTL-to-GDS flow (synthesis, place-and-route, signoff DRC/LVS).</td></tr>
-            <tr><th scope="row">Silicon</th><td><b>Three tape-outs</b> &mdash; Myshkin (single-core, first silicon), Castalia (4-hart), Argus (18-hart teaching chip).</td></tr>
+            <tr><th scope="row">Silicon</th><td><b>One tape-out in silicon</b> &mdash; Myshkin (single-core), fabricated on TSMC 65&nbsp;nm in Nov&nbsp;2025. Castalia (4-hart) and Argus (18-hart teaching chip) are <b>signed off and regression-proven</b>, ready to tape out.</td></tr>
           </tbody>
         </table>
       </div>
@@ -430,7 +708,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   </section>
 
   <!-- ================= CHIP FAMILY ================= -->
-  <section class="section">
+  <section class="section" id="family">
     <div class="vesta-wrap">
       <p class="eyebrow">The family</p>
       <h2 class="section-title">Three chips, one hearth</h2>
@@ -442,10 +720,10 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
           <h3>Myshkin</h3>
           <div class="meta">
             <span class="vesta-badge">Single-core</span>
-            <span class="vesta-badge vesta-badge-amber">Nov 2025</span>
+            <span class="vesta-badge vesta-badge-ok">First silicon &middot; Nov 2025</span>
             <span class="vesta-badge">QFN-44</span>
           </div>
-          <p>The original single-core VestaRV MCU &mdash; the first fire lit, and the reference every later chip is measured against.</p>
+          <p>The original single-core VestaRV MCU &mdash; taped out on TSMC 65&nbsp;nm, the first fire lit, and the reference every later chip is measured against.</p>
           <span class="trm">Read the technical reference manual</span>
         </a>
 
@@ -454,10 +732,10 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
           <h3>Castalia</h3>
           <div class="meta">
             <span class="vesta-badge">4 harts</span>
-            <span class="vesta-badge vesta-badge-ok">Regression-proven</span>
+            <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
             <span class="vesta-badge">Shared bus + NPU</span>
           </div>
-          <p>A symmetric 4-hart SoC: shared boot ROM, hardware mutexes, cross-hart atomics, and a shared NPU behind an arbitrated bus.</p>
+          <p>A symmetric 4-hart SoC: shared boot ROM, hardware mutexes, cross-hart atomics, and a shared NPU behind an arbitrated bus. Signoff-closed and regression-proven &mdash; a future tape-out.</p>
           <span class="trm">Read the technical reference manual</span>
         </a>
 
@@ -466,10 +744,10 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
           <h3>Argus</h3>
           <div class="meta">
             <span class="vesta-badge">18 harts</span>
-            <span class="vesta-badge vesta-badge-ok">Regression-proven</span>
+            <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
             <span class="vesta-badge">Tiled P&amp;R</span>
           </div>
-          <p>An 18-hart teaching chip built from the same generator &mdash; identical tiles, one shared ROM, hardened and assembled as a tiled layout.</p>
+          <p>An 18-hart teaching chip built from the same generator &mdash; identical tiles, one shared ROM, hardened and assembled as a tiled layout. Signoff-closed and regression-proven &mdash; a future tape-out.</p>
           <span class="trm">Read the technical reference manual</span>
         </a>
 
@@ -478,69 +756,147 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   </section>
 
   <!-- ================= ACHIEVEMENT STRIP ================= -->
-  <section class="section-tight">
+  <section class="section-tight" id="award">
     <div class="vesta-wrap">
       <div class="award">
         <div class="medal" aria-hidden="true">&#127942;</div>
         <div class="body">
-          <span class="vesta-badge vesta-badge-amber">ISCAS 2026 &middot; Best Paper Award</span>
-          <h3>Recognized at ISCAS 2026</h3>
-          <p>Work from the same lab &mdash; an electrochemical sensing SoC for wound monitoring &mdash;
-             received the <b>ISCAS 2026 Best Paper Award</b>. VestaRV is built by the team behind it.</p>
+          <span class="vesta-badge vesta-badge-amber">IEEE ISCAS 2026 &middot; Best Student Paper Award</span>
+          <h3>Myshkin won the Best Student Paper Award at IEEE ISCAS 2026</h3>
+          <p>The Myshkin single-core VestaRV chip itself &mdash; designed from the RISC-V spec up and
+             taped out on TSMC 65&nbsp;nm &mdash; received the <b>Best Student Paper Award at IEEE ISCAS 2026</b>.</p>
         </div>
+      </div>
+      <div class="award-photos">
+        <figure class="award-photo-frame" id="award-photo-accepting">
+          <div class="cam" aria-hidden="true">&#128247;</div>
+          <figcaption class="cap">Accepting the award</figcaption>
+          <div class="await">photo coming soon</div>
+        </figure>
+        <figure class="award-photo-frame" id="award-photo-presenting">
+          <div class="cam" aria-hidden="true">&#128247;</div>
+          <figcaption class="cap">Presenting the chip</figcaption>
+          <div class="await">photo coming soon</div>
+        </figure>
       </div>
     </div>
   </section>
 
   <!-- ================= GALLERY ================= -->
-  <section class="section">
+  <section class="section" id="gallery">
     <div class="vesta-wrap">
       <p class="eyebrow">Gallery</p>
       <h2 class="section-title">Silicon &amp; layout</h2>
-      <p class="section-sub">Die shots, layout renders and block diagrams. Frames are placeholders until the imagery lands.</p>
+      <p class="section-sub">One die or layout render per chip, at its real dimensions, then the building blocks
+        behind them. Frames without a render are placeholders until the imagery lands.</p>
+
+      <!-- Lead row: one die / layout per chip, real dimensions -->
       <div class="gallery-grid">
 
         <figure class="gallery-item">
-          <div class="gallery-frame" id="gallery-die-shot">
-            <img src="assets/die_shot_myshkin_labeled.png" loading="lazy" alt="Labeled Myshkin single-core die photograph" style="max-width:100%; max-height:100%; object-fit:contain">
+          <div class="gallery-frame ar-myshkin" id="gallery-die-myshkin">
+            <div class="ph">Myshkin die photograph
+              <small>1.5 &times; 1.0 mm &middot; image coming soon</small>
+            </div>
           </div>
-          <figcaption>Labeled Myshkin single-core die photograph &mdash; the hero image.</figcaption>
+          <figcaption><b>Myshkin</b> &mdash; single-core die, <b>1.5 &times; 1.0 mm</b> (TSMC 65&nbsp;nm, first silicon).</figcaption>
         </figure>
 
         <figure class="gallery-item">
-          <div class="gallery-frame" id="gallery-tile-layout">
-            <img src="assets/layout_hart_tile.png" loading="lazy" alt="One hardened hart_tile: RISC-V core plus TCM SRAM" style="max-width:100%; max-height:100%; object-fit:contain">
+          <div class="gallery-frame ar-square has-image" id="gallery-die-castalia">
+            <img src="assets/layout_castalia_chip_top.png" alt="Castalia 4-hart chip_top layout inside the connected pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
+          </div>
+          <figcaption><b>Castalia</b> &mdash; 4-hart <code>chip_top</code> layout, <b>3 &times; 3 mm</b> (signed-off, tape-out ready).</figcaption>
+        </figure>
+
+        <figure class="gallery-item">
+          <div class="gallery-frame ar-square has-image" id="gallery-die-argus">
+            <img src="assets/layout_argus_array.png" alt="Argus 18-hart teaching chip: full replicated-tile array plus pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
+          </div>
+          <figcaption><b>Argus</b> &mdash; 18-hart tiled array layout, <b>3 &times; 3 mm</b> (signed-off, tape-out ready).</figcaption>
+        </figure>
+
+      </div>
+
+      <!-- Secondary row: the building blocks -->
+      <div class="gallery-grid" style="margin-top:var(--sp-6)">
+
+        <figure class="gallery-item">
+          <div class="gallery-frame has-image" id="gallery-tile-layout">
+            <img src="assets/layout_hart_tile.png" alt="One hardened hart_tile: RISC-V core plus TCM SRAM" style="max-width:100%; max-height:100%; object-fit:contain">
           </div>
           <figcaption>One hardened <code>hart_tile</code> (RISC-V core + TCM SRAM) &mdash; the replicated unit.</figcaption>
         </figure>
 
         <figure class="gallery-item">
-          <div class="gallery-frame" id="gallery-mcu-layout">
-            <img src="assets/layout_castalia_mcu_assembly.png" loading="lazy" alt="Castalia 4-hart MCU core assembly: four tiles plus shared bulk-RAM bank row" style="max-width:100%; max-height:100%; object-fit:contain">
+          <div class="gallery-frame has-image" id="gallery-mcu-layout">
+            <img src="assets/layout_castalia_mcu_assembly.png" alt="Castalia 4-hart MCU core assembly: four tiles plus shared bulk-RAM bank row" style="max-width:100%; max-height:100%; object-fit:contain">
           </div>
           <figcaption>Castalia 4-hart MCU core assembly (4 tiles + shared bulk-RAM bank row).</figcaption>
         </figure>
 
         <figure class="gallery-item">
-          <div class="gallery-frame" id="gallery-chip-top">
-            <img src="assets/layout_castalia_chip_top.png" loading="lazy" alt="Castalia chip_top: the 4-hart assembly inside the connected pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption>Castalia <code>chip_top</code> &mdash; the 4-hart assembly inside the connected pad ring.</figcaption>
-        </figure>
-
-        <figure class="gallery-item">
-          <div class="gallery-frame" id="gallery-argus">
-            <img src="assets/layout_argus_array.png" loading="lazy" alt="Argus many-core teaching chip: full replicated-tile array plus pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption>Argus many-core teaching chip &mdash; full replicated-tile array + pad ring.</figcaption>
-        </figure>
-
-        <figure class="gallery-item">
-          <div class="gallery-frame" id="gallery-block-diagram">
-            <img src="assets/block_mcu_clock_system.svg" loading="lazy" alt="MCU clock-system block diagram" style="max-width:100%; max-height:100%; object-fit:contain">
+          <div class="gallery-frame has-diagram" id="gallery-block-diagram">
+            <img src="assets/block_mcu_clock_system.svg" alt="MCU clock-system block diagram" style="max-width:100%; max-height:100%; object-fit:contain">
           </div>
           <figcaption>MCU clock-system block diagram (scalable, theme-neutral line art).</figcaption>
         </figure>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONNECT ================= -->
+  <section class="section" id="connect" aria-labelledby="connect-title">
+    <div class="vesta-wrap">
+      <p class="eyebrow">Get in touch</p>
+      <h2 class="section-title" id="connect-title">Connect with the author</h2>
+      <p class="section-sub">
+        VestaRV is designed and maintained by <b>Maxx Seminario</b>, a PhD student in
+        Electrical &amp; Computer Engineering at the <b>University of Nebraska&ndash;Lincoln</b>.
+        Questions about the core, the chip generator, or the silicon &mdash; or just want to
+        talk RISC-V? Reach out.
+      </p>
+      <div class="grid grid-3 connect-grid">
+
+        <a class="vesta-card vesta-card-link connect-card" href="mailto:mseminario2@huskers.unl.edu">
+          <span class="connect-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2.5"/>
+              <path d="M3.5 7.5l8.5 5.5 8.5-5.5"/>
+            </svg>
+          </span>
+          <span class="connect-body">
+            <span class="connect-label">Email</span>
+            <span class="connect-sub">mseminario2@huskers.unl.edu</span>
+          </span>
+        </a>
+
+        <a class="vesta-card vesta-card-link connect-card" href="https://github.com/maxxseminario/VestaRV">
+          <span class="connect-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58C20.56 22.29 24 17.8 24 12.5 24 5.87 18.63.5 12 .5z"/>
+            </svg>
+          </span>
+          <span class="connect-body">
+            <span class="connect-label">GitHub</span>
+            <span class="connect-sub">maxxseminario/VestaRV</span>
+          </span>
+        </a>
+
+        <!-- TODO(user): replace with your real LinkedIn URL -->
+        <a class="vesta-card vesta-card-link connect-card" href="https://www.linkedin.com/in/FILL-IN-YOUR-PROFILE">
+          <span class="connect-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3.2 9h3.6v12H3.2zM9.2 9h3.45v1.64h.05c.48-.9 1.66-1.85 3.42-1.85 3.66 0 4.33 2.4 4.33 5.52V21h-3.6v-4.9c0-1.17-.02-2.67-1.63-2.67-1.63 0-1.88 1.27-1.88 2.58V21H9.2z"/>
+            </svg>
+          </span>
+          <span class="connect-body">
+            <span class="connect-label">LinkedIn</span>
+            <span class="connect-sub">Connect on LinkedIn</span>
+          </span>
+        </a>
 
       </div>
     </div>
@@ -568,18 +924,210 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 (function(){
   var root = document.documentElement;
   var btn  = document.getElementById("themeToggle");
+  var label = btn && btn.querySelector(".label");
   function isLight(){
     var a = root.getAttribute("data-theme");
     if(a === "light") return true;
     if(a === "dark")  return false;
     return !!(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches);
   }
+  /* Label + a11y text always describe what a click DOES (the destination). */
+  function syncLabel(){
+    if(!btn) return;
+    var toDark = isLight();               /* currently light -> a click goes dark */
+    if(label) label.textContent = toDark ? "Dark mode" : "Light mode";
+    btn.setAttribute("aria-label", toDark ? "Switch to dark mode" : "Switch to light mode");
+    btn.setAttribute("title",      toDark ? "Switch to dark mode" : "Switch to light mode");
+  }
+  syncLabel();
   btn.addEventListener("click", function(){
     var next = isLight() ? "" : "light";
     if(next){ root.setAttribute("data-theme","light"); }
     else    { root.removeAttribute("data-theme"); }
     try{ localStorage.setItem("vesta-theme", next); }catch(e){}
+    syncLabel();
   });
+  /* keep the label honest if the OS theme changes while on first-visit fallback */
+  if(window.matchMedia){
+    try{ matchMedia("(prefers-color-scheme: light)").addEventListener("change", syncLabel); }catch(e){}
+  }
+})();
+
+/* Scroll-driven ember: sets --p (0..1) on the wick from scroll progress.
+   rAF-throttled, transform-only (no layout thrash), and a no-op when the
+   wick is hidden (narrow viewport / prefers-reduced-motion via CSS). */
+(function(){
+  var wick = document.getElementById("wick");
+  if(!wick) return;
+  var ticking = false;
+  function update(){
+    ticking = false;
+    var doc = document.documentElement;
+    var max = (doc.scrollHeight - doc.clientHeight);
+    var p = max > 0 ? (doc.scrollTop || document.body.scrollTop) / max : 0;
+    if(p < 0) p = 0; else if(p > 1) p = 1;
+    wick.style.setProperty("--p", p.toFixed(4));
+  }
+  function onScroll(){
+    if(!ticking){ ticking = true; requestAnimationFrame(update); }
+  }
+  window.addEventListener("scroll", onScroll, {passive:true});
+  window.addEventListener("resize", onScroll, {passive:true});
+  update();
+})();
+</script>
+
+<!-- in-page nav overlay: shows another docs page in a full-viewport iframe
+     WITHOUT leaving index.html (hidden until a nav link is intercepted) -->
+<div class="nav-overlay" id="navOverlay" hidden role="dialog" aria-modal="true" aria-label="In-page document view">
+  <div class="nav-overlay-bar">
+    <div class="nav-overlay-brand">
+      <span class="nav-overlay-title" id="navOverlayTitle">&nbsp;</span>
+      <span class="nav-overlay-eyebrow" aria-hidden="true">in&#8202;&middot;&#8202;page view</span>
+    </div>
+    <span class="nav-overlay-spacer"></span>
+    <a class="nav-overlay-open-tab" id="navOverlayOpenTab" href="#" target="_blank" rel="noopener">Open in its own tab &#8599;</a>
+    <button class="nav-overlay-close" id="navOverlayClose" type="button" aria-label="Close in-page view (Esc)">
+      <span class="x" aria-hidden="true">&#10005;</span><span>Close</span>
+    </button>
+  </div>
+  <iframe class="nav-overlay-frame" id="navOverlayFrame" title="In-page document view"></iframe>
+</div>
+
+<script>
+/* ---- In-page nav overlay ------------------------------------------------
+   Plain left-clicking a header nav link (everything except Home/aria-current)
+   opens the target page in a full-viewport iframe instead of navigating away.
+   Close paths — the X button, the Esc key, AND browser Back — ALL return to the
+   untouched landing page. history.pushState('#view=<key>') on open + a popstate
+   handler keep Back symmetric; the button/Esc call history.back() so history
+   stays clean. Deep-link/screenshot hook: loading with #view=<key> opens that
+   overlay. Theme is shared same-origin via localStorage; on a live toggle we
+   best-effort postMessage the theme into the frame (core honors it). --------- */
+(function(){
+  var VIEWS = {
+    core:         {href:"vestarv_core.html",      title:"Core microarchitecture"},
+    soc:          {href:"castalia_soc.html",      title:"SoC block diagram"},
+    lens:         {href:"castalia_full.html",     title:"SoC · Lens"},
+    configurator: {href:"chip_configurator.html", title:"Chip configurator"},
+    registers:    {href:"register_browser.html",  title:"Register browser"},
+    roadmap:      {href:"vestarv_roadmap.html",   title:"Roadmap"}
+  };
+  var BY_HREF = {};
+  Object.keys(VIEWS).forEach(function(k){ BY_HREF[VIEWS[k].href] = k; });
+
+  var overlay  = document.getElementById("navOverlay");
+  var frame    = document.getElementById("navOverlayFrame");
+  var titleEl  = document.getElementById("navOverlayTitle");
+  var openTab  = document.getElementById("navOverlayOpenTab");
+  var closeBtn = document.getElementById("navOverlayClose");
+  if(!overlay || !frame) return;
+
+  var current = null;   /* view key currently shown, or null when closed */
+
+  function curTheme(){
+    var a = document.documentElement.getAttribute("data-theme");
+    if(a === "light") return "light";
+    if(a === "dark")  return "dark";
+    return (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+  }
+  function postTheme(){
+    try{ frame.contentWindow.postMessage({vestaTheme:curTheme()}, "*"); }catch(e){}
+  }
+
+  /* Show (or swap to) a view. Never touches history — callers do that. */
+  function show(key){
+    var v = VIEWS[key];
+    if(!v) return;
+    if(current !== key){
+      var src = v.href;
+      /* only vestarv_core supports an embed/theme mode; everyone else gets the
+         plain page (double header inside the frame is acceptable) */
+      if(key === "core") src += "?embed=1&theme=" + curTheme();
+      frame.src = src;
+      frame.onload = postTheme;   /* re-assert theme once the framed page loads */
+      titleEl.textContent = v.title;
+      openTab.href = v.href;      /* the real page, plain, in its own tab */
+    }
+    overlay.hidden = false;
+    document.documentElement.classList.add("nav-overlay-lock");
+    current = key;
+  }
+  function hide(){
+    if(current === null && overlay.hidden) return;
+    overlay.hidden = true;
+    document.documentElement.classList.remove("nav-overlay-lock");
+    current = null;
+    frame.onload = null;
+    frame.removeAttribute("src");   /* blank + release the framed page */
+    frame.src = "";
+  }
+
+  function keyFromHash(){
+    var m = /(?:^|[#&])view=([a-z]+)/.exec(location.hash || "");
+    return (m && VIEWS[m[1]]) ? m[1] : null;
+  }
+
+  /* single source of truth: reconcile the overlay with the URL hash */
+  function sync(){
+    var key = keyFromHash();
+    if(key) show(key); else hide();
+  }
+
+  /* open from a click: create or replace the history entry, then reconcile */
+  function openView(key){
+    var hash = "#view=" + key;
+    if(current === null){
+      history.pushState({vView:key}, "", hash);    /* new entry so Back closes */
+    }else{
+      history.replaceState({vView:key}, "", hash); /* swap in place, history clean */
+    }
+    sync();
+  }
+
+  /* close via history so Back / Esc / X all land on the same clean entry */
+  function closeView(){
+    if(history.state && history.state.vView){
+      history.back();               /* pop our pushed entry -> popstate -> sync -> hide */
+    }else{
+      /* deep-linked straight onto a view (no landing entry beneath): strip hash */
+      history.replaceState(null, "", location.pathname + location.search);
+      sync();
+    }
+  }
+
+  /* intercept plain left-clicks on the header nav links */
+  var nav = document.querySelector(".vesta-nav");
+  if(nav){
+    nav.addEventListener("click", function(e){
+      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+      if(!a || !nav.contains(a)) return;
+      if(a.getAttribute("aria-current") === "page") return;         /* Home */
+      if(e.defaultPrevented || e.button !== 0) return;              /* not a plain left-click */
+      if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;  /* let new-tab / new-window through */
+      var key = BY_HREF[a.getAttribute("href")];
+      if(!key) return;                                              /* unknown target -> navigate normally */
+      e.preventDefault();
+      openView(key);
+    });
+  }
+
+  closeBtn && closeBtn.addEventListener("click", closeView);
+  document.addEventListener("keydown", function(e){
+    if((e.key === "Escape" || e.key === "Esc") && current !== null) closeView();
+  });
+  window.addEventListener("popstate", sync);
+
+  /* live theme toggle -> push the theme into an open frame (best-effort) */
+  var tbtn = document.getElementById("themeToggle");
+  if(tbtn){
+    tbtn.addEventListener("click", function(){
+      if(current !== null) requestAnimationFrame(postTheme);   /* after the toggle IIFE flips data-theme */
+    });
+  }
+
+  /* deep-link / headless-screenshot hook: open immediately if the URL asks */
+  sync();
 })();
 </script>
 

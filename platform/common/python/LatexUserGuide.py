@@ -182,6 +182,26 @@ class LatexUserGuide():
 			defines['ClintMsipVector'] = str(clint.InterruptPriority)
 			defines['ClintMtipVector'] = str(clint.InterruptPriority + 1)
 			defines['PeriphVectorsCount'] = str(clint.InterruptPriority)
+			# CLINT register-layout addresses (N-parameterized, matches clint.vhd):
+			# MSIPh word-mapped from the base; the MTIME pair and per-hart MTIMECMP
+			# pairs sit at slots that grow with the hart count (the roundup16
+			# formula). Derived from the peripheral's own BaseAddress + register
+			# offsets so the CLINT intro prose is configuration-driven.
+			_clintMtimeOff = None
+			_clintCmpOff = None
+			for _r in clint.Registers:
+				if _r.Name == 'MTIMEL':
+					_clintMtimeOff = _r.Offset
+				if _r.Name == 'MTIMECMP0L':
+					_clintCmpOff = _r.Offset
+			if _clintMtimeOff is not None and _clintCmpOff is not None:
+				defines['ClintBaseAddress'] = fmthex(clint.BaseAddress)
+				defines['ClintMtimeAddress'] = fmthex(clint.BaseAddress + _clintMtimeOff)
+				defines['ClintMtimecmpBaseAddress'] = fmthex(clint.BaseAddress + _clintCmpOff)
+				# alias span = 4 << clog2(number of decoded words)
+				_clintSlotCount = _clintCmpOff // 4 + 2 * self.Gen.NumHarts
+				_clintClog = (_clintSlotCount - 1).bit_length() if _clintSlotCount > 1 else 0
+				defines['ClintAliasBytes'] = str(4 << _clintClog)
 
 		# A2 (Argus): shared-memory geometry + mutex-count defines so the
 		# hand-written multi-core chapter is configuration-driven prose.
@@ -200,6 +220,10 @@ class LatexUserGuide():
 		defines['BootMailboxBase'] = fmthex(0x10500)
 		defines['TcmSizeKiB'] = str(self.Gen.RamMemorySlotSize // 1024)
 		defines['TcmWords'] = str(self.Gen.RamMemorySlotSize // 4)
+		# Watchdog passwords (single source: generate.py's wdt*Password, which
+		# equal hdl/common/constants.vhd WDT_UNLCK_PASSWD / WDT_CLR_PASSWD).
+		defines['WdtUnlockPassword'] = fmthex(getattr(self.Gen, 'WdtUnlockPassword', 0x5F3759DF), minDigits=8)
+		defines['WdtClearPassword'] = fmthex(getattr(self.Gen, 'WdtClearPassword', 0xA0C8A620), minDigits=8)
 		mutexP = None
 		for p in self.Gen.Peripherals:
 			if p.Name == 'MUTEX':
@@ -209,6 +233,7 @@ class LatexUserGuide():
 			mtxWords = {16: 'sixteen', 32: 'thirty-two', 64: 'sixty-four'}
 			defines['NumMutexes'] = str(nMtx)
 			defines['NumMutexesWord'] = mtxWords.get(nMtx, str(nMtx))
+			defines['MutexBaseAddress'] = fmthex(mutexP.BaseAddress)
 
 		s = ''
 		for item in defines:
