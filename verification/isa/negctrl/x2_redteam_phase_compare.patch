@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/datapath.vhd b/hdl/common/vesta/datapath.vhd
+index d075ce2..479eef4 100644
+--- a/hdl/common/vesta/datapath.vhd
++++ b/hdl/common/vesta/datapath.vhd
+@@ -274,7 +274,7 @@ begin
+     cas_match_comb <= '1' when rd_amo = amo_cmp_ext else '0';
+ 
+     -- X2 Zacas: export the registered verdict to vesta for the amo_wen gating.
+-    cas_match <= cas_match_reg;
++    cas_match <= cas_match_comb;  -- REDTEAM SEED (phase-dep compare): live combinational verdict in AMO_WRITE, not the registered one
+ 
+     -- ==========================================
+     -- CSR Data - TODO: This can be better abstracted !

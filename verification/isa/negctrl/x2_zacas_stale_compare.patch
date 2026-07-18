@@ -1,0 +1,22 @@
+diff --git a/hdl/common/vesta/datapath.vhd b/hdl/common/vesta/datapath.vhd
+index d075ce2..0c8c84a 100644
+--- a/hdl/common/vesta/datapath.vhd
++++ b/hdl/common/vesta/datapath.vhd
+@@ -257,7 +257,7 @@ begin
+     -- rd index (instr[11:7]) ONLY during the CAS AMO_WRITEBACK cycle so amo_cmp_reg
+     -- can capture the original rd (the compare value) before rd is overwritten. All
+     -- other cycles (and every non-CAS AMO) keep rs2 -- bit-identical to pre-X2.
+-    rf_a2_addr <= instr(11 downto 7) when (cas_op = '1' and amo_phase = "110") else
++    rf_a2_addr <= instr(11 downto 7) when (cas_op = '1' and amo_phase = "010") else
+                   instr(24 downto 20);
+ 
+     -- X2 Zacas: sign-extend the captured compare value to the AMO width, matching
+@@ -271,7 +271,7 @@ begin
+     -- X2 Zacas: the compare. rd_amo carries the old memory value (sign-extended to
+     -- the sub-word width by loadext) during AMO_COMPUTE; amo_cmp_ext is the original
+     -- rd extended the same way. Both are REGISTERED (no phase-dependent compare).
+-    cas_match_comb <= '1' when rd_amo = amo_cmp_ext else '0';
++    cas_match_comb <= '1' when rd_amo = write_data_reg_val else '0';
+ 
+     -- X2 Zacas: export the registered verdict to vesta for the amo_wen gating.
+     cas_match <= cas_match_reg;

@@ -77,6 +77,10 @@ def _isaString(isa):
 		s += '_zca_zcb'
 	if isa.get('zawrs'):
 		s += '_zawrs'
+	if isa.get('zabha'):
+		s += '_zabha'
+	if isa.get('zacas'):
+		s += '_zacas'
 	return s
 
 

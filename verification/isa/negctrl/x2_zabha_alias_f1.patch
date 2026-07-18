@@ -1,0 +1,23 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index 3188c29..ffed641 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -768,12 +768,12 @@ architecture struct of vesta is
+     -- latched at AMO_READ). Keying off the live rs1 port was X2-F1: the rd write
+     -- in AMO_WRITEBACK clobbers rs1 for a rd==rs1 AMO, corrupting the lane select.
+     -- Word AMO writes all four lanes ("0000"), bit-identical to pre-X2.
+-    amo_wen <= "1110" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "00") else
+-               "1101" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "01") else
+-               "1011" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "10") else
+-               "0111" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "11") else
+-               "1100" when (instr_curr(14 downto 12) = "001" and amo_addr_low(1) = '0') else
+-               "0011" when (instr_curr(14 downto 12) = "001" and amo_addr_low(1) = '1') else
++    amo_wen <= "1110" when (instr_curr(14 downto 12) = "000" and rs1_value(1 downto 0) = "00") else  -- ALIAS SEED F1: live rs1
++               "1101" when (instr_curr(14 downto 12) = "000" and rs1_value(1 downto 0) = "01") else
++               "1011" when (instr_curr(14 downto 12) = "000" and rs1_value(1 downto 0) = "10") else
++               "0111" when (instr_curr(14 downto 12) = "000" and rs1_value(1 downto 0) = "11") else
++               "1100" when (instr_curr(14 downto 12) = "001" and rs1_value(1) = '0') else
++               "0011" when (instr_curr(14 downto 12) = "001" and rs1_value(1) = '1') else
+                "0000";  -- word AMO (funct3=010): all four lanes
+ 
+     write_data <= pc_next when (current_state = IRQ_SV) else 

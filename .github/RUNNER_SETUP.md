@@ -62,16 +62,20 @@ Notes:
   `~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2/bin` to the runner's
   `.env` file).
 
-## 3. Install as a service
+## 3. Keep it running (no sudo on this box — no systemd service)
+
+DONE 2026-07-18: the runner ("atlas") runs as a detached user process plus a
+user-crontab `@reboot` entry:
 
 ```bash
-cd ~/actions-runner
-sudo ./svc.sh install mseminario2
-sudo ./svc.sh start
+cd ~/actions-runner && setsid nohup ./run.sh >> runner.log 2>&1 < /dev/null &
+crontab -l   # @reboot line relaunches it after a server reboot
 ```
 
-Running as a service (its own session) also sidesteps the session-reaper
-problem noted for long interactive jobs.
+`setsid` gives it its own session (survives logout AND sidesteps the
+session-reaper problem noted for long interactive jobs). Health check:
+`tail ~/actions-runner/runner.log` should end with "Listening for Jobs";
+restart with the same setsid line if not.
 
 ## 4. License etiquette (encoded in sim.yml — do not weaken)
 

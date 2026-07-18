@@ -810,12 +810,12 @@ const VESTA_DATA = {
       "default": false
     },
     "isa.zabha": {
-      "description": "bool \u2014 Zabha byte/half AMOs. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zabha byte/half AMOs (requires atomics). Implemented X2.",
       "type": "bool",
       "default": false
     },
     "isa.zacas": {
-      "description": "bool \u2014 Zacas amocas.w. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zacas amocas.w/.b/.h compare-and-swap (requires atomics; .b/.h also need zabha). Implemented X2.",
       "type": "bool",
       "default": false
     },

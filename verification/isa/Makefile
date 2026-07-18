@@ -37,6 +37,8 @@ include $(src_dir)/rv32uzbb/Makefrag
 include $(src_dir)/rv32uzbc/Makefrag
 include $(src_dir)/rv32uzbs/Makefrag
 include $(src_dir)/rv32uzicond/Makefrag
+include $(src_dir)/rv32uzabha/Makefrag
+include $(src_dir)/rv32uzacas/Makefrag
 include $(src_dir)/rv32si/Makefrag
 include $(src_dir)/rv32ziscr/Makefrag # Added by Maxx Seminario 10/21/2025
 include $(src_dir)/rv32mi/Makefrag
@@ -280,6 +282,16 @@ $(eval $(call compile_template,rv32uzbs,-march=rv32gc_zbs -mabi=ilp32))
 # gas/gcc 13.2 accept _zicond in -march, so no .insn fallback is needed. This
 # suite is ON-polarity only and is NOT wired into the default (off) suite runner.
 $(eval $(call compile_template,rv32uzicond,-march=rv32imac_zicond -mabi=ilp32))
+# rv32uzabha (X2): directed byte/halfword AMOs. gas 13.2 has NO `zabha' -march
+# suffix and NO amoadd.b/... mnemonics (verified at X2 bring-up), so the tests
+# emit explicit `.insn` R-types and build under the base -march. ON-polarity
+# only; NOT wired into the default (off) suite runner.
+$(eval $(call compile_template,rv32uzabha,-march=rv32imac -mabi=ilp32))
+# rv32uzacas (X2): directed amocas.{w,b,h}. gas 13.2 has no zacas -march
+# suffix and no amocas mnemonic (verified at X2 bring-up), so the tests emit
+# explicit .insn R-types and build under the base -march. ON-polarity only;
+# NOT wired into the default (off) suite runner.
+$(eval $(call compile_template,rv32uzacas,-march=rv32imac -mabi=ilp32))
 $(eval $(call compile_template,rv32si,-march=rv32g -mabi=ilp32))
 $(eval $(call compile_template,rv32ziscr,-march=rv32gc -mabi=ilp32)) # Added by Maxx Seminario 10/21/2025 
 $(eval $(call compile_template,rv32mi,-march=rv32g -mabi=ilp32))
@@ -449,6 +461,18 @@ rv32uzicond-flash: rv32uzicond
 	@echo "Flashing: Prepending binary header lines to rv32uzicond .rcf files ..."
 	@echo "Files to flash: " rcf/*rv32uzicond*.rcf
 	@./flash_prepend.sh "rcf/*rv32uzicond*.rcf"
+
+.PHONY: rv32uzabha-flash
+rv32uzabha-flash: rv32uzabha
+	@echo "Flashing: Prepending binary header lines to rv32uzabha .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzabha*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzabha*.rcf"
+
+.PHONY: rv32uzacas-flash
+rv32uzacas-flash: rv32uzacas
+	@echo "Flashing: Prepending binary header lines to rv32uzacas .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uzacas*.rcf
+	@./flash_prepend.sh "rcf/*rv32uzacas*.rcf"
 
 .PHONY: spifem-flash
 spifem-flash: spifem

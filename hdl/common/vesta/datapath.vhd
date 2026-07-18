@@ -47,6 +47,7 @@ entity datapath is
         -- Atomic operation control signals
         -- ==========================================
         amo_phase    : in  std_logic_vector(2 downto 0);       -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
+        cas_op       : in  std_logic;                          -- X2 Zacas: this AMO is an amocas (steers the rs2 read port to rd in AMO_WRITEBACK; gates the CAS compare)
         
         -- ==========================================
         -- Instruction and Memory Interface
@@ -62,6 +63,8 @@ entity datapath is
         pc_target    : out std_logic_vector(XLEN-1 downto 0);      -- Target PC for branches/jumps
         ALU_result   : out std_logic_vector(XLEN-1 downto 0);      -- ALU computation result
         rs1_value    : out std_logic_vector(XLEN-1 downto 0);      -- rs1 register value (M4b: phase-independent address for LR/SC reservation compares)
+        amo_addr_low : out std_logic_vector(1 downto 0);       -- X2 Zabha F1: registered AMO address low bits (alias-proof byte-lane select)
+        cas_match    : out std_logic;                          -- X2 Zacas: registered CAS compare verdict (1=match, gates the conditional write)
         alu_done     : out std_logic;                          -- ALU operation complete (for multi-cycle ops)
         
         -- ==========================================
@@ -171,6 +174,7 @@ architecture struct of datapath is
     signal SrcB               : std_logic_vector(XLEN-1 downto 0);  -- ALU input B (muxed)
     signal ALU_A              : std_logic_vector(XLEN-1 downto 0);  -- ALU input A (muxed for AMO)
     signal ALU_B              : std_logic_vector(XLEN-1 downto 0);  -- ALU input B (muxed for AMO)
+    signal amo_b_ext          : std_logic_vector(XLEN-1 downto 0);  -- X2 Zabha: rs2 sub-word sign-extended for AMO compute
     
     -- Result signals
     signal Result             : std_logic_vector(XLEN-1 downto 0);  -- Final result to write back
@@ -183,6 +187,21 @@ architecture struct of datapath is
     -- AMO saved values
     signal amo_addr_reg       : std_logic_vector(XLEN-1 downto 0);  -- Saved address for AMO
     signal amo_read_data_reg  : std_logic_vector(XLEN-1 downto 0);  -- Saved read data for AMO
+    signal amo_rs2_reg        : std_logic_vector(XLEN-1 downto 0);  -- X2 Zabha F2: latched rs2 (alias-proof AMO compute operand)
+    -- X2 Zacas: the compare value is the ORIGINAL rd (rd is a SOURCE for CAS).
+    -- rd is clobbered with the old memory value at the AMO_WRITEBACK edge, so the
+    -- compare value must be captured no later than that edge from a NON-clobbered
+    -- regfile read. amo_cmp_reg latches rf[rd] via the rs2 read port, steered to
+    -- the rd index during AMO_WRITEBACK (amo_phase="110"); the same edge writes rd,
+    -- and the async read presents the PRE-write value to the latch (standard
+    -- synchronous capture). cas_match_reg is the phase-independent compare verdict,
+    -- latched at AMO_COMPUTE from two registered operands (no phase-dependent
+    -- compare).
+    signal amo_cmp_reg        : std_logic_vector(XLEN-1 downto 0);  -- X2 Zacas: latched original rd (compare value)
+    signal amo_cmp_ext        : std_logic_vector(XLEN-1 downto 0);  -- X2 Zacas: amo_cmp_reg sign-extended to the AMO width
+    signal cas_match_comb     : std_logic;                      -- X2 Zacas: combinational compare of two registered operands
+    signal cas_match_reg      : std_logic;                      -- X2 Zacas: registered compare verdict (used in AMO_WRITE)
+    signal rf_a2_addr         : std_logic_vector(4 downto 0);   -- X2 Zacas: rs2 read-port address (steered to rd during the CAS AMO_WRITEBACK)
 
     signal rd_amo            : std_logic_vector(XLEN-1 downto 0);  -- Data read during AMO operations
 
@@ -197,17 +216,65 @@ begin
         if resetn = '0' then
             amo_addr_reg <= (others => '0');
             amo_read_data_reg <= (others => '0');
+            amo_rs2_reg <= (others => '0');
+            amo_cmp_reg <= (others => '0');
+            cas_match_reg <= '0';
         elsif rising_edge(clk) then
             -- Save address during AMO_READ phase
             if amo_phase = "001" then  -- AMO_READ
                 amo_addr_reg <= src_a;  -- Save rs1 (address)
                 amo_read_data_reg <= read_data;  -- Save memory data
+                amo_rs2_reg <= write_data_reg_val;  -- X2 F2: latch original rs2 (alias-proof)
+            end if;
+
+            -- X2 Zacas: capture the ORIGINAL rd (compare value) at the AMO_WRITEBACK
+            -- edge, one edge before it is consumed in AMO_COMPUTE. The rs2 read port
+            -- is steered to the rd index this cycle (rf_a2_addr), so write_data_reg_val
+            -- = rf[rd]; the async read is the PRE-write value even though rd is written
+            -- on this same edge. amo_rs2_reg (the swap value) was already latched at
+            -- AMO_READ from the un-steered port, so both operands are alias-proof.
+            if amo_phase = "110" and cas_op = '1' then  -- AMO_WRITEBACK, CAS only
+                amo_cmp_reg <= write_data_reg_val;
+            end if;
+
+            -- X2 Zacas: register the compare verdict at AMO_COMPUTE so it is stable
+            -- and phase-independent when it gates the write in AMO_WRITE. Both compare
+            -- inputs (rd_amo, amo_cmp_ext) are registered signals.
+            if amo_phase = "010" and cas_op = '1' then  -- AMO_COMPUTE, CAS only
+                cas_match_reg <= cas_match_comb;
             end if;
 
             rd_amo <= Result; -- clock cycle delayed version of Result for AMO COMPUTE
         end if;
 
     end process;
+
+    -- X2 Zabha F1: alias-proof byte-lane select source (registered at AMO_READ,
+    -- one cycle before the AMO_WRITEBACK rd write, so a rd==rs1 AMO cannot corrupt it).
+    amo_addr_low <= amo_addr_reg(1 downto 0);
+
+    -- X2 Zacas: rs2 read-port address. Normally rs2 (instr[24:20]); steered to the
+    -- rd index (instr[11:7]) ONLY during the CAS AMO_WRITEBACK cycle so amo_cmp_reg
+    -- can capture the original rd (the compare value) before rd is overwritten. All
+    -- other cycles (and every non-CAS AMO) keep rs2 -- bit-identical to pre-X2.
+    rf_a2_addr <= instr(11 downto 7) when (cas_op = '1' and amo_phase = "110") else
+                  instr(24 downto 20);
+
+    -- X2 Zacas: sign-extend the captured compare value to the AMO width, matching
+    -- the sign-extended old sub-word that loadext places on rd_amo. Equality is
+    -- extension-invariant; sign-extending BOTH sides keeps the compare consistent
+    -- (word CAS keeps the full 32-bit value).
+    amo_cmp_ext <= (31 downto 8 => amo_cmp_reg(7)) & amo_cmp_reg(7 downto 0)   when funct3 = "000" else
+                   (31 downto 16 => amo_cmp_reg(15)) & amo_cmp_reg(15 downto 0) when funct3 = "001" else
+                   amo_cmp_reg;
+
+    -- X2 Zacas: the compare. rd_amo carries the old memory value (sign-extended to
+    -- the sub-word width by loadext) during AMO_COMPUTE; amo_cmp_ext is the original
+    -- rd extended the same way. Both are REGISTERED (no phase-dependent compare).
+    cas_match_comb <= '1' when rd_amo = amo_cmp_ext else '0';
+
+    -- X2 Zacas: export the registered verdict to vesta for the amo_wen gating.
+    cas_match <= cas_match_reg;
 
     -- ==========================================
     -- CSR Data - TODO: This can be better abstracted !
@@ -236,7 +303,7 @@ begin
             resetn   => resetn,
             we3      => reg_write,                    -- Write enable
             a1       => instr(19 downto 15),         -- rs1 address
-            a2       => instr(24 downto 20),         -- rs2 address
+            a2       => rf_a2_addr,                   -- rs2 address (X2 Zacas: steered to rd during CAS AMO_WRITEBACK)
             a3       => instr(11 downto 7),          -- rd address
             wd3      => Result,                       -- Write data
             rd1      => src_a,                       -- Read data 1 (rs1)
@@ -276,9 +343,20 @@ begin
              src_a;
 
     -- ALU input B selection based on AMO phase
+    -- X2 Zabha: sign-extend rs2 low byte/half for sub-word AMO compute so the
+    -- ALU min/max compares (and add/logical, truncated on write) see the sub-
+    -- word operand, not the full register. Sign-extension also serves the
+    -- unsigned min/max forms: sext is monotonic in the unsigned sub-word value,
+    -- so unsigned(sext(x)) ordering == unsigned(x) ordering. Word AMOs and every
+    -- non-AMO op keep the full register (bit-identical).
+    amo_b_ext <= (31 downto 8 => amo_rs2_reg(7)) & amo_rs2_reg(7 downto 0)   when funct3 = "000" else
+                 (31 downto 16 => amo_rs2_reg(15)) & amo_rs2_reg(15 downto 0) when funct3 = "001" else
+                 amo_rs2_reg;
+
     ALU_B <= SrcB                     when amo_phase = "000" else  -- Normal: use SrcB (rs2 or immediate)
             (0 => '1', others => '0') when amo_phase = "100" else  -- SC fail: write nonzero to rd
             (others => '0')           when amo_phase = "101" else  -- SC success: write 0 to rd
+             amo_b_ext                when amo_phase = "010" else  -- X2 Zabha: sub-word rs2 for AMO_COMPUTE (word = full rs2)
              SrcB;
 
     -- ==========================================

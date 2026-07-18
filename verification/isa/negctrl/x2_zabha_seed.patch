@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index f54d210..c478160 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1138,7 +1138,7 @@ architecture struct of vesta is
+                 -- ==========================================
+                 when AMO_WRITE =>
+                     pc_en <= '1';  -- Ready to fetch next instruction
+-                    wen <= amo_wen;  -- X2 Zabha: byte-lane enables (word AMO = "0000")
++                    wen <= "0000";  -- NEGCTRL SEED (x2_zabha): full-word strobe, sub-word AMO clobbers all four lanes
+                     mem_access_instr <= '1';
+                     reg_write_dp <= '0';
+                     

@@ -1,0 +1,16 @@
+#=======================================================================
+# Makefrag for rv32uzacas tests (X2 Zacas compare-and-swap AMOs)
+#-----------------------------------------------------------------------
+# ON-POLARITY ONLY (rv32uzabha/rv32uzicond precedent): every test emits
+# amocas.{w,b,h} encodings that trap illegal on a zacas-OFF build, so this
+# suite is simulated against a zacas-ON MCU (sub-word tests also need Zabha
+# ON) and is NOT wired into the default runner. Built with the base -march
+# (gas 13.2 has no `zacas' suffix); the encodings are explicit `.insn'
+# R-types.
+#=======================================================================
+
+rv32uzacas_sc_tests = \
+	casw casbh \
+
+rv32uzacas_p_tests = $(addprefix rv32uzacas-p-, $(rv32uzacas_sc_tests))
+rv32uzacas_v_tests = $(addprefix rv32uzacas-v-, $(rv32uzacas_sc_tests))

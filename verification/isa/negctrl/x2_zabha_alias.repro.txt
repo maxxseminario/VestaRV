@@ -1,0 +1,71 @@
+X2 Zabha rd-aliasing negative controls (F1 + F2)
+================================================
+
+Two seeds, each a one-hunk REVERT of an X2-F1/F2 fix (commit 8eb6028). They
+re-introduce the rd-aliasing faults the gate review caught (the historical
+no-operand-latch class: LIVE regfile read ports used where an alias-proof
+REGISTERED copy is required).
+
+  x2_zabha_alias_f1.patch  (hdl/common/vesta/vesta.vhd)
+      amo_wen keys off the LIVE rs1 port (rs1_value = datapath src_a) instead of
+      the registered amo_addr_reg(1:0). Because rd is written in AMO_WRITEBACK
+      (two states before AMO_WRITE), a rd==rs1 sub-word AMO sees the sign-extended
+      old memory value on rs1 and selects the WRONG byte lane.
+      DETECTOR: extzabha ON aliasing arm `amoswap.b rd==rs1` (lane 1: old byte
+      0xBB -> rs1 becomes 0xFFFFFFBB -> lane (0xBB&3)=3 written, guard mismatch).
+
+  x2_zabha_alias_f2.patch  (hdl/common/vesta/datapath.vhd)
+      amo_b_ext (the AMO compute operand) reads the LIVE rs2 port
+      (write_data_reg_val) instead of the registered amo_rs2_reg. A rd==rs2 AMO
+      computes with the clobbered operand. This is the PRE-EXISTING word-AMO fault
+      (amoadd.w a0,a0,(a1)); the byte/half path inherited it.
+      DETECTOR: rv32ua/amoalias.S `amoadd.w rd==rs2` / `amoswap.w rd==rs2`
+      (DEFAULT build) and extzabha ON `amoadd.b rd==rs2`.
+
+M8 DISCIPLINE (the code was the seed): the aliasing tests were written and run
+against the PARENT commit (402d2d9/d506f32, both faults present) BEFORE the fix.
+Recorded there: amoalias FAIL (word rd==rs2), extzabha ON FAIL (sub-word F1+F2).
+After the fix (8eb6028) both PASS; word-AMO regression clean.
+
+ISOLATED per-seed evidence (each seed applied alone on the FIXED tree):
+    F2 seed  -> tb_rv32ua_p_amoalias  FAIL   (DEFAULT/OFF build; observed 2026-07-17)
+    F1 seed  -> tb_rv32ua_p_extzabha  FAIL   (ON build; observed 2026-07-17)
+    fixed    -> both PASS
+
+REPRO — F2 seed (DEFAULT build, no Zabha needed):
+    ROOT=$(git rev-parse --show-toplevel); source ~/vestarv/cdspaths.sh
+    cd $ROOT/verification/isa && rm -rf build/
+    make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4"
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    printf '../rcf/xrv32ua-p-amoalias.rcf\n' > alias_test.txt
+    git -C $ROOT apply verification/isa/negctrl/x2_zabha_alias_f2.patch
+    TESTS_FILE=alias_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh      # EXPECT FAIL
+    git -C $ROOT checkout hdl/common/vesta/datapath.vhd
+    TESTS_FILE=alias_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh      # EXPECT PASS
+
+REPRO — F1 seed (ON build; stage ON RTL + ON image, see x2_zabha_seed.repro.txt):
+    sed -i 's/\(CORE_ENABLE_ZABHA\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+    cd $ROOT/verification/isa && rm -rf build/
+    make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZABHA"
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    printf '../rcf/xrv32ua-p-extzabha.rcf\n' > ez_test.txt
+    git -C $ROOT apply verification/isa/negctrl/x2_zabha_alias_f1.patch
+    TESTS_FILE=ez_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh         # EXPECT FAIL
+    git -C $ROOT checkout hdl/common/vesta/vesta.vhd
+    TESTS_FILE=ez_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh         # EXPECT PASS
+    git -C $ROOT checkout hdl/common/MemoryMap.vhd                   # restore OFF RTL
+
+
+rv32uzabha DIRECTED SUITE — 29-char rca-symlink aliases (riscv_tb.TEST_FILE is
+string(1 to 29); the rv32uzabha-p-* names are >29 chars). Build + alias + run on
+the ON build:
+    cd $ROOT/verification/isa
+    make rv32uzabha-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
+    cd $ROOT/xcelium/riscv_test/rcf
+    ln -sf rv32uzabha-p-amoops_b.rcf xxxxzabha_amoops_b.rcf
+    ln -sf rv32uzabha-p-amoops_h.rcf xxxxzabha_amoops_h.rcf
+    ln -sf rv32uzabha-p-amomis.rcf   xxxxxxzabha_amomis.rcf
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    printf '../rcf/xxxxzabha_amoops_b.rcf\n../rcf/xxxxzabha_amoops_h.rcf\n../rcf/xxxxxxzabha_amomis.rcf\n' > zabha_dir.txt
+    TESTS_FILE=zabha_dir.txt MAX_PARALLEL=3 ./xrun_parallel.sh       # EXPECT 3/3 PASS
+    #   observed 2026-07-17: tb_zabha_amoops_b / _amoops_h / _amomis all PASS

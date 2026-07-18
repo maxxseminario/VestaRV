@@ -111,6 +111,7 @@ architecture behave of maindec is
     signal is_zimop_instr  : STD_LOGIC;  -- X1 Zimop: mop.r.N / mop.rr.N (rd<-0)
     signal is_pause        : STD_LOGIC;
     signal is_wrs_instr    : STD_LOGIC;  -- X1 Zawrs (wrs.nto / wrs.sto)
+    signal is_std_amo_fn5  : STD_LOGIC;  -- X2 Zacas: one of the nine standard AMO funct5 codes (AMO decode-legality whitelist)
 
 
 begin
@@ -131,6 +132,14 @@ begin
                               and funct3 = "000"
                               and (imm12 = WRS_NTO_IMM12 or imm12 = WRS_STO_IMM12)) else '0';
     funct5 <= funct7(6 downto 2);
+    -- X2 Zacas: the nine standard word/sub-word AMO funct5 codes. Used by the
+    -- AMO_OPCODE decode-legality case to whitelist funct5 (LR/SC and CAS are
+    -- handled separately; every other funct5 is a RESERVED encoding and traps).
+    is_std_amo_fn5 <= '1' when (funct5 = AMOADD_FN5  or funct5 = AMOSWAP_FN5 or
+                               funct5 = AMOXOR_FN5  or funct5 = AMOAND_FN5  or
+                               funct5 = AMOOR_FN5   or funct5 = AMOMIN_FN5  or
+                               funct5 = AMOMAX_FN5  or funct5 = AMOMINU_FN5 or
+                               funct5 = AMOMAXU_FN5) else '0';
     rtype_sub <= funct7(5) and op(5);  -- TRUE for R-type subtract
 
 
@@ -241,9 +250,13 @@ begin
     -- Store-Conditional operation
     sc_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = SC_FN5) else '0';
 
-    -- Atomic Memory Operation (excluding LR/SC)
-    amo_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and
-                        funct5 /= LR_FN5 and funct5 /= SC_FN5) else '0';
+    -- Atomic Memory Operation (excluding LR/SC). X2 Zabha: byte (funct3=000)
+    -- and halfword (funct3=001) AMOs join the word path when ENABLE_ZABHA;
+    -- LR/SC stay word-only (Zabha excludes lr.b/h and sc.b/h).
+    amo_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and
+                        funct5 /= LR_FN5 and funct5 /= SC_FN5 and
+                        (funct3 = AMO_WIDTH_W or
+                         (ENABLE_ZABHA and (funct3 = AMO_WIDTH_B or funct3 = AMO_WIDTH_H)))) else '0';
 
     fence_op <= is_fence;
 
@@ -275,7 +288,7 @@ begin
         op = SYSTEM_OPCODE     -- SYSTEM instruction
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5)
     begin
         valid_funct <= '1';
         
@@ -400,6 +413,40 @@ begin
                     --     else
                     --         valid_funct <= '0';
                     --     end if;
+                    else
+                        valid_funct <= '0';
+                    end if;
+
+                -- RV32A / X2 Zabha / X2 Zacas atomic operations. Decode legality
+                -- is a funct5 WHITELIST per width:
+                --   Word (funct3=010): the nine standard AMOs + LR + SC always,
+                --     + CAS (amocas.w) only when ENABLE_ZACAS. Every other funct5
+                --     is RESERVED and traps. (X2 Zabha tightened the sub-word hole;
+                --     X2 Zacas tightens this word hole too -- pre-X2 the word arm
+                --     admitted ALL funct5, so amocas.w did NOT trap with ZACAS off.
+                --     No existing test exercises the reserved word funct5 codes.)
+                --   Byte/half (000/001): legal ONLY with ENABLE_ZABHA, and only
+                --     the nine standard AMOs + CAS (amocas.b/.h, requires ZACAS
+                --     AND ZABHA). lr.b/h and sc.b/h stay illegal (Zabha excludes
+                --     them); reserved sub-word funct5 traps.
+                --   Any other width (011 incl. amocas.d, and 1xx) always traps.
+                when AMO_OPCODE =>
+                    if funct3 = AMO_WIDTH_W then
+                        if is_std_amo_fn5 = '1' or funct5 = LR_FN5 or funct5 = SC_FN5 then
+                            valid_funct <= '1';
+                        elsif ENABLE_ZACAS and funct5 = CAS_FN5 then
+                            valid_funct <= '1';
+                        else
+                            valid_funct <= '0';
+                        end if;
+                    elsif ENABLE_ZABHA and (funct3 = AMO_WIDTH_B or funct3 = AMO_WIDTH_H) then
+                        if is_std_amo_fn5 = '1' then
+                            valid_funct <= '1';
+                        elsif ENABLE_ZACAS and funct5 = CAS_FN5 then
+                            valid_funct <= '1';
+                        else
+                            valid_funct <= '0';
+                        end if;
                     else
                         valid_funct <= '0';
                     end if;
@@ -635,6 +682,7 @@ begin
         "010101" when (op = AMO_OPCODE and funct5 = AMOMAX_FN5)  else  -- AMOMAX (signed MAX)
         "010110" when (op = AMO_OPCODE and funct5 = AMOMINU_FN5) else  -- AMOMINU (unsigned MIN)
         "010111" when (op = AMO_OPCODE and funct5 = AMOMAXU_FN5) else  -- AMOMAXU (unsigned MAX)
+        "001010" when (op = AMO_OPCODE and ENABLE_ZACAS and funct5 = CAS_FN5) else  -- X2 Zacas amocas.w/.b/.h: pass B (rs2 swap value) to the AMO write path
         
         -- R-type M-extension operations
         "001100" when (is_mul_div = '1' and funct3 = MUL_FN3)    else  -- MUL
