@@ -310,3 +310,4 @@ xcelium/riscv_test/innovus_chip_quad/smoke_run.log
 # stays on disk, tracked by nothing.
 # ─────────────────────────────────────────────────────────────────────────────
 xcelium/
+innovus.cmd*
