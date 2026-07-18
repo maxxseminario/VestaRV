@@ -11,7 +11,7 @@ EXTENSIONS = ima
 
 # Directories
 LIB_DIR = ../commune
-PLATFORM_DIR = ../../platform/gcc/lib
+PLATFORM_DIR = ../../platform/myshkin/gcc/lib
 TOOLS_DIR = ../../tools/build
 LD_DIR = $(TOOLS_DIR)/linker-scripts
 LD_SCRIPT = $(LD_DIR)/MCU.ld

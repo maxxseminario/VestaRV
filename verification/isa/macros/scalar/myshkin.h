@@ -36,6 +36,29 @@ extern "C" {
 #define PERIPH_SPI1_BASE        (0x4300)
 #define PERIPH_UART0_BASE       (0x4400)
 #define PERIPH_UART1_BASE       (0x4500)
+// M6 (multi-core, hdl/common only): UART0 is the SHARED console UART behind
+// the mp_arbiter — all 4 harts reach it here; the 0x4400 window reads zeros.
+#define PERIPH_UART0_SH_BASE    (0x12000)
+// M7a/M7b (multi-core, hdl/common only): the 0x13000 page is 16 x 256B
+// shared-peripheral slots behind the mp_arbiter, slot numbers MIRRORING the
+// 0x4000 page (old windows read zeros). Slot 9 = the per-hart IRQ router
+// (M7a: HhENL/M/U at +0x10*h + 0/4/8, contiguous packing, resets masked).
+// GPIO0 never moves: the ROM bootrom drives it on every SPI boot.
+// M7c LOCKING: slot 0 = HW mutex bank — lw returns 0 (was free, you now own
+// it) or the holder's hartid+1; sw 0 releases; nonzero writes ignored.
+// 16 word-mapped mutexes at +4*i. Never LR/SC these addresses.
+#define MUTEX_BANK_SH_BASE      (0x13000)
+#define PERIPH_GPIO1_SH_BASE    (0x13100)
+#define PERIPH_SPI1_SH_BASE     (0x13300)
+#define PERIPH_UART1_SH_BASE    (0x13500)
+#define PERIPH_TIMER0_SH_BASE   (0x13600)
+#define PERIPH_TIMER1_SH_BASE   (0x13700)
+#define PERIPH_GPIO2_SH_BASE    (0x13800)
+#define PERIPH_IRQ_ROUTER_BASE  (0x13900)
+#define PERIPH_NPU0_SH_BASE     (0x13A00)
+#define PERIPH_GPIO3_SH_BASE    (0x13D00)
+#define PERIPH_I2C0_SH_BASE     (0x13E00)
+#define PERIPH_I2C1_SH_BASE     (0x13F00)
 #define PERIPH_TIMER0_BASE      (0x4600)
 #define PERIPH_TIMER1_BASE      (0x4700)
 #define PERIPH_GPIO2_BASE       (0x4800)

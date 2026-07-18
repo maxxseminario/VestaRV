@@ -1,0 +1,599 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 816 1056"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
+   sodipodi:docname="r2r-dac-architecture.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="px"
+     showgrid="true"
+     units="in"
+     inkscape:snap-object-midpoints="true"
+     inkscape:snap-center="true"
+     inkscape:snap-text-baseline="true"
+     inkscape:zoom="2.8522727"
+     inkscape:cx="347.61753"
+     inkscape:cy="186.69323"
+     inkscape:window-width="2560"
+     inkscape:window-height="1351"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     inkscape:showpageshadow="2"
+     inkscape:deskcolor="#d1d1d1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid16"
+       units="in"
+       spacingx="3"
+       spacingy="3"
+       empspacing="8" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <symbol
+       id="ground">
+      <title
+         id="title51">Ground</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 303,24 h 18"
+         id="path3823" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 306,27 h 12"
+         id="path3913" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 309,30 h 6"
+         id="path4003" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 312,24 V 18"
+         id="path4093" />
+    </symbol>
+    <symbol
+       id="open-node">
+      <title
+         id="title8">Open Node</title>
+      <circle
+         style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path1327"
+         cx="48"
+         cy="24"
+         r="3" />
+    </symbol>
+    <symbol
+       id="solder-dot">
+      <title
+         id="title4">Solder Dot</title>
+      <circle
+         style="fill:#000000;fill-rule:evenodd;fill-opacity:1"
+         id="path36"
+         cx="12"
+         cy="15"
+         r="3" />
+    </symbol>
+    <symbol
+       id="amplifier-signed">
+      <title
+         id="title226">Amplifier Signed</title>
+      <path
+         sodipodi:type="star"
+         style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
+         id="path5198-1"
+         inkscape:flatsided="false"
+         sodipodi:sides="3"
+         sodipodi:cx="96"
+         sodipodi:cy="288"
+         sodipodi:r1="24"
+         sodipodi:r2="12"
+         sodipodi:arg1="0"
+         sodipodi:arg2="1.0471976"
+         inkscape:rounded="0"
+         inkscape:randomized="0"
+         inkscape:transform-center-x="-6"
+         d="M 120,288 102,298.39231 84,308.78461 84,288 l 0,-20.78461 18,10.39231 z"
+         transform="translate(48)" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 135,276 h 6"
+         id="path5724-1" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 138,279 v -6"
+         id="path5726-6" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 135,300 h 6"
+         id="path5728-3" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 132,276 h -6"
+         id="path6195-6" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 132,300 h -6"
+         id="path6197-7" />
+    </symbol>
+    <symbol
+       id="terminal">
+      <title
+         id="title38">Terminal</title>
+      <path
+         style="fill:#ffffff;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 72,24 -6,-6 h -6 v 12 h 6 z"
+         id="path1104" />
+    </symbol>
+    <symbol
+       id="resistor-small">
+      <title
+         id="title271">Resistor (Small)</title>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 216,24 h 3 l 1.5,-6 3,12 3,-12 3,12 3,-12 3,12 1.5,-6 h 3"
+         id="path45911" />
+    </symbol>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-linecap:square;stroke-miterlimit:4.1"
+       id="path8490"
+       cx="342"
+       cy="96"
+       r="1.5" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-linecap:square;stroke-miterlimit:4.1"
+       id="path8490-5"
+       cx="348"
+       cy="96"
+       r="1.5" />
+    <circle
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-linecap:square;stroke-miterlimit:4.1"
+       id="path8490-0"
+       cx="354"
+       cy="96"
+       r="1.5" />
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif"
+       x="417"
+       y="78"
+       id="text5623-9-6-1"><tspan
+         sodipodi:role="line"
+         id="tspan5621-7-0-8"
+         x="417"
+         y="78"
+         style="font-size:9.33333px">$2R$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif"
+       x="429"
+       y="174"
+       id="text5623-9-6-1-6"><tspan
+         sodipodi:role="line"
+         id="tspan5621-7-0-8-0"
+         x="429"
+         y="174"
+         style="font-size:9.33333px">$R_d$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="408"
+       y="42"
+       id="text3741-7-3-6-1"><tspan
+         sodipodi:role="line"
+         id="tspan3739-8-8-9-0"
+         x="408"
+         y="42"
+         style="font-size:9.33333px">$v_{bi}$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="324"
+       y="42"
+       id="text3741-7-3-6-1-2"><tspan
+         sodipodi:role="line"
+         x="324"
+         y="42"
+         style="font-size:9.33333px"
+         id="tspan8179">$v_{b2}$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="276"
+       y="42"
+       id="text3741-7-3-6-1-0"><tspan
+         sodipodi:role="line"
+         id="tspan3739-8-8-9-0-3"
+         x="276"
+         y="42"
+         style="font-size:9.33333px">$v_{b1}$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="228"
+       y="42"
+       id="text3741-7-3-6-1-3"><tspan
+         sodipodi:role="line"
+         id="tspan3739-8-8-9-0-2"
+         x="228"
+         y="42"
+         style="font-size:9.33333px">$v_{b0}$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="384"
+       y="114"
+       id="text3741-0-6-7"><tspan
+         sodipodi:role="line"
+         id="tspan3739-1-7-4"
+         x="384"
+         y="114"
+         style="font-size:9.33333px">$R$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="444"
+       y="135"
+       id="text3741-0-6-7-7"><tspan
+         sodipodi:role="line"
+         id="tspan3739-1-7-4-3"
+         x="444"
+         y="135"
+         style="font-size:9.33333px">$R_d$</tspan></text>
+    <use
+       xlink:href="#open-node"
+       id="use5794-9-3-7"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(360,24)" />
+    <use
+       xlink:href="#amplifier-signed"
+       id="use10267"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(294,-180)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use10426"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(396,81)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use10532"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(408,129)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 423,120 h -3 v 24"
+       id="path10582" />
+    <use
+       xlink:href="#ground"
+       id="use10676"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(108,162)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 462,108 h 6 v 36 h -3"
+       id="path10732" />
+    <use
+       xlink:href="#solder-dot"
+       id="use10823"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(456,93)" />
+    <use
+       xlink:href="#terminal"
+       id="use10849"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(420,84)" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 468,108 h 12"
+       id="path10902" />
+    <text
+       xml:space="preserve"
+       style="font-size:4px;line-height:1.25;font-family:sans-serif"
+       x="495"
+       y="111"
+       id="text5623-9-6-1-1"><tspan
+         sodipodi:role="line"
+         id="tspan5621-7-0-8-4"
+         x="495"
+         y="111"
+         style="font-size:4px">\pin{DACx}</tspan></text>
+    <use
+       xlink:href="#resistor-small"
+       id="use1960"
+       transform="translate(216,120)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-7"
+       transform="rotate(90,252,192)" />
+    <use
+       xlink:href="#ground"
+       id="use10676-0"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(-132,114)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-7-21"
+       transform="rotate(90,156,48)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-7-2"
+       transform="rotate(90,294,138)" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 420,156 v -12 h 12"
+       id="path2061" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 456,144 h 9"
+       id="path2063" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-9"
+       transform="translate(156,72)" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 408,96 V 84"
+       id="path2533" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 408,60 V 51"
+       id="path2535" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 396,96 h 12"
+       id="path2632" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 372,96 H 360"
+       id="path2663" />
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif"
+       x="333"
+       y="78"
+       id="text5623-9-6-1-2"><tspan
+         sodipodi:role="line"
+         id="tspan5621-7-0-8-2"
+         x="333"
+         y="78"
+         style="font-size:9.33333px">$2R$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="300"
+       y="114"
+       id="text3741-0-6-7-0"><tspan
+         sodipodi:role="line"
+         id="tspan3739-1-7-4-4"
+         x="300"
+         y="114"
+         style="font-size:9.33333px">$R$</tspan></text>
+    <use
+       xlink:href="#open-node"
+       id="use5794-9-3-7-1"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(276,24)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use10426-6"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(312,81)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-7-2-6"
+       transform="rotate(90,252,96)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-9-6"
+       transform="translate(72,72)" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 324,96 V 84"
+       id="path2533-3" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 324,60 V 51"
+       id="path2535-0" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 312,96 h 12"
+       id="path2632-5" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 288,96 H 276"
+       id="path2663-8" />
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif"
+       x="285"
+       y="78"
+       id="text5623-9-6-1-4"><tspan
+         sodipodi:role="line"
+         id="tspan5621-7-0-8-9"
+         x="285"
+         y="78"
+         style="font-size:9.33333px">$2R$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="252"
+       y="114"
+       id="text3741-0-6-7-5"><tspan
+         sodipodi:role="line"
+         id="tspan3739-1-7-4-8"
+         x="252"
+         y="114"
+         style="font-size:9.33333px">$R$</tspan></text>
+    <use
+       xlink:href="#open-node"
+       id="use5794-9-3-7-7"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(228,24)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use10426-9"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(264,81)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-7-2-0"
+       transform="rotate(90,228,72)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-9-1"
+       transform="translate(24,72)" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 276,96 V 84"
+       id="path2533-0" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 276,60 V 51"
+       id="path2535-2" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 264,96 h 12"
+       id="path2632-4" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 240,96 H 228"
+       id="path2663-0" />
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif"
+       x="236.5"
+       y="78"
+       id="text5623-9-6-1-9"><tspan
+         sodipodi:role="line"
+         id="tspan5621-7-0-8-90"
+         x="236.5"
+         y="78"
+         style="font-size:9.33333px">$2R$</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+       x="203.5"
+       y="114"
+       id="text3741-0-6-7-6"><tspan
+         sodipodi:role="line"
+         id="tspan3739-1-7-4-9"
+         x="203.5"
+         y="114"
+         style="font-size:9.33333px">$R$</tspan></text>
+    <use
+       xlink:href="#open-node"
+       id="use5794-9-3-7-4"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(180,24)" />
+    <use
+       xlink:href="#solder-dot"
+       id="use10426-2"
+       x="0"
+       y="0"
+       width="100%"
+       height="100%"
+       transform="translate(216,81)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-7-2-1"
+       transform="rotate(90,204,48)" />
+    <use
+       xlink:href="#resistor-small"
+       id="use1960-9-5"
+       transform="translate(-24,72)" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 228,96 V 83.999998"
+       id="path2533-31" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 228,60 V 51"
+       id="path2535-1" />
+    <text
+       xml:space="preserve"
+       style="font-size:9.33333px;font-family:'Times New Roman';-inkscape-font-specification:'Times New Roman, ';text-align:end;text-anchor:end;fill:none;stroke:#000000"
+       x="171"
+       y="124.5"
+       id="text3419"><tspan
+         sodipodi:role="line"
+         id="tspan3417"
+         x="171"
+         y="124.5"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.33333px;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#000000;stroke:none">$R$</tspan></text>
+    <path
+       style="fill:none;stroke:#000000"
+       d="M 180,108 V 96 h 12"
+       id="path3421" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 216,96 h 12"
+       id="path3423" />
+    <path
+       style="fill:none;stroke:#000000"
+       d="m 408,96 h 12"
+       id="path3538" />
+  </g>
+</svg>

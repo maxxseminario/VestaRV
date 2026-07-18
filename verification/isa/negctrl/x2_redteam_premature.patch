@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/datapath.vhd b/hdl/common/vesta/datapath.vhd
+index d075ce2..ba244fa 100644
+--- a/hdl/common/vesta/datapath.vhd
++++ b/hdl/common/vesta/datapath.vhd
+@@ -240,7 +240,7 @@ begin
+             -- X2 Zacas: register the compare verdict at AMO_COMPUTE so it is stable
+             -- and phase-independent when it gates the write in AMO_WRITE. Both compare
+             -- inputs (rd_amo, amo_cmp_ext) are registered signals.
+-            if amo_phase = "010" and cas_op = '1' then  -- AMO_COMPUTE, CAS only
++            if amo_phase = "110" and cas_op = '1' then  -- REDTEAM SEED (premature): latch verdict at AMO_WRITEBACK, before rd_amo/amo_cmp_reg are valid
+                 cas_match_reg <= cas_match_comb;
+             end if;
+ 

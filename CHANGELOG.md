@@ -7,16 +7,92 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added
-- VHDL testbench for the UART peripheral (`hdl/MCU/tb/UART_tb.vhd`).
-- VHDL testbench for the GPIO peripheral (`hdl/MCU/tb/GPIO_tb.vhd`).
-- VHDL testbench for the TIMER peripheral (`hdl/MCU/tb/TIMER_tb.vhd`).
-- VHDL testbench for the SPI peripheral (`hdl/MCU/tb/SPI_tb.vhd`).
-- VHDL testbench for the I2C peripheral (`hdl/MCU/tb/I2C_tb.vhd`).
+The 2026 program (branch `multicore-mp`) turned the single-core Myshkin SoC into a
+**family of chips generated from one source**: a 4-hart multiprocessor (Castalia), an
+18-hart teaching chip (Argus), and a config-driven `make chip` / `make verify` generator.
+Entries below are grouped by era (newest first), dated from the development log.
 
-### Fixed
-- UART RX overflow flag was checking the wrong status bit (TX-complete instead
-  of RX-complete), so overflows never got flagged.
+### 2026-07-14 — Castalia C0: connected pad-ring chip-top
+#### Added
+- Connected `chip_top` wrapper wiring the hardened Castalia MCU assembly into the tphn
+  pad ring; pads-in-DUT gate simulation.
+- Chip-top DRC/LVS signoff pass.
+
+### 2026-07-12 – 2026-07-14 — M19 / M19c: PLIC-lite interrupt fabric + gate-sim closure
+#### Changed
+- Replaced the M7 IRQ fan-out with `irq_router` @0x7000: a PLIC-style interrupt controller
+  with atomic claim (@0x7800) / complete, one registered `meip` wire per hart delivered
+  through IVT slot 85, exactly-once delivery, and lowest-ID fixed priority.
+- Interrupt handlers moved to a plain-ret ABI under a MEIP dispatcher; CLINT software/timer
+  interrupts (slots 83/84) keep classic hardware-vectored ISRs.
+#### Removed
+- Retired the SYSTEM0 interrupt enable/priority/recursion path and its ENU packing quirk.
+#### Fixed
+- M19c physical re-harden: tile SDCs refreshed, tile re-hardened (233 pins, −3.6% area),
+  assembly re-P&R'd (binding gate 7/7).
+
+### 2026-07-12 — Repository restructure + TRM publish drift gate
+#### Changed
+- Split `hdl/`, `platform/`, and `innovus/` into one directory per instantiation
+  (`myshkin/` frozen, `common/` = the shared multi-core Castalia/Argus tree, `argus/`
+  frozen snapshot).
+#### Added
+- TRM publish/drift gate (`make check-publish` + pre-commit hook) keeping the published
+  PDFs in sync with the generator.
+
+### 2026-07-10 – 2026-07-12 — Argus A0–A5: 18-hart derivative + chip-top
+#### Added
+- Parameterized the generator on hart count (`NHARTS`); **Argus**, an 18-hart teaching
+  chip, is generated from `config/argus.json` with 128 KiB shared RAM (8× 16 KiB banks),
+  32 hardware mutexes, and no NPU.
+- 18-hart behavioral regression green; A4 compact-tile harden + 3×3 tile-array assembly;
+  A5 connected `chip_top` (FLAT run, pads-in-DUT smoke).
+
+### 2026-07-10 – 2026-07-12 — PG1–PG4: low-power verify + signoff DRC/LVS closure
+#### Added
+- PG1 low-power (MTCMOS power-gating) verification; PG2 rail analysis (IR/EM/inrush).
+- PG3 signoff DRC (Calibre) + LVS (Pegasus); PG4 signoff closure (tile clean, MCU
+  committed cut).
+
+### 2026-07-06 – 2026-07-12 — Generator G-track: `make chip` / `make verify`
+#### Added
+- `make chip` now emits drop-in `MCU.vhd` + `MemoryMap.vhd` — byte-identical to the live
+  `hdl/common/` tree (gated by `check_mcu_vhd.py`) — plus C headers, linker scripts, and
+  the config-driven ~160-page TRM PDF.
+- `make verify [CONFIG=…]` proves a configuration boots by staging the generated RTL into
+  an Xcelium behavioral flow and running the multi-core boot/ISA smoke suite.
+- Configurable ISA extensions and individually droppable peripherals; interactive
+  `docs/chip_configurator.html` front-end; package model.
+
+### 2026-07-07 – 2026-07-09 — M15–M17b: pad ring + power gating
+#### Added
+- M15 geometry pad-ring prototype; M16 analog floorplan.
+- M17 power controller (`PWRCTRL` @0x4B00) + per-tile MTCMOS power gating with hardware
+  gate/wake (cold-boot) sequencing; M17b PG signoff cleanup.
+
+### 2026-07-06 — M10–M14: Castalia rework (memory + physical)
+#### Changed
+- M10 latency-insensitive (wait-for-release) arbiter + execute-from-shared support.
+- M11 memory-map rework — private TCM per hart, everything else behind the shared-window
+  arbiter; M12 single-ROM boot — all harts reset to PC 0x0 and fetch the shared boot ROM.
+#### Added
+- M13 tile extraction: four structurally identical `hart_tile` instances on a registered
+  boundary; M14 physical tile harden + 4× assembly.
+
+### Through 2026-07-05 — M1–M9: multi-core bring-up
+#### Added
+- Multi-hart architecture: a shared-memory window behind `mp_arbiter` (serializing
+  round-robin), a CLINT (software + per-hart timer interrupts), a 16-entry hardware mutex
+  bank, cross-hart atomics (grant-locked AMOs), and advisory LR/SC locks.
+- Behavioral and gate-level (post-genus, SDF-annotated) bring-up, including gate-sim
+  X-pathology closure.
+
+### Earlier — peripheral testbenches
+#### Added
+- VHDL testbenches for the UART, GPIO, TIMER, SPI, and I2C peripherals.
+#### Fixed
+- UART RX overflow flag was checking the wrong status bit (TX-complete instead of
+  RX-complete), so overflows never got flagged.
 
 ---
 
@@ -52,7 +128,7 @@ First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November
   - Peripheral verification primarily through assembly-level tests simulated at the full chip level; select peripherals additionally verified with dedicated VHDL-level testbenches (located in `hdl/MCU/tb/`)
   - Standard benchmark suite (dhrystone, coremark-style benchmarks)
 - **Documentation**
-  - [MCU User Guide](implementations/asic/myshkin-2025-11/MCU-User-Guide.pdf)
+  - [Technical Reference Manual](implementations/asic/myshkin-2025-11/docs/TRM.pdf)
   - Implementation READMEs for Myshkin ASIC
   - Build system and verification READMEs
 

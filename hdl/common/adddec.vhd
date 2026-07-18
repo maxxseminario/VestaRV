@@ -1,0 +1,612 @@
+-- library IEEE;
+-- use IEEE.STD_LOGIC_1164.ALL;
+-- use IEEE.NUMERIC_STD.ALL;
+-- -- use ieee.std_logic_arith.all;
+-- use ieee.std_logic_unsigned.all;
+-- library work;
+-- use work.constants.ALL;
+-- use work.MemoryMap.all;
+
+-- entity adddec is
+--     generic (
+--         ENABLE_FLASH_EXTENDED_MEM : boolean := false
+--     );
+--     port (
+--         clk               : in  std_logic;
+--         resetn            : in  std_logic;
+
+--         -- CPU interface
+--         wen               : in  std_logic_vector(3 downto 0);
+--         data_addr         : in  std_logic_vector(31 downto 0);
+--         write_word        : in  std_logic_vector(31 downto 0);
+--         mask              : out std_logic_vector(1 downto 0);
+        
+--         -- Memory Bus 
+--         write_data        : out std_logic_vector(31 downto 0); 
+--         read_data         : out std_logic_vector(31 downto 0);
+--         mem_addr          : out std_logic_vector(11 downto 0);  -- 12 bits for 16KB memory blocks
+--         addr_periph       : out std_logic_vector(7 downto 2);
+--         mab_out           : out std_logic_vector(31 downto 0);  -- Full address bus for flash
+--         wen_fe            : out std_logic_vector(3 downto 0);
+--         GWEN              : out std_logic;
+
+--         -- Memory Control Signals
+--         mem_en            : out std_logic_vector(2 downto 0); 
+--         mem_en_periph     : out std_logic_vector(15 downto 0);
+--         clk_mem           : out std_logic_vector(2 downto 0); 
+--         clk_periph        : out std_logic_vector(15 downto 0);
+        
+--         -- Flash Extended Memory Signals (when ENABLE_FLASH_EXTENDED_MEM = true)
+--         mem_en_flash      : out std_logic;
+--         clk_mem_flash     : out std_logic;
+        
+--         -- Memory Inputs
+--         mem_dout          : in word_array(0 to 2); 
+--         periph_dout       : in word_array(0 to 15);
+--         flash_dout        : in std_logic_vector(31 downto 0)  -- Flash data input
+--     );
+-- end adddec;
+
+-- architecture Behavioral of adddec is
+
+--     -- Internal signals
+--     signal out_buff : std_logic_vector(31 downto 0);
+--     signal mem_en_sig : std_logic_vector(2 downto 0);
+--     signal mem_en_periph_sig : std_logic_vector(15 downto 0);
+--     signal mem_en_flash_sig : std_logic;
+--     signal mem_sel_int : std_logic_vector(2 downto 0);
+--     signal mem_sel_periph_int : std_logic_vector(15 downto 0);
+--     signal mem_sel_flash_int : std_logic;
+--     signal mem_region_sel : std_logic_vector(2 downto 0); 
+--     signal periph_addr_nat : natural;
+--     signal mem_sel_periph_nat : natural;
+--     signal is_flash_access : std_logic;
+--     signal en_clk_mem_flash : std_logic;
+--     signal flash_dout_reg : std_logic_vector(31 downto 0);
+
+-- begin
+
+--     -- Memory map:
+--     -- ROM0 - 0x00000 - 0x03FFF (16KB)
+--     -- MMR  - 0x04000 - 0x07FFF (~16KB) Peripherals
+--     -- RAM0 - 0x08000 - 0x0BFFF (16KB)  
+--     -- RAM1 - 0x0C000 - 0x0FFFF (16KB)
+--     -- Extended Memory (Flash): 0x10000 and above (when ENABLE_FLASH_EXTENDED_MEM = true)
+
+--     -- Extract address fields
+--     mem_region_sel      <= data_addr(16 downto 14);
+--     periph_addr_nat     <= slv2uint(data_addr(11 downto 8));
+--     mem_sel_periph_nat  <= slv2uint(not mem_sel_periph_int);
+    
+--     -- Pass full address bus for flash
+--     -- mab_out <= data_addr;
+    
+--     -- Determine if this is a flash access
+--     -- Flash memory is accessed when address is >= 0x10000 (bit 16 or higher is set)
+--     gen_flash_detect: if ENABLE_FLASH_EXTENDED_MEM generate
+--         is_flash_access <= '1' when unsigned(data_addr) >= x"00010000" else '0';
+--     end generate;
+    
+--     gen_no_flash_detect: if not ENABLE_FLASH_EXTENDED_MEM generate
+--         is_flash_access <= '0';
+--     end generate;
+
+--     -- Memory enable generation
+--     process(mem_region_sel, periph_addr_nat, is_flash_access)
+--     begin
+--         -- Initialize all enables to inactive
+--         mem_en_sig <= (others => '1');
+--         mem_en_periph_sig <= (others => '1');
+--         mem_en_flash_sig <= '1';
+        
+--         if is_flash_access = '1' then
+--             -- Flash memory access
+--             mem_en_flash_sig <= '0';
+--         else
+--             -- Normal memory map
+--             -- ROM : 0x00000 - 0x03FFF (bits 16:14 = 000) 
+--             -- MMR : 0x04000 - 0x07FFF (bits 16:14 = 001)
+--             -- RAM0: 0x08000 - 0x0BFFF (bits 16:14 = 010)
+--             -- RAM1: 0x0C000 - 0x0FFFF (bits 16:14 = 011)
+            
+--             case mem_region_sel is
+--                 when "000" =>
+--                     mem_en_sig(MemSlotROM) <= '0';
+--                 when "001" =>
+--                     -- Peripherals
+--                     case periph_addr_nat is
+--                         when PeriphSlotGPIO0   => mem_en_periph_sig(PeriphSlotGPIO0)   <= '0';
+--                         when PeriphSlotGPIO1   => mem_en_periph_sig(PeriphSlotGPIO1)   <= '0';
+--                         when PeriphSlotGPIO2   => mem_en_periph_sig(PeriphSlotGPIO2)   <= '0';
+--                         when PeriphSlotGPIO3   => mem_en_periph_sig(PeriphSlotGPIO3)   <= '0';
+--                         when PeriphSlotSPI0    => mem_en_periph_sig(PeriphSlotSPI0)    <= '0';
+--                         when PeriphSlotSPI1    => mem_en_periph_sig(PeriphSlotSPI1)    <= '0';
+--                         when PeriphSlotUART0   => mem_en_periph_sig(PeriphSlotUART0)   <= '0';
+--                         when PeriphSlotUART1   => mem_en_periph_sig(PeriphSlotUART1)   <= '0';
+--                         when PeriphSlotTIMER0  => mem_en_periph_sig(PeriphSlotTIMER0)  <= '0';
+--                         when PeriphSlotTIMER1  => mem_en_periph_sig(PeriphSlotTIMER1)  <= '0';
+--                         when PeriphSlotSystem0 => mem_en_periph_sig(PeriphSlotSystem0) <= '0';
+--                         when PeriphSlotNPU0    => mem_en_periph_sig(PeriphSlotNPU0)    <= '0';
+--                         when PeriphSlotAFE0    => mem_en_periph_sig(PeriphSlotAFE0)    <= '0';
+--                         when PeriphSlotSARADC0 => mem_en_periph_sig(PeriphSlotSARADC0) <= '0';
+--                         when PeriphSlotI2C0    => mem_en_periph_sig(PeriphSlotI2C0)    <= '0';
+--                         when PeriphSlotI2C1    => mem_en_periph_sig(PeriphSlotI2C1)    <= '0';
+--                         when others => null;
+--                     end case;
+--                 when "010" =>
+--                     mem_en_sig(MemSlotRAM0) <= '0';
+--                 when "011" =>
+--                     mem_en_sig(MemSlotRAM1) <= '0';
+--                 when others =>
+--                     null;
+--             end case;
+--         end if;
+--     end process;
+
+
+
+--     -- -- Added 11/20 to help with few setup time violations 
+--     -- -- Process to register the enable signals on rising edge
+--     -- -- This breaks the combinational path from ROM output to clock gates - sensitive for setup time violations post innovus
+--     -- process(clk)
+--     -- begin
+--     --     if rising_edge(clk) then
+--     --         mem_en_sig_reg <= mem_en_sig;
+--     --         mem_en_periph_sig_reg <= mem_en_periph_sig;
+--     --     end if;
+--     -- end process;
+
+
+--     -- Falling edge sensitive register for memory signals
+--     process(clk)
+--     begin
+--         if falling_edge(clk) then
+--             mem_en <= mem_en_sig;
+--             mem_en_periph <= mem_en_periph_sig;
+--             mab_out <= data_addr;
+--             mem_addr    <= data_addr(13 downto 2); 
+--             addr_periph <= data_addr(7 downto 2);
+--             -- mask        <= data_addr(1 downto 0);
+--             wen_fe <= wen;
+--         end if;
+--     end process;
+
+
+--     -- Rising edge sensitive register for memory select
+--     process(clk)
+--     begin
+--        if rising_edge(clk) then
+--             mem_sel_int <= mem_en_sig;
+--             mem_sel_periph_int <= mem_en_periph_sig;
+--             if ENABLE_FLASH_EXTENDED_MEM then
+--                 mem_sel_flash_int <= mem_en_flash_sig;
+--                 flash_dout_reg <= flash_dout;
+--             end if;
+--         end if;
+--     end process;
+
+--     -- Output buffer selection using combinational assignments
+--     gen_flash_mux: if ENABLE_FLASH_EXTENDED_MEM generate
+--         out_buff <= nop                              when resetn = '0' else
+--                     flash_dout_reg                   when mem_sel_flash_int = '0' else  -- Flash
+--                     mem_dout(MemSlotROM)             when mem_sel_int = "110" else  -- ROM
+--                     mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0
+--                     mem_dout(MemSlotRAM1)            when mem_sel_int = "011" else  -- RAM1
+--                     periph_dout(PeriphSlotGPIO0)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO0_MASK else
+--                     periph_dout(PeriphSlotGPIO1)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO1_MASK else
+--                     periph_dout(PeriphSlotGPIO2)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO2_MASK else
+--                     periph_dout(PeriphSlotGPIO3)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO3_MASK else
+--                     periph_dout(PeriphSlotSPI0)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI0_MASK else
+--                     periph_dout(PeriphSlotSPI1)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI1_MASK else
+--                     periph_dout(PeriphSlotUART0)     when mem_sel_int = "111" and mem_sel_periph_nat = UART0_MASK else
+--                     periph_dout(PeriphSlotUART1)     when mem_sel_int = "111" and mem_sel_periph_nat = UART1_MASK else
+--                     periph_dout(PeriphSlotTIMER0)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER0_MASK else
+--                     periph_dout(PeriphSlotTIMER1)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER1_MASK else
+--                     periph_dout(PeriphSlotSystem0)   when mem_sel_int = "111" and mem_sel_periph_nat = SYSTEM0_MASK else
+--                     periph_dout(PeriphSlotNPU0)      when mem_sel_int = "111" and mem_sel_periph_nat = NPU0_MASK else
+--                     periph_dout(PeriphSlotAFE0)      when mem_sel_int = "111" and mem_sel_periph_nat = AFE0_MASK else
+--                     periph_dout(PeriphSlotSARADC0)   when mem_sel_int = "111" and mem_sel_periph_nat = SARADC0_MASK else
+--                     periph_dout(PeriphSlotI2C0)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C0_MASK else
+--                     periph_dout(PeriphSlotI2C1)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C1_MASK else
+--                     (others => '1');  
+--     end generate;
+
+--     gen_no_flash_mux: if not ENABLE_FLASH_EXTENDED_MEM generate
+--         out_buff <= nop                              when resetn = '0' else
+--                     mem_dout(MemSlotROM)             when mem_sel_int = "110" else  -- ROM
+--                     mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0
+--                     mem_dout(MemSlotRAM1)            when mem_sel_int = "011" else  -- RAM1
+--                     periph_dout(PeriphSlotGPIO0)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO0_MASK else
+--                     periph_dout(PeriphSlotGPIO1)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO1_MASK else
+--                     periph_dout(PeriphSlotGPIO2)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO2_MASK else
+--                     periph_dout(PeriphSlotGPIO3)     when mem_sel_int = "111" and mem_sel_periph_nat = GPIO3_MASK else
+--                     periph_dout(PeriphSlotSPI0)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI0_MASK else
+--                     periph_dout(PeriphSlotSPI1)      when mem_sel_int = "111" and mem_sel_periph_nat = SPI1_MASK else
+--                     periph_dout(PeriphSlotUART0)     when mem_sel_int = "111" and mem_sel_periph_nat = UART0_MASK else
+--                     periph_dout(PeriphSlotUART1)     when mem_sel_int = "111" and mem_sel_periph_nat = UART1_MASK else
+--                     periph_dout(PeriphSlotTIMER0)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER0_MASK else
+--                     periph_dout(PeriphSlotTIMER1)    when mem_sel_int = "111" and mem_sel_periph_nat = TIMER1_MASK else
+--                     periph_dout(PeriphSlotSystem0)   when mem_sel_int = "111" and mem_sel_periph_nat = SYSTEM0_MASK else
+--                     periph_dout(PeriphSlotNPU0)      when mem_sel_int = "111" and mem_sel_periph_nat = NPU0_MASK else
+--                     periph_dout(PeriphSlotAFE0)      when mem_sel_int = "111" and mem_sel_periph_nat = AFE0_MASK else
+--                     periph_dout(PeriphSlotSARADC0)   when mem_sel_int = "111" and mem_sel_periph_nat = SARADC0_MASK else
+--                     periph_dout(PeriphSlotI2C0)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C0_MASK else
+--                     periph_dout(PeriphSlotI2C1)      when mem_sel_int = "111" and mem_sel_periph_nat = I2C1_MASK else
+--                     (others => '1'); 
+--     end generate;
+
+--     -- Clock Gates for Memory
+--     gen_cg_mem : for i in 0 to 2 generate
+--         cg_mem: entity work.ClkGate
+--             port map (
+--                 ClkIn  => clk,
+--                 En     => not mem_en(i),
+--                 ClkOut => clk_mem(i)
+--             );
+--     end generate gen_cg_mem;
+
+--     -- Clock Gates for Peripherals
+--     gen_cg_periph : for i in 0 to 15 generate
+--         cg_periph: entity work.ClkGate
+--             port map (
+--                 ClkIn  => clk,
+--                 En     => not mem_en_periph(i),
+--                 ClkOut => clk_periph(i)
+--             );
+--     end generate gen_cg_periph;
+    
+--     -- Clock Gate for Flash Memory (if enabled)
+--     gen_flash_clk: if ENABLE_FLASH_EXTENDED_MEM generate
+--         en_clk_mem_flash <= '1' when mem_en_flash_sig = '0' else '0';
+--         mem_en_flash <= mem_en_flash_sig;
+--         cg_flash: entity work.ClkGate
+--             port map (
+--                 ClkIn  => not clk,  -- Inverted clock for flash
+--                 En     => en_clk_mem_flash,
+--                 ClkOut => clk_mem_flash
+--             );
+--     end generate;
+    
+--     gen_no_flash_clk: if not ENABLE_FLASH_EXTENDED_MEM generate
+--         mem_en_flash <= '1';  -- Inactive
+--         clk_mem_flash <= '0';
+--     end generate;
+
+
+--     -- Memory control process from memory_subsystem
+--     mem_cntrl: process(clk)
+--     begin
+--         if falling_edge(clk) then
+--             if wen(0) = '0' then
+--                 write_data(7 downto 0)   <= write_word(7 downto 0);
+--             end if;
+--             if wen(1) = '0' then
+--                 write_data(15 downto 8)  <= write_word(15 downto 8);
+--             end if;
+--             if wen(2) = '0' then
+--                 write_data(23 downto 16) <= write_word(23 downto 16);
+--             end if;
+--             if wen(3) = '0' then
+--                 write_data(31 downto 24) <= write_word(31 downto 24);
+--             end if;
+--         end if;
+--     end process;
+
+--     -- Output Assignments
+--     GWEN        <= '0' when (wen_fe /= "1111") else '1'; -- fe sensitive, assigned combinationally from fe signals 
+--     read_data   <= out_buff;
+--     mask        <= data_addr(1 downto 0); -- rising edge sensitive assignment - control signal to core, not memory 
+    
+    
+
+-- end Behavioral;
+
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+-- use ieee.std_logic_arith.all;
+use ieee.std_logic_unsigned.all;
+library work;
+use work.constants.ALL;
+use work.MemoryMap.all;
+
+entity adddec is
+    generic (
+        ENABLE_FLASH_EXTENDED_MEM : boolean := false;
+        -- A2 (Argus): shared-window word-address width, passed down from
+        -- hart_tile. The extended-flash decode is the STRICT COMPLEMENT of
+        -- the master-side sh_sel window (addr(31:SH_AW+2) /= 0 — the M3c.3
+        -- double-claim lesson), and the TCM decode is qualified by the same
+        -- upper bits so a wide window (SH_AW=16: 0x20000-0x3FFFF) can never
+        -- alias onto the TCM's region bits. Default 15 = the Castalia shape
+        -- (flash >= 0x20000), bit-for-bit the original decode.
+        SH_AW                     : natural := 15
+    );
+    port (
+        clk               : in  std_logic;
+        resetn            : in  std_logic;
+
+        -- CPU interface
+        wen               : in  std_logic_vector(3 downto 0);
+        data_addr         : in  std_logic_vector(31 downto 0);
+        write_word        : in  std_logic_vector(31 downto 0);
+        mask              : out std_logic_vector(1 downto 0);
+        
+        -- Memory Bus 
+        write_data        : out std_logic_vector(31 downto 0); 
+        read_data         : out std_logic_vector(31 downto 0);
+        mem_addr          : out std_logic_vector(11 downto 0);  -- 12 bits for 16KB memory blocks
+        addr_periph       : out std_logic_vector(7 downto 2);
+        mab_out           : out std_logic_vector(31 downto 0);  -- Full address bus for flash
+        wen_fe            : out std_logic_vector(3 downto 0);
+        GWEN              : out std_logic;
+
+        -- Memory Control Signals
+        mem_en            : out std_logic_vector(2 downto 0); 
+        mem_en_periph     : out std_logic_vector(15 downto 0);
+        clk_mem           : out std_logic_vector(2 downto 0); 
+        clk_periph        : out std_logic_vector(15 downto 0);
+        
+        -- Flash Extended Memory Signals (when ENABLE_FLASH_EXTENDED_MEM = true)
+        mem_en_flash      : out std_logic;
+        clk_mem_flash     : out std_logic;
+        
+        -- Memory Inputs
+        mem_dout          : in word_array(0 to 2); 
+        periph_dout       : in word_array(0 to 15);
+        flash_dout        : in std_logic_vector(31 downto 0)  -- Flash data input
+    );
+end adddec;
+
+architecture Behavioral of adddec is
+
+    -- Internal signals
+    signal out_buff : std_logic_vector(31 downto 0);
+    signal mem_en_sig : std_logic_vector(2 downto 0);
+    signal mem_en_periph_sig : std_logic_vector(15 downto 0);
+    signal mem_en_flash_sig : std_logic;
+    signal mem_sel_int : std_logic_vector(2 downto 0);
+    signal mem_sel_periph_int : std_logic_vector(15 downto 0);
+    signal mem_sel_flash_int : std_logic;
+    signal mem_region_sel : std_logic_vector(2 downto 0); 
+    signal periph_addr_nat : natural;
+    signal mem_sel_periph_nat : natural;
+    signal is_flash_access : std_logic;
+    signal en_clk_mem_flash : std_logic;
+    signal flash_dout_reg : std_logic_vector(31 downto 0);
+
+    -- A2: SH_AW-derived all-zero comparators (see the generic comment).
+    -- FLASH_ZERO spans the bits above the shared window; tcm_upper_zero
+    -- qualifies the window bits above the region field (no such bits at
+    -- SH_AW=15, where bit 16 is the region field's top bit — the qualifier
+    -- is then constant '1', reproducing the original decode exactly; the
+    -- slice lives in a generate because Xcelium rejects a null slice).
+    constant FLASH_ZERO   : std_logic_vector(31 downto SH_AW+2) := (others => '0');
+    constant ZEROS32      : std_logic_vector(31 downto 0) := (others => '0');
+    signal tcm_upper_zero : std_logic;
+
+begin
+
+    -- Memory map (M11 rework; M12 single-ROM boot — this decoder now serves
+    -- ONLY the hart-private TCM; everything else is the MCU-level shared
+    -- window behind the mp_arbiter, selected by the master-side sh_sel in
+    -- hart_tile.vhd/MCU.vhd):
+    -- TCM  - 0x08000 - 0x0BFFF (16KB private RAM0, one per tile)
+    -- Shared (NOT decoded here): 0x00000-0x03FFF boot ROM (M12),
+    --   0x04000-0x07FFF peripheral window, 0x0C000-0x0FFFF NPU staging RAM,
+    --   0x10000-0x1FFFF shared bulk RAM.
+    -- Extended Memory (Flash): 0x20000 and above (when ENABLE_FLASH_EXTENDED_MEM = true)
+
+    -- Extract address fields
+    mem_region_sel      <= data_addr(16 downto 14);
+    periph_addr_nat     <= slv2uint(data_addr(11 downto 8));
+    mem_sel_periph_nat  <= slv2uint(not mem_sel_periph_int);
+
+    -- Pass full address bus for flash
+    -- mab_out <= data_addr;
+
+    -- Determine if this is a flash access
+    -- Flash memory is accessed when address is >= 0x20000.
+    -- MCU_MP M11: 0x10000-0x1FFFF is the shared bulk RAM (mp_arbiter in
+    -- MCU.vhd), NOT external flash (pre-M11 the boundary was 0x14000; the
+    -- 64 KB shared RAM claimed 0x14000-0x1FFFF). Both subsystems claiming an
+    -- address deadlocks the core (SPI0 FlashActive freezes clk_cpu via
+    -- sleep_cpu while the shared handshake stalls mem_ready) — keep the flash
+    -- decode the exact complement of the master-side sh_sel regions.
+    -- A2: the boundary is 2^(SH_AW+2) — the strict complement of sh_sel's
+    -- window qualification. At the SH_AW=15 default this is bit-for-bit the
+    -- original ">= 0x20000" decode; at SH_AW=16 (Argus) flash begins 0x40000.
+    gen_flash_detect: if ENABLE_FLASH_EXTENDED_MEM generate
+        is_flash_access <= '1' when data_addr(31 downto SH_AW+2) /= FLASH_ZERO else '0';
+    end generate;
+    
+    gen_no_flash_detect: if not ENABLE_FLASH_EXTENDED_MEM generate
+        is_flash_access <= '0';
+    end generate;
+
+    -- A2: TCM upper-bit qualification — the TCM lives at 0x8000-0xBFFF
+    -- ONLY, so the window bits ABOVE the region field must be zero. At the
+    -- Castalia SH_AW=15 there are no such bits (statically '1' — the flash
+    -- decode already excluded everything >= 0x20000, original behavior);
+    -- at SH_AW=16 it keeps 0x28000-0x2BFFF (region bits also "010") from
+    -- double-claiming against sh_sel.
+    gen_tcm_qual: if SH_AW >= 16 generate
+        tcm_upper_zero <= '1' when data_addr(SH_AW+1 downto 17) = ZEROS32(SH_AW+1 downto 17) else '0';
+    end generate;
+    gen_tcm_qual_none: if SH_AW < 16 generate
+        tcm_upper_zero <= '1';
+    end generate;
+
+    -- Memory enable generation
+    process(mem_region_sel, periph_addr_nat, is_flash_access, tcm_upper_zero)
+    begin
+        -- Initialize all enables to inactive
+        mem_en_sig <= (others => '1');
+        mem_en_periph_sig <= (others => '1');
+        mem_en_flash_sig <= '1';
+
+        if is_flash_access = '1' then
+            -- Flash memory access
+            mem_en_flash_sig <= '0';
+        else
+            -- Normal memory map (M11/M12: only the PRIVATE TCM decodes here.
+            -- Regions 000 (boot ROM, M12), 001 (peripheral window), 011 (NPU
+            -- staging RAM) and 1xx (shared bulk RAM) are shared — the
+            -- master-side sh_sel in hart_tile.vhd/MCU.vhd claims them and no
+            -- enable asserts here, exactly like the pre-M11 region-4
+            -- carve-out.)
+            -- TCM : 0x08000 - 0x0BFFF (bits 16:14 = 010, private RAM0)
+
+            case mem_region_sel is
+                when "010" =>
+                    if tcm_upper_zero = '1' then
+                        mem_en_sig(MemSlotRAM0) <= '0';
+                    end if;
+                when others =>
+                    null;
+            end case;
+        end if;
+    end process;
+
+    -- Falling edge sensitive register for memory signals
+    -- M9b GATE-SIM FIX: async reset to the INACTIVE values. These staging regs
+    -- were unreset — X at power-on — so the first mclk edge pushed X through
+    -- the clock gates (En = not mem_en) onto the RAM macros' CLK/CEN/WEN pins,
+    -- and the vendor SRAM models corrupt their mem arrays on unknown-control
+    -- accesses (nuked tile preloads -> tile cores X -> arb_req X -> NPU CEN X
+    -- -> sleep_cpu X -> hart 0 clk_cpu dead). Holding every strobe deasserted
+    -- (clock gates closed, CEN/WEN high) across reset kills the X at its
+    -- source. Root cause via fs-ordered first-X VCD (multicore_plan.md M9b).
+    process(clk, resetn)
+    begin
+        if resetn = '0' then
+            mem_en        <= (others => '1');
+            mem_en_periph <= (others => '1');
+            mab_out       <= (others => '0');
+            mem_addr      <= (others => '0');
+            addr_periph   <= (others => '0');
+            wen_fe        <= (others => '1');
+        elsif falling_edge(clk) then
+            mem_en <= mem_en_sig;
+            mem_en_periph <= mem_en_periph_sig;
+            mab_out <= data_addr;
+            mem_addr    <= data_addr(13 downto 2);
+            addr_periph <= data_addr(7 downto 2);
+            -- mask        <= data_addr(1 downto 0);
+            wen_fe <= wen;
+        end if;
+    end process;
+
+    
+
+    -- Rising edge sensitive register for memory select
+    -- M9b GATE-SIM FIX: same async-reset treatment as the strobe staging above
+    -- (deasserted selects -> read mux falls through to the safe default arm).
+    process(clk, resetn)
+    begin
+        if resetn = '0' then
+            mem_sel_int        <= (others => '1');
+            mem_sel_periph_int <= (others => '1');
+            mem_sel_flash_int  <= '1';
+            flash_dout_reg     <= (others => '0');
+        elsif rising_edge(clk) then
+            mem_sel_int <= mem_en_sig;
+            mem_sel_periph_int <= mem_en_periph_sig;
+            if ENABLE_FLASH_EXTENDED_MEM then
+                mem_sel_flash_int <= mem_en_flash_sig;
+                flash_dout_reg <= flash_dout;
+            end if;
+        end if;
+    end process;
+
+    -- Output buffer selection using combinational assignments
+    -- (M11/M12: the ROM, peripheral and RAM1 arms are gone — the boot ROM
+    -- and the peripherals live behind the arbiter and are consumed via the
+    -- master-side sh_rdata_cpu mux, and RAM1's region is the shared NPU
+    -- staging RAM. Shared-region accesses fall through to the safe default
+    -- arm here, exactly like region 4 did.)
+    gen_flash_mux: if ENABLE_FLASH_EXTENDED_MEM generate
+        out_buff <= nop                              when resetn = '0' else
+                    flash_dout_reg                   when mem_sel_flash_int = '0' else  -- Flash
+                    mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0 (TCM)
+                    (others => '1');
+    end generate;
+
+    gen_no_flash_mux: if not ENABLE_FLASH_EXTENDED_MEM generate
+        out_buff <= nop                              when resetn = '0' else
+                    mem_dout(MemSlotRAM0)            when mem_sel_int = "101" else  -- RAM0 (TCM)
+                    (others => '1');
+    end generate;
+
+    -- Clock Gates for Memory
+    gen_cg_mem : for i in 0 to 2 generate
+        cg_mem: entity work.ClkGate
+            port map (
+                ClkIn  => clk,
+                En     => not mem_en(i),
+                ClkOut => clk_mem(i)
+            );
+    end generate gen_cg_mem;
+
+    -- Clock Gates for Peripherals
+    gen_cg_periph : for i in 0 to 15 generate
+        cg_periph: entity work.ClkGate
+            port map (
+                ClkIn  => clk,
+                En     => not mem_en_periph(i),
+                ClkOut => clk_periph(i)
+            );
+    end generate gen_cg_periph;
+    
+    -- Clock Gate for Flash Memory (if enabled)
+    gen_flash_clk: if ENABLE_FLASH_EXTENDED_MEM generate
+        en_clk_mem_flash <= '1' when mem_en_flash_sig = '0' else '0';
+        mem_en_flash <= mem_en_flash_sig;
+        cg_flash: entity work.ClkGate
+            port map (
+                ClkIn  => not clk,  -- Inverted clock for flash
+                En     => en_clk_mem_flash,
+                ClkOut => clk_mem_flash
+            );
+    end generate;
+    
+    gen_no_flash_clk: if not ENABLE_FLASH_EXTENDED_MEM generate
+        mem_en_flash <= '1';  -- Inactive
+        clk_mem_flash <= '0';
+    end generate;
+
+
+    -- Memory control process from memory_subsystem
+    -- M9b GATE-SIM FIX: async reset (see strobe staging above). X on the RAM
+    -- D pins is harmless while WEN is deasserted, but a defined value here
+    -- costs nothing and keeps the write bus X-free from power-on.
+    mem_cntrl: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            write_data <= (others => '0');
+        elsif falling_edge(clk) then
+            if wen(0) = '0' then
+                write_data(7 downto 0)   <= write_word(7 downto 0);
+            end if;
+            if wen(1) = '0' then
+                write_data(15 downto 8)  <= write_word(15 downto 8);
+            end if;
+            if wen(2) = '0' then
+                write_data(23 downto 16) <= write_word(23 downto 16);
+            end if;
+            if wen(3) = '0' then
+                write_data(31 downto 24) <= write_word(31 downto 24);
+            end if;
+        end if;
+    end process;
+
+    -- Output Assignments
+    GWEN        <= '0' when (wen_fe /= "1111") else '1'; -- fe sensitive, assigned combinationally from fe signals 
+    read_data   <= out_buff;
+    mask        <= data_addr(1 downto 0); -- rising edge sensitive assignment - control signal to core, not memory 
+    
+    
+
+end Behavioral;

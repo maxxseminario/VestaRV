@@ -1,0 +1,45 @@
+# =========================================================================
+# X4 Zfinx negative-control seed (b): STICKY-FLAG (assign instead of OR)
+# STATUS: DRAFT -- the CSR RTL change (Stage 2b csr_unit.vhd fp_csr sticky
+#   accumulate) does not exist in this worktree (base 26e3980). Written against
+#   the FROZEN design in x4_stage1_proposal.md §6 ("FP-op completion ORs the
+#   op's flags into fp_csr[4:0] (sticky)"). Stage 3 finalizes the hunk
+#   offset/context against the real csr_unit.vhd.
+#
+# WHAT IT MUTATES:
+#   Target file      : hdl/common/vesta/csr_unit.vhd  (Stage 2b)
+#   Design construct : the sticky fflags ACCUMULATE on fp_flags_we (proposal
+#                      §6). The architected behavior ORs the op's flags into the
+#                      held fflags so exceptions across a sequence accumulate.
+#                      The seed replaces the OR with a plain assignment, so each
+#                      op CLEARS the previous flags and only the LAST op's flags
+#                      survive.
+#
+# DETECTING TEST : rv32uzf-p-daccum  (tools/gen_directed.py :: gen_daccum)
+#   daccum clears fflags ONCE, then runs a sequence: fadd(NX), fdiv/0(DZ),
+#   inf-inf(NV), overflow(OF|NX), underflow(UF|NX), and reads fflags ONCE at the
+#   end expecting the OR = 0x1f. With the seed (assign not OR) only the last
+#   op's flags remain (UF|NX = 0x03), so `bne s6,a5,fail` fires --> BOUNDED FAIL
+#   (a0=0xDEADBEEF). Compare-and-branch, so a wrong value cannot hang the test.
+#
+# EXPECTED:  clean csr_unit.vhd -> rv32uzf-p-daccum = TEST PASSED  (fflags=0x1f)
+#            seeded csr_unit.vhd -> rv32uzf-p-daccum = TEST FAILED  (fflags=0x03)
+# =========================================================================
+#
+# STAGE-3 FINALIZED (2026-07-18) against the real Stage-2b csr_unit.vhd. The
+#   sticky-OR lives at the fp_flags_we commit (guarded by ENABLE_ZFINX); the
+#   seed replaces the OR with a plain assign (mutation semantics unchanged).
+#   Applies cleanly to the merged tree; detecting test rv32uzf-p-daccum unchanged.
+diff --git a/hdl/common/vesta/csr_unit.vhd b/hdl/common/vesta/csr_unit.vhd
+index b9f42c1..772d337 100644
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -241,7 +241,7 @@ begin
+             -- A CSR-write instruction is never itself an FP op, so they never
+             -- collide within one instruction; the precedence is defined anyway.
+             if ENABLE_ZFINX and fp_flags_we = '1' then
+-                fp_csr(4 downto 0) <= fp_csr(4 downto 0) or fp_flags_val;
++                fp_csr(4 downto 0) <= fp_flags_val;  -- SEED(b): assign, not OR (sticky-flag bug)
+             end if;
+ 
+             -- Cycle counter: free-running, optionally inhibited by

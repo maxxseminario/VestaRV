@@ -1,0 +1,15 @@
+#=======================================================================
+# Makefrag for rv32uzabha tests (X2 Zabha byte/halfword AMOs)
+#-----------------------------------------------------------------------
+# ON-POLARITY ONLY (rv32uzicond precedent): every test emits Zabha byte/half
+# AMO encodings that trap illegal on a zabha-OFF build, so this suite is
+# simulated against a zabha-ON MCU and is NOT wired into the default runner.
+# Built with the base -march (gas 13.2 has no `zabha' suffix); the encodings
+# are explicit `.insn` R-types.
+#=======================================================================
+
+rv32uzabha_sc_tests = \
+	amoops_b amoops_h amomis \
+
+rv32uzabha_p_tests = $(addprefix rv32uzabha-p-, $(rv32uzabha_sc_tests))
+rv32uzabha_v_tests = $(addprefix rv32uzabha-v-, $(rv32uzabha_sc_tests))

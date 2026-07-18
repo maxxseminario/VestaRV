@@ -1,3 +1,0 @@
-/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/vhdl/tsmc65_hvt_sc_adv10.vhd
-../../../hdl/npu.vhd
-../../../hdl/tb/npu_tb.vhd

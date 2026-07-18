@@ -1,0 +1,9 @@
+# Forth Dashboard v2 backend (WP2) runtime dependencies.
+# Only these three third-party packages plus the Python standard library.
+fastapi
+uvicorn[standard]
+pyserial
+
+# Optional, Raspberry Pi only: GPIO17 chip-reset support (/api/reset).
+# The backend runs fine without it (reset just reports "gpiozero-missing").
+# gpiozero

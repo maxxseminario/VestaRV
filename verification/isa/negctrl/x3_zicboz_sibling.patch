@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -413,7 +413,7 @@
+                 when FENCE_OPCODE =>
+                     if funct3 = FENCE_FN3 or funct3 = FENCE_I_FN3 then
+                         valid_funct <= '1';  -- FENCE / FENCE.I
+-                    elsif ENABLE_ZICBOZ and funct3 = CBO_FN3 and imm12 = CBOZ_IMM12 then
++                    elsif funct3 = CBO_FN3 then  -- NEGCTRL x3_zicboz_sibling: admit cbo.clean/flush/inval
+                         -- X3 Zicboz: cbo.zero legal ONLY when the generic is on.
+                         valid_funct <= '1';
+                     else

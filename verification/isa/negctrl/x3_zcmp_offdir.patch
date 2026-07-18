@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..f57abe8 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -789,7 +789,7 @@ architecture struct of vesta is
+     zcm_high_addr <= std_logic_vector(unsigned(zcm_sp0) + to_unsigned(zcm_stackadj_val, 32))
+                          when zcm_is_popfam = '1' else zcm_sp0;
+     zcm_mem_addr  <= std_logic_vector(unsigned(zcm_high_addr)
+-                         - to_unsigned(4 * (zcm_nregs_val - zcm_idx), 32));
++                         + to_unsigned(4 * (zcm_nregs_val - zcm_idx), 32));  -- NEGCTRL: +k instead of -k
+     zcm_final_sp  <= std_logic_vector(unsigned(zcm_sp0) - to_unsigned(zcm_stackadj_val, 32))
+                          when zcm_is_push = '1'
+                          else std_logic_vector(unsigned(zcm_sp0) + to_unsigned(zcm_stackadj_val, 32));

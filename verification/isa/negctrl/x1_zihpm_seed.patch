@@ -1,0 +1,43 @@
+X1 Zihpm negative-control seed: event-mux 1<->2 swap
+=====================================================
+
+Swaps the arbiter-stall (event 1) and shared-bus-grant (event 2) decode in
+csr_unit.vhd's hpm_fires(). With the swap, programming mhpmevent3=1 counts
+GRANTS (one per shared transaction) instead of STALL CYCLES (several per
+transaction), so counter3 no longer exceeds counter4 and extzihpm.S's
+`bgeu s3, s2, zih_fail` assertion (stall_cycles > grant_count) trips -> FAIL.
+
+Apply on top of the FIXED (committed) RTL, then rebuild the ON polarity and
+run extzihpm; the probe must FAIL. Reverse to restore PASS.
+
+REPRO
+-----
+  cd <worktree-root>
+  # 1. flip ON polarity (isolated single-constant staging)
+  sed -i 's/\(constant CORE_ENABLE_ZIHPM\t\t: boolean := \)false;/\1true;/' \
+      hdl/common/MemoryMap.vhd
+  # 2. apply the seed
+  git apply verification/isa/negctrl/x1_zihpm_seed.patch
+  # 3. run the ON probe (recompiles with the seeded RTL)
+  cd xcelium/riscv_test/behavioral_mp
+  printf '../rcf/xrv32ua-p-extzihpm.rcf\n' > /tmp/zihpm.txt
+  TESTS_FILE=/tmp/zihpm.txt ./xrun_parallel.sh     # EXPECT: FAIL
+  # 4. revert seed + polarity
+  cd -
+  git apply -R verification/isa/negctrl/x1_zihpm_seed.patch
+  git checkout -- hdl/common/MemoryMap.vhd
+  #    re-run step 3 -> EXPECT: PASS
+
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -110,8 +110,8 @@ architecture behave of csr_unit is
+                        trap_rose  : std_logic) return boolean is
+     begin
+         case sel is
+-            when x"00000001" => return stall_lvl  = '1';  -- arbiter-stall cycles
+-            when x"00000002" => return stall_fell = '1';  -- shared-bus grants (one per completed txn)
++            when x"00000001" => return stall_fell = '1';  -- NEGCTRL SEED: event 1<->2 swapped
++            when x"00000002" => return stall_lvl  = '1';  -- NEGCTRL SEED: event 1<->2 swapped
+             when x"00000003" => return sleep_lvl  = '1';  -- sleep cycles
+             when x"00000004" => return trap_rose  = '1';  -- trap entries taken
+             when others      => return false;             -- 0 = off; unsupported = count nothing

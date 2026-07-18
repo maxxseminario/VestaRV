@@ -1,0 +1,36 @@
+X1 Zimop negative control — seeded-bug repro
+=============================================
+
+Seed: x1_zimop_seed.patch changes the datapath writeback mux so a Zimop
+mop.r.N / mop.rr.N writes rd <- rs1 (passthrough) instead of the architected
+rd <- 0. The extzimop ON-arm probe preloads rs1 (a5) with a nonzero poison
+(0x0BADF00D) and asserts rd (a2) == 0 after each mop, so the seed is caught.
+
+Proven result:
+  clean RTL  -> rv32ua-p-extzimop ON-arm = TEST PASSED
+  seeded RTL -> rv32ua-p-extzimop ON-arm = TEST FAILED  (a2 = rs1 != 0)
+
+Exact repro (from repo root; ON polarity, zimop enabled).
+
+The ext-probe uses the phase-standard EXPLICIT-APPEND dispatch: the ON arm is
+selected by appending -DCORE_ENABLE_ZIMOP to RISCV_GCC_OPTS (never auto-derived).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZIMOP"
+
+  # 1. Stage the ON hardware (single-line MemoryMap flip; MCU.vhd is identical ON/OFF)
+  sed -i 's/\(CORE_ENABLE_ZIMOP.*:= \)false/\1true/' hdl/common/MemoryMap.vhd
+
+  # 2. Build the ON-arm image (explicit -D) and run: clean RTL must PASS
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh extzimop                          # expect: TEST PASSED
+
+  # 3. Apply the seed, rebuild the ON-arm image, must FAIL
+  cd ../../../ ; git apply verification/isa/negctrl/x1_zimop_seed.patch
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh extzimop                          # expect: TEST FAILED
+
+  # 4. Revert the seed and the ON staging; rebuild the default (OFF) images
+  cd ../../../ ; git checkout -- hdl/common/vesta/datapath.vhd hdl/common/MemoryMap.vhd
+  cd verification/isa && rm -rf build/ && make rv32ua-flash   # default => OFF arm

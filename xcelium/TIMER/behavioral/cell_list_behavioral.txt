@@ -1,6 +1,0 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/sim/ClockMuxGlitchFree.vhd
-../../../hdl/MCU/periph/TIMER.vhd
-../../../hdl/MCU/tb/TIMER_tb.vhd

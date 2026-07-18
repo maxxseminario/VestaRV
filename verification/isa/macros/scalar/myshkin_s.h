@@ -47,14 +47,20 @@ extern "C" {
 #define PERIPH_AFE0_BASE        0x4C00
 #define PERIPH_GPIO3_BASE       0x4D00
 
+// M11 memory-map rework: the private RAM is the single 16 KiB TCM at
+// 0x8000-0xBFFF. RAM1 is GONE -- 0xC000-0xFFFF is the SHARED NPU staging
+// RAM behind the arbiter (same addresses, reachable by every hart), and
+// 0x10000-0x1FFFF is the 64 KiB shared bulk RAM. Stack, ISR bank
+// (0xB200-0xBAFF) and all private test data live in the TCM.
 #define ROM_BASE_ADDR           0x00000
 #define IVT_BASE_ADDR           0x08000
 #define RAM0_BASE_ADDR          0x08000
 #define PROG_BASE_ADDR          0x08150
-#define RAM1_BASE_ADDR          0x0C000
-#define RAM_END_ADDR            0x0FFFF
-#define RAM_SIZE                0x08000  
-#define SP_INIT_VAL             0x0FFFC  // Initial Stack Pointer Value (top of RAM)
+#define RAM1_BASE_ADDR          0x0C000  // legacy name: now the SHARED NPU staging RAM
+#define NPURAM_BASE_ADDR        0x0C000
+#define RAM_END_ADDR            0x0BFFF
+#define RAM_SIZE                0x04000
+#define SP_INIT_VAL             0x0BFF0  // Initial Stack Pointer Value (top of TCM)
 
 //  ---------- GPIO Register Offsets ----------
 #define GPIO_PxIN               0x00      //  offset = 0 bytes

@@ -4,10 +4,8 @@ This directory contains firmware projects for the VestaRV processor. These are e
 
 ## Quick Start
 
-**New to VestaRV?** Start here:
-- **[QUICK_START.md](QUICK_START.md)** - 5-minute getting started guide
-- **[WORKFLOW.md](WORKFLOW.md)** - Complete development workflow with examples  
-- **[BUILD_SYSTEM_SUMMARY.md](BUILD_SYSTEM_SUMMARY.md)** - Build system technical details
+**New to VestaRV?** See the toolchain and build-system setup in
+[`tools/build/README.md`](../tools/build/README.md).
 
 **Try the blinky example:**
 ```bash
@@ -42,7 +40,7 @@ Communal code shared across firmware projects:
 The easiest way to create a new firmware project is using the provided Makefile:
 
 ```bash
-cd firmware/
+cd software/
 make new PROJECT=my-app          # Create RAM-based application
 make new PROJECT=my-boot TYPE=rom # Create ROM-based bootloader
 ```
@@ -65,7 +63,7 @@ make clean-all     # Clean all projects
 
 ### Top-Level Makefile Commands
 
-The `firmware/Makefile` provides project management:
+The `software/Makefile` provides project management:
 
 | Command | Description |
 |---------|-------------|
@@ -111,7 +109,7 @@ make clean        # Remove build artifacts
 
 Firmware uses linker scripts to define memory organization:
 
-Memory sizes are configurable per implementation. See linker scripts in [`build-system/linker-scripts/`](../build-system/linker-scripts/).
+Memory sizes are configurable per implementation. See linker scripts in [`tools/build/linker-scripts/`](../tools/build/linker-scripts/).
 
 ## Peripheral Access
 
@@ -147,7 +145,7 @@ Used for:
 
 1. **Create project** (if new):
    ```bash
-   cd firmware/
+   cd software/
    make new PROJECT=my-app
    cd my-app/
    ```
@@ -169,7 +167,7 @@ Used for:
 
 5. **Test in simulation**:
    - Use `.rcf` file with VHDL testbench
-   - See `hdl/MCU/tb/` for testbench examples
+   - See `hdl/myshkin/tb/` for testbench examples
 
 6. **Program hardware**:
    - Use `.bin` or `.hex` file
@@ -178,11 +176,11 @@ Used for:
 7. **Debug**:
    - Use `.elf` file with GDB
    - UART console output for printf-style debugging
-   - See [`debug/`](../debug/) for debugging tools
+   - See [`tools/debug/`](../tools/debug/) for debugging tools
 
 ## Requirements
 
-- **RISC-V Toolchain**: `riscv-none-elf-gcc` (see [`build-system/README.md`](../build-system/README.md))
+- **RISC-V Toolchain**: `riscv-none-elf-gcc` (see [`tools/build/README.md`](../tools/build/README.md))
 - **Python 3**: For build utilities and RCF generation
 - **Make**: GNU Make for build automation
 
@@ -190,7 +188,7 @@ Used for:
 
 ```bash
 # Create new project
-cd firmware/
+cd software/
 make new PROJECT=blinky
 
 # Navigate to project
@@ -231,10 +229,10 @@ ls bin/
 
 ## Related Documentation
 
-- [`build-system/README.md`](../build-system/README.md) — Toolchain setup and build utilities
-- [`build-system/linker-scripts/`](../build-system/linker-scripts/) — Memory layout configuration
+- [`tools/build/README.md`](../tools/build/README.md) — Toolchain setup and build utilities
+- [`tools/build/linker-scripts/`](../tools/build/linker-scripts/) — Memory layout configuration
 - [`verification/isa/README.md`](../verification/isa/README.md) — Test programs as code examples
 - [`implementations/`](../implementations/) — Chip-specific configurations and memory maps
-- [`hdl/MCU/tb/`](../hdl/MCU/tb/) — VHDL testbench examples for simulation
+- [`hdl/myshkin/tb/`](../hdl/myshkin/tb/) — VHDL testbench examples for simulation
 
 

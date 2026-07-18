@@ -1,0 +1,64 @@
+X3 Stage-D red-team (B) — Zcmp push/pop UNINTERRUPTIBILITY proof + seed
+======================================================================
+DELIVERABLE B: a directed test that raises an interrupt pending DURING a
+cm.push / cm.pop burst and proves the sequencer holds it to retire (sp fully
+committed, frame intact, exact round-trip) — plus a seed that makes the
+sequencer interruptible mid-burst, caught by the same test.
+
+TEST (committed): verification/isa/tests/rv32ua/shcmppush.S  (rv32ua suite,
+behavioral_mp, hart 0). Added to the rv32ua Makefrag and the behavioral_mp
+runner TEST_FILES (rcf = rv32ua-p-shcmppush.rcf, exactly 22 chars).
+
+WHY A TIMER, NOT A BARE msip: every ordinary instruction-boundary state
+(EXECUTE, MEMORY_WAIT) takes a pending interrupt IMMEDIATELY (vesta.vhd
+MEMORY_WAIT checks irq_save first), so a self-IPI pended right before cm.push is
+taken at the pend-STORE's own MEMORY_WAIT — before the push ever dispatches. To
+land the interrupt INSIDE the burst, the test arms CLINT mtimecmp a tuned delta
+(MTIP_DELTA) ahead of the free-running mtime, so mtip rises mid-burst. The
+uninterruptible sequencer (ZCM_PUSH_ST/GAP/SP_COMMIT never check irq_save) HOLDS
+it until ZCM_SP_COMMIT -> MEMORY_WAIT retires. Discriminator: because sp commits
+LAST, the mtip ISR (IVT slot 84) recording the interrupted sp yields the
+COMMITTED sp iff the whole burst retired first.
+    push {ra,s0-s11},-112 : recorded+4 == entry_sp - 112
+    pop  {ra,s0-s11}, 112 : recorded+4 == entry_sp
+
+TIMING WINDOW (measured, this build; mtime ticks at the 24 MHz shared clock):
+the arm-to-dispatch gap and the ~13-store burst are short here, so the mid-burst
+window is roughly (dispatch ~25 ticks, retire ~45 ticks) after the mtime read.
+Swept MTIP_DELTA: 20 -> fires BEFORE dispatch (correct RTL records entry, fails);
+30/35 -> mid-burst (correct held->committed PASS, seed preempts->entry FAIL);
+50/100/250/1000/4000/12000 -> fires AFTER retire (both PASS, seed not exercised).
+MTIP_DELTA is LOCKED at 35 (centered in the window, ~10 ticks margin each side;
+the sim is cycle-deterministic so this reproduces exactly on re-run).
+
+SEED (x3_redteam_zcmp_interruptible.patch): add an irq_save escape to the
+push/pop burst-loop states so the sequencer becomes interruptible MID-BURST
+(hdl/common/vesta/vesta.vhd):
+  ZCM_PUSH_GAP:  ... elsif irq_save = '1' then next_state <= IRQ_SV; ...
+  ZCM_POP_WB :   ... elsif irq_save = '1' then next_state <= IRQ_SV; ...
+With the seed, mtip (armed mid-burst) preempts the push after only some stores;
+sp is NOT committed -> the ISR records the OLD sp -> recorded+4 != committed ->
+the test's bne FAILs, BOUNDED. OFF bit-identical: these states are reachable
+only via zcm_op, which is statically '0' when ENABLE_ZCMP/ZCMT are both off.
+
+STAGING (phase standard):
+  ROOT=$(git rev-parse --show-toplevel)
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZCMP -DCORE_ENABLE_ZCMT"
+  source ~/vestarv/cdspaths.sh
+  sed -i 's/\(CORE_ENABLE_ZCMP\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+  sed -i 's/\(CORE_ENABLE_ZCMT\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+  cd $ROOT/verification/isa && rm -rf build/
+  make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS" ; printf '4' > rcf/.nharts
+RUN (from $ROOT/xcelium/riscv_test/behavioral_mp), list = ../rcf/rv32ua-p-shcmppush.rcf
+  (a) TESTS_FILE=<list> ./xrun_parallel.sh                                  # correct RTL
+  (b) git -C $ROOT apply verification/isa/negctrl/x3_redteam_zcmp_interruptible.patch
+      TESTS_FILE=<list> ./xrun_parallel.sh                                  # seeded
+      git -C $ROOT checkout hdl/common/vesta/vesta.vhd
+  (c) OFF default build (no -DCORE_ENABLE_ZCM*, MemoryMap restored) -> stub PASS
+
+PERSONALLY OBSERVED (2026-07-17, base 5e39d58, MTIP_DELTA=35):
+  CORRECT RTL (ON) -> shcmppush PASS ("TEST PASSED"); the ISR fired mid-burst-armed
+                      and recorded the COMMITTED sp for both the push and the pop.
+  SEEDED   (ON)    -> shcmppush FAIL (a0_reached_fail @ 14.350 ms; NOT "TEST TIMED OUT")
+  REVERTED (ON)    -> PASS
+  DEFAULT  (OFF)   -> PASS (the #else stub; image bit-identical to a base build)

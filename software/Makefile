@@ -97,7 +97,7 @@ define create_makefile
 		'' \
 		'# Directories' \
 		'LIB_DIR = ../commune' \
-		'PLATFORM_DIR = ../../platform/gcc/lib' \
+		'PLATFORM_DIR = ../../platform/myshkin/gcc/lib' \
 		'LD_DIR = $$(PLATFORM_DIR)/linker' \
 		'LD_SCRIPT = $$(LD_DIR)/MCU$(if $(filter rom,$(2)),-bootrom,).ld' \
 		'LIB_SRC_DIR = $$(LIB_DIR)/src' \

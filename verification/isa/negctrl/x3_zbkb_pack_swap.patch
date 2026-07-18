@@ -1,0 +1,13 @@
+--- a/hdl/common/vesta/alu.vhd
++++ b/hdl/common/vesta/alu.vhd
+@@ -568,7 +568,9 @@
+                 -- ==========================================
+                 when "0110101" => -- PACK: rd = (rs2[15:0] << 16) | rs1[15:0]
+                     if ENABLE_ZBKB then
+-                        ResultSignal <= b(15 downto 0) & a(15 downto 0);
++                        -- NEGCTRL SEED (x3_zbkb_pack_swap): pack must place rs1 low,
++                        -- rs2 high; this swaps the halves -> pack vector FAILs.
++                        ResultSignal <= a(15 downto 0) & b(15 downto 0);
+                     end if;
+ 
+                 when "0110110" => -- PACKH: rd = zext16( (rs2[7:0] << 8) | rs1[7:0] )

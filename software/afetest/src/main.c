@@ -20,9 +20,9 @@
  * If it times out (FSM stuck) it blinks rapidly. This gives a
  * chip-only pass/fail signal even before UART/JTAG is wired up.
  *
- * Register map: platform/gcc/lib/include/MemoryMap.h
- * Behaviour:    hdl/MCU/periph/AFE.vhd
- * Procedure:    platform/latex/PeripheralIntroductions/AFE-intro-myshkin-2025-11.tex
+ * Register map: platform/myshkin/gcc/lib/include/MemoryMap.h
+ * Behaviour:    hdl/myshkin/periph/AFE.vhd
+ * Procedure:    platform/myshkin/latex/PeripheralIntroductions/AFE-intro-myshkin-2025-11.tex
  */
 
 #include <stdint.h>

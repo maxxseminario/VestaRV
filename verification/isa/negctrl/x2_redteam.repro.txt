@@ -1,0 +1,173 @@
+X2 RED-TEAM — adversarial verification of the new Zabha/Zacas AMO paths
+=======================================================================
+Agent C, phase X2. Base commit 7037a4f (verified; the worktree was branched from
+the wrong ref a1c61e5 "Clean up repo hygiene on main" and reset --hard 7037a4f,
+confirmed by the gatekeeper). All work in the isolated worktree.
+
+Method: seed each historical A-ext bug class into the NEW sub-word/CAS RTL paths
+as a one-hunk patch, run the most-likely EXISTING detector(s) (bounded ~1-min
+sims, each its own self-check), record seeded->FAIL / reverted->PASS. Where the
+class exposed a coverage hole, a NEW test was written and its seeded/reverted
+polarity proven. NO feature RTL was changed; only transient seeds (reverted) +
+committed seed patches + new tests.
+
+ENVIRONMENT (reusable):
+    ROOT=$(git rev-parse --show-toplevel); source ~/vestarv/cdspaths.sh
+    # ON RTL (CAS/sub-word need it):
+    sed -i 's/\(CORE_ENABLE_ZABHA\t\t: boolean := \)false/\1true/; \
+            s/\(CORE_ENABLE_ZACAS\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+    ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZABHA -DCORE_ENABLE_ZACAS"
+    cd $ROOT/verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+    make rv32uzacas-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
+    echo 4 > rcf/.nharts
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    # per seed: git apply <patch>; TESTS_FILE=<list> MAX_PARALLEL=n ./xrun_parallel.sh ; git checkout <file>
+Baseline (ON, no seed): amoalias / casw / casbh / shzacas / shzabha / shamo all PASS (6/6).
+
+=======================================================================
+CLASS-BY-CLASS VERDICTS (all observed 2026-07-17, ON build)
+=======================================================================
+
+1. SC-PREMATURE-WRITE shape -> CAS write-timing
+   SEED: x2_redteam_premature.patch (datapath.vhd) — latch cas_match_reg at
+   AMO_WRITEBACK (amo_phase "110") instead of AMO_COMPUTE ("010"): the CAS
+   conditional-write verdict is captured ONE PHASE EARLY, before rd_amo (the old
+   memory value) and amo_cmp_reg are valid, so the write commits/suppresses on a
+   premature verdict.
+   DETECTORS: rv32uzacas/casw (directed) + shzacas (cross-hart).
+     seeded   -> tb_rv32uzacas_p_casw FAIL, tb_rv32ua_p_shzacas FAIL (0/2, bounded)
+     reverted -> both PASS (2/2)
+   NEW TEST? No — casw's should-fail arm and shzacas cross-hart both catch it.
+
+2. ADDR-via-PASS-B shape -> address/lane decoupling
+   SEED: x2_redteam_addr_decouple.patch (datapath.vhd) — AMO_WRITE address (ALU_A
+   at amo_phase "011") sourced from LIVE src_a (rs1) instead of the registered
+   amo_addr_reg, while the byte-lane strobe amo_wen still keys off the registered
+   amo_addr_low. Address and lane-select decouple; a rd==rs1 AMO (whose rs1 was
+   clobbered by the AMO_WRITEBACK rd write) writes the WRONG word.
+   (Distinct from the committed x2_zabha_alias_f1 seed, which corrupted the LANE
+   select from live rs1; this corrupts the ADDRESS — the complementary decouple.)
+   DETECTORS: rv32ua/amoalias (DEFAULT build, word rd==rs1) + extzabha (ON, sub-word).
+     seeded   -> tb_rv32ua_p_amoalias FAIL, tb_rv32ua_p_extzabha FAIL; shzabha PASS
+                 (shzabha uses no aliasing regs — correctly unaffected)
+     reverted -> amoalias PASS, extzabha PASS
+   NEW TEST? No — amoalias catches the word path on the DEFAULT build, extzabha
+   the sub-word path on ON.
+
+3. PHASE-DEPENDENT COMPARE -> CAS verdict
+   SEED: x2_redteam_phase_compare.patch (datapath.vhd) — export the LIVE
+   combinational compare cas_match_comb to the wen gate (cas_match <=
+   cas_match_comb) instead of the registered cas_match_reg. In AMO_WRITE rd_amo no
+   longer holds the compared old-memory value, so the verdict flips.
+   (Distinct from x2_zacas_stale_compare, which changed the compare SOURCE + steer
+   phase; this consumes the correct operands but at the wrong, live time.)
+   DETECTORS: casw + casbh + shzacas.
+     seeded   -> tb_rv32uzacas_p_casw FAIL, tb_rv32uzacas_p_casbh FAIL,
+                 tb_rv32ua_p_shzacas FAIL (0/3, bounded)
+     reverted -> all PASS (3/3)
+   NEW TEST? No.
+
+4. ARBITER GHOST-TXN -> LOCKED trajectory  (mp_arbiter.vhd untouched)
+   SEED: x2_redteam_lock_drop.patch (vesta.vhd) — perturb the core-side amo_lock
+   contract on the new CAS path. Two formulations tested:
+     (a) LITERAL "drop amo_lock one state early on CAS-FAIL"
+         [ or (current_state=AMO_WRITE and not (cas_op='1' and cas_match_reg='0')) ]
+         -> tb_rv32ua_p_shzacas PASS (NOT caught at N=4/ITERS=16).
+         WHY (honest gap): a failed CAS writes NOTHING (wen "1111", all lanes
+         suppressed), so releasing the grant on that no-op AMO_WRITE cycle
+         corrupts no memory at this scale. This is a real coverage limit — see
+         the honesty note below.
+     (b) SHARPEST catchable "CAS write exits LOCKED one state early"
+         [ or (current_state = AMO_WRITE and cas_op = '0') ]  (COMMITTED patch)
+         -> every CAS write (incl. the committing acquire/release) runs unlocked,
+         so the arbiter can re-grant mid-CAS and cross-hart CAS updates are lost.
+         seeded   -> tb_rv32ua_p_shzacas FAIL (0/1, bounded)
+         reverted -> PASS (1/1)
+   DETECTOR: shzacas cross-hart CAS spinlock + exact CTR/LRSC_CTR counts, N=4,
+   ITERS=16. NEW TEST? No for the committing-write formulation. The fail-path-only
+   lock drop is an ACKNOWLEDGED gap (below).
+
+=======================================================================
+NEW TARGETED COVERAGE (written regardless — Section 4 of the brief)
+=======================================================================
+
+a. shcaslr.S  (rv32ua) — CAS-vs-LR/SC same-address interplay
+   rcf: ../rcf/xxrv32ua-p-shcaslr.rcf (29-char x-padded).  Wired into
+   xrun_parallel.sh TEST_FILES + Makefrag rv32ua_sc_tests + tracked wrapper.
+   hart 0 = reserver/gate, hart 1 = CAS-doer, harts>=2 park.
+     LEG 1: hart 1 amocas.w W SUCCESS (commits) between hart 0's LR and SC
+            -> hart 0's SC MUST FAIL (global resv_unit kills the reservation).
+     LEG 2: hart 1 amocas.w W FAIL (no committed write)
+            -> hart 0's SC MUST SUCCEED (a fail-CAS must NOT kill the reservation).
+   Deterministic level-flag handshake; the reserving hart's FLAG stores/loads (to
+   OTHER words) don't clear its reservation (vesta local flop clears only on
+   SC/IRQ; global table kills only on a committed write to the reserved word).
+   BOTH POLARITY:
+     ON  (Zacas)  -> tb_rv32ua_p_shcaslr PASS (both legs)
+     OFF (default) -> tb_rv32ua_p_shcaslr PASS (trivial arm; amocas.w illegal OFF)
+   NEGATIVE CONTROL (fail-leg): git apply x2_zacas_uncond_write.patch (removes the
+   CAS-fail wen suppression) -> leg 2's "failing" CAS now commits its swap -> kills
+   hart 0's reservation -> leg 2 SC FAILS -> tb_rv32ua_p_shcaslr FAIL (0/1). Reverted -> PASS.
+
+b. shmixw.S  (rv32ua) — mixed-width same-word cross-hart torture
+   rcf: ../rcf/xxxrv32ua-p-shmixw.rcf.  Wired identically.
+   GO-barrier-released contention on ONE word W:
+     hart0 amoadd.b byte0 x0x11 ; hart1 amoadd.b byte2 x0x13 ;
+     hart2 amoadd.h half1 x0x17 (overlaps byte2) ; hart3 amoadd.w +0x01000000 x0x1D (byte3).
+   EXACT-SUM (lane-carry-free — every per-lane total < 0x100):
+     byte0=0x11, byte1=0x00, byte2=0x13+0x17=0x2A, byte3=0x1D  => W_final = 0x1D2A0011.
+   Exercises LOCKED-exit under mixed-width contention where a half AMO's RMW of
+   {byte3,byte2} races the word AMO's byte3 write; M8 grant-locking keeps every
+   contribution. BOTH POLARITY:
+     ON  (Zabha)  -> tb_rv32ua_p_shmixw PASS
+     OFF (default) -> tb_rv32ua_p_shmixw PASS (trivial arm)
+   NON-VACUITY: git apply x2_zabha_seed.patch (full-word strobe) -> sub-word AMOs
+   clobber adjacent lanes -> W != 0x1D2A0011 -> tb_rv32ua_p_shmixw FAIL (0/1). Reverted -> PASS.
+
+c. IRQ-during-AMO — METHOD: directed FSM analysis (no test warranted).
+   The AMO FSM (vesta.vhd) transitions AMO_READ->AMO_WRITEBACK->AMO_COMPUTE->
+   AMO_WRITE with UNCONDITIONAL next_state assignments — NONE of the three
+   intermediate states branch on irq_save. Only AMO_WRITE and AMO_COMPLETE test
+   irq_save, and there it sets ONLY next_state<=IRQ_SV and pc_en<='0'; it does NOT
+   gate wen/mem_access_instr. Therefore:
+     * a pending irq_save is structurally DEFERRED until AMO_WRITE, i.e. the AMO's
+       memory write transaction is ISSUED in the same cycle irq_save would divert
+       (the write commits, THEN IRQ_SV is entered) — memory result is safe;
+     * rd is committed even earlier, in AMO_WRITEBACK (reg_write_dp='1'), two
+       states before the IRQ can be taken — rd is safe;
+     * for the CAS-FAIL case the AMO_WRITE transaction still issues (wen "1111",
+       lanes suppressed) so memory is left unchanged and rd already holds the old
+       value — the divert to IRQ_SV after AMO_WRITE cannot corrupt either;
+     * amo_lock holds through AMO_WRITE (grant pinned for the write) and drops at
+       AMO_COMPLETE/IRQ_SV/TRAP — the clean release valve.
+   The property holds for EVERY possible IRQ landing point by the FSM structure
+   (the intermediate transitions carry no irq_save branch), so a directed
+   msip-timed test — which could only sample a subset of landing cycles — adds no
+   coverage the structural argument does not already give. Analysis suffices.
+
+=======================================================================
+COVERAGE GAPS SEEN (honesty)
+=======================================================================
+* Class-4 fail-path-only lock drop (seed formulation (a)) is NOT caught by
+  shzacas at N=4/ITERS=16: a failed CAS commits no write, so an early grant
+  release on that no-op AMO_WRITE cycle is benign at this scale. A test that
+  contends a committing CAS against a *failing* CAS on the same word while a third
+  hart observes, at higher NHARTS/iteration counts, might expose a ghost re-grant;
+  not built this phase. The committing-write formulation (b) IS caught and is the
+  committed seed.
+* No test pins CAS-FAIL atomicity against a *concurrent* committed write to the
+  SAME word beyond shcaslr's two-hart handshake (shcaslr is deterministic, not a
+  contention storm). shmixw covers mixed-width contention but uses only
+  amoadd.{b,h,w} (no CAS in the storm).
+
+=======================================================================
+FILES
+=======================================================================
+Seeds (verification/isa/negctrl/):
+    x2_redteam_premature.patch      (class 1, datapath.vhd)
+    x2_redteam_addr_decouple.patch  (class 2, datapath.vhd)
+    x2_redteam_phase_compare.patch  (class 3, datapath.vhd)
+    x2_redteam_lock_drop.patch      (class 4, vesta.vhd — committing-CAS variant)
+New tests (verification/isa/tests/rv32ua/): shcaslr.S, shmixw.S
+Wiring: rv32ua/Makefrag (+shcaslr +shmixw), behavioral_mp/xrun_parallel.sh
+        TEST_FILES (+shcaslr +shmixw), tracked wrappers for both.

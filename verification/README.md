@@ -78,7 +78,7 @@ make all
    -- ROM initialization file: verification/isa/rcf/rv32ui-p-add.rcf
    ```
 
-4. See `hdl/MCU/tb/` for example testbench implementations
+4. See `hdl/myshkin/tb/` for example testbench implementations
 
 ## Test Organization
 
@@ -128,7 +128,7 @@ All ISA tests should pass on a correctly implemented VestaRV core. Benchmark tes
 
 ## Requirements
 
-- **RISC-V Toolchain**: `riscv-none-elf-gcc` (see [`build-system/README.md`](../build-system/README.md))
+- **RISC-V Toolchain**: `riscv-none-elf-gcc` (see [`tools/build/README.md`](../tools/build/README.md))
 - **Python 3**: For RCF generation (`intelhex` module)
 - **Make**: GNU Make for build automation
 - **VHDL Simulator**: Xcelium, ModelSim, GHDL, or similar for running tests
@@ -149,9 +149,9 @@ VestaRV verification includes:
 ## Related Documentation
 
 - [`isa/README.md`](isa/README.md) — Detailed ISA test build instructions
-- [`../build-system/README.md`](../build-system/README.md) — Toolchain setup
-- [`../hdl/MCU/tb/`](../hdl/MCU/tb/) — VHDL testbench examples
-- [`../firmware/README.md`](../firmware/README.md) — Firmware development guide
+- [`../tools/build/README.md`](../tools/build/README.md) — Toolchain setup
+- [`../hdl/myshkin/tb/`](../hdl/myshkin/tb/) — VHDL testbench examples
+- [`../software/README.md`](../software/README.md) — Firmware development guide
 
 ## References
 

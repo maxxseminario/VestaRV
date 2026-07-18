@@ -1,0 +1,15 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..ab2c992 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -781,8 +781,8 @@ architecture struct of vesta is
+     zcm_is_popret  <= '1' when (zcm_subop_r = ZCM_SUB_POPRET or zcm_subop_r = ZCM_SUB_POPRETZ) else '0';
+     zcm_is_popfam  <= '1' when (zcm_subop_r = ZCM_SUB_POP or zcm_subop_r = ZCM_SUB_POPRET
+                                 or zcm_subop_r = ZCM_SUB_POPRETZ) else '0';
+-    zcm_is_mvsa    <= '1' when zcm_subop_r = ZCM_SUB_MVSA01  else '0';
+-    zcm_is_mva     <= '1' when zcm_subop_r = ZCM_SUB_MVA01S  else '0';
++    zcm_is_mvsa    <= '1' when zcm_subop_r = ZCM_SUB_MVA01S  else '0';
++    zcm_is_mva     <= '1' when zcm_subop_r = ZCM_SUB_MVSA01  else '0';
+     zcm_is_move    <= zcm_is_mvsa or zcm_is_mva;
+     zcm_is_tabjump <= '1' when zcm_subop_r = ZCM_SUB_TABJUMP else '0';
+     zcm_reg_idx   <= zcm_reg_at(zcm_idx);

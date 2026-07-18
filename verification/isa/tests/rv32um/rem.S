@@ -29,6 +29,14 @@ RVTEST_CODE_BEGIN
   TEST_RR_OP( 9, rem,      1,      1, 0 );
   TEST_RR_OP(10, rem,      0,      0, 0 );
 
+  #-------------------------------------------------------------
+  # Source/Destination tests
+  #-------------------------------------------------------------
+
+  TEST_RR_SRC1_EQ_DEST( 11, rem, 5, 47, 6 );
+  TEST_RR_SRC2_EQ_DEST( 12, rem, 3, 47, 11 );
+  TEST_RR_SRC12_EQ_DEST( 13, rem, 0, 169 );
+
   TEST_PASSFAIL
 
 RVTEST_CODE_END

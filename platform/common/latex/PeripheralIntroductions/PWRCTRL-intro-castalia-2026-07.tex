@@ -1,0 +1,33 @@
+The power controller manages the switchable MTCMOS power domains of the tile harts (harts 1--3). Each tile is implemented as its own header-switched power domain: PMOS header switches sit between the always-on supply grid and the tile's local rail, isolation cells clamp every signal leaving the tile while it is unpowered, and a per-tile hardware sequencer guarantees the controls can only ever be applied in the legal order. Hart 0 --- the management hart, which owns the SPI boot path, the console UART, and the CLINT --- is permanently powered and cannot be gated. The main features are listed below:
+
+\begin{itemize}
+	\item One independently switchable power domain per tile hart (harts 1--3)
+	\item Single-bit gate/ungate control per tile; a hardware sequencer orders isolation, reset, and the header-switch enable correctly in both directions
+	\item Cold gating: a gated tile consumes no dynamic or switched-leakage power and loses \textbf{all} state, including its TCM
+	\item Wake equals boot: an ungated tile cold-boots through the shared boot ROM, parks in WFI, and is reloaded with the standard loader-row + \texttt{msip} launch sequence
+	\item Read-only per-tile sequencer state for software polling
+	\item All domains power up ON at reset --- chip boot is unaffected and the controller is inert until software gates a tile
+\end{itemize}
+
+\subsection{Usage}
+
+To gate tile hart $h$ (1--3), first ensure the tile is parked or otherwise quiesced --- typically it is sitting in its boot-ROM WFI park, or software has confirmed it finished its work. Then set the gate bit and, if required, wait for the sequencer to report the domain off:
+
+\begin{verbatim}
+    li      t0, PWRCTRL_BASE_ADDR
+    lw      t1, PWRCR(t0)
+    ori     t1, t1, (1 << h)      # request gate of tile h
+    sw      t1, PWRCR(t0)
+gate_poll:
+    lw      t2, PWRSR(t0)
+    srli    t2, t2, (4 * h)
+    andi    t2, t2, 0xF
+    li      t3, 3                 # 3 = OFF
+    bne     t2, t3, gate_poll
+\end{verbatim}
+
+To wake the tile, clear the same bit and wait for the state nibble to return to 0 (ON). The tile then re-executes the shared boot ROM from address 0, parks in WFI, and is relaunched exactly like at chip power-on: write the loader row (source, length, entry) and send the tile an \texttt{msip}.
+
+Because gating is \textit{cold}, everything on the tile dies with the rail: the register file, CSRs, and the private TCM contents. Any data the tile must keep across a power cycle has to be staged to shared RAM before gating. The isolation clamps drive every outbound tile signal to its inactive level, which is identical to the tile's reset state, so the rest of the chip observes a gated tile simply as a silent one.
+
+The sequencer never aborts a transition: a gate-bit change made mid-sequence takes effect when the current sequence completes. The rail-settle delay on wake is sized for the header-switch daisy chain of one tile domain; software does not need to add its own delays beyond polling \texttt{PWRSR}.

@@ -1,8 +1,0 @@
-../../../hdl/MCU/constants.vhd
-../../../hdl/MCU/MemoryMap.vhd
-../../../hdl/MCU/sim/ClkGate.vhd
-../../../hdl/MCU/commune/ClkDivPower2.vhd
-../../../hdl/MCU/periph/I2C.vhd
-../../../hdl/MCU/tb/periph_tb_pkg.vhd
-../../../hdl/MCU/tb/i2c_bfm_pkg.vhd
-../../../hdl/MCU/tb/I2C_tb.vhd

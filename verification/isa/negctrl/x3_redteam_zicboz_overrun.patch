@@ -1,0 +1,31 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..b4a6db6 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -488,7 +488,7 @@ architecture struct of vesta is
+     -- cboz_idx: 0..CBOZ_WORDS-1, the word being stored this burst step.
+     signal cboz_op                : std_logic;
+     signal cboz_base              : std_logic_vector(31 downto 0);
+-    signal cboz_idx               : integer range 0 to CBOZ_WORDS-1;
++    signal cboz_idx               : integer range 0 to CBOZ_WORDS;
+     signal cboz_zero_addr         : std_logic_vector(31 downto 0);  -- cboz_base + cboz_idx*4
+ 
+     -- X3 Zcmp / Zcmt sequencer signals (clk_cpu domain). zcm_op: cm.* sentinel
+@@ -739,7 +739,7 @@ architecture struct of vesta is
+                 cboz_base <= std_logic_vector(unsigned(rs1_value)
+                                  and not to_unsigned(CBOZ_BLOCK_SIZE - 1, 32));
+                 cboz_idx  <= 0;
+-            elsif current_state = CBOZ_GAP and cboz_idx /= CBOZ_WORDS - 1 then
++            elsif current_state = CBOZ_GAP and cboz_idx /= CBOZ_WORDS then
+                 cboz_idx <= cboz_idx + 1;
+             end if;
+         end if;
+@@ -1610,7 +1610,7 @@ architecture struct of vesta is
+                     reg_write_dp     <= '0';
+                     mem_access_instr <= '0';
+                     wen              <= (others => '1');
+-                    if cboz_idx = CBOZ_WORDS - 1 then
++                    if cboz_idx = CBOZ_WORDS then
+                         next_state <= MEMORY_WAIT;
+                     else
+                         next_state <= CBOZ_WRITE;

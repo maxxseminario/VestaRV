@@ -1,0 +1,20 @@
+--- a/hdl/common/vesta/alu.vhd	2026-07-17 00:27:06.784902869 -0500
++++ b/hdl/common/vesta/alu.vhd	2026-07-17 00:27:14.897026695 -0500
+@@ -545,7 +545,7 @@
+                 -- ==========================================
+                 when "110011" => -- CZERO.EQZ: rd = (rs2==0) ? 0 : rs1
+                     if ENABLE_ZICOND then
+-                        if b = x"00000000" then
++                        if b /= x"00000000" then
+                             ResultSignal <= (others => '0');
+                         else
+                             ResultSignal <= a;
+@@ -554,7 +554,7 @@
+ 
+                 when "110100" => -- CZERO.NEZ: rd = (rs2!=0) ? 0 : rs1
+                     if ENABLE_ZICOND then
+-                        if b /= x"00000000" then
++                        if b = x"00000000" then
+                             ResultSignal <= (others => '0');
+                         else
+                             ResultSignal <= a;

@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..7d13d53 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -795,7 +795,7 @@ architecture struct of vesta is
+                          else std_logic_vector(unsigned(zcm_sp0) + to_unsigned(zcm_stackadj_val, 32));
+     zcm_jt_link   <= '1' when unsigned(zcm_index) >= 32 else '0';
+     zcm_jt_addr   <= std_logic_vector(unsigned(jvt_value)
+-                         + to_unsigned(to_integer(unsigned(zcm_index)) * 4, 32));
++                         + to_unsigned(to_integer(unsigned(zcm_index)) * 2, 32));  -- NEGCTRL: index<<1 not <<2
+     zcm_jt_target <= read_data;
+ 
+     zcm_rs_sel <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and

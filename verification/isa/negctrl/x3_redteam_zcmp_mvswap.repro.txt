@@ -1,0 +1,35 @@
+X3 Stage-D red-team (D1) — Zcmp cm.mvsa01 / cm.mva01s DIRECTION swap
+===================================================================
+DELIVERABLE D (seed 1): a distinct failure mode NOT among the implementers'
+negative controls — swapping the DIRECTION of the two Zcmp register-move ops.
+  cm.mvsa01 r1s',r2s' : a0 -> r1s', a1 -> r2s'  (arg regs INTO s-regs)
+  cm.mva01s r1s',r2s' : r1s' -> a0, r2s' -> a1  (s-regs INTO arg regs)
+A direction swap makes each op move the wrong way. (Distinct from the existing
+x3_zcmp_offdir seed, which flips the push/pop MEMORY offset direction.)
+
+SEED (x3_redteam_zcmp_mvswap.patch): swap the sub-op detection so cm.mvsa01
+decodes as cm.mva01s and vice versa (hdl/common/vesta/vesta.vhd):
+-   zcm_is_mvsa <= '1' when zcm_subop_r = ZCM_SUB_MVSA01 else '0';
+-   zcm_is_mva  <= '1' when zcm_subop_r = ZCM_SUB_MVA01S else '0';
++   zcm_is_mvsa <= '1' when zcm_subop_r = ZCM_SUB_MVA01S else '0';
++   zcm_is_mva  <= '1' when zcm_subop_r = ZCM_SUB_MVSA01 else '0';
+
+DETECTOR: the EXISTING committed test catches it — shcmp.S Section E seeds
+a0=0x0A0A0A0A / a1=0x0B0B0B0B, zeros s1/s2, then cm.mvsa01 s1,s2 and asserts
+s1==a0 / s2==a1 BEFORE the reverse move. With the swap, cm.mvsa01 is executed as
+cm.mva01s (a0<-s1=0, a1<-s2=0), so s1/s2 stay 0 -> `bne s1, 0x0A0A0A0A` FAILs.
+The intermediate s1/s2 check (not a pure round-trip) is what makes shcmp Section E
+sensitive to a same-direction-both-ops swap. No new test needed.
+
+OFF bit-identical: zcm_is_mvsa/mva feed only zcm_* move logic gated by
+(ENABLE_ZCMP or ENABLE_ZCMT); statically dormant when both are off.
+
+STAGING: ON = ZCMP+ZCMT true in MemoryMap + -DCORE_ENABLE_ZCMP -DCORE_ENABLE_ZCMT,
+`rm -rf build/`, `make rv32ua-flash`, printf 4 > rcf/.nharts (identical to (B)).
+RUN (behavioral_mp), list = ../rcf/xxxxrv32ua-p-shcmp.rcf
+  (a) apply x3_redteam_zcmp_mvswap.patch -> run ; (b) checkout vesta.vhd -> run.
+
+PERSONALLY OBSERVED (2026-07-17, base 5e39d58):
+  SEEDED   -> shcmp FAIL (a0_reached_fail @ 15.078 ms; NOT a timeout)
+  REVERTED -> shcmp PASS
+  DEFAULT (OFF) -> shcmp #else stub PASS (image bit-identical)

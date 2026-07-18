@@ -53,7 +53,7 @@ This repository is organized into the following directories:
 ### Platform Definition
 - **`platform/`** — Automated toolchain generation system
   - Generates C headers, linker scripts, documentation from single source
-  - Run `cd platform && make` or see [`platform/README.md`](platform/README.md)
+  - Run `cd platform && make` or see [`platform/myshkin/README.md`](platform/myshkin/README.md)
   - Single Python script defines entire memory map and peripherals
   
 ### Verification
@@ -125,7 +125,7 @@ The following peripherals are included in the example configuration shown above.
    cd platform
    make
    ```
-   This creates headers, linker scripts, and documentation. See [`platform/README.md`](platform/README.md) for details.
+   This creates headers, linker scripts, and documentation. See [`platform/myshkin/README.md`](platform/myshkin/README.md) for details.
 
 3. **Install RISC-V toolchain and dependencies:**
 

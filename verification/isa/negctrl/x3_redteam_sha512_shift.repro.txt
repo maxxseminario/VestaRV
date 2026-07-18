@@ -1,0 +1,61 @@
+X3 Stage-D red-team (A) — SHA-512 detector sensitivity proof
+============================================================
+DELIVERABLE A: prove the Zknh SHA-512 KAT/per-op checks are SENSITIVE (before
+this, only sha256 had a committed seed — x3_sha256_rotate_seed.patch; the
+sha512 ops were exercised by extzknh.S + rv32uzknh/sha512.S but NO seed proved
+they would BITE — the jvtmask-gap concern).
+
+SEED (x3_redteam_sha512_shift.patch): change the second shift term of the
+sha512sig0l ALU arm (hdl/common/vesta/alu.vhd, alu_control "1000100") from the
+ratified `(a >> 7)` to `(a >> 6)`:
+
+    when "1000100" => -- sha512sig0l: (a>>1)^(a>>7)^(a>>8) ^ ...
+        if ENABLE_ZKN then
+            ResultSignal <= std_logic_vector(
+                shift_right(unsigned(a),  1) xor
+-               shift_right(unsigned(a),  7) xor
++               shift_right(unsigned(a),  6) xor
+                shift_right(unsigned(a),  8) xor ...
+
+sha512sig0l is the low-half of SHA-512 Sigma0; a wrong shift corrupts the
+per-op golden (0xb192c77c) AND the 64-bit ror64 reconstruction (Sigma0-lo =
+0x6c4f1aa1). Both the directed per-op CK and the KAT `bne`-to-fail fire ->
+a0 = 0xDEADBEEF -> tb "TEST FAILED" via a0_reached_fail, BOUNDED (not a timeout).
+
+WHY THIS PROVES SENSITIVITY (contrast with jvtmask): every sha512 op in both
+extzknh.S and rv32uzknh/sha512.S carries a FIXED golden constant, so a single
+formula-bit change is caught by the op's own check. The sha256 arms are
+untouched -> sha256 PASSES (the seed is TARGETED, not a blanket break).
+
+DISPATCH / STAGING (phase standard):
+  ROOT=$(git rev-parse --show-toplevel)
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZKN"
+  source ~/vestarv/cdspaths.sh
+  sed -i 's/\(CORE_ENABLE_ZKN\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+  cd $ROOT/verification/isa && rm -rf build/
+  make rv32ua-flash    RISCV_GCC_OPTS="$ON_OPTS"
+  make rv32uzknh-flash RISCV_GCC_OPTS="$ON_OPTS"
+  printf '4' > rcf/.nharts
+
+RUN (from $ROOT/xcelium/riscv_test/behavioral_mp), list zknh_on.txt =
+  ../rcf/xxrv32ua-p-extzknh.rcf
+  ../rcf/rv32uzknh-p-sha256.rcf
+  ../rcf/rv32uzknh-p-sha512.rcf
+
+  (a) git -C $ROOT apply verification/isa/negctrl/x3_redteam_sha512_shift.patch
+      TESTS_FILE=zknh_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh
+  (b) git -C $ROOT checkout hdl/common/vesta/alu.vhd            # revert
+      TESTS_FILE=zknh_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh
+  (c) git -C $ROOT checkout hdl/common/MemoryMap.vhd            # restore OFF
+
+PERSONALLY OBSERVED (2026-07-17, this worktree, base 5e39d58):
+  BASELINE (unseeded ON) -> 3/3 PASS
+  SEEDED   -> sha256 PASS, sha512 FAIL, extzknh FAIL
+              (a0_reached_fail at sim-time 11896478976323 FS = 11.896 ms,
+               far inside the 100 ms tb watchdog; NOT "TEST TIMED OUT")
+  REVERTED -> 3/3 PASS
+  DEFAULT (OFF): DORMANT by construction — the seeded line lives inside
+              `if ENABLE_ZKN then`; with CORE_ENABLE_ZKN=false the sha512sig0l
+              arm is unreachable (alu_control "1000100" is never decoded; the
+              extoff harness runs extzknh as a POISON->trap). The seed cannot
+              change any default-build behavior.
