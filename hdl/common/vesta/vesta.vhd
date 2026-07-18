@@ -31,6 +31,9 @@ entity vesta is
         ENABLE_ZAWRS      : boolean := false;  -- X1 (Zawrs): consumed from phase X1 on; scaffolded X0
         ENABLE_ZABHA      : boolean := false;  -- X2 (Zabha): consumed from phase X2 on; scaffolded X0
         ENABLE_ZACAS      : boolean := false;  -- X2 (Zacas): consumed from phase X2 on; scaffolded X0
+        ENABLE_ZICBOZ     : boolean := false;  -- X3 (Zicboz): cbo.zero block-zero store sequencer
+        ENABLE_ZCMP       : boolean := false;  -- X3 (Zcmp): compressed push/pop + reg-moves (memory sequencer)
+        ENABLE_ZCMT       : boolean := false;  -- X3 (Zcmt): compressed table jump + jvt CSR
         ENABLE_ZBKB       : boolean := false;  -- X3 (Zbkb): consumed from phase X3 on; scaffolded X0
         ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
         ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx): consumed from phase X3 on; scaffolded X0
@@ -117,6 +120,9 @@ architecture struct of vesta is
             ENABLE_ZAWRS    : boolean := false;
             ENABLE_ZABHA    : boolean := false;
             ENABLE_ZACAS    : boolean := false;
+            ENABLE_ZICBOZ   : boolean := false;
+            ENABLE_ZCMP     : boolean := false;
+            ENABLE_ZCMT     : boolean := false;
             ENABLE_ZBKB     : boolean := false;
             ENABLE_ZBKC     : boolean := false;
             ENABLE_ZBKX     : boolean := false;
@@ -140,7 +146,7 @@ architecture struct of vesta is
             jump             : out std_logic;
             jalr             : out std_logic;
             imm_src          : out std_logic_vector(2 downto 0);
-            alu_control      : out std_logic_vector(5 downto 0);
+            alu_control      : out std_logic_vector(6 downto 0);
             mem_access_instr : out std_logic;
 
             isr_ret          : out std_logic;
@@ -155,6 +161,8 @@ architecture struct of vesta is
             lr_op            : out std_logic;
             sc_op            : out std_logic;
             fence_op         : out std_logic;
+            cboz_op          : out std_logic;
+            zcm_op           : out std_logic;
             pause_hint       : out std_logic;
 
             csr_op           : out std_logic_vector(2 downto 0);
@@ -191,10 +199,17 @@ architecture struct of vesta is
             imm_src      : in  std_logic_vector(2 downto 0);
             funct3       : in  std_logic_vector(2 downto 0);
             mask         : in  std_logic_vector(1 downto 0);
-            alu_control  : in  std_logic_vector(5 downto 0);
+            alu_control  : in  std_logic_vector(6 downto 0);
             div_start    : in  std_logic;
             amo_phase    : in  std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
             cas_op       : in  std_logic;  -- X2 Zacas: current AMO is an amocas
+            -- X3 Zcmp/Zcmt sequencer regfile steering (all default inactive)
+            zcm_rs_addr  : in  std_logic_vector(4 downto 0) := "00000";
+            zcm_rs_sel   : in  std_logic := '0';
+            zcm_rd_addr  : in  std_logic_vector(4 downto 0) := "00000";
+            zcm_rd_sel   : in  std_logic := '0';
+            zcm_move_sel : in  std_logic := '0';
+            zcm_loadwb_sel : in std_logic := '0';
             Zero         : out std_logic;
             pc_target    : out std_logic_vector(XLEN-1 downto 0);
             instr        : in  std_logic_vector(ILEN-1 downto 0);
@@ -243,7 +258,10 @@ architecture struct of vesta is
         generic (
             -- X0 scaffolding: Zcb expansions + Zcmop (c.mop), default false
             ENABLE_ZCB   : boolean := false;
-            ENABLE_ZIMOP : boolean := false
+            ENABLE_ZIMOP : boolean := false;
+            -- X3 Zcmp/Zcmt: C2 funct3=101 sentinel emit (default false)
+            ENABLE_ZCMP  : boolean := false;
+            ENABLE_ZCMT  : boolean := false
         );
         port (
             resetn        : in  std_logic;
@@ -262,12 +280,16 @@ architecture struct of vesta is
             ENABLE_BITMANIP   : boolean := true;
             -- X0 scaffolding: hpm counters + Zfinx fcsr, default false
             ENABLE_ZIHPM      : boolean := false;
+            ENABLE_ZCMT       : boolean := false;  -- X3 Zcmt: jvt CSR
             ENABLE_ZFINX      : boolean := false
         );
         port (
             clk            : in  std_logic;
             resetn         : in  std_logic;
             hart_id        : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
+
+            -- X3 Zcmt jvt base export
+            jvt_value      : out std_logic_vector(31 downto 0);
 
             -- CSR instruction interface
             csr_addr       : in  std_logic_vector(11 downto 0);
@@ -310,7 +332,34 @@ architecture struct of vesta is
         SC_CHECK,     -- Store-Conditional check and write
         FENCE_WAIT,   -- FENCE operation wait state
         PAUSE_WAIT,   -- X1 Zihintpause: arbiter-yield hold window (D6)
-        WRS_WAIT      -- X1 Zawrs: wait-on-reservation-set stall (wrs.nto/wrs.sto)
+        WRS_WAIT,     -- X1 Zawrs: wait-on-reservation-set stall (wrs.nto/wrs.sto)
+        -- X3 Zicboz: cbo.zero block-zero store sequencer. CBOZ_WRITE issues one
+        -- full-word 0 store (mem_access='1', wen="0000"); CBOZ_GAP is the req-low
+        -- settle cycle (mem_access='0') the shared-bus arbiter's WAIT-FOR-RELEASE
+        -- needs BETWEEN same-master transactions (exactly the store->MEMORY_WAIT
+        -- cadence — no new arbiter protocol, no grant-lock). The pair repeats
+        -- CBOZ_WORDS times, UNINTERRUPTIBLE (no irq_save check), then MEMORY_WAIT.
+        CBOZ_WRITE,   -- issue the cbo.zero word store for cboz_idx
+        CBOZ_GAP,     -- req-low settle between stores (last -> retire via MEMORY_WAIT)
+        -- X3 Zcmp/Zcmt sequencer states (MEMORY / control-flow path). All
+        -- UNINTERRUPTIBLE (no irq_save check) and atomic: RAM here is idempotent
+        -- and fault-free, so no re-execution machinery is needed and interrupts are
+        -- simply held to the retire boundary. sp is committed EXACTLY ONCE, LAST,
+        -- through the regfile's dedicated sp_write port (ZCM_SP_COMMIT). Every
+        -- register index and address derives from REGISTERED sequencer state
+        -- (zcm_idx counter + zcm_rlist/zcm_spimm/zcm_sp0 latched at dispatch), never
+        -- a live regfile-port re-read mid-sequence (the X2 phantom-read invariant).
+        ZCM_PUSH_ST,  -- cm.push : store reg[reg_at(idx)] at the frame slot
+        ZCM_PUSH_GAP, -- req-low settle; advance idx or -> ZCM_SP_COMMIT
+        ZCM_POP_LD,   -- cm.pop* : issue the load of the frame slot
+        ZCM_POP_WB,   -- writeback reg[reg_at(idx)] = loaded word; settle; advance
+        ZCM_A0Z,      -- cm.popretz only : a0 (x10) <- 0 (move from x0)
+        ZCM_SP_COMMIT,-- commit sp once (sp_out -/+ stack_adj); push/pop retire here
+        ZCM_RET,      -- cm.popret[z] : redirect PC to reg[ra]
+        ZCM_MV1,      -- cm.mvsa01/mva01s : first of the two reg-reg moves
+        ZCM_MV2,      -- cm.mvsa01/mva01s : second move; retire
+        ZCM_JT_LD,    -- cm.jt/jalt : issue the load of the jvt table entry
+        ZCM_JT_WB     -- capture target; cm.jalt writes ra=pc+2; redirect PC
     );
 
     signal current_state, next_state : cpu_state;
@@ -364,8 +413,8 @@ architecture struct of vesta is
     signal Zero                   : std_logic;
     signal result_src             : std_logic_vector(2 downto 0);
     signal imm_src                : std_logic_vector(2 downto 0);
-    signal alu_control            : std_logic_vector(5 downto 0); -- from control unit
-    signal alu_control_dp         : std_logic_vector(5 downto 0); -- to datapath
+    signal alu_control            : std_logic_vector(6 downto 0); -- from control unit
+    signal alu_control_dp         : std_logic_vector(6 downto 0); -- to datapath
     signal wen_controller         : std_logic_vector(XLEN_BYTES-1 downto 0);
     signal mem_access_controller  : std_logic;
     signal mem_access_instr       : std_logic;
@@ -430,6 +479,57 @@ architecture struct of vesta is
     signal lr_op                  : std_logic;  -- Load-Reserved operation
     signal sc_op                  : std_logic;  -- Store-Conditional operation
     signal fence_op               : std_logic;  -- FENCE instruction indicator
+    -- X3 Zicboz (cbo.zero) block-zero store sequencer state (clk_cpu domain).
+    -- cboz_op: exact cbo.zero decode (from maindec, '0' when ENABLE_ZICBOZ off).
+    -- cboz_base: the naturally-aligned block base, latched ONCE at dispatch from
+    --   the LIVE rs1 port (rs1 & ~(CBOZ_BLOCK_SIZE-1)); NEVER re-read mid-burst
+    --   (the X2 rd_amo/amo_*_reg phantom-read lesson — cbo.zero doesn't write rd
+    --   so rs1 is stable, but latching is the invariant, not an optimisation).
+    -- cboz_idx: 0..CBOZ_WORDS-1, the word being stored this burst step.
+    signal cboz_op                : std_logic;
+    signal cboz_base              : std_logic_vector(31 downto 0);
+    signal cboz_idx               : integer range 0 to CBOZ_WORDS-1;
+    signal cboz_zero_addr         : std_logic_vector(31 downto 0);  -- cboz_base + cboz_idx*4
+
+    -- X3 Zcmp / Zcmt sequencer signals (clk_cpu domain). zcm_op: cm.* sentinel
+    -- decode from the controller ('0' when both generics off). Registered at
+    -- dispatch (the ONLY source of mid-sequence indices/addresses): zcm_subop_r,
+    -- zcm_i16_r (the embedded compressed operand bits), zcm_sp0 (old sp),
+    -- zcm_idx (position 0..12).
+    signal zcm_op                 : std_logic;
+    signal zcm_subop              : std_logic_vector(2 downto 0);
+    signal zcm_subop_r            : std_logic_vector(2 downto 0);
+    signal zcm_i16_r              : std_logic_vector(15 downto 0);
+    signal zcm_sp0                : std_logic_vector(31 downto 0);
+    signal zcm_idx                : integer range 0 to 12;
+    signal zcm_rlist              : std_logic_vector(3 downto 0);
+    signal zcm_spimm              : std_logic_vector(1 downto 0);
+    signal zcm_nregs_val          : integer range 1 to 13;
+    signal zcm_stackadj_val       : integer range 0 to 112;
+    signal zcm_high_addr          : std_logic_vector(31 downto 0);
+    signal zcm_mem_addr           : std_logic_vector(31 downto 0);
+    signal zcm_final_sp           : std_logic_vector(31 downto 0);
+    signal zcm_reg_idx            : std_logic_vector(4 downto 0);
+    signal zcm_is_push            : std_logic;
+    signal zcm_is_popfam          : std_logic;
+    signal zcm_is_popret          : std_logic;
+    signal zcm_is_popretz         : std_logic;
+    signal zcm_is_mvsa            : std_logic;
+    signal zcm_is_mva             : std_logic;
+    signal zcm_is_move            : std_logic;
+    signal zcm_is_tabjump         : std_logic;
+    signal jvt_value              : std_logic_vector(31 downto 0);
+    signal zcm_index              : std_logic_vector(7 downto 0);
+    signal zcm_jt_link            : std_logic;
+    signal zcm_jt_addr            : std_logic_vector(31 downto 0);
+    signal zcm_jt_target          : std_logic_vector(31 downto 0);
+    signal zcm_rs_addr            : std_logic_vector(4 downto 0);
+    signal zcm_rs_sel             : std_logic;
+    signal zcm_rd_addr            : std_logic_vector(4 downto 0);
+    signal zcm_rd_sel             : std_logic;
+    signal zcm_move_sel           : std_logic;
+    signal zcm_loadwb_sel         : std_logic;
+    signal dp_result_src          : std_logic_vector(2 downto 0);
     signal pause_hint             : std_logic;  -- X1 Zihintpause: exact PAUSE hint (fence w,0), '0' when ENABLE_ZIHINT off
     -- X1 Zihintpause window counter (clk_cpu domain). Range is a fixed generous
     -- span (NOT tied to PAUSE_WINDOW_CYCLES) so the negative-control seed can set
@@ -467,6 +567,60 @@ architecture struct of vesta is
     signal hpm_ev_stall           : std_logic;
     signal hpm_ev_sleep           : std_logic;
     signal hpm_ev_trap            : std_logic;
+
+    -- X3 Zcmp/Zcmt helper functions (pure combinational, spec tables).
+    function zcm_reg_at(p : integer) return std_logic_vector is
+    begin
+        if p = 0 then
+            return "00001";                                   -- x1  (ra)
+        elsif p = 1 then
+            return "01000";                                   -- x8  (s0)
+        elsif p = 2 then
+            return "01001";                                   -- x9  (s1)
+        else
+            return std_logic_vector(to_unsigned(15 + p, 5));  -- x18..x27
+        end if;
+    end function;
+
+    function zcm_sreg_x(s : std_logic_vector(2 downto 0)) return std_logic_vector is
+        variable si : integer;
+    begin
+        si := to_integer(unsigned(s));
+        if si < 2 then
+            return std_logic_vector(to_unsigned(8 + si, 5));   -- x8, x9
+        else
+            return std_logic_vector(to_unsigned(16 + si, 5));  -- x18..x23
+        end if;
+    end function;
+
+    function zcm_nregs(rlist : std_logic_vector(3 downto 0)) return integer is
+        variable r : integer;
+    begin
+        r := to_integer(unsigned(rlist));
+        if r = 15 then
+            return 13;
+        else
+            return r - 3;
+        end if;
+    end function;
+
+    function zcm_stackadj(rlist : std_logic_vector(3 downto 0);
+                          spimm : std_logic_vector(1 downto 0)) return integer is
+        variable r    : integer;
+        variable base : integer;
+    begin
+        r := to_integer(unsigned(rlist));
+        if r <= 7 then
+            base := 16;
+        elsif r <= 11 then
+            base := 32;
+        elsif r <= 14 then
+            base := 48;
+        else
+            base := 64;
+        end if;
+        return base + to_integer(unsigned(spimm)) * 16;
+    end function;
 
     begin
 
@@ -565,6 +719,116 @@ architecture struct of vesta is
     end process;
 
     -- ==========================================
+    -- X3 Zicboz block-zero sequencer registers
+    -- ==========================================
+    -- cboz_base is latched ONCE, on the EXECUTE->CBOZ_WRITE dispatch transition,
+    -- from the LIVE rs1 port masked to the naturally-aligned block base
+    -- (rs1 & ~(CBOZ_BLOCK_SIZE-1)). It is NEVER re-read mid-burst — the address
+    -- source is registered state (the X2 phantom-read invariant). cboz_idx resets
+    -- to 0 at dispatch and advances one word per COMPLETED store (incremented in
+    -- CBOZ_GAP, the post-store settle cycle, so it names the word already written).
+    cboz_seq_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            cboz_base <= (others => '0');
+            cboz_idx  <= 0;
+        elsif rising_edge(clk_cpu) then
+            if current_state /= CBOZ_WRITE and current_state /= CBOZ_GAP
+               and next_state = CBOZ_WRITE then
+                -- dispatch edge (EXECUTE -> CBOZ_WRITE): latch base, reset index
+                cboz_base <= std_logic_vector(unsigned(rs1_value)
+                                 and not to_unsigned(CBOZ_BLOCK_SIZE - 1, 32));
+                cboz_idx  <= 0;
+            elsif current_state = CBOZ_GAP and cboz_idx /= CBOZ_WORDS - 1 then
+                cboz_idx <= cboz_idx + 1;
+            end if;
+        end if;
+    end process;
+
+    -- X3 Zcmp/Zcmt sequencer registers. Latch sub-op, embedded operand bits, and
+    -- old sp ONCE at dispatch (EXECUTE -> first ZCM state). zcm_idx counts list
+    -- position, advancing one per completed element (ZCM_PUSH_GAP / ZCM_POP_WB).
+    zcm_seq_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            zcm_subop_r <= (others => '0');
+            zcm_i16_r   <= (others => '0');
+            zcm_sp0     <= (others => '0');
+            zcm_idx     <= 0;
+        elsif rising_edge(clk_cpu) then
+            if current_state = EXECUTE and
+               (next_state = ZCM_PUSH_ST or next_state = ZCM_POP_LD or
+                next_state = ZCM_MV1 or next_state = ZCM_JT_LD) then
+                zcm_subop_r <= instr_curr(14 downto 12);
+                zcm_i16_r   <= instr_curr(31 downto 16);
+                zcm_sp0     <= stack_pointer;
+                zcm_idx     <= 0;
+            elsif (current_state = ZCM_PUSH_GAP or current_state = ZCM_POP_WB)
+                  and zcm_idx /= zcm_nregs_val - 1 then
+                zcm_idx <= zcm_idx + 1;
+            end if;
+        end if;
+    end process;
+
+    zcm_subop <= instr_curr(14 downto 12);
+    zcm_rlist <= zcm_i16_r(7 downto 4);
+    zcm_spimm <= zcm_i16_r(3 downto 2);
+    zcm_index <= zcm_i16_r(9 downto 2);
+    zcm_nregs_val    <= zcm_nregs(zcm_rlist);
+    zcm_stackadj_val <= zcm_stackadj(zcm_rlist, zcm_spimm);
+    zcm_is_push    <= '1' when zcm_subop_r = ZCM_SUB_PUSH    else '0';
+    zcm_is_popretz <= '1' when zcm_subop_r = ZCM_SUB_POPRETZ else '0';
+    zcm_is_popret  <= '1' when (zcm_subop_r = ZCM_SUB_POPRET or zcm_subop_r = ZCM_SUB_POPRETZ) else '0';
+    zcm_is_popfam  <= '1' when (zcm_subop_r = ZCM_SUB_POP or zcm_subop_r = ZCM_SUB_POPRET
+                                or zcm_subop_r = ZCM_SUB_POPRETZ) else '0';
+    zcm_is_mvsa    <= '1' when zcm_subop_r = ZCM_SUB_MVSA01  else '0';
+    zcm_is_mva     <= '1' when zcm_subop_r = ZCM_SUB_MVA01S  else '0';
+    zcm_is_move    <= zcm_is_mvsa or zcm_is_mva;
+    zcm_is_tabjump <= '1' when zcm_subop_r = ZCM_SUB_TABJUMP else '0';
+    zcm_reg_idx   <= zcm_reg_at(zcm_idx);
+    zcm_high_addr <= std_logic_vector(unsigned(zcm_sp0) + to_unsigned(zcm_stackadj_val, 32))
+                         when zcm_is_popfam = '1' else zcm_sp0;
+    zcm_mem_addr  <= std_logic_vector(unsigned(zcm_high_addr)
+                         - to_unsigned(4 * (zcm_nregs_val - zcm_idx), 32));
+    zcm_final_sp  <= std_logic_vector(unsigned(zcm_sp0) - to_unsigned(zcm_stackadj_val, 32))
+                         when zcm_is_push = '1'
+                         else std_logic_vector(unsigned(zcm_sp0) + to_unsigned(zcm_stackadj_val, 32));
+    zcm_jt_link   <= '1' when unsigned(zcm_index) >= 32 else '0';
+    zcm_jt_addr   <= std_logic_vector(unsigned(jvt_value)
+                         + to_unsigned(to_integer(unsigned(zcm_index)) * 4, 32));
+    zcm_jt_target <= read_data;
+
+    zcm_rs_sel <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and
+                    (current_state = ZCM_PUSH_ST or current_state = ZCM_RET or
+                     current_state = ZCM_A0Z or current_state = ZCM_MV1 or
+                     current_state = ZCM_MV2)) else '0';
+    zcm_rs_addr <= zcm_reg_idx                      when current_state = ZCM_PUSH_ST else
+                   "00001"                          when current_state = ZCM_RET     else
+                   "00000"                          when current_state = ZCM_A0Z     else
+                   "01010"                          when (current_state = ZCM_MV1 and zcm_is_mvsa = '1') else
+                   zcm_sreg_x(zcm_i16_r(9 downto 7)) when (current_state = ZCM_MV1 and zcm_is_mva = '1') else
+                   "01011"                          when (current_state = ZCM_MV2 and zcm_is_mvsa = '1') else
+                   zcm_sreg_x(zcm_i16_r(4 downto 2)) when (current_state = ZCM_MV2 and zcm_is_mva = '1') else
+                   "00000";
+    zcm_rd_sel <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and
+                    (current_state = ZCM_POP_WB or current_state = ZCM_A0Z or
+                     current_state = ZCM_MV1 or current_state = ZCM_MV2 or
+                     current_state = ZCM_JT_WB)) else '0';
+    zcm_rd_addr <= zcm_reg_idx                      when current_state = ZCM_POP_WB else
+                   "01010"                          when current_state = ZCM_A0Z    else
+                   "00001"                          when current_state = ZCM_JT_WB  else
+                   zcm_sreg_x(zcm_i16_r(9 downto 7)) when (current_state = ZCM_MV1 and zcm_is_mvsa = '1') else
+                   "01010"                          when (current_state = ZCM_MV1 and zcm_is_mva = '1') else
+                   zcm_sreg_x(zcm_i16_r(4 downto 2)) when (current_state = ZCM_MV2 and zcm_is_mvsa = '1') else
+                   "01011"                          when (current_state = ZCM_MV2 and zcm_is_mva = '1') else
+                   "00000";
+    zcm_move_sel   <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and
+                        (current_state = ZCM_A0Z or current_state = ZCM_MV1 or
+                         current_state = ZCM_MV2)) else '0';
+    zcm_loadwb_sel <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and current_state = ZCM_POP_WB) else '0';
+    dp_result_src <= "010" when (ENABLE_ZCMT and current_state = ZCM_JT_WB) else result_src;
+
+    -- ==========================================
     -- State Machine Sequential Logic
     -- ==========================================
     state_reg: process(clk_cpu, resetn)
@@ -653,6 +917,7 @@ architecture struct of vesta is
     -- compressed jumps link pc+2; all other cases keep pc+4 (unchanged behavior).
     pc_link <= pc_plus_2 when (current_state = EXECUTE and pc(1) = '1' and quadrant_upper /= "11" and repeat_if = '0') else
                pc_plus_2 when (current_state = EXECUTE and pc(1) = '0' and quadrant_lower /= "11") else
+               pc_plus_2 when (current_state = ZCM_JT_WB) else  -- X3 Zcmt cm.jalt link ra=pc+2
                pc_plus_4;
 
     -- ==========================================
@@ -695,6 +960,19 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = AMO_WRITE) else
                   instr_curr_prev when (current_state = LR_READ) else
                   instr_curr_prev when (current_state = SC_CHECK) else
+                  instr_curr_prev when (current_state = CBOZ_WRITE) else  -- X3 Zicboz: hold cbo.zero
+                  instr_curr_prev when (current_state = CBOZ_GAP) else
+                  instr_curr_prev when (current_state = ZCM_PUSH_ST) else
+                  instr_curr_prev when (current_state = ZCM_PUSH_GAP) else
+                  instr_curr_prev when (current_state = ZCM_POP_LD) else
+                  instr_curr_prev when (current_state = ZCM_POP_WB) else
+                  instr_curr_prev when (current_state = ZCM_A0Z) else
+                  instr_curr_prev when (current_state = ZCM_SP_COMMIT) else
+                  instr_curr_prev when (current_state = ZCM_RET) else
+                  instr_curr_prev when (current_state = ZCM_MV1) else
+                  instr_curr_prev when (current_state = ZCM_MV2) else
+                  instr_curr_prev when (current_state = ZCM_JT_LD) else
+                  instr_curr_prev when (current_state = ZCM_JT_WB) else
                   instr_decomp;
 
     -- ==========================================
@@ -724,6 +1002,8 @@ architecture struct of vesta is
                pc_next_reg when (current_state = AMO_READ or current_state = AMO_WRITEBACK or 
                                 current_state = AMO_COMPUTE or current_state = AMO_WRITE) else
                pc_next_reg when (current_state = LR_READ or current_state = SC_CHECK) else
+               zcm_jt_target when (current_state = ZCM_JT_WB) else  -- X3 Zcmt table-jump target
+               rs1_value when (current_state = ZCM_RET) else        -- X3 Zcmp popret[z] -> ra
                pc_next_trad;
 
     -- ==========================================
@@ -744,7 +1024,17 @@ architecture struct of vesta is
     -- that garbage address, and AMO_READ then consumes the stale sh_rdata_reg
     -- — shared AMOs returned wrong data. rs1 IS the AMO address; with it the
     -- shared read rides EXECUTE exactly like the proven LR pattern.
-    data_addr <= rs1_value  when (current_state = SC_CHECK) else
+    -- X3 Zicboz: the store address for the current burst word = block base +
+    -- cboz_idx*4. Both operands are REGISTERED (cboz_base latched at dispatch,
+    -- cboz_idx the burst counter) — no live regfile port is read mid-sequence.
+    -- Placed BEFORE the generic mem_access_instr term (which would otherwise
+    -- steer data_addr to the stale ALU_Result during CBOZ_WRITE).
+    cboz_zero_addr <= std_logic_vector(unsigned(cboz_base) + to_unsigned(cboz_idx * 4, 32));
+
+    data_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE) else
+                 zcm_mem_addr when (current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD) else
+                 zcm_jt_addr  when (current_state = ZCM_JT_LD) else
+                 rs1_value  when (current_state = SC_CHECK) else
                  rs1_value  when (current_state = EXECUTE and amo_op = '1'
                                   and mem_access_instr = '1') else
                  ALU_Result when (mem_access_instr = '1' or
@@ -795,8 +1085,10 @@ architecture struct of vesta is
                "0011" when (instr_curr(14 downto 12) = "001" and amo_addr_low(1) = '1') else
                "0000";  -- word AMO (funct3=010): all four lanes
 
-    write_data <= pc_next when (current_state = IRQ_SV) else 
+    write_data <= pc_next when (current_state = IRQ_SV) else
                   amo_write_data_steered when (current_state = AMO_WRITE) else  -- X2 Zabha: sub-word-steered (word = full result)
+                  (others => '0') when (current_state = CBOZ_WRITE) else  -- X3 Zicboz: block-zero payload
+                  rs1_value when (current_state = ZCM_PUSH_ST) else  -- X3 Zcmp push: reg[reg_at(idx)] via steered rs1
                   write_data_dp;  -- Use rs2 for normal stores and SC
 
     -- ==========================================
@@ -858,7 +1150,10 @@ architecture struct of vesta is
                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
                              reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext,
                              pause_hint, pause_cnt,
-                             wrs_op, wrs_wake, resv_valid_ext)
+                             wrs_op, wrs_wake, resv_valid_ext,
+                             cboz_op, cboz_idx,
+                             zcm_op, instr_curr, zcm_idx, zcm_nregs_val,
+                             zcm_is_popretz, zcm_is_popret, zcm_jt_link, zcm_final_sp)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -968,6 +1263,20 @@ architecture struct of vesta is
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
                                     wen <= (others => '1'); -- TODO - added
+                                elsif cboz_op = '1' then
+                                    -- X3 Zicboz: launch the cbo.zero block-zero
+                                    -- store sequencer. NO memory access this cycle
+                                    -- (the CBOZ_WORDS stores issue in CBOZ_WRITE);
+                                    -- PC frozen until the burst retires. cboz_base
+                                    -- is latched from the live rs1 in cboz_seq_proc
+                                    -- on THIS EXECUTE->CBOZ_WRITE transition. wen
+                                    -- forced inactive so the fetch-addressed cycle
+                                    -- commits no write.
+                                    mem_access_instr <= '0';
+                                    next_state <= CBOZ_WRITE;
+                                    pc_en <= '0';
+                                    reg_write_dp <= '0';
+                                    wen <= (others => '1');
                                 elsif fence_op = '1' then
                                     -- X1 Zihintpause (D6): the exact PAUSE hint
                                     -- enters the arbiter-yield window instead of
@@ -1026,6 +1335,21 @@ architecture struct of vesta is
                             if trap = '1' then
                                 next_state <= TRAP_STATE;
                                 pc_en <= '0';
+                            elsif zcm_op = '1' then
+                                mem_access_instr <= '0';
+                                reg_write_dp <= '0';
+                                pc_en <= '0';
+                                wen <= (others => '1');
+                                if instr_curr(14 downto 12) = ZCM_SUB_TABJUMP then
+                                    next_state <= ZCM_JT_LD;
+                                elsif instr_curr(14 downto 12) = ZCM_SUB_PUSH then
+                                    next_state <= ZCM_PUSH_ST;
+                                elsif instr_curr(14 downto 12) = ZCM_SUB_MVSA01 or
+                                      instr_curr(14 downto 12) = ZCM_SUB_MVA01S then
+                                    next_state <= ZCM_MV1;
+                                else
+                                    next_state <= ZCM_POP_LD;
+                                end if;
                             elsif mem_access_controller = '1' then
                                 mem_access_instr <= '1';
                                 next_state <= MEMORY_WAIT;
@@ -1094,6 +1418,16 @@ architecture struct of vesta is
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
                                 wen <= (others => '1'); -- TODO - added
+                            elsif cboz_op = '1' then
+                                -- X3 Zicboz: launch the cbo.zero block-zero store
+                                -- sequencer (see the half-word arm above for the
+                                -- rationale). No access this cycle; PC frozen;
+                                -- cboz_base latched from rs1 on this transition.
+                                mem_access_instr <= '0';
+                                next_state <= CBOZ_WRITE;
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                wen <= (others => '1');
                             elsif fence_op = '1' then
                                 -- X1 Zihintpause (D6): PAUSE -> arbiter-yield
                                 -- window; any other FENCE -> 1-cycle nop. See the
@@ -1133,6 +1467,21 @@ architecture struct of vesta is
                             if trap = '1' then
                                 next_state <= TRAP_STATE;
                                 pc_en <= '0';
+                            elsif zcm_op = '1' then
+                                mem_access_instr <= '0';
+                                reg_write_dp <= '0';
+                                pc_en <= '0';
+                                wen <= (others => '1');
+                                if instr_curr(14 downto 12) = ZCM_SUB_TABJUMP then
+                                    next_state <= ZCM_JT_LD;
+                                elsif instr_curr(14 downto 12) = ZCM_SUB_PUSH then
+                                    next_state <= ZCM_PUSH_ST;
+                                elsif instr_curr(14 downto 12) = ZCM_SUB_MVSA01 or
+                                      instr_curr(14 downto 12) = ZCM_SUB_MVA01S then
+                                    next_state <= ZCM_MV1;
+                                else
+                                    next_state <= ZCM_POP_LD;
+                                end if;
                             elsif mem_access_controller = '1' then
                                 mem_access_instr <= '1';
                                 next_state <= MEMORY_WAIT;
@@ -1254,6 +1603,146 @@ architecture struct of vesta is
                     else
                         next_state <= AMO_COMPLETE;
                     end if;
+                -- ==========================================
+                -- CBOZ_WRITE State - X3 Zicboz cbo.zero block-zero store
+                -- ==========================================
+                -- Issue the full-word 0 store for word cboz_idx. wen="0000"
+                -- (active-low = ALL FOUR lanes: the FULL-WORD strobe) so every
+                -- byte of the word is committed; the global reservation unit sees
+                -- an ordinary committed store. data_addr = registered block base +
+                -- cboz_idx*4, write_data = 0 (both driven by the CBOZ_WRITE mux
+                -- terms above). UNINTERRUPTIBLE: no irq_save check here — the burst
+                -- runs to completion before any interrupt is taken. RAM on this
+                -- core is idempotent and fault-free (no PMP / no bus fault on the
+                -- RAM window), so there is no mid-sequence trap and no re-execution
+                -- machinery is needed.
+                when CBOZ_WRITE =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '1';
+                    wen              <= "0000";
+                    next_state       <= CBOZ_GAP;
+
+                -- ==========================================
+                -- CBOZ_GAP State - req-low settle between block-zero stores
+                -- ==========================================
+                -- The shared-bus arbiter's WAIT-FOR-RELEASE re-grants a served
+                -- master only after its sh_req is OBSERVED low; mem_access='0'
+                -- here drops sh_req for one cycle so the NEXT word can be granted
+                -- (this is exactly the store->MEMORY_WAIT cadence — no grant-lock,
+                -- no new arbiter protocol, amo_lock stays '0'). Still
+                -- UNINTERRUPTIBLE. After the last word, retire through MEMORY_WAIT
+                -- (PC advance + IRQ re-check happen there). cboz_idx advances in
+                -- cboz_seq_proc on this state.
+                when CBOZ_GAP =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    if cboz_idx = CBOZ_WORDS - 1 then
+                        next_state <= MEMORY_WAIT;
+                    else
+                        next_state <= CBOZ_WRITE;
+                    end if;
+
+                -- X3 Zcmp/Zcmt sequencer states. All UNINTERRUPTIBLE (no irq_save);
+                -- sp committed once, last (ZCM_SP_COMMIT); indices/addresses all
+                -- from registered state.
+                when ZCM_PUSH_ST =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '1';
+                    wen              <= "0000";
+                    next_state       <= ZCM_PUSH_GAP;
+
+                when ZCM_PUSH_GAP =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    if zcm_idx = zcm_nregs_val - 1 then
+                        next_state <= ZCM_SP_COMMIT;
+                    else
+                        next_state <= ZCM_PUSH_ST;
+                    end if;
+
+                when ZCM_POP_LD =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '1';
+                    wen              <= (others => '1');
+                    next_state       <= ZCM_POP_WB;
+
+                when ZCM_POP_WB =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '1';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    if zcm_idx = zcm_nregs_val - 1 then
+                        if zcm_is_popretz = '1' then
+                            next_state <= ZCM_A0Z;
+                        else
+                            next_state <= ZCM_SP_COMMIT;
+                        end if;
+                    else
+                        next_state <= ZCM_POP_LD;
+                    end if;
+
+                when ZCM_A0Z =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '1';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    next_state       <= ZCM_SP_COMMIT;
+
+                when ZCM_SP_COMMIT =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    sp_write_en      <= '1';
+                    sp_write_data    <= zcm_final_sp;
+                    if zcm_is_popret = '1' then
+                        next_state <= ZCM_RET;
+                    else
+                        next_state <= MEMORY_WAIT;
+                    end if;
+
+                when ZCM_RET =>
+                    pc_en            <= '1';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    next_state       <= EXECUTE;
+
+                when ZCM_MV1 =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '1';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    next_state       <= ZCM_MV2;
+
+                when ZCM_MV2 =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '1';
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    next_state       <= MEMORY_WAIT;
+
+                when ZCM_JT_LD =>
+                    pc_en            <= '0';
+                    reg_write_dp     <= '0';
+                    mem_access_instr <= '1';
+                    wen              <= (others => '1');
+                    next_state       <= ZCM_JT_WB;
+
+                when ZCM_JT_WB =>
+                    pc_en            <= '1';
+                    reg_write_dp     <= zcm_jt_link;
+                    mem_access_instr <= '0';
+                    wen              <= (others => '1');
+                    next_state       <= EXECUTE;
+
                 -- ==========================================
                 -- FENCE State - Fence operation
                 -- ==========================================
@@ -1526,6 +2015,9 @@ architecture struct of vesta is
             ENABLE_ZAWRS    => ENABLE_ZAWRS,
             ENABLE_ZABHA    => ENABLE_ZABHA,
             ENABLE_ZACAS    => ENABLE_ZACAS,
+            ENABLE_ZICBOZ   => ENABLE_ZICBOZ,
+            ENABLE_ZCMP     => ENABLE_ZCMP,
+            ENABLE_ZCMT     => ENABLE_ZCMT,
             ENABLE_ZBKB     => ENABLE_ZBKB,
             ENABLE_ZBKC     => ENABLE_ZBKC,
             ENABLE_ZBKX     => ENABLE_ZBKX,
@@ -1561,6 +2053,8 @@ architecture struct of vesta is
             lr_op            => lr_op,
             sc_op            => sc_op,
             fence_op         => fence_op,
+            cboz_op          => cboz_op,
+            zcm_op           => zcm_op,
             pause_hint       => pause_hint,
             csr_op           => csr_op,
             csr_valid        => csr_valid
@@ -1583,8 +2077,8 @@ architecture struct of vesta is
 
 
 
-    alu_control_dp <=   "001011" when (current_state = AMO_READ or current_state = AMO_WRITE) else 
-                        "001010" when (current_state = SC_CHECK) else -- ALU passes b
+    alu_control_dp <=   "0001011" when (current_state = AMO_READ or current_state = AMO_WRITE) else 
+                        "0001010" when (current_state = SC_CHECK) else -- ALU passes b
                         alu_control;
 
     -- ==========================================
@@ -1608,7 +2102,7 @@ architecture struct of vesta is
             resetn      => resetn,
             pc          => pc,
             pc_plus_4   => pc_link,
-            result_src  => result_src,
+            result_src  => dp_result_src,  -- X3 Zcmt jalt-link override ("010"); else controller's
             pc_src      => pc_src,
             ALU_src     => ALU_src,
             reg_write   => reg_write_dp,
@@ -1620,6 +2114,12 @@ architecture struct of vesta is
             div_start   => div_start,
             amo_phase   => amo_phase,
             cas_op      => cas_op,
+            zcm_rs_addr    => zcm_rs_addr,
+            zcm_rs_sel     => zcm_rs_sel,
+            zcm_rd_addr    => zcm_rd_addr,
+            zcm_rd_sel     => zcm_rd_sel,
+            zcm_move_sel   => zcm_move_sel,
+            zcm_loadwb_sel => zcm_loadwb_sel,
             Zero        => Zero,
             pc_target   => pc_target,
             instr       => instr_curr,
@@ -1670,7 +2170,9 @@ architecture struct of vesta is
         c_dec_inst: c_dec
             generic map (
                 ENABLE_ZCB   => ENABLE_ZCB,
-                ENABLE_ZIMOP => ENABLE_ZIMOP
+                ENABLE_ZIMOP => ENABLE_ZIMOP,
+                ENABLE_ZCMP  => ENABLE_ZCMP,
+                ENABLE_ZCMT  => ENABLE_ZCMT
             )
             port map (
                 resetn        => resetn,
@@ -1702,12 +2204,14 @@ architecture struct of vesta is
             ENABLE_COMPRESSED => ENABLE_COMPRESSED,
             ENABLE_BITMANIP   => ENABLE_BITMANIP,
             ENABLE_ZIHPM      => ENABLE_ZIHPM,
+            ENABLE_ZCMT       => ENABLE_ZCMT,
             ENABLE_ZFINX      => ENABLE_ZFINX
         )
         port map (
             clk            => clk,
             resetn         => resetn,
             hart_id        => hart_id,
+            jvt_value      => jvt_value,
             csr_addr       => csr_addr,
             csr_write_data => csr_wdata, 
             csr_op         => csr_op,

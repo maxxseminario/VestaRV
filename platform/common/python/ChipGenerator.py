@@ -97,6 +97,9 @@ class ChipGenerator():
 	ENABLE_ZAWRS = None			# X1: Zawrs wait-on-reservation-set
 	ENABLE_ZABHA = None			# X2: Zabha byte/halfword AMOs
 	ENABLE_ZACAS = None			# X2: Zacas amocas.w
+	ENABLE_ZICBOZ = None		# X3: Zicboz cbo.zero cache-block zero
+	ENABLE_ZCMP = None			# X3: Zcmp compressed push/pop + reg-moves
+	ENABLE_ZCMT = None			# X3: Zcmt compressed table jump + jvt CSR
 	ENABLE_ZBKB = None			# X3: Zbkb crypto bit-manip
 	ENABLE_ZBKC = None			# X3: Zbkc carryless multiply (crypto)
 	ENABLE_ZBKX = None			# X3: Zbkx crossbar permute
@@ -164,6 +167,9 @@ class ChipGenerator():
 		ENABLE_ZAWRS:bool=False,
 		ENABLE_ZABHA:bool=False,
 		ENABLE_ZACAS:bool=False,
+		ENABLE_ZICBOZ:bool=False,
+		ENABLE_ZCMP:bool=False,
+		ENABLE_ZCMT:bool=False,
 		ENABLE_ZBKB:bool=False,
 		ENABLE_ZBKC:bool=False,
 		ENABLE_ZBKX:bool=False,
@@ -424,6 +430,9 @@ class ChipGenerator():
 		self.ENABLE_ZAWRS = ENABLE_ZAWRS
 		self.ENABLE_ZABHA = ENABLE_ZABHA
 		self.ENABLE_ZACAS = ENABLE_ZACAS
+		self.ENABLE_ZICBOZ = ENABLE_ZICBOZ
+		self.ENABLE_ZCMP = ENABLE_ZCMP
+		self.ENABLE_ZCMT = ENABLE_ZCMT
 		self.ENABLE_ZBKB = ENABLE_ZBKB
 		self.ENABLE_ZBKC = ENABLE_ZBKC
 		self.ENABLE_ZBKX = ENABLE_ZBKX
@@ -1082,6 +1091,12 @@ class ChipGenerator():
 			t.AddRow(['#define CORE_ENABLE_ZABHA'])
 		if self.ENABLE_ZACAS:
 			t.AddRow(['#define CORE_ENABLE_ZACAS'])
+		if self.ENABLE_ZICBOZ:
+			t.AddRow(['#define CORE_ENABLE_ZICBOZ'])
+		if self.ENABLE_ZCMP:
+			t.AddRow(['#define CORE_ENABLE_ZCMP'])
+		if self.ENABLE_ZCMT:
+			t.AddRow(['#define CORE_ENABLE_ZCMT'])
 		if self.ENABLE_ZBKB:
 			t.AddRow(['#define CORE_ENABLE_ZBKB'])
 		if self.ENABLE_ZBKC:
@@ -1521,7 +1536,9 @@ class ChipGenerator():
 			('ZCB', self.ENABLE_ZCB), ('ZIMOP', self.ENABLE_ZIMOP),
 			('ZIHINT', self.ENABLE_ZIHINT), ('ZIHPM', self.ENABLE_ZIHPM),
 			('ZAWRS', self.ENABLE_ZAWRS), ('ZABHA', self.ENABLE_ZABHA),
-			('ZACAS', self.ENABLE_ZACAS), ('ZBKB', self.ENABLE_ZBKB),
+			('ZACAS', self.ENABLE_ZACAS), ('ZICBOZ', self.ENABLE_ZICBOZ),
+			('ZCMP', self.ENABLE_ZCMP), ('ZCMT', self.ENABLE_ZCMT),
+			('ZBKB', self.ENABLE_ZBKB),
 			('ZBKC', self.ENABLE_ZBKC), ('ZBKX', self.ENABLE_ZBKX),
 			('ZKN', self.ENABLE_ZKN), ('ZFINX', self.ENABLE_ZFINX)]:
 			if _flag:
@@ -2292,6 +2309,9 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_ENABLE_ZAWRS', ': boolean := ' + str(bool(self.ENABLE_ZAWRS)).lower() + ';', '-- X1: Zawrs wait-on-reservation'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZABHA', ': boolean := ' + str(bool(self.ENABLE_ZABHA)).lower() + ';', '-- X2: Zabha byte/half AMOs'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZACAS', ': boolean := ' + str(bool(self.ENABLE_ZACAS)).lower() + ';', '-- X2: Zacas amocas.w'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZICBOZ', ': boolean := ' + str(bool(self.ENABLE_ZICBOZ)).lower() + ';', '-- X3: Zicboz cbo.zero block-zero'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZCMP', ': boolean := ' + str(bool(self.ENABLE_ZCMP)).lower() + ';', '-- X3: Zcmp push/pop + reg-moves'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_ZCMT', ': boolean := ' + str(bool(self.ENABLE_ZCMT)).lower() + ';', '-- X3: Zcmt table jump + jvt CSR'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZBKB', ': boolean := ' + str(bool(self.ENABLE_ZBKB)).lower() + ';', '-- X3: Zbkb crypto bit-manip'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZBKC', ': boolean := ' + str(bool(self.ENABLE_ZBKC)).lower() + ';', '-- X3: Zbkc carryless multiply'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZBKX', ': boolean := ' + str(bool(self.ENABLE_ZBKX)).lower() + ';', '-- X3: Zbkx crossbar permute'], prefixTabs=1)
@@ -2647,6 +2667,9 @@ class ChipGenerator():
 		chip['ENABLE_ZAWRS'] = self.ENABLE_ZAWRS
 		chip['ENABLE_ZABHA'] = self.ENABLE_ZABHA
 		chip['ENABLE_ZACAS'] = self.ENABLE_ZACAS
+		chip['ENABLE_ZICBOZ'] = self.ENABLE_ZICBOZ
+		chip['ENABLE_ZCMP'] = self.ENABLE_ZCMP
+		chip['ENABLE_ZCMT'] = self.ENABLE_ZCMT
 		chip['ENABLE_ZBKB'] = self.ENABLE_ZBKB
 		chip['ENABLE_ZBKC'] = self.ENABLE_ZBKC
 		chip['ENABLE_ZBKX'] = self.ENABLE_ZBKX

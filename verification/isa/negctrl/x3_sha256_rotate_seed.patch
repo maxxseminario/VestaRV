@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/alu.vhd b/hdl/common/vesta/alu.vhd
+index ddde53a..a1742ed 100644
+--- a/hdl/common/vesta/alu.vhd
++++ b/hdl/common/vesta/alu.vhd
+@@ -571,7 +571,7 @@ begin
+                 when "1000000" => -- sha256sig0: ror(a,7) ^ ror(a,18) ^ (a>>3)
+                     if ENABLE_ZKN then
+                         ResultSignal <= std_logic_vector(
+-                            rotate_right(unsigned(a),  7) xor
++                            rotate_right(unsigned(a),  8) xor
+                             rotate_right(unsigned(a), 18) xor
+                             shift_right (unsigned(a),  3));
+                     end if;

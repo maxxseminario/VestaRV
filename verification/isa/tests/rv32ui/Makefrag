@@ -38,6 +38,7 @@ rv32ui_sc_tests = \
 	srl srli \
 	sub \
 	xor xori \
+	zbk \
 
 rv32ui_p_tests = $(addprefix rv32ui-p-, $(rv32ui_sc_tests))
 rv32ui_v_tests = $(addprefix rv32ui-v-, $(rv32ui_sc_tests))

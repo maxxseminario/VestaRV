@@ -1,0 +1,56 @@
+X3 Zknd/Zkne AES-32 negative controls
+=====================================
+Two seeds, applied against the FIXED X3-Stage-B AES tree, each RE-INTRODUCES a
+specific AES datapath bug that the AES-128 FIPS-197 KAT (and the directed
+per-op tests) detect. Both seeds are DORMANT on the default build (ENABLE_ZKN
+statically false -> the aes32* arms are pruned; the non-crypto regression is
+unperturbed) and bite only on a Zkn-ON MCU.
+
+Seed 1: x3_aes_sbox_row.patch   (hdl/common/vesta/alu.vhd)
+    Corrupts ONE forward S-box entry: AES_SBOX_FWD[0xEF] 0xDF -> 0xDE (the last
+    byte of row E). Bug class = wrong SubBytes table content. The FIPS-197 KAT
+    encryption feeds S-box input 0xEF (confirmed by the golden model), so the
+    computed ciphertext diverges from the FIPS constant.
+    DETECTOR: rv32uzknd-p-aeskat (AES-128 KAT) -- encrypt result mismatches the
+    baked FIPS-197 ciphertext -> bne to kat_fail -> a0=0xDEADBEEF (FAIL).
+    (rv32uzkne-p-aes32e also fails: its CK_ESI(0xdeadbeef,0x89abcdef,0,...) hits
+    SBOX_FWD[0xEF].)
+
+Seed 2: x3_aes_bs_rotate.patch  (hdl/common/vesta/alu.vhd)
+    Flips the output byte-rotate direction in aes32_datapath():
+    rotate_left(x32, 8*bs) -> rotate_right(x32, 8*bs). Bug class = wrong bs
+    steering (byte placed at the wrong lane for bs != 0). bs=0 is unaffected
+    (shamt=0, rotate is identity), but every bs in {1,2,3} lands in the wrong
+    byte, so ShiftRows/MixColumns accumulate into the wrong columns.
+    DETECTOR: rv32uzknd-p-aeskat + rv32uzkne-p-aes32e + rv32uzknd-p-aes32d all
+    FAIL (each exercises bs 1..3).
+
+RECORDED VERDICTS (observed 2026-07-17, ON build = CORE_ENABLE_ZKN true,
+behavioral_mp, single-hart on hart 0):
+    seed            aeskat   aes32e   aes32d    fixed(all)   default(OFF)
+    sbox_row        FAIL     FAIL     PASS      PASS         DORMANT/PASS
+    bs_rotate       FAIL     FAIL     FAIL      PASS         DORMANT/PASS
+    (fixed = both patches reverted; default = ENABLE_ZKN false, aes32* pruned,
+     the encodings trap illegal -> these ON-only suites are not built/run there.)
+
+REPRO (from the repo root $ROOT):
+    # 1. Turn Zkn ON in the core config and rebuild the ON images.
+    sed -i 's/\(CORE_ENABLE_ZKN[^:]*: boolean :=\) false/\1 true/' \
+        hdl/common/MemoryMap.vhd
+    cd verification/isa && rm -rf build/
+    make rv32uzkne-flash rv32uzknd-flash \
+        RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib \
+        -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZKN"
+    cd ../../xcelium/riscv_test/behavioral_mp
+    printf '../rcf/rv32uzkne-p-aes32e.rcf\n../rcf/rv32uzknd-p-aes32d.rcf\n../rcf/rv32uzknd-p-aeskat.rcf\n' > aes_on.txt
+    # 2. For each seed: apply -> EXPECT FAIL ; revert -> EXPECT PASS.
+    git -C $ROOT apply verification/isa/negctrl/x3_aes_sbox_row.patch
+    TESTS_FILE=aes_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh    # aeskat/aes32e FAIL
+    git -C $ROOT checkout hdl/common/vesta/alu.vhd             # (or restore the fixed file)
+    TESTS_FILE=aes_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh    # all PASS
+    git -C $ROOT apply verification/isa/negctrl/x3_aes_bs_rotate.patch
+    TESTS_FILE=aes_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh    # all three FAIL
+    git -C $ROOT checkout hdl/common/vesta/alu.vhd
+    TESTS_FILE=aes_on.txt MAX_PARALLEL=3 ./xrun_parallel.sh    # all PASS
+    # 3. Restore the default OFF config.
+    git -C $ROOT checkout hdl/common/MemoryMap.vhd

@@ -40,7 +40,7 @@ entity datapath is
         imm_src      : in  std_logic_vector(2 downto 0);       -- Immediate type selector
         funct3       : in  std_logic_vector(2 downto 0);       -- Function field for load/store operations
         mask         : in  std_logic_vector(1 downto 0);       -- Byte/halfword position for loads/stores
-        alu_control  : in  std_logic_vector(5 downto 0);       -- ALU operation selector
+        alu_control  : in  std_logic_vector(6 downto 0);       -- ALU operation selector
         div_start    : in  std_logic;                          -- Start signal for division operation
         
         -- ==========================================
@@ -48,6 +48,28 @@ entity datapath is
         -- ==========================================
         amo_phase    : in  std_logic_vector(2 downto 0);       -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
         cas_op       : in  std_logic;                          -- X2 Zacas: this AMO is an amocas (steers the rs2 read port to rd in AMO_WRITEBACK; gates the CAS compare)
+
+        -- ==========================================
+        -- X3 Zcmp/Zcmt sequencer regfile steering
+        -- ==========================================
+        -- Mirror of the X2 Zacas rf_a2_addr precedent: the push/pop/move/table-jump
+        -- FSM drives the regfile ports from REGISTERED sequencer state (indices),
+        -- never re-reading a live instruction field mid-sequence. All default
+        -- inactive so non-Zcm instantiations and the OFF build are bit-identical
+        -- (the muxes fold to the original instr-field addressing).
+        --   zcm_rs_sel/addr : steer the rs1 read port (a1) -> src_a/rs1_value is
+        --     then reg[zcm_rs_addr] (push store data; a0<-x0 & ret read x1).
+        --   zcm_rd_sel/addr : steer the write port (a3) -> the pop-loaded word or
+        --     a move result lands in reg[zcm_rd_addr].
+        --   zcm_move_sel    : Result = src_a (reg-reg move: cm.mvsa01/mva01s, a0=0).
+        --   zcm_loadwb_sel  : Result = read_data (cm.pop raw loaded word; word
+        --     access, so identical to loadext's funct3=010 passthrough).
+        zcm_rs_addr  : in  std_logic_vector(4 downto 0) := "00000";
+        zcm_rs_sel   : in  std_logic := '0';
+        zcm_rd_addr  : in  std_logic_vector(4 downto 0) := "00000";
+        zcm_rd_sel   : in  std_logic := '0';
+        zcm_move_sel : in  std_logic := '0';
+        zcm_loadwb_sel : in std_logic := '0';
         
         -- ==========================================
         -- Instruction and Memory Interface
@@ -135,7 +157,8 @@ architecture struct of datapath is
             resetn      : in  std_logic;
             clk         : in  std_logic;
             a, b        : in  std_logic_vector(XLEN-1 downto 0);
-            alu_control : in  std_logic_vector(5 downto 0);
+            alu_control : in  std_logic_vector(6 downto 0);
+            bs          : in  std_logic_vector(1 downto 0);
             div_start   : in  std_logic;
             ALU_result  : out std_logic_vector(XLEN-1 downto 0);
             alu_done    : out std_logic;
@@ -202,6 +225,8 @@ architecture struct of datapath is
     signal cas_match_comb     : std_logic;                      -- X2 Zacas: combinational compare of two registered operands
     signal cas_match_reg      : std_logic;                      -- X2 Zacas: registered compare verdict (used in AMO_WRITE)
     signal rf_a2_addr         : std_logic_vector(4 downto 0);   -- X2 Zacas: rs2 read-port address (steered to rd during the CAS AMO_WRITEBACK)
+    signal rf_a1_addr         : std_logic_vector(4 downto 0);   -- X3 Zcmp: rs1 read-port address (steered to the sequencer reg index)
+    signal rf_a3_addr         : std_logic_vector(4 downto 0);   -- X3 Zcmp: write-port address (steered to the sequencer reg index)
 
     signal rd_amo            : std_logic_vector(XLEN-1 downto 0);  -- Data read during AMO operations
 
@@ -297,14 +322,21 @@ begin
     -- Register File Instance
     -- ==========================================
     -- 32 general-purpose registers with special stack pointer handling
+    -- X3 Zcmp: steer the rs1 read port (a1) and the write port (a3) to the
+    -- sequencer's REGISTERED reg index during a push/pop/move step; otherwise the
+    -- normal instruction-field addressing (both selects fold to constant '0' when
+    -- the Zcm generics are off, so this is bit-identical to the base there).
+    rf_a1_addr <= zcm_rs_addr when zcm_rs_sel = '1' else instr(19 downto 15);
+    rf_a3_addr <= zcm_rd_addr when zcm_rd_sel = '1' else instr(11 downto 7);
+
     rf: regfile
         port map (
             clk      => clk,
             resetn   => resetn,
             we3      => reg_write,                    -- Write enable
-            a1       => instr(19 downto 15),         -- rs1 address
+            a1       => rf_a1_addr,                   -- rs1 address (X3 Zcmp: steered to the sequencer reg index)
             a2       => rf_a2_addr,                   -- rs2 address (X2 Zacas: steered to rd during CAS AMO_WRITEBACK)
-            a3       => instr(11 downto 7),          -- rd address
+            a3       => rf_a3_addr,                   -- rd address (X3 Zcmp: steered to the sequencer reg index)
             wd3      => Result,                       -- Write data
             rd1      => src_a,                       -- Read data 1 (rs1)
             rd2      => write_data_reg_val,          -- Read data 2 (rs2)
@@ -382,6 +414,7 @@ begin
             a           => ALU_A,                     -- Muxed for AMO operations
             b           => ALU_B,                     -- Muxed for AMO operations
             alu_control => alu_control,               -- Operation selector
+            bs          => instr(31 downto 30),       -- X3 AES byte-select (aes32* only)
             div_start   => div_start,                 -- Start division
             ALU_result  => ALU_result_internal,       -- Operation result
             alu_done    => alu_done,                  -- Multi-cycle operation complete
@@ -402,7 +435,16 @@ begin
     -- ==========================================
     -- Select the final result to write back to register file
     -- For SC, need to write success (0) or failure (1) based on reservation check
-    Result <= ALU_result_internal when result_Src = "000" else  -- ALU operation result
+    -- X3 Zcmp/Zcmt sequencer write sources (highest priority; both selects fold to
+    -- '0' when the generics are off, leaving the base result mux untouched):
+    --   zcm_move_sel   : reg-reg move (cm.mvsa01/mva01s) and popretz a0=0 (src=x0);
+    --                    src_a = reg[steered a1] (or 0 when a1 steered to x0).
+    --   zcm_loadwb_sel : cm.pop loaded word, raw from memory (word access, so
+    --                    equal to loadext funct3=010 -- avoids the sentinel's
+    --                    funct3 mis-selecting a sub-word extension).
+    Result <= src_a               when zcm_move_sel   = '1' else  -- X3 Zcmp reg-reg move / a0<-x0
+              read_data           when zcm_loadwb_sel = '1' else  -- X3 Zcmp pop: raw loaded word
+              ALU_result_internal when result_Src = "000" else  -- ALU operation result
             extended_data       when result_Src = "001" else  -- Load from memory
             pc_plus_4           when result_Src = "010" else  -- Return address (JAL/JALR)
             pc_target           when result_Src = "011" else  -- PC + immediate (AUIPC)

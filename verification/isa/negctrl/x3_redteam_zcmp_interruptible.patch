@@ -1,0 +1,22 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index be2cb32..d37b71c 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1633,6 +1633,8 @@ architecture struct of vesta is
+                     wen              <= (others => '1');
+                     if zcm_idx = zcm_nregs_val - 1 then
+                         next_state <= ZCM_SP_COMMIT;
++                    elsif irq_save = '1' then
++                        next_state <= IRQ_SV;
+                     else
+                         next_state <= ZCM_PUSH_ST;
+                     end if;
+@@ -1655,6 +1657,8 @@ architecture struct of vesta is
+                         else
+                             next_state <= ZCM_SP_COMMIT;
+                         end if;
++                    elsif irq_save = '1' then
++                        next_state <= IRQ_SV;
+                     else
+                         next_state <= ZCM_POP_LD;
+                     end if;

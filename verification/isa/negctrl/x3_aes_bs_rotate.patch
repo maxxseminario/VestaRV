@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/alu.vhd
++++ b/hdl/common/vesta/alu.vhd
+@@ -248,7 +248,7 @@
+             x32 := x"000000" & so;
+         end if;
+         -- rd = rs1 XOR rol32(x32, 8*bs)
+-        rot := std_logic_vector(rotate_left(unsigned(x32), shamt));
++        rot := std_logic_vector(rotate_right(unsigned(x32), shamt));
+         return a_in xor rot;
+     end function;
+ 

@@ -97,10 +97,13 @@ _CONFIG_SCHEMA = {
 	'isa.zawrs':            ('bool — Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)', _isBool),
 	'isa.zabha':            ('bool — Zabha byte/half AMOs (requires atomics). Implemented X2.', _isBool),
 	'isa.zacas':            ('bool — Zacas amocas.w/.b/.h compare-and-swap (requires atomics; .b/.h also need zabha). Implemented X2.', _isBool),
-	'isa.zbkb':             ('bool — Zbkb crypto bit-manip. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zbkc':             ('bool — Zbkc carryless multiply. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zbkx':             ('bool — Zbkx crossbar permute. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh). SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zicboz':           ('bool — Zicboz cbo.zero cache-block zero (64-byte block). Implemented X3.', _isBool),
+	'isa.zcmp':             ('bool — Zcmp compressed push/pop + reg-moves (requires isa.compressed). Implemented X3.', _isBool),
+	'isa.zcmt':             ('bool — Zcmt compressed table jump + jvt CSR (requires isa.compressed). Implemented X3.', _isBool),
+	'isa.zbkb':             ('bool — Zbkb crypto bit-manip (pack/packh/brev8/zip/unzip + Zbb-shared subset). Implemented X3.', _isBool),
+	'isa.zbkc':             ('bool — Zbkc carryless multiply (clmul/clmulh; reuses the Zbc datapath). Implemented X3.', _isBool),
+	'isa.zbkx':             ('bool — Zbkx crossbar permute (xperm8/xperm4). Implemented X3.', _isBool),
+	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh). Implemented X3', _isBool),
 	'isa.zfinx':            ('bool — Zfinx single-precision FP in x-regs. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
 	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
@@ -163,6 +166,9 @@ _CONFIG_META = {
 	'isa.zawrs':            {'type': 'bool', 'default': False},
 	'isa.zabha':            {'type': 'bool', 'default': False},
 	'isa.zacas':            {'type': 'bool', 'default': False},
+	'isa.zicboz':           {'type': 'bool', 'default': False},
+	'isa.zcmp':             {'type': 'bool', 'default': False},
+	'isa.zcmt':             {'type': 'bool', 'default': False},
 	'isa.zbkb':             {'type': 'bool', 'default': False},
 	'isa.zbkc':             {'type': 'bool', 'default': False},
 	'isa.zbkx':             {'type': 'bool', 'default': False},
@@ -323,6 +329,9 @@ _isa = {
 	'zawrs':      _cfg('isa.zawrs', False),
 	'zabha':      _cfg('isa.zabha', False),
 	'zacas':      _cfg('isa.zacas', False),
+	'zicboz':     _cfg('isa.zicboz', False),
+	'zcmp':       _cfg('isa.zcmp', False),
+	'zcmt':       _cfg('isa.zcmt', False),
 	'zbkb':       _cfg('isa.zbkb', False),
 	'zbkc':       _cfg('isa.zbkc', False),
 	'zbkx':       _cfg('isa.zbkx', False),
@@ -336,7 +345,10 @@ _isa = {
 # HARD-ERROR so nothing downstream (misa/ISA-string/tests) can lie about it.
 # Remove a name from this tuple as its phase (X1-X4) lands its real logic.
 _SCAFFOLDED_ISA = (
-	'zbkb', 'zbkc', 'zbkx', 'zkn', 'zfinx')
+	'zfinx',)   # NOTE: trailing comma is load-bearing -- without it this is the
+	            # STRING 'zfinx' (iterated char-by-char -> KeyError 'z'). Latent
+	            # since the list shrank to one entry in X3 Stage B; fixed here (X3
+	            # Stage C) so `make generate` runs.
 for _sx in _SCAFFOLDED_ISA:
 	if _isa[_sx]:
 		raise Exception('isa.' + _sx + ': scaffolded (X0) but not implemented yet')
@@ -353,6 +365,16 @@ if _isa['zabha'] and not _isa['atomics']:
 # that is a legal Zacas-word-only config, so it is only WARNed below.)
 if _isa['zacas'] and not _isa['atomics']:
 	raise Exception('isa.zacas requires isa.atomics (compare-and-swap builds on the A extension)')
+
+# X3 (Zcmp): compressed push/pop + reg-moves are C-quadrant encodings -- they
+# only exist with the C extension. HARD-ERROR so no config advertises Zcmp on a
+# chip without compressed decode.
+if _isa['zcmp'] and not _isa['compressed']:
+	raise Exception('isa.zcmp requires isa.compressed (cm.push/pop live in the C2 quadrant)')
+
+# X3 (Zcmt): compressed table jump is a C-quadrant encoding + the jvt CSR.
+if _isa['zcmt'] and not _isa['compressed']:
+	raise Exception('isa.zcmt requires isa.compressed (cm.jt/cm.jalt live in the C2 quadrant)')
 
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
@@ -377,6 +399,8 @@ def _isaString():
 		s += '_zihpm'
 	if _isa['zicond']:
 		s += '_zicond'
+	if _isa['zicboz']:
+		s += '_zicboz'
 	if _isa['zihint']:
 		s += '_zihintpause_zihintntl'
 	if _isa['zimop']:
@@ -391,6 +415,24 @@ def _isaString():
 		s += '_zabha'
 	if _isa['zacas']:
 		s += '_zacas'
+	if _isa['zcmp']:
+		s += '_zcmp'
+	if _isa['zcmt']:
+		s += '_zcmt'
+	# X3 Stage B scalar-crypto bit-manip (misa: none). Independent of Zbb —
+	# Zbkb makes its Zbb-shared subset legal even when Zbb is off.
+	if _isa['zbkb']:
+		s += '_zbkb'
+	if _isa['zbkc']:
+		s += '_zbkc'
+	if _isa['zbkx']:
+		s += '_zbkx'
+	# X3 Stage B AES+SHA (Zkn generic = Zknd+Zkne+Zknh). Composite _zkn only
+	# when Zbkb+Zbkc+Zbkx+Zkn all on (X0 spec).
+	if _isa['zkn']:
+		s += '_zknd_zkne_zknh'
+		if _isa['zbkb'] and _isa['zbkc'] and _isa['zbkx']:
+			s += '_zkn'
 	return s
 
 # Cross-knob sanity (WARN, not raise — these are legal but suspicious)
@@ -519,6 +561,9 @@ m = ChipGenerator(
 	ENABLE_ZAWRS=_isa['zawrs'],
 	ENABLE_ZABHA=_isa['zabha'],
 	ENABLE_ZACAS=_isa['zacas'],
+	ENABLE_ZICBOZ=_isa['zicboz'],
+	ENABLE_ZCMP=_isa['zcmp'],
+	ENABLE_ZCMT=_isa['zcmt'],
 	ENABLE_ZBKB=_isa['zbkb'],
 	ENABLE_ZBKC=_isa['zbkc'],
 	ENABLE_ZBKX=_isa['zbkx'],

@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/csr_unit.vhd b/hdl/common/vesta/csr_unit.vhd
+index a735a86..b124ba2 100644
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -286,7 +286,7 @@ begin
+                     -- the OFF polarity (and 0x017 traps illegal there via csr_valid).
+                     when CSR_JVT =>
+                         if ENABLE_ZCMT then
+-                            jvt <= csr_new_val(31 downto 6) & "000000";
++                            jvt <= csr_new_val;  -- NEGCTRL: no base-align mask (mode bits leak in)
+                         end if;
+ 
+                     when others =>

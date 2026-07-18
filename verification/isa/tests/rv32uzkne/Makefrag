@@ -1,0 +1,16 @@
+#=======================================================================
+# Makefrag for rv32uzkne tests (X3 Zkne AES-32 encrypt)
+#-----------------------------------------------------------------------
+# ON-POLARITY ONLY (rv32uzacas/rv32uzabha precedent): every test emits
+# aes32esi/aes32esmi encodings that trap illegal on a Zkn-OFF build, so this
+# suite is simulated against a Zkn-ON MCU (built with -DCORE_ENABLE_ZKN) and
+# is NOT wired into the default runner. Built with the base -march (gas 13.2
+# has no `zkne'/`zknd' suffix and no aes32* mnemonics); the encodings are
+# explicit `.insn' R-types.
+#=======================================================================
+
+rv32uzkne_sc_tests = \
+	aes32e \
+
+rv32uzkne_p_tests = $(addprefix rv32uzkne-p-, $(rv32uzkne_sc_tests))
+rv32uzkne_v_tests = $(addprefix rv32uzkne-v-, $(rv32uzkne_sc_tests))

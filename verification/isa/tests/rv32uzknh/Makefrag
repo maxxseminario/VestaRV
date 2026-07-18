@@ -1,0 +1,16 @@
+#=======================================================================
+# Makefrag for rv32uzknh tests (X3 Zknh SHA-256/512 scalar crypto)
+#-----------------------------------------------------------------------
+# ON-POLARITY ONLY (rv32uzabha/rv32uzacas/rv32uzicond precedent): every
+# test emits sha256*/sha512* encodings that trap illegal on a zkn-OFF
+# build, so this suite is simulated against a Zkn-ON MCU and is NOT wired
+# into the default runner. Built with the base -march (gas 13.2 has no
+# `zknh' suffix and no sha256*/sha512* mnemonics); the ops are explicit
+# `.insn' forms (I-type for sha256*, R-type for sha512*).
+#=======================================================================
+
+rv32uzknh_sc_tests = \
+	sha256 sha512 \
+
+rv32uzknh_p_tests = $(addprefix rv32uzknh-p-, $(rv32uzknh_sc_tests))
+rv32uzknh_v_tests = $(addprefix rv32uzknh-v-, $(rv32uzknh_sc_tests))

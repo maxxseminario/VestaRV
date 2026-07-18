@@ -1,0 +1,13 @@
+diff --git a/hdl/common/vesta/alu.vhd b/hdl/common/vesta/alu.vhd
+index 1f0a713..76fb917 100644
+--- a/hdl/common/vesta/alu.vhd
++++ b/hdl/common/vesta/alu.vhd
+@@ -745,7 +745,7 @@ begin
+                     if ENABLE_ZKN then
+                         ResultSignal <= std_logic_vector(
+                             shift_right(unsigned(a),  1) xor
+-                            shift_right(unsigned(a),  7) xor
++                            shift_right(unsigned(a),  6) xor
+                             shift_right(unsigned(a),  8) xor
+                             shift_left (unsigned(b), 31) xor
+                             shift_left (unsigned(b), 25) xor

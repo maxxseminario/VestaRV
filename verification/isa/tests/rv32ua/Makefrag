@@ -17,9 +17,23 @@ rv32ua_sc_tests = \
 	shmixw \
 	shpause \
 	shwrs \
+	shcboz \
+	shcmp \
+	shcmppush \
+	shcmt \
+	extzcmp \
+	extzcmt \
+	extjvt \
 	extzabha \
 	extzacas \
+	extzicboz \
+	extzkne \
+	extzknd \
+	extzbkb \
+	extzbkx \
+	extzbkrsv \
 	casill \
+	cbozill \
 	extprobe \
 	extzimop \
 	extzihint \
@@ -34,6 +48,7 @@ rv32ua_sc_tests = \
 	extzcb \
 	extzawrs \
 	extzawrsx \
+	extzknh \
 
 rv32ua_p_tests = $(addprefix rv32ua-p-, $(rv32ua_sc_tests))
 rv32ua_v_tests = $(addprefix rv32ua-v-, $(rv32ua_sc_tests))

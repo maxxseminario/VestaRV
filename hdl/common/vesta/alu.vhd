@@ -26,7 +26,8 @@ entity alu is
         resetn      : in  std_logic;
         clk         : in  std_logic;
         a, b        : in  std_logic_vector(XLEN-1 downto 0);
-        alu_control : in  std_logic_vector(5 downto 0);  
+        alu_control : in  std_logic_vector(6 downto 0);
+        bs          : in  std_logic_vector(1 downto 0);   -- X3 Zknd/Zkne AES byte-select (instr[31:30]); only used by the aes32* arms
         div_start   : in  std_logic;  -- Start signal from CPU to initiate division
         ALU_result  : out std_logic_vector(XLEN-1 downto 0); 
         alu_done    : out std_logic;
@@ -131,6 +132,127 @@ architecture behav of alu is
     -- end function;
 
 
+    -- ==========================================================================
+    -- X3 Zknd/Zkne AES-32 shared crypto primitives
+    -- --------------------------------------------------------------------------
+    -- ONE forward S-box (256 B) and ONE inverse S-box (256 B), shared across all
+    -- four aes32* ops (esi/esmi use FWD; dsi/dsmi use INV), plus the GF(2^8)
+    -- MixColumn terms computed combinationally. NOT four table copies -- a single
+    -- aes32_datapath() function body handles all four ops, byte-steered by bs.
+    -- Everything below is pure combinational (fixed latency, data-independent
+    -- timing) so the constant-time / future-Zkt invariant holds.
+    type aes_sbox_t is array (0 to 255) of std_logic_vector(7 downto 0);
+
+    constant AES_SBOX_FWD : aes_sbox_t := (
+        x"63", x"7c", x"77", x"7b", x"f2", x"6b", x"6f", x"c5", x"30", x"01", x"67", x"2b", x"fe", x"d7", x"ab", x"76",
+        x"ca", x"82", x"c9", x"7d", x"fa", x"59", x"47", x"f0", x"ad", x"d4", x"a2", x"af", x"9c", x"a4", x"72", x"c0",
+        x"b7", x"fd", x"93", x"26", x"36", x"3f", x"f7", x"cc", x"34", x"a5", x"e5", x"f1", x"71", x"d8", x"31", x"15",
+        x"04", x"c7", x"23", x"c3", x"18", x"96", x"05", x"9a", x"07", x"12", x"80", x"e2", x"eb", x"27", x"b2", x"75",
+        x"09", x"83", x"2c", x"1a", x"1b", x"6e", x"5a", x"a0", x"52", x"3b", x"d6", x"b3", x"29", x"e3", x"2f", x"84",
+        x"53", x"d1", x"00", x"ed", x"20", x"fc", x"b1", x"5b", x"6a", x"cb", x"be", x"39", x"4a", x"4c", x"58", x"cf",
+        x"d0", x"ef", x"aa", x"fb", x"43", x"4d", x"33", x"85", x"45", x"f9", x"02", x"7f", x"50", x"3c", x"9f", x"a8",
+        x"51", x"a3", x"40", x"8f", x"92", x"9d", x"38", x"f5", x"bc", x"b6", x"da", x"21", x"10", x"ff", x"f3", x"d2",
+        x"cd", x"0c", x"13", x"ec", x"5f", x"97", x"44", x"17", x"c4", x"a7", x"7e", x"3d", x"64", x"5d", x"19", x"73",
+        x"60", x"81", x"4f", x"dc", x"22", x"2a", x"90", x"88", x"46", x"ee", x"b8", x"14", x"de", x"5e", x"0b", x"db",
+        x"e0", x"32", x"3a", x"0a", x"49", x"06", x"24", x"5c", x"c2", x"d3", x"ac", x"62", x"91", x"95", x"e4", x"79",
+        x"e7", x"c8", x"37", x"6d", x"8d", x"d5", x"4e", x"a9", x"6c", x"56", x"f4", x"ea", x"65", x"7a", x"ae", x"08",
+        x"ba", x"78", x"25", x"2e", x"1c", x"a6", x"b4", x"c6", x"e8", x"dd", x"74", x"1f", x"4b", x"bd", x"8b", x"8a",
+        x"70", x"3e", x"b5", x"66", x"48", x"03", x"f6", x"0e", x"61", x"35", x"57", x"b9", x"86", x"c1", x"1d", x"9e",
+        x"e1", x"f8", x"98", x"11", x"69", x"d9", x"8e", x"94", x"9b", x"1e", x"87", x"e9", x"ce", x"55", x"28", x"df",
+        x"8c", x"a1", x"89", x"0d", x"bf", x"e6", x"42", x"68", x"41", x"99", x"2d", x"0f", x"b0", x"54", x"bb", x"16"
+    );
+
+    constant AES_SBOX_INV : aes_sbox_t := (
+        x"52", x"09", x"6a", x"d5", x"30", x"36", x"a5", x"38", x"bf", x"40", x"a3", x"9e", x"81", x"f3", x"d7", x"fb",
+        x"7c", x"e3", x"39", x"82", x"9b", x"2f", x"ff", x"87", x"34", x"8e", x"43", x"44", x"c4", x"de", x"e9", x"cb",
+        x"54", x"7b", x"94", x"32", x"a6", x"c2", x"23", x"3d", x"ee", x"4c", x"95", x"0b", x"42", x"fa", x"c3", x"4e",
+        x"08", x"2e", x"a1", x"66", x"28", x"d9", x"24", x"b2", x"76", x"5b", x"a2", x"49", x"6d", x"8b", x"d1", x"25",
+        x"72", x"f8", x"f6", x"64", x"86", x"68", x"98", x"16", x"d4", x"a4", x"5c", x"cc", x"5d", x"65", x"b6", x"92",
+        x"6c", x"70", x"48", x"50", x"fd", x"ed", x"b9", x"da", x"5e", x"15", x"46", x"57", x"a7", x"8d", x"9d", x"84",
+        x"90", x"d8", x"ab", x"00", x"8c", x"bc", x"d3", x"0a", x"f7", x"e4", x"58", x"05", x"b8", x"b3", x"45", x"06",
+        x"d0", x"2c", x"1e", x"8f", x"ca", x"3f", x"0f", x"02", x"c1", x"af", x"bd", x"03", x"01", x"13", x"8a", x"6b",
+        x"3a", x"91", x"11", x"41", x"4f", x"67", x"dc", x"ea", x"97", x"f2", x"cf", x"ce", x"f0", x"b4", x"e6", x"73",
+        x"96", x"ac", x"74", x"22", x"e7", x"ad", x"35", x"85", x"e2", x"f9", x"37", x"e8", x"1c", x"75", x"df", x"6e",
+        x"47", x"f1", x"1a", x"71", x"1d", x"29", x"c5", x"89", x"6f", x"b7", x"62", x"0e", x"aa", x"18", x"be", x"1b",
+        x"fc", x"56", x"3e", x"4b", x"c6", x"d2", x"79", x"20", x"9a", x"db", x"c0", x"fe", x"78", x"cd", x"5a", x"f4",
+        x"1f", x"dd", x"a8", x"33", x"88", x"07", x"c7", x"31", x"b1", x"12", x"10", x"59", x"27", x"80", x"ec", x"5f",
+        x"60", x"51", x"7f", x"a9", x"19", x"b5", x"4a", x"0d", x"2d", x"e5", x"7a", x"9f", x"93", x"c9", x"9c", x"ef",
+        x"a0", x"e0", x"3b", x"4d", x"ae", x"2a", x"f5", x"b0", x"c8", x"eb", x"bb", x"3c", x"83", x"53", x"99", x"61",
+        x"17", x"2b", x"04", x"7e", x"ba", x"77", x"d6", x"26", x"e1", x"69", x"14", x"63", x"55", x"21", x"0c", x"7d"
+    );
+
+    -- GF(2^8) xtime (multiply by x, AES reduction polynomial 0x11B).
+    function aes_xtime(bin : std_logic_vector(7 downto 0)) return std_logic_vector is
+        variable r : std_logic_vector(7 downto 0);
+    begin
+        r := bin(6 downto 0) & '0';
+        if bin(7) = '1' then
+            r := r xor x"1b";
+        end if;
+        return r;
+    end function;
+
+    -- GF(2^8) multiply of x by a small constant y (2,3,9,b,d,e) via peasant
+    -- multiplication over xtime -- ONE routine covers every MixColumn term.
+    function aes_gfmul(x : std_logic_vector(7 downto 0);
+                       y : std_logic_vector(3 downto 0)) return std_logic_vector is
+        variable acc : std_logic_vector(7 downto 0) := (others => '0');
+        variable tmp : std_logic_vector(7 downto 0);
+    begin
+        tmp := x;
+        for i in 0 to 3 loop
+            if y(i) = '1' then
+                acc := acc xor tmp;
+            end if;
+            tmp := aes_xtime(tmp);
+        end loop;
+        return acc;
+    end function;
+
+    -- Shared aes32 datapath. rs1=a_in, rs2=b_in, byte-select bs. Decrypt selects
+    -- the inverse S-box + inverse MixColumn constants; mix adds the MixColumn.
+    --   si = byte bs of rs2 ; so = SBOX(si)
+    --   x  = MixColumn(so) (or zext(so) for the *si ops)
+    --   rd = rs1 XOR rol32(x, 8*bs)
+    function aes32_datapath(a_in, b_in : std_logic_vector(31 downto 0);
+                            bsel       : std_logic_vector(1 downto 0);
+                            decrypt    : boolean;
+                            mix        : boolean) return std_logic_vector is
+        variable idx    : integer;
+        variable shamt  : integer;
+        variable bshift : std_logic_vector(31 downto 0);
+        variable si     : std_logic_vector(7 downto 0);
+        variable so     : std_logic_vector(7 downto 0);
+        variable x32    : std_logic_vector(31 downto 0);
+        variable rot    : std_logic_vector(31 downto 0);
+    begin
+        idx   := to_integer(unsigned(bsel));
+        shamt := 8 * idx;
+        -- si = (rs2 >> 8*bs)[7:0]  (byte bs of rs2)
+        bshift := std_logic_vector(shift_right(unsigned(b_in), shamt));
+        si     := bshift(7 downto 0);
+        if decrypt then
+            so := AES_SBOX_INV(to_integer(unsigned(si)));
+        else
+            so := AES_SBOX_FWD(to_integer(unsigned(si)));
+        end if;
+        if mix then
+            if decrypt then
+                -- inverse MixColumn column {b, d, 9, e}
+                x32 := aes_gfmul(so, x"b") & aes_gfmul(so, x"d") &
+                       aes_gfmul(so, x"9") & aes_gfmul(so, x"e");
+            else
+                -- forward MixColumn column {3, s, s, 2}
+                x32 := aes_gfmul(so, x"3") & so & so & aes_gfmul(so, x"2");
+            end if;
+        else
+            x32 := x"000000" & so;
+        end if;
+        -- rd = rs1 XOR rol32(x32, 8*bs)
+        rot := std_logic_vector(rotate_left(unsigned(x32), shamt));
+        return a_in xor rot;
+    end function;
+
     type alu_state_t is (ALU_IDLE, ALU_DIV_WAIT, ALU_DIV_DONE);
     signal alu_state : alu_state_t;
     signal div_operation : std_logic;
@@ -160,8 +282,8 @@ architecture behav of alu is
 begin
 
     -- Detect division operations (updated for 6-bit control)
-    div_operation <= '1' when (alu_control = "010000" or alu_control = "010001" or 
-                              alu_control = "010010" or alu_control = "010011") else '0';
+    div_operation <= '1' when (alu_control = "0010000" or alu_control = "0010001" or 
+                              alu_control = "0010010" or alu_control = "0010011") else '0';
 
     signed_a   <= signed(a);
     signed_b   <= signed(b);
@@ -186,16 +308,16 @@ begin
                     if div_start_rq = '1' and div_rdy = '1' then
                         div_rq <= '1';
                         case alu_control is
-                            when "010000" => -- DIV
+                            when "0010000" => -- DIV
                                 div_sel_signed <= '1';
                                 div_sel_rem <= '0';
-                            when "010001" => -- DIVU
+                            when "0010001" => -- DIVU
                                 div_sel_signed <= '0';
                                 div_sel_rem <= '0';
-                            when "010010" => -- REM
+                            when "0010010" => -- REM
                                 div_sel_signed <= '1';
                                 div_sel_rem <= '1';
-                            when "010011" => -- REMU
+                            when "0010011" => -- REMU
                                 div_sel_signed <= '0';
                                 div_sel_rem <= '1';
                             when others =>
@@ -216,7 +338,7 @@ begin
         end if;
     end process;
 
-    process(a, b, alu_control, div_rdy, div_complete, alu_state, div_result, resetn)
+    process(a, b, bs, alu_control, div_rdy, div_complete, alu_state, div_result, resetn)
         variable mult_result : std_logic_vector(2*XLEN-1 downto 0);
         variable shift_amount : integer;
 
@@ -238,59 +360,59 @@ begin
                 -- ==========================================
                 -- Original RV32I Instructions (6-bit encoding)
                 -- ==========================================
-                when "000000" => -- Addition
+                when "0000000" => -- Addition
                     ResultSignal <= std_logic_vector(unsigned(a) + unsigned(b));
-                when "000001" => -- Subtraction
+                when "0000001" => -- Subtraction
                     ResultSignal <= std_logic_vector(unsigned(a) - unsigned(b));
-                when "000010" => -- AND
+                when "0000010" => -- AND
                     ResultSignal <= a and b;
-                when "000011" => -- OR
+                when "0000011" => -- OR
                     ResultSignal <= a or b;
-                when "000100" => -- XOR
+                when "0000100" => -- XOR
                     ResultSignal <= a xor b;
-                when "000101" => -- SLT (Set if Less Than)
+                when "0000101" => -- SLT (Set if Less Than)
                     if signed(a) < signed(b) then
                         ResultSignal(0) <= '1';
                     end if;
-                when "000110" => -- Shift Left (Logical)
-                    ResultSignal <= std_logic_vector(shift_left(unsigned(a), to_integer(unsigned(b(SHAMT_W-1 downto 0))))); 
-                when "000111" => -- Shift Right (Logical)
-                    ResultSignal <= std_logic_vector(shift_right(unsigned(a), to_integer(unsigned(b(SHAMT_W-1 downto 0))))); 
-                when "001000" => -- Shift Right Arithmetic
+                when "0000110" => -- Shift Left (Logical)
+                    ResultSignal <= std_logic_vector(shift_left(unsigned(a), to_integer(unsigned(b(SHAMT_W-1 downto 0)))));
+                when "0000111" => -- Shift Right (Logical)
+                    ResultSignal <= std_logic_vector(shift_right(unsigned(a), to_integer(unsigned(b(SHAMT_W-1 downto 0)))));
+                when "0001000" => -- Shift Right Arithmetic
                     ResultSignal <= std_logic_vector(shift_right(signed(a), to_integer(unsigned(b(SHAMT_W-1 downto 0)))));
-                when "001001" => -- SLTU (Set if Less Than Unsigned)
+                when "0001001" => -- SLTU (Set if Less Than Unsigned)
                     if unsigned(a) < unsigned(b) then
                         ResultSignal(0) <= '1';
                     end if;
-                when "001010" => -- Pass B
+                when "0001010" => -- Pass B
                     ResultSignal <= b;
-                when "001011" => -- Pass A (added for AMO)
+                when "0001011" => -- Pass A (added for AMO)
                     ResultSignal <= a;
 
                 -- ==========================================
                 -- RV32M Multiply/Divide Extensions (6-bit encoding)
                 -- ==========================================
-                when "001100" => -- MUL (signed * signed, low 32 bits)
+                when "0001100" => -- MUL (signed * signed, low 32 bits)
                     if ENABLE_MUL then
                         mult_result := std_logic_vector(signed(a)*signed(b));
                         ResultSignal <= mult_result(XLEN-1 downto 0);
                     end if;
-                when "001101" => -- MULH (signed * signed, high XLEN bits)
+                when "0001101" => -- MULH (signed * signed, high XLEN bits)
                     if ENABLE_MUL then
                         mult_result := std_logic_vector(signed(a)*signed(b));
                         ResultSignal <= mult_result(2*XLEN-1 downto XLEN);
                     end if;
-                when "001110" => -- MULHU (unsigned * unsigned, high XLEN bits)
+                when "0001110" => -- MULHU (unsigned * unsigned, high XLEN bits)
                     if ENABLE_MUL then
                         mult_result := std_logic_vector(unsigned(a)*unsigned(b));
                         ResultSignal <= mult_result(2*XLEN-1 downto XLEN);
                     end if;
-                when "001111" => -- MULHSU
+                when "0001111" => -- MULHSU
                     if ENABLE_MUL then
                         mult_result := std_logic_vector(resize(signed(a) * signed('0' & b), 2*XLEN));
                         ResultSignal <= mult_result(2*XLEN-1 downto XLEN);
                     end if;
-                when "010000" | "010001" | "010010" | "010011" => -- Division operations
+                when "0010000" | "0010001" | "0010010" | "0010011" => -- Division operations
                     if ENABLE_DIV then
                         div_start_rq <= '1';
                         if alu_state = ALU_DIV_WAIT or alu_state = ALU_DIV_DONE then
@@ -305,7 +427,7 @@ begin
                 -- ==========================================
                 -- RV32A Atomic MIN/MAX operations (6-bit encoding)
                 -- ==========================================
-                when "010100" => -- AMOMIN (signed)
+                when "0010100" => -- AMOMIN (signed)
                     if ENABLE_ATOMICS then
                         if signed(a) < signed(b) then
                             ResultSignal <= a;
@@ -314,7 +436,7 @@ begin
                         end if;
                     end if;
 
-                when "010101" => -- AMOMAX (signed)
+                when "0010101" => -- AMOMAX (signed)
                     if ENABLE_ATOMICS then
                         if signed(a) > signed(b) then
                             ResultSignal <= a;
@@ -323,7 +445,7 @@ begin
                         end if;
                     end if;
 
-                when "010110" => -- AMOMINU (unsigned)
+                when "0010110" => -- AMOMINU (unsigned)
                     if ENABLE_ATOMICS then
                         if unsigned(a) < unsigned(b) then
                             ResultSignal <= a;
@@ -332,7 +454,7 @@ begin
                         end if;
                     end if;
 
-                when "010111" => -- AMOMAXU (unsigned)
+                when "0010111" => -- AMOMAXU (unsigned)
                     if ENABLE_ATOMICS then
                         if unsigned(a) > unsigned(b) then
                             ResultSignal <= a;
@@ -344,17 +466,17 @@ begin
                 -- ==========================================
                 -- RV32 Zba Shift-and-Add Instructions
                 -- ==========================================
-                when "011000" => -- SH1ADD: rd = (rs1 << 1) + rs2
+                when "0011000" => -- SH1ADD: rd = (rs1 << 1) + rs2
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(unsigned(a(XLEN-2 downto 0) & '0') + unsigned(b));
                     end if;
 
-                when "011001" => -- SH2ADD: rd = (rs1 << 2) + rs2
+                when "0011001" => -- SH2ADD: rd = (rs1 << 2) + rs2
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(unsigned(a(XLEN-3 downto 0) & "00") + unsigned(b));
                     end if;
 
-                when "011010" => -- SH3ADD: rd = (rs1 << 3) + rs2
+                when "0011010" => -- SH3ADD: rd = (rs1 << 3) + rs2
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(unsigned(a(XLEN-4 downto 0) & "000") + unsigned(b));
                     end if;
@@ -364,23 +486,23 @@ begin
                 -- ==========================================
                 
                 -- Logical operations with complement
-                when "011011" => -- ANDN: rd = rs1 & ~rs2
-                    if ENABLE_BITMANIP then
+                when "0011011" => -- ANDN: rd = rs1 & ~rs2 (Zbb or Zbkb-shared)
+                    if ENABLE_BITMANIP or ENABLE_ZBKB then
                         ResultSignal <= a and (not b);
                     end if;
 
-                when "011100" => -- ORN: rd = rs1 | ~rs2
-                    if ENABLE_BITMANIP then
+                when "0011100" => -- ORN: rd = rs1 | ~rs2 (Zbb or Zbkb-shared)
+                    if ENABLE_BITMANIP or ENABLE_ZBKB then
                         ResultSignal <= a or (not b);
                     end if;
 
-                when "011101" => -- XNOR: rd = ~(rs1 ^ rs2)
-                    if ENABLE_BITMANIP then
+                when "0011101" => -- XNOR: rd = ~(rs1 ^ rs2) (Zbb or Zbkb-shared)
+                    if ENABLE_BITMANIP or ENABLE_ZBKB then
                         ResultSignal <= not (a xor b);
                     end if;
 
                 -- Min/Max operations (Zbb versions)
-                when "011110" => -- MIN (signed)
+                when "0011110" => -- MIN (signed)
                     if ENABLE_BITMANIP then
                         if signed(a) < signed(b) then
                             ResultSignal <= a;
@@ -389,7 +511,7 @@ begin
                         end if;
                     end if;
 
-                when "011111" => -- MINU (unsigned)
+                when "0011111" => -- MINU (unsigned)
                     if ENABLE_BITMANIP then
                         if unsigned(a) < unsigned(b) then
                             ResultSignal <= a;
@@ -398,7 +520,7 @@ begin
                         end if;
                     end if;
 
-                when "100000" => -- MAX (signed)
+                when "0100000" => -- MAX (signed)
                     if ENABLE_BITMANIP then
                         if signed(a) > signed(b) then
                             ResultSignal <= a;
@@ -407,7 +529,7 @@ begin
                         end if;
                     end if;
 
-                when "100001" => -- MAXU (unsigned)
+                when "0100001" => -- MAXU (unsigned)
                     if ENABLE_BITMANIP then
                         if unsigned(a) > unsigned(b) then
                             ResultSignal <= a;
@@ -417,60 +539,60 @@ begin
                     end if;
                 
                 -- Rotate operations
-                -- when "100010" => -- ROL: rotate left
+                -- when "0100010" => -- ROL: rotate left
                 --     shift_amount := to_integer(unsigned(b(4 downto 0)));
                 --     ResultSignal <= rol32(a, shift_amount);
                     
-                -- when "100011" => -- ROR/RORI: rotate right
+                -- when "0100011" => -- ROR/RORI: rotate right
                 --     shift_amount := to_integer(unsigned(b(4 downto 0)));
                 --     ResultSignal <= ror32(a, shift_amount);
                 -- In the rotate operations section:
-                when "100010" => -- ROL: rotate left
-                    if ENABLE_BITMANIP then
+                when "0100010" => -- ROL: rotate left (Zbb or Zbkb-shared)
+                    if ENABLE_BITMANIP or ENABLE_ZBKB then
                         shift_amount := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
                         ResultSignal <= std_logic_vector(rotate_left(unsigned(a), shift_amount)); -- ieee_numeric_std has rotate_left function
                     end if;
 
-                when "100011" => -- ROR/RORI: rotate right
-                    if ENABLE_BITMANIP then
+                when "0100011" => -- ROR/RORI: rotate right (Zbb or Zbkb-shared)
+                    if ENABLE_BITMANIP or ENABLE_ZBKB then
                         shift_amount := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
                         ResultSignal <= std_logic_vector(rotate_right(unsigned(a), shift_amount));
                     end if;
 
                 -- Bit counting operations
-                when "100100" => -- CLZ: count leading zeros
+                when "0100100" => -- CLZ: count leading zeros
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(to_unsigned(count_leading_zeros(a), XLEN));
                     end if;
 
-                when "100101" => -- CTZ: count trailing zeros
+                when "0100101" => -- CTZ: count trailing zeros
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(to_unsigned(count_trailing_zeros(a), XLEN));
                     end if;
 
-                when "100110" => -- CPOP: population count (count ones)
+                when "0100110" => -- CPOP: population count (count ones)
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(to_unsigned(count_ones(a), XLEN));
                     end if;
 
                 -- Sign/Zero extension
-                when "100111" => -- SEXT.B: sign extend byte
+                when "0100111" => -- SEXT.B: sign extend byte
                     if ENABLE_BITMANIP then
                         ResultSignal <= (XLEN-1 downto 8 => a(7)) & a(7 downto 0);
                     end if;
 
-                when "101000" => -- SEXT.H: sign extend halfword
+                when "0101000" => -- SEXT.H: sign extend halfword
                     if ENABLE_BITMANIP then
                         ResultSignal <= (XLEN-1 downto 16 => a(15)) & a(15 downto 0);
                     end if;
 
-                when "101001" => -- ZEXT.H: zero extend halfword
+                when "0101001" => -- ZEXT.H: zero extend halfword
                     if ENABLE_BITMANIP then
                         ResultSignal <= (XLEN-1 downto 16 => '0') & a(15 downto 0);
                     end if;
 
                 -- Byte operations
-                when "101010" => -- ORC.B
+                when "0101010" => -- ORC.B
                     if ENABLE_BITMANIP then
                         for i in 0 to XLEN_BYTES-1 loop
                             if a(i*8+7 downto i*8) /= x"00" then
@@ -481,8 +603,8 @@ begin
                         end loop;
                     end if;
 
-                when "101011" => -- REV8: byte reverse (endianness swap)
-                    if ENABLE_BITMANIP then
+                when "0101011" => -- REV8: byte reverse (endianness swap) (Zbb or Zbkb-shared)
+                    if ENABLE_BITMANIP or ENABLE_ZBKB then
                         for i in 0 to XLEN_BYTES-1 loop
                             ResultSignal(XLEN-1-i*8 downto XLEN-8-i*8) <= a(i*8+7 downto i*8);
                         end loop;
@@ -492,7 +614,7 @@ begin
                 -- ==========================================
                 -- RV32 Zbs Single-bit Instructions
                 -- ==========================================
-                when "101100" => -- BCLR/BCLRI: Bit clear (rd = rs1 & ~(1 << rs2))
+                when "0101100" => -- BCLR/BCLRI: Bit clear (rd = rs1 & ~(1 << rs2))
                     if ENABLE_BITMANIP then
                         bit_index := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
                         bit_mask := (others => '1');
@@ -500,14 +622,14 @@ begin
                         ResultSignal <= a and bit_mask;
                     end if;
 
-                when "101101" => -- BEXT/BEXTI: Bit extract (rd = (rs1 >> rs2) & 1)
+                when "0101101" => -- BEXT/BEXTI: Bit extract (rd = (rs1 >> rs2) & 1)
                     if ENABLE_BITMANIP then
                         bit_index := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
                         ResultSignal <= (others => '0');
                         ResultSignal(0) <= a(bit_index);
                     end if;
 
-                when "101110" => -- BINV/BINVI: Bit invert (rd = rs1 ^ (1 << rs2))
+                when "0101110" => -- BINV/BINVI: Bit invert (rd = rs1 ^ (1 << rs2))
                     if ENABLE_BITMANIP then
                         bit_index := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
                         bit_mask := (others => '0');
@@ -515,7 +637,7 @@ begin
                         ResultSignal <= a xor bit_mask;
                     end if;
 
-                when "101111" => -- BSET/BSETI: Bit set (rd = rs1 | (1 << rs2))
+                when "0101111" => -- BSET/BSETI: Bit set (rd = rs1 | (1 << rs2))
                     if ENABLE_BITMANIP then
                         bit_index := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
                         bit_mask := (others => '0');
@@ -527,19 +649,19 @@ begin
                 -- ==========================================
                 -- RV32 Zbc Carry-less Multiplication Instructions
                 -- ==========================================
-                when "110000" => -- CLMUL: Carry-less multiply (low part)
-                    if ENABLE_BITMANIP then
+                when "0110000" => -- CLMUL: Carry-less multiply (low part) -- Zbc or Zbkc
+                    if ENABLE_BITMANIP or ENABLE_ZBKC then
                         mult_result := clmul_64(a, b);
                         ResultSignal <= mult_result(XLEN-1 downto 0);
                     end if;
 
-                when "110001" => -- CLMULH: Carry-less multiply (high part)
-                    if ENABLE_BITMANIP then
+                when "0110001" => -- CLMULH: Carry-less multiply (high part) -- Zbc or Zbkc
+                    if ENABLE_BITMANIP or ENABLE_ZBKC then
                         mult_result := clmul_64(a, b);
                         ResultSignal <= mult_result(2*XLEN-1 downto XLEN);
                     end if;
 
-                when "110010" => -- CLMULR: Carry-less multiply (reversed)
+                when "0110010" => -- CLMULR: Carry-less multiply (reversed)
                     -- Reverse operand order for polynomial reduction
                     if ENABLE_BITMANIP then
                         mult_result := clmul_64(a, b);
@@ -550,7 +672,7 @@ begin
                 -- RV32 Zicond Conditional-Zero Instructions
                 -- (a = rs1, b = rs2)
                 -- ==========================================
-                when "110011" => -- CZERO.EQZ: rd = (rs2==0) ? 0 : rs1
+                when "0110011" => -- CZERO.EQZ: rd = (rs2==0) ? 0 : rs1
                     if ENABLE_ZICOND then
                         if b = ALU_ZERO_X then
                             ResultSignal <= (others => '0');
@@ -559,7 +681,7 @@ begin
                         end if;
                     end if;
 
-                when "110100" => -- CZERO.NEZ: rd = (rs2!=0) ? 0 : rs1
+                when "0110100" => -- CZERO.NEZ: rd = (rs2!=0) ? 0 : rs1
                     if ENABLE_ZICOND then
                         if b /= ALU_ZERO_X then
                             ResultSignal <= (others => '0');
@@ -568,6 +690,201 @@ begin
                         end if;
                     end if;
 
+                -- ==========================================
+                -- RV32 Zknd/Zkne AES-32 Instructions (X3)
+                -- Single-cycle combinational; shared S-box + GF MixColumn terms.
+                -- a = rs1, b = rs2, bs = instr[31:30] (separate ALU input).
+                -- ==========================================
+                when "0111100" => -- aes32esi:  encrypt, SubBytes only
+                    if ENABLE_ZKN then
+                        ResultSignal <= aes32_datapath(a, b, bs, false, false);
+                    end if;
+                when "0111101" => -- aes32esmi: encrypt, SubBytes + MixColumns
+                    if ENABLE_ZKN then
+                        ResultSignal <= aes32_datapath(a, b, bs, false, true);
+                    end if;
+                when "0111110" => -- aes32dsi:  decrypt, inv-SubBytes only
+                    if ENABLE_ZKN then
+                        ResultSignal <= aes32_datapath(a, b, bs, true, false);
+                    end if;
+                when "0111111" => -- aes32dsmi: decrypt, inv-SubBytes + inv-MixColumns
+                    if ENABLE_ZKN then
+                        ResultSignal <= aes32_datapath(a, b, bs, true, true);
+                    end if;
+
+                -- RV32 Zknh SHA-256 / SHA-512 sigma & sum (X3 Stage B)
+                -- Pure combinational xor/rotate/shift trees -- single-cycle,
+                -- constant-time (Zkt-safe). a = rs1, b = rs2. Rotate/shift
+                -- amounts transcribed from the ratified Zknh spec pseudocode.
+                -- ==========================================
+                -- SHA-256 (unary; operate on rs1 = a only).
+                when "1000000" => -- sha256sig0: ror(a,7) ^ ror(a,18) ^ (a>>3)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            rotate_right(unsigned(a),  7) xor
+                            rotate_right(unsigned(a), 18) xor
+                            shift_right (unsigned(a),  3));
+                    end if;
+                when "1000001" => -- sha256sig1: ror(a,17) ^ ror(a,19) ^ (a>>10)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            rotate_right(unsigned(a), 17) xor
+                            rotate_right(unsigned(a), 19) xor
+                            shift_right (unsigned(a), 10));
+                    end if;
+                when "1000010" => -- sha256sum0: ror(a,2) ^ ror(a,13) ^ ror(a,22)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            rotate_right(unsigned(a),  2) xor
+                            rotate_right(unsigned(a), 13) xor
+                            rotate_right(unsigned(a), 22));
+                    end if;
+                when "1000011" => -- sha256sum1: ror(a,6) ^ ror(a,11) ^ ror(a,25)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            rotate_right(unsigned(a),  6) xor
+                            rotate_right(unsigned(a), 11) xor
+                            rotate_right(unsigned(a), 25));
+                    end if;
+
+                -- SHA-512 (binary; combine rs1=a and rs2=b halves -> one 32-bit half).
+                when "1000100" => -- sha512sig0l: (a>>1)^(a>>7)^(a>>8) ^ (b<<31)^(b<<25)^(b<<24)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            shift_right(unsigned(a),  1) xor
+                            shift_right(unsigned(a),  7) xor
+                            shift_right(unsigned(a),  8) xor
+                            shift_left (unsigned(b), 31) xor
+                            shift_left (unsigned(b), 25) xor
+                            shift_left (unsigned(b), 24));
+                    end if;
+                when "1000101" => -- sha512sig0h: (a>>1)^(a>>7)^(a>>8) ^ (b<<31)^(b<<24)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            shift_right(unsigned(a),  1) xor
+                            shift_right(unsigned(a),  7) xor
+                            shift_right(unsigned(a),  8) xor
+                            shift_left (unsigned(b), 31) xor
+                            shift_left (unsigned(b), 24));
+                    end if;
+                when "1000110" => -- sha512sig1l: (a<<3)^(a>>6)^(a>>19) ^ (b>>29)^(b<<26)^(b<<13)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            shift_left (unsigned(a),  3) xor
+                            shift_right(unsigned(a),  6) xor
+                            shift_right(unsigned(a), 19) xor
+                            shift_right(unsigned(b), 29) xor
+                            shift_left (unsigned(b), 26) xor
+                            shift_left (unsigned(b), 13));
+                    end if;
+                when "1000111" => -- sha512sig1h: (a<<3)^(a>>6)^(a>>19) ^ (b>>29)^(b<<13)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            shift_left (unsigned(a),  3) xor
+                            shift_right(unsigned(a),  6) xor
+                            shift_right(unsigned(a), 19) xor
+                            shift_right(unsigned(b), 29) xor
+                            shift_left (unsigned(b), 13));
+                    end if;
+                when "1001000" => -- sha512sum0r: (a<<25)^(a<<30)^(a>>28) ^ (b>>7)^(b>>2)^(b<<4)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            shift_left (unsigned(a), 25) xor
+                            shift_left (unsigned(a), 30) xor
+                            shift_right(unsigned(a), 28) xor
+                            shift_right(unsigned(b),  7) xor
+                            shift_right(unsigned(b),  2) xor
+                            shift_left (unsigned(b),  4));
+                    end if;
+                when "1001001" => -- sha512sum1r: (a<<23)^(a>>14)^(a>>18) ^ (b>>9)^(b<<18)^(b<<14)
+                    if ENABLE_ZKN then
+                        ResultSignal <= std_logic_vector(
+                            shift_left (unsigned(a), 23) xor
+                            shift_right(unsigned(a), 14) xor
+                            shift_right(unsigned(a), 18) xor
+                            shift_right(unsigned(b),  9) xor
+                            shift_left (unsigned(b), 18) xor
+                            shift_left (unsigned(b), 14));
+                    end if;
+
+                -- ==========================================
+                -- X3 Zbkb crypto bit-manip (single-cycle combinational)
+                -- (a = rs1, b = rs2)
+                -- ==========================================
+                when "0110101" => -- PACK: rd = (rs2[15:0] << 16) | rs1[15:0]
+                    if ENABLE_ZBKB then
+                        ResultSignal <= b(15 downto 0) & a(15 downto 0);
+                    end if;
+
+                when "0110110" => -- PACKH: rd = zext16( (rs2[7:0] << 8) | rs1[7:0] )
+                    if ENABLE_ZBKB then
+                        ResultSignal <= x"0000" & b(7 downto 0) & a(7 downto 0);
+                    end if;
+
+                when "0110111" => -- BREV8: reverse the bits within each byte
+                    if ENABLE_ZBKB then
+                        for i in 0 to 3 loop
+                            for j in 0 to 7 loop
+                                ResultSignal(i*8 + j) <= a(i*8 + 7 - j);
+                            end loop;
+                        end loop;
+                    end if;
+
+                when "0111000" => -- ZIP: interleave low/high halves (RV32 shuffle)
+                    if ENABLE_ZBKB then
+                        for i in 0 to 15 loop
+                            ResultSignal(2*i)     <= a(i);       -- low half -> even bits
+                            ResultSignal(2*i + 1) <= a(i + 16);  -- high half -> odd bits
+                        end loop;
+                    end if;
+
+                when "0111001" => -- UNZIP: de-interleave (inverse of ZIP)
+                    if ENABLE_ZBKB then
+                        for i in 0 to 15 loop
+                            ResultSignal(i)      <= a(2*i);      -- even bits -> low half
+                            ResultSignal(i + 16) <= a(2*i + 1);  -- odd bits  -> high half
+                        end loop;
+                    end if;
+
+                -- ==========================================
+                -- X3 Zbkx crossbar permute (fixed mux tree, single-cycle)
+                -- rd.byte/nibble[i] = (idx < lanes) ? rs1.byte/nibble[idx] : 0
+                -- ==========================================
+                when "0111010" => -- XPERM8: byte crossbar (index rs2.byte[i], <4)
+                    if ENABLE_ZBKX then
+                        for i in 0 to 3 loop
+                            if unsigned(b(i*8 + 7 downto i*8)) < 4 then
+                                case b(i*8 + 1 downto i*8) is
+                                    when "00"   => ResultSignal(i*8 + 7 downto i*8) <= a( 7 downto  0);
+                                    when "01"   => ResultSignal(i*8 + 7 downto i*8) <= a(15 downto  8);
+                                    when "10"   => ResultSignal(i*8 + 7 downto i*8) <= a(23 downto 16);
+                                    when others => ResultSignal(i*8 + 7 downto i*8) <= a(31 downto 24);
+                                end case;
+                            else
+                                ResultSignal(i*8 + 7 downto i*8) <= (others => '0');
+                            end if;
+                        end loop;
+                    end if;
+
+                when "0111011" => -- XPERM4: nibble crossbar (index rs2.nibble[i], <8)
+                    if ENABLE_ZBKX then
+                        for i in 0 to 7 loop
+                            if unsigned(b(i*4 + 3 downto i*4)) < 8 then
+                                case b(i*4 + 2 downto i*4) is
+                                    when "000"  => ResultSignal(i*4 + 3 downto i*4) <= a( 3 downto  0);
+                                    when "001"  => ResultSignal(i*4 + 3 downto i*4) <= a( 7 downto  4);
+                                    when "010"  => ResultSignal(i*4 + 3 downto i*4) <= a(11 downto  8);
+                                    when "011"  => ResultSignal(i*4 + 3 downto i*4) <= a(15 downto 12);
+                                    when "100"  => ResultSignal(i*4 + 3 downto i*4) <= a(19 downto 16);
+                                    when "101"  => ResultSignal(i*4 + 3 downto i*4) <= a(23 downto 20);
+                                    when "110"  => ResultSignal(i*4 + 3 downto i*4) <= a(27 downto 24);
+                                    when others => ResultSignal(i*4 + 3 downto i*4) <= a(31 downto 28);
+                                end case;
+                            else
+                                ResultSignal(i*4 + 3 downto i*4) <= (others => '0');
+                            end if;
+                        end loop;
+                    end if;
 
                 when others =>
                     ResultSignal <= (others => '0');

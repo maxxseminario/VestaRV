@@ -1,0 +1,51 @@
+X3 Stage-D red-team (C) — Zicboz cbo.zero OVER-RUN detector
+==========================================================
+DELIVERABLE C: complement to the existing UNDER-run seed (x3_zicboz_partial.patch,
+which stops at 15 words -> tail word non-zero). This seed OVER-runs by ONE word
+(writes 17 words: cboz_idx 0..16, so word 16 lands at block_base+64) and proves
+the AFTER-block GUARD word catches the word immediately past the 64-byte block.
+
+GUARD COVERAGE FINDING: both extzicboz.S and shcboz.S already set an AFTER guard
+sentinel (0x22222222) at offset +64 = the word immediately past the block, and
+check it is untouched. That guard EXACTLY covers the over-run word, so NO test
+strengthening was required for C (the existing guard is sufficient).
+
+SEED (x3_redteam_zicboz_overrun.patch): move the CBOZ store-burst terminal
+boundary up by one word — a coherent off-by-one where the whole retire boundary
+shifts from CBOZ_WORDS-1 to CBOZ_WORDS (hdl/common/vesta/vesta.vhd), 3 coupled edits:
+  - cboz_idx range   0..CBOZ_WORDS-1  ->  0..CBOZ_WORDS   (allow idx=16)
+  - cboz_seq_proc increment guard  cboz_idx /= CBOZ_WORDS-1  ->  /= CBOZ_WORDS
+  - CBOZ_GAP retire test  cboz_idx = CBOZ_WORDS-1  ->  = CBOZ_WORDS
+Net effect: the sequencer issues 17 full-word zero stores instead of 16; word 16
+writes block_base+64, clobbering the AFTER guard. Sequence still terminates
+(retires at idx=16) -> BOUNDED, no watchdog hang.
+
+DISPATCH / STAGING (phase standard):
+  ROOT=$(git rev-parse --show-toplevel)
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZICBOZ"
+  source ~/vestarv/cdspaths.sh
+  sed -i 's/\(CORE_ENABLE_ZICBOZ\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+  cd $ROOT/verification/isa && rm -rf build/
+  make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  printf '4' > rcf/.nharts
+
+RUN (from $ROOT/xcelium/riscv_test/behavioral_mp), list cboz_on.txt =
+  ../rcf/rv32ua-p-extzicboz.rcf
+  ../rcf/xxxrv32ua-p-shcboz.rcf
+
+  (a) git -C $ROOT apply verification/isa/negctrl/x3_redteam_zicboz_overrun.patch
+      TESTS_FILE=cboz_on.txt MAX_PARALLEL=2 ./xrun_parallel.sh
+  (b) git -C $ROOT checkout hdl/common/vesta/vesta.vhd          # revert
+      TESTS_FILE=cboz_on.txt MAX_PARALLEL=2 ./xrun_parallel.sh
+  (c) git -C $ROOT checkout hdl/common/MemoryMap.vhd            # restore OFF
+
+PERSONALLY OBSERVED (2026-07-17, base 5e39d58):
+  BASELINE (unseeded ON) -> 2/2 PASS
+  SEEDED   -> extzicboz FAIL (a0_reached_fail @ 10.516 ms),
+              shcboz    FAIL (a0_reached_fail @ 11.189 ms)
+              both caught by the +64 AFTER-guard bne; BOUNDED (not "TEST TIMED OUT")
+  REVERTED -> 2/2 PASS
+  DEFAULT (OFF): DORMANT — the CBOZ FSM states (CBOZ_WRITE/CBOZ_GAP) are only
+              entered when cboz_op='1', which requires ENABLE_ZICBOZ; with it
+              off cbo.zero is illegal (traps) and the burst never runs. cboz_idx
+              holds 0. Default build behavior is unchanged.

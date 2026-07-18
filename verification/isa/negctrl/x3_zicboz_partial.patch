@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1346,7 +1346,7 @@
+                     reg_write_dp     <= '0';
+                     mem_access_instr <= '0';
+                     wen              <= (others => '1');
+-                    if cboz_idx = CBOZ_WORDS - 1 then
++                    if cboz_idx = CBOZ_WORDS - 2 then  -- NEGCTRL x3_zicboz_partial: stop one word early
+                         next_state <= MEMORY_WAIT;
+                     else
+                         next_state <= CBOZ_WRITE;

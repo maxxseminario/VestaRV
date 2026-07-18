@@ -16,6 +16,9 @@ entity controller is
         ENABLE_ZAWRS    : boolean := false;
         ENABLE_ZABHA    : boolean := false;
         ENABLE_ZACAS    : boolean := false;
+        ENABLE_ZICBOZ   : boolean := false;  -- X3 (Zicboz cbo.zero)
+        ENABLE_ZCMP     : boolean := false;  -- X3 (Zcmp push/pop + moves)
+        ENABLE_ZCMT     : boolean := false;  -- X3 (Zcmt table jump)
         ENABLE_ZBKB     : boolean := false;
         ENABLE_ZBKC     : boolean := false;
         ENABLE_ZBKX     : boolean := false;
@@ -54,7 +57,7 @@ entity controller is
         jump             : out std_logic;                      -- Jump instruction indicator
         jalr             : out std_logic;                      -- JALR instruction indicator
         imm_src          : out std_logic_vector(2 downto 0);   -- Immediate type selector
-        alu_control      : out std_logic_vector(5 downto 0);   -- ALU operation selector
+        alu_control      : out std_logic_vector(6 downto 0);   -- ALU operation selector
         mem_access_instr : out std_logic;                      -- Memory access instruction flag
         
         -- ==========================================
@@ -73,6 +76,8 @@ entity controller is
         lr_op            : out std_logic;                      -- Load-reserved operation indicator
         sc_op            : out std_logic;                      -- Store-conditional operation indicator
         fence_op         : out std_logic;                      -- FENCE instruction indicator
+        cboz_op          : out std_logic;                      -- X3 Zicboz: cbo.zero block-zero
+        zcm_op           : out std_logic;                      -- X3 Zcmp/Zcmt: cm.* sequencer trigger
         pause_hint       : out std_logic;                      -- X1 Zihintpause: exact PAUSE hint (fence w,0)
 
         -- ==========================================
@@ -108,6 +113,9 @@ architecture struct of controller is
             ENABLE_ZAWRS    : boolean := false;
             ENABLE_ZABHA    : boolean := false;
             ENABLE_ZACAS    : boolean := false;
+            ENABLE_ZICBOZ   : boolean := false;
+            ENABLE_ZCMP     : boolean := false;
+            ENABLE_ZCMT     : boolean := false;
             ENABLE_ZBKB     : boolean := false;
             ENABLE_ZBKC     : boolean := false;
             ENABLE_ZBKX     : boolean := false;
@@ -132,7 +140,7 @@ architecture struct of controller is
             jump             : out std_logic;
             jalr             : out std_logic;
             imm_src          : out std_logic_vector(2 downto 0);
-            alu_control      : out std_logic_vector(5 downto 0);
+            alu_control      : out std_logic_vector(6 downto 0);
             mem_access_instr : out std_logic;
 
             -- Custom instruction outputs
@@ -147,6 +155,8 @@ architecture struct of controller is
             lr_op            : out std_logic;
             sc_op            : out std_logic;
             fence_op         : out std_logic;
+            cboz_op          : out std_logic;
+            zcm_op           : out std_logic;
             pause_hint       : out std_logic;
 
             -- CSR instruction outputs
@@ -192,6 +202,9 @@ begin
             ENABLE_ZAWRS    => ENABLE_ZAWRS,
             ENABLE_ZABHA    => ENABLE_ZABHA,
             ENABLE_ZACAS    => ENABLE_ZACAS,
+            ENABLE_ZICBOZ   => ENABLE_ZICBOZ,
+            ENABLE_ZCMP     => ENABLE_ZCMP,
+            ENABLE_ZCMT     => ENABLE_ZCMT,
             ENABLE_ZBKB     => ENABLE_ZBKB,
             ENABLE_ZBKC     => ENABLE_ZBKC,
             ENABLE_ZBKX     => ENABLE_ZBKX,
@@ -231,6 +244,8 @@ begin
             lr_op            => lr_op,
             sc_op            => sc_op,
             fence_op         => fence_op,
+            cboz_op          => cboz_op,
+            zcm_op           => zcm_op,
             pause_hint       => pause_hint,
 
             csr_op           => csr_op,

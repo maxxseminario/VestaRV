@@ -1,0 +1,14 @@
+--- a/hdl/common/vesta/alu.vhd
++++ b/hdl/common/vesta/alu.vhd
+@@ -616,7 +616,10 @@
+                                     when others => ResultSignal(i*8 + 7 downto i*8) <= a(31 downto 24);
+                                 end case;
+                             else
+-                                ResultSignal(i*8 + 7 downto i*8) <= (others => '0');
++                                -- NEGCTRL SEED (x3_zbkx_xperm_identity): out-of-range
++                                -- byte index must yield 0; this returns rs1 byte i
++                                -- (identity) instead -> xperm8 OOR vector FAILs.
++                                ResultSignal(i*8 + 7 downto i*8) <= a(i*8 + 7 downto i*8);
+                             end if;
+                         end loop;
+                     end if;

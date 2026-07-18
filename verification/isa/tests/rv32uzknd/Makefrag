@@ -1,0 +1,19 @@
+#=======================================================================
+# Makefrag for rv32uzknd tests (X3 Zknd AES-32 decrypt + AES-128 KAT)
+#-----------------------------------------------------------------------
+# ON-POLARITY ONLY (rv32uzacas/rv32uzabha precedent): every test emits
+# aes32dsi/aes32dsmi (and, for the KAT, aes32esi/aes32esmi) encodings that
+# trap illegal on a Zkn-OFF build, so this suite is simulated against a Zkn-ON
+# MCU (built with -DCORE_ENABLE_ZKN) and is NOT wired into the default runner.
+# Built with the base -march (gas 13.2 has no `zknd' suffix and no aes32*
+# mnemonics); the encodings are explicit `.insn' R-types.
+#
+# aeskat = FULL AES-128 encrypt AND decrypt of the FIPS-197 known-answer
+# vector (both directions asserted against the FIPS constants).
+#=======================================================================
+
+rv32uzknd_sc_tests = \
+	aes32d aeskat \
+
+rv32uzknd_p_tests = $(addprefix rv32uzknd-p-, $(rv32uzknd_sc_tests))
+rv32uzknd_v_tests = $(addprefix rv32uzknd-v-, $(rv32uzknd_sc_tests))
