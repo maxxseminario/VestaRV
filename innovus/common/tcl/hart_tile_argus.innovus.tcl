@@ -3,17 +3,28 @@
 #
 # ARGUS variant of tcl/hart_tile.innovus.tcl. The Argus tile is a PLAIN
 # RECTANGLE -- no analog potentiostat notch, no U-shape, no fingers (Argus is
-# digital-only; the Castalia 500x450 analog reserve dies here). The die packs
-# a 6-col x 3-row grid of these tiles on the 2690x2690 M15 interior, so the
-# tile is sized WIDTH-bound (<=~440 to fit 6 columns) and HEIGHT-bound
-# (<=~735 to fit 3 rows + a bottom RAM/control band).
+# digital-only; the Castalia 500x450 analog reserve dies here).
+#
+# A8 GEOMETRY (2026-07-17): 520 x 522 NEAR-SQUARE (aspect ~1.0), SUPERSEDES the
+# 405 x 685 A-series compact form. The A8 program re-centers the whole Argus
+# fabric on the die (RAM row at y=1345 exactly) with hart tiles mirrored across
+# the top and bottom; that forces a 4-row {5,4}||{4,5} tile array whose 5-wide
+# rows are ring-leg-limited to W~518-520 and whose exact-center stack needs
+# H=522 (see ~/vesta_docs/argus/a8/a8_center_symmetry_plan.md 4.5 + a8_geometry.md).
+# Validated by the A8-P1 probe (util ~43%, 0.00% H/V overflow, WNS +0.010 pre-CTS).
 #
 # Floorplan: one sram1p16k TCM (R0, the near-square area-optimized mux-8 macro
-# 319.65 x 383.085) jammed at the bottom-center; std-cell rows fill the space
-# ABOVE it; the M17 MTCMOS header fabric + tap overhead sits in those rows.
-# All tile pins on the BOTTOM edge (M4), same as the Castalia tile -- the
-# arbiter/control plane lives below the tile grid at assembly, and each tile's
-# shared-bus + IRQ pins drop down through the inter-tile channels.
+# 319.65 x 383.085) in the LOWER-LEFT CORNER (A8 -- the wide 520 tile can no
+# longer afford a full-width bottom band: it would waste ~79k um^2 and starve
+# the std region at ~90% density). A hard blockage + cutRow cover ONLY the
+# macro+halo corner box; std-cell rows fill the L around it (full-width rows
+# above the macro + the right strip beside it); the M17 MTCMOS header fabric +
+# tap overhead sits in those rows. All tile pins on the BOTTOM edge (M4), same
+# as the Castalia tile -- the arbiter/control plane lives below the tile grid at
+# assembly, and each tile's shared-bus + IRQ pins drop down through the channels.
+# HISTORICAL (405x685 A-series war stories preserved below): the compact tile
+# packed a 6-col x 3-row grid on the 2690x2690 M15 interior with a full-width
+# bottom RAM/control band; A8's 4-row centered array replaces that layout.
 #
 # INPUTS: ../../genus/out/hart_tile_argus.genus.{v,sdc} (SH_AW=16, 16-bit
 # sh_addr). OUTPUTS carry the _argus basename so the Castalia tile artifacts
@@ -49,29 +60,28 @@ proc plog {msg} { puts $msg; flush stdout }
 set DESIGN_NAME hart_tile
 set OUT_NAME    hart_tile_argus
 
-# --- Compact rectangular geometry (A4; shortened for the assembly) ---
-# 405 x 685 = 0.277 mm^2 (was 730). SHORTENED so the 18-tile assembly can afford
-# a full-width control BAND below the tiles + 40 um inter-tile column gaps (the
-# 730 tile forced a congesting left strip + 10 um gaps -> ~48% V overflow). At
-# 685 the upper rows run ~78% density (66k cells / ~90k um^2) -- higher than the
-# 730 tile's 67% but still routable for this small core+adddec block.
-# The R0 TCM (319.65 wide) sits in the bottom band; the
-# ENTIRE bottom band (TCM + the thin side strips beside it) is cutRow'd so NO
-# std-cell rows live there -- all logic goes in the FULL-WIDTH rows ABOVE the
-# TCM. This sidesteps the side-strip dead-rail trap: a macro splits the rows
-# beside it into short separate segments, and the checkerboard switch fabric
-# leaves ALTERNATING such segments switchless (dead VDD_SW rail) no matter how
-# wide the tile -- their rails are NOT continuous with the main row. Above the
-# TCM every row spans the full width, its rail is one continuous net powered by
-# any switch in the row, and only the checkerboard's ~2 boundary rows go dead
-# (detected + blocked below). Routing channels beside the TCM stay OPEN (cutRow
-# removes rows, not routing). ~66k um^2 of cells in ~133k um^2 of upper rows =
-# ~50% density -- comfortable. Width fits 6 columns with wide margins; height
-# fits 3 rows + a ~450 bottom band. Measure the ACTUAL density and shrink toward
-# the 20-core decision (A4 stretch; 20 also needs a SHORTER tile -- 4 rows cap
-# height ~640, out of reach for this 730-tall R0 layout).
-set DESIGN_WIDTH  405
-set DESIGN_HEIGHT 685
+# --- A8 near-square geometry (520 x 522 = 0.271 mm^2; supersedes 405 x 685) ---
+# The A8 4-row centered array (a8_center_symmetry_plan.md) fixes these dims:
+#  * W=520: the assembly's L/R M7 ring legs (inner edges x=29/2661) cap a
+#    ring-clearing 5-wide tile row at W~518-520; 520 with gap 7.5 fills [30,2660].
+#  * H=522: puts the RAM row centered on y=1345 EXACTLY (top 2656.54 <= the
+#    2657.5 top-ring cap), the geometry that literally satisfies "RAM in the
+#    center of the die" (fallback 520x528 -> midline 1333.96 is an ORCHESTRATOR
+#    call, not this flow's).
+# The corner TCM (below) keeps the wide tile's std region routable: A8-P1 probed
+# 43.3% L-region std density, 0.00% H/V trial-route overflow, WNS +0.010 pre-CTS.
+#
+# HISTORICAL (A4, 405x685): the compact tile put the R0 TCM in a FULL-WIDTH
+# bottom band, cutRow'd so no std rows lived there (all logic in the full-width
+# rows ABOVE the TCM), sidestepping the side-strip dead-rail trap (a macro splits
+# rows beside it into short segments; the checkerboard leaves ALTERNATING such
+# segments switchless). The wide A8 tile cannot spend a full band, so the TCM
+# moves to a CORNER and the L's right strip DOES carry short row segments -- but
+# the pitch-80 checkerboard columns (x=350/430/510) still switch them (A8-P1: 1
+# dead row total). Routing channels beside the TCM stay OPEN (cutRow removes
+# rows, not routing).
+set DESIGN_WIDTH  520
+set DESIGN_HEIGHT 522
 
 # Power ring / stripe geometry (Myshkin/M17 values -- proven; keep on cut 1).
 set POWER_RING_PATH_WIDTH	10.0
@@ -144,41 +154,56 @@ printStatus "Floorplanned plain rectangle ($DESIGN_WIDTH x $DESIGN_HEIGHT)"
 
 set SRAM16K_WIDTH		319.650
 set SRAM16K_HEIGHT		383.085
+set TCM_HALO		[expr {$STD_CELL_HEIGHT * 1}]
 
-# TCM centered in X, at the bottom (R0, pins on its native edge). y=12 clears
-# the bottom ring band; the 383-tall macro tops out ~y=395, leaving rows above.
-set TCM_X	[expr {($DESIGN_WIDTH - $SRAM16K_WIDTH) / 2.0}]
+# A8 CORNER TCM (supersedes the A-series full-width bottom band): the sram1p16k
+# goes in the LOWER-LEFT corner (R0). TCM_X=12 mirrors the proven bottom
+# clearance (TCM_Y=12) to the left edge; both clear the M7/M8 ring band and the
+# M4 bottom pin strip (383-tall macro tops out ~y=395). The hard place-blockage
+# + cutRow cover ONLY the macro+halo corner box, so std-cell rows survive as the
+# L around it (full-width rows above the macro top + the right-strip rows beside
+# it). A8-P1 validated: 62 full-width rows above + 198 right-strip rows, 0
+# leftover in the corner.
+set TCM_X	12
 set TCM_Y	12
 placeInstance ram0 $TCM_X $TCM_Y R0
-addHaloToBlock \
-    [expr {$STD_CELL_HEIGHT * 1}] \
-    [expr {$STD_CELL_HEIGHT * 1}] \
-    [expr {$STD_CELL_HEIGHT * 1}] \
-    [expr {$STD_CELL_HEIGHT * 1}] \
-    ram0
+addHaloToBlock $TCM_HALO $TCM_HALO $TCM_HALO $TCM_HALO ram0
+
+# corner box: die corner (0,0) up to the macro+halo extent.
+set TCM_BLK_X1 [expr {$TCM_X + $SRAM16K_WIDTH  + $TCM_HALO}]
+set TCM_BLK_Y1 [expr {$TCM_Y + $SRAM16K_HEIGHT + $TCM_HALO}]
+plog "### UNL STATUS ### : corner TCM ram0 @($TCM_X,$TCM_Y) R0 -> macro+halo corner box 0 0 [format %.3f $TCM_BLK_X1] [format %.3f $TCM_BLK_Y1]"
+
+# CRITICAL (A4 cutRow lesson, carried forward): `cutRow -area` only cuts rows
+# that sit UNDER AN OBSTACLE, so a bare `cutRow -area` over the corner would
+# leave the sub-macro strip rows ALIVE. Create a hard PLACEMENT BLOCKAGE over
+# the corner box first (the MCU_MP.innovus createPlaceBlockage->cutRow pattern),
+# THEN cutRow removes the rows under it. Only the corner is cut -- the L's two
+# arms keep their rows; routing channels beside the TCM stay OPEN.
 cutRow
-# Remove the ENTIRE bottom band (TCM + the thin side strips beside it) so no
-# std-cell rows survive there -- see the geometry note. CRITICAL: `cutRow -area`
-# only cuts rows that sit UNDER AN OBSTACLE (macro/blockage) inside the area, so
-# a bare `cutRow -area` over the band leaves the side-strip rows (nothing above
-# them) ALIVE -- their segments then get uneven checkerboard coverage (98 dead
-# segments, first cut). Create a hard PLACEMENT BLOCKAGE over the band first
-# (the MCU_MP.innovus createPlaceBlockage->cutRow pattern), THEN cutRow removes
-# the rows under it. Band top = TCM top + halo, clear of the row grid.
-set TCM_BAND_TOP [expr {$TCM_Y + $SRAM16K_HEIGHT + ($STD_CELL_HEIGHT * 2)}]
-createPlaceBlockage -type hard -name tcm_band -box [list 0 0 $DESIGN_WIDTH $TCM_BAND_TOP]
-cutRow -area [list 0 0 $DESIGN_WIDTH $TCM_BAND_TOP]
-# Diagnostic: confirm the band is now row-free (rows only above TCM_BAND_TOP).
-set band_rows 0
+createPlaceBlockage -type hard -name tcm_corner -box [list 0 0 $TCM_BLK_X1 $TCM_BLK_Y1]
+cutRow -area [list 0 0 $TCM_BLK_X1 $TCM_BLK_Y1]
+
+# Diagnostic: rows must survive OUTSIDE the corner box (the L). Count the two
+# arms + any leftover inside the corner box (want 0).
+set rows_above 0
+set rows_right_strip 0
+set rows_in_corner 0
 foreach r [dbGet top.fplan.rows -e] {
-	if {[dbGet $r.box_lly] < [expr {$TCM_BAND_TOP - 0.5}]} { incr band_rows }
+	set b [lindex [dbGet $r.box] 0]
+	foreach {bx0 by0 bx1 by1} $b {}
+	if {$by0 < [expr {$TCM_BLK_Y1 - 0.5}]} {
+		if {$bx0 < [expr {$TCM_BLK_X1 - 0.5}]} { incr rows_in_corner } else { incr rows_right_strip }
+	} else {
+		incr rows_above
+	}
 }
-plog "### UNL STATUS ### : bottom band 0..$TCM_BAND_TOP blocked+cut -- $band_rows rows remain in band (want 0)"
-if {$band_rows > 0} {
-	plog "FATAL (A4): $band_rows rows survived in the TCM band -- cutRow did not clear it"
+plog "### UNL STATUS ### : corner box 0 0 $TCM_BLK_X1 $TCM_BLK_Y1 blocked+cut -- rows above-macro=$rows_above right-strip=$rows_right_strip leftover-in-corner=$rows_in_corner (want 0)"
+if {$rows_in_corner > 0} {
+	plog "FATAL (A8): $rows_in_corner rows survived inside the TCM corner box -- cutRow did not clear it"
 	exit 1
 }
-printStatus "Placed TCM macro (R0, bottom-center) + cleared bottom band"
+printStatus "Placed corner TCM (R0, lower-left) + cleared corner box"
 
 # All tile pins on the BOTTOM edge (M4, vertical-preferred): at assembly the
 # arbiter/control plane is below the tile grid.
@@ -234,20 +259,44 @@ addStripe \
 editTrim -all
 setCheckMode -globalNet true -io true -route true -tapeOut true
 
+# A8 PG LANE SANITY (from the A8-P1 probe): every M7 vertical PG lane x must stay
+# inside the die -- the parametric stripe grid must extend cleanly to W=520, not
+# spill past the right edge. Probe read at 520: VDD/VSS pairs 53.5/62.5 + 50k
+# (k=0..8) + L/R ring legs -> 22 lanes, x 9.00..511.0 < 520. Diagnostic (WARN,
+# no abort); the exported lane x-list is the LEF delta A8-2 consumes.
+set m7_lane_xs {}
+foreach __net {VDD VSS} {
+	foreach __sw [dbGet [dbGet -p top.nets.name $__net].sWires -e] {
+		if {[dbGet -e $__sw.layer.name] ne "M7"} { continue }
+		set __b [lindex [dbGet $__sw.box] 0]
+		foreach {__x0 __y0 __x1 __y1} $__b {}
+		if {[expr {$__y1 - $__y0}] < [expr {$__x1 - $__x0}]} { continue }
+		lappend m7_lane_xs [format %.2f [expr {($__x0 + $__x1) / 2.0}]]
+	}
+}
+set m7_lane_xs [lsort -real -unique $m7_lane_xs]
+set m7_lane_max [expr {[llength $m7_lane_xs] ? [lindex $m7_lane_xs end] : -1}]
+plog "### UNL STATUS ### : [llength $m7_lane_xs] M7 vertical PG lanes, x range [lindex $m7_lane_xs 0]..$m7_lane_max (die W=$DESIGN_WIDTH)"
+plog "### UNL STATUS ### : M7 lane xs = $m7_lane_xs"
+if {$m7_lane_max >= $DESIGN_WIDTH} {
+	plog "FATAL (A8): an M7 PG lane x ($m7_lane_max) reached/exceeded the die width $DESIGN_WIDTH"
+	exit 1
+}
+
 ################################################################################
 # M17 MTCMOS header fabric. HEADBUF16M columns every 80 um, switch in every
 # row (-skipRows 0), -checkerBoard true (LOAD-BEARING: full-density = ~1000
 # pmk M1 pin-frame shorts). The checkerboard stagger leaves a FEW boundary
 # rows switchless -- detected + blocked below (re-derived for this shape).
-# -area is the UPPER placeable region ONLY (above TCM_BAND_TOP): the bottom
-# band is blocked+cut (no live logic), so it needs no switch fabric, and
-# addStripe/etc. re-fracture the band rows after our cutRow anyway -- switching
-# only the upper block keeps the fabric where the logic actually is.
+# A8: -area is the WHOLE core (only the lower-left corner box was cut, so live
+# rows exist across the die minus that corner); no switches land in the cut
+# corner. The wide tile's right-strip rows DO get switched by the pitch-80
+# checkerboard columns (A8-P1: 1 dead row total).
 ################################################################################
 printStatus "Inserting MTCMOS header switch columns (HEADBUF16MA10TH)"
 addPowerSwitch -column -powerDomain PD_GATED \
 	-globalSwitchCellName {HEADBUF16MA10TH} \
-	-area [list $CORE_SPACING $TCM_BAND_TOP [expr {$DESIGN_WIDTH - $CORE_SPACING}] [expr {$DESIGN_HEIGHT - $CORE_SPACING}]] \
+	-area [list $CORE_SPACING $CORE_SPACING [expr {$DESIGN_WIDTH - $CORE_SPACING}] [expr {$DESIGN_HEIGHT - $CORE_SPACING}]] \
 	-leftOffset 30 \
 	-horizontalPitch 80 \
 	-skipRows 0 \
@@ -300,33 +349,28 @@ if {[llength $all_row_ys] == 0} {
 	plog "FATAL (A4): zero core rows from 'dbGet top.fplan.rows' -- wrong accessor, fix before routing"
 	exit 1
 }
-# Partition switchless rows: rows in the BOTTOM BAND (< TCM_BAND_TOP) are
-# already inside the tcm_band placement blockage -- NO live logic can sit there,
-# so their dead VDD_SW rails are harmless (scrubbed at signoff, not blocked
-# again). Rows in the UPPER placeable block are the real casualties: the
-# checkerboard leaves ~2 boundary rows dead there, and those MUST be blocked so
-# place_opt parks nothing live on them. Only the UPPER count feeds the FATAL.
+# CORNER-TCM MODEL (A8): there is no full-width bottom band to partition -- the
+# only cut region is the lower-left corner box (row-free). Every switchless row
+# detected here is therefore a REAL casualty in the L placeable region and must
+# be blocked so place_opt parks nothing live on its dead VDD_SW rail. A8-P1
+# measured just 1 such row at 520x522 (the pitch-80 checkerboard covers even the
+# short right-strip rows via the columns at x=350/430/510).
 set dead_row_boxes {}
-set band_dead_boxes {}
 foreach ry $all_row_ys {
 	set covered 0
 	foreach sy $sw_ys { if {abs($ry - $sy) < 0.01} { set covered 1; break } }
 	if {$covered} { continue }
 	set bx [list 0 $ry $DESIGN_WIDTH [expr {$ry + $ROW_H}]]
-	if {$ry < [expr {$TCM_BAND_TOP - 0.5}]} {
-		lappend band_dead_boxes $bx
-	} else {
-		lappend dead_row_boxes $bx
-		plog "DEAD-ROW: switchless UPPER row at y=$ry (VDD_SW rail dead) -> will block"
-	}
+	lappend dead_row_boxes $bx
+	plog "DEAD-ROW: switchless row at y=$ry (VDD_SW rail dead) -> will block"
 }
 set NDEAD [llength $dead_row_boxes]
-set NBAND [llength $band_dead_boxes]
-plog "### UNL STATUS ### : $NDEAD switchless UPPER dead rows (block), $NBAND band dead rows (blocked by tcm_band, scrub only)"
-# Sanity: the checkerboard should leave only a HANDFUL of upper rows dead. A
-# large count means the stagger/pitch is wrong -- refuse to route blind.
+plog "### UNL STATUS ### : $NDEAD switchless dead rows detected (block); A8-P1 probe measured 1 at 520x522"
+# Sanity: the checkerboard should leave only a HANDFUL of rows dead. A large
+# count means the stagger/pitch is wrong -- refuse to route blind. Re-baselined
+# from the A8 corner geometry (probe=1); kept generous at 8.
 if {$NDEAD > 8} {
-	plog "FATAL (A4): $NDEAD switchless UPPER rows -- checkerboard/detection anomaly, inspect before routing"
+	plog "FATAL (A8): $NDEAD switchless rows -- checkerboard/detection anomaly, inspect before routing"
 	exit 1
 }
 
@@ -442,7 +486,7 @@ if {[llength $pg4_m8_vdd_llys] == 0} {
 # U-tile; Argus is a 405x685 PLAIN rect with the bottom ~407 um band row-free,
 # so the stripe/ring/strap sWire count scales down. Conservatively 200; RESET
 # from the first real Argus harden's reported VDD sWire count.
-set PG4_F1A_VDD_SW_MIN 1500  ;# M19c re-baselined: first Argus run measured 2805
+set PG4_F1A_VDD_SW_MIN 1900  ;# A8 re-baselined: 520x522 corner-TCM run measured 3493 (was 405x685=2805); floor ~54%
 set __f1_vdd_sw [llength [dbGet [dbGet -p top.nets.name VDD].sWires -e]]
 set __f1_vss_sw [llength [dbGet [dbGet -p top.nets.name VSS].sWires -e]]
 plog "### UNL STATUS ### : PG4 F1 gate a -- VDD sWires=$__f1_vdd_sw VSS sWires=$__f1_vss_sw post-secondary-sroute (min $PG4_F1A_VDD_SW_MIN)"
@@ -481,15 +525,16 @@ proc pg4_has_svia {box wantnet} {
 	}
 	return 0
 }
-# PG4/M19c: pg4_dead_row REDEFINED for the Argus rectangle. A cell is on a dead
-# rail iff its row-origin sits inside a programmatic dead_row_box (the upper
-# checkerboard casualties, detected earlier) OR anywhere in the TCM band
-# (y < TCM_BAND_TOP, which is row-free/cutRow'd). No FINGER_W/BASE_H -- there is
-# no U-notch here.
+# PG4/A8: pg4_dead_row REDEFINED for the corner-TCM L. A cell is on a dead rail
+# iff its row-origin sits inside a programmatic dead_row_box (a checkerboard
+# casualty, detected earlier) OR inside the lower-left CORNER BOX (x < TCM_BLK_X1
+# AND y < TCM_BLK_Y1, which is row-free/cutRow'd). CRITICAL: unlike the A-series
+# full-width band, the corner test is 2-D -- it must NOT flag the LIVE right-strip
+# L-arm at x >= TCM_BLK_X1. No FINGER_W/BASE_H -- there is no U-notch here.
 proc pg4_dead_row {bx} {
-	global dead_row_boxes TCM_BAND_TOP
+	global dead_row_boxes TCM_BLK_X1 TCM_BLK_Y1
 	foreach {x0 y0 x1 y1} $bx {}
-	if {$y0 < [expr {$TCM_BAND_TOP - 0.5}]} { return 1 }
+	if {$x0 < [expr {$TCM_BLK_X1 - 0.5}] && $y0 < [expr {$TCM_BLK_Y1 - 0.5}]} { return 1 }
 	foreach __db $dead_row_boxes {
 		if {abs($y0 - [lindex $__db 1]) < 0.5} { return 1 }
 	}
@@ -1315,21 +1360,21 @@ foreach {b} $dead_row_boxes {
 	}
 	editDelete -net VDD_SW -area [list 0 [expr {$ry + 0.1}] $DESIGN_WIDTH [expr {$ry + $ROW_H - 0.1}]]
 }
-# Scrub the BOTTOM BAND bare too: it holds no live logic (tcm_band blockage) and
-# the switch fabric never reached it (-area above TCM_BAND_TOP), so any VDD_SW
-# follow-pin rails there are dead stubs, plus any stray FILL/tap the flow left
-# in the blocked rows. Delete band insts (except the TCM macro + its abutting
-# VDD frames) then the dead VDD_SW rails in one shot; VDD (ram0) + signal routes
-# in the channels beside the TCM are untouched.
-foreach __i [dbQuery -area [list 0 1 $DESIGN_WIDTH [expr {$TCM_BAND_TOP - 0.1}]] -objType inst -e] {
+# Scrub the CORNER BOX bare too (A8): it holds no live logic (tcm_corner blockage
+# + cutRow) so any VDD_SW follow-pin rails there are dead stubs, plus any stray
+# FILL/tap addStripe/sroute re-fractured into the cut rows. CRITICAL: limit the
+# scrub to x < TCM_BLK_X1 so the LIVE right-strip L-arm (x >= TCM_BLK_X1) is
+# untouched. Delete corner insts (except the TCM macro) then the dead VDD_SW
+# rails; VDD (ram0) + signal routes in the channels beside the TCM are untouched.
+foreach __i [dbQuery -area [list 0 1 $TCM_BLK_X1 [expr {$TCM_BLK_Y1 - 0.1}]] -objType inst -e] {
 	set c [dbGet $__i.cell.name]
 	if {$c eq "sram1p16k_hvt_pg"} { continue }
 	if {[string match FILL* $c] || [string match WELLTAP* $c] || [string match FILLBIAS* $c]} {
 		deleteInst [dbGet $__i.name]
 	}
 }
-editDelete -net VDD_SW -area [list 0 1 $DESIGN_WIDTH [expr {$TCM_BAND_TOP - 0.1}]]
-printStatus "Scrubbed $NDEAD upper dead rows + the bottom band bare"
+editDelete -net VDD_SW -area [list 0 1 $TCM_BLK_X1 [expr {$TCM_BLK_Y1 - 0.1}]]
+printStatus "Scrubbed $NDEAD dead rows + the corner box bare"
 
 ################################################################################
 # PG4 STRAP->GRID LINK REPAIR (M19c port from tcl/hart_tile.innovus.tcl
@@ -1347,7 +1392,7 @@ printStatus "Scrubbed $NDEAD upper dead rows + the bottom band bare"
 # M19c: re-baseline from first Argus run -- Castalia expected ~2000 VIA2s on a
 # 660x1050 U-tile; the Argus rect has fewer strap columns + the row-free band,
 # so scale the floor to 300. RESET from the first real Argus harden's count.
-set PG4_STRAPGRID_VIA2_MIN 300  ;# M19c: first Argus run measured 537 — floor kept at ~56%
+set PG4_STRAPGRID_VIA2_MIN 200  ;# A8 re-baselined: 520x522 corner-TCM run measured 357 (was 405x685=537); floor ~56%
 set __ngshape 0
 set __ngblock 0
 set __ngskip 0
@@ -1419,7 +1464,7 @@ proc pg4_count_via1 {x0 y0 x1 y1} {
 # M19c: re-baseline from first Argus run -- Castalia expected ~977 headers +
 # ~700 taps = 1400 covered cells on the U-tile; the Argus rect has fewer of
 # each, so scale the floor to 400. RESET from the first real Argus harden.
-set PG4_F2_COVERED_MIN 1500  ;# M19c re-baselined: first Argus run measured 2782
+set PG4_F2_COVERED_MIN 1900  ;# A8 re-baselined: 520x522 corner-TCM run measured 3471 (was 405x685=2782); floor ~55%
 set __f2vias 0
 set __f2covered 0
 set __f2waived {}

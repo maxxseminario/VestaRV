@@ -41,3 +41,8 @@ DEFINE chip_argus_a7_signoff /home/mseminario2/vestarv/signoff_mp/chip_argus_a7_
 DEFINE chip_argus_a7_signoff /home/mseminario2/vestarv/signoff_mp/chip_argus_a7_signoff
 DEFINE chip_top_quad_cq8a /home/mseminario2/vestarv/signoff_mp/chip_top_quad_cq8a
 DEFINE chip_top_quad_cq8a /home/mseminario2/vestarv/signoff_mp/chip_top_quad_cq8a
+#Removed by ddDeleteObj: DEFINE hart_tile_argus_signoff /home/mseminario2/vestarv/signoff_mp/hart_tile_argus_signoff
+#Removed by ddDeleteObj: DEFINE MCU_ARGUS_signoff /home/mseminario2/vestarv/signoff_mp/MCU_ARGUS_signoff
+DEFINE hart_tile_argus_signoff /home/mseminario2/vestarv/signoff_mp/hart_tile_argus_signoff
+DEFINE chip_top_quad_j17 /home/mseminario2/vestarv/signoff_mp/chip_top_quad_j17
+DEFINE hart_tile_argus_signoff /home/mseminario2/vestarv/signoff_mp/hart_tile_argus_signoff
