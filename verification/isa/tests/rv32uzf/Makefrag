@@ -1,0 +1,20 @@
+#=======================================================================
+# Makefrag for rv32uzf (Zfinx) tests           X4 Stage 2c
+#-----------------------------------------------------------------------
+# ON-polarity only: these execute single-precision Zfinx ops on x-registers
+# and are built with -march=rv32imc_zfinx (gas 13.2 accepts every FP mnemonic
+# on x-regs). NOT wired into the default (Zfinx-off) suite runner -- they run
+# at Stage 3 against the 2a+2b FPU RTL. Two families:
+#   converted : upstream rv32uf tests mechanically Zfinx-converted by
+#               tools/zfinx_convert.py (f-regs -> x-regs, flw/fsw removed).
+#   directed  : softfloat/glibc-referenced corner vectors emitted by
+#               tools/gen_directed.py (rounding, subnormal, NaN, +/-0, the
+#               fcvt invalid table, sticky accumulation, rd=x0, fsgnj).
+#=======================================================================
+
+rv32uzf_sc_tests = \
+	fadd fdiv fclass fcmp fcvt fcvt_w fmadd fmin \
+	dround dsubnrm dnan dpmzero dfcvttab daccum drdx0 dsgnj \
+
+rv32uzf_p_tests = $(addprefix rv32uzf-p-, $(rv32uzf_sc_tests))
+rv32uzf_v_tests = $(addprefix rv32uzf-v-, $(rv32uzf_sc_tests))

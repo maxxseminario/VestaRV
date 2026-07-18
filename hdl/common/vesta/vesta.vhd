@@ -168,6 +168,12 @@ architecture struct of vesta is
             csr_op           : out std_logic_vector(2 downto 0);
             csr_valid        : out std_logic;
 
+            -- X4 Zfinx FP decode
+            is_fp_singlecycle : out std_logic;
+            is_fp_multicycle  : out std_logic;
+            is_fp_fma         : out std_logic;
+            frm_valid         : in  std_logic := '1';
+
             trap             : out std_logic
         );
     end component;
@@ -227,7 +233,15 @@ architecture struct of vesta is
             csr_valid    : in  std_logic;
             csr_rdata    : in std_logic_vector(XLEN-1 downto 0);
             csr_wdata    : out std_logic_vector(XLEN-1 downto 0);
+            -- X4 Zfinx FPU control/status (all default inert)
+            fp_op_latch  : in  std_logic := '0';
+            fp_fetch3    : in  std_logic := '0';
+            fpu_start    : in  std_logic := '0';
+            frm_value    : in  std_logic_vector(2 downto 0) := "000";
+            fpu_done     : out std_logic;
+            fp_flags     : out std_logic_vector(4 downto 0);
             a0           : out std_logic_vector(XLEN-1 downto 0)
+>>>>>>> theirs
         );
     end component;
 
@@ -291,6 +305,12 @@ architecture struct of vesta is
             -- X3 Zcmt jvt base export
             jvt_value      : out std_logic_vector(31 downto 0);
 
+            -- X4 Zfinx fcsr/fflags/frm
+            fp_flags_we    : in  std_logic := '0';
+            fp_flags_val   : in  std_logic_vector(4 downto 0) := (others => '0');
+            frm_value      : out std_logic_vector(2 downto 0);
+            frm_valid      : out std_logic;
+
             -- CSR instruction interface
             csr_addr       : in  std_logic_vector(11 downto 0);
             csr_write_data : in  std_logic_vector(XLEN-1 downto 0);
@@ -318,6 +338,15 @@ architecture struct of vesta is
         MEMORY_WAIT,  -- Wait for memory operation
         DIV_WAIT,     -- Wait for division to complete
         DIV_DONE,     -- Division completed
+        -- X4 Zfinx FP multi-cycle stall states (modeled on DIV_WAIT/DIV_DONE, all
+        -- gated so they are UNREACHABLE when ENABLE_ZFINX is off — the transitions
+        -- into them are constant-false via the ENABLE_ZFINX-gated decode signals).
+        -- FPU_FETCH3 (FMA only) latches rs3 through the steered rs2 read port;
+        -- FPU_WAIT holds the unit running (fpu_start high, §C1); FPU_DONE retires
+        -- the writeback exactly like DIV_DONE (reg_write_dp defaults to '1').
+        FPU_FETCH3,   -- FMA rs3 fetch cycle (no 3rd regfile port)
+        FPU_WAIT,     -- Wait for the multi-cycle FP unit
+        FPU_DONE,     -- FP op completed (writeback here)
         IRQ_SV,       -- Save context for IRQ
         IRQ_REST,     -- Restore context from IRQ
         IRQ_JUMP,     -- Jump to interrupt vector
@@ -430,6 +459,22 @@ architecture struct of vesta is
     signal alu_done               : std_logic;
     signal is_div_op              : std_logic;
     signal div_start              : std_logic;
+
+    -- ==========================================
+    -- X4 Zfinx FP control/status signals
+    -- ==========================================
+    signal is_fp_singlecycle      : std_logic;  -- fsgnj*/fmin/fmax/fcmp/fclass (EXECUTE retire)
+    signal is_fp_multicycle       : std_logic;  -- fadd/sub/mul/div/sqrt/fcvt (-> FPU_WAIT)
+    signal is_fp_fma              : std_logic;  -- fmadd/fmsub/fnmadd/fnmsub (-> FPU_FETCH3)
+    signal frm_value              : std_logic_vector(2 downto 0);  -- csr_unit fp_csr[7:5]
+    signal frm_valid              : std_logic;  -- '1' iff frm in {000..100}
+    signal fpu_start              : std_logic;  -- run pulse to fpu (asserted only in FPU_WAIT, §C1)
+    signal fpu_done_sig           : std_logic;  -- fpu complete (paces FPU_WAIT->FPU_DONE); _sig avoids the FPU_DONE state name (VHDL is case-insensitive)
+    signal fp_op_latch            : std_logic;  -- EXECUTE-dispatch strobe: latch rs1/rs2 in datapath
+    signal fp_fetch3              : std_logic;  -- '1' in FPU_FETCH3 (steer a2->rs3)
+    signal fp_flags               : std_logic_vector(4 downto 0);  -- completing FP op's flags (from datapath)
+    signal fp_flags_we            : std_logic;  -- strobe: OR fp_flags into fflags (to csr_unit)
+    signal fp_flags_val           : std_logic_vector(4 downto 0);  -- flag value to csr_unit
 
     -- ==========================================
     -- Stack Pointer Management
@@ -829,6 +874,48 @@ architecture struct of vesta is
     dp_result_src <= "010" when (ENABLE_ZCMT and current_state = ZCM_JT_WB) else result_src;
 
     -- ==========================================
+    -- X4 Zfinx FP control glue (all constant-'0' when ENABLE_ZFINX is off, so the
+    -- OFF-build datapath/CSR wiring folds away)
+    -- ==========================================
+    -- Latch rs1/rs2 in the datapath during the EXECUTE dispatch cycle of a
+    -- multi-cycle/FMA FP op (the operands are read pre-writeback that cycle).
+    -- Half-fetch guard (see fp_flags_we below): during the FIRST cycle of a 32-bit
+    -- split fetch (pc(1)='1', quadrant_upper="11", repeat_if='0') instr_curr is
+    -- HELD at the PREVIOUS instruction (vesta:~1017), so a prior FP op's decode is
+    -- still live here — excluding this cycle stops a phantom re-latch of the FP
+    -- operand registers from the held op. The legitimate latch is on the repeat_if
+    -- ='1' completion cycle, which this term keeps.
+    fp_op_latch <= '1' when (current_state = EXECUTE and (is_fp_multicycle = '1' or is_fp_fma = '1')
+                             and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else '0';
+    -- FPU_FETCH3: steer the rs2 read port to rs3 and latch fp_rs3_reg.
+    fp_fetch3   <= '1' when (current_state = FPU_FETCH3) else '0';
+    -- fpu_start asserts ONLY in FPU_WAIT (§C1), so every fp_rs*_reg is stable
+    -- before the first edge the unit can sample start.
+    fpu_start   <= '1' when (current_state = FPU_WAIT) else '0';
+
+    -- fflags sticky-OR strobe: at FPU_DONE (multi-cycle op's registered flags) OR
+    -- during the EXECUTE retire of a single-cycle FP op (fpu_simple's combinational
+    -- flags). Driven INDEPENDENT of rd, so rd=x0 still sets flags. The EXECUTE case
+    -- is guarded so a misaligned FP op (C disabled) that traps does NOT commit
+    -- flags. The final term excludes the compressed HALF-FETCH cycle (pc(1)='1',
+    -- quadrant_upper="11", repeat_if='0'), where instr_curr is HELD at the PREVIOUS
+    -- instruction (vesta:~1017): a single-cycle FP op followed by a split 32-bit
+    -- instruction would otherwise RE-fire this strobe on the half-fetch cycle with
+    -- fpu_simple re-evaluating flags from possibly-mutated (rd==rs1) operands — the
+    -- phantom-side-effect class (X3 lesson 5). A concurrent statement does not
+    -- inherit the EXECUTE sub-arm structure that protects the FSM dispatch arms, so
+    -- it must qualify its own EXECUTE term — exactly as amo_lock does (vesta:~1207,
+    -- qualifying its EXECUTE term to the real dispatch: amo_op and mem_access_instr).
+    fp_flags_we <= '1' when (current_state = FPU_DONE) else
+                   '1' when (current_state = EXECUTE and is_fp_singlecycle = '1' and trap = '0'
+                             and (ENABLE_COMPRESSED or pc(1) = '0')
+                             and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else
+                   '0';
+    -- datapath already muxes: fpu_simple flags when result_src=110 (single-cycle),
+    -- else the multi-cycle unit's flags (valid at FPU_DONE, result_src=111).
+    fp_flags_val <= fp_flags;
+
+    -- ==========================================
     -- State Machine Sequential Logic
     -- ==========================================
     state_reg: process(clk_cpu, resetn)
@@ -950,6 +1037,9 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = MEMORY_WAIT) else
                   instr_curr_prev when (current_state = DIV_WAIT) else
                   instr_curr_prev when (current_state = DIV_DONE) else
+                  instr_curr_prev when (current_state = FPU_FETCH3) else  -- X4 Zfinx: hold FP instr
+                  instr_curr_prev when (current_state = FPU_WAIT) else
+                  instr_curr_prev when (current_state = FPU_DONE) else
                   instr_curr_prev when (current_state = IRQ_SV) else
                   instr_curr_prev when (current_state = IRQ_REST) else
                   instr_curr_prev when (current_state = SLEEPING) else
@@ -1153,7 +1243,8 @@ architecture struct of vesta is
                              wrs_op, wrs_wake, resv_valid_ext,
                              cboz_op, cboz_idx,
                              zcm_op, instr_curr, zcm_idx, zcm_nregs_val,
-                             zcm_is_popretz, zcm_is_popret, zcm_jt_link, zcm_final_sp)
+                             zcm_is_popretz, zcm_is_popret, zcm_jt_link, zcm_final_sp,
+                             is_fp_multicycle, is_fp_fma, fpu_done_sig)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -1311,6 +1402,18 @@ architecture struct of vesta is
                                     -- (spurious div-by-zero). rd is written exactly
                                     -- once, at DIV_DONE, like lr/sc/amo/mem_access.
                                     reg_write_dp <= '0';
+                                elsif is_fp_fma = '1' then
+                                    -- X4 Zfinx FMA: fetch rs3 then run. pc_en frozen
+                                    -- and reg_write_dp forced '0' across the whole
+                                    -- dispatch+wait window (writeback lands only in
+                                    -- FPU_DONE) — the div-arm ungated-write bug class.
+                                    next_state <= FPU_FETCH3;
+                                    pc_en <= '0';
+                                    reg_write_dp <= '0';
+                                elsif is_fp_multicycle = '1' then
+                                    next_state <= FPU_WAIT;
+                                    pc_en <= '0';
+                                    reg_write_dp <= '0';
                                 elsif irq_save = '1' then
                                     next_state <= IRQ_SV;
                                     pc_en <= '0';
@@ -1452,6 +1555,16 @@ architecture struct of vesta is
                                 -- DIV) so rd is not clobbered with the idle
                                 -- ResultSignal (=0) before the divider latches its
                                 -- operands. rd is written exactly once, at DIV_DONE.
+                                reg_write_dp <= '0';
+                            elsif is_fp_fma = '1' then
+                                -- X4 Zfinx FMA (see the half-word arm for rationale):
+                                -- freeze pc_en, force reg_write_dp '0' across dispatch.
+                                next_state <= FPU_FETCH3;
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                            elsif is_fp_multicycle = '1' then
+                                next_state <= FPU_WAIT;
+                                pc_en <= '0';
                                 reg_write_dp <= '0';
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
@@ -1818,7 +1931,54 @@ architecture struct of vesta is
                 -- ==========================================
                 when DIV_DONE =>
                     pc_en <= '1';
-                    
+
+                    if irq_save = '1' then
+                        next_state <= IRQ_SV;
+                        pc_en <= '0';
+                    elsif isr_ret = '1' then
+                        next_state <= IRQ_REST;
+                    else
+                        next_state <= EXECUTE;
+                    end if;
+
+                -- ==========================================
+                -- FPU_FETCH3 State (X4 Zfinx, FMA only) - fetch rs3
+                -- ==========================================
+                -- The rs2 read port is steered to the FMA rs3 index this cycle
+                -- (datapath rf_a2_addr) and fp_rs3_reg is latched at the edge. PC
+                -- frozen, no writeback. fpu_start is NOT asserted here (§C1) — it
+                -- decodes from FPU_WAIT only, so every operand register is stable
+                -- strictly before the first edge at which the unit samples start.
+                when FPU_FETCH3 =>
+                    pc_en <= '0';
+                    reg_write_dp <= '0';
+                    next_state <= FPU_WAIT;
+
+                -- ==========================================
+                -- FPU_WAIT State (X4 Zfinx) - run the multi-cycle unit
+                -- ==========================================
+                -- Exactly the DIV_WAIT contract: pc_en frozen, reg_write_dp '0',
+                -- instr held. fpu_start is asserted (concurrently, from state =
+                -- FPU_WAIT) while waiting; fpu_done ends the stall.
+                when FPU_WAIT =>
+                    pc_en <= '0';
+                    reg_write_dp <= '0';
+                    if fpu_done_sig = '1' then
+                        next_state <= FPU_DONE;
+                    else
+                        next_state <= FPU_WAIT;
+                    end if;
+
+                -- ==========================================
+                -- FPU_DONE State (X4 Zfinx) - writeback + flags
+                -- ==========================================
+                -- Mirrors DIV_DONE exactly: reg_write_dp is NOT reassigned here, so
+                -- it takes the default reg_write_ctrl (=1 for an FP op) and the
+                -- writeback of the fpu result (result_src=111) lands in this cycle.
+                -- IRQ/isr_ret handling is identical to DIV_DONE.
+                when FPU_DONE =>
+                    pc_en <= '1';
+
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
@@ -2057,7 +2217,11 @@ architecture struct of vesta is
             zcm_op           => zcm_op,
             pause_hint       => pause_hint,
             csr_op           => csr_op,
-            csr_valid        => csr_valid
+            csr_valid        => csr_valid,
+            is_fp_singlecycle => is_fp_singlecycle,
+            is_fp_multicycle  => is_fp_multicycle,
+            is_fp_fma         => is_fp_fma,
+            frm_valid         => frm_valid
         );
 
     -- ==========================================
@@ -2136,6 +2300,12 @@ architecture struct of vesta is
             csr_valid   => csr_valid,
             csr_rdata   => csr_rdata,
             csr_wdata   => csr_wdata,
+            fp_op_latch => fp_op_latch,
+            fp_fetch3   => fp_fetch3,
+            fpu_start   => fpu_start,
+            frm_value   => frm_value,
+            fpu_done    => fpu_done_sig,
+            fp_flags    => fp_flags,
             a0          => a0
         );
 
@@ -2212,6 +2382,10 @@ architecture struct of vesta is
             resetn         => resetn,
             hart_id        => hart_id,
             jvt_value      => jvt_value,
+            fp_flags_we    => fp_flags_we,
+            fp_flags_val   => fp_flags_val,
+            frm_value      => frm_value,
+            frm_valid      => frm_valid,
             csr_addr       => csr_addr,
             csr_write_data => csr_wdata, 
             csr_op         => csr_op,

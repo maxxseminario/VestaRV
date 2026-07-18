@@ -83,9 +83,17 @@ entity controller is
         -- ==========================================
         -- CSR instruction outputs
         -- ==========================================
-        csr_op           : out STD_LOGIC_VECTOR(2 downto 0); 
+        csr_op           : out STD_LOGIC_VECTOR(2 downto 0);
         csr_valid        : out std_logic;
-        
+
+        -- ==========================================
+        -- X4 Zfinx FP decode outputs / input
+        -- ==========================================
+        is_fp_singlecycle : out std_logic;                     -- single-cycle FP (EXECUTE retire via fpu_simple)
+        is_fp_multicycle  : out std_logic;                     -- multi-cycle FP (-> FPU_WAIT)
+        is_fp_fma         : out std_logic;                     -- FMA (-> FPU_FETCH3)
+        frm_valid         : in  std_logic := '1';              -- current frm validity (dynamic-rm legality)
+
         -- ==========================================
         -- Exception Handling
         -- ==========================================
@@ -160,8 +168,14 @@ architecture struct of controller is
             pause_hint       : out std_logic;
 
             -- CSR instruction outputs
-            csr_op           : out STD_LOGIC_VECTOR(2 downto 0); 
+            csr_op           : out STD_LOGIC_VECTOR(2 downto 0);
             csr_valid        : out std_logic;
+
+            -- X4 Zfinx FP decode
+            is_fp_singlecycle : out std_logic;
+            is_fp_multicycle  : out std_logic;
+            is_fp_fma         : out std_logic;
+            frm_valid         : in  std_logic := '1';
 
             -- Exception handling
             trap             : out std_logic
@@ -250,7 +264,12 @@ begin
 
             csr_op           => csr_op,
             csr_valid        => csr_valid,
-            
+
+            is_fp_singlecycle => is_fp_singlecycle,
+            is_fp_multicycle  => is_fp_multicycle,
+            is_fp_fma         => is_fp_fma,
+            frm_valid         => frm_valid,
+
             trap             => trap
         );
 

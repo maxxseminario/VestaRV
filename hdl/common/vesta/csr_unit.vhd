@@ -30,6 +30,16 @@ entity csr_unit is
         -- is the table base). Held zero when ENABLE_ZCMT is off.
         jvt_value        : out std_logic_vector(31 downto 0);
 
+        -- X4 Zfinx fcsr/fflags/frm. All inert when ENABLE_ZFINX is off (fp_csr
+        -- held zero, never written). fp_flags_we/fp_flags_val sticky-OR the
+        -- completing FP op's flags into fflags (driven by vesta INDEPENDENT of rd,
+        -- so rd=x0 still sets flags). frm_value/frm_valid export the rounding mode
+        -- to decode/FPU (dynamic-rm legality + effective-rm resolution).
+        fp_flags_we      : in  std_logic := '0';                    -- strobe: OR fp_flags_val into fflags
+        fp_flags_val     : in  std_logic_vector(4 downto 0) := (others => '0');
+        frm_value        : out std_logic_vector(2 downto 0);        -- fp_csr[7:5]
+        frm_valid        : out std_logic;                          -- '1' iff frm in {000..100}
+
         -- M13: hart id is a PORT (was the HARTID generic) so all four hart
         -- tiles share ONE netlist (tile hardening, M14); wired per instance.
         hart_id          : in  std_logic_vector(XLEN-1 downto 0) := (others => '0'); -- Value returned by mhartid (0xF14)
@@ -101,6 +111,11 @@ architecture behave of csr_unit is
     -- only), base = bits(31:6) writable (64-byte aligned). Held zero and never
     -- written when ENABLE_ZCMT is false, so both read arm and export return zero.
     signal jvt        : std_logic_vector(XLEN-1 downto 0);
+
+    -- X4 Zfinx fcsr: frm = fp_csr(7:5), fflags = fp_csr(4:0) = {NV,DZ,OF,UF,NX}.
+    -- Held zero and never written when ENABLE_ZFINX is off (both read arms and
+    -- exports then return zero, and fflags/frm/fcsr are illegal CSRs via csr_valid).
+    signal fp_csr     : std_logic_vector(7 downto 0);
     -- Edge trackers (clk domain) for the grant (stall falling edge) and
     -- trap-entry (rising edge) events.
     signal prev_stall : std_logic;
@@ -146,7 +161,7 @@ begin
 
     -- CSR read process
     process(csr_addr, mcycle, minstret, hart_id,
-            hpm3, hpm4, mhpmevent3, mhpmevent4, mcountinhibit, jvt)
+            hpm3, hpm4, mhpmevent3, mhpmevent4, mcountinhibit, jvt, fp_csr)
     begin
         case csr_addr is
             -- Machine Information Registers (Read-only)
@@ -156,6 +171,13 @@ begin
             -- X3 Zcmt jvt (read arm unconditional; jvt is held zero when
             -- ENABLE_ZCMT is off, and 0x017 is an illegal CSR there anyway).
             when CSR_JVT       => csr_read_val <= jvt;
+
+            -- X4 Zfinx fflags/frm/fcsr (read arms unconditional like jvt; fp_csr
+            -- is zero when ENABLE_ZFINX is off, and the addresses are illegal there
+            -- via csr_valid). Reserved high bits read 0 (WPRI).
+            when CSR_FFLAGS    => csr_read_val <= x"000000" & "000" & fp_csr(4 downto 0);
+            when CSR_FRM       => csr_read_val <= x"000000" & "00000" & fp_csr(7 downto 5);
+            when CSR_FCSR      => csr_read_val <= x"000000" & fp_csr(7 downto 0);
 
             -- Machine Counters (Read/Write)
             when CSR_MCYCLE    => csr_read_val <= mcycle(XLEN-1 downto 0);
@@ -217,10 +239,21 @@ begin
             mhpmevent4 <= (others => '0');
             mcountinhibit <= (others => '0');
             jvt        <= (others => '0');
+            fp_csr     <= (others => '0');
             prev_stall <= '0';
             prev_trap  <= '0';
 
         elsif rising_edge(clk) then
+            -- X4 Zfinx: sticky-OR the completing FP op's flags into fflags. Driven
+            -- by vesta INDEPENDENT of rd (rd=x0 still sets flags — spec-required).
+            -- A same-cycle CSR write to fflags/frm/fcsr overrides this below
+            -- (later assignment wins), matching the mcycle write-precedence idiom.
+            -- A CSR-write instruction is never itself an FP op, so they never
+            -- collide within one instruction; the precedence is defined anyway.
+            if ENABLE_ZFINX and fp_flags_we = '1' then
+                fp_csr(4 downto 0) <= fp_csr(4 downto 0) or fp_flags_val;
+            end if;
+
             -- Cycle counter: free-running, optionally inhibited by
             -- mcountinhibit(0) (only reachable when ENABLE_ZIHPM writes it).
             if not (ENABLE_ZIHPM and mcountinhibit(0) = '1') then
@@ -299,6 +332,16 @@ begin
                             jvt <= csr_new_val(31 downto 6) & "000000";
                         end if;
 
+                    -- X4 Zfinx CSR writes REPLACE the addressed sub-field, gated on
+                    -- ENABLE_ZFINX (hardwired zero for the OFF polarity; illegal CSR
+                    -- there anyway). These win over the sticky-OR above (later wins).
+                    when CSR_FFLAGS =>
+                        if ENABLE_ZFINX then fp_csr(4 downto 0) <= csr_new_val(4 downto 0); end if;
+                    when CSR_FRM =>
+                        if ENABLE_ZFINX then fp_csr(7 downto 5) <= csr_new_val(2 downto 0); end if;
+                    when CSR_FCSR =>
+                        if ENABLE_ZFINX then fp_csr <= csr_new_val(7 downto 0); end if;
+
                     when others =>
                         null;  -- Read-only CSRs, user-view aliases, or hardwired-zero hpm indices
                 end case;
@@ -311,5 +354,13 @@ begin
 
     -- X3 Zcmt: export the jvt base (held zero when ENABLE_ZCMT is off).
     jvt_value <= jvt;
+
+    -- X4 Zfinx: export the rounding mode + its validity. A dynamic-rm (rm=111)
+    -- instruction is legal only when frm is a valid mode (000..100); 101/110/111
+    -- in frm are reserved/invalid. When ENABLE_ZFINX is off fp_csr=0 so
+    -- frm_value="000"/frm_valid='1' (harmless — no FP op decodes anyway).
+    frm_value <= fp_csr(7 downto 5);
+    frm_valid <= '0' when (fp_csr(7 downto 5) = "101" or fp_csr(7 downto 5) = "110" or
+                           fp_csr(7 downto 5) = "111") else '1';
 
 end behave;
