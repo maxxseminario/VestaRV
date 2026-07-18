@@ -241,7 +241,6 @@ architecture struct of vesta is
             fpu_done     : out std_logic;
             fp_flags     : out std_logic_vector(4 downto 0);
             a0           : out std_logic_vector(XLEN-1 downto 0)
->>>>>>> theirs
         );
     end component;
 
