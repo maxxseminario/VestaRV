@@ -1,0 +1,137 @@
+name: CI
+
+# Tier 1 — fast checks on GitHub-hosted runners (no Cadence tools, no LaTeX).
+# Every command here is proven to pass from a bare checkout:
+#   * generator-gates: `make generate` (schema/pad-ring/configurator sync, strict) +
+#     the STRICT/IDENTICAL MCU.vhd gate + MemoryMap.vhd drop-in gate + the
+#     register-browser provenance gate.
+#   * docs-gates: relative-link check over all HTML/MD + py_compile of the generator.
+#   * software-build: bootrom_mp (reproduces bin/rom.rcf byte-identically with the
+#     pinned toolchain) + the full N=4 MP ISA image set (~90 s).
+# Simulation lives in sim.yml (self-hosted Cadence runner) — never here.
+
+on:
+  push:
+    branches: [main, multicore-mp]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned to the version installed on the bench machine — proven to reproduce
+  # software/bootrom_mp/bin/rom.rcf byte-identically. Bump both together.
+  XPACK_GCC_VERSION: 13.2.0-2
+
+jobs:
+  generator-gates:
+    name: Chip generator gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache RISC-V toolchain
+        id: cache-gcc
+        uses: actions/cache@v4
+        with:
+          path: ~/riscv-toolchain
+          key: xpack-riscv-none-elf-gcc-${{ env.XPACK_GCC_VERSION }}
+
+      - name: Install RISC-V toolchain (riscv-none-elf-)
+        if: steps.cache-gcc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/riscv-toolchain
+          curl -sSL "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
+            | tar -xz -C ~/riscv-toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$HOME/riscv-toolchain/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}/bin" >> "$GITHUB_PATH"
+
+      # `make generate` itself runs two hard gates: check_memorymap_h.py
+      # (riscv-none-elf-gcc -fsyntax-only on the emitted header) and
+      # check_configurator_sync.py --strict (docs/chip_configurator.html vs the
+      # schema/pad-ring/geometry). web-copy stages out/web/MemoryMap.json for the
+      # register-browser gate below.
+      - name: Generate chip artifacts (includes header + configurator sync gates)
+        run: make -C platform/common generate web-copy
+
+      # STRICT/IDENTICAL: hdl/common/MCU.vhd IS the generator product — a hand-edit
+      # of the tracked RTL can never merge past this.
+      - name: MCU.vhd identity gate (STRICT)
+        working-directory: platform/common
+        run: python3 python/check_mcu_vhd.py
+
+      # Both paths passed explicitly: the script's no-arg default resolves the RTL
+      # at ~/vestarv (the bench machine), which does not exist in CI.
+      - name: MemoryMap.vhd drop-in gate
+        working-directory: platform/common
+        run: python3 python/check_memorymap_vhd.py ../../hdl/common/MemoryMap.vhd out/hdl/MemoryMap.vhd
+
+      - name: Register browser provenance gate
+        run: python3 tools/python/check_register_browser.py
+
+  docs-gates:
+    name: Docs link + generator syntax gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check documentation links
+        run: python3 tools/python/check_doc_links.py
+
+      - name: Byte-compile the chip generator (py_compile)
+        run: python3 -m py_compile platform/common/python/*.py
+
+  software-build:
+    name: Bootrom + ISA image builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache RISC-V toolchain
+        id: cache-gcc
+        uses: actions/cache@v4
+        with:
+          path: ~/riscv-toolchain
+          key: xpack-riscv-none-elf-gcc-${{ env.XPACK_GCC_VERSION }}
+
+      - name: Install RISC-V toolchain (riscv-none-elf-)
+        if: steps.cache-gcc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/riscv-toolchain
+          curl -sSL "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
+            | tar -xz -C ~/riscv-toolchain
+
+      - name: Add toolchain to PATH
+        run: echo "$HOME/riscv-toolchain/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}/bin" >> "$GITHUB_PATH"
+
+      # obj/ and bin/ are gitignored build dirs the makefile does not create.
+      # Requires tools/build/linker-scripts/{memory.x,periph.x,RAM_START.txt,
+      # RAM_SIZE.txt} to be tracked (the .ld includes them).
+      - name: Build MP bootrom
+        run: |
+          mkdir -p software/bootrom_mp/obj software/bootrom_mp/bin
+          make -C software/bootrom_mp
+
+      # Full N=4 image set (rv32ui/ua/um/uc/uzb*) into a CI-local dest — proves
+      # every test in the behavioral_mp suite still assembles/links at this commit.
+      - name: Build N=4 MP ISA image set
+        working-directory: verification/isa
+        run: |
+          ./build_mp_images.sh 4 rcf_ci
+          test "$(cat rcf_ci/.nharts)" = "4"
+          echo "built $(ls rcf_ci/*.rcf | wc -l) rcf images"
