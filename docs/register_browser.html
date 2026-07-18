@@ -5466,7 +5466,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 12,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Watchdog timer password register. Write-only register for two security functions: (1) Write 0x3FB0AD1C to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write 0xD6F402BC to clear watchdog counter to 0, preventing timeout. Reading always returns 0.",
+					"Description": "Watchdog timer password register. Write-only register for two security functions: (1) Write 0x5F3759DF to unlock WDTCR for 64 MCLK cycles, enabling writes to watchdog configuration. (2) Write 0xA0C8A620 to clear watchdog counter to 0, preventing timeout. Reading always returns 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "SYSWDTPASS",
@@ -5475,7 +5475,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "w",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Watchdog password. Write 0x3FB0AD1C (unlock password) to enable WDTCR writes for 64 MCLK cycles. Write 0xD6F402BC (clear password) to reset watchdog counter to 0.",
+							"Description": "Watchdog password. Write 0x5F3759DF (unlock password) to enable WDTCR writes for 64 MCLK cycles. Write 0xA0C8A620 (clear password) to reset watchdog counter to 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -5820,7 +5820,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 			"PeripheralMemorySlot": null,
 			"isGPIO": false,
 			"InterruptPriority": null,
-			"Description": "Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in hart 0's private RAM1 (the 16 KiB SRAM at 0xC000, multiplexed between hart 0 and the NPU). The registers are reachable by every hart through the shared window, but the data path is not: hart 0 (or software staging through shared RAM) must place the operands in RAM1. Hart 0 is put to sleep for the duration of every computation, regardless of which hart started it.",
+			"Description": "Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in the shared NPU staging RAM (the 16 KiB SRAM at 0xC000-0xFFFF, multiplexed between the harts and the NPU compute port). Both the registers and the data path are reachable by every hart through the shared window: any hart may stage the operands in the staging RAM. No hart is put to sleep during a computation; while THINK is set the staging RAM is owned by the NPU, so no hart may access 0xC000-0xFFFF until NPUCR bit 16 (NPUTHINK) reads 0 again.",
 			"Registers": [
 				{
 					"RegisterName": "NPUCR",
@@ -5933,7 +5933,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 1,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Input vector start word index within hart 0's RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words.",
+					"Description": "Input vector start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. For example, an input vector at byte address 0xC100 has word index 0x40. Each input is a signed Q0.24 value stored in bits 24:0 of its 32-bit SRAM word; bits 31:25 are ignored. Bit 24 is the sign bit. The input at index 0 is at word index NPUIVSAR. The input at index 1 is at word index NPUIVSAR + 1. The rest of the inputs follow in consecutive words.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -5952,7 +5952,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Input vector start word index within RAM1 (byte offset from 0xC000 divided by 4)",
+							"Description": "Input vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)",
 							"ValueDescriptions": []
 						}
 					]
@@ -5964,7 +5964,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Synaptic weight matrix start word index within hart 0's RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only.",
+					"Description": "Synaptic weight matrix start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. Each weight is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. Weights are stored row-major, one per 32-bit word, in the following order: for each output neuron (0 through NPUNN), if bias is enabled (NPUBEN = 1), the first word in the row is the bias weight (multiplied by an implicit input of 1.0), followed by NPUNI + 1 synaptic weights for inputs 0 through NPUNI. If bias is disabled, each row contains NPUNI + 1 synaptic weights only.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -5983,7 +5983,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Synaptic weight matrix start word index within RAM1 (byte offset from 0xC000 divided by 4)",
+							"Description": "Synaptic weight matrix start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)",
 							"ValueDescriptions": []
 						}
 					]
@@ -5995,7 +5995,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 3,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Output vector start word index within hart 0's RAM1: the byte offset from the start of RAM1 (0xC000) divided by 4. Each output is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. The output at index 0 is written to word index NPUOVSAR. The output at index 1 is at word index NPUOVSAR + 1, and so on.",
+					"Description": "Output vector start word index within the shared NPU staging RAM: the byte offset from the start of the staging RAM (0xC000) divided by 4. Each output is a signed Q7.24 value occupying all 32 bits of its SRAM word; bit 31 is the sign bit. The output at index 0 is written to word index NPUOVSAR. The output at index 1 is at word index NPUOVSAR + 1, and so on.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -6014,7 +6014,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Output vector start word index within RAM1 (byte offset from 0xC000 divided by 4)",
+							"Description": "Output vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)",
 							"ValueDescriptions": []
 						}
 					]
