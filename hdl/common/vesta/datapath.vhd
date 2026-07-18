@@ -26,8 +26,8 @@ entity datapath is
         -- ==========================================
         -- Program Counter Interface
         -- ==========================================
-        pc           : in  std_logic_vector(31 downto 0);      -- Current PC value
-        pc_plus_4    : in  std_logic_vector(31 downto 0);      -- PC + 4 for next sequential instruction
+        pc           : in  std_logic_vector(XLEN-1 downto 0);      -- Current PC value
+        pc_plus_4    : in  std_logic_vector(XLEN-1 downto 0);      -- PC + 4 for next sequential instruction
         
         -- ==========================================
         -- Control Signals from Controller
@@ -51,37 +51,37 @@ entity datapath is
         -- ==========================================
         -- Instruction and Memory Interface
         -- ==========================================
-        instr        : in  std_logic_vector(31 downto 0);      -- Current instruction
-        read_data    : in  std_logic_vector(31 downto 0);      -- Data from memory (for loads)
-        write_data   : out std_logic_vector(31 downto 0);      -- Data to memory (for stores)
+        instr        : in  std_logic_vector(ILEN-1 downto 0);      -- Current instruction
+        read_data    : in  std_logic_vector(XLEN-1 downto 0);      -- Data from memory (for loads)
+        write_data   : out std_logic_vector(XLEN-1 downto 0);      -- Data to memory (for stores)
         
         -- ==========================================
         -- Datapath Outputs
         -- ==========================================
         Zero         : out std_logic;                          -- ALU zero flag
-        pc_target    : out std_logic_vector(31 downto 0);      -- Target PC for branches/jumps
-        ALU_result   : out std_logic_vector(31 downto 0);      -- ALU computation result
-        rs1_value    : out std_logic_vector(31 downto 0);      -- rs1 register value (M4b: phase-independent address for LR/SC reservation compares)
+        pc_target    : out std_logic_vector(XLEN-1 downto 0);      -- Target PC for branches/jumps
+        ALU_result   : out std_logic_vector(XLEN-1 downto 0);      -- ALU computation result
+        rs1_value    : out std_logic_vector(XLEN-1 downto 0);      -- rs1 register value (M4b: phase-independent address for LR/SC reservation compares)
         alu_done     : out std_logic;                          -- ALU operation complete (for multi-cycle ops)
         
         -- ==========================================
         -- Stack Pointer Management for IRQ
         -- ==========================================
-        sp_in        : in  std_logic_vector(31 downto 0);      -- New stack pointer value on irq_save
-        sp_out       : out std_logic_vector(31 downto 0);      -- Current stack pointer value
+        sp_in        : in  std_logic_vector(XLEN-1 downto 0);      -- New stack pointer value on irq_save
+        sp_out       : out std_logic_vector(XLEN-1 downto 0);      -- Current stack pointer value
         sp_write_en  : in  std_logic;       
         
         -- ==========================================
         -- CSR Interface
         -- ==========================================
         csr_valid   : in  std_logic;                          -- Valid CSR operation
-        csr_rdata   : in  std_logic_vector(31 downto 0);      -- Data read from CSR
-        csr_wdata   : out std_logic_vector(31 downto 0);      -- Data to write to CSR
+        csr_rdata   : in  std_logic_vector(XLEN-1 downto 0);      -- Data read from CSR
+        csr_wdata   : out std_logic_vector(XLEN-1 downto 0);      -- Data to write to CSR
         
         -- ==========================================
         -- Test Output - Stores pass /fail result of instruction tests
         -- ==========================================
-        a0           : out std_logic_vector(31 downto 0)       -- Register x10 (a0) value for testing
+        a0           : out std_logic_vector(XLEN-1 downto 0)       -- Register x10 (a0) value for testing
     );
 end datapath;
 
@@ -97,20 +97,20 @@ architecture struct of datapath is
             resetn   : in  std_logic;
             we3      : in  std_logic;
             a1, a2, a3 : in  std_logic_vector(4 downto 0);
-            wd3      : in  std_logic_vector(31 downto 0);
-            rd1, rd2 : out std_logic_vector(31 downto 0);
-            sp_in    : in  std_logic_vector(31 downto 0);
-            sp_out   : out std_logic_vector(31 downto 0);
+            wd3      : in  std_logic_vector(XLEN-1 downto 0);
+            rd1, rd2 : out std_logic_vector(XLEN-1 downto 0);
+            sp_in    : in  std_logic_vector(XLEN-1 downto 0);
+            sp_out   : out std_logic_vector(XLEN-1 downto 0);
             sp_write : in  std_logic;
-            a0       : out std_logic_vector(31 downto 0)
+            a0       : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
     component extend
         port (
-            instr    : in  std_logic_vector(31 downto 7);
+            instr    : in  std_logic_vector(ILEN-1 downto 7);
             imm_src  : in  std_logic_vector(2 downto 0);
-            imm_ext  : out std_logic_vector(31 downto 0)
+            imm_ext  : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
@@ -131,10 +131,10 @@ architecture struct of datapath is
         port (
             resetn      : in  std_logic;
             clk         : in  std_logic;
-            a, b        : in  std_logic_vector(31 downto 0);
+            a, b        : in  std_logic_vector(XLEN-1 downto 0);
             alu_control : in  std_logic_vector(5 downto 0);
             div_start   : in  std_logic;
-            ALU_result  : out std_logic_vector(31 downto 0);
+            ALU_result  : out std_logic_vector(XLEN-1 downto 0);
             alu_done    : out std_logic;
             Zero        : out std_logic
         );
@@ -145,16 +145,16 @@ architecture struct of datapath is
             clk           : in  std_logic;
             funct3        : in  std_logic_vector(2 downto 0);
             mask          : in  std_logic_vector(1 downto 0);
-            read_data     : in  std_logic_vector(31 downto 0);
-            extended_data : out std_logic_vector(31 downto 0)
+            read_data     : in  std_logic_vector(XLEN-1 downto 0);
+            extended_data : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
     component store_ext
         port (
             funct3        : in  std_logic_vector(2 downto 0);
-            read_data     : in  std_logic_vector(31 downto 0);
-            extended_data : out std_logic_vector(31 downto 0)
+            read_data     : in  std_logic_vector(XLEN-1 downto 0);
+            extended_data : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
@@ -163,28 +163,28 @@ architecture struct of datapath is
     -- ==========================================
     
     -- Register file signals
-    signal src_a              : std_logic_vector(31 downto 0);  -- Register file output A (rs1)
-    signal write_data_reg_val : std_logic_vector(31 downto 0);  -- Register file output B (rs2)
+    signal src_a              : std_logic_vector(XLEN-1 downto 0);  -- Register file output A (rs1)
+    signal write_data_reg_val : std_logic_vector(XLEN-1 downto 0);  -- Register file output B (rs2)
     
     -- Immediate and ALU signals
-    signal imm_ext            : std_logic_vector(31 downto 0);  -- Sign-extended immediate
-    signal SrcB               : std_logic_vector(31 downto 0);  -- ALU input B (muxed)
-    signal ALU_A              : std_logic_vector(31 downto 0);  -- ALU input A (muxed for AMO)
-    signal ALU_B              : std_logic_vector(31 downto 0);  -- ALU input B (muxed for AMO)
+    signal imm_ext            : std_logic_vector(XLEN-1 downto 0);  -- Sign-extended immediate
+    signal SrcB               : std_logic_vector(XLEN-1 downto 0);  -- ALU input B (muxed)
+    signal ALU_A              : std_logic_vector(XLEN-1 downto 0);  -- ALU input A (muxed for AMO)
+    signal ALU_B              : std_logic_vector(XLEN-1 downto 0);  -- ALU input B (muxed for AMO)
     
     -- Result signals
-    signal Result             : std_logic_vector(31 downto 0);  -- Final result to write back
-    signal extended_data      : std_logic_vector(31 downto 0);  -- Load-extended data from memory
-    signal ALU_result_internal: std_logic_vector(31 downto 0);  -- Internal ALU result
+    signal Result             : std_logic_vector(XLEN-1 downto 0);  -- Final result to write back
+    signal extended_data      : std_logic_vector(XLEN-1 downto 0);  -- Load-extended data from memory
+    signal ALU_result_internal: std_logic_vector(XLEN-1 downto 0);  -- Internal ALU result
     
     -- PC calculation signals
-    signal PC_targetbase      : std_logic_vector(31 downto 0);  -- Base address for PC target calculation
+    signal PC_targetbase      : std_logic_vector(XLEN-1 downto 0);  -- Base address for PC target calculation
     
     -- AMO saved values
-    signal amo_addr_reg       : std_logic_vector(31 downto 0);  -- Saved address for AMO
-    signal amo_read_data_reg  : std_logic_vector(31 downto 0);  -- Saved read data for AMO
+    signal amo_addr_reg       : std_logic_vector(XLEN-1 downto 0);  -- Saved address for AMO
+    signal amo_read_data_reg  : std_logic_vector(XLEN-1 downto 0);  -- Saved read data for AMO
 
-    signal rd_amo            : std_logic_vector(31 downto 0);  -- Data read during AMO operations
+    signal rd_amo            : std_logic_vector(XLEN-1 downto 0);  -- Data read during AMO operations
 
 begin
 
@@ -212,7 +212,7 @@ begin
     -- ==========================================
     -- CSR Data - TODO: This can be better abstracted !
     -- ==========================================
-    csr_wdata <= (31 downto 5 => '0') & instr(19 downto 15) when (csr_valid = '1' and funct3(2) = '1') else
+    csr_wdata <= (XLEN-1 downto 5 => '0') & instr(19 downto 15) when (csr_valid = '1' and funct3(2) = '1') else
                 src_a;  -- rs1 value       
     
 
@@ -277,7 +277,7 @@ begin
 
     -- ALU input B selection based on AMO phase
     ALU_B <= SrcB                     when amo_phase = "000" else  -- Normal: use SrcB (rs2 or immediate)
-            x"00000001"               when amo_phase = "100" else  -- SC fail: write nonzero to rd
+            (0 => '1', others => '0') when amo_phase = "100" else  -- SC fail: write nonzero to rd
             (others => '0')           when amo_phase = "101" else  -- SC success: write 0 to rd
              SrcB;
 

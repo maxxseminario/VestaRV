@@ -29,9 +29,9 @@ entity regfile is
         a1:   in  STD_LOGIC_VECTOR(4 downto 0);     -- Read address 1
         a2:   in  STD_LOGIC_VECTOR(4 downto 0);     -- Read address 2
         a3:   in  STD_LOGIC_VECTOR(4 downto 0);     -- Write address
-        wd3:  in  STD_LOGIC_VECTOR(31 downto 0);    -- Write data
-        rd1:  out STD_LOGIC_VECTOR(31 downto 0);    -- Read data 1
-        rd2:  out STD_LOGIC_VECTOR(31 downto 0);     -- Read data 2
+        wd3:  in  STD_LOGIC_VECTOR(XLEN-1 downto 0);    -- Write data
+        rd1:  out STD_LOGIC_VECTOR(XLEN-1 downto 0);    -- Read data 1
+        rd2:  out STD_LOGIC_VECTOR(XLEN-1 downto 0);     -- Read data 2
 
         -- -- IRQ
         -- irq_save: in std_logic;     --should only be high for one clock cycle 
@@ -39,12 +39,12 @@ entity regfile is
         -- pc : in std_logic_vector(31 downto 0); --current program counter (for saving to ra on irq_save)
         -- q0 : out std_logic_vector(31 downto 0); --irq ra
 
-        sp_in : in std_logic_vector(31 downto 0); -- New stack pointer value on irq_save
-        sp_out : out std_logic_vector(31 downto 0); -- Current stack pointer value on irq_restore
+        sp_in : in std_logic_vector(XLEN-1 downto 0); -- New stack pointer value on irq_save
+        sp_out : out std_logic_vector(XLEN-1 downto 0); -- Current stack pointer value on irq_restore
         sp_write : in std_logic; -- Signal to write new stack pointer value
 
         -- Testing
-        a0: out std_logic_vector(31 downto 0)
+        a0: out std_logic_vector(XLEN-1 downto 0)
 
     );
 end entity regfile;
@@ -52,7 +52,7 @@ end entity regfile;
 -- TODO: Remove Register zero (x0) from register file (hardwired to 0)
 
 architecture behav of regfile is
-    type reg_array is array (0 to 31) of std_logic_vector(31 downto 0);
+    type reg_array is array (0 to 31) of std_logic_vector(XLEN-1 downto 0);
     signal registers: reg_array;
     signal reg_context: reg_array;
     signal clk_irq : std_logic;

@@ -46,7 +46,7 @@ entity controller is
         -- Datapath Control Outputs
         -- ==========================================
         result_src       : out std_logic_vector(2 downto 0);   -- Result source mux control
-        WEN              : out std_logic_vector(3 downto 0);   -- Memory write enable (byte enables)
+        WEN              : out std_logic_vector(XLEN_BYTES-1 downto 0);   -- Memory write enable (byte enables)
         pc_src           : out std_logic;                      -- PC source selection (sequential/branch)
         ALU_src          : out std_logic;                      -- ALU source B selection
         div_op           : out std_logic;                      -- Division operation flag
@@ -124,7 +124,7 @@ architecture struct of controller is
 
             -- Control outputs
             result_src       : out std_logic_vector(2 downto 0);
-            WEN              : out std_logic_vector(3 downto 0);
+            WEN              : out std_logic_vector(XLEN_BYTES-1 downto 0);
             branch           : out std_logic;
             ALU_src          : out std_logic;
             div_op           : out std_logic;

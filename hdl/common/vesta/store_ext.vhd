@@ -1,12 +1,13 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.constants.all;
 
 entity store_ext is
     port (
         funct3     : in  STD_LOGIC_VECTOR(2 downto 0);
-        read_data   : in  STD_LOGIC_VECTOR(31 downto 0);
-        extended_data : out STD_LOGIC_VECTOR(31 downto 0)
+        read_data   : in  STD_LOGIC_VECTOR(XLEN-1 downto 0);
+        extended_data : out STD_LOGIC_VECTOR(XLEN-1 downto 0)
     );
 end store_ext;
 

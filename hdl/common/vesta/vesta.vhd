@@ -5,7 +5,7 @@ use IEEE.NUMERIC_STD.all;
 
 entity vesta is
     generic (
-        PC_RST_VAL : std_logic_vector(31 downto 0) := (others => '0');
+        PC_RST_VAL : std_logic_vector(XLEN-1 downto 0) := (others => '0');
         NUM_IRQS   : natural := 16;
 
         -- Core ISA feature switches (config-driven via make chip; defaults =
@@ -45,13 +45,13 @@ entity vesta is
 
         -- M13: unique per-hart ID (mhartid CSR) as a PORT (was the HARTID
         -- generic) — all four hart tiles share ONE netlist; wired per instance.
-        hart_id    : in  std_logic_vector(31 downto 0) := (others => '0');
+        hart_id    : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
 
         -- Memory Interface
-        data_addr  : out std_logic_vector(31 downto 0);
-        wen        : out std_logic_vector(3 downto 0);
-        write_data : out std_logic_vector(31 downto 0);
-        read_data  : in  std_logic_vector(31 downto 0);
+        data_addr  : out std_logic_vector(XLEN-1 downto 0);
+        wen        : out std_logic_vector(XLEN_BYTES-1 downto 0);
+        write_data : out std_logic_vector(XLEN-1 downto 0);
+        read_data  : in  std_logic_vector(XLEN-1 downto 0);
         mask       : in  std_logic_vector(1 downto 0);
         mem_ready  : in  std_logic := '1';                    -- Memory back-pressure; '0' stalls the core (freezes clk_cpu). Defaults '1' for single-master use.
 
@@ -94,7 +94,7 @@ entity vesta is
         trap_flag      : out std_logic;
 
         -- Debug Output
-        a0           : out std_logic_vector(31 downto 0)
+        a0           : out std_logic_vector(XLEN-1 downto 0)
     );
 end entity;
 
@@ -132,7 +132,7 @@ architecture struct of vesta is
             mask             : in  std_logic_vector(1 downto 0);
             Zero             : in  std_logic;
             result_src       : out std_logic_vector(2 downto 0);
-            wen              : out std_logic_vector(3 downto 0);
+            wen              : out std_logic_vector(XLEN_BYTES-1 downto 0);
             pc_src           : out std_logic;
             ALU_src          : out std_logic;
             div_op           : out std_logic;
@@ -181,8 +181,8 @@ architecture struct of vesta is
         port (
             clk          : in  std_logic;
             resetn       : in  std_logic;
-            pc           : in  std_logic_vector(31 downto 0);
-            pc_plus_4    : in  std_logic_vector(31 downto 0);
+            pc           : in  std_logic_vector(XLEN-1 downto 0);
+            pc_plus_4    : in  std_logic_vector(XLEN-1 downto 0);
             result_src   : in  std_logic_vector(2 downto 0);
             pc_src       : in  std_logic;
             ALU_src      : in  std_logic;
@@ -195,28 +195,28 @@ architecture struct of vesta is
             div_start    : in  std_logic;
             amo_phase    : in  std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
             Zero         : out std_logic;
-            pc_target    : out std_logic_vector(31 downto 0);
-            instr        : in  std_logic_vector(31 downto 0);
-            ALU_result   : out std_logic_vector(31 downto 0);
-            rs1_value    : out std_logic_vector(31 downto 0);
+            pc_target    : out std_logic_vector(XLEN-1 downto 0);
+            instr        : in  std_logic_vector(ILEN-1 downto 0);
+            ALU_result   : out std_logic_vector(XLEN-1 downto 0);
+            rs1_value    : out std_logic_vector(XLEN-1 downto 0);
             alu_done     : out std_logic;
-            write_data   : out std_logic_vector(31 downto 0);
-            read_data    : in  std_logic_vector(31 downto 0);
+            write_data   : out std_logic_vector(XLEN-1 downto 0);
+            read_data    : in  std_logic_vector(XLEN-1 downto 0);
             -- Stack pointer management for IRQ
-            sp_in        : in  std_logic_vector(31 downto 0);
-            sp_out       : out std_logic_vector(31 downto 0);
+            sp_in        : in  std_logic_vector(XLEN-1 downto 0);
+            sp_out       : out std_logic_vector(XLEN-1 downto 0);
             sp_write_en  : in  std_logic;
             csr_valid    : in  std_logic;
-            csr_rdata    : in std_logic_vector(31 downto 0);
-            csr_wdata    : out std_logic_vector(31 downto 0);
-            a0           : out std_logic_vector(31 downto 0)
+            csr_rdata    : in std_logic_vector(XLEN-1 downto 0);
+            csr_wdata    : out std_logic_vector(XLEN-1 downto 0);
+            a0           : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
     component irq_handler
         generic (
             NUM_IRQS   : integer := NUM_IRQS;
-            DATA_WIDTH : integer := 32
+            DATA_WIDTH : integer := XLEN
         );
         port (
             clk             : in  std_logic;
@@ -232,7 +232,7 @@ architecture struct of vesta is
             irq_restore     : out std_logic;
             irq_restore_ack : in  std_logic;
             ivt_jump        : out std_logic;
-            ivt_entry       : out std_logic_vector(31 downto 0)
+            ivt_entry       : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
@@ -244,8 +244,8 @@ architecture struct of vesta is
         );
         port (
             resetn        : in  std_logic;
-            instr_in      : in  std_logic_vector(31 downto 0);
-            instr_out     : out std_logic_vector(31 downto 0);
+            instr_in      : in  std_logic_vector(ILEN-1 downto 0);
+            instr_out     : out std_logic_vector(ILEN-1 downto 0);
             is_compressed : out std_logic
         );
     end component;
@@ -264,14 +264,14 @@ architecture struct of vesta is
         port (
             clk            : in  std_logic;
             resetn         : in  std_logic;
-            hart_id        : in  std_logic_vector(31 downto 0) := (others => '0');
+            hart_id        : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
 
             -- CSR instruction interface
             csr_addr       : in  std_logic_vector(11 downto 0);
-            csr_write_data : in  std_logic_vector(31 downto 0);
+            csr_write_data : in  std_logic_vector(XLEN-1 downto 0);
             csr_op         : in  std_logic_vector(2 downto 0);
             csr_valid      : in  std_logic;
-            csr_read_data  : out std_logic_vector(31 downto 0);
+            csr_read_data  : out std_logic_vector(XLEN-1 downto 0);
 
             -- Performance counter input
             inst_retired   : in  std_logic;
@@ -315,14 +315,14 @@ architecture struct of vesta is
     -- ==========================================
     -- PC Management Signals
     -- ==========================================
-    signal pc, pc_next           : std_logic_vector(31 downto 0);
-    signal pc_plus_2, pc_plus_4  : std_logic_vector(31 downto 0);
-    signal pc_link               : std_logic_vector(31 downto 0);  -- JAL/JALR return addr: pc+2 for compressed, else pc+4
-    signal pc_target              : std_logic_vector(31 downto 0);
-    signal pc_next_trad           : std_logic_vector(31 downto 0);  -- Traditional PC next value
-    signal pc_next_reg            : std_logic_vector(31 downto 0);  -- Registered PC next
-    signal pc_next_trad_reg       : std_logic_vector(31 downto 0);  -- Registered traditional PC next
-    signal pc_next_ret            : std_logic_vector(31 downto 0);  -- Return PC after IRQ
+    signal pc, pc_next           : std_logic_vector(XLEN-1 downto 0);
+    signal pc_plus_2, pc_plus_4  : std_logic_vector(XLEN-1 downto 0);
+    signal pc_link               : std_logic_vector(XLEN-1 downto 0);  -- JAL/JALR return addr: pc+2 for compressed, else pc+4
+    signal pc_target              : std_logic_vector(XLEN-1 downto 0);
+    signal pc_next_trad           : std_logic_vector(XLEN-1 downto 0);  -- Traditional PC next value
+    signal pc_next_reg            : std_logic_vector(XLEN-1 downto 0);  -- Registered PC next
+    signal pc_next_trad_reg       : std_logic_vector(XLEN-1 downto 0);  -- Registered traditional PC next
+    signal pc_next_ret            : std_logic_vector(XLEN-1 downto 0);  -- Return PC after IRQ
     signal pc_next_ret_ltch       : std_logic;                      -- Latch for return PC
     signal pc_en                  : std_logic;                      -- PC update enable
     signal pc_src                 : std_logic;                      -- PC source select
@@ -330,15 +330,15 @@ architecture struct of vesta is
     -- ==========================================
     -- Instruction Handling Signals
     -- ==========================================
-    signal instr                  : std_logic_vector(31 downto 0);
-    signal instr_curr             : std_logic_vector(31 downto 0);  -- Current instruction being executed
-    signal instr_curr_prev        : std_logic_vector(31 downto 0);  -- Previous instruction (for timing)
-    signal instr_decomp           : std_logic_vector(31 downto 0);  -- Decompressed instruction
-    signal instr_to_decomp        : std_logic_vector(31 downto 0);  -- Instruction to decompress
+    signal instr                  : std_logic_vector(ILEN-1 downto 0);
+    signal instr_curr             : std_logic_vector(ILEN-1 downto 0);  -- Current instruction being executed
+    signal instr_curr_prev        : std_logic_vector(ILEN-1 downto 0);  -- Previous instruction (for timing)
+    signal instr_decomp           : std_logic_vector(ILEN-1 downto 0);  -- Decompressed instruction
+    signal instr_to_decomp        : std_logic_vector(ILEN-1 downto 0);  -- Instruction to decompress
     signal instr_lower_half       : std_logic_vector(15 downto 0);  -- Lower half for split fetch
     signal instr_upper_half       : std_logic_vector(15 downto 0);  -- Upper half for split fetch
-    signal instr_assembled        : std_logic_vector(31 downto 0);  -- Assembled from split fetch
-    signal data_addr_reg          : std_logic_vector(31 downto 0);  -- Return PC after IRQ
+    signal instr_assembled        : std_logic_vector(ILEN-1 downto 0);  -- Assembled from split fetch
+    signal data_addr_reg          : std_logic_vector(XLEN-1 downto 0);  -- Return PC after IRQ
 
     -- ==========================================
     -- Compressed Instruction Signals
@@ -363,7 +363,7 @@ architecture struct of vesta is
     signal imm_src                : std_logic_vector(2 downto 0);
     signal alu_control            : std_logic_vector(5 downto 0); -- from control unit
     signal alu_control_dp         : std_logic_vector(5 downto 0); -- to datapath
-    signal wen_controller         : std_logic_vector(3 downto 0);
+    signal wen_controller         : std_logic_vector(XLEN_BYTES-1 downto 0);
     signal mem_access_controller  : std_logic;
     signal mem_access_instr       : std_logic;
     signal reg_write_ctrl         : std_logic;  -- From controller
@@ -373,8 +373,8 @@ architecture struct of vesta is
     -- ==========================================
     -- ALU and Division Signals
     -- ==========================================
-    signal ALU_result             : std_logic_vector(31 downto 0);
-    signal rs1_value              : std_logic_vector(31 downto 0);  -- M4b: phase-independent rs1 for reservation compares
+    signal ALU_result             : std_logic_vector(XLEN-1 downto 0);
+    signal rs1_value              : std_logic_vector(XLEN-1 downto 0);  -- M4b: phase-independent rs1 for reservation compares
     signal alu_done               : std_logic;
     signal is_div_op              : std_logic;
     signal div_start              : std_logic;
@@ -382,10 +382,10 @@ architecture struct of vesta is
     -- ==========================================
     -- Stack Pointer Management
     -- ==========================================
-    signal sp_write_data          : std_logic_vector(31 downto 0);  -- New SP value
-    signal stack_pointer          : std_logic_vector(31 downto 0);  -- Current SP value
+    signal sp_write_data          : std_logic_vector(XLEN-1 downto 0);  -- New SP value
+    signal stack_pointer          : std_logic_vector(XLEN-1 downto 0);  -- Current SP value
     signal sp_write_en            : std_logic;                      -- SP write enable
-    signal write_data_dp          : std_logic_vector(31 downto 0);  -- Write data from datapath
+    signal write_data_dp          : std_logic_vector(XLEN-1 downto 0);  -- Write data from datapath
 
     -- ==========================================
     -- Interrupt Handling Signals
@@ -397,7 +397,7 @@ architecture struct of vesta is
     signal irq_restore_ack        : std_logic;
     signal irq_active             : std_logic;
     signal ivt_jump               : std_logic;
-    signal ivt_entry              : std_logic_vector(31 downto 0);
+    signal ivt_entry              : std_logic_vector(XLEN-1 downto 0);
 
     -- ==========================================
     -- Clock Gating and Power Management
@@ -432,19 +432,19 @@ architecture struct of vesta is
     -- span (NOT tied to PAUSE_WINDOW_CYCLES) so the negative-control seed can set
     -- the window to 0 without a dead-branch static-range elaboration issue.
     signal pause_cnt              : natural range 0 to 1023 := 0;
-    signal amo_read_data          : std_logic_vector(31 downto 0);  -- Saved read data for AMO
-    signal amo_new_data           : std_logic_vector(31 downto 0);  -- Computed data for AMO write
+    signal amo_read_data          : std_logic_vector(XLEN-1 downto 0);  -- Saved read data for AMO
+    signal amo_new_data           : std_logic_vector(XLEN-1 downto 0);  -- Computed data for AMO write
     signal reservation_valid      : std_logic;  -- LR/SC reservation valid
-    signal reservation_addr       : std_logic_vector(31 downto 0);  -- LR/SC reservation address
+    signal reservation_addr       : std_logic_vector(XLEN-1 downto 0);  -- LR/SC reservation address
     signal amo_phase              : std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
-    signal amo_write_data         : std_logic_vector(31 downto 0);  -- Data to write for AMO operations
+    signal amo_write_data         : std_logic_vector(XLEN-1 downto 0);  -- Data to write for AMO operations
 
     -- ==========================================
     -- RV32SI (RV32ZISCR) CSR Signals
     -- ==========================================
     signal csr_addr               : std_logic_vector(11 downto 0);
-    signal csr_rdata              : std_logic_vector(31 downto 0);
-    signal csr_wdata              : std_logic_vector(31 downto 0);
+    signal csr_rdata              : std_logic_vector(XLEN-1 downto 0);
+    signal csr_wdata              : std_logic_vector(XLEN-1 downto 0);
     signal csr_op                 : std_logic_vector(2 downto 0);
     signal csr_valid              : std_logic;
     signal en_cg_insret           : std_logic;
@@ -1593,7 +1593,7 @@ architecture struct of vesta is
     irq_handler_inst: irq_handler
         generic map (
             NUM_IRQS   => NUM_IRQS,
-            DATA_WIDTH => 32
+            DATA_WIDTH => XLEN
         )
         port map (
             clk             => clk,

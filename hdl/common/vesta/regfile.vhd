@@ -26,15 +26,15 @@ entity regfile is
         a1:   in  STD_LOGIC_VECTOR(4 downto 0);     -- Read address 1
         a2:   in  STD_LOGIC_VECTOR(4 downto 0);     -- Read address 2
         a3:   in  STD_LOGIC_VECTOR(4 downto 0);     -- Write address
-        wd3:  in  STD_LOGIC_VECTOR(31 downto 0);    -- Write data
-        rd1:  out STD_LOGIC_VECTOR(31 downto 0);    -- Read data 1
-        rd2:  out STD_LOGIC_VECTOR(31 downto 0);     -- Read data 2
-        a0:   out STD_LOGIC_VECTOR(31 downto 0)      --for outputting results of tests (tb use only)
+        wd3:  in  STD_LOGIC_VECTOR(XLEN-1 downto 0);    -- Write data
+        rd1:  out STD_LOGIC_VECTOR(XLEN-1 downto 0);    -- Read data 1
+        rd2:  out STD_LOGIC_VECTOR(XLEN-1 downto 0);     -- Read data 2
+        a0:   out STD_LOGIC_VECTOR(XLEN-1 downto 0)      --for outputting results of tests (tb use only)
     );
 end entity regfile;
 
 architecture behav of regfile is
-    type reg_array is array (0 to 31) of std_logic_vector(31 downto 0);
+    type reg_array is array (0 to 31) of std_logic_vector(XLEN-1 downto 0);
     signal registers: reg_array := (others => (others => '0'));
 
 begin

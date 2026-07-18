@@ -24,14 +24,14 @@ entity csr_unit is
 
         -- M13: hart id is a PORT (was the HARTID generic) so all four hart
         -- tiles share ONE netlist (tile hardening, M14); wired per instance.
-        hart_id          : in  std_logic_vector(31 downto 0) := (others => '0'); -- Value returned by mhartid (0xF14)
+        hart_id          : in  std_logic_vector(XLEN-1 downto 0) := (others => '0'); -- Value returned by mhartid (0xF14)
 
         -- CSR instruction interface
         csr_addr         : in  std_logic_vector(11 downto 0);  -- CSR address
-        csr_write_data   : in  std_logic_vector(31 downto 0);  -- Data to write (from rs1 or immediate)
+        csr_write_data   : in  std_logic_vector(XLEN-1 downto 0);  -- Data to write (from rs1 or immediate)
         csr_op           : in  std_logic_vector(2 downto 0);   -- CSR operation (funct3)
         csr_valid        : in  std_logic;                      -- Valid CSR operation
-        csr_read_data    : out std_logic_vector(31 downto 0);  -- Data read from CSR
+        csr_read_data    : out std_logic_vector(XLEN-1 downto 0);  -- Data read from CSR
 
         -- Performance counter input
         inst_retired     : in  std_logic;                      -- Instruction retired signal
@@ -64,7 +64,10 @@ architecture behave of csr_unit is
     -- Zba+Zbb+Zbs, all of which this core implements when ENABLE_BITMANIP
     -- (Zbc rides the same switch but has no misa letter). Read-only — writes
     -- are ignored like the other fixed CSRs. Zihpm adds NO misa bit.
-    constant MISA_VALUE : std_logic_vector(31 downto 0) := (
+    -- NOTE: misa is XLEN-wide but the MXL field POSITION is XLEN-relative
+    -- (bits XLEN-1:XLEN-2) and its VALUE differs per width (01=RV32, 10=RV64)
+    -- — bit 30 here is the RV32 encoding, revisit with any real RV64 work.
+    constant MISA_VALUE : std_logic_vector(XLEN-1 downto 0) := (
         30 => '1',                                -- MXL = 01 (RV32)
         12 => b2sl(ENABLE_MUL and ENABLE_DIV),    -- M
         8  => '1',                                -- I (always)
@@ -82,9 +85,9 @@ architecture behave of csr_unit is
     -- never written, so every read arm below returns zero for BOTH polarities.
     signal hpm3       : std_logic_vector(63 downto 0);
     signal hpm4       : std_logic_vector(63 downto 0);
-    signal mhpmevent3 : std_logic_vector(31 downto 0);
-    signal mhpmevent4 : std_logic_vector(31 downto 0);
-    signal mcountinhibit : std_logic_vector(31 downto 0);
+    signal mhpmevent3 : std_logic_vector(XLEN-1 downto 0);
+    signal mhpmevent4 : std_logic_vector(XLEN-1 downto 0);
+    signal mcountinhibit : std_logic_vector(XLEN-1 downto 0);
     -- Edge trackers (clk domain) for the grant (stall falling edge) and
     -- trap-entry (rising edge) events.
     signal prev_stall : std_logic;
@@ -92,14 +95,21 @@ architecture behave of csr_unit is
 
     -- Internal signals
     signal csr_write_en  : std_logic;
-    signal csr_read_val  : std_logic_vector(31 downto 0);
-    signal csr_new_val   : std_logic_vector(31 downto 0);
+    signal csr_read_val  : std_logic_vector(XLEN-1 downto 0);
+    signal csr_new_val   : std_logic_vector(XLEN-1 downto 0);
+
+    -- XLEN-wide comparison/mask constants (slv "=" on unequal lengths is
+    -- silently false — never compare against a literal of another width)
+    constant CSR_ZERO_X : std_logic_vector(XLEN-1 downto 0) := (others => '0');
+    -- mcountinhibit implemented bits: 0 (cycle), 2 (instret), 3/4 (hpm3/4)
+    constant MCOUNTINHIBIT_MASK : std_logic_vector(XLEN-1 downto 0) :=
+        (0 => '1', 2 => '1', 3 => '1', 4 => '1', others => '0');
 
     -- Event decode: returns true when the counter whose selector is `sel`
     -- should increment this cycle. Event set is FIXED (X1.5 spec / D2):
     --   0 off | 1 arbiter-stall cycles | 2 shared-bus grants |
     --   3 sleep cycles | 4 trap entries. Unsupported values count nothing.
-    function hpm_fires(sel        : std_logic_vector(31 downto 0);
+    function hpm_fires(sel        : std_logic_vector(XLEN-1 downto 0);
                        stall_lvl  : std_logic;
                        stall_fell : std_logic;
                        sleep_lvl  : std_logic;
@@ -118,7 +128,7 @@ begin
 
     -- CSR write enable (don't write on read-only operations when rs1/uimm = 0)
     csr_write_en <= csr_valid when (csr_op(1) = '1' or csr_op(0) = '1'
-                                or (csr_write_data /= x"00000000"))
+                                or (csr_write_data /= CSR_ZERO_X))
                                 else '0';
 
     -- CSR read process
@@ -131,8 +141,8 @@ begin
             when CSR_MISA      => csr_read_val <= MISA_VALUE;
 
             -- Machine Counters (Read/Write)
-            when CSR_MCYCLE    => csr_read_val <= mcycle(31 downto 0);
-            when CSR_MINSTRET  => csr_read_val <= minstret(31 downto 0);
+            when CSR_MCYCLE    => csr_read_val <= mcycle(XLEN-1 downto 0);
+            when CSR_MINSTRET  => csr_read_val <= minstret(XLEN-1 downto 0);
             when CSR_MCYCLEH   => csr_read_val <= mcycle(63 downto 32);
             when CSR_MINSTRETH => csr_read_val <= minstret(63 downto 32);
 
@@ -140,8 +150,8 @@ begin
             -- This M-mode-only core implements NO mcounteren: cycle/instret read
             -- unconditionally, so the hpm user-view arms below do the same (see
             -- report -- mcounteren reads zero rather than gating/trapping).
-            when CSR_CYCLE     => csr_read_val <= mcycle(31 downto 0);
-            when CSR_INSTRET   => csr_read_val <= minstret(31 downto 0);
+            when CSR_CYCLE     => csr_read_val <= mcycle(XLEN-1 downto 0);
+            when CSR_INSTRET   => csr_read_val <= minstret(XLEN-1 downto 0);
             when CSR_CYCLEH    => csr_read_val <= mcycle(63 downto 32);
             when CSR_INSTRETH  => csr_read_val <= minstret(63 downto 32);
 
@@ -150,13 +160,13 @@ begin
             -- time/timeh fall through to `others` => zero (legal, no trap).
             when CSR_MHPMEVENT3    => csr_read_val <= mhpmevent3;
             when CSR_MHPMEVENT4    => csr_read_val <= mhpmevent4;
-            when CSR_MHPMCOUNTER3  | CSR_HPMCOUNTER3  => csr_read_val <= hpm3(31 downto 0);
-            when CSR_MHPMCOUNTER4  | CSR_HPMCOUNTER4  => csr_read_val <= hpm4(31 downto 0);
+            when CSR_MHPMCOUNTER3  | CSR_HPMCOUNTER3  => csr_read_val <= hpm3(XLEN-1 downto 0);
+            when CSR_MHPMCOUNTER4  | CSR_HPMCOUNTER4  => csr_read_val <= hpm4(XLEN-1 downto 0);
             when CSR_MHPMCOUNTER3H | CSR_HPMCOUNTER3H => csr_read_val <= hpm3(63 downto 32);
             when CSR_MHPMCOUNTER4H | CSR_HPMCOUNTER4H => csr_read_val <= hpm4(63 downto 32);
             when CSR_MCOUNTINHIBIT => csr_read_val <= mcountinhibit;
 
-            when others        => csr_read_val <= x"00000000";
+            when others        => csr_read_val <= CSR_ZERO_X;
         end case;
     end process;
 
@@ -235,11 +245,11 @@ begin
             if csr_write_en = '1' then
                 case csr_addr is
                     when CSR_MCYCLE =>
-                        mcycle(31 downto 0) <= csr_new_val;
+                        mcycle(XLEN-1 downto 0) <= csr_new_val;
                     when CSR_MCYCLEH =>
                         mcycle(63 downto 32) <= csr_new_val;
                     when CSR_MINSTRET =>
-                        minstret(31 downto 0) <= csr_new_val;
+                        minstret(XLEN-1 downto 0) <= csr_new_val;
                     when CSR_MINSTRETH =>
                         minstret(63 downto 32) <= csr_new_val;
 
@@ -250,17 +260,17 @@ begin
                     when CSR_MHPMEVENT4 =>
                         if ENABLE_ZIHPM then mhpmevent4 <= csr_new_val; end if;
                     when CSR_MHPMCOUNTER3 =>
-                        if ENABLE_ZIHPM then hpm3(31 downto 0) <= csr_new_val; end if;
+                        if ENABLE_ZIHPM then hpm3(XLEN-1 downto 0) <= csr_new_val; end if;
                     when CSR_MHPMCOUNTER3H =>
                         if ENABLE_ZIHPM then hpm3(63 downto 32) <= csr_new_val; end if;
                     when CSR_MHPMCOUNTER4 =>
-                        if ENABLE_ZIHPM then hpm4(31 downto 0) <= csr_new_val; end if;
+                        if ENABLE_ZIHPM then hpm4(XLEN-1 downto 0) <= csr_new_val; end if;
                     when CSR_MHPMCOUNTER4H =>
                         if ENABLE_ZIHPM then hpm4(63 downto 32) <= csr_new_val; end if;
                     when CSR_MCOUNTINHIBIT =>
                         -- Only bits 0,2,3,4 are implemented; 1 and 5-31 read-only zero.
                         if ENABLE_ZIHPM then
-                            mcountinhibit <= csr_new_val and x"0000001D";
+                            mcountinhibit <= csr_new_val and MCOUNTINHIBIT_MASK;
                         end if;
 
                     when others =>

@@ -6,6 +6,19 @@ use ieee.math_real.log2;
 
 package constants is
 
+    -- Core width parameterization (2026-07-18). XLEN is the vesta DATAPATH
+    -- width: registers, ALU operands, addresses, PC, CSR values. ILEN is the
+    -- INSTRUCTION word width — a separate constant because on RV64 it stays 32
+    -- while XLEN doubles; every core width reference is categorized against one
+    -- of these (or a derived width below), never a bare 32. Only XLEN=32 is
+    -- implemented/verified: the SoC fabric (arbiter, tile boundary, peripherals,
+    -- SRAMs) is a fixed 32-bit bus, and the RV64-only instructions/CSR layouts
+    -- do not exist yet. Changing XLEN here is a starting point, not a knob.
+    constant XLEN       : natural := 32;              -- datapath/register width
+    constant ILEN       : natural := 32;              -- instruction word width (32 even on RV64)
+    constant XLEN_BYTES : natural := XLEN / 8;        -- bus byte lanes (wen width)
+    constant SHAMT_W    : natural := 5;               -- shift-amount width = ceil_log2(XLEN)
+
     --Define clock speed (for testing)
     constant clk_hz : integer := 100e6; --100 MHz
     constant clk_period : time := 1 sec / clk_hz; --10ns

@@ -1,14 +1,15 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use work.constants.all;
 
 entity loadext is
     port (
         clk        : in STD_LOGIC;
         funct3     : in  STD_LOGIC_VECTOR(2 downto 0);
         mask       : in  STD_LOGIC_VECTOR(1 downto 0);
-        read_data   : in  STD_LOGIC_VECTOR(31 downto 0);
-        extended_data : out STD_LOGIC_VECTOR(31 downto 0)
+        read_data   : in  STD_LOGIC_VECTOR(XLEN-1 downto 0);
+        extended_data : out STD_LOGIC_VECTOR(XLEN-1 downto 0)
     );
 end loadext;
 
@@ -52,15 +53,15 @@ begin
     with funct3 select
         extended_data <= 
             -- LB: Load Byte, Sign-Extended
-            (31 downto 8 => byte_data(7)) & byte_data when "000",
+            (XLEN-1 downto 8 => byte_data(7)) & byte_data when "000",
             -- LH: Load Half-Word, Sign-Extended
-            (31 downto 16 => half_data(15)) & half_data when "001",
+            (XLEN-1 downto 16 => half_data(15)) & half_data when "001",
             -- LW: Load Word (no extension needed)
             read_data when "010",
             -- LBU: Load Byte, Zero-Extended
-            (31 downto 8 => '0') & byte_data when "100",
+            (XLEN-1 downto 8 => '0') & byte_data when "100",
             -- LHU: Load Half-Word, Zero-Extended
-            (31 downto 16 => '0') & half_data when "101",
+            (XLEN-1 downto 16 => '0') & half_data when "101",
             -- Default case
             -- x"00000000" when others;
             read_data when others;

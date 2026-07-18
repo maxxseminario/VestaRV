@@ -38,7 +38,7 @@ entity maindec is
         
         -- Control outputs
         result_src       : out STD_LOGIC_VECTOR(2 downto 0);
-        WEN              : out STD_LOGIC_VECTOR(3 downto 0);
+        WEN              : out STD_LOGIC_VECTOR(XLEN_BYTES-1 downto 0);
         branch           : out STD_LOGIC;
         ALU_src          : out STD_LOGIC;
         div_op           : out STD_LOGIC;
