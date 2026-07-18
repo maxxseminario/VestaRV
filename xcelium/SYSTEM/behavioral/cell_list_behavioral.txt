@@ -1,8 +1,0 @@
-../../../hdl/myshkin/constants.vhd
-../../../hdl/myshkin/MemoryMap.vhd
-../../../hdl/myshkin/sim/ClkGate.vhd
-../../../hdl/myshkin/sim/ClockMuxGlitchFree.vhd
-../../../hdl/myshkin/commune/CRC16.vhd
-../../../hdl/myshkin/periph/SYSTEM.vhd
-../../../hdl/myshkin/tb/periph_tb_pkg.vhd
-../../../hdl/myshkin/tb/SYSTEM_tb.vhd

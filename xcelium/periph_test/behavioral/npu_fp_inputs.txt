@@ -1,1 +1,0 @@
-../../NPU/behavioral/npu_fp_inputs.txt

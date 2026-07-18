@@ -1,5 +1,0 @@
-# Argus N=18 smoke: validates hart-0 boot, tile launch (17 tiles), basic contention.
-../rca/xxxrv32ui-p-simple.rcf
-../rca/xxxxrv32ui-p-shmem.rcf
-../rca/xxxrv32ui-p-shboot.rcf
-../rca/xxxrv32ua-p-shspin.rcf

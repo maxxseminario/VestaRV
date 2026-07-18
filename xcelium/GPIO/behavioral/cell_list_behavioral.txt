@@ -1,5 +1,0 @@
-../../../hdl/myshkin/constants.vhd
-../../../hdl/myshkin/MemoryMap.vhd
-../../../hdl/myshkin/sim/ClkGate.vhd
-../../../hdl/myshkin/periph/GPIO.vhd
-../../../hdl/myshkin/tb/GPIO_tb.vhd

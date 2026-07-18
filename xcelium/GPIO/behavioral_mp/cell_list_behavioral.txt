@@ -1,5 +1,0 @@
-../../../hdl/common/constants.vhd
-../../../hdl/common/MemoryMap.vhd
-../../../hdl/common/sim/ClkGate.vhd
-../../../hdl/common/periph/GPIO.vhd
-../../../hdl/common/tb/GPIO_tb.vhd

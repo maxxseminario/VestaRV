@@ -1,3 +1,0 @@
-../rcf/rv32ua-p-amomaxu_w.rcf
-../rcf/rv32ua-p-amominu_w.rcf
-../rcf/rv32ua-p-amoswap_w.rcf

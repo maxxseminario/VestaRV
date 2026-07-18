@@ -1,4 +1,0 @@
-SDF_FILE = "../../../genus/out/MCU_MP.genus.sdf",
-LOG_FILE = "./log/sdf.log",
-SCOPE = :dut,
-MTM_CONTROL = "MAXIMUM"; // Defaults to typical, but innovus SDF only contains min/max

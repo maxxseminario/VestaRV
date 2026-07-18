@@ -1,8 +1,0 @@
-../../../hdl/myshkin/constants.vhd
-../../../hdl/myshkin/MemoryMap.vhd
-../../../hdl/myshkin/sim/ClkGate.vhd
-../../../hdl/myshkin/commune/ClkDivPower2.vhd
-../../../hdl/myshkin/periph/I2C.vhd
-../../../hdl/myshkin/tb/periph_tb_pkg.vhd
-../../../hdl/myshkin/tb/i2c_bfm_pkg.vhd
-../../../hdl/myshkin/tb/I2C_tb.vhd
