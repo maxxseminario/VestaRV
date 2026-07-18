@@ -202,6 +202,42 @@ the internal `MCU` cell (a `chip_top` wrapper doesn't exempt it — mcu0 is stil
 contained OA). After a clean run, XSTRM-287 must resolve from `myshkin_tapeout`
 ONLY the 3 analog abstracts — never a raw strmin.
 
+### Post-signoff extraction from a chip DB: fresh-init + defIn (A7, 2026-07-16)
+
+`restoreDesign` of a chip signoff/final DB FATALs in tapeout mode over the 13
+timing-less cells (tphn pads + 3 analog abstracts have no timing `.lib`s) —
+this blocked both the A7-2 placements dump and the Stage-3 netlist regen. The
+standing workaround is a FRESH Innovus session (never sets tapeout mode, runs
+no timing-library check, writes no DB):
+
+- **ERA / physical-only work** (rail analysis, placement dumps): `init_design`
+  from the flow's input verilog + LEF/mmmc, then `defIn` the DB's
+  `<cell>.def.gz` + `globalNetConnect` (`tcl/a7_era.tcl` pattern).
+- **LVS netlist extraction**: SAME pattern but `init_verilog` MUST be the
+  cut's own POST-ROUTE netlist (`out/<design>.xsim.v`) — the flow INPUT
+  verilog lacks the chip-level opt/CTS instances in the DEF (attempt 1 died:
+  4,510 IMPDF-138 dropped pins, 0 FE_OFN/CTS in the output). Then the A6
+  `saveNetlist -excludeLeafCell -includePowerGround -phys -excludeCellInst
+  FILL*` step. Template: `signoff_mp/a7/regen_lvs_netlist2.tcl`. Sanity gate:
+  distinct FE_OFN/CTS_ counts must match the post-route netlist exactly.
+
+### Re-P&R invalidates saved LVS netlists (named invariant, A7)
+
+Any re-P&R invalidates every saved LVS netlist for that design — placement,
+CTS, and optimization change the gate-level instances/nets even when the input
+RTL is untouched (A7: FE_OFN 5,293→4,408, and the stale-netlist compare
+ballooned unmatched 41k→1.04M with rc=0 and shorts EMPTY — a perfectly
+plausible-looking bogus result). Regenerate LVS collateral from EACH cut's own
+DB; never reuse a prior cut's `.lvs.v`.
+
+### Hour-scale signoff runs: detach with setsid
+
+The harness background-task reaper SIGTERMs its task group at 60 min — it
+killed a 66-min chip Pegasus run mid-report-write (compare complete, reports
+torn). Launch hour-scale pegasus/calibre runs detached (`setsid`, own session;
+`signoff_mp/a7/run_lvs_rerun.sh` is the template) and gate every readback on
+the runner's own rc file + report-mtime > run-start.
+
 ## Never
 
 - Hand-edit the golden example files to test a new chip — copy the pattern
@@ -209,3 +245,5 @@ ONLY the 3 analog abstracts — never a raw strmin.
 - Route a0/tb-visibility buses to real pads.
 - Trust an `sroute`/connectivity step without checking its logged count —
   see the PG2-F1 precedent in `[[vestarv-pg4-signoff-closure]]`.
+- `restoreDesign` a tapeout-mode chip DB for extraction work — fresh-init +
+  `defIn` instead (above); and never patch the DB's `.mode` to get past it.

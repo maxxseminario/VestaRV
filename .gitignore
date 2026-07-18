@@ -6,13 +6,22 @@ genus/
 # innovus/myshkin is frozen single-core PD output -- entirely generated, never committed.
 # innovus/common (was innovus_mp/) holds hand-maintained tcl/sh/Makefile source PLUS a
 # large amount of generated + PDK-derived P&R output (dbs/ out/ log/ rpt/ work/
-# timingReports/, qrc/voltus logs, timing files, via-viol reports, netlists...). Like the
-# old blanket `innovus/` rule and innovus/myshkin/, both trees are ignored wholesale; the
-# hand-maintained source (Makefile, prep_top_netlist*.sh, tcl/, in/chip_top.*) is already
-# tracked and stays tracked -- add any NEW source file with `git add -f`.
+# timingReports/, qrc/voltus logs, timing files, via-viol reports, netlists...).
+# 2026-07-18: untracked from git entirely (was previously force-added source under
+# innovus/common/) -- both trees stay on disk and are ignored wholesale, nothing
+# under innovus/ is tracked anymore.
 innovus/myshkin/
 innovus/common/
 .cadence/
+# cpf/ (Common Power Format), std_cells/ (PDK-derived .lef under foundry NDA),
+# signoff_mp/ (DRC/LVS signoff runs+scripts), hardware/ (VHDL sources -- superseded
+# by hdl/), .claude/skills/ (local skill defs) -- untracked from git 2026-07-18,
+# stay on disk only.
+cpf/
+std_cells/
+signoff_mp/
+hardware/
+.claude/skills/
 # Pegasus/Calibre DRC-LVS run logs:
 ic_bad/
 # logo/ contained *.gds:
@@ -291,3 +300,11 @@ xcelium/riscv_test/innovus_chip_quad/smoke_run.log
 !xcelium/riscv_test/innovus_chip_quad/*.rcf
 !xcelium/riscv_test/innovus_chip_quad/*.sdfcmd
 !xcelium/riscv_test/innovus_chip_quad/cds.lib
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2026-07-18: xcelium/ untracked from git entirely (was previously whitelisted
+# above for its hand-authored setup/scripts). This blanket rule wins over every
+# !xcelium/** re-include above (last matching pattern wins) -- the whole tree
+# stays on disk, tracked by nothing.
+# ─────────────────────────────────────────────────────────────────────────────
+xcelium/
