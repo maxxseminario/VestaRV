@@ -1,9 +1,0 @@
-../../../hdl/myshkin/constants.vhd
-../../../hdl/myshkin/MemoryMap.vhd
-../../../hdl/myshkin/sim/ClkGate.vhd
-../../../hdl/myshkin/periph/AFE_FSM.vhd
-../../../hdl/myshkin/periph/AFE.vhd
-../../../hdl/myshkin/tb/AFE_tb.vhd
-
-
-

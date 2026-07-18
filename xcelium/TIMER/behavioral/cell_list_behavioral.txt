@@ -1,6 +1,0 @@
-../../../hdl/myshkin/constants.vhd
-../../../hdl/myshkin/MemoryMap.vhd
-../../../hdl/myshkin/sim/ClkGate.vhd
-../../../hdl/myshkin/sim/ClockMuxGlitchFree.vhd
-../../../hdl/myshkin/periph/TIMER.vhd
-../../../hdl/myshkin/tb/TIMER_tb.vhd

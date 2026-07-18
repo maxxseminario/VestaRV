@@ -1,7 +1,0 @@
-=== RUNNING shexec ===
-TEST PASSED - ../rcf/xxxrv32ui-p-shexec.rcf
-=== RUNNING shwfi ===
-TEST PASSED - ../rcf/xxxxrv32ui-p-shwfi.rcf
-=== RUNNING shboot ===
-TEST PASSED - ../rcf/xxxrv32ui-p-shboot.rcf
-GATE_SMOKE_DONE
