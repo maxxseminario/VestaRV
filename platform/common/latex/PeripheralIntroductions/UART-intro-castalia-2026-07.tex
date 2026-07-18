@@ -35,7 +35,7 @@ A connection diagram for the UART is displayed in Figure \ref{fig:uart-connectio
 
 
 
-\subsection{Shared Access on Castalia}
+\subsection{Shared Access on \AsicNameForUserGuide}
 
 The UARTs live in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}), so any hart can use them, each at its original memory-mapped slot: \peripheral{UART0} at \texttt{0x4400}, and \peripheral{UART1} (in configurations that include it) at \texttt{0x4500}. \peripheral{UART0} is the \textit{console UART}: it carries the boot-time Forth console.
 
