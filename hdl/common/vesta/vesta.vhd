@@ -945,6 +945,17 @@ architecture struct of vesta is
                                 elsif is_div_op = '1' then
                                     next_state <= DIV_WAIT;
                                     pc_en <= '0';
+                                    -- Div-aliasing fix: suppress the EXECUTE-cycle
+                                    -- writeback. reg_write_dp defaults to
+                                    -- reg_write_ctrl='1' for a DIV, so without this
+                                    -- the EXECUTE->DIV_WAIT edge writes rd with the
+                                    -- ALU's idle ResultSignal (=0) BEFORE the divider
+                                    -- latches its operands in DIV_WAIT. When rd==rs1
+                                    -- that zero becomes the latched dividend (result
+                                    -- 0); when rd==rs2 it zeroes the divisor read
+                                    -- (spurious div-by-zero). rd is written exactly
+                                    -- once, at DIV_DONE, like lr/sc/amo/mem_access.
+                                    reg_write_dp <= '0';
                                 elsif irq_save = '1' then
                                     next_state <= IRQ_SV;
                                     pc_en <= '0';
@@ -977,6 +988,12 @@ architecture struct of vesta is
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
                                 pc_en <= '0';
+                                -- Div-aliasing fix: suppress the EXECUTE-cycle
+                                -- writeback (reg_write_dp defaults to '1' for a
+                                -- DIV) so rd is not clobbered with the idle
+                                -- ResultSignal (=0) before the divider latches its
+                                -- operands. rd is written exactly once, at DIV_DONE.
+                                reg_write_dp <= '0';
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
@@ -1050,6 +1067,12 @@ architecture struct of vesta is
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
                                 pc_en <= '0';
+                                -- Div-aliasing fix: suppress the EXECUTE-cycle
+                                -- writeback (reg_write_dp defaults to '1' for a
+                                -- DIV) so rd is not clobbered with the idle
+                                -- ResultSignal (=0) before the divider latches its
+                                -- operands. rd is written exactly once, at DIV_DONE.
+                                reg_write_dp <= '0';
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
@@ -1072,6 +1095,12 @@ architecture struct of vesta is
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
                                 pc_en <= '0';
+                                -- Div-aliasing fix: suppress the EXECUTE-cycle
+                                -- writeback (reg_write_dp defaults to '1' for a
+                                -- DIV) so rd is not clobbered with the idle
+                                -- ResultSignal (=0) before the divider latches its
+                                -- operands. rd is written exactly once, at DIV_DONE.
+                                reg_write_dp <= '0';
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';

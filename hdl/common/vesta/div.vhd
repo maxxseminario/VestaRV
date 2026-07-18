@@ -37,6 +37,15 @@ architecture rtl of div is
     signal neg_result : std_logic;
     signal neg_rem : std_logic;
     signal start_reg : std_logic;
+    -- Dispatch-time copies of the operand ports. The result process (below)
+    -- decides the RISC-V special cases (divide-by-zero, signed overflow, and
+    -- the rem-by-zero passthrough) from these LATCHED values instead of the
+    -- live a/b ports, so the divider's output depends only on the operands as
+    -- captured when the operation started — the same phase-stable-operand
+    -- discipline the core uses elsewhere (rs1_value for LR/SC/AMO). This keeps
+    -- the divider immune to any regfile activity on its a/b ports during the
+    -- multi-cycle run.
+    signal a_lat, b_lat : std_logic_vector(31 downto 0);
 
 begin
 
@@ -65,6 +74,8 @@ begin
             neg_result <= '0';
             neg_rem <= '0';
             start_reg <= '0';
+            a_lat <= (others => '0');
+            b_lat <= (others => '0');
             -- rdy <= '1';
             complete <= '0';
     
@@ -75,8 +86,12 @@ begin
                     complete <= '0';
                     
                     if start = '1' and start_reg = '0' then
-                        -- rdy <= '0'; 
+                        -- rdy <= '0';
                         -- Latch inputs and initialize
+                        -- Latch the raw operand ports for the result-process
+                        -- special cases (div-by-zero / overflow / rem passthrough).
+                        a_lat <= a;
+                        b_lat <= b;
                         if sel_signed = '1' then
                             N <= signed(a);
                             D <= signed(b);
@@ -145,16 +160,17 @@ begin
 
     
 
-    process(resetn, state, complete, a, b, sel_rem, sel_signed, neg_rem, R, neg_result, Q, R_unsigned, Q_unsigned)
+    process(resetn, state, complete, a_lat, b_lat, sel_rem, sel_signed, neg_rem, R, neg_result, Q, R_unsigned, Q_unsigned)
     begin
         if resetn = '0' then
             result <= (others => '0');
         -- elsif state = COMPLETED then
         elsif complete = '1' then
-            -- Division by zero cases (RISC-V spec)
-            if b = x"00000000" then
+            -- Division by zero cases (RISC-V spec) — decided from the LATCHED
+            -- operands (a_lat/b_lat), never the live a/b ports.
+            if b_lat = x"00000000" then
                 if sel_rem = '1' then
-                    result <= a; -- remu: operand a, rem: operand a
+                    result <= a_lat; -- remu: operand a, rem: operand a
                 else
                     if sel_signed = '1' then
                         result <= x"FFFFFFFF"; -- div: -1 (all 1's)
@@ -163,7 +179,7 @@ begin
                     end if;
                 end if;
             -- Overflow case for signed division/remainder: a = 0x80000000, b = 0xFFFFFFFF
-            elsif (sel_signed = '1') and (a = x"80000000") and (b = x"FFFFFFFF") then
+            elsif (sel_signed = '1') and (a_lat = x"80000000") and (b_lat = x"FFFFFFFF") then
                 if sel_rem = '1' then
                     result <= x"00000000"; -- rem: 0
                 else
