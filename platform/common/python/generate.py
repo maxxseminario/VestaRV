@@ -95,8 +95,8 @@ _CONFIG_SCHEMA = {
 	'isa.zihint':           ('bool — Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window; ntl.* nops)', _isBool),
 	'isa.zihpm':            ('bool — Zihpm perf counters 3/4 (events: arbiter-stall, bus-grants, sleep, trap-entry)', _isBool),
 	'isa.zawrs':            ('bool — Zawrs wrs.nto/wrs.sto wait-on-reservation-set (needs isa.atomics)', _isBool),
-	'isa.zabha':            ('bool — Zabha byte/half AMOs. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
-	'isa.zacas':            ('bool — Zacas amocas.w. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zabha':            ('bool — Zabha byte/half AMOs (requires atomics). Implemented X2.', _isBool),
+	'isa.zacas':            ('bool — Zacas amocas.w/.b/.h compare-and-swap (requires atomics; .b/.h also need zabha). Implemented X2.', _isBool),
 	'isa.zbkb':             ('bool — Zbkb crypto bit-manip. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
 	'isa.zbkc':             ('bool — Zbkc carryless multiply. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
 	'isa.zbkx':             ('bool — Zbkx crossbar permute. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
@@ -336,10 +336,23 @@ _isa = {
 # HARD-ERROR so nothing downstream (misa/ISA-string/tests) can lie about it.
 # Remove a name from this tuple as its phase (X1-X4) lands its real logic.
 _SCAFFOLDED_ISA = (
-	'zabha', 'zacas', 'zbkb', 'zbkc', 'zbkx', 'zkn', 'zfinx')
+	'zbkb', 'zbkc', 'zbkx', 'zkn', 'zfinx')
 for _sx in _SCAFFOLDED_ISA:
 	if _isa[_sx]:
 		raise Exception('isa.' + _sx + ': scaffolded (X0) but not implemented yet')
+
+# X2 (Zabha): byte/half AMOs reuse the A-extension datapath — meaningless
+# (and unimplemented) without atomics. HARD-ERROR so no config advertises
+# Zabha on a chip that lacks LR/SC/AMO.
+if _isa['zabha'] and not _isa['atomics']:
+	raise Exception('isa.zabha requires isa.atomics (byte/half AMOs build on the A extension)')
+
+# X2 (Zacas): amocas.{w,b,h} ride the A-extension AMO datapath — meaningless
+# (and unimplemented) without atomics. HARD-ERROR so no config advertises Zacas
+# on a chip that lacks LR/SC/AMO. (amocas.b/.h additionally require Zabha, but
+# that is a legal Zacas-word-only config, so it is only WARNed below.)
+if _isa['zacas'] and not _isa['atomics']:
+	raise Exception('isa.zacas requires isa.atomics (compare-and-swap builds on the A extension)')
 
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
@@ -374,6 +387,10 @@ def _isaString():
 		s += '_zca_zcb'
 	if _isa['zawrs']:
 		s += '_zawrs'
+	if _isa['zabha']:
+		s += '_zabha'
+	if _isa['zacas']:
+		s += '_zacas'
 	return s
 
 # Cross-knob sanity (WARN, not raise — these are legal but suspicious)

@@ -1,0 +1,14 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index 5368286..1d8b840 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -786,8 +786,7 @@ architecture struct of vesta is
+     -- reservation unit (keyed on committed lane strobes) does NOT kill reservations
+     -- on a fail. Mirrors the SC-fail wen. On a CAS success the normal lane logic
+     -- applies (word = "0000").
+-    amo_wen <= "1111" when (cas_op = '1' and cas_match_reg = '0') else
+-               "1110" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "00") else
++    amo_wen <= "1110" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "00") else
+                "1101" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "01") else
+                "1011" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "10") else
+                "0111" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "11") else

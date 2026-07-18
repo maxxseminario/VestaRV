@@ -119,6 +119,8 @@ package constants is
 
 	-- RV32A (Atomic Operations) funct3 codes
     constant AMO_WIDTH_W : std_logic_vector(2 downto 0) := "010"; -- Word-width atomic operations
+    constant AMO_WIDTH_B : std_logic_vector(2 downto 0) := "000"; -- X2 Zabha: byte-width atomic operations
+    constant AMO_WIDTH_H : std_logic_vector(2 downto 0) := "001"; -- X2 Zabha: halfword-width atomic operations
 
 	-- RV32A funct5 codes (bits [31:27] of instruction)
     -- Note: For AMO instructions, funct7 = {aq, rl, funct5[4:0]}
@@ -133,6 +135,7 @@ package constants is
     constant AMOMAX_FN5  : std_logic_vector(4 downto 0) := "10100"; -- Atomic MAX (signed)
     constant AMOMINU_FN5 : std_logic_vector(4 downto 0) := "11000"; -- Atomic MIN (unsigned)
     constant AMOMAXU_FN5 : std_logic_vector(4 downto 0) := "11100"; -- Atomic MAX (unsigned)
+    constant CAS_FN5     : std_logic_vector(4 downto 0) := "00101"; -- X2 Zacas: Compare-and-Swap (amocas.w/.b/.h)
 
     -- X1 Zawrs (Wait-on-Reservation-Set). SYSTEM opcode (1110011), funct3=000,
     -- rs1=x0, rd=x0; distinguished by the 12-bit funct12 (imm12) field. These

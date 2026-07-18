@@ -1,0 +1,58 @@
+X2 Zacas negative controls (unconditional-write + stale-compare)
+================================================================
+
+Two seeds, each a git patch that RE-INTRODUCES a Zacas correctness bug on top of
+the fixed tree (commit 86cd594). Both are detected by the WORD compare-FAIL arm
+of rv32uzacas/casw.S (arm 2): mem=0xAAAA5555, rd=0xDEADBEEF (!= mem), rs2=
+0x12345678 — a CAS whose compare MUST fail, so mem MUST stay 0xAAAA5555.
+
+  x2_zacas_uncond_write.patch   (hdl/common/vesta/vesta.vhd)
+      Removes the compare-fail write suppression from amo_wen (the
+      "1111" when (cas_op='1' and cas_match_reg='0') arm), so a compare-FAIL CAS
+      writes rs2 anyway. This is the conditional-write bug: the arbiter LOCKED
+      entry is unconditional and the FSM must suppress the write by WEN GATING
+      ONLY; deleting that gate lets a failed CAS commit.
+      DETECTOR: casw arm 2 — mem becomes 0x12345678 (should stay 0xAAAA5555).
+
+  x2_zacas_stale_compare.patch  (hdl/common/vesta/datapath.vhd)
+      Consumes a LIVE regfile port for the compare value instead of the
+      registered amo_cmp_reg (the no-operand-latch / stale-compare class): steer
+      the rs2 read port to rd during AMO_COMPUTE (amo_phase "010", AFTER the
+      AMO_WRITEBACK rd write) and compare rd_amo against that live port. Because
+      AMO_WRITEBACK has already written the OLD MEMORY VALUE into rd, the live
+      read returns that old value, so rd_amo==rd_live ALWAYS matches — a
+      should-fail CAS falsely succeeds.
+      DETECTOR: casw arm 2 — rd was 0xDEADBEEF but rd is re-read AFTER writeback
+      (now 0xAAAA5555 = the old mem), so the compare falsely matches and mem is
+      overwritten with 0x12345678 (should stay 0xAAAA5555).
+
+RECORDED VERDICTS (observed 2026-07-17, ON build = CORE_ENABLE_ZACAS+ZABHA true):
+    x2_zacas_uncond_write   -> tb_rv32uzacas_p_casw  FAIL  (seeded)
+    x2_zacas_stale_compare  -> tb_rv32uzacas_p_casw  FAIL  (seeded)
+    fixed (no seed)         -> tb_rv32uzacas_p_casw  PASS
+    seed(a) + DEFAULT (zacas-OFF) build -> amoalias/amoadd_w PASS (cas_op is
+        statically '0' when ENABLE_ZACAS is false, so both seeds are DORMANT and
+        the non-CAS regression is unperturbed).
+
+REPRO (ON build; casw image is RTL-independent, build once):
+    ROOT=$(git rev-parse --show-toplevel); source ~/vestarv/cdspaths.sh
+    sed -i 's/\(CORE_ENABLE_ZABHA\t\t: boolean := \)false/\1true/; \
+            s/\(CORE_ENABLE_ZACAS\t\t: boolean := \)false/\1true/' $ROOT/hdl/common/MemoryMap.vhd
+    cd $ROOT/verification/isa && rm -rf build/
+    make rv32uzacas-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4"
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    printf '../rcf/xrv32uzacas-p-casw.rcf\n' > casw_only.txt
+
+    # --- seed (a) ---
+    git -C $ROOT apply verification/isa/negctrl/x2_zacas_uncond_write.patch
+    TESTS_FILE=casw_only.txt MAX_PARALLEL=1 ./xrun_parallel.sh      # EXPECT FAIL
+    git -C $ROOT checkout hdl/common/vesta/vesta.vhd
+    TESTS_FILE=casw_only.txt MAX_PARALLEL=1 ./xrun_parallel.sh      # EXPECT PASS
+
+    # --- seed (b) ---
+    git -C $ROOT apply verification/isa/negctrl/x2_zacas_stale_compare.patch
+    TESTS_FILE=casw_only.txt MAX_PARALLEL=1 ./xrun_parallel.sh      # EXPECT FAIL
+    git -C $ROOT checkout hdl/common/vesta/datapath.vhd
+    TESTS_FILE=casw_only.txt MAX_PARALLEL=1 ./xrun_parallel.sh      # EXPECT PASS
+
+    git -C $ROOT checkout hdl/common/MemoryMap.vhd                  # restore OFF RTL

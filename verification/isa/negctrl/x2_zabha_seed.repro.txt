@@ -1,0 +1,87 @@
+X2 Zabha negative control — "sub-word AMO write drives all four byte strobes"
+=============================================================================
+
+SEED: x2_zabha_seed.patch changes the AMO_WRITE byte-lane write-enable in
+hdl/common/vesta/vesta.vhd from the per-lane value back to a full-word strobe:
+
+    when AMO_WRITE =>
+        ...
+        wen <= amo_wen;   -- byte/half AMO: ONLY the addressed lane(s)
+    ->
+        wen <= "0000";    -- full-word strobe: ALL four byte lanes
+
+The AMO write DATA is still the store_ext-style sub-word replication
+(amo_write_data_steered), so with all four strobes asserted every lane of the
+addressed word is overwritten with the replicated sub-word result. A byte/half
+AMO therefore CLOBBERS its three adjacent byte lanes — the exact fault the
+adjacent-lane guards in shzabha.S are built to catch. (Word AMOs are unchanged:
+amo_wen is already "0000" for funct3=010, so the seed is behaviourally identical
+to the fixed RTL for word AMOs — the seed ONLY corrupts the sub-word path.)
+
+WHY shzabha CATCHES IT: hart 0 seeds guard lanes (WB byte3 = 0x5A, WH half1 =
+0xC3C3, WSW bytes 0/2/3 = 0x99) that NO AMO writes; harts 0-2 hammer WB lanes
+0-2 and ALL harts hammer WH half0 concurrently. Under the seed, the concurrent
+sub-word writes replicate across all lanes and overwrite the guards (and each
+other), so hart 0's end-of-test guard checks mismatch -> a0 = 0xDEADBEEF -> the
+tb reports TEST FAILED, BOUNDED (well inside the 100 ms watchdog — the observed
+seeded failure fired at ~27.8 us of sim time, not a timeout).
+
+DISPATCH / STAGING CONVENTION (phase standard, verbatim from extzabha.S):
+  * CORE_ENABLE_ZABHA is supplied EXPLICITLY via -DCORE_ENABLE_ZABHA to gcc when
+    building the ON image; it is NEVER auto-derived from a header or out/ state.
+  * The RTL polarity is staged SEPARATELY by flipping MemoryMap.vhd's
+    CORE_ENABLE_ZABHA constant to true (the sim compiles hdl/common/ directly).
+
+Reusable env (run from the worktree root):
+    ROOT=$(git rev-parse --show-toplevel)
+    ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZABHA"
+    source ~/vestarv/cdspaths.sh
+
+BUILD-ORDER GOTCHAS (each cost a "seeded control passes" false negative in X1):
+  1. build_mp_images.sh rm -rf build/ and rebuilds ALL groups with the Makefile
+     default opts + -DNHARTS, DROPPING a -DCORE_ENABLE_ZABHA from an earlier
+     make. Build the base images FIRST, then rebuild the ON rv32ua group on top.
+  2. The sim reads xcelium/riscv_test/rcf, a SYMLINK -> ../../verification/isa/rcf.
+     A fresh git worktree can materialize a REAL stale dir there instead. Verify:
+         ls -ld $ROOT/xcelium/riscv_test/rcf   # must be the symlink
+     and sanity-grep the ON encoding in the rcf the sim actually reads (below).
+
+STAGE THE ON RTL + ON IMAGE:
+    # 1) ON RTL for the sim
+    sed -i 's/\(CORE_ENABLE_ZABHA\t\t: boolean := \)false/\1true/' \
+        $ROOT/hdl/common/MemoryMap.vhd
+    # 2) ON shzabha image at the simulated rcf path
+    cd $ROOT/verification/isa
+    rm -rf build/
+    make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+    # 3) VERIFY the ON image is at the path the sim reads (amoadd.b .insn word):
+    grep -c 00000001010100101000001110101111 \
+        $ROOT/xcelium/riscv_test/rcf/xxrv32ua-p-shzabha.rcf   # must be >= 1
+
+RUN THE CONTROL (from $ROOT/xcelium/riscv_test/behavioral_mp):
+    printf '../rcf/xxrv32ua-p-shzabha.rcf\n' > zabha_seed_test.txt
+
+    # (a) SEEDED -> FAIL
+    git -C $ROOT apply verification/isa/negctrl/x2_zabha_seed.patch
+    TESTS_FILE=zabha_seed_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh
+    #   EXPECT:  [1/1] FAIL tb_rv32ua_p_shzabha   (a0=0xDEADBEEF, bounded ~28 us)
+    git -C $ROOT checkout hdl/common/vesta/vesta.vhd     # revert the seed
+
+    # (b) REVERTED -> PASS  (same ON RTL + ON image)
+    TESTS_FILE=zabha_seed_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh
+    #   EXPECT:  [1/1] PASS tb_rv32ua_p_shzabha
+
+    # (c) DEFAULT build -> PASS  (restore OFF RTL + OFF image)
+    git -C $ROOT checkout hdl/common/MemoryMap.vhd
+    cd $ROOT/verification/isa && rm -rf build/
+    make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4"
+    cd $ROOT/xcelium/riscv_test/behavioral_mp
+    TESTS_FILE=zabha_seed_test.txt MAX_PARALLEL=1 ./xrun_parallel.sh
+    #   EXPECT:  [1/1] PASS tb_rv32ua_p_shzabha   (OFF trivial-pass arm)
+
+OBSERVED AT X2 BRING-UP (2026-07-17):
+    seeded   -> FAIL  (tb "TEST FAILED", 27787353722069 FS ~= 27.8 us; all 3
+                       tile harts reported pass, hart-0 guard check caught it)
+    reverted -> PASS  ([1/1] PASS)
+    default  -> PASS  (shzabha OFF trivial arm; word-AMO regression clean:
+                       shamo / amoadd_w / amomin_w / amominu_w all PASS)

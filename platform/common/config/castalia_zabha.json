@@ -1,0 +1,5 @@
+{
+  "_comment": "X2 Zabha ON verification config: Castalia defaults + byte/half AMOs enabled. Prove with: CHIP_CONFIG=config/castalia_zabha.json python3 python/generate.py",
+  "chipName": "CastaliaZabha",
+  "isa": { "zabha": true }
+}

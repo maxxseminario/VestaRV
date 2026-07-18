@@ -194,11 +194,14 @@ architecture struct of vesta is
             alu_control  : in  std_logic_vector(5 downto 0);
             div_start    : in  std_logic;
             amo_phase    : in  std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
+            cas_op       : in  std_logic;  -- X2 Zacas: current AMO is an amocas
             Zero         : out std_logic;
             pc_target    : out std_logic_vector(XLEN-1 downto 0);
             instr        : in  std_logic_vector(ILEN-1 downto 0);
             ALU_result   : out std_logic_vector(XLEN-1 downto 0);
             rs1_value    : out std_logic_vector(XLEN-1 downto 0);
+            amo_addr_low : out std_logic_vector(1 downto 0);
+            cas_match    : out std_logic;  -- X2 Zacas: registered CAS compare verdict
             alu_done     : out std_logic;
             write_data   : out std_logic_vector(XLEN-1 downto 0);
             read_data    : in  std_logic_vector(XLEN-1 downto 0);
@@ -438,6 +441,11 @@ architecture struct of vesta is
     signal reservation_addr       : std_logic_vector(XLEN-1 downto 0);  -- LR/SC reservation address
     signal amo_phase              : std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
     signal amo_write_data         : std_logic_vector(XLEN-1 downto 0);  -- Data to write for AMO operations
+    signal amo_write_data_steered : std_logic_vector(XLEN-1 downto 0);  -- X2 Zabha: sub-word-replicated AMO write data
+    signal amo_wen                : std_logic_vector(XLEN_BYTES-1 downto 0);  -- X2 Zabha: byte-lane write-enable for sub-word AMO write (active-low)
+    signal amo_addr_low           : std_logic_vector(1 downto 0);    -- X2 Zabha F1: registered AMO address low bits (from datapath)
+    signal cas_op                 : std_logic;                        -- X2 Zacas: current AMO is an amocas (funct5=CAS_FN5, ENABLE_ZACAS)
+    signal cas_match_reg          : std_logic;                        -- X2 Zacas: registered CAS compare verdict from datapath (1=match)
 
     -- ==========================================
     -- RV32SI (RV32ZISCR) CSR Signals
@@ -750,8 +758,45 @@ architecture struct of vesta is
     -- Memory Write Data Selection
     -- ==========================================
     -- For AMO operations, use computed result; for SC, use rs2 data
+    -- X2 Zabha: replicate the computed sub-word result across all byte lanes
+    -- (store_ext idiom); the byte-lane wen commits only the addressed lane.
+    amo_write_data_steered <= amo_write_data(7 downto 0) & amo_write_data(7 downto 0) &
+                              amo_write_data(7 downto 0) & amo_write_data(7 downto 0)
+                                  when instr_curr(14 downto 12) = "000" else
+                              amo_write_data(15 downto 0) & amo_write_data(15 downto 0)
+                                  when instr_curr(14 downto 12) = "001" else
+                              amo_write_data;  -- word AMO: full 32-bit result
+
+    -- X2 Zacas: this AMO is an amocas (compare-and-swap). Detected from the held
+    -- instruction (funct5 = CAS_FN5) plus the ENABLE_ZACAS generic. Statically '0'
+    -- when ENABLE_ZACAS is false (an amocas encoding traps in decode and never
+    -- enters the AMO flow). Drives the datapath rs2-port steering and the
+    -- conditional-write gating below.
+    cas_op <= '1' when (ENABLE_ZACAS and instr_curr(6 downto 0) = AMO_OPCODE
+                       and instr_curr(31 downto 27) = CAS_FN5) else '0';
+
+    -- X2 Zabha: active-low byte-lane enables for the sub-word AMO write, keyed
+    -- off the REGISTERED AMO address low bits (amo_addr_low = amo_addr_reg(1:0),
+    -- latched at AMO_READ). Keying off the live rs1 port was X2-F1: the rd write
+    -- in AMO_WRITEBACK clobbers rs1 for a rd==rs1 AMO, corrupting the lane select.
+    -- Word AMO writes all four lanes ("0000"), bit-identical to pre-X2.
+    -- X2 Zacas: a CAS whose compare FAILED suppresses the write entirely ("1111"
+    -- = no lane, active-low) -- write-enable gating ONLY, so the FSM still issues
+    -- the identical AMO_WRITE transaction (same LOCKED trajectory) and the global
+    -- reservation unit (keyed on committed lane strobes) does NOT kill reservations
+    -- on a fail. Mirrors the SC-fail wen. On a CAS success the normal lane logic
+    -- applies (word = "0000").
+    amo_wen <= "1111" when (cas_op = '1' and cas_match_reg = '0') else
+               "1110" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "00") else
+               "1101" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "01") else
+               "1011" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "10") else
+               "0111" when (instr_curr(14 downto 12) = "000" and amo_addr_low = "11") else
+               "1100" when (instr_curr(14 downto 12) = "001" and amo_addr_low(1) = '0') else
+               "0011" when (instr_curr(14 downto 12) = "001" and amo_addr_low(1) = '1') else
+               "0000";  -- word AMO (funct3=010): all four lanes
+
     write_data <= pc_next when (current_state = IRQ_SV) else 
-                  amo_write_data when (current_state = AMO_WRITE) else  -- Use ALU result for AMO write
+                  amo_write_data_steered when (current_state = AMO_WRITE) else  -- X2 Zabha: sub-word-steered (word = full result)
                   write_data_dp;  -- Use rs2 for normal stores and SC
 
     -- ==========================================
@@ -763,6 +808,7 @@ architecture struct of vesta is
     -- the EXTERNAL verdict (sc_fail_ext, from the global resv_unit for shared
     -- addresses; ties '0' for private/single-master use).
     amo_phase <=    "001" when current_state = AMO_READ or current_state = LR_READ else  -- Reading address
+                    "110" when current_state = AMO_WRITEBACK else  -- X2 Zacas: rd-capture window (steer rs2 port to rd + latch amo_cmp_reg; ALU output unused here, datapath muxes default like normal)
                     "010" when current_state = AMO_COMPUTE else  -- Computing with memory data
                     "011" when current_state = AMO_WRITE else     -- Writing result back
                     "101" when current_state = SC_CHECK and reservation_valid = '1'
@@ -1144,7 +1190,7 @@ architecture struct of vesta is
                 -- ==========================================
                 when AMO_WRITE =>
                     pc_en <= '1';  -- Ready to fetch next instruction
-                    wen <= "0000";  -- Write word
+                    wen <= amo_wen;  -- X2 Zabha: byte-lane enables (word AMO = "0000")
                     mem_access_instr <= '1';
                     reg_write_dp <= '0';
                     
@@ -1573,11 +1619,14 @@ architecture struct of vesta is
             alu_control => alu_control_dp,
             div_start   => div_start,
             amo_phase   => amo_phase,
+            cas_op      => cas_op,
             Zero        => Zero,
             pc_target   => pc_target,
             instr       => instr_curr,
             ALU_result  => ALU_result,
             rs1_value   => rs1_value,
+            amo_addr_low => amo_addr_low,
+            cas_match   => cas_match_reg,
             alu_done    => alu_done,
             write_data  => write_data_dp,
             read_data   => read_data, --TODO

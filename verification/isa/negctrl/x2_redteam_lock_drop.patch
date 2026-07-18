@@ -1,0 +1,22 @@
+diff --git a/hdl/common/vesta/vesta.vhd b/hdl/common/vesta/vesta.vhd
+index 5368286..d4bb38a 100644
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -843,7 +843,7 @@ architecture struct of vesta is
+                       or current_state = AMO_READ
+                       or current_state = AMO_WRITEBACK
+                       or current_state = AMO_COMPUTE
+-                      or current_state = AMO_WRITE
++                      or (current_state = AMO_WRITE and cas_op = '0')  -- REDTEAM SEED (ghost-txn): CAS write exits LOCKED one state early (arbiter can re-grant mid-CAS)
+                 else '0';
+ 
+ 
+@@ -857,7 +857,7 @@ architecture struct of vesta is
+                              reg_write_ctrl, wen_controller, sleep_rq, wake_rq, trap, 
+                              stack_pointer, sleep_cpu, reg_write_dp, amo_op, lr_op, sc_op,
+                              reservation_valid, reservation_addr, ALU_result, fence_op, rs1_value, sc_fail_ext,
+-                             pause_hint, pause_cnt,
++                             pause_hint, pause_cnt,
+                              wrs_op, wrs_wake, resv_valid_ext)
+     begin
+         if resetn = '0' then

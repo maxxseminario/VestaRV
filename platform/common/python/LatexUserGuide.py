@@ -310,6 +310,12 @@ class LatexUserGuide():
 		if self.Gen.ENABLE_ATOMICS:
 			config += ['Supports the RISC-V atomic instruction set (LR/SC and AMOs) and allows the use of the [A] compiler extension; on multi-hart configurations atomics are globally coherent across the shared window']
 
+		if self.Gen.ENABLE_ATOMICS and self.Gen.ENABLE_ZABHA:
+			config += ['Supports the RISC-V Zabha extension, adding byte (.b) and halfword (.h) atomic memory operations for all AMO functions; sub-word AMOs are globally coherent across the shared window like their word counterparts (LR/SC remain word-only)']
+
+		if self.Gen.ENABLE_ATOMICS and self.Gen.ENABLE_ZACAS:
+			config += ['Supports the RISC-V Zacas extension, adding word compare-and-swap (amocas.w), and — when Zabha is also present — byte/halfword compare-and-swap (amocas.b/.h); the CAS is a single globally-coherent read-compare-conditional-write transaction on the shared window (amocas.d is unsupported on RV32)']
+
 		if self.Gen.ENABLE_BITMANIP:
 			config += ['Supports the RISC-V bit-manipulation extensions Zba (address generation), Zbb (basic bit manipulation), Zbs (single-bit operations), and Zbc (carry-less multiplication)']
 
