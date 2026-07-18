@@ -1,0 +1,29 @@
+{
+  "chip": "myshkin",
+  "generated_from": "tests fixture (schema mirrors data/gen_registers.py output)",
+  "peripherals": {
+    "GPIO0": {
+      "description": "General Purpose I/O Port 0",
+      "base_addr": 16384,
+      "registers": {
+        "PIN": {"addr": 16384, "size": 1, "type": "STATUS",
+                "description": "GPIO read pin register", "fields": {}},
+        "POUT": {"addr": 16388, "size": 1, "type": "CONTROL",
+                 "description": "GPIO output drive register", "fields": {}}
+      }
+    },
+    "SPI0": {
+      "description": "SPI interface 0",
+      "base_addr": 16896,
+      "registers": {
+        "CR": {"addr": 16896, "size": 4, "type": "CONTROL",
+               "description": "SPI control register",
+               "fields": {
+                 "EN": {"lsb": 0, "width": 1, "desc": "SPI enable",
+                        "values": {"0": "Disabled", "1": "Enabled"}},
+                 "BR": {"lsb": 8, "width": 8, "desc": "baud rate divisor"}
+               }}
+      }
+    }
+  }
+}

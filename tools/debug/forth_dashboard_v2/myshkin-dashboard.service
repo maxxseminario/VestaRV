@@ -1,0 +1,31 @@
+# Forth Dashboard v2 -- systemd unit for the Raspberry Pi 4.
+#
+# Serves the dashboard against the real Myshkin UART (/dev/ttyAMA0) on port 8060.
+# Assumes the repo is checked out at the WorkingDirectory below and the runtime
+# deps are installed (see README.md "Hardware setup").  Edit WorkingDirectory /
+# ExecStart if you cloned somewhere else, and --reset-pin if GPIO17 is wired to
+# the chip resetn.
+#
+# Install:
+#   sudo cp myshkin-dashboard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now myshkin-dashboard.service
+# Check / follow logs:
+#   systemctl status myshkin-dashboard.service
+#   journalctl -u myshkin-dashboard.service -f
+
+[Unit]
+Description=Forth Dashboard v2 (Myshkin rv4th debug GUI)
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=dialout
+WorkingDirectory=/home/pi/vestarv/tools/debug/forth_dashboard_v2
+ExecStart=/home/pi/vestarv/tools/debug/forth_dashboard_v2/run.sh --port /dev/ttyAMA0 --listen 0.0.0.0:8060
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
