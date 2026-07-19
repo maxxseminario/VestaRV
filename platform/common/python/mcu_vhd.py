@@ -623,6 +623,81 @@ ANALOG_TIE_OFFS = [
 	"    dtp3_out <= '0';  dtp3_dir <= '0';  dtp3_ren <= '0';",
 ]
 
+# digperiphs #1 (2026-07-18): page-0 slot 12 (0x4C00) is shared real estate.
+# By default the four AFE register stubs + the shared EIS engine stub occupy it
+# (transcribed VERBATIM below — they were fixed template content until this
+# carve; emitted whenever geo['afeStubs'], the Castalia golden-master default,
+# so the default MCU.vhd stays byte-identical). With afeStubs off the QSPI0
+# controller can claim the slot instead (geo['qspi']); the two are mutually
+# exclusive. The AFE decl/instance blocks are emitted by emitSlot12Decls /
+# emitSlot12Instances (the --@GEN:slot12-decls@ / slot12-instances@ markers).
+AFE_SLOT12_DECLS = [
+	'        -- CQ2a: AFE digital register stubs (four 64 B sub-slots of page-0 slot',
+	'        -- 12 @0x4C00/40/80/C0) + the shared EIS engine stub (carved from the',
+	'        -- IRQ-router page top quarter @0x7C00-0x7FFF). Each is an afe_stub',
+	'        -- with an s_master ownership gate; the EIS block is hart-0-only.',
+	'        -- Reads are REGISTERED (no bridge). See afe_stub.vhd.',
+	'        signal shslv_afe_sel    : std_logic;   -- page-0 slot 12 (0x4C00) hit',
+	'        signal shslv_afe0_sel,  shslv_afe0_en  : std_logic;',
+	'        signal shslv_afe1_sel,  shslv_afe1_en  : std_logic;',
+	'        signal shslv_afe2_sel,  shslv_afe2_en  : std_logic;',
+	'        signal shslv_afe3_sel,  shslv_afe3_en  : std_logic;',
+	'        signal shslv_eis_sel,   shslv_eis_en   : std_logic;',
+	"        signal shslv_rd_afe0    : std_logic := '0';",
+	"        signal shslv_rd_afe1    : std_logic := '0';",
+	"        signal shslv_rd_afe2    : std_logic := '0';",
+	"        signal shslv_rd_afe3    : std_logic := '0';",
+	"        signal shslv_rd_eis     : std_logic := '0';",
+	'        signal afe0_rdata       : std_logic_vector(31 downto 0);',
+	'        signal afe1_rdata       : std_logic_vector(31 downto 0);',
+	'        signal afe2_rdata       : std_logic_vector(31 downto 0);',
+	'        signal afe3_rdata       : std_logic_vector(31 downto 0);',
+	'        signal eis_rdata        : std_logic_vector(31 downto 0);',
+	"        -- CQ2a: level IRQ from each stub's IF word. NOT yet routed to the",
+	'        -- irq_router (the frozen 85-source map has only 2 reserved slots for 5',
+	'        -- needed sources — see the CQ2a report); aggregated here for a clean',
+	'        -- future hookup and observability.',
+	'        signal afe_eis_irq      : std_logic_vector(4 downto 0);',
+]
+AFE_SLOT12_INSTANCES = [
+	'    -- =========================================================================',
+	'    -- CQ2a: AFE digital register stubs + shared EIS engine stub.',
+	'    -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots',
+	'    -- (sub-slot = sh_addr(5:4)); each answers only for its owner hart OR hart 0',
+	'    -- (mp_arbiter s_master gate, inside afe_stub). The EIS engine lives in the',
+	'    -- IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode',
+	"    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only",
+	'    -- (OWNER_HART=0). Reads are registered; denied reads return 0, denied',
+	'    -- writes drop — no bus error, no stall, no arbiter-contract change. Every',
+	'    -- stub resets all-zero -> a provable NO-OP (irq low) until software writes.',
+	'    -- =========================================================================',
+	'    afe0: entity work.afe_stub',
+	'        generic map (OWNER_HART => 0)   -- 0x4C00: hart 0 only',
+	'        port map (clk => mclk, resetn => resetn, en => shslv_afe0_en,',
+	'            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,',
+	'            master => sh_master, rdata => afe0_rdata, irq => afe_eis_irq(0));',
+	'    afe1: entity work.afe_stub',
+	'        generic map (OWNER_HART => 1)   -- 0x4C40: hart 1 or hart 0',
+	'        port map (clk => mclk, resetn => resetn, en => shslv_afe1_en,',
+	'            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,',
+	'            master => sh_master, rdata => afe1_rdata, irq => afe_eis_irq(1));',
+	'    afe2: entity work.afe_stub',
+	'        generic map (OWNER_HART => 2)   -- 0x4C80: hart 2 or hart 0',
+	'        port map (clk => mclk, resetn => resetn, en => shslv_afe2_en,',
+	'            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,',
+	'            master => sh_master, rdata => afe2_rdata, irq => afe_eis_irq(2));',
+	'    afe3: entity work.afe_stub',
+	'        generic map (OWNER_HART => 3)   -- 0x4CC0: hart 3 or hart 0',
+	'        port map (clk => mclk, resetn => resetn, en => shslv_afe3_en,',
+	'            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,',
+	'            master => sh_master, rdata => afe3_rdata, irq => afe_eis_irq(3));',
+	'    eis0: entity work.afe_stub',
+	'        generic map (OWNER_HART => 0)   -- 0x7C00: EIS engine, hart 0 only',
+	'        port map (clk => mclk, resetn => resetn, en => shslv_eis_en,',
+	'            we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,',
+	'            master => sh_master, rdata => eis_rdata, irq => afe_eis_irq(4));',
+]
+
 # Memory-bus port-map specs per instance. Fields:
 #   periph   : description peripheral name
 #   ports    : port names in the RTL's order for this component type
@@ -688,6 +763,25 @@ class McuVhdEmitter():
 		self.spi1Blocks = spi1Blocks or {}
 		self.timer1 = geo.get('timer1', True)
 		self.timer1Blocks = timer1Blocks or {}
+		# digperiphs #1: page-0 slot 12 (0x4C00) occupant. afeStubs (default,
+		# golden master) = the four AFE stubs + shared EIS engine stub; qspi =
+		# the QSPI0 controller instead. Mutually exclusive (both decode slot 12).
+		self.afeStubs = geo.get('afeStubs', True)
+		self.qspi = geo.get('qspi', False)
+		if self.afeStubs and self.qspi:
+			raise Exception('MCU.vhd emitter: afeStubs and qspi both claim page-0 slot 12')
+		# digperiphs #2: I3C0 in MUTEX-page (page 2) sub-slot 1 @0x6100. When set,
+		# the mutex-bank decode is tightened to sub-slot 0 (0x6000-0x60FF) and a
+		# page-2 sub-decode + the I3C0 shim/instance are hand-emitted. I3C0 is NOT
+		# a page-0 shim peripheral, so it lives outside shslv/pg0SelOrder/rdOrder
+		# (its rd-sel, rdata-mux and enable are emitted in explicit self.i3c blocks,
+		# the AFE-stub precedent). Default false => every one of those is inert.
+		self.i3c = geo.get('i3c', False)
+		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200. Same shape
+		# as I3C0 (native slave outside the page-0 shim fabric; hand-emitted
+		# sub-decode + shim/instance under self.nfc). When either I3C or NFC is
+		# present the mutex-bank decode is tightened to sub-slot 0. Default false.
+		self.nfc = geo.get('nfc', False)
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -749,11 +843,42 @@ class McuVhdEmitter():
 					comment = m7c
 				groups.append((comment, names, pad))
 			self.shimGroups = groups
+		# digperiphs #1: QSPI0 is an ADDED page-0 slot-12 slave (the opposite of
+		# the droppable instances above). It enters the shim/decode/read-mux
+		# fabric like any 'periph' peripheral; its instance (with the QSPI serial
+		# pins) is emitted by emitSlot12Instances, not a bus: side block.
+		if self.qspi:
+			self.shslv['QSPI0'] = {'sel': 'qspi0', 'shim': 'qspi0', 'rdata': 'qspi0_sh_rdata'}
+			insertAt = self.pg0SelOrder.index('GPIO3') if 'GPIO3' in self.pg0SelOrder else len(self.pg0SelOrder)
+			self.pg0SelOrder.insert(insertAt, 'QSPI0')	# slot 12, between NPU (10) and GPIO3 (13)
+			self.shimGroups.append((
+				['-- digperiphs #1: QSPI0 (slot 12 @0x4C00) shim. Registered read',
+				 '-- (no bridge); smclk baud core (SYS_CLK_CR=0 rule). Active-low',
+				 '-- one-cycle en + resv-gated lanes like the other shim peripherals.'],
+				['QSPI0'], 14))
 		self.shimGroups = [g for g in self.shimGroups if g[1]]
+		# digperiphs #2: I3C0 is a sharedBus='native' slave, but it lives on the
+		# MUTEX page (not page 0), so its SEL is hand-decoded in emitShslvSubdecode
+		# rather than the pg0SelOrder loop. It DOES join the shslv/en/rd fabric so
+		# the standard enable, registered rd-sel and rdata-mux loops cover it (the
+		# instance emits its own active-low en shim). shim=None = no polarity-shim
+		# group (like the other native slaves); its en_n is made in emitI3cInstance.
+		if self.i3c:
+			self.shslv = dict(self.shslv)
+			self.shslv['I3C0'] = {'sel': 'i3c0', 'shim': None, 'rdata': 'i3c0_sh_rdata'}
+		# digperiphs #3: NFC0 joins the same native-slave fabric (MUTEX-page
+		# sub-slot 2). Its SEL is hand-decoded in emitShslvSubdecode; the shslv
+		# entry (shim=None) puts it through the standard enable / registered rd-sel
+		# / rdata-mux loops, and its active-low en shim lives in emitNfcInstance.
+		if self.nfc:
+			self.shslv = dict(self.shslv)
+			self.shslv['NFC0'] = {'sel': 'nfc0', 'shim': None, 'rdata': 'nfc0_sh_rdata'}
+		nativeOrder = ['CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] \
+			+ (['I3C0'] if self.i3c else []) + (['NFC0'] if self.nfc else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
-			+ ['CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] + self.pg0SelOrder
+			+ nativeOrder + self.pg0SelOrder
 		self.rdOrder = list(self.enOrder)
 
 		self.crossCheck()
@@ -932,14 +1057,14 @@ class McuVhdEmitter():
 		for irqbName, desc in self.irqVectors:
 			if irqbName.startswith('IRQB_CLINT_'):
 				continue	# emitted below with the M5b comment
-			if irqbName == 'IRQB_RSVD55':
+			if irqbName == 'IRQB_RSVD55' and self.afeStubs:
 				# CQ2b: ex-AFE0 slot = the AGGREGATED AFE_SHARED source. OR of the
 				# four per-hart AFE IF level lines; hart 0 (the only master that
 				# can read all four AFE IF words) demuxes it in its source-55 handler.
 				lines.append(' ' * 12 + irqbName.ljust(16)
 					+ '=> afe_eis_irq(0) or afe_eis_irq(1) or afe_eis_irq(2) or afe_eis_irq(3),')
 				continue
-			if irqbName == 'IRQB_RSVD56':
+			if irqbName == 'IRQB_RSVD56' and self.afeStubs:
 				# CQ2b: ex-SARADC0 slot = the shared EIS engine level (hart-0-only).
 				lines.append(' ' * 12 + irqbName.ljust(16) + '=> afe_eis_irq(4),')
 				continue
@@ -983,12 +1108,29 @@ class McuVhdEmitter():
 		lines.append(ind + '-- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router')
 		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
 		lines.append(ind + 'shslv_clint_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + clintBits + '" else \'0\';')
-		lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" else \'0\';')
-		lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
-		lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
-		lines.append(ind + '-- decode is inert above word 522, so this removes only never-used aliased space).')
-		lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
-		lines.append(ind + 'shslv_eis_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) = "11" else \'0\';')
+		if self.i3c or self.nfc:
+			lines.append(ind + '-- digperiphs: page-2 (MUTEX/0x6000) carved into 256 B sub-slots on')
+			lines.append(ind + '-- sh_addr(9:6). The mutex bank keeps sub-slot 0 (0x6000-0x60FF); I3C0')
+			lines.append(ind + '-- takes sub-slot 1 (0x6100-0x61FF), NFC0 sub-slot 2 (0x6200-0x62FF);')
+			lines.append(ind + '-- the remaining sub-slots are reserved. Tightening the mutex decode')
+			lines.append(ind + '-- from the page-wide alias retires the aliased CLAIM side effect (an')
+			lines.append(ind + '-- aliased mutex read used to fire an atomic claim).')
+			lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0000" else \'0\';')
+			if self.i3c:
+				lines.append(ind + 'shslv_i3c0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0001" else \'0\';')
+			if self.nfc:
+				lines.append(ind + 'shslv_nfc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0010" else \'0\';')
+		else:
+			lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" else \'0\';')
+		if self.afeStubs:
+			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
+			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
+			lines.append(ind + '-- decode is inert above word 522, so this removes only never-used aliased space).')
+			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
+			lines.append(ind + 'shslv_eis_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) = "11" else \'0\';')
+		else:
+			# digperiphs #1: no EIS stub — irq_router owns the whole page 3.
+			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
 		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering ' + EMDASH)
 		lines.append(ind + '-- every peripheral back at its original Myshkin address, shared by')
 		lines.append(ind + '-- all ' + str(self.nHarts()) + ' harts')
@@ -1005,20 +1147,24 @@ class McuVhdEmitter():
 				+ format(self.winSlot(name), '04b') + '" else \'0\';')
 		# CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B
 		# sub-slots on sh_addr(5:4). The s_master ownership gate lives inside
-		# afe_stub; here we only address-decode the sub-slots.
-		lines.append(ind + '-- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B')
-		lines.append(ind + '-- sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.')
-		lines.append(ind + 'shslv_afe_sel'.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else \'0\';')
-		for sub in range(4):
-			lines.append(ind + ('shslv_afe' + str(sub) + '_sel').ljust(16) + ' <= shslv_afe_sel when sh_addr(5 downto 4) = "'
-				+ format(sub, '02b') + '" else \'0\';')
+		# afe_stub; here we only address-decode the sub-slots. (digperiphs #1:
+		# only when the AFE stubs occupy slot 12 — with qspi the slot is decoded
+		# whole as shslv_qspi0_sel in the pg0SelOrder loop above.)
+		if self.afeStubs:
+			lines.append(ind + '-- CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B')
+			lines.append(ind + '-- sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.')
+			lines.append(ind + 'shslv_afe_sel'.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else \'0\';')
+			for sub in range(4):
+				lines.append(ind + ('shslv_afe' + str(sub) + '_sel').ljust(16) + ' <= shslv_afe_sel when sh_addr(5 downto 4) = "'
+					+ format(sub, '02b') + '" else \'0\';')
 		for key in self.enOrder:
 			sel = self.selOf(key)
 			lines.append(ind + ('shslv_' + sel + '_en').ljust(16) + ' <= sh_en and shslv_' + sel + '_sel;')
 		# CQ2a: AFE sub-slot + EIS enables
-		for sub in range(4):
-			lines.append(ind + ('shslv_afe' + str(sub) + '_en').ljust(16) + ' <= sh_en and shslv_afe' + str(sub) + '_sel;')
-		lines.append(ind + 'shslv_eis_en'.ljust(16) + ' <= sh_en and shslv_eis_sel;')
+		if self.afeStubs:
+			for sub in range(4):
+				lines.append(ind + ('shslv_afe' + str(sub) + '_en').ljust(16) + ' <= sh_en and shslv_afe' + str(sub) + '_sel;')
+			lines.append(ind + 'shslv_eis_en'.ljust(16) + ' <= sh_en and shslv_eis_sel;')
 		return lines
 
 	def emitShslvRdSel(self):
@@ -1029,15 +1175,17 @@ class McuVhdEmitter():
 		lines.append(ind * 2 + "if resetn = '0' then")
 		for key in self.rdOrder:
 			lines.append(ind * 3 + ('shslv_rd_' + self.selOf(key)).ljust(16) + " <= '0';")
-		for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:  # CQ2a
-			lines.append(ind * 3 + ('shslv_rd_' + sel).ljust(16) + " <= '0';")
+		if self.afeStubs:
+			for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:  # CQ2a
+				lines.append(ind * 3 + ('shslv_rd_' + sel).ljust(16) + " <= '0';")
 		lines.append(ind * 2 + 'elsif rising_edge(mclk) then')
 		lines.append(ind * 3 + "if sh_en = '1' then")
 		for key in self.rdOrder:
 			sel = self.selOf(key)
 			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
-		for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:  # CQ2a
-			lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
+		if self.afeStubs:
+			for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:  # CQ2a
+				lines.append(ind * 4 + ('shslv_rd_' + sel).ljust(16) + ' <= shslv_' + sel + '_sel;')
 		lines.append(ind * 3 + 'end if;')
 		lines.append(ind * 2 + 'end if;')
 		lines.append(ind + 'end process;')
@@ -1085,9 +1233,245 @@ class McuVhdEmitter():
 			lines.append((prefix if i == 0 else cont) + row)
 		# CQ2a: AFE sub-slot + EIS reads (each afe_stub gates internally, so a
 		# denied read already returns 0 on these nets)
-		for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:
-			lines.append(cont + (sel + '_rdata').ljust(14) + ' when ' + ('shslv_rd_' + sel).ljust(16) + " = '1' else")
+		if self.afeStubs:
+			for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:
+				lines.append(cont + (sel + '_rdata').ljust(14) + ' when ' + ('shslv_rd_' + sel).ljust(16) + " = '1' else")
 		lines.append(cont + "(others => '0');  -- no slave (TCM page, unmapped)")
+		return lines
+
+	def emitSlot12Decls(self):
+		'''digperiphs #1: page-0 slot 12 (0x4C00) declarative region. The AFE
+		stubs + EIS (golden-master default, VERBATIM) OR the QSPI0 controller
+		fabric nets, else nothing (slot 12 unused).'''
+		if self.afeStubs:
+			return list(AFE_SLOT12_DECLS)
+		if self.qspi:
+			return [
+				'        -- digperiphs #1: QSPI0 (Quad-SPI flash controller) occupies page-0',
+				'        -- slot 12 (0x4C00, the ex-AFE reserved gap). sharedBus=periph shim;',
+				'        -- the read path is REGISTERED inside QSPI.vhd (no rdata bridge).',
+				'        signal shslv_qspi0_sel, shslv_qspi0_en : std_logic;',
+				"        signal shslv_rd_qspi0   : std_logic := '0';",
+				'        signal qspi0_sh_rdata   : std_logic_vector(31 downto 0);',
+				'        signal qspi0_sh_en_n    : std_logic;',
+				'        -- QSPI0 serial pins. PLACEHOLDER wiring (digperiphs #1): the six QSPI',
+				'        -- pins (SCK, CS, IO0-3) are NOT yet routed through the GPIO alt-',
+				'        -- function planes — pin-map pending a user decision. io_in is tied',
+				'        -- low; the outputs are observed by nothing (no pad hookup yet).',
+				'        signal qspi_sck_out, qspi_sck_dir : std_logic;',
+				'        signal qspi_cs_out,  qspi_cs_dir  : std_logic;',
+				'        signal qspi_io_in       : std_logic_vector(3 downto 0);',
+				'        signal qspi_io_out      : std_logic_vector(3 downto 0);',
+				'        signal qspi_io_dir      : std_logic_vector(3 downto 0);',
+			]
+		return []
+
+	def emitSlot12Instances(self):
+		'''digperiphs #1: page-0 slot 12 (0x4C00) instance region. AFE + EIS
+		stubs (default, VERBATIM) OR the QSPI0 controller, else nothing.'''
+		if self.afeStubs:
+			return list(AFE_SLOT12_INSTANCES)
+		if self.qspi:
+			return [
+				'    -- =========================================================================',
+				'    -- QSPI0 (digperiphs #1): Quad-SPI flash controller, page-0 slot 12 (0x4C00).',
+				'    -- smclk-domain serial core (SYS_CLK_CR=0 rule). Registered read (no bridge);',
+				'    -- RX reads have NO side effects. irq_tc -> vector 55, irq_rxf -> vector 56.',
+				'    -- PLACEHOLDER pins (see report): io_in tied low, outputs unobserved.',
+				'    -- =========================================================================',
+				'    qspi0: entity work.QSPI',
+				'        port map (',
+				'            clk         => smclk,',
+				'            resetn      => resetn,',
+				'            irq_tc      => irq_qspi0_tc,',
+				'            irq_rxf     => irq_qspi0_rxf,',
+				'            ClkMem      => mclk,',
+				'            EnMemPeriph => qspi0_sh_en_n,',
+				'            WEn         => sh_wen_n,',
+				'            MABPart     => sh_addr(5 downto 0),',
+				'            wdata       => sh_wdata,',
+				'            rdata_out   => qspi0_sh_rdata,',
+				'            sck_out     => qspi_sck_out,',
+				'            sck_dir     => qspi_sck_dir,',
+				'            cs_out      => qspi_cs_out,',
+				'            cs_dir      => qspi_cs_dir,',
+				'            io_in       => qspi_io_in,',
+				'            io_out      => qspi_io_out,',
+				'            io_dir      => qspi_io_dir);',
+				"    qspi_io_in <= (others => '0');  -- PLACEHOLDER: QSPI IO inputs not padded yet",
+			]
+		return []
+
+	def emitI3cDecls(self):
+		'''digperiphs #2: I3C0 (page-2 sub-slot 1 @0x6100) declarative region.
+		Fabric nets for the hand-emitted shim + the placeholder serial pins;
+		nothing when I3C is absent.'''
+		if not self.i3c:
+			return []
+		return [
+			'        -- digperiphs #2: I3C0 (I3C controller, MVP + dynamic address',
+			'        -- assignment + in-band interrupts). Page-2 (MUTEX page) sub-slot 1',
+			'        -- @0x6100 — the mutex bank keeps sub-slot 0 @0x6000, now decoded to',
+			'        -- 256 B (the page-wide alias, whose reads fired an atomic CLAIM, is',
+			'        -- retired). Registered-read shim (no bridge); active-low one-cycle en;',
+			'        -- smclk serial core (SYS_CLK_CR=0 rule). irq_* -> vectors 86-93, above',
+			'        -- the frozen meip slot 85.',
+			'        signal shslv_i3c0_sel, shslv_i3c0_en : std_logic;',
+			"        signal shslv_rd_i3c0    : std_logic := '0';",
+			'        signal i3c0_sh_rdata    : std_logic_vector(31 downto 0);',
+			'        signal i3c0_sh_en_n     : std_logic;',
+			'        -- I3C0 SDA/SCL pins. PLACEHOLDER wiring (digperiphs, pin-map',
+			'        -- DEFERRED): not yet routed through the GPIO alt-function planes.',
+			"        -- SDA_IN/SCL_IN are tied HIGH ('1') = idle (released) bus; the",
+			'        -- outputs/direction controls are observed by nothing (no pad yet).',
+			'        signal i3c0_sda_out, i3c0_sda_dir : std_logic;',
+			'        signal i3c0_scl_out, i3c0_scl_dir : std_logic;',
+		]
+
+	def emitI3cInstance(self):
+		'''digperiphs #2: I3C0 instance region (page-2 sub-slot 1 @0x6100).
+		The active-low en shim + the I3C entity + placeholder pin ties; nothing
+		when I3C is absent.'''
+		if not self.i3c:
+			return []
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- I3C0 (digperiphs #2): I3C controller (MVP + dynamic address assignment +',
+			'    -- in-band interrupts), page-2 (MUTEX page) sub-slot 1 @0x6100. smclk-domain',
+			'    -- serial core (SYS_CLK_CR=0 rule). Registered read (no bridge); register/RX',
+			'    -- reads have NO side effects. The eight irq_* lines drive vectors 86-93',
+			'    -- (tc/rxf/txe/nack/eod/arb/daa/ibi) through the irq_router, ABOVE the frozen',
+			"    -- meip slot 85. PLACEHOLDER pins: SDA_IN/SCL_IN tied HIGH (idle bus), the",
+			'    -- outputs unobserved — pin-map DEFERRED (see the digperiphs report).',
+			'    -- =========================================================================',
+			'    i3c0_sh_en_n <= not shslv_i3c0_en;',
+			'    i3c0: entity work.I3C',
+			'        port map (',
+			'            clk         => smclk,',
+			'            resetn      => resetn,',
+			'            irq_tc      => irq_i3c0_tc,',
+			'            irq_rxf     => irq_i3c0_rxf,',
+			'            irq_txe     => irq_i3c0_txe,',
+			'            irq_nack    => irq_i3c0_nack,',
+			'            irq_eod     => irq_i3c0_eod,',
+			'            irq_arb     => irq_i3c0_arb,',
+			'            irq_daa     => irq_i3c0_daa,',
+			'            irq_ibi     => irq_i3c0_ibi,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => i3c0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => i3c0_sh_rdata,',
+			"            SDA_IN      => '1',   -- PLACEHOLDER: idle (released) bus, not padded yet",
+			'            SDA_OUT     => i3c0_sda_out,',
+			'            SDA_DIR     => i3c0_sda_dir,',
+			"            SCL_IN      => '1',   -- PLACEHOLDER: idle (released) bus, not padded yet",
+			'            SCL_OUT     => i3c0_scl_out,',
+			'            SCL_DIR     => i3c0_scl_dir);',
+		]
+
+	def emitNfcDecls(self):
+		'''digperiphs #3: NFC0 (page-2 sub-slot 2 @0x6200) declarative region.
+		Fabric nets for the hand-emitted shim + the placeholder digital-AFE pins;
+		nothing when NFC is absent.'''
+		if not self.nfc:
+			return []
+		return [
+			'        -- digperiphs #3: NFC0 (ISO 14443A tag / card-emulation engine).',
+			'        -- Page-2 (MUTEX page) sub-slot 2 @0x6200 — the mutex bank keeps',
+			'        -- sub-slot 0 @0x6000 (now 256 B, the aliased-CLAIM decode retired).',
+			'        -- Registered-read shim (no bridge); active-low one-cycle en. Three',
+			'        -- clock domains inside NFC.vhd: ClkMem (bus), clk = smclk (the CDC',
+			'        -- synchronizers + W1C retirement; SYS_CLK_CR=0 rule), and the off-die',
+			'        -- rf_clk protocol core. irq_* -> vectors 94-97, above the frozen meip',
+			"        -- slot 85 and I3C's 86-93.",
+			'        signal shslv_nfc0_sel, shslv_nfc0_en : std_logic;',
+			"        signal shslv_rd_nfc0    : std_logic := '0';",
+			'        signal nfc0_sh_rdata    : std_logic_vector(31 downto 0);',
+			'        signal nfc0_sh_en_n     : std_logic;',
+			'        -- NFC0 digital-AFE / RF interface. PLACEHOLDER wiring (digperiphs,',
+			'        -- pin/AFE-map DEFERRED): the six AFE signals are NOT routed to pads.',
+			"        -- rf_clk and field_detect tie '0' (no carrier, no field); rf_rx ties",
+			"        -- '1' (idle envelope, no pause); the outputs are observed by nothing.",
+			'        signal nfc0_rf_txmod, nfc0_rf_tx_en, nfc0_afe_en : std_logic;',
+		]
+
+	def emitNfcInstance(self):
+		'''digperiphs #3: NFC0 instance region (page-2 sub-slot 2 @0x6200). The
+		active-low en shim + the NFC entity + placeholder AFE ties; nothing when
+		NFC is absent.'''
+		if not self.nfc:
+			return []
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- NFC0 (digperiphs #3): ISO 14443A tag / card-emulation engine, page-2',
+			'    -- (MUTEX page) sub-slot 2 @0x6200. Bus/CDC reference clock = smclk (the',
+			'    -- SYS_CLK_CR=0 rule applies); the whole protocol core runs on the off-die',
+			'    -- carrier-derived rf_clk. Registered read (no bridge); register/RX reads',
+			'    -- have NO side effects. The four irq_* lines drive vectors 94-97',
+			'    -- (field/rxf/txdone/crcerr) through the irq_router, ABOVE the frozen meip',
+			'    -- slot 85. PLACEHOLDER digital-AFE interface: rf_clk/field_detect tied low,',
+			"    -- rf_rx tied high (idle bus), outputs unobserved — the 13.56 MHz RF front",
+			'    -- end is off-die and the pin-map is DEFERRED (see the digperiphs report).',
+			'    -- =========================================================================',
+			'    nfc0_sh_en_n <= not shslv_nfc0_en;',
+			'    nfc0: entity work.NFC',
+			'        port map (',
+			'            clk          => smclk,',
+			'            resetn       => resetn,',
+			'            irq_field    => irq_nfc0_field,',
+			'            irq_rxf      => irq_nfc0_rxf,',
+			'            irq_txdone   => irq_nfc0_txdone,',
+			'            irq_crcerr   => irq_nfc0_crcerr,',
+			'            ClkMem       => mclk,',
+			'            EnMemPeriph  => nfc0_sh_en_n,',
+			'            WEn          => sh_wen_n,',
+			'            MABPart      => sh_addr(5 downto 0),',
+			'            wdata        => sh_wdata,',
+			'            rdata_out    => nfc0_sh_rdata,',
+			"            rf_clk       => '0',   -- PLACEHOLDER: off-die AFE carrier clock, not padded yet",
+			"            field_detect => '0',   -- PLACEHOLDER: no RF field, off-die",
+			"            rf_rx        => '1',   -- PLACEHOLDER: idle RX envelope (no pause), off-die",
+			'            rf_txmod     => nfc0_rf_txmod,',
+			'            rf_tx_en     => nfc0_rf_tx_en,',
+			'            afe_en       => nfc0_afe_en);',
+		]
+
+	def gfCount(self):
+		'''Number of 32-bit GlitchFilter instances = ceil(NUM_IRQ_SRCS / 32).
+		3 at the Castalia default (85 sources) and with I3C (94); 4 with NFC
+		(98 sources cross the third 32-bit boundary).'''
+		return (len(self.irqVectors) + 31) // 32
+
+	def emitIrqGfDecls(self):
+		'''digperiphs #3: irq_comb / gf_out width, sized to the glitch-filter
+		count (was a fixed std_logic_vector(95 downto 0) with 3 instances). At
+		gfCount = 3 this reproduces the golden master byte-identically.'''
+		w = str(32 * self.gfCount() - 1)
+		return [
+			'        signal irq_comb         : std_logic_vector(' + w + ' downto 0);',
+			'        signal irq_deglitch     : std_logic_vector(NUM_IRQ_SRCS -1 downto 0);',
+			'        signal gf_out           : std_logic_vector(' + w + ' downto 0);',
+		]
+
+	def emitIrqGfInstances(self):
+		'''digperiphs #3: the 32-bit GlitchFilter instances (one per 32 sources)
+		+ the irq_deglitch slice. Was 3 fixed instances; now geometry-driven so
+		NFC (4 instances) elaborates. At gfCount = 3 this is byte-identical.'''
+		lines = ['    -- Glitch Filter for IRQ signals']
+		for i in range(self.gfCount()):
+			hi = str(32 * i + 31)
+			lo = str(32 * i)
+			lines.append('    irq_gf' + str(i) + ' : entity work.GlitchFilter')
+			lines.append('        port map')
+			lines.append('        (')
+			lines.append('            IrqGlitchy\t\t=> irq_comb(' + hi + ' downto ' + lo + '),')
+			lines.append('            IrqDeglitched\t=> gf_out(' + hi + ' downto ' + lo + ')')
+			lines.append('\t);')
+		lines.append('    irq_deglitch <= gf_out(NUM_IRQ_SRCS-1 downto 0);')
 		return lines
 
 	def emitPolarityShims(self):
@@ -2255,6 +2639,22 @@ class McuVhdEmitter():
 			return self.emitShslvSubdecode()
 		if name == 'shslv-rd-sel':
 			return self.emitShslvRdSel()
+		if name == 'slot12-decls':
+			return self.emitSlot12Decls()
+		if name == 'slot12-instances':
+			return self.emitSlot12Instances()
+		if name == 'i3c-decls':
+			return self.emitI3cDecls()
+		if name == 'i3c-instance':
+			return self.emitI3cInstance()
+		if name == 'nfc-decls':
+			return self.emitNfcDecls()
+		if name == 'nfc-instance':
+			return self.emitNfcInstance()
+		if name == 'irq-gf-decls':
+			return self.emitIrqGfDecls()
+		if name == 'irq-gf-instances':
+			return self.emitIrqGfInstances()
 		if name == 'rdata-bridge':
 			return self.emitRdataBridge()
 		if name == 'sh-rdata-mux':
@@ -2331,6 +2731,13 @@ def generateMcuVhd(gen, templatePath, outPath):
 
 	expected = set(['irq-signal-decls', 'irq-comb', 'shslv-subdecode', 'shslv-rd-sel', 'rdata-bridge',
 		'sh-rdata-mux', 'polarity-shims',
+		# digperiphs #1: page-0 slot 12 (0x4C00) real estate (AFE stubs / QSPI0)
+		'slot12-decls', 'slot12-instances',
+		# digperiphs #2: I3C0 in MUTEX-page (page 2) sub-slot 1 @0x6100
+		'i3c-decls', 'i3c-instance',
+		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200 +
+		# the geometry-driven glitch-filter region (NFC needs a 4th instance)
+		'nfc-decls', 'nfc-instance', 'irq-gf-decls', 'irq-gf-instances',
 		# A1 N-hart regions
 		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'meip-decl', 'pd-decls',
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',

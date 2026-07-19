@@ -42,7 +42,11 @@
     "i2c1": true,
     "uart1": true,
     "spi1": true,
-    "timer1": true
+    "timer1": true,
+    "cqAfeStubs": true,
+    "qspi": false,
+    "i3c": false,
+    "nfc": false
   },
   "package": {
     "model": "myshkin-qfn44",
@@ -55,6 +59,7 @@
     "flashBaseAddress": "0x20000",
     "sharedRamEndAddress": "0x1FFFF",
     "vectorsCount": 85,
+    "meipVector": 85,
     "clintMsipVector": 83,
     "clintMtipVector": 84,
     "clintLayout": {
