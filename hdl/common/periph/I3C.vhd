@@ -146,12 +146,12 @@ architecture behavioral of I3C is
     signal sda_pp      : std_logic; -- '1' => push-pull; else open-drain
     signal scl_r       : std_logic; -- registered SCL level
 
-    -- ---- B7 async bus-condition sensor (D5) ------------------------------
-    -- Observes external START/STOP on the resolved bus. In the MVP nothing
-    -- consumes these (we are the sole controller); they are the hooks the
-    -- stage-3 target-START / IBI detector builds on.
-    signal bus_busy  : std_logic;  -- '1' between an external START and STOP
-    signal bus_start : std_logic;  -- pulse-ish: START (SDA fall, SCL high)
+    -- ---- B7 async target-START / IBI sensor (D5) -------------------------
+    -- Observes external START (SDA fall, SCL high) on the resolved bus. Only
+    -- the target-START/IBI role is consumed (ibi_req in the B6 block below);
+    -- the former START/STOP bus-occupancy LEVEL outputs (bus_busy/bus_start)
+    -- were unread MVP hooks and have been RETIRED -- see the ibi_sensor process
+    -- for the Genus VHDL-601 rationale and the I2CBS re-add recipe.
 
     -- ---- B5 DAA engine + DAT register file (stage 2, R1 = 4 entries) ------
     -- D18 indexed window (slots 5/6/7 select entry IDX). The DAT storage is
@@ -1221,35 +1221,36 @@ begin
         end if;
     end process;
 
-    ---------- B7 async bus-condition sensor (D5, I2C L257-303 form) --------
-    -- START = SDA falling while SCL high; STOP = SDA rising while SCL high.
-    -- Stage 3: a START seen while the controller is IDLE (busy=0, enabled) is a
-    -- TARGET-driven IBI -- latch ibi_req to wake the framer (retired by the FSM
-    -- clr_ibi_req at service entry). Controller-driven STARTs happen with
-    -- ph/=P_IDLE (busy=1), so they never latch ibi_req.
-    bus_sensor: process(resetn, SDA_IN, clr_ibi_req)
+    ---------- B7 async target-START / IBI sensor (D5, I2C L261-273 form) ---
+    -- START = SDA falling while SCL high. Stage 3: a START seen while the
+    -- controller is IDLE (busy=0, enabled) is a TARGET-driven IBI -- latch
+    -- ibi_req to wake the framer (retired by the FSM clr_ibi_req at service
+    -- entry). Controller-driven STARTs happen with ph/=P_IDLE (busy=1), so they
+    -- never latch ibi_req.
+    --
+    -- Genus VHDL-601 constraint: a process may reference exactly ONE clock edge.
+    -- The original bus_sensor mixed falling_edge(SDA_IN)+rising_edge(SDA_IN) in
+    -- one process and was rejected. This mirrors I2C.vhd's StartSlaveRX flop
+    -- (L261-273): async reset/retire in the leading `if`, a single
+    -- `falling_edge(SDA_IN)` set clause -- the Genus-legal I2CSTR shape. SDA_IN
+    -- is the clock pin of this one flop (its own async SDC group; ibi_req is a
+    -- held-level CDC into clk_baud, retired by clr_ibi_req -- exactly the
+    -- i3c_launch/tx_arm handshake shape, just from an external edge).
+    --
+    -- RETIRED here: the bus_busy/bus_start START/STOP bus-occupancy LEVELS.
+    -- They were write-only in the MVP (nothing consumed them), so synthesis
+    -- dead-code-eliminated them regardless; reproducing their set-on-SDA-fall /
+    -- clear-on-SDA-rise level legally needs the I2CBS async-set + a
+    -- falling_edge(SCL_IN) de-assert helper (I2C L286-303) -- i.e. a whole new
+    -- SCL_IN clock domain -- which is unwarranted for dead outputs. Re-add via
+    -- that I2CBS recipe if a consumer ever needs external bus occupancy.
+    ibi_sensor: process(resetn, SDA_IN, clr_ibi_req)
     begin
-        if resetn = '0' then
-            bus_busy  <= '0';
-            bus_start <= '0';
-            ibi_req   <= '0';
-        else
-            if falling_edge(SDA_IN) then
-                if SCL_IN = '1' then
-                    bus_busy  <= '1';
-                    bus_start <= '1';
-                    if busy = '0' and q_en = '1' then
-                        ibi_req <= '1';
-                    end if;
-                end if;
-            elsif rising_edge(SDA_IN) then
-                if SCL_IN = '1' then
-                    bus_busy  <= '0';
-                    bus_start <= '0';
-                end if;
-            end if;
-            if clr_ibi_req = '1' then
-                ibi_req <= '0';
+        if resetn = '0' or clr_ibi_req = '1' then
+            ibi_req <= '0';
+        elsif falling_edge(SDA_IN) then
+            if SCL_IN = '1' and busy = '0' and q_en = '1' then
+                ibi_req <= '1';
             end if;
         end if;
     end process;
