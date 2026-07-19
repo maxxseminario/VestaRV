@@ -123,6 +123,14 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.timer1':   ('bool — False drops the second TIMER instance (slot 7 reads zero, IRQ vectors 22-27 reserved, T1CMP*/T1CAP* pins revert to plain GPIO)',
 	                         _isBool),
+	'peripherals.cqAfeStubs': ('bool — True instantiates the four AFE register stubs (page-0 slot 12 @0x4C00, sub-slots on sh_addr(5:4)) and the shared EIS engine stub (0x7C00); the Castalia golden master keeps them. False frees slot 12 for a native peripheral (mutually exclusive with peripherals.qspi) and reserves IRQ vectors 55/56',
+	                         _isBool),
+	'peripherals.qspi':     ('bool — True instantiates the QSPI0 controller in page-0 slot 12 (0x4C00), driving IRQ vectors 55 (transfer-complete) and 56 (RX-full); requires peripherals.cqAfeStubs=false (both claim slot 12). Default false',
+	                         _isBool),
+	'peripherals.i3c':      ('bool — True instantiates the I3C0 controller (MVP+DAA+IBI) at 0x6100: page-2 (MUTEX page) sub-slot 1. Tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the page-wide alias whose reads had a CLAIM side effect), adds a page-2 sub-decode, and GROWS the IRQ source list to 94 (a reserved placeholder at the frozen meip slot 85, then I3C vectors 86-93: tc/rxf/txe/nack/eod/arb/daa/ibi). Default false',
+	                         _isBool),
+	'peripherals.nfc':      ('bool — True instantiates the NFC0 ISO 14443A tag / card-emulation engine at 0x6200: page-2 (MUTEX page) sub-slot 2. Like I3C it tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the aliased-CLAIM side effect) and adds the page-2 sub-decode. GROWS the IRQ source list to 98 (meip stays frozen at slot 85; sources 86-93 are I3C or reserved; NFC drives vectors 94-97: field/rxf/txdone/crcerr). The digital AFE / RF interface is off-die (placeholder-tied). Default false',
+	                         _isBool),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -183,6 +191,10 @@ _CONFIG_META = {
 	'peripherals.uart1':    {'type': 'bool', 'default': True},
 	'peripherals.spi1':     {'type': 'bool', 'default': True},
 	'peripherals.timer1':   {'type': 'bool', 'default': True},
+	'peripherals.cqAfeStubs': {'type': 'bool', 'default': True},
+	'peripherals.qspi':     {'type': 'bool', 'default': False},
+	'peripherals.i3c':      {'type': 'bool', 'default': False},
+	'peripherals.nfc':      {'type': 'bool', 'default': False},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -302,6 +314,50 @@ i2c1Present = _cfg('peripherals.i2c1', True)
 uart1Present = _cfg('peripherals.uart1', True)
 spi1Present = _cfg('peripherals.spi1', True)
 timer1Present = _cfg('peripherals.timer1', True)
+
+# digperiphs #1 (QSPI, 2026-07-18): page-0 slot 12 (0x4C00) real estate. The
+# Castalia-Quad respin's four AFE register stubs + the shared EIS engine stub
+# (afe_stub.vhd instances, wired in the generated MCU.vhd) occupy slot 12 and
+# the IRQ-router page top quarter (0x7C00) by DEFAULT — the committed golden
+# master and the shafe mp-suite test depend on them, so cqAfeStubs defaults
+# TRUE. The QSPI0 controller is the ALTERNATE occupant of slot 12 (default
+# FALSE): enabling it claims 0x4C00 and drives IRQ vectors 55 (transfer
+# complete) / 56 (RX full). The two are mutually exclusive — both decode slot
+# 12. The EIS stub is tied to the SAME cqAfeStubs knob: in the RTL it shares
+# the afe_eis_irq(4:0) vector and the AFE sub-decode/read-mux emitters with the
+# four AFE sites (fully entangled), so it lives and dies with them.
+cqAfeStubsPresent = _cfg('peripherals.cqAfeStubs', True)
+qspiPresent = _cfg('peripherals.qspi', False)
+if cqAfeStubsPresent and qspiPresent:
+	raise Exception('Chip-config conflict: peripherals.cqAfeStubs and peripherals.qspi '
+		'both claim page-0 slot 12 (0x4C00) — set cqAfeStubs=false to enable qspi.')
+
+# digperiphs #2 (I3C, 2026-07-18): the I3C0 controller (MVP+DAA+IBI) claims
+# page-2 (the MUTEX page, 0x6000-0x6FFF) SUB-SLOT 1 @0x6100. This carves the
+# mutex bank down to sub-slot 0 (0x6000-0x60FF, 256 B): by default the mutex
+# decode ALIASES across the whole page and an aliased read fires the atomic
+# CLAIM side effect, so tightening it is a correctness improvement that ships
+# ONLY when I3C is enabled (the default keeps the historic aliasing decode,
+# byte-identical). Enabling I3C also GROWS the IRQ SOURCE list from 85 to 94:
+# the meip external-interrupt slot stays FROZEN at IVT slot 85 (m.MeipVector),
+# a reserved never-pending placeholder sits at source index 85, and the eight
+# I3C sources (tc/rxf/txe/nack/eod/arb/daa/ibi) sit ABOVE it at 86-93, reached
+# through the existing meip dispatcher. Default FALSE — the default emission
+# (mutex aliasing, 85-entry vector list, no page-2 sub-decode) is unchanged.
+i3cPresent = _cfg('peripherals.i3c', False)
+
+# digperiphs #3 (NFC, 2026-07-18): the NFC0 ISO 14443A tag / card-emulation
+# engine claims page-2 (the MUTEX page) SUB-SLOT 2 @0x6200, joining I3C's gated
+# carve. It tightens the same mutex decode to sub-slot 0 (the tightening ships
+# whenever I3C *or* NFC is present) and takes sub-slot 2. Enabling NFC GROWS the
+# IRQ SOURCE list to 98: meip stays FROZEN at slot 85, sources 86-93 are I3C's
+# (or reserved gaps when I3C is off), and NFC's four sources sit at 94-97 in the
+# fixed order field/rxf/txdone/crcerr (NFC.vhd's irq_* port order). Because 98
+# sources cross a 32-bit boundary, NFC is the first config to need a 4th
+# glitch-filter instance (the irq-gf region is now geometry-driven). The digital
+# AFE / RF interface is off-die (placeholder-tied, no pads). Default FALSE — the
+# default emission (85-entry vector list, 3 glitch filters) is byte-identical.
+nfcPresent = _cfg('peripherals.nfc', False)
 
 # Package model selection (G4): which _PACKAGE_MODELS entry builds the pad
 # ring below, and whether the TRM package section carries the "Preliminary"
@@ -531,7 +587,7 @@ m = ChipGenerator(
 	nativeSpiFlashMemoryWriteAccess=False,
 	stackPointerInit=0xC000,	# Stack pointer at top of the private TCM
 	bootloaderUsesSpiFlashCommands=True,
-	vectorsCount=85,	# 83 legacy vectors + CLINT msip (83) + CLINT mtip (84)
+	vectorsCount=(98 if nfcPresent else (94 if i3cPresent else 85)),	# 83 legacy vectors + CLINT msip (83) + CLINT mtip (84); digperiphs: +9 with I3C (placeholder 85 + I3C 86-93), +4 more with NFC (94-97). meip slot stays 85 via m.MeipVector below
 	padOutPosLogic=True,
 	padDIRPosLogic=False,
 	padRENPosLogic=False,
@@ -580,6 +636,14 @@ m = ChipGenerator(
 	PROGADDR_IRQ=0x9000,	# TODO: Set this as the address of the master IRQ handling function (this is NOT the interrupt vector table!!! This is the function that is called whenever ANY interrupt occurs)
 	lastRamMemorySlotSize=_tcmSize
 )
+
+# digperiphs #2 (M19 IVT freeze): the meip external-interrupt vector is pinned
+# at IVT slot 85 for this whole chip family, INDEPENDENT of the source count.
+# With I3C the source list grows to 94 (sources 86-93 sit ABOVE meip), but
+# IRQB_EXT_MEIP stays 85 (hart_tile vectors meip via IRQB_EXT_MEIP, not
+# NUM_IRQS-1). At the default (85 sources) this reproduces the historic
+# IRQB_EXT_MEIP=85 / NUM_IRQS=86 emission byte-for-byte.
+m.MeipVector = 85
 
 
 
@@ -1340,6 +1404,267 @@ for _w in range(_pwrsrWords):
 
 
 ''' Check the peripheral templates for errors '''
+# digperiphs #1 (2026-07-18): QSPI0 register template. Added unconditionally
+# (before CheckPeripheralTemplates) so the template exists whenever qspiPresent
+# CreatePeripheral()s it at slot 12; with qspi off it is simply never instanced.
+if qspiPresent:
+	qspi = PeripheralTemplate(nameTemplate='QSPIx', description='Quad Serial Peripheral Interface flash controller. Issues single-/dual-/quad-lane command, address, dummy, and data phases to an external SPI-family memory over a 6-wire bus (SCK, active-low CS, and four bidirectional IO lines). Each phase has an independently configurable lane width, so the same engine drives legacy 1-1-1 flash, dual-output (1-1-2), and quad-output/quad-I/O (1-1-4 / 1-4-4) devices. A transaction is described by the control, command, and address registers and launched by a byte-lane-0 write to QSPIxCMD; the registered read path returns snapshots with no read side effects. The serial core runs in the SMCLK domain (SYS_CLK_CR=0 rule applies), with a programmable baud divider off SMCLK.', registerPrefix='QSPIx', bitFieldPrefix='QSPI', latexIntroFileName='QSPI-intro-castalia-2026-07.tex', latexFeatureSummary='{count} QSPI flash controller (single/dual/quad lane; per-phase width)')
+	m.AddPeripheralTemplate(qspi)
+
+	# QSPIxCR (slot 0) -- control
+	r = RegisterTemplate(nameTemplate='QSPIxCR', registerMemorySlot=0, description='QSPI control register. Configures the per-phase lane widths, SPI mode, address size, dummy cycles, chip select, baud rate, and interrupt enables. Take care to reconfigure this register only while the controller is idle (QSPIBUSY = 0).', size=32)
+	qspi.AddRegisterTemplate(r)
+	_widthVals = [(0b00, '1-bit (single lane, IO0 only)'), (0b01, '2-bit (dual lane, IO0-1)'), (0b10, '4-bit (quad lane, IO0-3)'), (0b11, 'Reserved')]
+	r.AddBitField(BitField(name='QSPIEN', msb=0, accessibility='rw', description='QSPI enable. When 0 the controller is held idle: the serial pins are released, no transaction launches, and a write to QSPIxCMD is ignored. Set to 1 before launching a transaction.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='QSPICMDW', msb=2, lsb=1, accessibility='rw', description='Command-phase lane width. Selects how many IO lines carry the 8-bit opcode.', valueDescriptions=_widthVals))
+	r.AddBitField(BitField(name='QSPIADRW', msb=4, lsb=3, accessibility='rw', description='Address-phase lane width. Selects how many IO lines carry the transaction address (when QSPIAWID is non-zero).', valueDescriptions=_widthVals))
+	r.AddBitField(BitField(name='QSPIDATW', msb=6, lsb=5, accessibility='rw', description='Data-phase lane width. Selects how many IO lines carry the payload.', valueDescriptions=_widthVals))
+	r.AddBitField(BitField(name='QSPICPOL', msb=7, accessibility='rw', description='Clock polarity. Sets the idle level of SCK.', valueDescriptions=[(0b0, 'SCK idles low'), (0b1, 'SCK idles high')]))
+	r.AddBitField(BitField(name='QSPICPHA', msb=8, accessibility='rw', description='Clock phase. Selects the SCK edge on which data is sampled.', valueDescriptions=[(0b0, 'Sample on the leading edge'), (0b1, 'Sample on the trailing edge')]))
+	r.AddBitField(BitField(name='QSPIAWID', msb=10, lsb=9, accessibility='rw', description='Address-phase width in bits. Selects whether the transaction emits an address phase and how wide it is (from QSPIxADR).', valueDescriptions=[(0b00, 'No address phase'), (0b01, '24-bit address (low 24 bits of QSPIxADR)'), (0b10, '32-bit address'), (0b11, 'Reserved')]))
+	r.AddBitField(BitField(name='QSPIDUMMY', msb=15, lsb=11, accessibility='rw', description='Dummy SCK cycles inserted after the address phase and before the data phase, with the bus released (all IO lines tri-stated). Required for dual/quad fast-read commands (at least 1 dummy cycle); set to 0 for commands with no dummy phase.'))
+	r.AddBitField(BitField(name='QSPICSSEL', msb=18, lsb=16, accessibility='rw', description='Chip-select index. Selects which chip-select output drives the transaction. In this MVP only CS0 is wired to a pin; write 0.'))
+	r.AddBitField(BitField(name='QSPIBR', msb=26, lsb=19, accessibility='rw', description='Baud-rate divider. The serial clock is SCK = SMCLK / (2 * (1 + QSPIBR)), so 0 gives the fastest clock (SMCLK/2). SMCLK is the SYSTEM clock source (write SYS_CLK_CR = 0 to run SMCLK from HFXT before using the controller).'))
+	r.AddBitField(BitField(name='QSPITCIE', msb=27, accessibility='rw', description='Transfer-complete interrupt enable. When set, the QSPITCIF flag drives interrupt vector 55.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='QSPIRXFIE', msb=28, accessibility='rw', description='Receive-full interrupt enable. When set, the QSPIRXFULL flag drives interrupt vector 56.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=31, lsb=29, unused=True))
+
+	# QSPIxCMD (slot 1) -- command; a byte-lane-0 write launches the transaction
+	r = RegisterTemplate(nameTemplate='QSPIxCMD', registerMemorySlot=1, description='QSPI command register. Holds the opcode, data length, and direction of the next transaction. Writing this register with byte lane 0 asserted LAUNCHES the transaction (the write is ignored when QSPIEN = 0 or QSPIBUSY = 1). Program QSPIxCR, QSPIxADR, and (for writes) QSPIxTX first, then write QSPIxCMD last.', size=32)
+	qspi.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='QSPICMD', msb=7, lsb=0, accessibility='rw', description='Command opcode, shifted out most-significant bit first during the command phase at the QSPICMDW lane width.'))
+	r.AddBitField(BitField(name='QSPIDLEN', msb=9, lsb=8, accessibility='rw', description='Data-phase length. Selects how many payload bits the data phase transfers (right-justified in QSPIxTX / QSPIxRX).', valueDescriptions=[(0b00, 'No data phase'), (0b01, '8-bit'), (0b10, '16-bit'), (0b11, '32-bit')]))
+	r.AddBitField(BitField(name='QSPIDIR', msb=10, accessibility='rw', description='Data-phase direction.', valueDescriptions=[(0b0, 'Write (drive QSPIxTX out on the IO lines)'), (0b1, 'Read (capture the IO lines into QSPIxRX)')]))
+	r.AddBitField(BitField(msb=31, lsb=11, unused=True))
+
+	# QSPIxADR (slot 2) -- address
+	r = RegisterTemplate(nameTemplate='QSPIxADR', registerMemorySlot=2, description='QSPI transaction address. Emitted during the address phase at the QSPIADRW lane width when QSPIAWID is non-zero. When QSPIAWID selects 24-bit, only the low 24 bits are used.', size=32)
+	qspi.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='QSPIADR', msb=31, lsb=0, accessibility='rw', description='Transaction address value.'))
+
+	# QSPIxTX (slot 3) -- write data (never triggers)
+	r = RegisterTemplate(nameTemplate='QSPIxTX', registerMemorySlot=3, description='QSPI transmit data. Holds the write-direction payload, right-justified (the low QSPIDLEN bits are significant). Writing this register never triggers a transaction; only a QSPIxCMD write does.', size=32)
+	qspi.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='QSPITX', msb=31, lsb=0, accessibility='rw', description='Write payload, right-justified.'))
+
+	# QSPIxRX (slot 4) -- read data (no side effects)
+	r = RegisterTemplate(nameTemplate='QSPIxRX', registerMemorySlot=4, description='QSPI receive data. A snapshot of the most recent read-direction data phase, right-justified (the low QSPIDLEN bits are significant). Reads have NO side effects: reading QSPIxRX does not clear any flag or advance any state (deliberately unlike the SPI RX-read-clears-TCIF behaviour).', size=32)
+	qspi.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='QSPIRX', msb=31, lsb=0, accessibility='r', description='Read payload snapshot, right-justified.'))
+
+	# QSPIxSR (slot 5) -- status (W1C flags)
+	r = RegisterTemplate(nameTemplate='QSPIxSR', registerMemorySlot=5, description='QSPI status register. QSPIBUSY is read-only; the three event flags are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged).', size=32)
+	qspi.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='QSPIBUSY', msb=0, accessibility='r', description='Busy. Reads 1 while a transaction is in progress; a QSPIxCMD launch is ignored while this bit is set.', valueDescriptions=[(0b0, 'Idle'), (0b1, 'Transaction in progress')]))
+	r.AddBitField(BitField(name='QSPITXEIF', msb=1, accessibility='rw1', description='Transmit-empty flag. Set when the transmit path has consumed QSPIxTX and can accept the next word. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Transmit register empty')]))
+	r.AddBitField(BitField(name='QSPIRXFULL', msb=2, accessibility='rw1', description='Receive-full flag. Set when a read-direction data phase has captured a fresh word into QSPIxRX; drives vector 56 when QSPIRXFIE is set. Write 1 to clear. (Reading QSPIxRX does NOT clear it.)', valueDescriptions=[(0b0, 'No event'), (0b1, 'Receive register full')]))
+	r.AddBitField(BitField(name='QSPITCIF', msb=3, accessibility='rw1', description='Transfer-complete flag. Set when a transaction finishes; drives vector 55 when QSPITCIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Transfer complete')]))
+	r.AddBitField(BitField(msb=31, lsb=4, unused=True))
+
+# digperiphs #2 (2026-07-18): I3C0 register template (design doc S3, 10 slots).
+# Added unconditionally (before CheckPeripheralTemplates) so the template exists
+# whenever i3cPresent CreatePeripheral()s it at 0x6100; with I3C off it is never
+# instanced. The serial core is smclk-domain (SYS_CLK_CR=0 rule); the register
+# read path is registered with NO side effects.
+if i3cPresent:
+	i3c = PeripheralTemplate(nameTemplate='I3Cx', description='I3C controller (MIPI I3C basic, single-controller). Drives an I3C bus (SDA/SCL, open-drain and push-pull SDR) as the active controller, and interoperates with legacy I2C targets on the same wires. This MVP-plus implementation supports single-byte SDR private read/write transfers, repeated-START chaining, Common Command Codes (CCC), hardware Dynamic Address Assignment (DAA via ENTDAA and SETDASA), and In-Band Interrupts (IBI) from targets. A transaction is described by the control and command registers and launched by a byte-lane-0 write to I3CxCMD; the registered read path returns snapshots with no read side effects. The serial core runs in the SMCLK domain (SYS_CLK_CR=0 rule applies) with independent open-drain and push-pull baud dividers.', registerPrefix='I3Cx', bitFieldPrefix='I3C', latexIntroFileName='I3C-intro-castalia-2026-07.tex', latexFeatureSummary='{count} I3C controller (SDR + legacy-I2C, dynamic address assignment, in-band interrupts)')
+	m.AddPeripheralTemplate(i3c)
+
+	# I3CxCR (slot 0) -- control (reset 0 except I3CSDAPP = 1)
+	r = RegisterTemplate(nameTemplate='I3CxCR', registerMemorySlot=0, description='I3C control register. Configures the bus mode, SDA drive style, open-drain and push-pull baud dividers, and the interrupt enables. Reconfigure only while the controller is idle (I3CBUSY = 0); the mode and drive bits are additionally latched at each transaction launch. Resets to 0 except I3CSDAPP, which resets to 1.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CEN', msb=0, accessibility='rw', description='Controller enable. When 0 the serial core is held in reset (no transaction launches and the serial pins are released) but the RX register, DAT table, and status flags are preserved. Set to 1 before launching a transaction.', valueDescriptions=[(0b0, 'Disabled (serial core in reset)'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='I3CBUSMODE', msb=1, accessibility='rw', description='Bus mode, latched at launch. Selects the framing for the next transaction.', valueDescriptions=[(0b0, 'I3C SDR'), (0b1, 'Legacy I2C')]))
+	r.AddBitField(BitField(name='I3CSDAPP', msb=2, accessibility='rw', description='SDA drive style for SDR data, latched at launch (resets to 1). When 0 the data phase is forced open-drain (required for legacy-I2C targets).', valueDescriptions=[(0b0, 'Force open-drain'), (0b1, 'Push-pull SDR data')]))
+	r.AddBitField(BitField(name='I3CIBIEN', msb=3, accessibility='rw', description='In-band interrupt accept enable. When set, the controller ACKs a target-initiated IBI and captures it into I3CxIBI; when clear, IBIs are NACKed.', valueDescriptions=[(0b0, 'IBIs NACKed'), (0b1, 'IBIs accepted')]))
+	r.AddBitField(BitField(msb=7, lsb=4, unused=True))
+	r.AddBitField(BitField(name='I3CODBR', msb=15, lsb=8, accessibility='rw', description='Open-drain baud divider. The open-drain SCL rate is SMCLK / (2 * (1 + I3CODBR)); used for the arbitrated address header and legacy-I2C phases.'))
+	r.AddBitField(BitField(name='I3CPPBR', msb=23, lsb=16, accessibility='rw', description='Push-pull baud divider. The push-pull SCL rate is SMCLK / (2 * (1 + I3CPPBR)); used for SDR data once the bus is in push-pull. SMCLK is the SYSTEM clock source (write SYS_CLK_CR = 0 to run SMCLK from HFXT before using the controller).'))
+	r.AddBitField(BitField(name='I3CTCIE', msb=24, accessibility='rw', description='Transfer-complete interrupt enable (interrupt vector 86).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='I3CERRIE', msb=25, accessibility='rw', description='Error interrupt enable: gates the address-NACK (vector 89), early-end-of-data (vector 90), and arbitration-lost (vector 91) sources.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='I3CDAAIE', msb=26, accessibility='rw', description='Dynamic-address-assignment done interrupt enable (interrupt vector 92).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='I3CIBIIE', msb=27, accessibility='rw', description='In-band interrupt pending interrupt enable (interrupt vector 93).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='I3CRXFIE', msb=28, accessibility='rw', description='Receive-full interrupt enable (interrupt vector 87).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='I3CTXEIE', msb=29, accessibility='rw', description='Transmit-empty interrupt enable (interrupt vector 88).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=31, lsb=30, unused=True))
+
+	# I3CxCMD (slot 1) -- command; a byte-lane-0 write launches the transaction
+	r = RegisterTemplate(nameTemplate='I3CxCMD', registerMemorySlot=1, description='I3C command register. Describes the next transaction: target address, direction, START/STOP framing, optional CCC and dynamic-address-assignment operations, and the data length. Writing this register with byte lane 0 asserted LAUNCHES the transaction; the content is always captured, but the launch is suppressed when I3CEN = 0 or I3CBUSY = 1. Program I3CxCR (and, for a write, I3CxTX) first, then write I3CxCMD last. All command and control fields are latched at launch.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CADDR', msb=6, lsb=0, accessibility='rw', description='7-bit target address. The broadcast address 0x7E is auto-prepended by hardware only when I3CCCC = 1.'))
+	r.AddBitField(BitField(name='I3CRNW', msb=7, accessibility='rw', description='Direction.', valueDescriptions=[(0b0, 'Write (controller drives I3CxTX out)'), (0b1, 'Read (controller captures into I3CxRX)')]))
+	r.AddBitField(BitField(name='I3CREPSTART', msb=8, accessibility='rw', description='Repeated-START (Sr) entry. When set, the transaction begins with a repeated START instead of a START, chaining onto a bus previously held (see I3CSTOPEN).', valueDescriptions=[(0b0, 'START'), (0b1, 'Repeated START')]))
+	r.AddBitField(BitField(name='I3CSTOPEN', msb=9, accessibility='rw', description='STOP enable.', valueDescriptions=[(0b0, 'Hold the bus at end (for a following repeated START)'), (0b1, 'Issue STOP at end')]))
+	r.AddBitField(BitField(name='I3CCCC', msb=10, accessibility='rw', description='Common Command Code transaction. When set, the transaction is a CCC (0x7E broadcast auto-prepended; the opcode is in I3CCCCOP).', valueDescriptions=[(0b0, 'Private transfer'), (0b1, 'CCC')]))
+	r.AddBitField(BitField(name='I3CCCCDIR', msb=11, accessibility='rw', description='CCC direction.', valueDescriptions=[(0b0, 'Broadcast CCC'), (0b1, 'Direct CCC')]))
+	r.AddBitField(BitField(name='I3CDAARUN', msb=12, accessibility='rw', description='Run ENTDAA dynamic address assignment. When set (with I3CCCC and I3CCCCOP = 0x07), the controller runs the ENTDAA loop, assigning the dynamic addresses programmed in the DAT entries to newly discovered targets.', valueDescriptions=[(0b0, 'No ENTDAA'), (0b1, 'Run ENTDAA')]))
+	r.AddBitField(BitField(name='I3CDASA', msb=13, accessibility='rw', description='Run SETDASA (set dynamic address from static address) for the addressed DAT entry.', valueDescriptions=[(0b0, 'No SETDASA'), (0b1, 'Run SETDASA')]))
+	r.AddBitField(BitField(msb=15, lsb=14, unused=True))
+	r.AddBitField(BitField(name='I3CDLEN', msb=23, lsb=16, accessibility='rw', description='Data length, 0 to 255 bytes. The number of payload bytes the data phase transfers.'))
+	r.AddBitField(BitField(name='I3CCCCOP', msb=31, lsb=24, accessibility='rw', description='CCC opcode (used when I3CCCC = 1; e.g. 0x07 = ENTDAA).'))
+
+	# I3CxTX (slot 2) -- write data (arms the byte-pending handshake; never launches)
+	r = RegisterTemplate(nameTemplate='I3CxTX', registerMemorySlot=2, description='I3C transmit data. Writing the low byte arms the per-byte transmit handshake for the data phase; writing this register never launches a transaction (only an I3CxCMD write does). The upper bits are reserved for future word-packing.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CTX', msb=7, lsb=0, accessibility='rw', description='Next write byte.'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# I3CxRX (slot 3) -- read data (no side effects)
+	r = RegisterTemplate(nameTemplate='I3CxRX', registerMemorySlot=3, description='I3C receive data. The most recently received byte. Reads have NO side effects (reading I3CxRX clears nothing). Reset-cleared to 0.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CRX', msb=7, lsb=0, accessibility='r', description='Last received byte.'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# I3CxSR (slot 4) -- status (W1C flags + read-only live/busy bits)
+	r = RegisterTemplate(nameTemplate='I3CxSR', registerMemorySlot=4, description='I3C status register. I3CBUSY and I3CIBIWON are read-only; the event flags are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged).', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CBUSY', msb=0, accessibility='r', description='Busy. Reads 1 while a transaction is in progress; an I3CxCMD launch is ignored while this bit is set.', valueDescriptions=[(0b0, 'Idle'), (0b1, 'Transaction in progress')]))
+	r.AddBitField(BitField(name='I3CTCIF', msb=1, accessibility='rw1', description='Transfer-complete flag. Set when a transaction finishes; drives vector 86 when I3CTCIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Transfer complete')]))
+	r.AddBitField(BitField(name='I3CRXFULL', msb=2, accessibility='rw1', description='Receive-full flag. Set when the data phase captures a fresh byte into I3CxRX; drives vector 87 when I3CRXFIE is set. Write 1 to clear. (Reading I3CxRX does NOT clear it.)', valueDescriptions=[(0b0, 'No event'), (0b1, 'Receive register full')]))
+	r.AddBitField(BitField(name='I3CTXEIF', msb=3, accessibility='rw1', description='Transmit-empty flag. Set when the transmit path has consumed I3CxTX and can accept the next byte; drives vector 88 when I3CTXEIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Transmit register empty')]))
+	r.AddBitField(BitField(name='I3CANACK', msb=4, accessibility='rw1', description='Address-NACK flag. Set when a target NACKs the address (or a legacy per-byte NACK occurs); drives vector 89 when I3CERRIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Address / byte NACK')]))
+	r.AddBitField(BitField(name='I3CEODF', msb=5, accessibility='rw1', description='Early end-of-data flag (read). Set when a target ends a read (T = 0) before I3CDLEN bytes; drives vector 90 when I3CERRIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Early end-of-data')]))
+	r.AddBitField(BitField(name='I3CARBLOST', msb=6, accessibility='rw1', description='Arbitration-lost flag. Set when the controller loses address-header arbitration; drives vector 91 when I3CERRIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Arbitration lost')]))
+	r.AddBitField(BitField(name='I3CDAADONE', msb=7, accessibility='rw1', description='Dynamic-address-assignment done flag. Set when an ENTDAA/SETDASA run completes; drives vector 92 when I3CDAAIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'DAA complete')]))
+	r.AddBitField(BitField(name='I3CDAAFULL', msb=8, accessibility='rw1', description='DAA capture-full flag. Set when a DAA run captured a newly discovered device into a DAT entry. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'DAT entry captured')]))
+	r.AddBitField(BitField(name='I3CIBIP', msb=9, accessibility='rw1', description='In-band interrupt pending flag. Set when an accepted IBI has been captured into I3CxIBI; drives vector 93 when I3CIBIIE is set. Write 1 to clear (which also releases the I3CxIBI snapshot).', valueDescriptions=[(0b0, 'No event'), (0b1, 'IBI captured')]))
+	r.AddBitField(BitField(name='I3CIBIWON', msb=10, accessibility='r', description='IBI-won (live). Reads 1 while a target is currently winning IBI arbitration on the bus.', valueDescriptions=[(0b0, 'No live IBI'), (0b1, 'IBI in arbitration')]))
+	r.AddBitField(BitField(msb=31, lsb=11, unused=True))
+
+	# I3CxDAT (slot 5) -- device address table window (indexed by I3CIDX)
+	r = RegisterTemplate(nameTemplate='I3CxDAT', registerMemorySlot=5, description='Device Address Table window. I3CIDX selects which of the 4 DAT entries this window (and I3CxDATPID / I3CxDATINFO) addresses; the index persists across accesses. Each entry holds a target\'s dynamic address, static address, and validity bits used by DAA and by private transfers.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CIDX', msb=2, lsb=0, accessibility='rw', description='DAT entry index (0 to 3; the upper values are ignored). Selects the entry for this register, I3CxDATPID, and I3CxDATINFO.'))
+	r.AddBitField(BitField(name='I3CEVALID', msb=3, accessibility='rw', description='Entry valid. Marks the selected DAT entry as populated.', valueDescriptions=[(0b0, 'Empty'), (0b1, 'Valid')]))
+	r.AddBitField(BitField(name='I3CDYNADDR', msb=10, lsb=4, accessibility='rw', description='Dynamic address (7-bit) assigned to (or to assign to) this device.'))
+	r.AddBitField(BitField(name='I3CDYNVALID', msb=11, accessibility='rw', description='Dynamic address valid.', valueDescriptions=[(0b0, 'No dynamic address'), (0b1, 'Dynamic address assigned')]))
+	r.AddBitField(BitField(name='I3CSTATADDR', msb=18, lsb=12, accessibility='rw', description='Static (legacy-I2C) address (7-bit) of this device, used by SETDASA.'))
+	r.AddBitField(BitField(name='I3CSTATVALID', msb=19, accessibility='rw', description='Static address valid.', valueDescriptions=[(0b0, 'No static address'), (0b1, 'Static address present')]))
+	r.AddBitField(BitField(msb=31, lsb=20, unused=True))
+
+	# I3CxDATPID (slot 6) -- selected entry's provisional ID, low 32 bits
+	r = RegisterTemplate(nameTemplate='I3CxDATPID', registerMemorySlot=6, description='Provisional ID (low 32 bits) of the DAT entry selected by I3CIDX. During ENTDAA the controller captures the discovered device\'s 48-bit PID; software reads it here (and the high 16 bits from I3CxDATINFO) to identify the device.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CPIDLO', msb=31, lsb=0, accessibility='rw', description='Provisional ID bits 31:0.'))
+
+	# I3CxDATINFO (slot 7) -- selected entry's PID high bits + BCR + DCR
+	r = RegisterTemplate(nameTemplate='I3CxDATINFO', registerMemorySlot=7, description='High provisional-ID bits and the bus/device characteristic registers of the DAT entry selected by I3CIDX.', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CPIDHI', msb=15, lsb=0, accessibility='rw', description='Provisional ID bits 47:32.'))
+	r.AddBitField(BitField(name='I3CBCR', msb=23, lsb=16, accessibility='rw', description='Bus Characteristic Register of the device. BCR bit 2 = 1 indicates the device\'s IBIs carry a mandatory data byte (captured into I3CIBIMDB).'))
+	r.AddBitField(BitField(name='I3CDCR', msb=31, lsb=24, accessibility='rw', description='Device Characteristic Register of the device (device type code).'))
+
+	# I3CxIBI (slot 8) -- captured in-band interrupt snapshot (cleared via SR.I3CIBIP)
+	r = RegisterTemplate(nameTemplate='I3CxIBI', registerMemorySlot=8, description='In-band interrupt capture. A read-only snapshot of the most recently accepted IBI: which target raised it, its optional mandatory data byte, and whether it was ACKed. The snapshot is held until the I3CIBIP flag is cleared (write 1 to I3CIBIP in I3CxSR).', size=32)
+	i3c.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I3CIBIADDR', msb=6, lsb=0, accessibility='r', description='Dynamic address of the target that raised the IBI.'))
+	r.AddBitField(BitField(name='I3CIBIVALID', msb=7, accessibility='r', description='IBI snapshot valid.', valueDescriptions=[(0b0, 'Empty'), (0b1, 'Valid capture')]))
+	r.AddBitField(BitField(name='I3CIBIMDB', msb=15, lsb=8, accessibility='r', description='Mandatory data byte, when the device\'s BCR bit 2 = 1 (see I3CIBIHASDATA).'))
+	r.AddBitField(BitField(name='I3CIBIHASDATA', msb=16, accessibility='r', description='Mandatory-data-byte present.', valueDescriptions=[(0b0, 'No data byte'), (0b1, 'I3CIBIMDB valid')]))
+	r.AddBitField(BitField(name='I3CIBIACKED', msb=17, accessibility='r', description='IBI ACK result.', valueDescriptions=[(0b0, 'NACKed'), (0b1, 'ACKed')]))
+	r.AddBitField(BitField(msb=31, lsb=18, unused=True))
+	# Slot 9 is reserved (reads 0) and is intentionally NOT modelled as a
+	# register: an all-unused register generates no _Register_t typedef and
+	# breaks the emitted MemoryMap.h. The I3C address window is the 256 B
+	# sub-slot; word 9 simply reads 0.
+
+# digperiphs #3 (2026-07-18): NFC0 register template (design doc S8, 10 slots
+# @0x6200). Added unconditionally (before CheckPeripheralTemplates) so the
+# template exists whenever nfcPresent CreatePeripheral()s it; with NFC off it is
+# never instanced. The bus/CDC core is smclk-domain and the register read path
+# is registered with NO side effects (QSPI/I3C house style); the protocol core
+# runs on the AFE carrier-derived rf_clk (off-die).
+if nfcPresent:
+	nfc = PeripheralTemplate(nameTemplate='NFCx', description='NFC controller: ISO/IEC 14443 Type A (14443A) tag / card-emulation digital protocol engine. Emulates a contactless smart-card / tag to an external reader: it recovers the reader-to-tag frames (Miller decode, byte + odd-parity de-framing, CRC_A check), runs the tag transaction state machine (REQA/WUPA to ATQA, bit-frame anticollision by 4-byte UID to SAK, then a Type-2 READ that auto-answers from a firmware-filled payload window), and load-modulates the tag response (Manchester subcarrier at fc/16). The register read path is registered with no read side effects. The block spans three clock domains: the gated memory bus (ClkMem), a free-running SMCLK reference that hosts the clock-domain-crossing synchronizers and write-1-to-clear retirement (the SYS_CLK_CR=0 rule applies), and the AFE carrier-derived rf_clk that clocks the entire protocol core. The 13.56 MHz RF analog front-end is off-die: the block presents only a small digital AFE interface (demodulated RX envelope, field-detect, load-modulation drive, listen-power enable).', registerPrefix='NFCx', bitFieldPrefix='NFC', latexIntroFileName='NFC-intro-castalia-2026-07.tex', latexFeatureSummary='{count} NFC ISO 14443A tag / card-emulation engine (Miller/Manchester codec, CRC-A, anticollision, digital AFE boundary)')
+	m.AddPeripheralTemplate(nfc)
+
+	# NFCxCR (slot 0) -- control (reset 0 except NFCAUTOREAD = 1)
+	r = RegisterTemplate(nameTemplate='NFCxCR', registerMemorySlot=0, description='NFC control register. Enables the protocol core, arms the tag to respond, selects the auto-answer path, and holds the interrupt enables and the carrier-division note. Resets to 0 except NFCAUTOREAD, which resets to 1. Program the identity and timing registers before setting NFCEN.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCEN', msb=0, accessibility='rw', description='NFC enable. When 0 the rf_clk protocol core is held in reset; it does NOT wipe the UID, CFG, payload window, or status flags (disable-preserves-data rule). Set to 1 to run the tag engine.', valueDescriptions=[(0b0, 'Disabled (protocol core in reset)'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='NFCLISTEN', msb=1, accessibility='rw', description='Listen arm. When set, the tag responds to reader commands once a field is present; when clear, the tag stays deaf even in a field.', valueDescriptions=[(0b0, 'Deaf (no response)'), (0b1, 'Armed to respond')]))
+	r.AddBitField(BitField(name='NFCHALTCLR', msb=2, accessibility='rw', description='Halt-clear pulse. Writing 1 forces the transaction FSM from the HALT state back to IDLE (a self-clearing, write-1-style event pulse); it reads 0.', valueDescriptions=[(0b0, 'No action'), (0b1, 'Force HALT to IDLE')]))
+	r.AddBitField(BitField(msb=7, lsb=3, unused=True))
+	r.AddBitField(BitField(name='NFCFIELDIE', msb=8, accessibility='rw', description='Field-detect interrupt enable. When set, the NFCFIELDF flag drives interrupt vector 94.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='NFCRXFIE', msb=9, accessibility='rw', description='Frame-received interrupt enable. When set, the NFCRXFRAMEF flag drives interrupt vector 95.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='NFCTXIE', msb=10, accessibility='rw', description='Transmit-done interrupt enable. When set, the NFCTXDONEF flag drives interrupt vector 96.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='NFCCRCIE', msb=11, accessibility='rw', description='CRC / parity-error interrupt enable. When set, an RX CRC or parity error (NFCCRCERRF or NFCPARERRF) drives interrupt vector 97.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='NFCAUTOREAD', msb=12, accessibility='rw', description='Auto-answer READ path (resets to 1). When set, hardware answers a Type-2 READ command directly from the payload window without firmware intervention. When clear, standard frames are surfaced to firmware through NFCxRXST and the RX buffer for a firmware-composed response.', valueDescriptions=[(0b0, 'Firmware-handled reads'), (0b1, 'Hardware auto-answer')]))
+	r.AddBitField(BitField(msb=15, lsb=13, unused=True))
+	r.AddBitField(BitField(name='NFCRFDIV', msb=19, lsb=16, accessibility='rw', description='Carrier-division note. Documents the assumed division from the 13.56 MHz carrier to rf_clk (informational; the off-die AFE supplies rf_clk).'))
+	r.AddBitField(BitField(msb=31, lsb=20, unused=True))
+
+	# NFCxSR (slot 1) -- status (W1C flags + read-only live bits, pre-latched)
+	r = RegisterTemplate(nameTemplate='NFCxSR', registerMemorySlot=1, description='NFC status register. NFCBUSY, NFCFIELDLIVE, NFCHALTED, and NFCSTATE are read-only live status; the five event flags (bits 1-5) are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged). The volatile bits are captured by the registered pre-latch read.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCBUSY', msb=0, accessibility='r', description='Busy. Reads 1 while a reader frame is being received or a tag response is in flight.', valueDescriptions=[(0b0, 'Idle'), (0b1, 'RX or TX in progress')]))
+	r.AddBitField(BitField(name='NFCFIELDF', msb=1, accessibility='rw1', description='Field-detect flag. Set on a synchronized rising edge of the RF field-present input; drives vector 94 when NFCFIELDIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'RF field detected')]))
+	r.AddBitField(BitField(name='NFCRXFRAMEF', msb=2, accessibility='rw1', description='Reader-frame-received flag. Set when a reader frame has landed for firmware (its CRC / parity result is summarized in NFCxRXST); drives vector 95 when NFCRXFIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Reader frame received')]))
+	r.AddBitField(BitField(name='NFCTXDONEF', msb=3, accessibility='rw1', description='Transmit-done flag. Set when the tag response end-of-frame has been sent; drives vector 96 when NFCTXIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Tag response sent')]))
+	r.AddBitField(BitField(name='NFCCRCERRF', msb=4, accessibility='rw1', description='RX CRC-error flag. Set when a received frame fails the CRC_A check; drives vector 97 when NFCCRCIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'RX CRC error')]))
+	r.AddBitField(BitField(name='NFCPARERRF', msb=5, accessibility='rw1', description='RX parity-error flag. Set when a received frame fails an odd-parity check; drives vector 97 (folded with NFCCRCERRF) when NFCCRCIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'RX parity error')]))
+	r.AddBitField(BitField(name='NFCFIELDLIVE', msb=6, accessibility='r', description='Field-live level. The synchronized RF field-present level (1 while a reader field is on the tag).', valueDescriptions=[(0b0, 'No field'), (0b1, 'Field present')]))
+	r.AddBitField(BitField(name='NFCHALTED', msb=7, accessibility='r', description='Halted. Reads 1 while the transaction FSM is in the HALT state (the tag has been HLTA / halted by the reader).', valueDescriptions=[(0b0, 'Not halted'), (0b1, 'FSM halted')]))
+	r.AddBitField(BitField(name='NFCSTATE', msb=11, lsb=8, accessibility='r', description='Transaction FSM state: 0 = POWER_OFF, 1 = IDLE, 2 = READY, 3 = ACTIVE, 4 = HALT.'))
+	r.AddBitField(BitField(msb=31, lsb=12, unused=True))
+
+	# NFCxUID (slot 2) -- provisioned tag UID
+	r = RegisterTemplate(nameTemplate='NFCxUID', registerMemorySlot=2, description='Provisioned single-size 4-byte tag UID, used by bit-frame anticollision. Byte order on air is UID byte 0 first: UID[7:0] is the first byte, UID[31:24] the last. Hardware derives the BCC check byte. Latched transaction-locally at the start of each transaction.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCUID', msb=31, lsb=0, accessibility='rw', description='4-byte UID (UID0 in bits 7:0, first on air).'))
+
+	# NFCxCFG (slot 3) -- ATQA / SAK identity
+	r = RegisterTemplate(nameTemplate='NFCxCFG', registerMemorySlot=3, description='Tag identity response configuration: the ATQA answer-to-request word and the SAK select-acknowledge byte. Latched transaction-locally.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCATQA', msb=15, lsb=0, accessibility='rw', description='Answer To Request, Type A (resets to 0x0044). Bits 7:0 are the first byte on air.'))
+	r.AddBitField(BitField(name='NFCSAK', msb=23, lsb=16, accessibility='rw', description='Select Acknowledge byte (resets to 0x00) returned after the final anticollision level.'))
+	r.AddBitField(BitField(msb=31, lsb=24, unused=True))
+
+	# NFCxTIM (slot 4) -- protocol timing divisors (real-grid resets)
+	r = RegisterTemplate(nameTemplate='NFCxTIM', registerMemorySlot=4, description='Protocol timing divisors, all in rf_clk ticks, latched transaction-locally so a mid-count reload never glitches. The reset values are the real 13.56 MHz grid; a bench compresses all three for fast simulation.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCFDT', msb=15, lsb=0, accessibility='rw', description='Frame Delay Time, in rf_clk ticks (resets to approximately 1236, the ISO 14443A tag response grid). The composed response is released when the FDT down-counter reaches zero.'))
+	r.AddBitField(BitField(name='NFCETU', msb=23, lsb=16, accessibility='rw', description='Elementary Time Unit (bit period), in rf_clk ticks (resets to 128).'))
+	r.AddBitField(BitField(name='NFCSUBCDIV', msb=31, lsb=24, accessibility='rw', description='Subcarrier half-period, in rf_clk ticks (resets to 8, giving the fc/16 load-modulation subcarrier).'))
+
+	# NFCxRXST (slot 5) -- RX inspection (firmware-handled frames; no side effects)
+	r = RegisterTemplate(nameTemplate='NFCxRXST', registerMemorySlot=5, description='Received-frame inspection, for firmware-handled frames (NFCAUTOREAD = 0 or an unrecognized command). Read side-effect-free; the frame byte payload is read separately through the indexed RX buffer (NFCxIDX / NFCxDATA with NFCIDXSEL = 1). Pre-latched.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCCMD', msb=7, lsb=0, accessibility='r', description='Command byte: the first byte of the last received standard frame.'))
+	r.AddBitField(BitField(name='NFCRXLEN', msb=15, lsb=8, accessibility='r', description='Received length in bytes, including the CRC.'))
+	r.AddBitField(BitField(name='NFCRXCRCOK', msb=16, accessibility='r', description='CRC OK for the last received frame.', valueDescriptions=[(0b0, 'CRC bad'), (0b1, 'CRC good')]))
+	r.AddBitField(BitField(name='NFCRXPAROK', msb=17, accessibility='r', description='Parity OK for the last received frame.', valueDescriptions=[(0b0, 'Parity bad'), (0b1, 'Parity good')]))
+	r.AddBitField(BitField(msb=31, lsb=18, unused=True))
+
+	# NFCxIDX (slot 6) -- indexed-window pointer
+	r = RegisterTemplate(nameTemplate='NFCxIDX', registerMemorySlot=6, description='Byte-index pointer into one of the two 64-byte windows accessed through NFCxDATA. The index persists across accesses; NFCIDXSEL selects which window. Mirrors the indexed-window idiom used by I3C\'s Device Address Table.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCIDX', msb=5, lsb=0, accessibility='rw', description='Byte index (0 to 63) into the selected window.'))
+	r.AddBitField(BitField(name='NFCIDXAINC', msb=6, accessibility='rw', description='Auto-increment. When set, NFCIDX increments after each NFCxDATA access (streaming).', valueDescriptions=[(0b0, 'Index held'), (0b1, 'Auto-increment after each access')]))
+	r.AddBitField(BitField(msb=7, unused=True))
+	r.AddBitField(BitField(name='NFCIDXSEL', msb=8, accessibility='rw', description='Window select for NFCxDATA.', valueDescriptions=[(0b0, 'Payload TX window (64 B, firmware-filled, HW-read)'), (0b1, 'RX frame buffer (64 B, HW-filled, firmware-read)')]))
+	r.AddBitField(BitField(msb=31, lsb=9, unused=True))
+
+	# NFCxDATA (slot 7) -- indexed-window data byte (no read side effects)
+	r = RegisterTemplate(nameTemplate='NFCxDATA', registerMemorySlot=7, description='The byte at NFCIDX in the window selected by NFCIDXSEL. The payload TX window is read/write (firmware fills the record the reader collects; hardware reads it for the auto-answer READ); the RX frame buffer is read-only (hardware fills it from the reader frame; writes are ignored). Auto-increments per NFCIDXAINC. Pre-latched on read (no side effects).', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCDATA', msb=7, lsb=0, accessibility='rw', description='Window data byte at the current index.'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# NFCxTXCTL (slot 8) -- firmware response path (inert in the MVP)
+	r = RegisterTemplate(nameTemplate='NFCxTXCTL', registerMemorySlot=8, description='Firmware-composed response control (used when NFCAUTOREAD = 0 or for a vendor command). INERT in this MVP (auto-answer is the default path); present in the frozen register map so the firmware-WRITE stage bolts on without a map change.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCTXLEN', msb=7, lsb=0, accessibility='rw', description='Number of payload bytes to send from the payload TX window.'))
+	r.AddBitField(BitField(name='NFCTXGO', msb=8, accessibility='rw', description='Launch a firmware-composed response (a lane-0 write is a held-level launch, suppressed unless the FSM is in ACTIVE and awaiting a firmware reply).', valueDescriptions=[(0b0, 'No launch'), (0b1, 'Send response')]))
+	r.AddBitField(BitField(name='NFCTXAPPCRC', msb=9, accessibility='rw', description='Append CRC_A to the firmware-composed response.', valueDescriptions=[(0b0, 'No CRC appended'), (0b1, 'Append CRC_A')]))
+	r.AddBitField(BitField(msb=31, lsb=10, unused=True))
+
+	# NFCxDBG (slot 9) -- telemetry counters
+	r = RegisterTemplate(nameTemplate='NFCxDBG', registerMemorySlot=9, description='Debug telemetry / bench cross-checks: frame counters. Read-only; resets to 0.', size=32)
+	nfc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='NFCRXFRAMECNT', msb=15, lsb=0, accessibility='r', description='Received-frame count.'))
+	r.AddBitField(BitField(name='NFCTXFRAMECNT', msb=31, lsb=16, accessibility='r', description='Transmitted-frame count.'))
+
 m.CheckPeripheralTemplates()
 
 
@@ -1375,8 +1700,13 @@ m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=Non
 if npuPresent:
 	m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='vectors live in the shared NPU staging RAM at 0xC000; do not touch 0xC000-0xFFFF during a THINK — poll NPUCR bit 16')	# NPU register bus shared (slot 10); data path = the 0xC000 staging RAM
 # SARADC removed (vector 56 reserved gap; its slot 11 is PWRCTRL's since M17)
-# AFE removed (slot 12 / vector 55 reserved gap)
+# AFE: no CreatePeripheral. By default the four AFE + one EIS afe_stub instances
+# (peripherals.cqAfeStubs) occupy slot 12 / 0x7C00 as MCU.vhd wiring only (see
+# the CQ doc sub-slot blocks + mcu_vhd.py); with cqAfeStubs=false the QSPI0
+# controller below (peripherals.qspi) can claim slot 12 instead.
 m.CreatePeripheral(nameTemplate='PWRCTRL', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4B00, legacySlot=11, sharedBus='native', clockDomain='mclk', strobeNote='cold-gate: a gated tile loses all state and reboots through the shared ROM on wake; gate only parked/quiesced tiles')	# M17 power controller (slot 11, ex-SARADC0; native arbiter slave)
+if qspiPresent:
+	m.CreatePeripheral(nameTemplate='QSPIx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=55, absoluteBaseAddress=0x4C00, legacySlot=12, sharedBus='periph', clockDomain='smclk')	# QSPI0 (digperiphs #1, slot 12; registered read, no bridge, no RX read side effects)
 GPIO3 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=3, peripheralMemorySlot=None, interruptPriority=44, absoluteBaseAddress=0x4D00, legacySlot=13, sharedBus='periph', clockDomain='mclk')	# GPIO3 shared (slot 13)
 m.CreatePeripheral(nameTemplate='I2Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=57, absoluteBaseAddress=0x4E00, legacySlot=14, sharedBus='periph', combinationalRead=True, clockDomain='smclk')	# I2C0 shared (slot 14)
 if i2c1Present:
@@ -1388,7 +1718,23 @@ if i2c1Present:
 # registerSlotCount is the per-peripheral engine override (None while it fits,
 # so the Castalia N=4 description is provably untouched).
 m.CreatePeripheral(nameTemplate='CLINT', nameIndex='', peripheralMemorySlot=None, interruptPriority=83, absoluteBaseAddress=0x5000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(clintSlotCount))	# CLINT at 0x5000 (M11: window page 1; vectors 83 msip, 84 mtip)
-m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6000, sharedBus='native', clockDomain='mclk', strobeNote='READ = atomic return-old-and-claim; never LR/SC or AMO a mutex address', registerSlotCount=_slotCountOverride(numMutexes))	# HW mutex bank at 0x6000 (M11: window page 2)
+m.CreatePeripheral(nameTemplate='MUTEX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6000, sharedBus='native', clockDomain='mclk', strobeNote='READ = atomic return-old-and-claim; never LR/SC or AMO a mutex address', registerSlotCount=_slotCountOverride(numMutexes))	# HW mutex bank at 0x6000 (M11: window page 2; digperiphs tightens the decode to sub-slot 0 @0x6000-0x60FF when I3C or NFC is present)
+if i3cPresent:
+	# digperiphs #2: I3C0 at 0x6100 = MUTEX page (page 2) SUB-SLOT 1. sharedBus is
+	# left None on purpose: the mutex page is not the page-0 shim fabric, so the
+	# RTL (decode carve + instance + the registered-read shim inside emitI3cInstance)
+	# is hand-emitted by mcu_vhd.py under geo['i3c'] rather than through the page-0
+	# CreatePeripheral machinery. This CreatePeripheral exists for the register map,
+	# TRM chapter, address table, and the vectors-86..93 interrupt-table entry.
+	m.CreatePeripheral(nameTemplate='I3Cx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=86, absoluteBaseAddress=0x6100, sharedBus='native', clockDomain='smclk', strobeNote='page-2 sub-slot 1; registered read, no side effects; smclk serial core (SYS_CLK_CR=0 rule)')	# I3C0 (digperiphs #2). sharedBus=native = "outside the page-0 shim fabric"; the mcu_vhd emitter hand-decodes the sub-slot + emits the registered-read shim inside its instance
+if nfcPresent:
+	# digperiphs #3: NFC0 at 0x6200 = MUTEX page (page 2) SUB-SLOT 2. Same shape
+	# as I3C (sharedBus=None -> the mcu_vhd emitter hand-decodes the sub-slot and
+	# emits the registered-read shim + instance under geo['nfc']). This
+	# CreatePeripheral exists for the register map, TRM chapter, address table,
+	# and the vectors-94..97 interrupt-table entry. clockDomain='smclk' names the
+	# bus/CDC reference clock; the protocol core runs on the off-die rf_clk.
+	m.CreatePeripheral(nameTemplate='NFCx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=94, absoluteBaseAddress=0x6200, sharedBus='native', clockDomain='smclk', strobeNote='page-2 sub-slot 2; registered read, no side effects; smclk CDC + off-die rf_clk protocol core (SYS_CLK_CR=0 rule); digital AFE / RF interface is off-die (placeholder-tied)')	# NFC0 (digperiphs #3). sharedBus=native = "outside the page-0 shim fabric"; the mcu_vhd emitter hand-decodes the sub-slot + emits the registered-read shim inside its instance
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
 
 
@@ -1839,8 +2185,14 @@ else:
 	for _n in range(3):
 		_v = len(_mcuMpIrqVectors)
 		_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; UART1 dropped by this configuration)'))
-_mcuMpIrqVectors.append(('IRQB_RSVD55', 'Reserved (vector 55; formerly AFE0 Receive Complete)'))
-_mcuMpIrqVectors.append(('IRQB_RSVD56', 'Reserved (vector 56; formerly SARADC0 Conversion Complete)'))
+# Vectors 55/56 (ex-AFE0 / ex-SARADC0 gaps): QSPI0's two sources when the QSPI
+# controller occupies slot 12, else reserved (numbering FROZEN either way).
+if qspiPresent:
+	_mcuMpIrqVectors.append(('IRQB_QSPI0_TC', 'QSPI0 Transfer Complete Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_QSPI0_RXF', 'QSPI0 Receive-Register Full Interrupt'))
+else:
+	_mcuMpIrqVectors.append(('IRQB_RSVD55', 'Reserved (vector 55; formerly AFE0 Receive Complete)'))
+	_mcuMpIrqVectors.append(('IRQB_RSVD56', 'Reserved (vector 56; formerly SARADC0 Conversion Complete)'))
 # I2C vector suffixes are lowercase in the RTL except STR — copied verbatim.
 # G1a: with I2C1 dropped its 13 vectors become RSVD gaps — the NUMBERING IS
 # FROZEN (IVT slots, CLINT vectors 83/84 and every other number stay put; the
@@ -1861,8 +2213,44 @@ for _i in (0, 1):
 # M5b: real CLINT (hdl/common/clint.vhd, shared window 0x11000); per-hart msip/mtip
 _mcuMpIrqVectors.append(('IRQB_CLINT_MSIP', 'CLINT software interrupt (IPI)'))
 _mcuMpIrqVectors.append(('IRQB_CLINT_MTIP', 'CLINT timer interrupt'))
-if len(_mcuMpIrqVectors) != 85:
-	raise Exception('MCU_MP IRQB vector list must have 85 entries, has ' + str(len(_mcuMpIrqVectors)))
+# digperiphs #2/#3 (I3C, NFC): the meip external-interrupt slot is FROZEN at IVT
+# slot 85 (m.MeipVector), so digperiph sources grow ABOVE it. Index 85 is a
+# reserved, never-pending placeholder (the meip self-slot; tied low in irq_comb,
+# ignored by the router). The eight I3C sources sit at 86-93 in the fixed order
+# tc/rxf/txe/nack/eod/arb/daa/ibi (I3C.vhd's irq_* port order); when I3C is
+# absent but NFC is present those eight stay reserved gaps (numbering FROZEN).
+# The four NFC sources sit at 94-97 in the fixed order field/rxf/txdone/crcerr
+# (NFC.vhd's irq_* port order). CLINT stays at 83/84 and the numbering below 85
+# is untouched.
+if i3cPresent or nfcPresent:
+	_mcuMpIrqVectors.append(('IRQB_RSVD85', 'Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source)'))
+	if i3cPresent:
+		_mcuMpIrqVectors.append(('IRQB_I3C0_TC', 'I3C0 Transfer Complete Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_RXF', 'I3C0 Receive-Register Full Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_TXE', 'I3C0 Transmit-Register Empty Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_NACK', 'I3C0 Address / Byte NACK Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_EOD', 'I3C0 Early End-of-Data Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_ARB', 'I3C0 Arbitration-Lost Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_DAA', 'I3C0 Dynamic-Address-Assignment Done Interrupt'))
+		_mcuMpIrqVectors.append(('IRQB_I3C0_IBI', 'I3C0 In-Band Interrupt Pending Interrupt'))
+	else:
+		# NFC present but I3C absent: sources 86-93 stay reserved (numbering frozen).
+		for _v in range(86, 94):
+			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; I3C0 disabled by this configuration)'))
+if nfcPresent:
+	_mcuMpIrqVectors.append(('IRQB_NFC0_FIELD', 'NFC0 RF Field-Detect Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_NFC0_RXF', 'NFC0 Reader-Frame Received Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_NFC0_TXDONE', 'NFC0 Tag-Response Transmit-Done Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_NFC0_CRCERR', 'NFC0 RX CRC / Parity Error Interrupt'))
+if nfcPresent:
+	_expectedVectorCount = 98
+elif i3cPresent:
+	_expectedVectorCount = 94
+else:
+	_expectedVectorCount = 85
+if len(_mcuMpIrqVectors) != _expectedVectorCount:
+	raise Exception('MCU_MP IRQB vector list must have ' + str(_expectedVectorCount)
+		+ ' entries, has ' + str(len(_mcuMpIrqVectors)))
 
 # Each interrupting peripheral's first vector name, for cross-checking interruptPriority
 # against the IRQB list (build fails on mismatch)
@@ -1886,6 +2274,12 @@ if timer1Present:
 	_mcuMpIrqFirstVector['TIMER1'] = 'IRQB_TIM1_CAP0'
 if i2c1Present:
 	_mcuMpIrqFirstVector['I2C1'] = 'IRQB_I2C1_STR'
+if qspiPresent:
+	_mcuMpIrqFirstVector['QSPI0'] = 'IRQB_QSPI0_TC'
+if i3cPresent:
+	_mcuMpIrqFirstVector['I3C0'] = 'IRQB_I3C0_TC'	# vectors 86-93 (interruptPriority 86)
+if nfcPresent:
+	_mcuMpIrqFirstVector['NFC0'] = 'IRQB_NFC0_FIELD'	# vectors 94-97 (interruptPriority 94)
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -2008,6 +2402,10 @@ m.McuMpGeometry = {
 	'uart1': uart1Present,      # G1b: False drops the uart1 instance (slot 5 dead)
 	'spi1': spi1Present,        # G1b: False drops the spi1 instance (slot 3 dead)
 	'timer1': timer1Present,    # G1b: False drops the timer1 instance (slot 7 dead)
+	'afeStubs': cqAfeStubsPresent, # digperiphs #1: True = the four AFE stubs + EIS occupy slot 12/0x7C00 (golden-master default)
+	'i3c': i3cPresent,          # digperiphs #2: True = I3C0 in MUTEX-page sub-slot 1 (0x6100); tightens the mutex decode, vectors 86-93
+	'nfc': nfcPresent,          # digperiphs #3: True = NFC0 in MUTEX-page sub-slot 2 (0x6200); tightens the mutex decode, vectors 94-97, 4th glitch filter
+	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
 }
 
 
@@ -2032,7 +2430,7 @@ m.CheckPackagePins()
 # rules), feeding ONLY the TRM (a config-gated generated chapter). They never
 # enter the peripheral / address / interrupt tables, MemoryMap.vhd, or MCU.vhd.
 # Populated only for the CQ package model, so the default TRM stays byte-identical.
-if packageModel == 'castalia-quad-qfn64':
+if packageModel == 'castalia-quad-qfn64' and cqAfeStubsPresent:
 	# The 16-word (64 B) register file shared by every afe_stub instance (AFE and
 	# EIS are the same entity — only the ownership gate differs). Word offset,
 	# name, access, description; byte offset = 4 x word offset.
@@ -2108,7 +2506,9 @@ _resolvedConfig = [
 		('npuStagingRamSize', _npuRamLen if npuPresent else 0),
 	]),
 	('peripherals', [('npu', npuPresent), ('i2c1', i2c1Present), ('uart1', uart1Present),
-		('spi1', spi1Present), ('timer1', timer1Present)]),
+		('spi1', spi1Present), ('timer1', timer1Present),
+		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
+		('nfc', nfcPresent)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),
@@ -2116,7 +2516,8 @@ _resolvedConfig = [
 		('sharedRamBanks', _sharedRamBanks),
 		('flashBaseAddress', _hx(flashBase)),
 		('sharedRamEndAddress', _hx(0x10000 + _sharedRamLen - 1)),
-		('vectorsCount', 85),
+		('vectorsCount', 98 if nfcPresent else (94 if i3cPresent else 85)),
+		('meipVector', 85),
 		('clintMsipVector', 83),
 		('clintMtipVector', 84),
 		('clintLayout', [

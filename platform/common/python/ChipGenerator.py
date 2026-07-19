@@ -51,6 +51,7 @@ class ChipGenerator():
 	VectorsStartAddress = None	# Address of the interrupt vector table
 	VectorsSize = None	# The size of the interrupt vector table in bytes
 	VectorsCount = None	# The number of entries in the interrupt vector table
+	MeipVector = None	# digperiphs #2: the FROZEN external-interrupt (meip) IVT slot. None => VectorsCount (the historic M19 assumption: meip sits immediately above the sources). Set to a fixed slot to keep meip pinned while the SOURCE count (VectorsCount) grows ABOVE it (I3C vectors 86-93 with meip frozen at 85).
 	VectorsEndAddress = None	# The end address of the interrupt vector table (inclusive)
 	RamProgramStartAddress = None	# The initial execution point of the program stored on RAM
 	ProgramCounterInit = None	# The program counter value on reset
@@ -2281,12 +2282,18 @@ class ChipGenerator():
 			name, description = entry
 			t.AddRow(['constant ' + name, ': natural := ' + self.fmtint(i, 2) + ';', '-- ' + description + ', IVT address = ' + self.fmthex(self.VectorsStartAddress + i * 4)], prefixTabs=1)
 		# M19: the SOURCE count (deglitch/irq_router width) and the core's IVT
-		# slot count split — slot VectorsCount (85) is the meip external-IRQ
-		# vector, delivered by the irq_router's claim/complete stage, not a
-		# deglitched peripheral source.
-		t.AddRow(['constant IRQB_EXT_MEIP', ': natural := ' + self.fmtint(self.VectorsCount, 2) + ';', '-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = ' + self.fmthex(self.VectorsStartAddress + self.VectorsCount * 4)], prefixTabs=1)
+		# slot count split — the meip external-IRQ vector is delivered by the
+		# irq_router's claim/complete stage, not a deglitched peripheral source.
+		# digperiphs #2: the meip slot is FROZEN at self.MeipVector when set (85
+		# for Castalia/wound), so I3C's sources can grow ABOVE it (86-93) without
+		# sliding meip; the historic default (MeipVector=None) keeps meip at
+		# VectorsCount = immediately above the sources. NUM_IRQS is the IVT slot
+		# count = max(source count, meip slot + 1).
+		meipVector = self.MeipVector if self.MeipVector is not None else self.VectorsCount
+		numIrqs = max(self.VectorsCount, meipVector + 1)
+		t.AddRow(['constant IRQB_EXT_MEIP', ': natural := ' + self.fmtint(meipVector, 2) + ';', '-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = ' + self.fmthex(self.VectorsStartAddress + meipVector * 4)], prefixTabs=1)
 		t.AddRow(['constant NUM_IRQ_SRCS', ': natural := ' + str(self.VectorsCount) + ';', '-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)'], prefixTabs=1)
-		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(self.VectorsCount + 1) + ';', '-- Core IVT slot count = sources + the meip slot (M19)'], prefixTabs=1)
+		t.AddRow(['constant NUM_IRQS', ': natural := ' + str(numIrqs) + ';', '-- Core IVT slot count = max(sources, meip slot + 1) (M19; digperiphs #2)'], prefixTabs=1)
 		t.AddRow(['constant NUM_GF_INSTANCES', ': natural := (NUM_IRQ_SRCS + 31) / 32;', '-- glitch-filter instance count'], prefixTabs=1)
 		t.AddBlankLine()
 

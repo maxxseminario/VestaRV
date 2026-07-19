@@ -1,0 +1,35 @@
+The Quad Serial Peripheral Interface (\peripheral{QSPIx}) is a command-driven controller for external SPI-family memories (serial NOR flash and compatible devices). It issues a transaction as a sequence of up to four phases --- command, address, dummy, and data --- over a six-wire bus (a serial clock, an active-low chip select, and four bidirectional data lines). The lane width of each phase is independently configurable, so a single engine drives legacy single-lane (1-1-1) flash, dual-output (1-1-2), and quad-output / quad-I/O (1-1-4 / 1-4-4) devices. The main features of the QSPI controller are listed below:
+
+\begin{itemize}
+	\item Command / address / dummy / data transaction structure with a single-write launch
+	\item Independent single-, dual-, and quad-lane width per phase (\register{QSPICMDW}, \register{QSPIADRW}, \register{QSPIDATW})
+	\item Configurable address phase: none, 24-bit, or 32-bit (\register{QSPIAWID})
+	\item Programmable dummy-cycle count with the bus released, for dual/quad fast reads (\register{QSPIDUMMY})
+	\item Configurable clock polarity and phase (\register{QSPICPOL}, \register{QSPICPHA})
+	\item Baud generator off SMCLK: SCK $=$ SMCLK $/ (2 \times (1 + \register{QSPIBR}))$
+	\item Data lengths of 8, 16, or 32 bits, right-justified in the transmit and receive registers
+	\item Registered read path: register reads have \emph{no} side effects (reading \register{QSPIxRX} clears nothing)
+	\item Two interrupt sources: transfer complete and receive-register full
+\end{itemize}
+
+\subsection{QSPI Pins}
+
+The \peripheral{QSPIx} peripheral drives six pins: the serial clock \pin{SCK}, an active-low chip select \pin{CS}, and four bidirectional data lines \pin{IO0}--\pin{IO3}. In single-lane mode \pin{IO0} carries the outbound data and \pin{IO1} the inbound data (classic MOSI/MISO); in dual and quad modes the same lines are driven as a two- or four-bit bus in the direction of the current phase. The controller releases every data line (high-impedance) during the dummy phase. Only chip select 0 is wired to a pin in this configuration; program \register{QSPICSSEL} to 0.
+
+\subsection{Launching a Transaction}
+
+A transaction is fully described by the control, address, and command registers. The launch sequence is:
+
+\begin{enumerate}
+	\item Program \register{QSPIxCR} with the per-phase lane widths, SPI mode, address width, dummy count, baud divider, and interrupt enables, and set \register{QSPIEN}.
+	\item Write the transaction address to \register{QSPIxADR} (used only when \register{QSPIAWID} is non-zero).
+	\item For a write-direction transaction, place the payload (right-justified) in \register{QSPIxTX}. Writing \register{QSPIxTX} never launches a transaction.
+	\item Write \register{QSPIxCMD} last, with the opcode, data length, and direction. The byte-lane-0 write of \register{QSPIxCMD} \emph{launches} the transaction; it is ignored while the controller is disabled or busy.
+	\item Poll \register{QSPIBUSY} (or wait for the transfer-complete interrupt). For a read, the captured word appears in \register{QSPIxRX} and \register{QSPIRXFULL} is set; reading \register{QSPIxRX} has no side effects.
+\end{enumerate}
+
+The three status flags \register{QSPITXEIF}, \register{QSPIRXFULL}, and \register{QSPITCIF} are write-1-to-clear: write a 1 to a bit to clear it. Because the serial core runs in the SMCLK domain, software must set \register{SYS\_CLK\_CR} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI and UART peripherals. Dual- and quad-lane read commands require at least one dummy cycle (\register{QSPIDUMMY} $\geq 1$) so the device can turn its data lines around.
+
+\subsection{Shared Access on \AsicNameForUserGuide}
+
+In configurations that include it, \peripheral{QSPI0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) at slot \texttt{0x4C00}, so any hart can use it. Its two interrupt sources are vector 55 (transfer complete) and vector 56 (receive-register full), delivered through the interrupt router like every other shared-peripheral source.

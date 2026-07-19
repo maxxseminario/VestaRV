@@ -915,6 +915,26 @@ const VESTA_DATA = {
       "type": "bool",
       "default": true
     },
+    "peripherals.cqAfeStubs": {
+      "description": "bool \u2014 True instantiates the four AFE register stubs (page-0 slot 12 @0x4C00, sub-slots on sh_addr(5:4)) and the shared EIS engine stub (0x7C00); the Castalia golden master keeps them. False frees slot 12 for a native peripheral (mutually exclusive with peripherals.qspi) and reserves IRQ vectors 55/56",
+      "type": "bool",
+      "default": true
+    },
+    "peripherals.qspi": {
+      "description": "bool \u2014 True instantiates the QSPI0 controller in page-0 slot 12 (0x4C00), driving IRQ vectors 55 (transfer-complete) and 56 (RX-full); requires peripherals.cqAfeStubs=false (both claim slot 12). Default false",
+      "type": "bool",
+      "default": false
+    },
+    "peripherals.i3c": {
+      "description": "bool \u2014 True instantiates the I3C0 controller (MVP+DAA+IBI) at 0x6100: page-2 (MUTEX page) sub-slot 1. Tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the page-wide alias whose reads had a CLAIM side effect), adds a page-2 sub-decode, and GROWS the IRQ source list to 94 (a reserved placeholder at the frozen meip slot 85, then I3C vectors 86-93: tc/rxf/txe/nack/eod/arb/daa/ibi). Default false",
+      "type": "bool",
+      "default": false
+    },
+    "peripherals.nfc": {
+      "description": "bool \u2014 True instantiates the NFC0 ISO 14443A tag / card-emulation engine at 0x6200: page-2 (MUTEX page) sub-slot 2. Like I3C it tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the aliased-CLAIM side effect) and adds the page-2 sub-decode. GROWS the IRQ source list to 98 (meip stays frozen at slot 85; sources 86-93 are I3C or reserved; NFC drives vectors 94-97: field/rxf/txdone/crcerr). The digital AFE / RF interface is off-die (placeholder-tied). Default false",
+      "type": "bool",
+      "default": false
+    },
     "package.model": {
       "description": "string \u2014 package model name defined in generate.py (_PACKAGE_MODELS: \"myshkin-qfn44\" QFN-44, \"castalia-quad-qfn64\" QFN-64 quad pinout \u2014 new pinouts are added as Python models, never as free-form config pin lists)",
       "type": "enum",
@@ -968,6 +988,10 @@ const VESTA_DATA = {
     "peripherals.uart1": true,
     "peripherals.spi1": true,
     "peripherals.timer1": true,
+    "peripherals.cqAfeStubs": true,
+    "peripherals.qspi": false,
+    "peripherals.i3c": false,
+    "peripherals.nfc": false,
     "package.model": "myshkin-qfn44",
     "package.preliminary": true
   },
@@ -2768,6 +2792,7 @@ const SCHEMA_TO_CFG = {
   "memory.sharedBulkRamSize":"sharedRamSize", "memory.npuStagingRamSize":"npuRamSize",
   "peripherals.npu":"npu", "peripherals.i2c1":"i2c1",
   "peripherals.uart1":"uart1", "peripherals.spi1":"spi1", "peripherals.timer1":"timer1",
+  "peripherals.cqAfeStubs":"cqAfeStubs", "peripherals.qspi":"qspi", "peripherals.i3c":"i3c", "peripherals.nfc":"nfc",
   "package.model":"packageModel", "package.preliminary":"packagePreliminary",
 };
 
@@ -3002,7 +3027,11 @@ function render(){
   // UART1 / SPI1 / TIMER1 — REAL knobs (G1b: the drop machinery fanned out)
   [["uart1","UART1","Second UART instance (slot 0x4500). Off = slot 5 reads zero, IRQ vectors 52–54 reserved (numbering frozen), TX1/RX1 pins revert to plain GPIO14/15, TX1 leaves the AF output-spread planes."],
    ["spi1","SPI1","Second SPI instance (slot 0x4300). Off = slot 3 reads zero, IRQ vectors 11–12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO8–11 (their TIMER AF1 relocations survive), SCK1/MOSI1 leave the spread planes."],
-   ["timer1","TIMER1","Second TIMER instance (slot 0x4700). Off = slot 7 reads zero, IRQ vectors 22–27 reserved, T1CMP/T1CAP pins revert to plain GPIO20–23, every TIMER1 AF1 relocation + spread slot goes hi-Z."]].forEach(([key,name,desc])=>{
+   ["timer1","TIMER1","Second TIMER instance (slot 0x4700). Off = slot 7 reads zero, IRQ vectors 22–27 reserved, T1CMP/T1CAP pins revert to plain GPIO20–23, every TIMER1 AF1 relocation + spread slot goes hi-Z."],
+   ["cqAfeStubs","AFE stubs","Castalia-Quad AFE register stubs (four 64 B sub-slots of page-0 slot 12 @0x4C00) + the shared EIS engine stub (0x7C00). On by default (the golden master + the shafe test depend on them). Off frees slot 12 for QSPI and reserves IRQ vectors 55/56."],
+   ["qspi","QSPI0","Quad-SPI flash controller in page-0 slot 12 (0x4C00). Off by default. On requires AFE stubs off (both claim slot 12); drives IRQ vectors 55 (transfer complete) / 56 (RX full)."],
+   ["i3c","I3C0","I3C controller (MVP + dynamic address assignment + in-band interrupts) in the MUTEX page, sub-slot 1 @0x6100. Off by default. On tightens the mutex-bank decode to 256 B (retiring the aliased-CLAIM side effect) and grows the IRQ source list to 94: the meip slot stays frozen at 85 and I3C drives vectors 86–93 (tc/rxf/txe/nack/eod/arb/daa/ibi)."],
+   ["nfc","NFC0","NFC ISO 14443A tag / card-emulation engine in the MUTEX page, sub-slot 2 @0x6200. Off by default. Like I3C it tightens the mutex-bank decode to 256 B; it grows the IRQ source list to 98 — the meip slot stays frozen at 85, sources 86–93 stay I3C's (or reserved), and NFC drives vectors 94–97 (field/rxf/txdone/crcerr). 98 sources add a 4th glitch-filter instance. The 13.56 MHz RF analog front-end is off-die (the digital AFE interface is placeholder-tied)."]].forEach(([key,name,desc])=>{
     const el = document.createElement("div"); el.className="peri"+(cfg[key]?" on":"");
     el.innerHTML = `<div class="pt"><span class="pn">${name}</span>
       <span class="lockbadge" style="color:var(--ok);border-color:var(--ok)">applied</span></div>
@@ -3351,6 +3380,10 @@ function outPython(){
   L.push(`<span class="k">uart1Present</span> = ${b(cfg.uart1)}   <span class="c"># _cfg('peripherals.uart1', True)</span>`);
   L.push(`<span class="k">spi1Present</span> = ${b(cfg.spi1)}    <span class="c"># _cfg('peripherals.spi1', True)</span>`);
   L.push(`<span class="k">timer1Present</span> = ${b(cfg.timer1)}  <span class="c"># _cfg('peripherals.timer1', True)</span>`);
+  L.push(`<span class="k">cqAfeStubsPresent</span> = ${b(cfg.cqAfeStubs)}  <span class="c"># _cfg('peripherals.cqAfeStubs', True)</span>`);
+  L.push(`<span class="k">qspiPresent</span> = ${b(cfg.qspi)}  <span class="c"># _cfg('peripherals.qspi', False)</span>`);
+  L.push(`<span class="k">i3cPresent</span> = ${b(cfg.i3c)}  <span class="c"># _cfg('peripherals.i3c', False)</span>`);
+  L.push(`<span class="k">nfcPresent</span> = ${b(cfg.nfc)}  <span class="c"># _cfg('peripherals.nfc', False)</span>`);
   L.push(`<span class="k">_regsDualPort</span> = ${b(cfg.ENABLE_REGS_DUALPORT)}`);
   L.push(`<span class="k">_romSize</span> = <span class="v">${cfg.romSize}</span>, <span class="k">_tcmSize</span> = <span class="v">${cfg.tcmSize}</span>`);
   L.push(`<span class="k">_sharedRamLen</span> = <span class="v">${hex(cfg.sharedRamSize)}</span>, <span class="k">_npuRamLen</span> = <span class="v">${hex(cfg.npuRamSize)}</span>`);
@@ -3396,7 +3429,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1 },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;

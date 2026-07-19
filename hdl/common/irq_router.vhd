@@ -45,10 +45,15 @@
 --   word 4h+1 : HhENM = en[h](63:32)                                  RW
 --   word 4h+2 : HhENU = en[h](84:64)   (bits 20:0; CONTIGUOUS packing
 --               both ways; bits 19/20 = the CLINT slots, inert)        RW
---   word 4h+3 : reserved (reads 0)
+--   word 4h+3 : HhENX = en[h](NUM_SRCS-1:96) when NUM_SRCS > 96
+--               (digperiphs #3: NFC sources 96/97; ELSE reserved,
+--               reads 0). NUM_EN_WORDS = ceil(NUM_SRCS/32) words per hart. RW
 --   word 512  : 0x7800 CLAIM (read, SIDE EFFECT) / COMPLETE (write)
 --   word 516-518 : 0x7810/14/18 PENDL/M/U  = raw deglitched levels     RO
 --   word 520-522 : 0x7820/24/28 INSVCL/M/U = in_service bits           RO
+--     (the PEND/INSVC readback words expose sources 0..95 only; sources
+--      96/97 are still fully deliverable via meip/CLAIM and enable-writable
+--      through HhENX — they are simply not in the RO debug readback)
 --   everything else reads 0, writes ignored. Row indices >= NHARTS are
 --   dead (read 0, ignore writes) as at A2.
 -- M19 row 0 is LIVE: hart 0 takes meip(0) like every tile (SYSTEM0's
@@ -77,11 +82,17 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 entity irq_router is
     generic (
         NHARTS   : natural := 4;
-        -- Peripheral SOURCE count (NUM_IRQ_SRCS = 85): deglitched levels
-        -- 0..NUM_SRCS-1, of which the top two are the CLINT slots (excluded
-        -- from meip/claim). NOT the core's IVT slot count (NUM_IRQS = 86,
-        -- which adds the meip slot 85).
+        -- Peripheral SOURCE count (NUM_IRQ_SRCS = 85 default, 94 with I3C):
+        -- deglitched levels 0..NUM_SRCS-1. NOT the core's IVT slot count.
         NUM_SRCS : natural := 85;
+        -- The two CLINT source IDs (msip/mtip): delivered per-hart on the
+        -- hardwired wires, so they are NEVER routed through meip/claim.
+        -- digperiphs #2: made explicit (was hardcoded as "the top two sources")
+        -- so I3C sources can grow ABOVE the CLINT pair without inheriting the
+        -- never-route treatment. Defaults 83/84 reproduce the historic behaviour
+        -- at NUM_SRCS = 85 (the CLINT pair WAS the top two there).
+        CLINT_SIP : natural := 83;
+        CLINT_TIP : natural := 84;
         -- Decoded word-address width. 10 = the full 4 KB page (M19: the
         -- CLAIM block sits at fixed word 512 = byte 0x800, NHARTS-agnostic).
         ADDR_W   : natural := 10;
@@ -115,9 +126,15 @@ end entity;
 
 architecture behav of irq_router is
 
-    -- routing/enable storage as 3 words per hart (L/M/U); U only
-    -- NUM_SRCS-64 bits live
-    type en_words_t is array(0 to NHARTS*3-1) of std_logic_vector(31 downto 0);
+    -- routing/enable storage as NUM_EN_WORDS 32-bit words per hart. NUM_EN_WORDS =
+    -- ceil(NUM_SRCS/32): 3 (L/M/U) at NUM_SRCS <= 96 (Castalia default 85,
+    -- +I3C 94), 4 (L/M/U/X) at NUM_SRCS = 98 (digperiphs #3 NFC pushes the
+    -- source list past 96 -> a 4th enable word per hart uses the +3 row slot
+    -- that was reserved). Only the top word's low NUM_SRCS-32*(NUM_EN_WORDS-1)
+    -- bits are live. At NUM_EN_WORDS = 3 every expression below is identical to
+    -- the historic hardcoded-3 form.
+    constant NUM_EN_WORDS : natural := (NUM_SRCS + 31) / 32;
+    type en_words_t is array(0 to NHARTS*NUM_EN_WORDS-1) of std_logic_vector(31 downto 0);
     signal en_words  : en_words_t;
     signal rdata_reg : std_logic_vector(31 downto 0);
 
@@ -180,7 +197,7 @@ begin
     begin
         v := '0';
         for h in 0 to NHARTS-1 loop
-            v := v or en_words(h*3)(0);
+            v := v or en_words(h*NUM_EN_WORDS)(0);
         end loop;
         wdt_routed <= v;
     end process;
@@ -197,8 +214,9 @@ begin
         severity failure;
 
     -- Registered per-hart meip reduction over the PERIPHERAL sources only
-    -- (the top two sources = CLINT slots 83/84 are delivered per-hart by
-    -- the hardwired msip/mtip wires, never through meip).
+    -- (the CLINT source IDs CLINT_SIP/CLINT_TIP = 83/84 are delivered per-hart
+    -- by the hardwired msip/mtip wires, never through meip; every other source
+    -- 0..NUM_SRCS-1 is routable — digperiphs #2, was "the top two sources").
     meip_proc: process(clk, resetn)
         variable v : std_logic;
     begin
@@ -207,9 +225,11 @@ begin
         elsif rising_edge(clk) then
             for h in 0 to NHARTS-1 loop
                 v := '0';
-                for i in 0 to NUM_SRCS-3 loop
-                    v := v or (irq_in(i) and en_words(h*3 + i/32)(i mod 32)
-                               and not in_service(i));
+                for i in 0 to NUM_SRCS-1 loop
+                    if i /= CLINT_SIP and i /= CLINT_TIP then
+                        v := v or (irq_in(i) and en_words(h*NUM_EN_WORDS + i/32)(i mod 32)
+                                   and not in_service(i));
+                    end if;
                 end loop;
                 meip_r(h) <= v;
             end loop;
@@ -242,17 +262,19 @@ begin
                 if widx < W_CLAIM then
                     -- ---- M7a routing rows (addresses/packing unchanged;
                     -- read returns the pre-write value on a write strobe) ---
-                    if hidx < NHARTS and wsub /= 3 then
-                        rd := en_words(hidx*3 + wsub);
+                    if hidx < NHARTS and wsub < NUM_EN_WORDS then
+                        rd := en_words(hidx*NUM_EN_WORDS + wsub);
                         if we /= "0000" then
-                            wv := lane_merge(en_words(hidx*3 + wsub), wdata, we);
-                            if wsub = 2 then
-                                -- HhENU: only bits NUM_SRCS-65:0 are live —
+                            wv := lane_merge(en_words(hidx*NUM_EN_WORDS + wsub), wdata, we);
+                            if wsub = NUM_EN_WORDS-1 then
+                                -- top enable word: only the low
+                                -- NUM_SRCS-32*(NUM_EN_WORDS-1) bits are live —
                                 -- store masked so readback matches the
-                                -- documented "upper bits read 0"
-                                wv(31 downto NUM_SRCS-64) := (others => '0');
+                                -- documented "upper bits read 0" (at NUM_EN_WORDS=3
+                                -- this is HhENU's historic wv(31 downto NUM_SRCS-64))
+                                wv(31 downto NUM_SRCS-32*(NUM_EN_WORDS-1)) := (others => '0');
                             end if;
-                            en_words(hidx*3 + wsub) <= wv;
+                            en_words(hidx*NUM_EN_WORDS + wsub) <= wv;
                         end if;
                     end if;
                     rdata_reg <= rd;
@@ -264,10 +286,11 @@ begin
                         mst := conv_integer(master);
                         cid := NUM_SRCS;  -- none
                         if mst < NHARTS then
-                            for i in 0 to NUM_SRCS-3 loop
+                            for i in 0 to NUM_SRCS-1 loop
                                 if cid = NUM_SRCS
+                                   and i /= CLINT_SIP and i /= CLINT_TIP
                                    and irq_in(i) = '1'
-                                   and en_words(mst*3 + i/32)(i mod 32) = '1'
+                                   and en_words(mst*NUM_EN_WORDS + i/32)(i mod 32) = '1'
                                    and in_service(i) = '0' then
                                     cid := i;
                                 end if;
