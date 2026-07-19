@@ -40,6 +40,9 @@ GENUS_BLOCKS = {
     "MCU_MP_hier":     ("Castalia", "MCU assembly — hierarchical"),
     "hart_tile_argus": ("Argus", "hart_tile_argus (Argus tile)"),
     "MCU_ARGUS_hier":  ("Argus", "MCU_ARGUS assembly — hierarchical"),
+    "QSPI":            ("Peripherals", "QSPI (quad-SPI controller)"),
+    "I3C":             ("Peripherals", "I3C (I3C bus controller)"),
+    "NFC":             ("Peripherals", "NFC (digital front-end; RF is off-die)"),
 }
 GENUS_SKIP = {"MCU"}  # frozen Myshkin tape-out synth report
 
@@ -59,7 +62,7 @@ ERA_DIRS = {
     "a7_era":  ("Argus", "Argus chip — A7 ERA per-instance power"),
 }
 
-FAMILY_ORDER = ["Castalia", "Argus", "Other"]
+FAMILY_ORDER = ["Castalia", "Argus", "Peripherals", "Other"]
 
 NUM = r"[-+0-9.eE]+"
 

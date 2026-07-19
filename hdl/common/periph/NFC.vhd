@@ -80,8 +80,13 @@ architecture behavioral of NFC is
     -- ---- ISO tag FSM states (D11) ----------------------------------------
     type iso_t is (POWER_OFF, ISO_IDLE, ISO_READY, ISO_ACTIVE, ISO_HALT);
     signal iso_state : iso_t;
-    -- protocol-core activity sub-FSM (parse -> CRC-check -> FDT -> compose -> TX)
-    type act_t is (ACT_LISTEN, ACT_PARSE, ACT_CRC, ACT_DECIDE,
+    -- protocol-core activity sub-FSM (parse -> byte-count -> CRC-check -> FDT ->
+    -- compose -> TX). ACT_NBYTES + the serial ACT_COMPOSE phase (cmp_ph) were
+    -- added at gate-closure to SERIALIZE the two synthesis-heavy combinational
+    -- cones (the /9 byte divide and the tx_bits scatter + CRC chain) into one
+    -- rf_clk step each -- mirroring ACT_CRC's proven one-byte-per-cycle style.
+    -- No protocol semantics change: identical frames, flags, buffers, bit counts.
+    type act_t is (ACT_LISTEN, ACT_PARSE, ACT_NBYTES, ACT_CRC, ACT_DECIDE,
                    ACT_FDT, ACT_COMPOSE, ACT_TX, ACT_TXWAIT);
     signal act : act_t;
 
@@ -189,6 +194,26 @@ architecture behavioral of NFC is
     signal rx_nbytes   : natural range 0 to 32;   -- assembled byte count (standard frame)
     signal is_short    : std_logic;               -- 7-bit short frame (REQA/WUPA)
     signal shortval    : std_logic_vector(6 downto 0);
+
+    -- ---- gate-closure: serial /9 byte-count divide (ACT_NBYTES) --------------
+    -- Replaces the single-cycle `rx_nbits / 9` (non-power-of-2 -> ChipWare
+    -- CW_div_k datapath) with a repeated-subtract counter, one subtraction per
+    -- rf_clk (rx_nbits <= 256 => <= 28 cycles; real frames are 2-7 bytes so
+    -- 2-7 cycles). Integer division === repeated subtraction: bit-identical.
+    signal div_rem : natural range 0 to 256;      -- running remainder
+    signal div_q   : natural range 0 to 32;       -- accumulated quotient (# bytes)
+
+    -- ---- gate-closure: serial response composer (ACT_COMPOSE phases) ---------
+    -- Replaces the 32x-unrolled single-cycle tx_bits(tb) scatter crossbar + the
+    -- chained combinational CRC (crc_a_byte fed into itself up to 32 deep). Now
+    -- ONE source byte per rf_clk: append its 9 (or split) framed bits at a
+    -- running write pointer and fold it into the SEQUENTIAL CRC LFSR (the exact
+    -- ACT_CRC engine). tx_bits, tx_nbits, and the emitted frame are unchanged.
+    type cmp_t is (CMP_BYTES, CMP_CRCLO, CMP_CRCHI, CMP_FIN);
+    signal cmp_ph  : cmp_t;
+    signal cmp_k   : natural range 0 to 32;       -- source byte index being framed
+    signal cmp_wr  : natural range 0 to 511;      -- running tx_bits write pointer
+    signal crc_cmp : std_logic_vector(15 downto 0); -- compose-time CRC accumulator
 
     -- ---- rf-domain TX Manchester/subcarrier encoder (B-CODEC/D7) ---------
     type txph_t is (TXP_IDLE, TXP_SOF, TXP_DATA, TXP_EOF, TXP_DONE);
@@ -644,8 +669,8 @@ begin
         variable matchv   : std_logic;
         variable bccv     : std_logic_vector(7 downto 0);
         variable uidbcc   : std_logic_vector(39 downto 0);
-        variable tb       : natural range 0 to 512;
-        variable crc16    : std_logic_vector(15 downto 0);
+        variable local    : natural range 0 to 8;   -- split-byte bit position (compose)
+        variable srcb     : std_logic_vector(7 downto 0); -- source byte being framed
     begin
         if resetn = '0' or nfcen_r2 = '0' then
             iso_state <= POWER_OFF; act <= ACT_LISTEN;
@@ -657,6 +682,8 @@ begin
             rx_cmd <= (others => '0'); rx_len <= (others => '0'); rx_nbytes <= 0;
             rx_crcok <= '0'; rx_parok <= '0'; is_short <= '0'; shortval <= (others => '0');
             crc_reg <= (others => '0'); crc_idx <= 0; fdt_cnt <= (others => '0');
+            div_rem <= 0; div_q <= 0;
+            cmp_ph <= CMP_BYTES; cmp_k <= 0; cmp_wr <= 0; crc_cmp <= (others => '0');
             t_uid <= (others => '0'); t_atqa <= x"0044"; t_sak <= x"00";
             t_fdt <= x"04D4"; t_autoread <= '1';
             rx_frame_count <= (others => '0'); tx_frame_count <= (others => '0');
@@ -699,7 +726,24 @@ begin
                             rx_parok <= '1'; rx_crcok <= '0';
                             act <= ACT_DECIDE;
                         else                                 -- standard/anticollision frame
-                            nbytes_v := rx_nbits / 9;
+                            -- Launch the serial byte-count divide (rx_nbits / 9)
+                            -- as repeated subtraction in ACT_NBYTES instead of a
+                            -- combinational CW_div_k. Byte de-frame + parity run
+                            -- once the quotient lands (constant bit-picks there).
+                            div_rem <= rx_nbits; div_q <= 0;
+                            act <= ACT_NBYTES;
+                        end if;
+
+                    when ACT_NBYTES =>
+                        -- One subtraction per rf_clk; when div_rem < 9 the quotient
+                        -- div_q = floor(rx_nbits/9) = the whole-byte count. This is
+                        -- the SAME value the old `rx_nbits / 9` produced (integer
+                        -- division is repeated subtraction). Then de-frame the bytes
+                        -- (constant rx_raw bit-picks -- NOT a crossbar) + parity.
+                        if div_rem >= 9 then
+                            div_rem <= div_rem - 9; div_q <= div_q + 1;
+                        else
+                            nbytes_v := div_q;
                             pk := '1';
                             for k in 0 to 8 loop
                                 if k < nbytes_v then
@@ -846,40 +890,73 @@ begin
 
                     when ACT_FDT =>
                         if fdt_cnt = conv_std_logic_vector(0, 17) then
+                            -- FDT elapsed: launch the SERIAL composer. Response TX
+                            -- starts once compose completes (CMP_FIN -> ACT_TX), so
+                            -- on the wire the reply lands FDT + compose_latency after
+                            -- the reader's EOF. See the FDT/compose-latency contract
+                            -- in nfc_design.md (bench checks FDT order-only, D16).
+                            cmp_k  <= resp_start;      -- skip bytes already sent (split)
+                            cmp_wr <= 0;               -- tx_bits write pointer
+                            crc_cmp <= x"6363";        -- CRC_A init (D10)
+                            cmp_ph <= CMP_BYTES;
                             act <= ACT_COMPOSE;
                         else
                             fdt_cnt <= fdt_cnt - 1;
                         end if;
 
                     when ACT_COMPOSE =>
-                        tb := 0; crc16 := x"6363";
-                        for k in 0 to 31 loop
-                            if k >= resp_start and k < resp_len then
-                                if k = resp_start and resp_split = '1' then
-                                    for j in 0 to 7 loop
-                                        if j >= resp_splitb then
-                                            tx_bits(tb) <= resp_bytes(k)(j); tb := tb + 1;
-                                        end if;
-                                    end loop;
+                        -- SERIALIZED frame composer -- one source byte per rf_clk,
+                        -- appended at the running cmp_wr pointer (a small serial
+                        -- write into tx_bits, NOT the old 512x32 scatter), folding
+                        -- each byte into the SEQUENTIAL CRC LFSR crc_cmp (the ACT_CRC
+                        -- engine). Emitted bit layout is byte-for-byte identical to
+                        -- the old single-cycle loop: 8 data bits LSB-first + parity
+                        -- per byte, the split byte omits parity (D8/D9), then CRC_A
+                        -- low byte, high byte (each +parity) when resp_appcrc=1 (D10).
+                        srcb := resp_bytes(cmp_k);
+                        case cmp_ph is
+                            when CMP_BYTES =>
+                                if cmp_k < resp_len then
+                                    if cmp_k = resp_start and resp_split = '1' then
+                                        -- split byte: bits resp_splitb..7, NO parity
+                                        local := 0;
+                                        for j in 0 to 7 loop
+                                            if j >= resp_splitb then
+                                                tx_bits(cmp_wr + local) <= srcb(j);
+                                                local := local + 1;
+                                            end if;
+                                        end loop;
+                                        cmp_wr <= cmp_wr + local;
+                                    else
+                                        for j in 0 to 7 loop
+                                            tx_bits(cmp_wr + j) <= srcb(j);
+                                        end loop;
+                                        tx_bits(cmp_wr + 8) <= odd_parity(srcb);
+                                        cmp_wr <= cmp_wr + 9;
+                                    end if;
+                                    if resp_appcrc = '1' then
+                                        crc_cmp <= crc_a_byte(crc_cmp, srcb);
+                                    end if;
+                                    cmp_k <= cmp_k + 1;
                                 else
-                                    for j in 0 to 7 loop
-                                        tx_bits(tb) <= resp_bytes(k)(j); tb := tb + 1;
-                                    end loop;
-                                    tx_bits(tb) <= odd_parity(resp_bytes(k)); tb := tb + 1;
+                                    if resp_appcrc = '1' then cmp_ph <= CMP_CRCLO;
+                                    else                      cmp_ph <= CMP_FIN; end if;
                                 end if;
-                                if resp_appcrc = '1' then
-                                    crc16 := crc_a_byte(crc16, resp_bytes(k));
-                                end if;
-                            end if;
-                        end loop;
-                        if resp_appcrc = '1' then     -- CRC_A: low byte then high, LSB-first
-                            for j in 0 to 7 loop tx_bits(tb) <= crc16(j); tb := tb + 1; end loop;
-                            tx_bits(tb) <= odd_parity(crc16(7 downto 0)); tb := tb + 1;
-                            for j in 0 to 7 loop tx_bits(tb) <= crc16(8 + j); tb := tb + 1; end loop;
-                            tx_bits(tb) <= odd_parity(crc16(15 downto 8)); tb := tb + 1;
-                        end if;
-                        tx_nbits <= tb;
-                        act <= ACT_TX;
+                            when CMP_CRCLO =>              -- CRC_A low byte, LSB-first
+                                for j in 0 to 7 loop
+                                    tx_bits(cmp_wr + j) <= crc_cmp(j);
+                                end loop;
+                                tx_bits(cmp_wr + 8) <= odd_parity(crc_cmp(7 downto 0));
+                                cmp_wr <= cmp_wr + 9; cmp_ph <= CMP_CRCHI;
+                            when CMP_CRCHI =>             -- CRC_A high byte
+                                for j in 0 to 7 loop
+                                    tx_bits(cmp_wr + j) <= crc_cmp(8 + j);
+                                end loop;
+                                tx_bits(cmp_wr + 8) <= odd_parity(crc_cmp(15 downto 8));
+                                cmp_wr <= cmp_wr + 9; cmp_ph <= CMP_FIN;
+                            when CMP_FIN =>
+                                tx_nbits <= cmp_wr; act <= ACT_TX;
+                        end case;
 
                     when ACT_TX =>
                         tx_start <= '1'; act <= ACT_TXWAIT;
