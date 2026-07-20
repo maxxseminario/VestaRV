@@ -39,6 +39,18 @@ entity MCU is
 		prt4_dir		: out	std_logic_vector(7 downto 0);
 		prt4_ren		: out	std_logic_vector(7 downto 0);
 
+        --GPIO4 Connections (Mission B: QSPI0 / I3C0 pin functions on AF1)
+        prt5_in		    : in	std_logic_vector(7 downto 0);
+		prt5_out		: out	std_logic_vector(7 downto 0);
+		prt5_dir		: out	std_logic_vector(7 downto 0);
+		prt5_ren		: out	std_logic_vector(7 downto 0);
+
+        --GPIO5 Connections (Mission B: NFC0 digital-AFE pin functions on AF1)
+        prt6_in		    : in	std_logic_vector(7 downto 0);
+		prt6_out		: out	std_logic_vector(7 downto 0);
+		prt6_dir		: out	std_logic_vector(7 downto 0);
+		prt6_ren		: out	std_logic_vector(7 downto 0);
+
 
         -- Testing Purposes Only
         a0  : out std_logic_vector(31 downto 0);
@@ -776,7 +788,12 @@ architecture behav of MCU is
         signal dtp3_out               : std_logic;
         signal dtp3_dir               : std_logic;
         signal dtp3_ren               : std_logic;
-        
+
+    -- GPIO4 / GPIO5 (Mission B) declarative regions -------------------------------------
+        --@GEN:gpio4-decls@
+
+        --@GEN:gpio5-decls@
+
 begin
 
     --Signal Routing 
@@ -1217,6 +1234,10 @@ begin
             alt_func_dir_in	=>	afunc4_all_dir,
             alt_func_ren_in	=>	afunc4_all_ren
     );
+
+    --@GEN:gpio4-instance@
+
+    --@GEN:gpio5-instance@
 
     spi0: SPI
         generic map (

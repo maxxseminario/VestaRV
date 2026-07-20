@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/17 at 20:03:20 with the generate.py chip generator
+-- Generated on 2026/07/19 at 13:03:06 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -48,6 +48,18 @@ entity MCU is
 		prt4_out		: out	std_logic_vector(7 downto 0);
 		prt4_dir		: out	std_logic_vector(7 downto 0);
 		prt4_ren		: out	std_logic_vector(7 downto 0);
+
+        --GPIO4 Connections (Mission B: QSPI0 / I3C0 pin functions on AF1)
+        prt5_in		    : in	std_logic_vector(7 downto 0);
+		prt5_out		: out	std_logic_vector(7 downto 0);
+		prt5_dir		: out	std_logic_vector(7 downto 0);
+		prt5_ren		: out	std_logic_vector(7 downto 0);
+
+        --GPIO5 Connections (Mission B: NFC0 digital-AFE pin functions on AF1)
+        prt6_in		    : in	std_logic_vector(7 downto 0);
+		prt6_out		: out	std_logic_vector(7 downto 0);
+		prt6_dir		: out	std_logic_vector(7 downto 0);
+		prt6_ren		: out	std_logic_vector(7 downto 0);
 
 
         -- Testing Purposes Only
@@ -429,6 +441,8 @@ architecture behav of MCU is
         signal irq_gpio1        : std_logic_vector(7 downto 0);  -- GPIO1 Interrupt
         signal irq_gpio2        : std_logic_vector(7 downto 0);  -- GPIO2 Interrupt
         signal irq_gpio3        : std_logic_vector(7 downto 0);  -- GPIO3 Interrupt
+        signal irq_gpio4        : std_logic_vector(7 downto 0);  -- GPIO4 Interrupt
+        signal irq_gpio5        : std_logic_vector(7 downto 0);  -- GPIO5 Interrupt
         signal irq_spi0_tc      : std_logic;  -- SPI0 Transmission Complete Interrupt
         signal irq_spi0_te      : std_logic;  -- SPI0 Transmission Buffer Empty Interrupt
         signal irq_spi1_tc      : std_logic;  -- SPI1 Transmission Complete Interrupt
@@ -478,9 +492,9 @@ architecture behav of MCU is
         signal irq_i2c1_snr    : std_logic;  -- I2C1 Slave Mode NACK Received Interrupt
         signal irq_i2c1_sxc    : std_logic;  -- I2C1 Slave Transfer Complete Interrupt
 
-        signal irq_comb         : std_logic_vector(95 downto 0);
+        signal irq_comb         : std_logic_vector(127 downto 0);
         signal irq_deglitch     : std_logic_vector(NUM_IRQ_SRCS -1 downto 0);
-        signal gf_out           : std_logic_vector(95 downto 0);
+        signal gf_out           : std_logic_vector(127 downto 0);
 
 
         -- M13: the RISCV core interface signals (read_data/write_word/
@@ -1142,7 +1156,40 @@ architecture behav of MCU is
         signal dtp3_out               : std_logic;
         signal dtp3_dir               : std_logic;
         signal dtp3_ren               : std_logic;
-        
+
+    -- GPIO4 / GPIO5 (Mission B) declarative regions -------------------------------------
+        -- Mission B: GPIO4 (port 5), MUTEX-page sub-slot 3 @0x6300.
+        -- Registered-read native slave with its own active-low en shim (like
+        -- I3C0/NFC0). AF0 = plain GPIO on every pin; AF1 carries the QSPI0 (P5.0-5) + I3C0 (P5.6/7)
+        -- pin functions when present, Hi-Z otherwise. Per-pin IRQs -> vectors 98-105.
+        signal shslv_gpio4_sel, shslv_gpio4_en : std_logic;
+        signal shslv_rd_gpio4   : std_logic := '0';
+        signal gpio4_sh_rdata   : std_logic_vector(31 downto 0);
+        signal gpio4_sh_en_n    : std_logic;
+        signal p5_out, p5_dir, p5_ren : std_logic_vector(7 downto 0);
+        signal p5_afs           : std_logic_vector(23 downto 0);
+        signal afunc5_out, afunc5_dir, afunc5_ren : std_logic_vector(7 downto 0);
+        signal afunc5_af1_out, afunc5_af1_dir, afunc5_af1_ren : std_logic_vector(7 downto 0);
+        signal afunc5_all_out   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc5_all_dir   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc5_all_ren   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+
+        -- Mission B: GPIO5 (port 6), MUTEX-page sub-slot 4 @0x6400.
+        -- Registered-read native slave with its own active-low en shim (like
+        -- I3C0/NFC0). AF0 = plain GPIO on every pin; AF1 carries the NFC0 digital-AFE (P6.0-5)
+        -- pin functions when present, Hi-Z otherwise. Per-pin IRQs -> vectors 106-113.
+        signal shslv_gpio5_sel, shslv_gpio5_en : std_logic;
+        signal shslv_rd_gpio5   : std_logic := '0';
+        signal gpio5_sh_rdata   : std_logic_vector(31 downto 0);
+        signal gpio5_sh_en_n    : std_logic;
+        signal p6_out, p6_dir, p6_ren : std_logic_vector(7 downto 0);
+        signal p6_afs           : std_logic_vector(23 downto 0);
+        signal afunc6_out, afunc6_dir, afunc6_ren : std_logic_vector(7 downto 0);
+        signal afunc6_af1_out, afunc6_af1_dir, afunc6_af1_ren : std_logic_vector(7 downto 0);
+        signal afunc6_all_out   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc6_all_dir   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+        signal afunc6_all_ren   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);
+
 begin
 
     --Signal Routing 
@@ -2421,6 +2468,22 @@ begin
             IRQB_I2C1_sovf  => irq_i2c1_sovf,
             IRQB_I2C1_snr   => irq_i2c1_snr,
             IRQB_I2C1_sxc   => irq_i2c1_sxc,
+            IRQB_GPIO4_B0   => irq_gpio4(0),
+            IRQB_GPIO4_B1   => irq_gpio4(1),
+            IRQB_GPIO4_B2   => irq_gpio4(2),
+            IRQB_GPIO4_B3   => irq_gpio4(3),
+            IRQB_GPIO4_B4   => irq_gpio4(4),
+            IRQB_GPIO4_B5   => irq_gpio4(5),
+            IRQB_GPIO4_B6   => irq_gpio4(6),
+            IRQB_GPIO4_B7   => irq_gpio4(7),
+            IRQB_GPIO5_B0   => irq_gpio5(0),
+            IRQB_GPIO5_B1   => irq_gpio5(1),
+            IRQB_GPIO5_B2   => irq_gpio5(2),
+            IRQB_GPIO5_B3   => irq_gpio5(3),
+            IRQB_GPIO5_B4   => irq_gpio5(4),
+            IRQB_GPIO5_B5   => irq_gpio5(5),
+            IRQB_GPIO5_B6   => irq_gpio5(6),
+            IRQB_GPIO5_B7   => irq_gpio5(7),
             -- M19: the CLINT slots (83/84) fall through to irq_tielow — every
             -- hart gets its own msip/mtip on dedicated wires; the source
             -- vector feeds ONLY the irq_router (meip claim/complete delivery)
@@ -2596,7 +2659,14 @@ begin
     -- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router
     shslv_pg0_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else '0';
     shslv_clint_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "01" else '0';
-    shslv_mtx_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" else '0';
+    -- Mission B: page-2 (MUTEX/0x6000) carved into 256 B sub-slots on
+    -- sh_addr(9:6). Mutex bank = sub-slot 0 (0x6000-0x60FF); I3C0 sub-slot 1
+    -- (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5
+    -- sub-slot 4 (0x6400). Tightening the mutex decode retires the aliased
+    -- CLAIM side effect (all 16 mutexes live below 0x6040 = behaviorally safe).
+    shslv_mtx_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0000" else '0';
+    shslv_gpio4_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0011" else '0';
+    shslv_gpio5_sel  <= shslv_perwin_sel when sh_addr(11 downto 10) = "10" and sh_addr(9 downto 6) = "0100" else '0';
     -- CQ2a: page-3 sub-decode — irq_router keeps 0x7000-0x7BFF; the shared
     -- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10
     -- decode is inert above word 522, so this removes only never-used aliased space).
@@ -2640,6 +2710,8 @@ begin
     shslv_mtx_en     <= sh_en and shslv_mtx_sel;
     shslv_irtr_en    <= sh_en and shslv_irtr_sel;
     shslv_pwr_en     <= sh_en and shslv_pwr_sel;
+    shslv_gpio4_en   <= sh_en and shslv_gpio4_sel;
+    shslv_gpio5_en   <= sh_en and shslv_gpio5_sel;
     shslv_gpio0_en   <= sh_en and shslv_gpio0_sel;
     shslv_gpio1_en   <= sh_en and shslv_gpio1_sel;
     shslv_spi0_en    <= sh_en and shslv_spi0_sel;
@@ -2673,6 +2745,8 @@ begin
             shslv_rd_mtx     <= '0';
             shslv_rd_irtr    <= '0';
             shslv_rd_pwr     <= '0';
+            shslv_rd_gpio4   <= '0';
+            shslv_rd_gpio5   <= '0';
             shslv_rd_gpio0   <= '0';
             shslv_rd_gpio1   <= '0';
             shslv_rd_spi0    <= '0';
@@ -2704,6 +2778,8 @@ begin
                 shslv_rd_mtx     <= shslv_mtx_sel;
                 shslv_rd_irtr    <= shslv_irtr_sel;
                 shslv_rd_pwr     <= shslv_pwr_sel;
+                shslv_rd_gpio4   <= shslv_gpio4_sel;
+                shslv_rd_gpio5   <= shslv_gpio5_sel;
                 shslv_rd_gpio0   <= shslv_gpio0_sel;
                 shslv_rd_gpio1   <= shslv_gpio1_sel;
                 shslv_rd_spi0    <= shslv_spi0_sel;
@@ -2762,6 +2838,8 @@ begin
                     mtx_rdata      when shslv_rd_mtx     = '1' else
                     irtr_rdata     when shslv_rd_irtr    = '1' else
                     pwr_rdata      when shslv_rd_pwr     = '1' else
+                    gpio4_sh_rdata when shslv_rd_gpio4   = '1' else
+                    gpio5_sh_rdata when shslv_rd_gpio5   = '1' else
                     gpio0_sh_rdata when shslv_rd_gpio0   = '1' else
                     gpio1_sh_rdata when shslv_rd_gpio1   = '1' else
                     spi0_sh_rdata  when shslv_rd_spi0    = '1' else
@@ -3486,6 +3564,114 @@ begin
             alt_func_ren_in	=>	afunc4_all_ren
     );
 
+
+    -- =========================================================================
+    -- GPIO4 (Mission B): general-purpose I/O port 5, MUTEX-page sub-slot 3 @0x6300.
+    -- Registered read; own active-low one-cycle en shim. AF0 = plain GPIO; AF1 =
+    -- QSPI0/I3C0 pin functions (Hi-Z when absent). Per-pin IRQs -> vectors 98-105.
+    -- =========================================================================
+    gpio4_sh_en_n <= not shslv_gpio4_en;
+    -- AF0 plane = plain-GPIO passthrough (AF0 == GPIO for every pin)
+    afunc5_out <= p5_out;
+    afunc5_dir <= p5_dir;
+    afunc5_ren <= p5_ren;
+    -- AF1 plane unused in this configuration (QSPI0/I3C0 absent): Hi-Z.
+    afunc5_af1_out <= afunc_none;
+    afunc5_af1_dir <= afunc_none;
+    afunc5_af1_ren <= afunc_none;
+    -- Flatten the 8 AF planes (AF7..AF2 unused = afunc_none, then AF1, AF0)
+    afunc5_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc5_af1_out & afunc5_out;
+    afunc5_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc5_af1_dir & afunc5_dir;
+    afunc5_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc5_af1_ren & afunc5_ren;
+    gpio4: GPIO
+        generic map (
+            num_pins        => 8,
+            PadOUTPosLogic  => true,
+            PadDIRPosLogic  => false,
+            PadRENPosLogic  => false,
+            RstValPxOUT     => RstValP5OUT,
+            RstValPxDIR     => RstValP5DIR,
+            RstValPxSEL     => RstValP5SEL,
+            RstValPxREN     => RstValP5REN,
+            RstValPxAFS     => RstValP5AFS
+        )
+        port map (
+            resetn          => resetn,
+            irq             => irq_gpio4,
+            clk_mem         => mclk,
+            en              => gpio4_sh_en_n,
+            wen             => sh_wen_n,
+            write_data      => sh_wdata,
+            read_data       => gpio4_sh_rdata,
+            addr_periph     => sh_addr(5 downto 0),
+            prt_in          => prt5_in,
+            prt_out_out     => prt5_out,
+            prt_dir_out     => prt5_dir,
+            prt_ren_out     => prt5_ren,
+            PxOUT_out       => p5_out,
+            PxDIR_out       => p5_dir,
+            PxREN_out       => p5_ren,
+            PxSEL_out       => open,
+            PxAFS_out       => p5_afs,
+            alt_func_out_in => afunc5_all_out,
+            alt_func_dir_in => afunc5_all_dir,
+            alt_func_ren_in => afunc5_all_ren
+    );
+
+
+    -- =========================================================================
+    -- GPIO5 (Mission B): general-purpose I/O port 6, MUTEX-page sub-slot 4 @0x6400.
+    -- Registered read; own active-low one-cycle en shim. AF0 = plain GPIO; AF1 =
+    -- NFC0 digital-AFE pins (Hi-Z when absent). Per-pin IRQs -> vectors 106-113.
+    -- =========================================================================
+    gpio5_sh_en_n <= not shslv_gpio5_en;
+    -- AF0 plane = plain-GPIO passthrough (AF0 == GPIO for every pin)
+    afunc6_out <= p6_out;
+    afunc6_dir <= p6_dir;
+    afunc6_ren <= p6_ren;
+    -- AF1 plane unused in this configuration (NFC0 absent): Hi-Z.
+    afunc6_af1_out <= afunc_none;
+    afunc6_af1_dir <= afunc_none;
+    afunc6_af1_ren <= afunc_none;
+    -- Flatten the 8 AF planes (AF7..AF2 unused = afunc_none, then AF1, AF0)
+    afunc6_all_out <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc6_af1_out & afunc6_out;
+    afunc6_all_dir <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc6_af1_dir & afunc6_dir;
+    afunc6_all_ren <= afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc_none & afunc6_af1_ren & afunc6_ren;
+    gpio5: GPIO
+        generic map (
+            num_pins        => 8,
+            PadOUTPosLogic  => true,
+            PadDIRPosLogic  => false,
+            PadRENPosLogic  => false,
+            RstValPxOUT     => RstValP6OUT,
+            RstValPxDIR     => RstValP6DIR,
+            RstValPxSEL     => RstValP6SEL,
+            RstValPxREN     => RstValP6REN,
+            RstValPxAFS     => RstValP6AFS
+        )
+        port map (
+            resetn          => resetn,
+            irq             => irq_gpio5,
+            clk_mem         => mclk,
+            en              => gpio5_sh_en_n,
+            wen             => sh_wen_n,
+            write_data      => sh_wdata,
+            read_data       => gpio5_sh_rdata,
+            addr_periph     => sh_addr(5 downto 0),
+            prt_in          => prt6_in,
+            prt_out_out     => prt6_out,
+            prt_dir_out     => prt6_dir,
+            prt_ren_out     => prt6_ren,
+            PxOUT_out       => p6_out,
+            PxDIR_out       => p6_dir,
+            PxREN_out       => p6_ren,
+            PxSEL_out       => open,
+            PxAFS_out       => p6_afs,
+            alt_func_out_in => afunc6_all_out,
+            alt_func_dir_in => afunc6_all_dir,
+            alt_func_ren_in => afunc6_all_ren
+    );
+
     spi0: SPI
         generic map (
             ENABLE_EXTENDED_MEM => true
@@ -3977,6 +4163,12 @@ begin
         (
             IrqGlitchy		=> irq_comb(95 downto 64),
             IrqDeglitched	=> gf_out(95 downto 64)
+	);
+    irq_gf3 : entity work.GlitchFilter
+        port map
+        (
+            IrqGlitchy		=> irq_comb(127 downto 96),
+            IrqDeglitched	=> gf_out(127 downto 96)
 	);
     irq_deglitch <= gf_out(NUM_IRQ_SRCS-1 downto 0);
 

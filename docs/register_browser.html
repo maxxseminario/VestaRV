@@ -531,10 +531,10 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 	"NativeSpiFlashMemoryReadAccess": true,
 	"NativeSpiFlashMemoryWriteAccess": false,
 	"VectorsStartAddress": 32768,
-	"VectorsSize": 340,
-	"VectorsCount": 85,
-	"VectorsEndAddress": 33107,
-	"RamProgramStartAddress": 33108,
+	"VectorsSize": 456,
+	"VectorsCount": 114,
+	"VectorsEndAddress": 33223,
+	"RamProgramStartAddress": 33224,
 	"ProgramCounterInit": 0,
 	"StackPointerInit": 49152,
 	"BootloaderUsesSpiFlashCommands": true,
@@ -9901,6 +9901,832 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									"MTXOWN15_H3"
 								]
 							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"PeripheralName": "GPIO4",
+			"PeripheralTemplateName": "GPIOx",
+			"BaseAddress": 25344,
+			"PeripheralMemorySlot": null,
+			"isGPIO": true,
+			"InterruptPriority": 98,
+			"Description": "General Purpose Input Output",
+			"Registers": [
+				{
+					"RegisterName": "P4IN",
+					"Address": 25344,
+					"Offset": 0,
+					"RegisterMemorySlot": 0,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO read pin register. Each bit corresponds to the input logic state of the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates a logic low pin state; reading a 1 indicates a logic high state. This register always reflects the pin state regardless of pin direction or peripheral select settings.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4IN",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4OUT",
+					"Address": 25348,
+					"Offset": 4,
+					"RegisterMemorySlot": 1,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO output drive register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is set to GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to make the corresponding pin output a logic low value; write a 1 to output a logic high value.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4OUT",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4OUTS",
+					"Address": 25352,
+					"Offset": 8,
+					"RegisterMemorySlot": 2,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO output drive set register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to set the corresponding pin (make the pin output a logic high value). Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4OUTS",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4OUTC",
+					"Address": 25356,
+					"Offset": 12,
+					"RegisterMemorySlot": 3,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO output drive clear register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to clear the corresponding pin (make the pin output a logic low value). Writing a 0 has no effect. Reading this register yields the inversion of the output drive register PxOUT.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4OUTC",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4OUTT",
+					"Address": 25360,
+					"Offset": 16,
+					"RegisterMemorySlot": 4,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4OUTT",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4DIR",
+					"Address": 25364,
+					"Offset": 20,
+					"RegisterMemorySlot": 5,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO pin direction register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to set the corresponding pin to input mode; write a 1 to set to output mode.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4DIR",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4IF",
+					"Address": 25368,
+					"Offset": 24,
+					"RegisterMemorySlot": 6,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4IF",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4IES",
+					"Address": 25372,
+					"Offset": 28,
+					"RegisterMemorySlot": 7,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO interrupt edge select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin interrupt to trigger on low-to-high (rising) edge; write a 1 to set to high-to-low (falling) edge triggering.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4IES",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4IE",
+					"Address": 25376,
+					"Offset": 32,
+					"RegisterMemorySlot": 8,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO interrupt enable register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to disable the pin interrupt; write a 1 to enable the pin interrupt. Each pin has an individual interrupt output that connects to the system interrupt vector table. Interrupts function in both GPIO (primary) and secondary function (peripheral) modes.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4IE",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4SEL",
+					"Address": 25380,
+					"Offset": 36,
+					"RegisterMemorySlot": 9,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin's field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4SEL",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4REN",
+					"Address": 25384,
+					"Offset": 40,
+					"RegisterMemorySlot": 10,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4REN",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P4AFS",
+					"Address": 25388,
+					"Offset": 44,
+					"RegisterMemorySlot": 11,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO alternate function select register. One 4-bit field per pin (pin y occupies bits 4y+3 downto 4y; only the low 3 bits of each field are implemented, the top bit is reserved and reads 0). When a pin is in alternate function (peripheral) mode (PxSEL bit = 1), the value of its PxAFS field selects WHICH alternate function (AF0-AF7) controls the pin. Each pin's available alternate functions are listed in the pin configuration table in Section \\ref{s:pinsConfig}. The register resets to 0, so every pin comes out of reset selecting its AF0 (legacy) function. Selecting an AF plane with no function defined for the pin configures the pin as a high-impedance input. While a pin is in GPIO (primary) mode its PxAFS field has no effect on the pad, but it still routes relocatable peripheral INPUTS: a peripheral input function relocated to this pin (e.g. a UART receiver or timer capture) observes the pin whenever the PxAFS field selects it, regardless of PxSEL.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 31,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS7",
+							"MSB": 30,
+							"LSB": 28,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 7 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 27,
+							"LSB": 27,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS6",
+							"MSB": 26,
+							"LSB": 24,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 6 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 23,
+							"LSB": 23,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS5",
+							"MSB": 22,
+							"LSB": 20,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 5 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 19,
+							"LSB": 19,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS4",
+							"MSB": 18,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 4 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 15,
+							"LSB": 15,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS3",
+							"MSB": 14,
+							"LSB": 12,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 3 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 11,
+							"LSB": 11,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS2",
+							"MSB": 10,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 2 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 7,
+							"LSB": 7,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS1",
+							"MSB": 6,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 1 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 3,
+							"LSB": 3,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS0",
+							"MSB": 2,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"PeripheralName": "GPIO5",
+			"PeripheralTemplateName": "GPIOx",
+			"BaseAddress": 25600,
+			"PeripheralMemorySlot": null,
+			"isGPIO": true,
+			"InterruptPriority": 106,
+			"Description": "General Purpose Input Output",
+			"Registers": [
+				{
+					"RegisterName": "P5IN",
+					"Address": 25600,
+					"Offset": 0,
+					"RegisterMemorySlot": 0,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO read pin register. Each bit corresponds to the input logic state of the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates a logic low pin state; reading a 1 indicates a logic high state. This register always reflects the pin state regardless of pin direction or peripheral select settings.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5IN",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5OUT",
+					"Address": 25604,
+					"Offset": 4,
+					"RegisterMemorySlot": 1,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO output drive register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is set to GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to make the corresponding pin output a logic low value; write a 1 to output a logic high value.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5OUT",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5OUTS",
+					"Address": 25608,
+					"Offset": 8,
+					"RegisterMemorySlot": 2,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO output drive set register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to set the corresponding pin (make the pin output a logic high value). Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5OUTS",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5OUTC",
+					"Address": 25612,
+					"Offset": 12,
+					"RegisterMemorySlot": 3,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO output drive clear register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to clear the corresponding pin (make the pin output a logic low value). Writing a 0 has no effect. Reading this register yields the inversion of the output drive register PxOUT.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5OUTC",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5OUTT",
+					"Address": 25616,
+					"Offset": 16,
+					"RegisterMemorySlot": 4,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO output drive toggle register. Each bit corresponds to the output logic state of the GPIO pin of the same number. Only has an effect if the pin is configured as an output in PxDIR and is in GPIO (primary) mode in PxSEL. Write a 1 to the desired bit to toggle the corresponding pin state. Writing a 0 has no effect. Reading this register is equivalent to reading the output drive register PxOUT.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5OUTT",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5DIR",
+					"Address": 25620,
+					"Offset": 20,
+					"RegisterMemorySlot": 5,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO pin direction register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to set the corresponding pin to input mode; write a 1 to set to output mode.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5DIR",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5IF",
+					"Address": 25624,
+					"Offset": 24,
+					"RegisterMemorySlot": 6,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO interrupt flag register. Each bit corresponds to the GPIO pin of the same number. The register is latched on the falling edge of the memory enable signal. Reading a 0 in a bit indicates there is no pending interrupt for the corresponding pin; reading a 1 indicates there is a new interrupt pending for the corresponding pin. Write a 1 to each bit for which you wish to clear the interrupt flag. Writing 0 has no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5IF",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5IES",
+					"Address": 25628,
+					"Offset": 28,
+					"RegisterMemorySlot": 7,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO interrupt edge select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin interrupt to trigger on low-to-high (rising) edge; write a 1 to set to high-to-low (falling) edge triggering.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5IES",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5IE",
+					"Address": 25632,
+					"Offset": 32,
+					"RegisterMemorySlot": 8,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO interrupt enable register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to disable the pin interrupt; write a 1 to enable the pin interrupt. Each pin has an individual interrupt output that connects to the system interrupt vector table. Interrupts function in both GPIO (primary) and secondary function (peripheral) modes.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5IE",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5SEL",
+					"Address": 25636,
+					"Offset": 36,
+					"RegisterMemorySlot": 9,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO peripheral select register. Each bit corresponds to the GPIO pin of the same number. Write a 0 to the desired bit to set the corresponding pin to GPIO (primary) mode; write a 1 to set the pin to alternate function (peripheral) mode. When a pin is in alternate function (peripheral) mode, the governing peripheral takes control of the pin output, direction, and resistor enable states, and the PxOUT, PxDIR, and PxREN registers have no effect on the pin. WHICH alternate function governs the pin is selected by the pin's field in the PxAFS register: at reset all PxAFS fields are 0, selecting alternate function 0 (AF0). Pin interrupts remain available when in alternate function (peripheral) mode in addition to any interrupts the governing peripheral may generate. If a pin has no alternate function defined at the selected PxAFS plane, setting PxSEL to 1 will configure the pin as a high-impedance input.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5SEL",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5REN",
+					"Address": 25640,
+					"Offset": 40,
+					"RegisterMemorySlot": 10,
+					"Size": 8,
+					"ResetValue": 0,
+					"Description": "GPIO resistor enable register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin pullup/pulldown resistor; write a 1 to enable the pin pullup/pulldown resistor.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5REN",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5AFS",
+					"Address": 25644,
+					"Offset": 44,
+					"RegisterMemorySlot": 11,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO alternate function select register. One 4-bit field per pin (pin y occupies bits 4y+3 downto 4y; only the low 3 bits of each field are implemented, the top bit is reserved and reads 0). When a pin is in alternate function (peripheral) mode (PxSEL bit = 1), the value of its PxAFS field selects WHICH alternate function (AF0-AF7) controls the pin. Each pin's available alternate functions are listed in the pin configuration table in Section \\ref{s:pinsConfig}. The register resets to 0, so every pin comes out of reset selecting its AF0 (legacy) function. Selecting an AF plane with no function defined for the pin configures the pin as a high-impedance input. While a pin is in GPIO (primary) mode its PxAFS field has no effect on the pad, but it still routes relocatable peripheral INPUTS: a peripheral input function relocated to this pin (e.g. a UART receiver or timer capture) observes the pin whenever the PxAFS field selects it, regardless of PxSEL.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 31,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS7",
+							"MSB": 30,
+							"LSB": 28,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 7 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 27,
+							"LSB": 27,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS6",
+							"MSB": 26,
+							"LSB": 24,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 6 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 23,
+							"LSB": 23,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS5",
+							"MSB": 22,
+							"LSB": 20,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 5 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 19,
+							"LSB": 19,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS4",
+							"MSB": 18,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 4 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 15,
+							"LSB": 15,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS3",
+							"MSB": 14,
+							"LSB": 12,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 3 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 11,
+							"LSB": 11,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS2",
+							"MSB": 10,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 2 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 7,
+							"LSB": 7,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS1",
+							"MSB": 6,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 1 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "Unused",
+							"MSB": 3,
+							"LSB": 3,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PxAFS0",
+							"MSB": 2,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
 						}
 					]
 				}

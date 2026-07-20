@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/13 at 22:33:38 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/19 at 13:21:10 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -347,6 +347,10 @@ package MemoryMap is
 	constant PinNumGPIO3DTP2		: natural := 06;	-- P3.6
 	constant PinNumGPIO3DTP3		: natural := 07;	-- P3.7
 
+	-- GPIO4
+
+	-- GPIO5
+
 
 
 	---------- GPIO Register Reset Values ----------
@@ -378,6 +382,20 @@ package MemoryMap is
 	constant RstValP4SEL	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4REN	: std_logic_vector(31 downto 0) := X"00000000";
 	constant RstValP4AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (legacy alternate function) at reset
+
+	-- GPIO4
+	constant RstValP5OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
+	constant RstValP5DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
+	constant RstValP5SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
+	constant RstValP5REN	: std_logic_vector(31 downto 0) := X"00000000";	-- P5.6/7 (I3C SDA/SCL) pull-ups enabled when I3C present, else none
+	constant RstValP5AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins select AF0 (plain GPIO) at reset
+
+	-- GPIO5
+	constant RstValP6OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
+	constant RstValP6DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
+	constant RstValP6SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
+	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"00000000";	-- disable rens
+	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
 
 
 
@@ -1530,9 +1548,38 @@ package MemoryMap is
 	constant IRQB_I2C1_sxc			: natural := 82;						-- I2C1 slave mode transfer complete Interrupt, IVT address = 0x8148
 	constant IRQB_CLINT_MSIP		: natural := 83;						-- CLINT software interrupt (IPI), IVT address = 0x814C
 	constant IRQB_CLINT_MTIP		: natural := 84;						-- CLINT timer interrupt, IVT address = 0x8150
+	constant IRQB_RSVD85			: natural := 85;						-- Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source), IVT address = 0x8154
+	constant IRQB_RSVD86			: natural := 86;						-- Reserved (vector 86; I3C0 disabled by this configuration), IVT address = 0x8158
+	constant IRQB_RSVD87			: natural := 87;						-- Reserved (vector 87; I3C0 disabled by this configuration), IVT address = 0x815C
+	constant IRQB_RSVD88			: natural := 88;						-- Reserved (vector 88; I3C0 disabled by this configuration), IVT address = 0x8160
+	constant IRQB_RSVD89			: natural := 89;						-- Reserved (vector 89; I3C0 disabled by this configuration), IVT address = 0x8164
+	constant IRQB_RSVD90			: natural := 90;						-- Reserved (vector 90; I3C0 disabled by this configuration), IVT address = 0x8168
+	constant IRQB_RSVD91			: natural := 91;						-- Reserved (vector 91; I3C0 disabled by this configuration), IVT address = 0x816C
+	constant IRQB_RSVD92			: natural := 92;						-- Reserved (vector 92; I3C0 disabled by this configuration), IVT address = 0x8170
+	constant IRQB_RSVD93			: natural := 93;						-- Reserved (vector 93; I3C0 disabled by this configuration), IVT address = 0x8174
+	constant IRQB_RSVD94			: natural := 94;						-- Reserved (vector 94; NFC0 disabled by this configuration), IVT address = 0x8178
+	constant IRQB_RSVD95			: natural := 95;						-- Reserved (vector 95; NFC0 disabled by this configuration), IVT address = 0x817C
+	constant IRQB_RSVD96			: natural := 96;						-- Reserved (vector 96; NFC0 disabled by this configuration), IVT address = 0x8180
+	constant IRQB_RSVD97			: natural := 97;						-- Reserved (vector 97; NFC0 disabled by this configuration), IVT address = 0x8184
+	constant IRQB_GPIO4_B0			: natural := 98;						-- GPIO4 Bit 0 Interrupt, IVT address = 0x8188
+	constant IRQB_GPIO4_B1			: natural := 99;						-- GPIO4 Bit 1 Interrupt, IVT address = 0x818C
+	constant IRQB_GPIO4_B2			: natural := 100;						-- GPIO4 Bit 2 Interrupt, IVT address = 0x8190
+	constant IRQB_GPIO4_B3			: natural := 101;						-- GPIO4 Bit 3 Interrupt, IVT address = 0x8194
+	constant IRQB_GPIO4_B4			: natural := 102;						-- GPIO4 Bit 4 Interrupt, IVT address = 0x8198
+	constant IRQB_GPIO4_B5			: natural := 103;						-- GPIO4 Bit 5 Interrupt, IVT address = 0x819C
+	constant IRQB_GPIO4_B6			: natural := 104;						-- GPIO4 Bit 6 Interrupt, IVT address = 0x81A0
+	constant IRQB_GPIO4_B7			: natural := 105;						-- GPIO4 Bit 7 Interrupt, IVT address = 0x81A4
+	constant IRQB_GPIO5_B0			: natural := 106;						-- GPIO5 Bit 0 Interrupt, IVT address = 0x81A8
+	constant IRQB_GPIO5_B1			: natural := 107;						-- GPIO5 Bit 1 Interrupt, IVT address = 0x81AC
+	constant IRQB_GPIO5_B2			: natural := 108;						-- GPIO5 Bit 2 Interrupt, IVT address = 0x81B0
+	constant IRQB_GPIO5_B3			: natural := 109;						-- GPIO5 Bit 3 Interrupt, IVT address = 0x81B4
+	constant IRQB_GPIO5_B4			: natural := 110;						-- GPIO5 Bit 4 Interrupt, IVT address = 0x81B8
+	constant IRQB_GPIO5_B5			: natural := 111;						-- GPIO5 Bit 5 Interrupt, IVT address = 0x81BC
+	constant IRQB_GPIO5_B6			: natural := 112;						-- GPIO5 Bit 6 Interrupt, IVT address = 0x81C0
+	constant IRQB_GPIO5_B7			: natural := 113;						-- GPIO5 Bit 7 Interrupt, IVT address = 0x81C4
 	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
-	constant NUM_IRQ_SRCS			: natural := 85;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
-	constant NUM_IRQS				: natural := 86;						-- Core IVT slot count = sources + the meip slot (M19)
+	constant NUM_IRQ_SRCS			: natural := 114;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
+	constant NUM_IRQS				: natural := 114;						-- Core IVT slot count = max(sources, meip slot + 1) (M19; digperiphs #2)
 	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
 	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)
@@ -1541,6 +1588,22 @@ package MemoryMap is
 	constant CORE_ENABLE_ATOMICS	: boolean := true;						-- A: LR/SC + AMOs (disabling breaks the mutex/lock infrastructure)
 	constant CORE_ENABLE_COMPRESSED	: boolean := true;						-- C: 16-bit instructions
 	constant CORE_ENABLE_BITMANIP	: boolean := true;						-- Zba/Zbb/Zbs/Zbc
+	constant CORE_ENABLE_ZICOND		: boolean := false;						-- X1: Zicond czero.eqz/nez
+	constant CORE_ENABLE_ZCB		: boolean := false;						-- X1: Zcb extra compressed insns
+	constant CORE_ENABLE_ZIMOP		: boolean := false;						-- X1: Zimop+Zcmop may-be-ops
+	constant CORE_ENABLE_ZIHINT		: boolean := false;						-- X1: Zihintpause+Zihintntl
+	constant CORE_ENABLE_ZIHPM		: boolean := false;						-- X1: Zihpm hw perf counters
+	constant CORE_ENABLE_ZAWRS		: boolean := false;						-- X1: Zawrs wait-on-reservation
+	constant CORE_ENABLE_ZABHA		: boolean := false;						-- X2: Zabha byte/half AMOs
+	constant CORE_ENABLE_ZACAS		: boolean := false;						-- X2: Zacas amocas.w
+	constant CORE_ENABLE_ZICBOZ		: boolean := false;						-- X3: Zicboz cbo.zero block-zero
+	constant CORE_ENABLE_ZCMP		: boolean := false;						-- X3: Zcmp push/pop + reg-moves
+	constant CORE_ENABLE_ZCMT		: boolean := false;						-- X3: Zcmt table jump + jvt CSR
+	constant CORE_ENABLE_ZBKB		: boolean := false;						-- X3: Zbkb crypto bit-manip
+	constant CORE_ENABLE_ZBKC		: boolean := false;						-- X3: Zbkc carryless multiply
+	constant CORE_ENABLE_ZBKX		: boolean := false;						-- X3: Zbkx crossbar permute
+	constant CORE_ENABLE_ZKN		: boolean := false;						-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
+	constant CORE_ENABLE_ZFINX		: boolean := false;						-- X4: Zfinx single-prec FP in x-regs
 
 	-- GPIO0 Pin Assignments (Serial Flash)
 	constant pnum_gpio0_cs_flash	: natural := 00;						-- P1.0
@@ -1611,6 +1674,10 @@ package MemoryMap is
 	constant pnum_gpio3_af1_t0_cmp1	: natural := 05;						-- P4.5
 	constant pnum_gpio3_af1_t1_cmp0	: natural := 06;						-- P4.6
 	constant pnum_gpio3_af1_t1_cmp1	: natural := 07;						-- P4.7
+
+	-- GPIO4 (P5) AF1: P5.0-5 reserved (QSPI0 absent) + P5.6/7 reserved (I3C0 absent)
+
+	-- GPIO5 (P6) AF1: P6.0-5 reserved (NFC0 absent)
 
 
 

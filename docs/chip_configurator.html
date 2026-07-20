@@ -2634,7 +2634,7 @@ const VESTA_DATA = {
       "sharedRamBanks": 4,
       "flashBaseAddress": "0x20000",
       "sharedRamEndAddress": "0x1FFFF",
-      "vectorsCount": 85,
+      "vectorsCount": 114,
       "clintMsipVector": 83,
       "clintMtipVector": 84,
       "clintLayout": {
@@ -2651,7 +2651,7 @@ const VESTA_DATA = {
       "sharedRamBanks": 8,
       "flashBaseAddress": "0x40000",
       "sharedRamEndAddress": "0x2FFFF",
-      "vectorsCount": 85,
+      "vectorsCount": 114,
       "clintMsipVector": 83,
       "clintMtipVector": 84,
       "clintLayout": {
@@ -2668,7 +2668,7 @@ const VESTA_DATA = {
       "sharedRamBanks": 4,
       "flashBaseAddress": "0x20000",
       "sharedRamEndAddress": "0x1FFFF",
-      "vectorsCount": 85,
+      "vectorsCount": 114,
       "clintMsipVector": 83,
       "clintMtipVector": 84,
       "clintLayout": {
@@ -2896,7 +2896,7 @@ function derived(){
     sharedEnd: 0x10000 + cfg.sharedRamSize - 1,
     gap: (gapStart < flashBase) ? [gapStart, flashBase - 1] : null,
     mtime: mtime, mtimecmp: mtime + 0x10,
-    vectors: 85, msipVec: 83, mtipVec: 84,
+    vectors: 114, msipVec: 83, mtipVec: 84,
     loaderBase: 0x10500, spInit: 0xC000,
   };
 }

@@ -223,7 +223,7 @@ DERIVED_FRAGMENTS = [
     'mtime + 0x10',
     'loaderBase: 0x10500',
     'spInit: 0xC000',
-    'vectors: 85, msipVec: 83, mtipVec: 84',
+    'vectors: 114, msipVec: 83, mtipVec: 84',
 ]
 
 

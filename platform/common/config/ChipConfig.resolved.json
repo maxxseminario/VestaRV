@@ -58,7 +58,7 @@
     "sharedRamBanks": 4,
     "flashBaseAddress": "0x20000",
     "sharedRamEndAddress": "0x1FFFF",
-    "vectorsCount": 85,
+    "vectorsCount": 114,
     "meipVector": 85,
     "clintMsipVector": 83,
     "clintMtipVector": 84,
@@ -69,6 +69,6 @@
     },
     "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
     "stackPointerInit": "0xC000",
-    "peripheralCount": 18
+    "peripheralCount": 20
   }
 }

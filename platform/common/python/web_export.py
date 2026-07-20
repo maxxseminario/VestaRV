@@ -127,7 +127,7 @@ def _derived(cfg):
 		'sharedRamBanks': banks,
 		'flashBaseAddress': _hx(flash),
 		'sharedRamEndAddress': _hx(0x10000 + sharedRam - 1),
-		'vectorsCount': 85,
+		'vectorsCount': 114,	# digperiphs Mission B: GPIO4/5 unconditional -> fixed 114 (was 85)
 		'clintMsipVector': 83,
 		'clintMtipVector': 84,
 		'clintLayout': {
@@ -245,7 +245,8 @@ def buildWebData(gen):
 		'memory': resolved['memory'],
 	})
 	for k in ('sharedWindowAddrWidth', 'sharedRamBanks', 'flashBaseAddress',
-			'sharedRamEndAddress', 'isaString'):
+			'sharedRamEndAddress', 'isaString', 'vectorsCount',
+			'clintMsipVector', 'clintMtipVector'):
 		if k in authoritative and mine[k] != authoritative[k]:
 			raise Exception('web_export._derived() disagrees with generate.py on "%s": %r vs %r'
 				% (k, mine[k], authoritative[k]))
