@@ -411,6 +411,7 @@ architecture behav of MCU is
         signal shslv_uart0_en   : std_logic;
         signal shslv_rd_uart0   : std_logic := '0'; -- registered: last access was UART0
         signal uart0_sh_en_n    : std_logic;   -- UART bus is active-LOW en/wen
+        signal shslv_uart0_en_q : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)
         signal sh_wen_n   : std_logic_vector(3 downto 0);
         signal uart0_sh_rdata   : std_logic_vector(31 downto 0);
         -- M7a: irq_router, the tile IRQ fan-out (M11: window page 3 @0x7000)
@@ -462,6 +463,7 @@ architecture behav of MCU is
         signal sys_sh_en_n      : std_logic;
         signal gpio0_sh_en_n    : std_logic;
         signal spi0_sh_en_n     : std_logic;
+        signal shslv_spi0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)
         signal sys_sh_rdata     : std_logic_vector(31 downto 0);
         signal gpio0_sh_rdata   : std_logic_vector(31 downto 0);
         signal spi0_sh_rdata    : std_logic_vector(31 downto 0);
