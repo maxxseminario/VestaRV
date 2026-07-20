@@ -38,6 +38,7 @@ GENUS_BLOCKS = {
     "hart_tile":       ("Castalia", "hart_tile (RISC-V corner tile)"),
     "MCU_MP":          ("Castalia", "MCU assembly — flat synth"),
     "MCU_MP_hier":     ("Castalia", "MCU assembly — hierarchical"),
+    "MCU_WOUND":       ("Castalia", "MCU (wound config) — flat synth, chip-level QSPI/I3C/NFC"),
     "hart_tile_argus": ("Argus", "hart_tile_argus (Argus tile)"),
     "MCU_ARGUS_hier":  ("Argus", "MCU_ARGUS assembly — hierarchical"),
     "QSPI":            ("Peripherals", "QSPI (quad-SPI controller)"),

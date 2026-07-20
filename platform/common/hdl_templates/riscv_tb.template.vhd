@@ -55,6 +55,16 @@ architecture behavioral of riscv_tb is
             prt4_dir		: out	std_logic_vector(7 downto 0);
             prt4_ren		: out	std_logic_vector(7 downto 0);
 
+            prt5_in		    : in	std_logic_vector(7 downto 0);
+            prt5_out		: out	std_logic_vector(7 downto 0);
+            prt5_dir		: out	std_logic_vector(7 downto 0);
+            prt5_ren		: out	std_logic_vector(7 downto 0);
+
+            prt6_in		    : in	std_logic_vector(7 downto 0);
+            prt6_out		: out	std_logic_vector(7 downto 0);
+            prt6_dir		: out	std_logic_vector(7 downto 0);
+            prt6_ren		: out	std_logic_vector(7 downto 0);
+
 
             -- Test Port
             a0  : out std_logic_vector(31 downto 0);
@@ -163,6 +173,14 @@ end component;
     signal prt4_out : std_logic_vector(7 downto 0);
     signal prt4_dir : std_logic_vector(7 downto 0);
     signal prt4_ren : std_logic_vector(7 downto 0);
+    signal prt5_in : std_logic_vector(7 downto 0);
+    signal prt5_out : std_logic_vector(7 downto 0);
+    signal prt5_dir : std_logic_vector(7 downto 0);
+    signal prt5_ren : std_logic_vector(7 downto 0);
+    signal prt6_in : std_logic_vector(7 downto 0);
+    signal prt6_out : std_logic_vector(7 downto 0);
+    signal prt6_dir : std_logic_vector(7 downto 0);
+    signal prt6_ren : std_logic_vector(7 downto 0);
 
     signal resetn_out : std_logic;
     signal resetn_dir : std_logic;
@@ -234,6 +252,16 @@ end component;
         prt4_dir	=> prt4_dir,
         prt4_ren	=> prt4_ren,
 
+        prt5_in		=> prt5_in,
+        prt5_out	=> prt5_out,
+        prt5_dir	=> prt5_dir,
+        prt5_ren	=> prt5_ren,
+
+        prt6_in		=> prt6_in,
+        prt6_out	=> prt6_out,
+        prt6_dir	=> prt6_dir,
+        prt6_ren	=> prt6_ren,
+
 
 
         -- Test Port
@@ -241,6 +269,11 @@ end component;
 
         --@GEN:tb-a0-portmap@
     );
+
+    -- Mission B: GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench;
+    -- drive their inputs idle-low (benign) — the outputs are left unobserved.
+    prt5_in <= (others => '0');
+    prt6_in <= (others => '0');
 
     cs_flash <= spi_cs when boot_done_flag = '0' or spifem_test = '1'
                 else '1';

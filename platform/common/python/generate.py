@@ -587,7 +587,7 @@ m = ChipGenerator(
 	nativeSpiFlashMemoryWriteAccess=False,
 	stackPointerInit=0xC000,	# Stack pointer at top of the private TCM
 	bootloaderUsesSpiFlashCommands=True,
-	vectorsCount=(98 if nfcPresent else (94 if i3cPresent else 85)),	# 83 legacy vectors + CLINT msip (83) + CLINT mtip (84); digperiphs: +9 with I3C (placeholder 85 + I3C 86-93), +4 more with NFC (94-97). meip slot stays 85 via m.MeipVector below
+	vectorsCount=114,	# digperiphs Mission B: GPIO4/5 are UNCONDITIONAL, so the source count is FIXED at 114 in every config. Layout: 0-84 legacy (incl CLINT msip 83 / mtip 84), 85 meip placeholder, 86-93 I3C (RSVD when off), 94-97 NFC (RSVD when off), 98-105 GPIO4, 106-113 GPIO5. meip slot stays 85 via m.MeipVector below
 	padOutPosLogic=True,
 	padDIRPosLogic=False,
 	padRENPosLogic=False,
@@ -1735,6 +1735,15 @@ if nfcPresent:
 	# and the vectors-94..97 interrupt-table entry. clockDomain='smclk' names the
 	# bus/CDC reference clock; the protocol core runs on the off-die rf_clk.
 	m.CreatePeripheral(nameTemplate='NFCx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=94, absoluteBaseAddress=0x6200, sharedBus='native', clockDomain='smclk', strobeNote='page-2 sub-slot 2; registered read, no side effects; smclk CDC + off-die rf_clk protocol core (SYS_CLK_CR=0 rule); digital AFE / RF interface is off-die (placeholder-tied)')	# NFC0 (digperiphs #3). sharedBus=native = "outside the page-0 shim fabric"; the mcu_vhd emitter hand-decodes the sub-slot + emits the registered-read shim inside its instance
+# digperiphs Mission B: GPIO4 (port 5) @0x6300 and GPIO5 (port 6) @0x6400 = MUTEX
+# page (page 2) SUB-SLOTS 3 and 4. UNCONDITIONAL (present in EVERY config, like
+# GPIO0-3). Same page-2 native shape as I3C0/NFC0 (sharedBus=native, outside the
+# page-0 shim fabric), but the instance is a full GPIO block with a registered-read
+# shim + AF muxing: mcu_vhd.py hand-decodes the sub-slot and emits the shim +
+# GPIO component + AF planes. Their pins carry the QSPI/I3C (P5) and NFC (P6) pin
+# functions on AF1 when those controllers are present, plain GPIO otherwise.
+GPIO4 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=4, peripheralMemorySlot=None, interruptPriority=98, absoluteBaseAddress=0x6300, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 3; registered read; AF1 = QSPI0 (P5.0-5) + I3C0 (P5.6/7) pin functions when present')	# GPIO4 (Mission B). native page-2 sub-slot 3; mcu_vhd hand-emits the shim + GPIO instance + AF planes
+GPIO5 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=5, peripheralMemorySlot=None, interruptPriority=106, absoluteBaseAddress=0x6400, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 4; registered read; AF1 = NFC0 digital-AFE pin functions (P6.0-5) when present')	# GPIO5 (Mission B). native page-2 sub-slot 4; mcu_vhd hand-emits the shim + GPIO instance + AF planes
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
 
 
@@ -2015,6 +2024,36 @@ GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1
 GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 6)) # necessary; AF1 gated with TIMER1 (G1b)
 GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 7)) # necessary; AF1 gated with TIMER1 (G1b)
 
+# GPIO4 (P5.0-P5.7) — digperiphs Mission B. Every pin's PRIMARY (AF0) is plain
+# general-purpose I/O (funcName=''); AF1 carries the QSPI0 (P5.0-5) and I3C0
+# (P5.6/7) pin functions ONLY when those controllers are present (Hi-Z otherwise).
+# Pad names continue the numeric GPIOxx sequence (GPIO32+) to avoid colliding with
+# GPIO0's bit-4/5 pad names (LFXT/HFXT). No package pins (unbonded — the pad-ring
+# consequence of +16 pads is deferred; a new package model is a later phase).
+GPIO4.ChangeGPIOPortSize(8)
+GPIO4.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO32', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 serial clock when QSPI present)', altFuncs=([(1, 'QSPI_SCK', 'o', 'QSPI0 serial clock (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO33', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 chip select when QSPI present)', altFuncs=([(1, 'QSPI_CS', 'o', 'QSPI0 chip select (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO34', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO0 when QSPI present)', altFuncs=([(1, 'QSPI_IO0', 'io', 'QSPI0 quad data 0 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO35', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO1 when QSPI present)', altFuncs=([(1, 'QSPI_IO1', 'io', 'QSPI0 quad data 1 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO36', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO2 when QSPI present)', altFuncs=([(1, 'QSPI_IO2', 'io', 'QSPI0 quad data 2 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO37', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO3 when QSPI present)', altFuncs=([(1, 'QSPI_IO3', 'io', 'QSPI0 quad data 3 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO38', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if i3cPresent else 0), description='General-purpose I/O (AF1 = I3C0 SDA, open-drain, when I3C present)', altFuncs=([(1, 'I3C_SDA', 'io', 'I3C0 serial data, open-drain (alt plane AF1)')] if i3cPresent else [])), packagePinNumber=None) # AF1 gated with I3C0; PxREN pull-up enabled at reset when I3C present
+GPIO4.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO39', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if i3cPresent else 0), description='General-purpose I/O (AF1 = I3C0 SCL, open-drain, when I3C present)', altFuncs=([(1, 'I3C_SCL', 'io', 'I3C0 serial clock, open-drain (alt plane AF1)')] if i3cPresent else [])), packagePinNumber=None) # AF1 gated with I3C0; PxREN pull-up enabled at reset when I3C present
+
+# GPIO5 (P6.0-P6.7) — digperiphs Mission B. AF1 carries the NFC0 off-die digital-AFE
+# interface (P6.0-5) when NFC is present; P6.6/7 are always spare plain GPIO. P6.0's
+# reset AFS selects AF1 (RstValP6AFS below) so the off-die rf_clk arrives without a
+# runtime mux switch (D5). Unbonded, like GPIO4.
+GPIO5.ChangeGPIOPortSize(8)
+GPIO5.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO40', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 off-die carrier clock input when NFC present)', altFuncs=([(1, 'NFC_RF_CLK', 'i', 'NFC0 off-die RF carrier clock (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0; reset AFS = AF1 (D5)
+GPIO5.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO41', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 RX envelope input when NFC present)', altFuncs=([(1, 'NFC_RF_RX', 'i', 'NFC0 off-die RX Miller envelope (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO42', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 field-detect input when NFC present)', altFuncs=([(1, 'NFC_FIELD_DETECT', 'i', 'NFC0 off-die RF field detect (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO43', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX modulation output when NFC present)', altFuncs=([(1, 'NFC_RF_TXMOD', 'o', 'NFC0 off-die TX load modulation (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO44', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX enable output when NFC present)', altFuncs=([(1, 'NFC_RF_TX_EN', 'o', 'NFC0 off-die TX enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO45', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 AFE enable output when NFC present)', altFuncs=([(1, 'NFC_AFE_EN', 'o', 'NFC0 off-die AFE enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=None) # spare plain GPIO
+GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=None) # spare plain GPIO
+
 
 # --- GPIO alternate-function output-spread (v1): fill AF planes AF1..AF7 with the
 # shared timer/UART/SPI OUTPUT pool, fanned across all four ports so each output is
@@ -2222,32 +2261,38 @@ _mcuMpIrqVectors.append(('IRQB_CLINT_MTIP', 'CLINT timer interrupt'))
 # The four NFC sources sit at 94-97 in the fixed order field/rxf/txdone/crcerr
 # (NFC.vhd's irq_* port order). CLINT stays at 83/84 and the numbering below 85
 # is untouched.
-if i3cPresent or nfcPresent:
-	_mcuMpIrqVectors.append(('IRQB_RSVD85', 'Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source)'))
-	if i3cPresent:
-		_mcuMpIrqVectors.append(('IRQB_I3C0_TC', 'I3C0 Transfer Complete Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_RXF', 'I3C0 Receive-Register Full Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_TXE', 'I3C0 Transmit-Register Empty Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_NACK', 'I3C0 Address / Byte NACK Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_EOD', 'I3C0 Early End-of-Data Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_ARB', 'I3C0 Arbitration-Lost Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_DAA', 'I3C0 Dynamic-Address-Assignment Done Interrupt'))
-		_mcuMpIrqVectors.append(('IRQB_I3C0_IBI', 'I3C0 In-Band Interrupt Pending Interrupt'))
-	else:
-		# NFC present but I3C absent: sources 86-93 stay reserved (numbering frozen).
-		for _v in range(86, 94):
-			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; I3C0 disabled by this configuration)'))
+# Mission B: GPIO4/5 are UNCONDITIONAL and their 16 sources sit at 98-113, so the
+# 85-97 band ALWAYS materializes now (in every config). Slot 85 = the meip
+# self-slot placeholder; 86-93 = I3C0 (RSVD gaps when I3C absent); 94-97 = NFC0
+# (RSVD gaps when NFC absent). Numbering FROZEN below and above.
+_mcuMpIrqVectors.append(('IRQB_RSVD85', 'Reserved (vector 85; coincides with the meip external-interrupt IVT slot, never a pending source)'))
+if i3cPresent:
+	_mcuMpIrqVectors.append(('IRQB_I3C0_TC', 'I3C0 Transfer Complete Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_RXF', 'I3C0 Receive-Register Full Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_TXE', 'I3C0 Transmit-Register Empty Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_NACK', 'I3C0 Address / Byte NACK Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_EOD', 'I3C0 Early End-of-Data Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_ARB', 'I3C0 Arbitration-Lost Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_DAA', 'I3C0 Dynamic-Address-Assignment Done Interrupt'))
+	_mcuMpIrqVectors.append(('IRQB_I3C0_IBI', 'I3C0 In-Band Interrupt Pending Interrupt'))
+else:
+	# I3C absent: sources 86-93 stay reserved (numbering frozen).
+	for _v in range(86, 94):
+		_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; I3C0 disabled by this configuration)'))
 if nfcPresent:
 	_mcuMpIrqVectors.append(('IRQB_NFC0_FIELD', 'NFC0 RF Field-Detect Interrupt'))
 	_mcuMpIrqVectors.append(('IRQB_NFC0_RXF', 'NFC0 Reader-Frame Received Interrupt'))
 	_mcuMpIrqVectors.append(('IRQB_NFC0_TXDONE', 'NFC0 Tag-Response Transmit-Done Interrupt'))
 	_mcuMpIrqVectors.append(('IRQB_NFC0_CRCERR', 'NFC0 RX CRC / Parity Error Interrupt'))
-if nfcPresent:
-	_expectedVectorCount = 98
-elif i3cPresent:
-	_expectedVectorCount = 94
 else:
-	_expectedVectorCount = 85
+	# NFC absent: sources 94-97 stay reserved (numbering frozen).
+	for _v in range(94, 98):
+		_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_v), 'Reserved (vector ' + str(_v) + '; NFC0 disabled by this configuration)'))
+# GPIO4 (vectors 98-105) and GPIO5 (vectors 106-113) — one per pin, UNCONDITIONAL.
+for _p in (4, 5):
+	for _b in range(8):
+		_mcuMpIrqVectors.append(('IRQB_GPIO' + str(_p) + '_B' + str(_b), 'GPIO' + str(_p) + ' Bit ' + str(_b) + ' Interrupt'))
+_expectedVectorCount = 114
 if len(_mcuMpIrqVectors) != _expectedVectorCount:
 	raise Exception('MCU_MP IRQB vector list must have ' + str(_expectedVectorCount)
 		+ ' entries, has ' + str(len(_mcuMpIrqVectors)))
@@ -2260,6 +2305,8 @@ _mcuMpIrqFirstVector = {
 	'GPIO1': 'IRQB_GPIO1_B0',
 	'GPIO2': 'IRQB_GPIO2_B0',
 	'GPIO3': 'IRQB_GPIO3_B0',
+	'GPIO4': 'IRQB_GPIO4_B0',	# Mission B: vectors 98-105 (interruptPriority 98)
+	'GPIO5': 'IRQB_GPIO5_B0',	# Mission B: vectors 106-113 (interruptPriority 106)
 	'SPI0': 'IRQB_SPI0_TC',
 	'UART0': 'IRQB_UART0_RC',
 	'TIMER0': 'IRQB_TIM0_CAP0',
@@ -2317,6 +2364,24 @@ _mcuMpRstVals = [
 		('RstValP4SEL', 0x00000000, ''),
 		('RstValP4REN', 0x00000000, ''),
 		('RstValP4AFS', 0x00000000, 'all pins select AF0 (legacy alternate function) at reset'),
+	]),
+	# Mission B: GPIO4 (P5) / GPIO5 (P6). All pins reset to plain-GPIO input mode.
+	# P5.6/7 (I3C SDA/SCL) enable their pull-ups at reset (open-drain idle-high) when
+	# I3C is present; P6.0 (NFC rf_clk) resets to AF1 so the off-die clock is routed
+	# without a runtime AFS switch (D5) when NFC is present.
+	('GPIO4', [
+		('RstValP5OUT', 0x00000000, 'all pads output low'),
+		('RstValP5DIR', 0x00000000, 'all pins input at reset'),
+		('RstValP5SEL', 0x00000000, 'all pins in GPIO mode at reset'),
+		('RstValP5REN', (0x000000C0 if i3cPresent else 0x00000000), 'P5.6/7 (I3C SDA/SCL) pull-ups enabled when I3C present, else none'),
+		('RstValP5AFS', 0x00000000, 'all pins select AF0 (plain GPIO) at reset'),
+	]),
+	('GPIO5', [
+		('RstValP6OUT', 0x00000000, 'all pads output low'),
+		('RstValP6DIR', 0x00000000, 'all pins input at reset'),
+		('RstValP6SEL', 0x00000000, 'all pins in GPIO mode at reset'),
+		('RstValP6REN', 0x00000000, 'disable rens'),
+		('RstValP6AFS', (0x00000001 if nfcPresent else 0x00000000), 'P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0'),
 	]),
 ]
 
@@ -2376,6 +2441,21 @@ _mcuMpPnums = [
 		+ ([('pnum_gpio3_af1_t1_cap0', 2), ('pnum_gpio3_af1_t1_cap1', 3)] if timer1Present else [])
 		+ [('pnum_gpio3_af1_t0_cmp0', 4), ('pnum_gpio3_af1_t0_cmp1', 5)]
 		+ ([('pnum_gpio3_af1_t1_cmp0', 6), ('pnum_gpio3_af1_t1_cmp1', 7)] if timer1Present else [])),
+	# Mission B: GPIO4 (P5) AF1 = QSPI0 (P5.0-5) + I3C0 (P5.6/7); GPIO5 (P6) AF1 =
+	# NFC0 digital-AFE (P6.0-5). Rows gated with their controller (bidirectional
+	# cross-check vs the AddGpio altFuncs above). All absent in the default config.
+	('GPIO4 (P5) AF1: '
+		+ ('QSPI0 pins on P5.0-5' if qspiPresent else 'P5.0-5 reserved (QSPI0 absent)')
+		+ ' + ' + ('I3C0 open-drain on P5.6/7' if i3cPresent else 'P5.6/7 reserved (I3C0 absent)'), 5,
+		([('pnum_gpio4_af1_qspi_sck', 0), ('pnum_gpio4_af1_qspi_cs', 1),
+			('pnum_gpio4_af1_qspi_io0', 2), ('pnum_gpio4_af1_qspi_io1', 3),
+			('pnum_gpio4_af1_qspi_io2', 4), ('pnum_gpio4_af1_qspi_io3', 5)] if qspiPresent else [])
+		+ ([('pnum_gpio4_af1_i3c_sda', 6), ('pnum_gpio4_af1_i3c_scl', 7)] if i3cPresent else [])),
+	('GPIO5 (P6) AF1: '
+		+ ('NFC0 digital-AFE on P6.0-5' if nfcPresent else 'P6.0-5 reserved (NFC0 absent)'), 6,
+		([('pnum_gpio5_af1_nfc_rf_clk', 0), ('pnum_gpio5_af1_nfc_rf_rx', 1),
+			('pnum_gpio5_af1_nfc_field_detect', 2), ('pnum_gpio5_af1_nfc_rf_txmod', 3),
+			('pnum_gpio5_af1_nfc_rf_tx_en', 4), ('pnum_gpio5_af1_nfc_afe_en', 5)] if nfcPresent else [])),
 ]
 
 m.McuMpCompat = {
@@ -2516,7 +2596,7 @@ _resolvedConfig = [
 		('sharedRamBanks', _sharedRamBanks),
 		('flashBaseAddress', _hx(flashBase)),
 		('sharedRamEndAddress', _hx(0x10000 + _sharedRamLen - 1)),
-		('vectorsCount', 98 if nfcPresent else (94 if i3cPresent else 85)),
+		('vectorsCount', 114),	# Mission B: GPIO4/5 unconditional -> fixed 114
 		('meipVector', 85),
 		('clintMsipVector', 83),
 		('clintMtipVector', 84),

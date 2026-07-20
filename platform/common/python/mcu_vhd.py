@@ -873,8 +873,17 @@ class McuVhdEmitter():
 		if self.nfc:
 			self.shslv = dict(self.shslv)
 			self.shslv['NFC0'] = {'sel': 'nfc0', 'shim': None, 'rdata': 'nfc0_sh_rdata'}
+		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
+		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
+		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
+		# but the instance is a full GPIO block with a registered-read shim + AF
+		# muxing. They join the enable / registered rd-sel / rdata-mux loops.
+		self.shslv = dict(self.shslv)
+		self.shslv['GPIO4'] = {'sel': 'gpio4', 'shim': None, 'rdata': 'gpio4_sh_rdata'}
+		self.shslv['GPIO5'] = {'sel': 'gpio5', 'shim': None, 'rdata': 'gpio5_sh_rdata'}
 		nativeOrder = ['CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] \
-			+ (['I3C0'] if self.i3c else []) + (['NFC0'] if self.nfc else [])
+			+ (['I3C0'] if self.i3c else []) + (['NFC0'] if self.nfc else []) \
+			+ ['GPIO4', 'GPIO5']
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1035,7 +1044,8 @@ class McuVhdEmitter():
 				# One vector declaration per GPIO port, grouped where GPIO0 appears
 				if len(emittedGpio) > 0:
 					continue
-				for port in range(4):
+				# Mission B: 6 GPIO ports now (GPIO4/GPIO5 added), all declared here.
+				for port in range(6):
 					lines.append(' ' * 8 + 'signal ' + ('irq_gpio' + str(port)).ljust(17)
 						+ ': std_logic_vector(7 downto 0);  -- GPIO' + str(port) + ' Interrupt')
 					emittedGpio.add(port)
@@ -1108,20 +1118,25 @@ class McuVhdEmitter():
 		lines.append(ind + '-- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router')
 		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
 		lines.append(ind + 'shslv_clint_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + clintBits + '" else \'0\';')
-		if self.i3c or self.nfc:
-			lines.append(ind + '-- digperiphs: page-2 (MUTEX/0x6000) carved into 256 B sub-slots on')
-			lines.append(ind + '-- sh_addr(9:6). The mutex bank keeps sub-slot 0 (0x6000-0x60FF); I3C0')
-			lines.append(ind + '-- takes sub-slot 1 (0x6100-0x61FF), NFC0 sub-slot 2 (0x6200-0x62FF);')
-			lines.append(ind + '-- the remaining sub-slots are reserved. Tightening the mutex decode')
-			lines.append(ind + '-- from the page-wide alias retires the aliased CLAIM side effect (an')
-			lines.append(ind + '-- aliased mutex read used to fire an atomic claim).')
-			lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0000" else \'0\';')
-			if self.i3c:
-				lines.append(ind + 'shslv_i3c0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0001" else \'0\';')
-			if self.nfc:
-				lines.append(ind + 'shslv_nfc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0010" else \'0\';')
-		else:
-			lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" else \'0\';')
+		# Mission B: page-2 (MUTEX/0x6000) is ALWAYS carved into 256 B sub-slots on
+		# sh_addr(9:6) now — GPIO4/GPIO5 (sub-slots 3/4) are unconditional. The mutex
+		# bank keeps sub-slot 0 (0x6000-0x60FF); I3C0 sub-slot 1 (0x6100), NFC0
+		# sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5 sub-slot 4 (0x6400);
+		# the rest reserved. Tightening the mutex decode from the page-wide alias
+		# retires the aliased CLAIM side effect (an aliased mutex read used to fire an
+		# atomic claim). All 16 mutexes live below 0x6040, so this is behaviorally safe.
+		lines.append(ind + '-- Mission B: page-2 (MUTEX/0x6000) carved into 256 B sub-slots on')
+		lines.append(ind + '-- sh_addr(9:6). Mutex bank = sub-slot 0 (0x6000-0x60FF); I3C0 sub-slot 1')
+		lines.append(ind + '-- (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5')
+		lines.append(ind + '-- sub-slot 4 (0x6400). Tightening the mutex decode retires the aliased')
+		lines.append(ind + '-- CLAIM side effect (all 16 mutexes live below 0x6040 = behaviorally safe).')
+		lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0000" else \'0\';')
+		if self.i3c:
+			lines.append(ind + 'shslv_i3c0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0001" else \'0\';')
+		if self.nfc:
+			lines.append(ind + 'shslv_nfc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0010" else \'0\';')
+		lines.append(ind + 'shslv_gpio4_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0011" else \'0\';')
+		lines.append(ind + 'shslv_gpio5_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0100" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
 			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
@@ -1298,7 +1313,7 @@ class McuVhdEmitter():
 				'            io_in       => qspi_io_in,',
 				'            io_out      => qspi_io_out,',
 				'            io_dir      => qspi_io_dir);',
-				"    qspi_io_in <= (others => '0');  -- PLACEHOLDER: QSPI IO inputs not padded yet",
+				'    -- Mission B: qspi_io_in is driven from the P5.2-5 AF1 input muxes (GPIO4).',
 			]
 		return []
 
@@ -1364,10 +1379,10 @@ class McuVhdEmitter():
 			'            MABPart     => sh_addr(5 downto 0),',
 			'            wdata       => sh_wdata,',
 			'            rdata_out   => i3c0_sh_rdata,',
-			"            SDA_IN      => '1',   -- PLACEHOLDER: idle (released) bus, not padded yet",
+			'            SDA_IN      => i3c0_sda_in,   -- Mission B: routed from P5.6 AF1 (GPIO4)',
 			'            SDA_OUT     => i3c0_sda_out,',
 			'            SDA_DIR     => i3c0_sda_dir,',
-			"            SCL_IN      => '1',   -- PLACEHOLDER: idle (released) bus, not padded yet",
+			'            SCL_IN      => i3c0_scl_in,   -- Mission B: routed from P5.7 AF1 (GPIO4)',
 			'            SCL_OUT     => i3c0_scl_out,',
 			'            SCL_DIR     => i3c0_scl_dir);',
 		]
@@ -1432,13 +1447,216 @@ class McuVhdEmitter():
 			'            MABPart      => sh_addr(5 downto 0),',
 			'            wdata        => sh_wdata,',
 			'            rdata_out    => nfc0_sh_rdata,',
-			"            rf_clk       => '0',   -- PLACEHOLDER: off-die AFE carrier clock, not padded yet",
-			"            field_detect => '0',   -- PLACEHOLDER: no RF field, off-die",
-			"            rf_rx        => '1',   -- PLACEHOLDER: idle RX envelope (no pause), off-die",
+			'            rf_clk       => nfc0_rf_clk,       -- Mission B: routed from P6.0 AF1 (GPIO5)',
+			'            field_detect => nfc0_field_detect, -- Mission B: routed from P6.2 AF1 (GPIO5)',
+			'            rf_rx        => nfc0_rf_rx,        -- Mission B: routed from P6.1 AF1 (GPIO5)',
 			'            rf_txmod     => nfc0_rf_txmod,',
 			'            rf_tx_en     => nfc0_rf_tx_en,',
 			'            afe_en       => nfc0_afe_en);',
 		]
+
+	def emitGpio45Decls(self, port):
+		'''Mission B: GPIO4 (port 5) / GPIO5 (port 6) declarative region — the
+		registered-read shim nets, the register/AF-plane signals, and (in configs
+		that route them) the peripheral-input nets GPIO4/5 drive from the pads.'''
+		gi = port - 1
+		sub = gi - 1
+		base = 0x6000 + sub * 0x100
+		if gi == 4:
+			af1desc = 'QSPI0 (P5.0-5) + I3C0 (P5.6/7)'
+			vecrange = '98-105'
+		else:
+			af1desc = 'NFC0 digital-AFE (P6.0-5)'
+			vecrange = '106-113'
+		lines = [
+			'        -- Mission B: GPIO%d (port %d), MUTEX-page sub-slot %d @0x%04X.' % (gi, port, sub, base),
+			'        -- Registered-read native slave with its own active-low en shim (like',
+			'        -- I3C0/NFC0). AF0 = plain GPIO on every pin; AF1 carries the %s' % af1desc,
+			'        -- pin functions when present, Hi-Z otherwise. Per-pin IRQs -> vectors %s.' % vecrange,
+			'        signal shslv_gpio%d_sel, shslv_gpio%d_en : std_logic;' % (gi, gi),
+			"        signal shslv_rd_gpio%d   : std_logic := '0';" % gi,
+			'        signal gpio%d_sh_rdata   : std_logic_vector(31 downto 0);' % gi,
+			'        signal gpio%d_sh_en_n    : std_logic;' % gi,
+			'        signal p%d_out, p%d_dir, p%d_ren : std_logic_vector(7 downto 0);' % (port, port, port),
+			'        signal p%d_afs           : std_logic_vector(23 downto 0);' % port,
+			'        signal afunc%d_out, afunc%d_dir, afunc%d_ren : std_logic_vector(7 downto 0);' % (port, port, port),
+			'        signal afunc%d_af1_out, afunc%d_af1_dir, afunc%d_af1_ren : std_logic_vector(7 downto 0);' % (port, port, port),
+			'        signal afunc%d_all_out   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);' % port,
+			'        signal afunc%d_all_dir   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);' % port,
+			'        signal afunc%d_all_ren   : std_logic_vector(GPIO_NUM_AFS * 8 - 1 downto 0);' % port,
+		]
+		if port == 5 and self.i3c:
+			lines.append('        -- I3C0 SDA/SCL pad inputs, routed by GPIO4 from P5.6/7 (D4).')
+			lines.append('        signal i3c0_sda_in, i3c0_scl_in : std_logic;')
+		if port == 6 and self.nfc:
+			lines.append('        -- NFC0 off-die AFE inputs, routed by GPIO5 from P6.0-2 (D5).')
+			lines.append('        signal nfc0_rf_clk, nfc0_rf_rx, nfc0_field_detect : std_logic;')
+		return lines
+
+	def emitGpioBusInstance(self, port, af1Lines, muxLines):
+		'''Common tail: AF-plane flatten + the GPIO component instance + shim.'''
+		gi = port - 1
+		flat = lambda sfx: ('    afunc%d_all_%s <= ' % (port, sfx)
+			+ ' & '.join(['afunc_none'] * 6 + ['afunc%d_af1_%s' % (port, sfx), 'afunc%d_%s' % (port, sfx)]) + ';')
+		lines = []
+		lines.append('    gpio%d_sh_en_n <= not shslv_gpio%d_en;' % (gi, gi))
+		lines.append('    -- AF0 plane = plain-GPIO passthrough (AF0 == GPIO for every pin)')
+		lines.append('    afunc%d_out <= p%d_out;' % (port, port))
+		lines.append('    afunc%d_dir <= p%d_dir;' % (port, port))
+		lines.append('    afunc%d_ren <= p%d_ren;' % (port, port))
+		lines += af1Lines
+		lines.append('    -- Flatten the 8 AF planes (AF7..AF2 unused = afunc_none, then AF1, AF0)')
+		lines.append(flat('out'))
+		lines.append(flat('dir'))
+		lines.append(flat('ren'))
+		lines += muxLines
+		lines.append('    gpio%d: GPIO' % gi)
+		lines.append('        generic map (')
+		lines.append('            num_pins        => 8,')
+		lines.append('            PadOUTPosLogic  => true,')
+		lines.append('            PadDIRPosLogic  => false,')
+		lines.append('            PadRENPosLogic  => false,')
+		lines.append('            RstValPxOUT     => RstValP%dOUT,' % port)
+		lines.append('            RstValPxDIR     => RstValP%dDIR,' % port)
+		lines.append('            RstValPxSEL     => RstValP%dSEL,' % port)
+		lines.append('            RstValPxREN     => RstValP%dREN,' % port)
+		lines.append('            RstValPxAFS     => RstValP%dAFS' % port)
+		lines.append('        )')
+		lines.append('        port map (')
+		lines.append('            resetn          => resetn,')
+		lines.append('            irq             => irq_gpio%d,' % gi)
+		lines.append('            clk_mem         => mclk,')
+		lines.append('            en              => gpio%d_sh_en_n,' % gi)
+		lines.append('            wen             => sh_wen_n,')
+		lines.append('            write_data      => sh_wdata,')
+		lines.append('            read_data       => gpio%d_sh_rdata,' % gi)
+		lines.append('            addr_periph     => sh_addr(5 downto 0),')
+		lines.append('            prt_in          => prt%d_in,' % port)
+		lines.append('            prt_out_out     => prt%d_out,' % port)
+		lines.append('            prt_dir_out     => prt%d_dir,' % port)
+		lines.append('            prt_ren_out     => prt%d_ren,' % port)
+		lines.append('            PxOUT_out       => p%d_out,' % port)
+		lines.append('            PxDIR_out       => p%d_dir,' % port)
+		lines.append('            PxREN_out       => p%d_ren,' % port)
+		lines.append('            PxSEL_out       => open,')
+		lines.append('            PxAFS_out       => p%d_afs,' % port)
+		lines.append('            alt_func_out_in => afunc%d_all_out,' % port)
+		lines.append('            alt_func_dir_in => afunc%d_all_dir,' % port)
+		lines.append('            alt_func_ren_in => afunc%d_all_ren' % port)
+		lines.append('    );')
+		return lines
+
+	def emitGpio4Instance(self):
+		'''Mission B: GPIO4 (port 5) instance — AF1 = QSPI0 (P5.0-5) + I3C0 (P5.6/7)
+		when present, Hi-Z otherwise; the P5 input muxes route the QSPI IO and I3C
+		SDA/SCL pad inputs back to the controllers (D4).'''
+		af1 = []
+		mux = []
+		if self.qspi or self.i3c:
+			# AF1 output plane
+			def cell(idx, sig, note):
+				return "            %d => %s," % (idx, sig) if idx != 0 else "            %d => %s" % (idx, sig)
+			# out
+			outMap = {
+				7: 'i3c0_scl_out' if self.i3c else "'0'",
+				6: 'i3c0_sda_out' if self.i3c else "'0'",
+				5: 'qspi_io_out(3)' if self.qspi else "'0'",
+				4: 'qspi_io_out(2)' if self.qspi else "'0'",
+				3: 'qspi_io_out(1)' if self.qspi else "'0'",
+				2: 'qspi_io_out(0)' if self.qspi else "'0'",
+				1: 'qspi_cs_out' if self.qspi else "'0'",
+				0: 'qspi_sck_out' if self.qspi else "'0'",
+			}
+			dirMap = {
+				7: 'i3c0_scl_dir' if self.i3c else "'0'",
+				6: 'i3c0_sda_dir' if self.i3c else "'0'",
+				5: 'qspi_io_dir(3)' if self.qspi else "'0'",
+				4: 'qspi_io_dir(2)' if self.qspi else "'0'",
+				3: 'qspi_io_dir(1)' if self.qspi else "'0'",
+				2: 'qspi_io_dir(0)' if self.qspi else "'0'",
+				1: 'qspi_cs_dir' if self.qspi else "'0'",
+				0: 'qspi_sck_dir' if self.qspi else "'0'",
+			}
+			af1.append('    -- AF1 output/dir plane: QSPI0 on P5.0-5, I3C0 (open-drain) on P5.6/7')
+			af1.append('    afunc5_af1_out <= (')
+			for b in range(7, -1, -1):
+				af1.append('        %d => %s%s' % (b, outMap[b], '' if b == 0 else ','))
+			af1.append('    );')
+			af1.append('    afunc5_af1_dir <= (')
+			for b in range(7, -1, -1):
+				af1.append('        %d => %s%s' % (b, dirMap[b], '' if b == 0 else ','))
+			af1.append('    );')
+			# ren plane follows the register pull preference (PxREN); I3C pull-ups
+			# reach the pads this way when the pin is in AF1 mode.
+			af1.append('    afunc5_af1_ren <= p5_ren;')
+			# Input muxes (AFS-keyed, always-visible like the I2C relocations)
+			if self.qspi:
+				mux.append('    -- QSPI0 IO input muxes: read the P5.2-5 pad when that pin selects AF1')
+				for k in range(4):
+					pin = 2 + k
+					mux.append('    qspi_io_in(%d) <= prt5_in(%d) when p5_afs((3 * %d) + 2 downto 3 * %d) = "001" else \'0\';' % (k, pin, pin, pin))
+			if self.i3c:
+				mux.append('    -- I3C0 SDA/SCL input muxes (P5.6/7); idle-high when not in AF1 mode')
+				mux.append('    i3c0_sda_in <= prt5_in(6) when p5_afs((3 * 6) + 2 downto 3 * 6) = "001" else \'1\';')
+				mux.append('    i3c0_scl_in <= prt5_in(7) when p5_afs((3 * 7) + 2 downto 3 * 7) = "001" else \'1\';')
+		else:
+			af1.append('    -- AF1 plane unused in this configuration (QSPI0/I3C0 absent): Hi-Z.')
+			af1.append('    afunc5_af1_out <= afunc_none;')
+			af1.append('    afunc5_af1_dir <= afunc_none;')
+			af1.append('    afunc5_af1_ren <= afunc_none;')
+		head = [
+			'',
+			'    -- =========================================================================',
+			'    -- GPIO4 (Mission B): general-purpose I/O port 5, MUTEX-page sub-slot 3 @0x6300.',
+			'    -- Registered read; own active-low one-cycle en shim. AF0 = plain GPIO; AF1 =',
+			'    -- QSPI0/I3C0 pin functions (Hi-Z when absent). Per-pin IRQs -> vectors 98-105.',
+			'    -- =========================================================================',
+		]
+		return head + self.emitGpioBusInstance(5, af1, mux)
+
+	def emitGpio5Instance(self):
+		'''Mission B: GPIO5 (port 6) instance — AF1 = NFC0 digital-AFE (P6.0-5) when
+		present, Hi-Z otherwise. P6.0-2 are inputs (rf_clk/rf_rx/field_detect, routed
+		to NFC0); P6.3-5 are outputs (rf_txmod/rf_tx_en/afe_en). P6.6/7 spare.'''
+		af1 = []
+		mux = []
+		if self.nfc:
+			outMap = {
+				7: "'0'", 6: "'0'",
+				5: 'nfc0_afe_en', 4: 'nfc0_rf_tx_en', 3: 'nfc0_rf_txmod',
+				2: "'0'", 1: "'0'", 0: "'0'",
+			}
+			# P6.0-2 are inputs -> AF dir '0' (input); P6.3-5 outputs -> AF dir '1'.
+			dirMap = {7: "'0'", 6: "'0'", 5: "'1'", 4: "'1'", 3: "'1'", 2: "'0'", 1: "'0'", 0: "'0'"}
+			af1.append('    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are')
+			af1.append('    -- inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).')
+			af1.append('    afunc6_af1_out <= (')
+			for b in range(7, -1, -1):
+				af1.append('        %d => %s%s' % (b, outMap[b], '' if b == 0 else ','))
+			af1.append('    );')
+			af1.append('    afunc6_af1_dir <= (')
+			for b in range(7, -1, -1):
+				af1.append('        %d => %s%s' % (b, dirMap[b], '' if b == 0 else ','))
+			af1.append('    );')
+			af1.append('    afunc6_af1_ren <= p6_ren;')
+			mux.append('    -- NFC0 off-die AFE input muxes: read the P6.0-2 pads when in AF1 mode')
+			mux.append('    nfc0_rf_clk       <= prt6_in(0) when p6_afs((3 * 0) + 2 downto 3 * 0) = "001" else \'0\';')
+			mux.append('    nfc0_rf_rx        <= prt6_in(1) when p6_afs((3 * 1) + 2 downto 3 * 1) = "001" else \'1\';')
+			mux.append('    nfc0_field_detect <= prt6_in(2) when p6_afs((3 * 2) + 2 downto 3 * 2) = "001" else \'0\';')
+		else:
+			af1.append('    -- AF1 plane unused in this configuration (NFC0 absent): Hi-Z.')
+			af1.append('    afunc6_af1_out <= afunc_none;')
+			af1.append('    afunc6_af1_dir <= afunc_none;')
+			af1.append('    afunc6_af1_ren <= afunc_none;')
+		head = [
+			'',
+			'    -- =========================================================================',
+			'    -- GPIO5 (Mission B): general-purpose I/O port 6, MUTEX-page sub-slot 4 @0x6400.',
+			'    -- Registered read; own active-low one-cycle en shim. AF0 = plain GPIO; AF1 =',
+			'    -- NFC0 digital-AFE pins (Hi-Z when absent). Per-pin IRQs -> vectors 106-113.',
+			'    -- =========================================================================',
+		]
+		return head + self.emitGpioBusInstance(6, af1, mux)
 
 	def gfCount(self):
 		'''Number of 32-bit GlitchFilter instances = ceil(NUM_IRQ_SRCS / 32).
@@ -2651,6 +2869,14 @@ class McuVhdEmitter():
 			return self.emitNfcDecls()
 		if name == 'nfc-instance':
 			return self.emitNfcInstance()
+		if name == 'gpio4-decls':
+			return self.emitGpio45Decls(5)
+		if name == 'gpio5-decls':
+			return self.emitGpio45Decls(6)
+		if name == 'gpio4-instance':
+			return self.emitGpio4Instance()
+		if name == 'gpio5-instance':
+			return self.emitGpio5Instance()
 		if name == 'irq-gf-decls':
 			return self.emitIrqGfDecls()
 		if name == 'irq-gf-instances':
@@ -2738,6 +2964,8 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200 +
 		# the geometry-driven glitch-filter region (NFC needs a 4th instance)
 		'nfc-decls', 'nfc-instance', 'irq-gf-decls', 'irq-gf-instances',
+		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
+		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions
 		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'meip-decl', 'pd-decls',
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
