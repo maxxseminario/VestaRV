@@ -1,0 +1,71 @@
+# VestaRV core (`vesta`, RV32IMAC+Zb*, multicycle) — sky130 hardening config.
+# DESIGN_NAME must equal the Verilog module ghdl --synth emits from the
+# `vesta` entity (see synth.sh). src/vesta.v is generated at job time
+# by synth.sh — never committed.
+DESIGN_NAME: vesta
+VERILOG_FILES: dir::src/vesta.v
+
+# ---- Timing recipe (every value below was earned from a failed run) ----
+#
+# CLOCK_PERIOD ladder: 40 ns is NOT closable (post-CTS WNS -57 ns; the
+# EXECUTE-cycle regfile->ALU->data_addr cone is ~90 ns at ss, and the resizer
+# ground 2h+ on 1526 hopeless endpoints). 90 ns closed every corner post-CTS
+# but extracted parasitics put the FF->write_data/data_addr store cone at
+# 107.5 ns at max_ss (-26.6 ns): mid-flow STA prints nom_tt only — trust
+# final/metrics.json per-corner numbers, never the pretty mid-run slack.
+# 125 ns (8 MHz) closes all 9 corners with ~+5 ns. Honest first-pass number;
+# reg-to-reg the core is ~13 ns deep — the Fmax lever is a registered memory
+# interface (TCM macro story), not a config knob.
+CLOCK_PERIOD: 125
+CLOCK_PORT: clk
+PNR_SDC_FILE: dir::src/impl.sdc
+SIGNOFF_SDC_FILE: dir::src/signoff.sdc
+
+# ABC must optimize for depth, not area: the default AREA strategy left a
+# 172-cell worst path (ripple/comparator chains), -47 ns at 40 ns post-place.
+SYNTH_STRATEGY: "DELAY 1"
+
+# 10%: the core's real environment is an adjacent TCM, not 18 ns of external
+# routing (the default 20%/20% budget ate 32 ns of an 80 ns period).
+IO_DELAY_CONSTRAINT: 10
+
+# Hold: with the real ICG (see synth.sh) post-CTS hold was -0.22 ns / 3
+# endpoints, but post-route RC spread drifted it to -0.29 ns / 19 endpoints
+# at signoff with the default 0.1 margin — repair with enough cushion.
+PL_RESIZER_HOLD_SLACK_MARGIN: 0.35
+GRT_RESIZER_HOLD_SLACK_MARGIN: 0.05
+
+# Antenna: GRT-stage repair alone left 6 internal met2/met3 nets at
+# 1.07-1.71x the ratio after detailed routing; heuristic diode insertion +
+# margin/iterations closes them.
+RUN_HEURISTIC_DIODE_INSERTION: true
+GRT_ANTENNA_REPAIR_MARGIN: 25
+GRT_ANTENNA_REPAIR_ITERS: 5
+
+# The intermediate post-ABC yosys `check` flags 66 "logic loop" problems, all
+# through datapath_inst.rf.sp_in mux trees, every one marked "may be a false
+# positive" (overapproximated $_MUX_ internals). Verified false: `check
+# -force-detailed-loop-check` on the mapped netlist reports 0 problems, as
+# does the flow's own final CHECK pass. Latches are intentional (ClkGate
+# clock gate + div result), see synth.sh --latches.
+ERROR_ON_SYNTH_CHECKS: false
+
+# PDN
+PDN_VOFFSET: 5
+PDN_HOFFSET: 5
+PDN_VWIDTH: 2
+PDN_HWIDTH: 2
+PDN_VPITCH: 30
+PDN_HPITCH: 30
+PDN_SKIPTRIM: true
+
+# Pin Order
+IO_PIN_ORDER_CFG: dir::pin_order.cfg
+
+# Technology-Specific Configs
+pdk::sky130*:
+  # 35 died in global routing (GRT-0116 congestion): the DELAY-strategy
+  # netlist is buffer-rich and needs routing headroom. Die area is not a
+  # goal for this example flow — keep it spacious.
+  FP_CORE_UTIL: 28
+  CLOCK_PERIOD: 125.0
