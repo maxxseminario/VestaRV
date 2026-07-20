@@ -643,6 +643,13 @@ architecture struct of vesta is
         r := to_integer(unsigned(rlist));
         if r = 15 then
             return 13;
+        elsif r < 4 then
+            -- Reserved rlist encodings (0-3) never reach the ZCM states, but
+            -- this lookup is a concurrent statement evaluated from reset with
+            -- rlist = "0000": r-3 would violate zcm_nregs_val's range 1..13
+            -- (GHDL bound check). Clamp reserved encodings to the range floor;
+            -- defined encodings (4-15) are untouched.
+            return 1;
         else
             return r - 3;
         end if;
