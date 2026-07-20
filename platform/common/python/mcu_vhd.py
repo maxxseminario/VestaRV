@@ -91,6 +91,14 @@ SHSLV = {
 	'I2C1':      {'sel': 'i2c1',  'shim': 'i2c1',  'rdata': 'i2c1_sh_rdata'},
 }
 
+# X-collapse fix (2026-07-20): shim peripherals whose RTL clocks status/RX
+# snapshot registers on falling_edge(en_mem). Their shims take the
+# falling-mclk re-registered shslv_<sel>_en_q strobe (emitPolarityShims);
+# I3C0/NFC0 carry the same treatment inside their own instance regions.
+# GPIO/SYSTEM/NPU sample en_mem only on rising clk_mem edges - raw strobe.
+CAPTURE_CLOCK = {'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
+	'I2C0', 'I2C1', 'QSPI0'}
+
 # M11/M12 memory slaves (structural — hard macros, not description
 # peripherals): sel spelling -> the macro Q net that feeds sh_rdata_mux
 # directly (the macro IS the 1-cycle registered read). 'rom' = the M12
@@ -208,6 +216,8 @@ I2C_FABRIC_DECLS = [
 	"        signal shslv_rd_i2c1    : std_logic := '0';",
 	'        signal i2c0_sh_en_n     : std_logic;',
 	'        signal i2c1_sh_en_n     : std_logic;',
+	'        signal shslv_i2c0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobes',
+	'        signal shslv_i2c1_en_q  : std_logic;   -- (snapshot capture clocks)',
 	'        signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance',
 	'        signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);',
 	"        signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered",
@@ -377,6 +387,8 @@ MOVER_FABRIC_DECLS = [
 	"        signal shslv_rd_gpio3   : std_logic := '0';",
 	'        signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen',
 	'        signal tim1_sh_en_n     : std_logic;',
+	'        signal shslv_tim0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobes',
+	'        signal shslv_tim1_en_q  : std_logic;   -- (snapshot capture clocks)',
 	'        signal gpio1_sh_en_n    : std_logic;',
 	'        signal gpio2_sh_en_n    : std_logic;',
 	'        signal gpio3_sh_en_n    : std_logic;',
@@ -392,6 +404,8 @@ MOVER_FABRIC_DECLS = [
 	"        signal shslv_rd_uart1   : std_logic := '0';",
 	'        signal spi1_sh_en_n     : std_logic;',
 	'        signal uart1_sh_en_n    : std_logic;',
+	'        signal shslv_spi1_en_q  : std_logic;   -- X-fix: falling-mclk registered strobes',
+	'        signal shslv_uart1_en_q : std_logic;   -- (snapshot capture clocks)',
 	'        signal spi1_sh_rdata    : std_logic_vector(31 downto 0);',
 	'        signal uart1_sh_rdata   : std_logic_vector(31 downto 0);',
 ]
@@ -1269,6 +1283,7 @@ class McuVhdEmitter():
 				"        signal shslv_rd_qspi0   : std_logic := '0';",
 				'        signal qspi0_sh_rdata   : std_logic_vector(31 downto 0);',
 				'        signal qspi0_sh_en_n    : std_logic;',
+				'        signal shslv_qspi0_en_q : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)',
 				'        -- QSPI0 serial pins. PLACEHOLDER wiring (digperiphs #1): the six QSPI',
 				'        -- pins (SCK, CS, IO0-3) are NOT yet routed through the GPIO alt-',
 				'        -- function planes — pin-map pending a user decision. io_in is tied',
@@ -1335,6 +1350,7 @@ class McuVhdEmitter():
 			"        signal shslv_rd_i3c0    : std_logic := '0';",
 			'        signal i3c0_sh_rdata    : std_logic_vector(31 downto 0);',
 			'        signal i3c0_sh_en_n     : std_logic;',
+			'        signal shslv_i3c0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)',
 			'        -- I3C0 SDA/SCL pins. PLACEHOLDER wiring (digperiphs, pin-map',
 			'        -- DEFERRED): not yet routed through the GPIO alt-function planes.',
 			"        -- SDA_IN/SCL_IN are tied HIGH ('1') = idle (released) bus; the",
@@ -1360,7 +1376,15 @@ class McuVhdEmitter():
 			"    -- meip slot 85. PLACEHOLDER pins: SDA_IN/SCL_IN tied HIGH (idle bus), the",
 			'    -- outputs unobserved — pin-map DEFERRED (see the digperiphs report).',
 			'    -- =========================================================================',
-			'    i3c0_sh_en_n <= not shslv_i3c0_en;',
+			'    -- X-collapse fix: I3C clocks its snapshot latches on en_mem\'s falling',
+			'    -- edge; falling-mclk re-registered strobe (see snapshot_strobe_reg).',
+			'    i3c0_enq_reg: process(mclk)',
+			'    begin',
+			'        if falling_edge(mclk) then',
+			'            shslv_i3c0_en_q <= shslv_i3c0_en;',
+			'        end if;',
+			'    end process;',
+			'    i3c0_sh_en_n <= not shslv_i3c0_en_q;',
 			'    i3c0: entity work.I3C',
 			'        port map (',
 			'            clk         => smclk,',
@@ -1406,6 +1430,7 @@ class McuVhdEmitter():
 			"        signal shslv_rd_nfc0    : std_logic := '0';",
 			'        signal nfc0_sh_rdata    : std_logic_vector(31 downto 0);',
 			'        signal nfc0_sh_en_n     : std_logic;',
+			'        signal shslv_nfc0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)',
 			'        -- NFC0 digital-AFE / RF interface. PLACEHOLDER wiring (digperiphs,',
 			'        -- pin/AFE-map DEFERRED): the six AFE signals are NOT routed to pads.',
 			"        -- rf_clk and field_detect tie '0' (no carrier, no field); rf_rx ties",
@@ -1432,7 +1457,15 @@ class McuVhdEmitter():
 			"    -- rf_rx tied high (idle bus), outputs unobserved — the 13.56 MHz RF front",
 			'    -- end is off-die and the pin-map is DEFERRED (see the digperiphs report).',
 			'    -- =========================================================================',
-			'    nfc0_sh_en_n <= not shslv_nfc0_en;',
+			'    -- X-collapse fix: NFC clocks its snapshot latches on en_mem\'s falling',
+			'    -- edge; falling-mclk re-registered strobe (see snapshot_strobe_reg).',
+			'    nfc0_enq_reg: process(mclk)',
+			'    begin',
+			'        if falling_edge(mclk) then',
+			'            shslv_nfc0_en_q <= shslv_nfc0_en;',
+			'        end if;',
+			'    end process;',
+			'    nfc0_sh_en_n <= not shslv_nfc0_en_q;',
 			'    nfc0: entity work.NFC',
 			'        port map (',
 			'            clk          => smclk,',
@@ -1695,12 +1728,45 @@ class McuVhdEmitter():
 	def emitPolarityShims(self):
 		ind = ' ' * 4
 		lines = []
+		# X-collapse fix (2026-07-20): the capture-clock strobe re-register.
+		# Emitted first so every group below can reference its _q signal.
+		capture = [n for (c, ns, p) in self.shimGroups for n in ns if n in CAPTURE_CLOCK]
+		if capture:
+			lines += [
+				ind + '-- X-collapse fix (2026-07-20): SPI/UART/TIMER/I2C (and QSPI when',
+				ind + '-- configured) CLOCK their status/RX snapshot registers on en_mem\'s',
+				ind + '-- FALLING EDGE (the falling_edge(en_mem) idiom inside the',
+				ind + '-- peripherals). sh_en/sh_addr are registered arbiter outputs, so the',
+				ind + '-- combinational en AND decode below glitches only in the skew window',
+				ind + '-- right after each rising mclk edge ' + EMDASH + ' and a glitch there is a',
+				ind + '-- spurious capture-clock edge racing its own D (the gate-level',
+				ind + '-- X-collapse; root cause + proof: digperiphs xcollapse_findings).',
+				ind + '-- Those shims therefore take a FALLING-MCLK re-registered strobe:',
+				ind + '-- half a cycle later the decode has long settled, and every other',
+				ind + '-- en_mem consumer samples on rising mclk edges, for which the',
+				ind + '-- registered strobe is indistinguishable from the raw one.',
+				ind + 'snapshot_strobe_reg: process(mclk)',
+				ind + 'begin',
+				ind + '    if falling_edge(mclk) then',
+			]
+			qpad = max(len('shslv_' + self.shslv[n]['sel'] + '_en_q') for n in capture)
+			for n in capture:
+				q = 'shslv_' + self.shslv[n]['sel'] + '_en_q'
+				lines.append(ind + '        ' + q.ljust(qpad) + ' <= shslv_' + self.shslv[n]['sel'] + '_en;')
+			lines += [
+				ind + '    end if;',
+				ind + 'end process;',
+				'',
+			]
 		for gi, (comment, names, pad) in enumerate(self.shimGroups):
 			for c in comment:
 				lines.append(ind + c)
 			for name in names:
 				shim = self.shslv[name]['shim'] + '_sh_en_n'
-				lines.append(ind + shim.ljust(pad) + '<= not shslv_' + self.shslv[name]['sel'] + '_en;')
+				if name in CAPTURE_CLOCK:
+					lines.append(ind + shim.ljust(pad) + '<= not shslv_' + self.shslv[name]['sel'] + '_en_q;')
+				else:
+					lines.append(ind + shim.ljust(pad) + '<= not shslv_' + self.shslv[name]['sel'] + '_en;')
 			if gi == 0:
 				lines.append(ind + 'sh_wen_n <= not sh_we;')
 				lines.append('')

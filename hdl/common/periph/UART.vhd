@@ -107,7 +107,6 @@ architecture Behavioral of UART is
     signal tx_in_progress : std_logic;
     signal start_tx : std_logic;
     signal tx_write : std_logic; 
-    signal clr_start_tx : std_logic;
     signal tx_clk_cntr : std_logic_vector(3 downto 0);
     signal tx_bit_cntr : std_logic_vector(3 downto 0);
     signal tx_parity : std_logic;
@@ -133,7 +132,33 @@ architecture Behavioral of UART is
     signal clr_UTCIF : std_logic; -- Clear TX Complete Interrupt Flag
     signal clr_URCIF : std_logic; -- Clear RX Complete Interrupt Flag
 
-begin 
+    -- =============================================================================
+    -- ROOT-2 flag-CDC rework (2026-07-20, see digperiphs xcollapse_findings):
+    -- the USR_* flags used to live in the gated clk_tx/clk_baud domains with
+    -- ASYNCHRONOUS clears driven by the clk_mem clr_* pulses — at gate level
+    -- the async-clear release racing a (gated) clock edge X-es the flop UDP
+    -- (silicon: metastability/lost-clear window). Now the flags are STICKY
+    -- W1C registers in the clk_mem domain; the serial-side events cross as
+    -- toggles through 2-FF synchronizers, frame status (FEF/PEF) rides as a
+    -- payload that is stable while its toggle is in flight, and start_tx is
+    -- consumed through a toggle-ACK handshake instead of an async clear.
+    -- Firmware-visible semantics (SR bits, W1C, IRQ enables) are unchanged.
+    -- =============================================================================
+    signal tx_done_tgl     : std_logic; -- clk_tx domain: TX-complete event toggle
+    signal tx_empty_tgl    : std_logic; -- clk_tx domain: TX-empty event toggle
+    signal tx_start_ack_tgl: std_logic; -- clk_tx domain: start_tx consumed toggle
+    signal rx_done_tgl     : std_logic; -- clk_baud domain: RX-complete event toggle
+    signal fef_val         : std_logic; -- clk_baud payload: frame's framing-error
+    signal pef_val         : std_logic; -- clk_baud payload: frame's parity-error
+    signal tx_done_s1, tx_done_s2, tx_done_s3    : std_logic; -- clk_mem syncs
+    signal tx_empty_s1, tx_empty_s2, tx_empty_s3 : std_logic;
+    signal rx_done_s1, rx_done_s2, rx_done_s3    : std_logic;
+    signal tx_ack_s1, tx_ack_s2, tx_ack_s3       : std_logic;
+    signal tx_busy_s1, tx_busy_s2 : std_logic;   -- clk_mem 2-FF of the busy levels
+    signal rx_busy_s1, rx_busy_s2 : std_logic;
+    signal start_tx_s1, start_tx_s2 : std_logic; -- clk_tx 2-FF of start_tx
+
+begin
 
     -- =============================================================================
     -- Register Bit Assignments
@@ -148,8 +173,8 @@ begin
     UCR_TCIE <= UART_CR(0);  -- TX Complete Interrupt Enable
 
     -- UART Status Register Bit Mapping
-    UART_SR(7) <= USR_RX_busy; -- RX Busy Flag
-    UART_SR(6) <= USR_TX_busy; -- TX Busy Flag
+    UART_SR(7) <= rx_busy_s2;  -- RX Busy Flag (2-FF synced level, ROOT-2)
+    UART_SR(6) <= tx_busy_s2;  -- TX Busy Flag (2-FF synced level, ROOT-2)
     UART_SR(5) <= USR_FEF;     -- Framing Error Flag
     UART_SR(4) <= USR_PEF;     -- Parity Error Flag
     UART_SR(3) <= USR_OVF;     -- RX Overflow Flag
@@ -242,52 +267,57 @@ begin
         ClkOut => clk_tx
     );
 
-    -- TX Finite State Machine 
-    TX_FSM : process(resetn, clk_tx, clr_UTCIF, clr_UTEIF, UCR_EN)
-    begin 
+    -- TX Finite State Machine (ROOT-2: flags left this process — completion /
+    -- empty events leave as toggles, start_tx is consumed via the ACK toggle,
+    -- and start_tx itself is 2-FF synchronized into clk_tx)
+    TX_FSM : process(resetn, clk_tx, UCR_EN)
+    begin
         if resetn = '0' or UCR_EN = '0' then
             tx_in_progress <= '0';
-            tx_sr <= (others => '0'); 
+            tx_sr <= (others => '0');
             tx_bit_cntr <= TX_CLOCK_RESET;
             tx_parity <= '0';
-            USR_UTEIF <= '0';
-            USR_UTCIF <= '0';
-            clr_start_tx <= '0';
+            tx_done_tgl <= '0';
+            tx_empty_tgl <= '0';
+            tx_start_ack_tgl <= '0';
+            start_tx_s1 <= '0';
+            start_tx_s2 <= '0';
         elsif rising_edge(clk_tx) then
-            -- Default assignments for one-cycle pulses
-            clr_start_tx <= '0';
+            -- start_tx level synchronizer (held until ACKed — safe to 2-FF)
+            start_tx_s1 <= start_tx;
+            start_tx_s2 <= start_tx_s1;
 
             if tx_in_progress = '0' then
                 -- Idle state - not transmitting
-                if start_tx = '1' then
+                if start_tx_s2 = '1' then
                     -- Start new transmission
-                    clr_start_tx <= '1';
+                    tx_start_ack_tgl <= not tx_start_ack_tgl; -- consume start_tx
                     tx_sr <= UART_TX & '0'; -- Load data + start bit
                     tx_bit_cntr <= BIT_COUNTER_START;
                     tx_parity <= UCR_PSEL; -- Initialize parity bit
                     tx_in_progress <= '1';
-                    USR_UTEIF <= '1'; -- Set TX Empty flag to indicate ready for new data
+                    tx_empty_tgl <= not tx_empty_tgl; -- TX Empty event (ready for new data)
                 end if;
-            else 
+            else
                 -- Transmission in progress
                 tx_sr <= '0' & tx_sr(8 downto 1); -- Shift in stop bit
-                
+
                 -- Check for transmission completion
-                if (tx_bit_cntr = BIT_COUNT_STOP) or 
+                if (tx_bit_cntr = BIT_COUNT_STOP) or
                 (tx_bit_cntr = BIT_COUNT_PARITY and UCR_PEN = '0') then
                     -- Transmission complete
-                    
-                    if start_tx = '1' then
+
+                    if start_tx_s2 = '1' then
                         -- Chain next transmission immediately
-                        clr_start_tx <= '1';
+                        tx_start_ack_tgl <= not tx_start_ack_tgl; -- consume start_tx
                         tx_sr <= UART_TX & '0'; -- Load new data + start bit
                         tx_bit_cntr <= BIT_COUNTER_START;
                         tx_parity <= UCR_PSEL; -- Initialize parity bit
-                        USR_UTEIF <= '1'; 
-                    else 
-                        -- No new transmission, go idle and set completion flag
+                        tx_empty_tgl <= not tx_empty_tgl; -- TX Empty event
+                    else
+                        -- No new transmission, go idle and signal completion
                         tx_in_progress <= '0';
-                        USR_UTCIF <= '1'; -- Set TX Complete flag only when truly complete
+                        tx_done_tgl <= not tx_done_tgl; -- TX Complete event
                     end if;
                 else
                     -- Continue transmission
@@ -296,15 +326,6 @@ begin
                 end if;
             end if;
         end if;
-
-            -- Handle interrupt flag clearing
-            if clr_UTEIF = '1' then
-                USR_UTEIF <= '0';
-            end if;
-            if clr_UTCIF = '1' then
-                USR_UTCIF <= '0';
-            end if;
- 
     end process;
 
     -- TX Output Logic (Combinational)
@@ -359,7 +380,7 @@ begin
 
 
     -- RX Finite State Machine 
-    RX_FSM : process(resetn, clk_baud, en_clk_baud, UCR_EN, UCR_PEN, UCR_PSEL, clr_SR_RX, clr_URCIF,rx_in_progress)
+    RX_FSM : process(resetn, clk_baud, en_clk_baud, UCR_EN, UCR_PEN, UCR_PSEL, rx_in_progress)
     begin 
         if resetn = '0' or rx_in_progress = '0' then
             rx_bit_cntr <= BIT_COUNTER_START; -- was "1010"
@@ -400,47 +421,37 @@ begin
                     -- was: rx_clk_cntr = "0111" and (rx_bit_cntr = "0000" or (rx_bit_cntr = "0001" and UCR_PEN = '0'))
                     -- RX complete
 
-                    -- Update UART_RX and check for parity error
+                    -- Update UART_RX and record the frame's parity status
+                    -- (ROOT-2: PEF/FEF ride as payload next to rx_done_tgl —
+                    -- stable for a full frame while the toggle is in flight;
+                    -- the sticky bus-domain flags load them at the synced edge)
                     if UCR_PEN = '1' then
-                        --Set parity error flag if parity does not match
-                        USR_PEF <= rx_parity;
+                        pef_val <= rx_parity; -- parity mismatch for THIS frame
 
                         -- Place received data in UART_RX
                         UART_RX <= rx_sr(7 downto 0); -- Store received data
-                    else 
-                        USR_PEF <= '0'; -- Clear Parity Error Flag
+                    else
+                        pef_val <= '0';
                         UART_RX <= rx_sr(8 downto 1); -- Store MSBs in UART_RX
                     end if;
 
-                    -- Overflow check
-                    if USR_RCIF = '1' then
-                        -- Previous RX byte was never read (RCIF still set), so the
-                        -- newly received byte overruns it -> overflow.
-                        USR_OVF <= '1'; -- Set Overflow Flag
-                    end if;
+                    -- (ROOT-2: the overflow check moved to the bus-domain flag
+                    -- process — it tests the STICKY RCIF at the synced edge,
+                    -- preserving the "previous byte never read" semantic)
 
-                    USR_FEF <= not RX_IN; -- Set Framing Error Flag if RX_IN is not high (stop bit)
-                    USR_RCIF <= '1'; -- Receive Complete
+                    fef_val <= not RX_IN; -- Framing error if RX_IN is not high (stop bit)
+                    rx_done_tgl <= not rx_done_tgl; -- Receive Complete event
                     clr_rx_in_progress <= '1'; -- Clear RX in progress
 
                 end if;
-            end if;       
+            end if;
         end if;
 
-        -- Clear SR when RX is read
-        if resetn = '0' or clr_SR_RX = '1' then
-            USR_OVF <= '0';
-            USR_FEF <= '0';
-            USR_RCIF <= '0';
-            USR_PEF <= '0';
-        end if;
-    
-        if clr_URCIF = '1' then
-            USR_RCIF <= '0';
-        end if;
-
-        if resetn = '0' then 
+        if resetn = '0' then
             UART_RX <= (others => '0');
+            rx_done_tgl <= '0';
+            fef_val <= '0';
+            pef_val <= '0';
         end if;
 
     end process;
@@ -450,6 +461,73 @@ begin
     -- =============================================================================
     USR_RX_busy <= rx_in_progress;
     USR_TX_busy <= tx_in_progress or start_tx;
+
+    -- =============================================================================
+    -- ROOT-2 bus-domain flag block: toggle synchronizers + sticky W1C flags.
+    -- Everything below is clk_mem-synchronous — the clr_* pulses are consumed
+    -- in the SAME domain that generates them (no async clears anywhere).
+    -- Ordering inside the process: clears first, event sets last, so a set
+    -- that coincides with a clear WINS (an event is never lost).
+    -- =============================================================================
+    flags_cdc_proc: process(resetn, clk_mem)
+    begin
+        if resetn = '0' then
+            tx_done_s1 <= '0'; tx_done_s2 <= '0'; tx_done_s3 <= '0';
+            tx_empty_s1 <= '0'; tx_empty_s2 <= '0'; tx_empty_s3 <= '0';
+            rx_done_s1 <= '0'; rx_done_s2 <= '0'; rx_done_s3 <= '0';
+            tx_busy_s1 <= '0'; tx_busy_s2 <= '0';
+            rx_busy_s1 <= '0'; rx_busy_s2 <= '0';
+            USR_UTCIF <= '0';
+            USR_UTEIF <= '0';
+            USR_RCIF  <= '0';
+            USR_OVF   <= '0';
+            USR_FEF   <= '0';
+            USR_PEF   <= '0';
+        elsif rising_edge(clk_mem) then
+            -- 2-FF synchronizers (+1 edge-detect stage) for the event toggles
+            tx_done_s1 <= tx_done_tgl;   tx_done_s2 <= tx_done_s1;   tx_done_s3 <= tx_done_s2;
+            tx_empty_s1 <= tx_empty_tgl; tx_empty_s2 <= tx_empty_s1; tx_empty_s3 <= tx_empty_s2;
+            rx_done_s1 <= rx_done_tgl;   rx_done_s2 <= rx_done_s1;   rx_done_s3 <= rx_done_s2;
+            -- busy levels for SR reads
+            tx_busy_s1 <= USR_TX_busy; tx_busy_s2 <= tx_busy_s1;
+            rx_busy_s1 <= USR_RX_busy; rx_busy_s2 <= rx_busy_s1;
+
+            -- W1C / side-effect clears (clk_mem pulses from reg_write_proc)
+            if clr_UTCIF = '1' then USR_UTCIF <= '0'; end if;
+            if clr_UTEIF = '1' then USR_UTEIF <= '0'; end if;
+            if clr_URCIF = '1' then USR_RCIF  <= '0'; end if;
+            if clr_SR_RX = '1' then
+                USR_OVF  <= '0';
+                USR_FEF  <= '0';
+                USR_RCIF <= '0';
+                USR_PEF  <= '0';
+            end if;
+            -- disable clears the TX flags (legacy TX_FSM UCR_EN reset semantic)
+            if UCR_EN = '0' then
+                USR_UTCIF <= '0';
+                USR_UTEIF <= '0';
+            end if;
+
+            -- event sets (edge = s2 /= s3), AFTER the clears: set wins.
+            -- TX sets are UCR_EN-gated (the disable reset of the clk_tx
+            -- toggles must not read back as an event edge).
+            if UCR_EN = '1' and tx_done_s2 /= tx_done_s3 then
+                USR_UTCIF <= '1';
+            end if;
+            if UCR_EN = '1' and tx_empty_s2 /= tx_empty_s3 then
+                USR_UTEIF <= '1';
+            end if;
+            if rx_done_s2 /= rx_done_s3 then
+                if USR_RCIF = '1' then
+                    -- previous byte never read -> the new one overruns it
+                    USR_OVF <= '1';
+                end if;
+                USR_RCIF <= '1';
+                USR_FEF  <= fef_val; -- frame-status payload (stable in flight)
+                USR_PEF  <= pef_val;
+            end if;
+        end if;
+    end process;
 
     -- =============================================================================
     -- Pad Control Assignments
@@ -543,14 +621,23 @@ begin
         end if;
     end process;
 
-    -- Separate process for start_tx with async clear
-    start_tx_proc: process(resetn, clk_mem, clr_start_tx)
+    -- start_tx request/ACK handshake (ROOT-2: the old async clear from the
+    -- clk_tx domain is gone — the TX FSM toggles tx_start_ack_tgl when it
+    -- consumes the request, and the synced ACK edge clears the level here,
+    -- fully clk_mem-synchronous. A TX write in the same cycle wins (re-arm).)
+    start_tx_proc: process(resetn, clk_mem)
     begin
-        start_tx <= start_tx;
-        if resetn = '0' or clr_start_tx = '1' then
+        if resetn = '0' then
             start_tx <= '0';
+            tx_ack_s1 <= '0'; tx_ack_s2 <= '0'; tx_ack_s3 <= '0';
         elsif rising_edge(clk_mem) then
-            -- Set start_tx when writing to TX register
+            tx_ack_s1 <= tx_start_ack_tgl;
+            tx_ack_s2 <= tx_ack_s1;
+            tx_ack_s3 <= tx_ack_s2;
+            if tx_ack_s2 /= tx_ack_s3 then
+                start_tx <= '0'; -- request consumed by the TX FSM
+            end if;
+            -- Set start_tx when writing to TX register (set wins over the ACK clear)
             if en_mem = '0' and en_addr_periph = RegSlotUARTxTX and wen(0) = '0' then
                 start_tx <= '1';
             end if;

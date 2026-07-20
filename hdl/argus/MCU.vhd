@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/19 at 13:21:10 with the generate.py chip generator
+-- Generated on 2026/07/20 at 03:59:31 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -580,6 +580,7 @@ architecture behav of MCU is
         signal shslv_uart0_en   : std_logic;
         signal shslv_rd_uart0   : std_logic := '0'; -- registered: last access was UART0
         signal uart0_sh_en_n    : std_logic;   -- UART bus is active-LOW en/wen
+        signal shslv_uart0_en_q : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)
         signal sh_wen_n   : std_logic_vector(3 downto 0);
         signal uart0_sh_rdata   : std_logic_vector(31 downto 0);
         -- M7a: irq_router, the tile IRQ fan-out (M11: window page 3 @0x7000)
@@ -744,6 +745,8 @@ architecture behav of MCU is
         signal shslv_rd_gpio3   : std_logic := '0';
         signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen
         signal tim1_sh_en_n     : std_logic;
+        signal shslv_tim0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobes
+        signal shslv_tim1_en_q  : std_logic;   -- (snapshot capture clocks)
         signal gpio1_sh_en_n    : std_logic;
         signal gpio2_sh_en_n    : std_logic;
         signal gpio3_sh_en_n    : std_logic;
@@ -759,6 +762,8 @@ architecture behav of MCU is
         signal shslv_rd_uart1   : std_logic := '0';
         signal spi1_sh_en_n     : std_logic;
         signal uart1_sh_en_n    : std_logic;
+        signal shslv_spi1_en_q  : std_logic;   -- X-fix: falling-mclk registered strobes
+        signal shslv_uart1_en_q : std_logic;   -- (snapshot capture clocks)
         signal spi1_sh_rdata    : std_logic_vector(31 downto 0);
         signal uart1_sh_rdata   : std_logic_vector(31 downto 0);
         -- M7c.2 movers: I2C0/I2C1 (M11: window slots 14/15). I2C's register
@@ -773,6 +778,8 @@ architecture behav of MCU is
         signal shslv_rd_i2c1    : std_logic := '0';
         signal i2c0_sh_en_n     : std_logic;
         signal i2c1_sh_en_n     : std_logic;
+        signal shslv_i2c0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobes
+        signal shslv_i2c1_en_q  : std_logic;   -- (snapshot capture clocks)
         signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance
         signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);
         signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered
@@ -797,6 +804,7 @@ architecture behav of MCU is
         signal sys_sh_en_n      : std_logic;
         signal gpio0_sh_en_n    : std_logic;
         signal spi0_sh_en_n     : std_logic;
+        signal shslv_spi0_en_q  : std_logic;   -- X-fix: falling-mclk registered strobe (snapshot capture clock)
         signal sys_sh_rdata     : std_logic_vector(31 downto 0);
         signal gpio0_sh_rdata   : std_logic_vector(31 downto 0);
         signal spi0_sh_rdata    : std_logic_vector(31 downto 0);
@@ -2922,6 +2930,32 @@ begin
                     eis_rdata      when shslv_rd_eis     = '1' else
                     (others => '0');  -- no slave (TCM page, unmapped)
 
+    -- X-collapse fix (2026-07-20): SPI/UART/TIMER/I2C (and QSPI when
+    -- configured) CLOCK their status/RX snapshot registers on en_mem's
+    -- FALLING EDGE (the falling_edge(en_mem) idiom inside the
+    -- peripherals). sh_en/sh_addr are registered arbiter outputs, so the
+    -- combinational en AND decode below glitches only in the skew window
+    -- right after each rising mclk edge — and a glitch there is a
+    -- spurious capture-clock edge racing its own D (the gate-level
+    -- X-collapse; root cause + proof: digperiphs xcollapse_findings).
+    -- Those shims therefore take a FALLING-MCLK re-registered strobe:
+    -- half a cycle later the decode has long settled, and every other
+    -- en_mem consumer samples on rising mclk edges, for which the
+    -- registered strobe is indistinguishable from the raw one.
+    snapshot_strobe_reg: process(mclk)
+    begin
+        if falling_edge(mclk) then
+            shslv_uart0_en_q <= shslv_uart0_en;
+            shslv_tim0_en_q  <= shslv_tim0_en;
+            shslv_tim1_en_q  <= shslv_tim1_en;
+            shslv_spi1_en_q  <= shslv_spi1_en;
+            shslv_uart1_en_q <= shslv_uart1_en;
+            shslv_i2c0_en_q  <= shslv_i2c0_en;
+            shslv_i2c1_en_q  <= shslv_i2c1_en;
+            shslv_spi0_en_q  <= shslv_spi0_en;
+        end if;
+    end process;
+
     -- M6: bridge the arbiter slave port onto UART0's adddec-style register bus.
     -- UART.vhd already obeys the 1-cycle registered-read contract
     -- (reg_read_proc) and qualifies every write by en_mem='0', so the bridge is
@@ -2931,7 +2965,7 @@ begin
     -- free-running mclk (the gated-clock "stuck clear-pulse" behaviour of the
     -- old private periph bus disappears: clr_* become true one-cycle pulses,
     -- consumed asynchronously by the TX/RX FSMs).
-    uart0_sh_en_n  <= not shslv_uart0_en;
+    uart0_sh_en_n  <= not shslv_uart0_en_q;
     sh_wen_n <= not sh_we;
 
     -- M7b: same polarity shim for the moved TIMER/GPIO blocks (active-LOW
@@ -2942,21 +2976,21 @@ begin
     -- register every read (UART-class movers) — their un-en-qualified logic
     -- (timer core, pin IRQ flags) runs on its OWN muxed/pin clocks, not
     -- clk_mem, so the gated->free-running change is invariant for them.
-    tim0_sh_en_n  <= not shslv_tim0_en;
-    tim1_sh_en_n  <= not shslv_tim1_en;
+    tim0_sh_en_n  <= not shslv_tim0_en_q;
+    tim1_sh_en_n  <= not shslv_tim1_en_q;
     gpio1_sh_en_n <= not shslv_gpio1_en;
     gpio2_sh_en_n <= not shslv_gpio2_en;
     gpio3_sh_en_n <= not shslv_gpio3_en;
     -- M7c: SPI1 + UART1 (audited clean; SPI1's flash FSM is compiled out by
     -- ENABLE_EXTENDED_MEM=false, and its baud core runs on smclk — the
     -- SYS_CLK_CR=0 rule applies to SPI software too)
-    spi1_sh_en_n  <= not shslv_spi1_en;
-    uart1_sh_en_n <= not shslv_uart1_en;
+    spi1_sh_en_n  <= not shslv_spi1_en_q;
+    uart1_sh_en_n <= not shslv_uart1_en_q;
     -- M7c.2: I2C0/I2C1 (combinational read handled by i2c_rdata_bridge above;
     -- writes/snapshot-latches audit clean — single en-qualified ClkMem
     -- process, core FSMs on smclk/pin edges)
-    i2c0_sh_en_n  <= not shslv_i2c0_en;
-    i2c1_sh_en_n  <= not shslv_i2c1_en;
+    i2c0_sh_en_n  <= not shslv_i2c0_en_q;
+    i2c1_sh_en_n  <= not shslv_i2c1_en_q;
     -- M11: the last three private peripherals join the window (the private
     -- peripheral page is GONE). Audited: all five register their reads on
     -- clk_mem — UART-class movers, plain shims, no bridge. SYSTEM0 note:
@@ -2965,7 +2999,7 @@ begin
     -- (management hart quiesces the others first).
     sys_sh_en_n   <= not shslv_sys_en;
     gpio0_sh_en_n <= not shslv_gpio0_en;
-    spi0_sh_en_n  <= not shslv_spi0_en;
+    spi0_sh_en_n  <= not shslv_spi0_en_q;
 
     clint0: entity work.clint
         generic map (NHARTS => 18, ADDR_W => 6)
