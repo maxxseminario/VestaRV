@@ -23,6 +23,7 @@ rv32ui_sc_tests = \
 	shpwr \
 	shafe \
 	wperiph \
+	wqspi wi3c wnfc wgpio \
 	afsel afselv2 \
 	add addi \
 	and andi \

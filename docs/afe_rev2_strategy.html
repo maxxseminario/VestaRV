@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Castalia AFE Rev-2 — Bipolar Potentiostat Strategy</title>
+<style>
+  :root {
+    --bg: #faf9f6; --fg: #1e222a; --muted: #5c6470; --accent: #7a2e2e;
+    --card: #ffffff; --line: #d8d4cc; --code-bg: #f0eee8; --good: #2e6b3f; --bad: #8a4b2e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161b; --fg: #e4e2dc; --muted: #9aa0ab; --accent: #d98c8c;
+      --card: #1c1f26; --line: #333842; --code-bg: #22262e; --good: #7fc294; --bad: #d9a37e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 Georgia, 'Times New Roman', serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  h1, h2, h3 { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.2; }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; border-bottom: 1px solid var(--line); padding-bottom: .35rem; }
+  h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+  .subtitle { color: var(--muted); margin: 0 0 2rem; font-style: italic; }
+  code, .mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: .86em;
+    background: var(--code-bg); padding: .1em .35em; border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .95rem; }
+  th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: .8rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); }
+  .tablewrap { overflow-x: auto; }
+  .callout { background: var(--card); border-left: 4px solid var(--accent); padding: .9rem 1.1rem;
+    margin: 1.25rem 0; border-radius: 0 6px 6px 0; }
+  .callout strong:first-child { color: var(--accent); }
+  .verdict-keep { color: var(--good); font-weight: 600; }
+  .verdict-drop { color: var(--bad); font-weight: 600; }
+  figure { margin: 1.5rem 0; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 1.25rem; overflow-x: auto; }
+  figcaption { font-size: .85rem; color: var(--muted); margin-top: .75rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif; }
+  svg text { font-family: 'Helvetica Neue', Arial, sans-serif; fill: var(--fg); }
+  svg .lbl-muted { fill: var(--muted); }
+  svg .wire { stroke: var(--fg); stroke-width: 1.5; fill: none; }
+  svg .blockbox { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+  ul { padding-left: 1.3rem; }
+  li { margin: .35rem 0; }
+  .footer { margin-top: 3rem; color: var(--muted); font-size: .85rem;
+    border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Castalia AFE Rev-2 — Bipolar Potentiostat Strategy</h1>
+<p class="subtitle">Revision plan for the Myshkin wound-monitoring front end, targeting the quad-core Castalia chip. Surveyed from the Myshkin tapeout LVS netlists, 2026-07-20.</p>
+
+<h2>Rev-2 goals</h2>
+<ul>
+  <li><strong>4 identical AFE channels</strong> (Myshkin had 1), one per Castalia core.</li>
+  <li><strong>SAR ADC only</strong> — eliminate the dual-slope ADC (<code>dualSlope_sch4lay</code>) and its trim buses.</li>
+  <li><strong>Bipolar current sensing</strong> — each 3-terminal potentiostat must measure both anodic and cathodic (positive and negative) cell current. <em>This is the critical requirement.</em></li>
+  <li>Favor <strong>simple over complex</strong> topologies.</li>
+</ul>
+
+<h2>Rev-1 survey (Myshkin, <span class="mono">AFE_ECS</span> / <span class="mono">potentiostat_final</span>)</h2>
+<p>The taped-out channel is a <strong>current-mirror potentiostat</strong>. Signal chain, from the netlist of <code>potentiostat_pmos_sch4lay_upd</code>:</p>
+<div class="tablewrap"><table>
+  <tr><th>Stage</th><th>Cell</th><th>Function</th><th>Rev-2</th></tr>
+  <tr><td>Control loop</td><td><code>folded_cascode_pmos</code></td>
+      <td>Servos RE = vref (vref from 14-bit R-2R DAC) by gating a PMOS current source into CE (10µ/3µ ×3, cascode ×16)</td>
+      <td class="verdict-keep">reuse</td></tr>
+  <tr><td>Current sense</td><td>PMOS 1:1 cascode mirror</td>
+      <td>Copies the CE drive current to the readout node <code>voutm</code></td>
+      <td class="verdict-drop">delete — source of unidirectionality</td></tr>
+  <tr><td>TIA / PGA</td><td><code>bts_pmos</code> + 16-tap R string</td>
+      <td>Two-stage Miller op-amp (6-bit tail + lead-comp trim); Rf = 16 × 35 kΩ poly segments, tap via TGP2A T-gates → 35–560 kΩ</td>
+      <td class="verdict-keep">reuse</td></tr>
+  <tr><td>ADC 1</td><td><code>dualSlope_sch4lay</code></td>
+      <td>Integrating ADC + <code>AdcMimComparatorMei</code></td>
+      <td class="verdict-drop">delete</td></tr>
+  <tr><td>ADC 2</td><td><code>NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb</code></td>
+      <td>10-bit SAR, single-ended input, 2.5 V analog / 1 V digital, sync clock</td>
+      <td class="verdict-keep">reuse, 1 per channel</td></tr>
+  <tr><td>References</td><td><code>Dac2V5R2R14</code> ×2</td>
+      <td>14-bit R-2R DACs generating vref and vcm</td>
+      <td class="verdict-keep">reuse (vcm shared)</td></tr>
+  <tr><td>Bias</td><td><code>BiasGenCascWideSwingGlobal</code></td>
+      <td>Wide-swing cascode bias distributor, 6-bit trim, DAC override</td>
+      <td class="verdict-keep">reuse, shared global</td></tr>
+  <tr><td>Support</td><td><code>LVLD10A25PP*</code>, T-gates, <code>DacPowerSupply</code></td>
+      <td>1 V ↔ 2.5 V level shifting, muxing, DAC supply</td>
+      <td class="verdict-keep">reuse</td></tr>
+</table></div>
+
+<div class="callout">
+<strong>Root cause of the one-sided limit:</strong> the PMOS-only mirror can only <em>source</em> current into CE and only <em>copy</em> sourced current. When the electrochemical cell demands current in the opposite direction, the output stage cuts off and the control loop rails. The amplifiers themselves are not the limit — the folded-cascode output already sources and sinks.</div>
+
+<h2>Chosen topology: grounded-WE two-amp potentiostat</h2>
+<p>Delete the mirror and sense at the <strong>working electrode</strong> instead of the counter electrode. Same architecture as the LMP91000 / AD5940 — the textbook simple bipolar potentiostat, and subtractive relative to rev-1.</p>
+
+<figure>
+<svg viewBox="0 0 760 300" width="760" height="300" role="img" aria-label="Two-amp potentiostat block diagram">
+  <!-- Control amp A1 -->
+  <polygon class="blockbox" points="120,60 120,120 180,90"/>
+  <text x="132" y="95" font-size="13">A1</text>
+  <text x="30" y="72" font-size="12">vref (R-2R DAC)</text>
+  <line class="wire" x1="108" y1="68" x2="120" y2="68" transform="translate(0,6)"/>
+  <text x="104" y="112" font-size="12" text-anchor="end">RE fb</text>
+  <line class="wire" x1="108" y1="108" x2="120" y2="108"/>
+  <!-- A1 out to CE -->
+  <line class="wire" x1="180" y1="90" x2="250" y2="90"/>
+  <circle cx="256" cy="90" r="5" fill="none" stroke="currentColor" class="wire"/>
+  <text x="250" y="78" font-size="12">CE</text>
+  <!-- Cell -->
+  <rect class="blockbox" x="280" y="55" width="120" height="140" rx="8" style="stroke-dasharray:5 4"/>
+  <text x="340" y="45" font-size="12" text-anchor="middle" class="lbl-muted">wound / cell</text>
+  <line class="wire" x1="261" y1="90" x2="280" y2="90"/>
+  <!-- RE tap -->
+  <circle cx="340" cy="130" r="5" fill="none" class="wire"/>
+  <text x="340" y="120" font-size="12" text-anchor="middle">RE</text>
+  <line class="wire" x1="340" y1="135" x2="340" y2="230"/>
+  <line class="wire" x1="340" y1="230" x2="90" y2="230"/>
+  <line class="wire" x1="90" y1="230" x2="90" y2="108"/>
+  <line class="wire" x1="90" y1="108" x2="108" y2="108"/>
+  <!-- WE -->
+  <circle cx="404" cy="160" r="5" fill="none" class="wire"/>
+  <text x="404" y="150" font-size="12">WE</text>
+  <line class="wire" x1="400" y1="160" x2="470" y2="160"/>
+  <!-- TIA A2 -->
+  <polygon class="blockbox" points="470,130 470,190 530,160"/>
+  <text x="482" y="165" font-size="13">A2</text>
+  <text x="452" y="196" font-size="12" text-anchor="end">vcm</text>
+  <line class="wire" x1="455" y1="182" x2="470" y2="182"/>
+  <!-- Rf feedback -->
+  <line class="wire" x1="440" y1="160" x2="440" y2="105"/>
+  <rect class="blockbox" x="455" y="97" width="70" height="16"/>
+  <text x="490" y="90" font-size="12" text-anchor="middle">Rf 35–560 kΩ (16-tap)</text>
+  <line class="wire" x1="440" y1="105" x2="455" y2="105"/>
+  <line class="wire" x1="525" y1="105" x2="560" y2="105"/>
+  <line class="wire" x1="560" y1="105" x2="560" y2="160"/>
+  <!-- A2 out to SAR -->
+  <line class="wire" x1="530" y1="160" x2="600" y2="160"/>
+  <text x="565" y="150" font-size="12">vout</text>
+  <rect class="blockbox" x="600" y="135" width="120" height="50" rx="6"/>
+  <text x="660" y="158" font-size="13" text-anchor="middle">10-bit SAR</text>
+  <text x="660" y="175" font-size="11" text-anchor="middle" class="lbl-muted">single-ended</text>
+  <!-- equation -->
+  <text x="380" y="275" font-size="13" text-anchor="middle">vout = vcm − Iwe · Rf   →   sign of Iwe = side of vcm   (offset-binary SAR code)</text>
+</svg>
+<figcaption>A1 = <code>folded_cascode_pmos</code> drives CE directly with RE feedback against vref. A2 = <code>bts_pmos</code> holds WE at virtual ground vcm through the existing programmable R string. Both current polarities pass through Rf by KCL — no mirror, no matching error.</figcaption>
+</figure>
+
+<h3>Why this wins</h3>
+<ul>
+  <li><strong>Bipolar for free:</strong> anodic current puts vout below vcm, cathodic above. The single-ended 10-bit SAR needs <em>zero changes</em> — data is offset-binary around the vcm code; subtract in firmware, or occasionally mux vcm into the ADC (existing <code>adcSourceSel</code> pattern) to calibrate the zero code.</li>
+  <li><strong>Simpler and more accurate:</strong> removing the mirror removes its mismatch and channel-length-modulation gain error. The sensed current is exact by KCL.</li>
+  <li><strong>Maximum reuse:</strong> both amps, the R string, both DACs, the bias generator, level shifters, and the SAR carry over unchanged.</li>
+</ul>
+
+<h3>Range at 2.5 V (vcm = 1.25 V, ±1.15 V usable swing)</h3>
+<div class="tablewrap"><table>
+  <tr><th>Rf</th><th>Full scale</th><th>LSB (10-bit)</th></tr>
+  <tr><td>35 kΩ (min gain)</td><td>±33 µA</td><td>≈ 64 nA</td></tr>
+  <tr><td>560 kΩ (max gain)</td><td>±2 µA</td><td>≈ 4 nA</td></tr>
+</table></div>
+
+<h3>To verify in simulation (both expected fine at µA-scale wound currents)</h3>
+<ul>
+  <li><code>bts_pmos</code> output stage is class-A on the source side (current-source PMOS pull-up MM5) — check worst-case cathodic full-scale drive; if short, bump MM5's bias rather than going class-AB.</li>
+  <li><code>folded_cascode_pmos</code> previously drove only a MOS gate; it now supplies the actual cell current through CE. Confirm its class-A source/sink limits against max expected wound current; add a buffer only if needed.</li>
+  <li>Loop stability of both amps with electrode impedance models (RE is now inside A1's feedback loop; WE capacitance loads A2's virtual ground).</li>
+</ul>
+
+<h2>Alternatives considered and rejected</h2>
+<div class="tablewrap"><table>
+  <tr><th>Topology</th><th>Why rejected</th></tr>
+  <tr><td>Complementary NMOS + PMOS mirror (push-pull sense)</td>
+      <td>Doubles the matching problem; crossover distortion exactly at zero current — the most interesting region for redox monitoring.</td></tr>
+  <tr><td>Polarity-switched / commutated front end (T-gate swap)</td>
+      <td>Needs polarity detection, glitches through zero crossings, useless for CV-style sweeps. Only viable for known-polarity DC.</td></tr>
+</table></div>
+
+<h2>Four-channel plan for Castalia</h2>
+<ul>
+  <li><strong>Per channel (×4, identical):</strong> control amp + TIA + 16-tap R string + own 10-bit SAR. Per-channel SARs keep the channels truly identical and allow simultaneous sampling — cleaner than a 4:1 mux into a shared SAR.</li>
+  <li><strong>Shared:</strong> <code>BiasGenCascWideSwingGlobal</code> (designed as a global distributor) and the vcm DAC.</li>
+  <li><strong>Open decision:</strong> one shared vref DAC (all channels at the same cell potential) vs. per-channel vref (4× <code>Dac2V5R2R14</code>, or one DAC + sample/holds).</li>
+  <li><strong>Pads:</strong> each channel now needs a WE pin in addition to CE/RE (rev-1 assumed WE grounded off-chip) → 12 electrode pads total. Check against the Castalia pad budget early (quad die is 2960 × 2960 µm).</li>
+  <li><strong>Deleted with the dual slope:</strong> <code>dualSlope_sch4lay</code>, its comparator, one MUX2A leg, and the <code>lbDS/tbDS/rc_en/rcap_en</code> trim buses.</li>
+</ul>
+
+<h2>Workspace rules</h2>
+<ul>
+  <li><code>~/chips/myshkin/ic</code> is the <strong>frozen tapeout workspace</strong> — never write to it, never write through Castalia symlinks.</li>
+  <li>Castalia's <code>ic/</code> is view-only; new libraries are built and ingested via <code>~/vestarv/signoff_mp</code> (<code>make ingest BLOCK=… [LIB=…]</code>). One home per library.</li>
+</ul>
+
+<p class="footer">Sources: <code>potentiostat_pmos_sch4lay_upd.cdl</code>, <code>potentiostat_final.top_level_sch.schematic.cdl</code>, <code>Better_ADCs.NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb.schematic.cdl</code> (Myshkin LVS netlists). Strategy agreed 2026-07-20.</p>
+
+</main>
+</body>
+</html>

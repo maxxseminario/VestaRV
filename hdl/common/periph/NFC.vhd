@@ -15,6 +15,51 @@ use work.constants.all;
 -- EnMemPeriph pre-latch + clocked ClkMem read mux for volatile regs, W1C via
 -- lane-0 write with clr-pulse retirement on EnMemPeriph='1', transaction-local
 -- config latching, held-level CDC (no async FIFO, D18). -V200X only.
+--
+-- FIRMWARE QUICK-START (tag emulation, AUTOREAD path; full flow in
+-- ~/vesta_docs/digperiphs/nfc_spec.md "Driver note"):
+--   1. SYS_CLK_CR = 0 (SMCLK<-HFXT; bootrom parks SMCLK on LFXT).
+--   2. Provision identity: NFCxUID (4-byte UID), NFCxCFG (ATQA/SAK). Leave the
+--      NFCxTIM real-grid defaults on silicon (benches write them small).
+--   3. Load the payload the reader will collect: NFCxIDX = IDXSEL=0|IDXAINC=1|IDX=0,
+--      then stream bytes into NFCxDATA (wound record, up to 64 B).
+--   4. Arm: NFCxCR = NFCEN|LISTEN (+ IE bits). With AUTOREAD=1 (reset default) HW
+--      auto-answers a Type-2 READ from the payload window, no firmware in the loop.
+--   5. IRQs 94 FIELD / 95 RXF / 96 TXDONE / 97 CRCERR arrive via irq_router
+--      CLAIM/COMPLETE through the meip dispatcher (route needs HhENU bits 30/31 AND
+--      HhENX bits 0/1 -- NFC straddles the U/X enable-word boundary). W1C the SR
+--      flag (bits 1-5) in the handler before returning.
+--   Exact-grid timing note: the response starts FDT + compose_latency (<= ~19
+--   rf_clk ticks) after reader EOF; program FDT = target - compose_latency if a
+--   reader demands the exact ISO grid (benign for the memory-tag profile).
+--
+-- OFF-DIE ANALOG FRONT END (D2: the rf_* ports are the ONLY link; AFE is on the
+-- PCB, never on-die). Best-match COTS part: ST ST25R3916 in TRANSPARENT MODE --
+-- MOSI=modulation in (rf_txmod), MISO/IRQ=demodulated RX (rf_rx), MCU_CLK=
+-- extracted carrier clock (rf_clk; set CR.RFDIV/NFCxTIM to its division),
+-- EXT_LM=field detector (field_detect), SCLK=receiver enable (afe_en role):
+--   https://www.st.com/en/nfc/st25r3916.html
+--   https://community.st.com/t5/st25-nfc-rfid-tags-and-readers/st25r3916-transparent-mode-details/td-p/134598
+--   https://community.st.com/t5/st25-nfc-rfid-tags-and-readers/questions-about-configurations-of-st25r3916-for-transparent-mode/td-p/314074
+-- Ruled out: TI TRF7970A -- its direct mode is NOT supported for ISO card
+-- emulation (TI E2E + app note SLOA208):
+--   https://e2e.ti.com/support/wireless-connectivity/other-wireless-group/other-wireless/f/other-wireless-technologies-forum/874751/trf7970a-using-direct-mode-0-in-card-emulation-mode-iso14443a-2
+--   https://www.ti.com/lit/pdf/sloa208
+-- Alternatives: discrete AFE (coil + envelope detector/comparator + load-mod FET
+-- + clock slicer) for the production patch; dynamic tag ICs (ST25DV / NTAG I2C)
+-- only as a fallback -- they embed the whole protocol and bypass this block.
+--
+-- WIRELESS POWER (decision 2026-07-20): this block is COMMUNICATIONS ONLY. Any
+-- NFC energy harvesting is PCB-LEVEL COTS (rectifier/supercap/LDO or an NTAG 5
+-- boost EH output, plus a supply supervisor) -- the chip has no harvesting or
+-- voltage-sensing circuitry and presents ordinary rails. Planned chip-side
+-- novelty is DIGITAL only, in PWRCTRL/bootrom, NOT in this block: a
+-- "field-powered mode" = field_detect as a PWRCTRL wake source, a PGOOD input
+-- pin gating boot (P6.6/P6.7 are the reserved spares), and a harvested-boot
+-- ROM path (skip SPI-flash copy, tiles gated, slow mclk). The protocol side
+-- already tolerates field power: rf_clk may vanish with the field, and
+-- field-loss forces the FSM to POWER_OFF/IDLE cleanly (D11/D18). Full plan:
+-- ~/vesta_docs/digperiphs/nfc_spec.md "Wireless power".
 
 entity NFC is
     port (
