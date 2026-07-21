@@ -49,7 +49,9 @@
     "nfc": false,
     "rtc": false,
     "pwm": false,
-    "onewire": false
+    "onewire": false,
+    "dma": false,
+    "dmaChannels": 4
   },
   "package": {
     "model": "myshkin-qfn44",
