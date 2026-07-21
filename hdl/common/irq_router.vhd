@@ -49,11 +49,11 @@
 --               (digperiphs #3: NFC sources 96/97; ELSE reserved,
 --               reads 0). NUM_EN_WORDS = ceil(NUM_SRCS/32) words per hart. RW
 --   word 512  : 0x7800 CLAIM (read, SIDE EFFECT) / COMPLETE (write)
---   word 516-518 : 0x7810/14/18 PENDL/M/U  = raw deglitched levels     RO
---   word 520-522 : 0x7820/24/28 INSVCL/M/U = in_service bits           RO
---     (the PEND/INSVC readback words expose sources 0..95 only; sources
---      96/97 are still fully deliverable via meip/CLAIM and enable-writable
---      through HhENX — they are simply not in the RO debug readback)
+--   word 516-519 : 0x7810/14/18/1C PENDL/M/U/X  = raw deglitched levels RO
+--   word 520-523 : 0x7820/24/28/2C INSVCL/M/U/X = in_service bits       RO
+--     (Stage E rider 2026-07-21: PENDX/INSVCX added — the RO readback now
+--      covers ALL sources 0..NUM_SRCS-1. At NUM_SRCS <= 96 the X words
+--      read 0, so the addition is invisible to 3-enable-word configs.)
 --   everything else reads 0, writes ignored. Row indices >= NHARTS are
 --   dead (read 0, ignore writes) as at A2.
 -- M19 row 0 is LIVE: hart 0 takes meip(0) like every tile (SYSTEM0's
@@ -149,9 +149,11 @@ architecture behav of irq_router is
     constant W_PENDL  : natural := 516;  -- 0x7810
     constant W_PENDM  : natural := 517;
     constant W_PENDU  : natural := 518;
+    constant W_PENDX  : natural := 519;  -- 0x781C (sources 127:96; 0 below 97 srcs)
     constant W_INSVCL : natural := 520;  -- 0x7820
     constant W_INSVCM : natural := 521;
     constant W_INSVCU : natural := 522;
+    constant W_INSVCX : natural := 523;  -- 0x782C (sources 127:96; 0 below 97 srcs)
 
     constant CLAIM_NONE : std_logic_vector(31 downto 0) := (others => '1');
     -- COMPLETE bounds check: a legal source ID fits 7 bits (NUM_SRCS <= 127)
@@ -203,7 +205,7 @@ begin
     end process;
 
     -- coverage asserts (elaboration-time constant conditions; no hardware)
-    assert 2**ADDR_W > W_INSVCU
+    assert 2**ADDR_W > W_INSVCX
         report "irq_router: ADDR_W too small for the M19 CLAIM block"
         severity failure;
     assert 4*NHARTS <= W_CLAIM
@@ -322,9 +324,11 @@ begin
                         when W_PENDL  => rd := status_word(irq_in, 0);
                         when W_PENDM  => rd := status_word(irq_in, 1);
                         when W_PENDU  => rd := status_word(irq_in, 2);
+                        when W_PENDX  => rd := status_word(irq_in, 3);
                         when W_INSVCL => rd := status_word(in_service, 0);
                         when W_INSVCM => rd := status_word(in_service, 1);
                         when W_INSVCU => rd := status_word(in_service, 2);
+                        when W_INSVCX => rd := status_word(in_service, 3);
                         when others   => rd := (others => '0');
                     end case;
                     rdata_reg <= rd;

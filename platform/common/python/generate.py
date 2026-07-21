@@ -1443,6 +1443,19 @@ for i in range(numMutexes):
 p = PeripheralTemplate(nameTemplate='IRQROUTER', description='THE peripheral interrupt controller (M19): per-hart interrupt routing/enable rows plus a claim/complete delivery stage, programmable by any hart through the shared window. Every deglitched peripheral interrupt level terminates here; the router raises a single external-interrupt wire (meip, interrupt vector 85) to each of the ' + _spelled(numHarts) + ' harts whenever some peripheral source is pending, enabled in that hart\'s row, and not already being serviced. The servicing hart reads CLAIM to atomically discover and claim the lowest-numbered such source (claims are attributed to the reading hart by the shared-bus arbiter, so simultaneous claimers are serialized and each source is delivered exactly once), runs the source\'s handler, clears the interrupt level at the peripheral, and writes the source number back to CLAIM (complete). A source under service is masked from every hart\'s meip until completed; if its level is still high at complete (a new event), it pends again. Priority is fixed: the lowest pending vector number wins. The CLINT vectors 83 (msip) and 84 (mtip) are never delivered through meip — they reach each hart on dedicated hardwired wires — so their row bits are writable but have no effect. All rows reset to 0 (everything masked), so the router is inert until software programs it. Since M19 row 0 is live: hart 0 takes meip like every other hart (the SYSTEM peripheral\'s vectored interrupt controller is retired).', bitFieldPrefix='IRQR', latexIntroFileName='IRQROUTER-intro-castalia-2026-07.tex', latexFeatureSummary='Claim/complete peripheral interrupt delivery (PLIC-style) with any-vector-to-any-hart routing')
 m.AddPeripheralTemplate(p)
 
+# Stage E rider (2026-07-21): the routing rows and the RO status readback are
+# vectorsCount-driven. Every current config has > 96 sources (114 default since
+# GPIO4/5 went unconditional; up to 120 wound), so the router carries FOUR
+# enable words per hart — the fourth (HhENX, row word 4h+3, the formerly
+# reserved slot) covers vectors (vectorsCount-1):96 — and the RO status
+# readback has the matching PENDX/INSVCX words at 0x781C/0x782C. The U words
+# are then fully live (vectors 95:64, bits 31:0). The historic 3-word form
+# (U = 84:64, bits 20:0, no X words) survives for <= 96-source configs.
+_irqrXWords = _vectorsCount > 96			# HhENX/PENDX/INSVCX exist
+_irqrXMsb   = _vectorsCount - 97			# live msb in the X words (when they exist)
+_irqrUMsb   = 31 if _vectorsCount >= 96 else _vectorsCount - 65
+_irqrUTop   = min(_vectorsCount, 96) - 1	# top vector covered by the U words
+
 for h in range(numHarts):
 	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENL', registerMemorySlot=4 * h, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 31:0. Each bit enables delivery of the corresponding interrupt vector to hart ' + str(h) + ' via its meip wire (vector 85) and the CLAIM/COMPLETE mechanism.')
 	p.AddRegisterTemplate(r)
@@ -1452,10 +1465,22 @@ for h in range(numHarts):
 	p.AddRegisterTemplate(r)
 	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENM', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 63:32, routed to hart ' + str(h) + '.'))
 
-	r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
-	p.AddRegisterTemplate(r)
-	r.AddBitField(BitField(unused=True, msb=31, lsb=21))
-	r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENU', msb=20, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 84:64, routed to hart ' + str(h) + '.'))
+	if _irqrUMsb == 31:
+		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
+		p.AddRegisterTemplate(r)
+		r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENU', msb=31, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors 95:64, routed to hart ' + str(h) + '.'))
+	else:
+		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENU', registerMemorySlot=4 * h + 2, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors ' + str(_irqrUTop) + ':64 (bits ' + str(_irqrUMsb) + ':0; bits 31:' + str(_irqrUMsb + 1) + ' read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.')
+		p.AddRegisterTemplate(r)
+		r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrUMsb + 1))
+		r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENU', msb=_irqrUMsb, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors ' + str(_irqrUTop) + ':64, routed to hart ' + str(h) + '.'))
+
+	if _irqrXWords:
+		r = RegisterTemplate(nameTemplate='H' + str(h) + 'ENX', registerMemorySlot=4 * h + 3, size=32, description='Hart ' + str(h) + ' interrupt routing register, vectors ' + str(_vectorsCount - 1) + ':96 (bits ' + str(_irqrXMsb) + ':0; upper bits read as 0).')
+		p.AddRegisterTemplate(r)
+		if _irqrXMsb < 31:
+			r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrXMsb + 1))
+		r.AddBitField(BitField(name='IRQRH' + str(h) + 'ENX', msb=_irqrXMsb, lsb=0, accessibility='rw', description='Interrupt enable bits for vectors ' + str(_vectorsCount - 1) + ':96, routed to hart ' + str(h) + '.'))
 
 # M19 claim/complete block at fixed word offsets (hart-count-independent
 # addresses: CLAIM at +0x800, status words at +0x810/+0x820)
@@ -1471,10 +1496,22 @@ r = RegisterTemplate(nameTemplate='PENDM', registerMemorySlot=517, size=32, desc
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='IRQRPENDM', msb=31, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors 63:32.'))
 
-r = RegisterTemplate(nameTemplate='PENDU', registerMemorySlot=518, size=32, description='Raw pending interrupt levels, vectors 84:64 (bits 20:0, read-only; bits 31:21 read as 0).')
-p.AddRegisterTemplate(r)
-r.AddBitField(BitField(unused=True, msb=31, lsb=21))
-r.AddBitField(BitField(name='IRQRPENDU', msb=20, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors 84:64.'))
+if _irqrUMsb == 31:
+	r = RegisterTemplate(nameTemplate='PENDU', registerMemorySlot=518, size=32, description='Raw pending interrupt levels, vectors 95:64 (read-only).')
+	p.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='IRQRPENDU', msb=31, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors 95:64.'))
+else:
+	r = RegisterTemplate(nameTemplate='PENDU', registerMemorySlot=518, size=32, description='Raw pending interrupt levels, vectors ' + str(_irqrUTop) + ':64 (bits ' + str(_irqrUMsb) + ':0, read-only; bits 31:' + str(_irqrUMsb + 1) + ' read as 0).')
+	p.AddRegisterTemplate(r)
+	r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrUMsb + 1))
+	r.AddBitField(BitField(name='IRQRPENDU', msb=_irqrUMsb, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors ' + str(_irqrUTop) + ':64.'))
+
+if _irqrXWords:
+	r = RegisterTemplate(nameTemplate='PENDX', registerMemorySlot=519, size=32, description='Raw pending interrupt levels, vectors ' + str(_vectorsCount - 1) + ':96 (bits ' + str(_irqrXMsb) + ':0, read-only; upper bits read as 0). Completes the raw-level readback for the fourth enable word (added with the peripheral-library program; before it, sources above 95 were routable and claimable but absent from the debug readback).')
+	p.AddRegisterTemplate(r)
+	if _irqrXMsb < 31:
+		r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrXMsb + 1))
+	r.AddBitField(BitField(name='IRQRPENDX', msb=_irqrXMsb, lsb=0, accessibility='r', description='Deglitched interrupt levels for vectors ' + str(_vectorsCount - 1) + ':96.'))
 
 r = RegisterTemplate(nameTemplate='INSVCL', registerMemorySlot=520, size=32, description='Under-service (claimed, not yet completed) flags, vectors 31:0 (read-only). Debug and recovery visibility: a stuck bit here means a hart claimed the vector and never completed it; any hart can recover by writing the vector number to CLAIM.')
 p.AddRegisterTemplate(r)
@@ -1484,10 +1521,22 @@ r = RegisterTemplate(nameTemplate='INSVCM', registerMemorySlot=521, size=32, des
 p.AddRegisterTemplate(r)
 r.AddBitField(BitField(name='IRQRINSVCM', msb=31, lsb=0, accessibility='r', description='Under-service flags for vectors 63:32.'))
 
-r = RegisterTemplate(nameTemplate='INSVCU', registerMemorySlot=522, size=32, description='Under-service flags, vectors 84:64 (bits 20:0, read-only; bits 31:21 read as 0).')
-p.AddRegisterTemplate(r)
-r.AddBitField(BitField(unused=True, msb=31, lsb=21))
-r.AddBitField(BitField(name='IRQRINSVCU', msb=20, lsb=0, accessibility='r', description='Under-service flags for vectors 84:64.'))
+if _irqrUMsb == 31:
+	r = RegisterTemplate(nameTemplate='INSVCU', registerMemorySlot=522, size=32, description='Under-service flags, vectors 95:64 (read-only).')
+	p.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='IRQRINSVCU', msb=31, lsb=0, accessibility='r', description='Under-service flags for vectors 95:64.'))
+else:
+	r = RegisterTemplate(nameTemplate='INSVCU', registerMemorySlot=522, size=32, description='Under-service flags, vectors ' + str(_irqrUTop) + ':64 (bits ' + str(_irqrUMsb) + ':0, read-only; bits 31:' + str(_irqrUMsb + 1) + ' read as 0).')
+	p.AddRegisterTemplate(r)
+	r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrUMsb + 1))
+	r.AddBitField(BitField(name='IRQRINSVCU', msb=_irqrUMsb, lsb=0, accessibility='r', description='Under-service flags for vectors ' + str(_irqrUTop) + ':64.'))
+
+if _irqrXWords:
+	r = RegisterTemplate(nameTemplate='INSVCX', registerMemorySlot=523, size=32, description='Under-service flags, vectors ' + str(_vectorsCount - 1) + ':96 (bits ' + str(_irqrXMsb) + ':0, read-only; upper bits read as 0). Completes the under-service readback for the fourth enable word.')
+	p.AddRegisterTemplate(r)
+	if _irqrXMsb < 31:
+		r.AddBitField(BitField(unused=True, msb=31, lsb=_irqrXMsb + 1))
+	r.AddBitField(BitField(name='IRQRINSVCX', msb=_irqrXMsb, lsb=0, accessibility='r', description='Under-service flags for vectors ' + str(_vectorsCount - 1) + ':96.'))
 
 
 
@@ -2223,7 +2272,7 @@ if dmaPresent:
 	# the arb_* 5th slice + D18 lrsc/lock ties, the trigger taps, the two irq levels) are
 	# all hand-emitted by mcu_vhd.py under geo['dma'] / geo['dmaChannels'].
 	m.CreatePeripheral(nameTemplate='DMAx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=118, absoluteBaseAddress=0x6800, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 8; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine + arbiter MASTER (slice numHarts); enabling DMA widens the arbiter N=4->5 / MW=3, sh_master 2->3 bits (the ONE shared-fabric touch); read-side-effect guard denies engine reads of 0x6000-0x60FF / 0x7800')	# DMA0 (digperiphs #6). native page-2 sub-slot 8 + the FIRST new arbiter master; mcu_vhd hand-emits the raw-strobe shim + dma0 instance + fabric widening
-m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
+m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block; Stage E rider: through word 523 = 0x782C = INSVCX)
 
 
 

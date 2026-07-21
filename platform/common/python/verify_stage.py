@@ -82,6 +82,17 @@ CATALOG = [
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
     # Hart-0 directed (tiles parked), so no 'tiles' tag needed.
     T('rv32ui-p-shdma', 'dma', True),
+    # digperiphs Stage E firmware smoke companions (wound-config additions).
+    # Each is single-hart directed (hart 0; tiles parked) and hardcodes its
+    # peripheral's FROZEN library-tail vectors (A5 GLOBAL VECTOR RULE): RTC0=114,
+    # PWM0=115/116, OW0=117, DMA0=118/119. Gated by the peripheral knob so they
+    # appear ONLY where that peripheral is instantiated (the single-peripheral
+    # proof configs + wound) and never on plain Castalia (where the slot decodes
+    # to zero and the vectors are RSVD).
+    T('rv32ui-p-wrtc', 'rtc', True),
+    T('rv32ui-p-wpwm', 'pwm', True),
+    T('rv32ui-p-wow', 'onewire', True),
+    T('rv32ui-p-wdma', 'dma', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
@@ -187,6 +198,11 @@ def config_tags(cfg):
     # no sh-test tags change (shdma.S is a follow-up).
     if cfg.get('peripherals', {}).get('dma'):
         tags.add('dma')
+    # digperiphs Stage E: firmware smoke companions gated by their peripheral
+    # knob (wrtc/wpwm/wow join only the config(s) that instantiate the block).
+    for knob in ('rtc', 'pwm', 'onewire'):
+        if cfg.get('peripherals', {}).get(knob):
+            tags.add(knob)
     if int(cfg['numHarts']) >= 2:
         tags.add('tiles')
     return tags

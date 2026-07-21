@@ -11,7 +11,9 @@
 --
 -- Checks (self-checking; prints ALL CHECKS PASSED / FAILED):
 --   1. reset: rows read 0, meip all-0 (provable no-op)
---   2. row RW + lane merge + ENU 20:0 masking + reserved word 4h+3 reads 0
+--   2. row RW + lane merge + top-EN-word masking (NUM_SRCS-generic: the top
+--      word's dead bits store 0) + reserved word 4h+3 reads 0 when
+--      NUM_EN_WORDS < 4 (at NUM_EN_WORDS = 4 it is the live HhENX)
 --   3. dead row (index >= NHARTS) reads 0, ignores writes
 --   4. routed level -> meip rise (only the routed harts)
 --   5. multi-hart routing: claim by one hart returns the ID, sets in_service,
@@ -20,7 +22,9 @@
 --   6. complete-while-level-high re-pends; complete is owner-UNqualified
 --      (recovery); complete of the sentinel value is a no-op
 --   7. lowest-ID priority among pending sources
---   8. PENDx / INSVCx status words
+--   8. PENDx / INSVCx status words (8b: the Stage-E-rider PENDX/INSVCX
+--      words 519/523 — full route/pend/claim/complete walk of a word-3
+--      source when NUM_SRCS > 96; both words provably read 0 otherwise)
 --   9. CLINT sources (83/84) never reach meip even when routed
 --  10. WDT hooks: wdt_routed reduction + the COMPLETE(0) one-cycle pulse
 --
@@ -65,6 +69,13 @@ architecture tb of irq_router_tb is
 
     constant W_CLAIM : natural := 512;
     constant SENTINEL : std_logic_vector(31 downto 0) := (others => '1');
+
+    -- NUM_SRCS-generic shape facts (mirror the DUT's constants)
+    constant NUM_EN_WORDS : natural := (NUM_SRCS + 31) / 32;
+    constant TOP_LIVE     : natural := NUM_SRCS - 32*(NUM_EN_WORDS-1);
+    -- word-3 probe source for the 8b leg (top source; only used > 96)
+    constant SRC_X : natural := NUM_SRCS - 1;
+    constant BX    : natural := SRC_X mod 32;
 
     signal fails : integer := 0;
 
@@ -141,6 +152,7 @@ begin
         end procedure;
 
         variable rd32 : std_logic_vector(31 downto 0);
+        variable enx  : std_logic_vector(31 downto 0);
     begin
         -- reset
         resetn <= '0';
@@ -160,13 +172,19 @@ begin
         bus_write(4*3 + 0, 0, x"115500AA", "0011");           -- lane-merge low half
         bus_read(4*3 + 0, 0, rd32);
         check(rd32 = x"DEAD00AA", "H3ENL lane merge");
-        bus_write(4*3 + 2, 0, x"FFFFFFFF", "1111");           -- H3ENU (bits 20:0 live)
-        bus_read(4*3 + 2, 0, rd32);
-        check(rd32(31 downto 21) = "00000000000", "H3ENU upper bits not masked... (storage)");
-        bus_read(4*3 + 3, 0, rd32);
-        check(rd32 = x"00000000", "reserved row word not 0");
+        -- top enable word: only the low TOP_LIVE bits are live (storage-masked)
+        bus_write(4*3 + (NUM_EN_WORDS-1), 0, x"FFFFFFFF", "1111");
+        bus_read(4*3 + (NUM_EN_WORDS-1), 0, rd32);
+        if TOP_LIVE < 32 then
+            check(conv_integer(rd32(31 downto TOP_LIVE)) = 0,
+                  "top EN word dead bits not masked (storage)");
+        end if;
+        if NUM_EN_WORDS < 4 then
+            bus_read(4*3 + 3, 0, rd32);
+            check(rd32 = x"00000000", "reserved row word not 0");
+        end if;
         bus_write(4*3 + 0, 0, x"00000000", "1111");           -- clean up row 3
-        bus_write(4*3 + 2, 0, x"00000000", "1111");
+        bus_write(4*3 + (NUM_EN_WORDS-1), 0, x"00000000", "1111");
 
         -- 3. dead row (>= NHARTS; row NHARTS is dead in every shape) ----------
         bus_write(4*NHARTS + 0, 0, x"FFFFFFFF", "1111");
@@ -228,6 +246,40 @@ begin
         bus_read(520, 0, rd32);
         check(rd32 = x"00000000", "INSVCL not cleared after completes");
         bus_write(4*0 + 0, 0, x"00000000", "1111");             -- clean row 0
+
+        -- 8b. PENDX/INSVCX (Stage E rider, words 519/523) -----------------------
+        if NUM_SRCS > 96 then
+            -- full walk of a word-3 source (SRC_X = NUM_SRCS-1) on hart 0
+            bus_read(519, 0, rd32);
+            check(rd32 = x"00000000", "PENDX not 0 while idle");
+            enx := (others => '0');
+            enx(BX) := '1';
+            bus_write(4*0 + 3, 0, enx, "1111");                 -- H0ENX: route SRC_X
+            irq_in(SRC_X) <= '1';
+            tick(3);
+            check(meip(0) = '1', "meip(0) did not rise for word-3 source");
+            bus_read(519, 0, rd32);
+            check(rd32(BX) = '1', "PENDX bit not set");
+            bus_read(523, 0, rd32);
+            check(rd32 = x"00000000", "INSVCX set before claim");
+            bus_read(W_CLAIM, 0, rd32);
+            check(rd32 = conv_std_logic_vector(SRC_X, 32), "claim /= word-3 source");
+            bus_read(523, 0, rd32);
+            check(rd32(BX) = '1', "INSVCX bit not set after claim");
+            irq_in(SRC_X) <= '0';                               -- ISR clears the level
+            bus_write(W_CLAIM, 0, conv_std_logic_vector(SRC_X, 32), "1111");
+            bus_read(523, 0, rd32);
+            check(rd32 = x"00000000", "INSVCX not cleared after complete");
+            bus_read(519, 0, rd32);
+            check(rd32 = x"00000000", "PENDX not 0 after level drop");
+            bus_write(4*0 + 3, 0, x"00000000", "1111");         -- clean H0ENX
+        else
+            -- additive safety: 3-EN-word shapes must read both X words as 0
+            bus_read(519, 0, rd32);
+            check(rd32 = x"00000000", "PENDX not 0 at NUM_SRCS <= 96");
+            bus_read(523, 0, rd32);
+            check(rd32 = x"00000000", "INSVCX not 0 at NUM_SRCS <= 96");
+        end if;
 
         -- 9. CLINT sources never reach meip -------------------------------------
         bus_write(4*1 + 2, 0, x"00180000", "1111");             -- H1ENU bits 19/20 (= 83/84)

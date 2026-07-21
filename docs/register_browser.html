@@ -10790,12 +10790,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 0 interrupt routing register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 0 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH0ENU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 95:64, routed to hart 0.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H0ENX",
+					"Address": 28684,
+					"Offset": 12,
+					"RegisterMemorySlot": 3,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 0 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 21,
+							"LSB": 18,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -10803,13 +10824,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						},
 						{
-							"BitFieldName": "IRQRH0ENU",
-							"MSB": 20,
+							"BitFieldName": "IRQRH0ENX",
+							"MSB": 17,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 84:64, routed to hart 0.",
+							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -10863,12 +10884,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 6,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 1 interrupt routing register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 1 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH1ENU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 95:64, routed to hart 1.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H1ENX",
+					"Address": 28700,
+					"Offset": 28,
+					"RegisterMemorySlot": 7,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 1 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 21,
+							"LSB": 18,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -10876,13 +10918,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						},
 						{
-							"BitFieldName": "IRQRH1ENU",
-							"MSB": 20,
+							"BitFieldName": "IRQRH1ENX",
+							"MSB": 17,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 84:64, routed to hart 1.",
+							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 1.",
 							"ValueDescriptions": []
 						}
 					]
@@ -10936,12 +10978,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 10,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 2 interrupt routing register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 2 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH2ENU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 95:64, routed to hart 2.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H2ENX",
+					"Address": 28716,
+					"Offset": 44,
+					"RegisterMemorySlot": 11,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 2 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 21,
+							"LSB": 18,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -10949,13 +11012,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						},
 						{
-							"BitFieldName": "IRQRH2ENU",
-							"MSB": 20,
+							"BitFieldName": "IRQRH2ENX",
+							"MSB": 17,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 84:64, routed to hart 2.",
+							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 2.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11009,12 +11072,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 14,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 3 interrupt routing register, vectors 84:64 (bits 20:0; bits 31:21 read as 0). Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"Description": "Hart 3 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH3ENU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 95:64, routed to hart 3.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H3ENX",
+					"Address": 28732,
+					"Offset": 60,
+					"RegisterMemorySlot": 15,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 3 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 21,
+							"LSB": 18,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11022,13 +11106,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						},
 						{
-							"BitFieldName": "IRQRH3ENU",
-							"MSB": 20,
+							"BitFieldName": "IRQRH3ENX",
+							"MSB": 17,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 84:64, routed to hart 3.",
+							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 3.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11103,12 +11187,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 518,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Raw pending interrupt levels, vectors 84:64 (bits 20:0, read-only; bits 31:21 read as 0).",
+					"Description": "Raw pending interrupt levels, vectors 95:64 (read-only).",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRPENDU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Deglitched interrupt levels for vectors 95:64.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PENDX",
+					"Address": 30748,
+					"Offset": 2076,
+					"RegisterMemorySlot": 519,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Raw pending interrupt levels, vectors 113:96 (bits 17:0, read-only; upper bits read as 0). Completes the raw-level readback for the fourth enable word (added with the peripheral-library program; before it, sources above 95 were routable and claimable but absent from the debug readback).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 21,
+							"LSB": 18,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11116,13 +11221,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						},
 						{
-							"BitFieldName": "IRQRPENDU",
-							"MSB": 20,
+							"BitFieldName": "IRQRPENDX",
+							"MSB": 17,
 							"LSB": 0,
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Deglitched interrupt levels for vectors 84:64.",
+							"Description": "Deglitched interrupt levels for vectors 113:96.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11176,12 +11281,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 522,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Under-service flags, vectors 84:64 (bits 20:0, read-only; bits 31:21 read as 0).",
+					"Description": "Under-service flags, vectors 95:64 (read-only).",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRINSVCU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Under-service flags for vectors 95:64.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "INSVCX",
+					"Address": 30764,
+					"Offset": 2092,
+					"RegisterMemorySlot": 523,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Under-service flags, vectors 113:96 (bits 17:0, read-only; upper bits read as 0). Completes the under-service readback for the fourth enable word.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 21,
+							"LSB": 18,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11189,13 +11315,13 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						},
 						{
-							"BitFieldName": "IRQRINSVCU",
-							"MSB": 20,
+							"BitFieldName": "IRQRINSVCX",
+							"MSB": 17,
 							"LSB": 0,
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Under-service flags for vectors 84:64.",
+							"Description": "Under-service flags for vectors 113:96.",
 							"ValueDescriptions": []
 						}
 					]
