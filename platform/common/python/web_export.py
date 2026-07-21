@@ -109,6 +109,27 @@ def _hx(v):
 	return '0x' + format(int(v), 'X')
 
 
+def _libraryTailVectorsCount(cfg):
+	"""A5 GLOBAL VECTOR RULE — mirror of generate.py._libraryTailVectorsCount().
+	The library tail beyond the 114 unconditional vectors extends to the last vector
+	of the HIGHEST enabled block; 114 when the whole tail is off. Keep the (present,
+	count) rows IN STEP with generate.py's _LIBRARY_TAIL_SPEC."""
+	periph = cfg.get('peripherals', {})
+	tail = [
+		(periph.get('rtc', False), 1),   # vector 114
+		(periph.get('pwm', False), 2),   # vectors 115, 116
+		(periph.get('onewire', False), 1),  # vector 117
+	]
+	base = 114
+	v = base
+	high = base
+	for present, cnt in tail:
+		v += cnt
+		if present:
+			high = v
+	return high
+
+
 def _derived(cfg):
 	"""Derived geometry for a resolved-shape config dict (numHarts / isa{} /
 	memory{}). Keys + hex formatting match generate.py's _resolvedConfig
@@ -127,9 +148,11 @@ def _derived(cfg):
 		'sharedRamBanks': banks,
 		'flashBaseAddress': _hx(flash),
 		'sharedRamEndAddress': _hx(0x10000 + sharedRam - 1),
-		# digperiphs Mission B: GPIO4/5 unconditional -> 114; digperiphs #4 (RTC): +1
-		# -> 115 when peripherals.rtc is true (vector 114 = RTC0's combined source).
-		'vectorsCount': 115 if cfg.get('peripherals', {}).get('rtc', False) else 114,
+		# digperiphs Mission B: GPIO4/5 unconditional -> 114; digperiphs #4/#5: the
+		# library tail extends the count per the A5 GLOBAL VECTOR RULE — up to the last
+		# vector of the highest enabled block (RTC 114, PWM 115/116, ...). Mirrors
+		# generate.py's _libraryTailVectorsCount(); keep the (present, count) rows in step.
+		'vectorsCount': _libraryTailVectorsCount(cfg),
 		'clintMsipVector': 83,
 		'clintMtipVector': 84,
 		'clintLayout': {

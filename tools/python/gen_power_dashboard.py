@@ -45,6 +45,8 @@ GENUS_BLOCKS = {
     "I3C":             ("Peripherals", "I3C (I3C bus controller)"),
     "NFC":             ("Peripherals", "NFC (digital front-end; RF is off-die)"),
     "RTC":             ("Peripherals", "RTC (real-time clock)"),
+    "PWM":             ("Peripherals", "PWM (2-channel buffered PWM)"),
+    "OneWire":         ("Peripherals", "OneWire (1-Wire master)"),
 }
 GENUS_SKIP = {"MCU"}  # frozen Myshkin tape-out synth report
 

@@ -1,0 +1,31 @@
+The PWM generator (\peripheral{PWMx}) is a glitch-free two-channel edge-aligned pulse-width-modulation engine: a prescaled 16-bit up-counter with two 16-bit per-channel duty comparators, a double-buffered waveform update, per-channel polarity and an absolute programmable safe level, a software fault trip, and a period-event tick. Its reason to exist over the general-purpose timer compare path is the double buffering: a mid-period change to the period or a duty takes effect only at the next period boundary, so it can never produce a runt or double pulse. The whole engine runs on the free-running fabric clock (MCLK) through a power-of-two prescaler --- there is no LFXT and no generated or gated clock anywhere in the block. It has \emph{no input pins}. The main features are listed below:
+
+\begin{itemize}
+	\item A 16-bit period (\register{PWMxPER}) and two 16-bit per-channel duties (\register{PWMxDTY0}, \register{PWMxDTY1}), all double-buffered; the waveform frequency is $f_\text{MCLK} / 2^{\register{PSC}} / (\register{PWMPER}+1)$
+	\item A 4-bit power-of-two prescaler (\register{PSC}) producing a single-cycle tick enable --- not a divided clock
+	\item Glitch-free buffered update: waveform writes stage into shadow registers and commit atomically at the period boundary, tracked by \register{UPDF}
+	\item Per-channel polarity (\register{POL0}, \register{POL1}) and an \emph{absolute} programmable safe/off level (\register{SAFE0}, \register{SAFE1})
+	\item A software/mask-only fault trip (\register{FLTEN}, \register{FLTTRIG}) that forces both outputs safe within one clock, latched sticky in \register{FLTF}
+	\item A recurring period event (\register{PEVF}) and two lean interrupts: fault (vector 115) and period event (vector 116)
+	\item Reserved slots and control bits provisioned for deferred 4-channel, center-aligned, and deadtime/complementary bolt-ons without a register-map break
+\end{itemize}
+
+\subsection{Buffered, Glitch-Free Update}
+
+Writes to \register{PWMxPER}, \register{PWMxDTY0}, and \register{PWMxDTY1} do \emph{not} change the live waveform. They land in shadow (staging) registers and are copied atomically into the active period and duties at the next period boundary --- the counter wrap. \register{UPDF} in \register{PWMxSR} reads 1 from a buffered write until that write has been absorbed at the boundary, then 0, so firmware can confirm a coherent multi-word update has taken effect. A read of the buffered registers returns the staged value (the last written value), with no side effects. Polarity and the safe level, by contrast, are \emph{immediate} (not buffered): program \register{PWMxPOL} before enabling a channel.
+
+Each channel's raw waveform is active while the counter is below that channel's duty, so a channel is active for exactly the first \register{DTY} prescale ticks of each $(\register{PER}+1)$-tick period. The corner cases follow exactly from that relation: a duty of 0 gives a constant inactive level; a duty greater than the period gives a constant active level; and a period of 0 makes every prescale tick a period boundary (a legitimate DC/degenerate setting that pulses \register{PEVF} every tick).
+
+\subsection{Polarity and the Safe Level}
+
+Two distinct levels must not be conflated. The \emph{inactive} level of an enabled, unfaulted channel is its polarity: with \register{POL}$=0$ the waveform is active-high and idles low. The \emph{safe} level is an absolute pin level (\register{SAFE}$=0$ drives low, $1$ drives high) forced whenever the channel is disabled (\register{PWMEN}$=0$ or the channel enable is clear) or faulted --- independent of polarity, so a half-bridge or heater has a board-deterministic off state regardless of a concurrent polarity setting. Both reset to 0, so at reset the safe level and the active-high inactive level coincide (both low) and the outputs are safe from cycle one.
+
+\subsection{The Software Fault}
+
+The fault is software/mask-only --- there is no hardware fault pin. With \register{FLTEN} set, writing the self-clearing \register{FLTTRIG} command bit trips the fault: it latches the sticky \register{FLTF} and forces both outputs to their safe levels combinationally, within one clock (a half-bridge cannot wait a cycle). With \register{FLTEN} clear the \register{FLTTRIG} write is ignored. The fault overrides only the output stage; the prescaler, counter, shadow commit, and \register{PEVF} keep running, so the timebase is undisturbed and the waveform resumes phase-continuously on re-arm. To re-arm, write 1 to \register{FLTF} (write-1-to-clear); the override releases and the outputs immediately resume tracking the still-running comparators. The fault interrupt is $\register{FLTF} \wedge \register{FLTIE}$ and the period-event interrupt is $\register{PEVF} \wedge \register{PEVIE}$, both combinational and never latched.
+
+\subsection{Shared Access on \AsicNameForUserGuide}
+
+In configurations that include it, \peripheral{PWM0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 6 at \texttt{0x6600}, so any hart can use it. Its two interrupt sources occupy vectors 115 (fault) and 116 (period event); the fault takes the lower identifier so the interrupt router's fixed lowest-identifier-first priority dispatches the safety event first. Both are delivered through the interrupt router like every other shared-peripheral source. Because the engine clocks off the free-running fabric clock, its count is immune to clock reconfiguration, and software must \emph{not} apply the ``write \register{SYS\_CLK\_CR} to 0 first'' rule that the SMCLK peripherals need.
+
+The two channel outputs ride existing bonded pins with no new package pads: they take the alternate-function-2 plane of \texttt{P2.2} and \texttt{P2.3}, adjacent to the \texttt{T0CMP0}/\texttt{T0CMP1} compare homes on \texttt{P2.0}/\texttt{P2.1}, replacing two redundant timer-compare copies in the output-function spread (both compares remain reachable on many other pins). These sources sit above the external-interrupt (meip) delivery vector, which stays fixed at vector 85, above the I3C, NFC, \peripheral{GPIOx} port-4/port-5, and RTC sources at vectors 86 through 114.

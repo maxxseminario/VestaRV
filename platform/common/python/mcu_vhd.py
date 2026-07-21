@@ -359,6 +359,11 @@ SPREAD_SIG = {
 	# separate relocation mux — RX0 in the fixed template, MISO1 in
 	# SPI1_INPUT_TAPS — keyed on the pin's PxAFS, always-visible idiom)
 	'RX0': 'rx0', 'MISO1': 'miso1',
+	# digperiphs #5 (A7): PWM0 outputs REPLACE the P2.2/P2.3 AF2 redundant timer-
+	# compare spread copies (generate.py gates this on peripherals.pwm). The pwm0/
+	# pwm1 output-alias scalars are emitted in the gated PWM instance region
+	# (emitPwmInstance); harmless keys when PWM is off (nothing references them).
+	'PWM0': 'pwm0', 'PWM1': 'pwm1',
 }
 # Per-port spread-block header comments (transcribed; the flatten lines are
 # emitted by the same region so the whole block is one marker per port)
@@ -803,6 +808,20 @@ class McuVhdEmitter():
 		# CAPTURE_CLOCK en_q (D4): the first library block clean of both. Default
 		# false => every RTC region is inert (byte-identical default).
 		self.rtc = geo.get('rtc', False)
+		# digperiphs #5: PWM0 in MUTEX-page (page 2) sub-slot 6 @0x6600. Same
+		# native-slave shape as RTC0 — a PLAIN raw-strobe en shim (NO
+		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). Zero
+		# INPUT pins: the two outputs pwm_out(0)/(1) are aliased into the AF spread
+		# (P2.2/P2.3 AF2, A7). Default false => every PWM region is inert
+		# (byte-identical default; the two spread slots keep their T0CMP0/T0CMP1 copies).
+		self.pwm = geo.get('pwm', False)
+		# digperiphs #5: OW0 (1-Wire master) in MUTEX-page (page 2) sub-slot 7 @0x6700.
+		# Same native-slave shape as RTC0/PWM0 — a PLAIN raw-strobe en shim (NO
+		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). One pad:
+		# DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1), routed through the GPIO5 (port 6)
+		# AF-plane emitter exactly like I3C0's SDA/SCL on GPIO4 P5.6/7. Default false =>
+		# every OneWire region is inert (byte-identical default; P6.6 stays spare GPIO).
+		self.onewire = geo.get('onewire', False)
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -902,6 +921,21 @@ class McuVhdEmitter():
 		if self.rtc:
 			self.shslv = dict(self.shslv)
 			self.shslv['RTC0'] = {'sel': 'rtc0', 'shim': None, 'rdata': 'rtc0_sh_rdata'}
+		# digperiphs #5: PWM0 joins the same native-slave fabric (MUTEX-page
+		# sub-slot 6). Its SEL is hand-decoded in emitShslvSubdecode; the shslv
+		# entry (shim=None) puts it through the standard enable / registered rd-sel
+		# / rdata-mux loops, and its active-low RAW-strobe en shim lives in
+		# emitPwmInstance (no en_q register — D4).
+		if self.pwm:
+			self.shslv = dict(self.shslv)
+			self.shslv['PWM0'] = {'sel': 'pwm0', 'shim': None, 'rdata': 'pwm0_sh_rdata'}
+		# digperiphs #5: OW0 joins the same native-slave fabric (MUTEX-page sub-slot
+		# 7). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None)
+		# puts it through the standard enable / registered rd-sel / rdata-mux loops, and
+		# its active-low RAW-strobe en shim lives in emitOwInstance (no en_q register, D4).
+		if self.onewire:
+			self.shslv = dict(self.shslv)
+			self.shslv['OW0'] = {'sel': 'ow0', 'shim': None, 'rdata': 'ow0_sh_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -912,7 +946,9 @@ class McuVhdEmitter():
 		self.shslv['GPIO5'] = {'sel': 'gpio5', 'shim': None, 'rdata': 'gpio5_sh_rdata'}
 		nativeOrder = ['CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] \
 			+ (['I3C0'] if self.i3c else []) + (['NFC0'] if self.nfc else []) \
-			+ ['GPIO4', 'GPIO5'] + (['RTC0'] if self.rtc else [])
+			+ ['GPIO4', 'GPIO5'] + (['RTC0'] if self.rtc else []) \
+			+ (['PWM0'] if self.pwm else []) \
+			+ (['OW0'] if self.onewire else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1169,6 +1205,12 @@ class McuVhdEmitter():
 		if self.rtc:
 			# digperiphs #4: RTC0 = page-2 sub-slot 5 (0x6500).
 			lines.append(ind + 'shslv_rtc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0101" else \'0\';')
+		if self.pwm:
+			# digperiphs #5: PWM0 = page-2 sub-slot 6 (0x6600).
+			lines.append(ind + 'shslv_pwm0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0110" else \'0\';')
+		if self.onewire:
+			# digperiphs #5: OW0 = page-2 sub-slot 7 (0x6700).
+			lines.append(ind + 'shslv_ow0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0111" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
 			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
@@ -1572,6 +1614,159 @@ class McuVhdEmitter():
 			'            rdata_out   => rtc0_sh_rdata);',
 		]
 
+	def emitPwmDecls(self):
+		'''digperiphs #5: PWM0 (page-2 sub-slot 6 @0x6600) declarative region.
+		Fabric nets for the hand-emitted RAW-strobe shim + the two output-alias
+		scalars fed into the AF spread (P2.2/P2.3 AF2, A7); nothing when PWM is
+		absent. Like RTC0 there is NO shslv_pwm0_en_q register (D4) and NO
+		placeholder INPUT pins (the block is zero-input; its only external signals
+		are the two outputs, aliased onto already-bonded spread pins).'''
+		if not self.pwm:
+			return []
+		return [
+			'        -- digperiphs #5: PWM0 (buffered PWM generator: 2 channels, glitch-free',
+			'        -- double-buffered update, software fault trip, period-event tick). Page-2',
+			'        -- (MUTEX page) sub-slot 6 @0x6600 — the mutex bank keeps sub-slot 0',
+			'        -- @0x6000. Registered-read native slave with a PLAIN active-low one-cycle',
+			'        -- en shim: NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q',
+			'        -- (D4 — registers its read on rising ClkMem over data already in the bus',
+			'        -- domain). The whole engine (prescaler/counter/compare/shadow-commit/sticky',
+			'        -- flags/IRQ) rides the free-running MCLK (clk => mclk, D1) — no LFXT, no',
+			'        -- generated/gated clocks. irq_fault -> vector 115, irq_evt -> vector 116.',
+			'        -- Zero INPUT pins; pwm_out(0)/(1) alias onto the AF spread (P2.2/P2.3 AF2,',
+			'        -- A7) via the pwm0_out/pwm1_out scalars below.',
+			'        signal shslv_pwm0_sel, shslv_pwm0_en : std_logic;',
+			"        signal shslv_rd_pwm0    : std_logic := '0';",
+			'        signal pwm0_sh_rdata    : std_logic_vector(31 downto 0);',
+			'        signal pwm0_sh_en_n     : std_logic;',
+			'        signal pwm0_pwm_out     : std_logic_vector(1 downto 0);',
+			'        -- Output-only spread aliases (A7): scalar taps the AF-spread planes wire',
+			'        -- as pwm0_out/pwm1_out (SPREAD_SIG). Push-pull outputs: dir = output, no pull.',
+			'        signal pwm0_out, pwm0_dir, pwm0_ren : std_logic;',
+			'        signal pwm1_out, pwm1_dir, pwm1_ren : std_logic;',
+		]
+
+	def emitPwmInstance(self):
+		'''digperiphs #5: PWM0 instance region (page-2 sub-slot 6 @0x6600). The
+		PLAIN raw-strobe active-low en shim + the PWM entity + the two output-alias
+		assignments into the AF spread; nothing when PWM is absent. No en_q process
+		(D4), no placeholder input ties (zero input pins).'''
+		if not self.pwm:
+			return []
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- PWM0 (digperiphs #5): 2-channel buffered PWM generator, page-2 (MUTEX',
+			'    -- page) sub-slot 6 @0x6600. The prescaler, 16-bit main counter, comparators,',
+			'    -- shadow->active commit, output stage, sticky FLTF/PEVF flags and the IRQ',
+			'    -- combiner all ride the free-running MCLK (clk => mclk, D1) so the counter',
+			'    -- and PEVF advance autonomously while the bus is idle; the register file',
+			'    -- rides ClkMem (= mclk at integration). No LFXT, no generated/gated clocks',
+			'    -- (D6). Waveform writes (PER/DTY0/DTY1) are double-buffered and commit at the',
+			'    -- period boundary (glitch-free, D9). The software fault (FLTTRIG + FLTEN)',
+			'    -- forces both outputs safe within one clock (D12). Registered read (no',
+			'    -- bridge). irq_fault -> vector 115 (lower id = router priority), irq_evt ->',
+			'    -- vector 116, through the irq_router (ABOVE GPIO5\'s 106-113). Zero INPUT pins.',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) —',
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    pwm0_sh_en_n <= not shslv_pwm0_en;',
+			'    pwm0: entity work.PWM',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            irq_fault   => irq_pwm0_fault,',
+			'            irq_evt     => irq_pwm0_evt,',
+			'            pwm_out     => pwm0_pwm_out,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => pwm0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => pwm0_sh_rdata);',
+			'    -- A7: pwm_out(0)/(1) drive the AF-spread slots P2.2/P2.3 AF2 (replacing the',
+			'    -- redundant T0CMP0/T0CMP1 spread copies). Output-only push-pull: dir = output',
+			'    -- (like the timer compares, cmp_dir=1), no pull resistor (ren=0).',
+			'    pwm0_out <= pwm0_pwm_out(0);',
+			"    pwm0_dir <= '1';",
+			"    pwm0_ren <= '0';",
+			'    pwm1_out <= pwm0_pwm_out(1);',
+			"    pwm1_dir <= '1';",
+			"    pwm1_ren <= '0';",
+		]
+
+	def emitOwDecls(self):
+		'''digperiphs #5: OW0 (1-Wire master, page-2 sub-slot 7 @0x6700) declarative
+		region. Fabric nets for the hand-emitted RAW-strobe shim + the DQ pad OUTPUT
+		scalars driven into the P6.6/GPIO46 AF1 plane (ow0_dq_in, the pad INPUT, is
+		declared in emitGpio45Decls(6) — the I3C0 SDA/SCL decl split). Nothing when
+		OneWire is absent. Like RTC0/PWM0 there is NO shslv_ow0_en_q register (D4).'''
+		if not self.onewire:
+			return []
+		return [
+			'        -- digperiphs #5: OW0 (Dallas/Maxim 1-Wire master: reset+presence,',
+			'        -- write/read bit + byte primitives off a programmable time base; ROM',
+			'        -- search + CRC-8 in firmware; standard + overdrive). Page-2 (MUTEX page)',
+			'        -- sub-slot 7 @0x6700 — the mutex bank keeps sub-slot 0 @0x6000.',
+			'        -- Registered-read native slave with a PLAIN active-low one-cycle en shim:',
+			'        -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q (D4 —',
+			'        -- registers its read on rising ClkMem over data already in the bus/mclk',
+			'        -- family). The time base / slot FSM / DQ 2-FF synchronizer / sticky W1C',
+			'        -- flags / BUSY-PRES / IRQ combiner all ride the free-running MCLK (clk =>',
+			'        -- mclk, D1/D2) — no LFXT, no generated/gated clocks, and NO clock on the',
+			'        -- DQ pad (DQ is PURE DATA, 2-FF synced, D10). irq_ow -> vector 117. One',
+			'        -- pad: DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1), the pad plane routes',
+			'        -- ow0_dq_in in and drives the pad low from ow0_dq_dir (out fixed 0).',
+			'        signal shslv_ow0_sel, shslv_ow0_en : std_logic;',
+			"        signal shslv_rd_ow0     : std_logic := '0';",
+			'        signal ow0_sh_rdata     : std_logic_vector(31 downto 0);',
+			'        signal ow0_sh_en_n      : std_logic;',
+			'        -- DQ pad OUTPUT scalars (open-drain, D11): ow0_dq_out is the fixed-0',
+			'        -- open-drain output, ow0_dq_dir drives DQ low ( = 1) or releases Hi-Z.',
+			'        signal ow0_dq_out, ow0_dq_dir : std_logic;',
+		]
+
+	def emitOwInstance(self):
+		'''digperiphs #5: OW0 instance region (page-2 sub-slot 7 @0x6700). The PLAIN
+		raw-strobe active-low en shim + the OneWire entity; nothing when OneWire is
+		absent. No en_q process (D4). The DQ pad group (OW_DQ_IN/OUT/DIR) crosses to
+		the P6.6/GPIO46 AF1 plane emitted by emitGpio5Instance (the I3C SDA/SCL idiom).'''
+		if not self.onewire:
+			return []
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- OW0 (digperiphs #5): Dallas/Maxim 1-Wire master, page-2 (MUTEX page)',
+			'    -- sub-slot 7 @0x6700. The OW0DIV counter-compare time base, the slot FSM,',
+			'    -- the DQ 2-FF synchronizer, the sticky W1C flags, BUSY/PRES and the IRQ',
+			'    -- combiner all ride the free-running MCLK (clk => mclk, D1/D2), so the tick',
+			'    -- base is immune to clock reconfig; the register file rides ClkMem (= mclk',
+			'    -- at integration). No LFXT, no generated/gated clocks, and NO clock on the',
+			'    -- DQ pad — OW_DQ_IN is 2-FF synchronized, PURE DATA (D10), the deliberate',
+			'    -- contrast with I3C0 SDA_IN. Registered read (no bridge, no CAPTURE_CLOCK',
+			'    -- pre-latch, D4). Master only; standard + overdrive; ROM search + CRC-8 in',
+			'    -- firmware. irq_ow -> vector 117 (single combined TC/error) through the',
+			'    -- irq_router, ABOVE GPIO5\'s 106-113. One open-drain DQ pad (P6.6/GPIO46 AF1).',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) —',
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    ow0_sh_en_n <= not shslv_ow0_en;',
+			'    ow0: entity work.OneWire',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            irq_ow      => irq_ow0,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => ow0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => ow0_sh_rdata,',
+			'            OW_DQ_IN    => ow0_dq_in,    -- digperiphs #5: routed from P6.6 AF1 (GPIO5)',
+			'            OW_DQ_OUT   => ow0_dq_out,',
+			'            OW_DQ_DIR   => ow0_dq_dir);',
+		]
+
 	def emitGpio45Decls(self, port):
 		'''Mission B: GPIO4 (port 5) / GPIO5 (port 6) declarative region — the
 		registered-read shim nets, the register/AF-plane signals, and (in configs
@@ -1608,6 +1803,9 @@ class McuVhdEmitter():
 		if port == 6 and self.nfc:
 			lines.append('        -- NFC0 off-die AFE inputs, routed by GPIO5 from P6.0-2 (D5).')
 			lines.append('        signal nfc0_rf_clk, nfc0_rf_rx, nfc0_field_detect : std_logic;')
+		if port == 6 and self.onewire:
+			lines.append('        -- digperiphs #5: OW0 DQ pad input, routed by GPIO5 from P6.6 AF1 (D10).')
+			lines.append('        signal ow0_dq_in : std_logic;')
 		return lines
 
 	def emitGpioBusInstance(self, port, af1Lines, muxLines):
@@ -1733,20 +1931,37 @@ class McuVhdEmitter():
 
 	def emitGpio5Instance(self):
 		'''Mission B: GPIO5 (port 6) instance — AF1 = NFC0 digital-AFE (P6.0-5) when
-		present, Hi-Z otherwise. P6.0-2 are inputs (rf_clk/rf_rx/field_detect, routed
-		to NFC0); P6.3-5 are outputs (rf_txmod/rf_tx_en/afe_en). P6.6/7 spare.'''
+		present; digperiphs #5 adds OW0's open-drain DQ on P6.6 AF1 when OneWire is
+		present; Hi-Z when neither. P6.0-2 are NFC inputs (rf_clk/rf_rx/field_detect);
+		P6.3-5 are NFC outputs (rf_txmod/rf_tx_en/afe_en); P6.6 = OW0 DQ; P6.7 spare.'''
 		af1 = []
 		mux = []
-		if self.nfc:
+		if self.nfc or self.onewire:
+			# digperiphs #5: P6.6 AF1 = OW0 open-drain DQ (out fixed 0, dir drives low)
+			# when OneWire is present, else '0'. NFC0 owns P6.3-5 (outputs) / P6.0-2
+			# (inputs) when present, else '0'. With NFC off + OneWire off the else Hi-Z
+			# branch runs instead — this branch is byte-identical to the NFC-only golden
+			# master when OneWire is absent (bit 6 collapses to '0').
 			outMap = {
-				7: "'0'", 6: "'0'",
-				5: 'nfc0_afe_en', 4: 'nfc0_rf_tx_en', 3: 'nfc0_rf_txmod',
+				7: "'0'", 6: ('ow0_dq_out' if self.onewire else "'0'"),
+				5: ('nfc0_afe_en' if self.nfc else "'0'"),
+				4: ('nfc0_rf_tx_en' if self.nfc else "'0'"),
+				3: ('nfc0_rf_txmod' if self.nfc else "'0'"),
 				2: "'0'", 1: "'0'", 0: "'0'",
 			}
-			# P6.0-2 are inputs -> AF dir '0' (input); P6.3-5 outputs -> AF dir '1'.
-			dirMap = {7: "'0'", 6: "'0'", 5: "'1'", 4: "'1'", 3: "'1'", 2: "'0'", 1: "'0'", 0: "'0'"}
-			af1.append('    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are')
-			af1.append('    -- inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).')
+			# P6.0-2 are inputs -> AF dir '0' (input); P6.3-5 outputs -> AF dir '1';
+			# P6.6 dir = ow0_dq_dir (open-drain: 1 drives low, 0 releases Hi-Z).
+			dirMap = {7: "'0'", 6: ('ow0_dq_dir' if self.onewire else "'0'"),
+				5: ("'1'" if self.nfc else "'0'"), 4: ("'1'" if self.nfc else "'0'"),
+				3: ("'1'" if self.nfc else "'0'"), 2: "'0'", 1: "'0'", 0: "'0'"}
+			if self.nfc:
+				af1.append('    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are')
+				af1.append('    -- inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).')
+				if self.onewire:
+					af1.append('    -- digperiphs #5: OW0 open-drain DQ on P6.6 (out fixed 0, dir drives low).')
+			else:
+				af1.append('    -- digperiphs #5: AF1 plane carries the OW0 open-drain DQ on P6.6 (out')
+				af1.append('    -- fixed 0, dir drives low); the other pins stay 0 (unused this configuration).')
 			af1.append('    afunc6_af1_out <= (')
 			for b in range(7, -1, -1):
 				af1.append('        %d => %s%s' % (b, outMap[b], '' if b == 0 else ','))
@@ -1756,10 +1971,14 @@ class McuVhdEmitter():
 				af1.append('        %d => %s%s' % (b, dirMap[b], '' if b == 0 else ','))
 			af1.append('    );')
 			af1.append('    afunc6_af1_ren <= p6_ren;')
-			mux.append('    -- NFC0 off-die AFE input muxes: read the P6.0-2 pads when in AF1 mode')
-			mux.append('    nfc0_rf_clk       <= prt6_in(0) when p6_afs((3 * 0) + 2 downto 3 * 0) = "001" else \'0\';')
-			mux.append('    nfc0_rf_rx        <= prt6_in(1) when p6_afs((3 * 1) + 2 downto 3 * 1) = "001" else \'1\';')
-			mux.append('    nfc0_field_detect <= prt6_in(2) when p6_afs((3 * 2) + 2 downto 3 * 2) = "001" else \'0\';')
+			if self.nfc:
+				mux.append('    -- NFC0 off-die AFE input muxes: read the P6.0-2 pads when in AF1 mode')
+				mux.append('    nfc0_rf_clk       <= prt6_in(0) when p6_afs((3 * 0) + 2 downto 3 * 0) = "001" else \'0\';')
+				mux.append('    nfc0_rf_rx        <= prt6_in(1) when p6_afs((3 * 1) + 2 downto 3 * 1) = "001" else \'1\';')
+				mux.append('    nfc0_field_detect <= prt6_in(2) when p6_afs((3 * 2) + 2 downto 3 * 2) = "001" else \'0\';')
+			if self.onewire:
+				mux.append('    -- digperiphs #5: OW0 DQ input mux (P6.6); idle-high when not in AF1 mode')
+				mux.append('    ow0_dq_in <= prt6_in(6) when p6_afs((3 * 6) + 2 downto 3 * 6) = "001" else \'1\';')
 		else:
 			af1.append('    -- AF1 plane unused in this configuration (NFC0 absent): Hi-Z.')
 			af1.append('    afunc6_af1_out <= afunc_none;')
@@ -3023,6 +3242,14 @@ class McuVhdEmitter():
 			return self.emitRtcDecls()
 		if name == 'rtc-instance':
 			return self.emitRtcInstance()
+		if name == 'pwm-decls':
+			return self.emitPwmDecls()
+		if name == 'pwm-instance':
+			return self.emitPwmInstance()
+		if name == 'ow-decls':
+			return self.emitOwDecls()
+		if name == 'ow-instance':
+			return self.emitOwInstance()
 		if name == 'gpio4-decls':
 			return self.emitGpio45Decls(5)
 		if name == 'gpio5-decls':
@@ -3120,6 +3347,10 @@ def generateMcuVhd(gen, templatePath, outPath):
 		'nfc-decls', 'nfc-instance', 'irq-gf-decls', 'irq-gf-instances',
 		# digperiphs #4: RTC0 in MUTEX-page (page 2) sub-slot 5 @0x6500
 		'rtc-decls', 'rtc-instance',
+		# digperiphs #5: PWM0 in MUTEX-page (page 2) sub-slot 6 @0x6600
+		'pwm-decls', 'pwm-instance',
+		# digperiphs #5: OW0 (1-Wire master) in MUTEX-page (page 2) sub-slot 7 @0x6700
+		'ow-decls', 'ow-instance',
 		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions
