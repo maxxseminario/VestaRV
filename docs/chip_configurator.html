@@ -950,6 +950,19 @@ const VESTA_DATA = {
       "type": "bool",
       "default": false
     },
+    "peripherals.dma": {
+      "description": "bool \u2014 True instantiates the DMA0 configurable multi-channel single-shot DMA controller (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800: page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the DMA is master index numHarts, the last slice) \u2014 mp_arbiter N=>5/MW=>3, resv_unit N=>5, mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (119 <= 128). Default false",
+      "type": "bool",
+      "default": false
+    },
+    "peripherals.dmaChannels": {
+      "description": "int \u2014 DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4",
+      "type": "int",
+      "default": 4,
+      "min": 2,
+      "max": 4,
+      "step": 2
+    },
     "package.model": {
       "description": "string \u2014 package model name defined in generate.py (_PACKAGE_MODELS: \"myshkin-qfn44\" QFN-44, \"castalia-quad-qfn64\" QFN-64 quad pinout \u2014 new pinouts are added as Python models, never as free-form config pin lists)",
       "type": "enum",
@@ -1010,6 +1023,8 @@ const VESTA_DATA = {
     "peripherals.rtc": false,
     "peripherals.pwm": false,
     "peripherals.onewire": false,
+    "peripherals.dma": false,
+    "peripherals.dmaChannels": 4,
     "package.model": "myshkin-qfn44",
     "package.preliminary": true
   },
@@ -2812,6 +2827,7 @@ const SCHEMA_TO_CFG = {
   "peripherals.uart1":"uart1", "peripherals.spi1":"spi1", "peripherals.timer1":"timer1",
   "peripherals.cqAfeStubs":"cqAfeStubs", "peripherals.qspi":"qspi", "peripherals.i3c":"i3c", "peripherals.nfc":"nfc",
   "peripherals.rtc":"rtc", "peripherals.pwm":"pwm", "peripherals.onewire":"onewire",
+  "peripherals.dma":"dma", "peripherals.dmaChannels":"dmaChannels",
   "package.model":"packageModel", "package.preliminary":"packagePreliminary",
 };
 
@@ -3067,6 +3083,40 @@ function render(){
     const lbl=document.createElement("span"); lbl.textContent = `peripherals.${key} = ${cfg[key]}`; cnt.append(lbl);
     el.append(cnt); pbox.append(el);
   });
+  // DMA0 — REAL knob (digperiphs #6): a toggle PLUS a {2,4} channel-count
+  // selector (the NCH generic; consulted only when DMA is on). DMA0 is the
+  // FIRST new arbiter MASTER since the four harts, so enabling it is the one
+  // place the digperiphs library widens the shared fabric (N=4→5, MW→3).
+  {
+    const el = document.createElement("div"); el.className="peri"+(cfg.dma?" on":"");
+    el.innerHTML = `<div class="pt"><span class="pn">DMA0</span>
+      <span class="lockbadge" style="color:var(--ok);border-color:var(--ok)">applied</span></div>
+      <div class="pd">Configurable multi-channel single-shot DMA controller in the MUTEX page, sub-slot 8 @0x6800. Off by default. Zero pins. It moves words source→dest over the shared arbiter as single-word transactions, either flat-out under software GO (mem-to-mem) or paced one word per peripheral data-ready event (UART0 RC / QSPI0 RX-full / NFC0 payload-ready), with per-channel source/dest auto-increment, a 2-level priority + word-granular round-robin, an optional CRC16-CDMA2000 ride-along, and a hardware read-side-effect guard (engine reads of the mutex window 0x6000–0x60FF or the router CLAIM word 0x7800 raise an error instead of issuing). DMA0 is the FIRST new arbiter MASTER since the four harts: on WIDENS the shared fabric from N=4 to N=5 (mp_arbiter N→5/MW→3, resv_unit N→5, mutex_bank/irq_router MW→3, sh_master 2→3 bits) — the one place this library touches shared RTL. It extends the IRQ source list per the global vector rule to 119: vector 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; a lower library block that is off (RTC 114, PWM 115/116, OW 117) backfills as reserved. NUM_EN_WORDS stays 4 (119 ≤ 128).</div>`;
+    const cnt=document.createElement("div"); cnt.className="cnt";
+    const sw=document.createElement("label"); sw.className="sw";
+    const inp=document.createElement("input"); inp.type="checkbox"; inp.checked=cfg.dma;
+    const tr=document.createElement("span"); tr.className="track";
+    inp.onchange=()=>{cfg.dma=inp.checked; render();};
+    sw.append(inp,tr); cnt.append(sw);
+    const lbl=document.createElement("span"); lbl.textContent = `peripherals.dma = ${cfg.dma}`; cnt.append(lbl);
+    cnt.append(document.createTextNode(" "));
+    // channel-count selector — only meaningful when DMA is on (the NCH generic).
+    const chSel=document.createElement("select");
+    chSel.disabled = !cfg.dma;
+    [2,4].forEach(n=>{
+      const opt=document.createElement("option"); opt.value=n;
+      opt.textContent = n+" channels"; if(n===cfg.dmaChannels) opt.selected=true;
+      chSel.append(opt);
+    });
+    chSel.onchange=()=>{cfg.dmaChannels=parseInt(chSel.value,10); render();};
+    cnt.append(chSel);
+    const chLbl=document.createElement("span");
+    chLbl.textContent = cfg.dma ? `peripherals.dmaChannels = ${cfg.dmaChannels}`
+                                : `(dmaChannels = ${cfg.dmaChannels}, ignored while DMA is off)`;
+    chLbl.style.opacity = cfg.dma ? "" : "0.55";
+    cnt.append(chLbl);
+    el.append(cnt); pbox.append(el);
+  }
   // Multi-core fabric — always present
   [["CLINT","msip IPIs + mtime/mtimecmp (vectors 83/84); register layout scales with numHarts."],
    ["Mutex bank", cfg.numMutexes + " word-mapped HW mutexes, claim-on-read."],
@@ -3409,6 +3459,8 @@ function outPython(){
   L.push(`<span class="k">rtcPresent</span> = ${b(cfg.rtc)}  <span class="c"># _cfg('peripherals.rtc', False)</span>`);
   L.push(`<span class="k">pwmPresent</span> = ${b(cfg.pwm)}  <span class="c"># _cfg('peripherals.pwm', False)</span>`);
   L.push(`<span class="k">onewirePresent</span> = ${b(cfg.onewire)}  <span class="c"># _cfg('peripherals.onewire', False)</span>`);
+  L.push(`<span class="k">dmaPresent</span> = ${b(cfg.dma)}  <span class="c"># _cfg('peripherals.dma', False)</span>`);
+  L.push(`<span class="k">dmaChannels</span> = <span class="v">${cfg.dmaChannels}</span>  <span class="c"># _cfg('peripherals.dmaChannels', 4) — NCH generic {2,4}, only when dma</span>`);
   L.push(`<span class="k">_regsDualPort</span> = ${b(cfg.ENABLE_REGS_DUALPORT)}`);
   L.push(`<span class="k">_romSize</span> = <span class="v">${cfg.romSize}</span>, <span class="k">_tcmSize</span> = <span class="v">${cfg.tcmSize}</span>`);
   L.push(`<span class="k">_sharedRamLen</span> = <span class="v">${hex(cfg.sharedRamSize)}</span>, <span class="k">_npuRamLen</span> = <span class="v">${hex(cfg.npuRamSize)}</span>`);
@@ -3454,7 +3506,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, dma: cfg.dma, dmaChannels: cfg.dmaChannels },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;

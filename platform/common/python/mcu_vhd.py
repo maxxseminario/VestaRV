@@ -822,6 +822,21 @@ class McuVhdEmitter():
 		# AF-plane emitter exactly like I3C0's SDA/SCL on GPIO4 P5.6/7. Default false =>
 		# every OneWire region is inert (byte-identical default; P6.6 stays spare GPIO).
 		self.onewire = geo.get('onewire', False)
+		# digperiphs #6: DMA0 in MUTEX-page (page 2) sub-slot 8 @0x6800. Same
+		# native-slave shape as RTC0/PWM0/OW0 (outside the page-0 shim fabric;
+		# hand-decoded SEL + a PLAIN raw-strobe en shim, NO falling_edge(EnMemPeriph)
+		# pre-latch and NO CAPTURE_CLOCK en_q, D4). UNLIKE every prior library block
+		# DMA0 is ALSO an arbiter MASTER (the FIRST new master since the four harts):
+		# self.dma widens the shared fabric from N=numHarts to N=numHarts+1 (the DMA is
+		# master index numHarts, the LAST slice) -- see nMasters()/masterW() and the
+		# arb_* / mp_arbiter / resv_unit / mutex_bank / irq_router emitters below.
+		# dmaChannels ({2,4}) is the DMA entity NCH generic (register map is the
+		# 4-channel superset regardless). Default false => every DMA region is inert
+		# (byte-identical default; arbiter stays N=numHarts / MW / sh_master unchanged).
+		self.dma = geo.get('dma', False)
+		self.dmaChannels = geo.get('dmaChannels', 4)
+		if self.dma and self.dmaChannels not in (2, 4):
+			raise Exception('MCU.vhd emitter: dmaChannels must be 2 or 4, got ' + str(self.dmaChannels))
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -936,6 +951,16 @@ class McuVhdEmitter():
 		if self.onewire:
 			self.shslv = dict(self.shslv)
 			self.shslv['OW0'] = {'sel': 'ow0', 'shim': None, 'rdata': 'ow0_sh_rdata'}
+		# digperiphs #6: DMA0 joins the same native-slave fabric (MUTEX-page sub-slot
+		# 8). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None)
+		# puts its register file through the standard enable / registered rd-sel /
+		# rdata-mux loops, and its active-low RAW-strobe en shim lives in
+		# emitDmaInstance (no en_q register, D4). The DMA's MASTER port + the fabric
+		# widening are separate (emitArbFabricDecls / the arbiter generics / the slice-4
+		# port map), not part of the slave-fabric membership here.
+		if self.dma:
+			self.shslv = dict(self.shslv)
+			self.shslv['DMA0'] = {'sel': 'dma0', 'shim': None, 'rdata': 'dma0_sh_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -948,7 +973,8 @@ class McuVhdEmitter():
 			+ (['I3C0'] if self.i3c else []) + (['NFC0'] if self.nfc else []) \
 			+ ['GPIO4', 'GPIO5'] + (['RTC0'] if self.rtc else []) \
 			+ (['PWM0'] if self.pwm else []) \
-			+ (['OW0'] if self.onewire else [])
+			+ (['OW0'] if self.onewire else []) \
+			+ (['DMA0'] if self.dma else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1211,6 +1237,10 @@ class McuVhdEmitter():
 		if self.onewire:
 			# digperiphs #5: OW0 = page-2 sub-slot 7 (0x6700).
 			lines.append(ind + 'shslv_ow0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0111" else \'0\';')
+		if self.dma:
+			# digperiphs #6: DMA0 = page-2 sub-slot 8 (0x6800). Slave register file
+			# only; the DMA's MASTER port slices into arb_*(numHarts) separately.
+			lines.append(ind + 'shslv_dma0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1000" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
 			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
@@ -1767,6 +1797,114 @@ class McuVhdEmitter():
 			'            OW_DQ_DIR   => ow0_dq_dir);',
 		]
 
+	def emitDmaDecls(self):
+		'''digperiphs #6: DMA0 (page-2 sub-slot 8 @0x6800) declarative region.
+		Fabric nets for the hand-emitted RAW-strobe slave shim; nothing when DMA is
+		absent. Like RTC0/PWM0/OW0 there is NO shslv_dma0_en_q register (D4). The DMA's
+		two irq levels (irq_dma0_done / irq_dma0_err -> vectors 118/119) are auto-declared
+		by emitIrqSignalDecls from the IRQB_DMA0_* vector names; the master-port nets slice
+		DIRECTLY into arb_*(numHarts), so no intermediate master signals are declared.'''
+		if not self.dma:
+			return []
+		return [
+			'        -- digperiphs #6: DMA0 (configurable multi-channel single-shot DMA',
+			'        -- controller: peripheral-paced or software-GO mem-to-mem transfers over',
+			'        -- the shared arbiter, CRC16-CDMA2000 ride-along). Page-2 (MUTEX page)',
+			'        -- sub-slot 8 @0x6800 — the mutex bank keeps sub-slot 0 @0x6000. This is',
+			'        -- the SLAVE register-file fabric only: a registered-read native slave',
+			'        -- with a PLAIN active-low one-cycle en shim (NO falling_edge(EnMemPeriph)',
+			'        -- pre-latch and NO CAPTURE_CLOCK en_q, D4 — it registers its read on',
+			'        -- rising ClkMem over data already in the mclk domain). DMA0 is ALSO the',
+			'        -- FIRST new arbiter MASTER (slice numHarts of arb_*); the fabric widening',
+			'        -- (arb_* 5th slice, mp_arbiter/resv_unit/mutex_bank/irq_router generics,',
+			'        -- D18 lrsc/lock ties, trigger taps) lives in the arb/instance emitters.',
+			'        -- irq_dma0_done -> vector 118, irq_dma0_err -> vector 119. Zero pins.',
+			'        signal shslv_dma0_sel, shslv_dma0_en : std_logic;',
+			"        signal shslv_rd_dma0    : std_logic := '0';",
+			'        signal dma0_sh_rdata    : std_logic_vector(31 downto 0);',
+			'        signal dma0_sh_en_n     : std_logic;',
+		]
+
+	def emitDmaInstance(self):
+		'''digperiphs #6: DMA0 instance region (page-2 sub-slot 8 @0x6800). The PLAIN
+		raw-strobe active-low slave en shim + the DMA entity (slave register port +
+		MASTER port sliced into arb_*(numHarts) at depth 0 + the trigger taps + the two
+		irq levels) + the D18 fabric ties. Nothing when DMA is absent. No en_q process
+		(D4). The MASTER-port width widening (arb_* -> numHarts+1 slices) is in
+		emitArbFabricDecls; the arbiter/resv/mutex/router generics regrow via nMasters().'''
+		if not self.dma:
+			return []
+		n = self.nHarts()			# the DMA is master index numHarts (the LAST slice)
+		ns = str(n)
+		np1 = str(n + 1)
+		we_hi = str(4 * n + 3)
+		we_lo = str(4 * n)
+		lr_hi = str(2 * n + 1)
+		lr_lo = str(2 * n)
+		# A8/A9: tap the EXISTING IE-gated irq_* LEVELS (not raw flags — none is a port);
+		# QSPI0/NFC0 are knob-gated fabric citizens, so their taps are conditional.
+		qspiTap = 'irq_qspi0_rxf' if self.qspi else "'0'"
+		nfcTap = 'irq_nfc0_rxf' if self.nfc else "'0'"
+		lines = [
+			'',
+			'    -- =========================================================================',
+			'    -- DMA0 (digperiphs #6): configurable multi-channel single-shot DMA',
+			'    -- controller, page-2 (MUTEX page) sub-slot 8 @0x6800. TWO peripherals fused:',
+			'    -- an arbiter SLAVE (the register file @0x6800, on ClkMem) AND an arbiter',
+			'    -- MASTER (the transfer engine, on the free-running clk => mclk, D1) — the',
+			'    -- FIRST new arbiter master since the four harts (M13). The master port',
+			'    -- speaks the VERBATIM WAIT-FOR-RELEASE handshake (D2/D3) at boundary depth 0',
+			'    -- (the DMA lives inside MCU fabric on mclk like mp_arbiter itself, NOT behind',
+			'    -- a tile boundary), slicing DIRECTLY into arb_*(' + ns + ') — the ' + np1 + 'th master. Single-txn',
+			'    -- words, no grant-holding: lock is tied \'0\' forever and lrsc "00" (D18), so',
+			'    -- the LOCKED path is unreachable for the DMA. The whole engine (master FSM,',
+			'    -- SRC/DST/LEN counters, RR+priority picker, CRC16 datapath, pacing edge',
+			'    -- detectors, sticky W1C flags, IRQ combiners) rides mclk; the register file',
+			'    -- rides ClkMem (= mclk at integration). Registered read (no bridge, no',
+			'    -- CAPTURE_CLOCK pre-latch, D4). The three trigger inputs are the ONLY true CDC',
+			'    -- (2-FF synced, D9); they tap the IE-gated irq_* LEVELS (A8): UART0 RC always,',
+			'    -- QSPI0/NFC0 RX-full only when those knob-gated blocks are present (A9, else',
+			'    -- \'0\'). irq_done -> vector 118, irq_err -> vector 119 (irq_router). Zero pins.',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low slave en strobe (the GPIO4/5 native-slave idiom) —',
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    dma0_sh_en_n <= not shslv_dma0_en;',
+			'    dma0: entity work.DMA',
+			'        generic map (NCH => ' + str(self.dmaChannels) + ', AW => SH_AW)',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            -- slave register-file port (page-2 sub-slot 8 @0x6800)',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => dma0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => dma0_sh_rdata,',
+			'            -- arbiter MASTER port: slice ' + ns + ' of arb_* (depth 0, D2/D3)',
+			'            m_req       => arb_req(' + ns + '),',
+			'            m_we        => arb_we(' + we_hi + ' downto ' + we_lo + '),',
+			'            m_addr      => arb_addr(' + np1 + '*SH_AW-1 downto ' + ns + '*SH_AW),',
+			'            m_wdata     => arb_wdata(' + np1 + '*32-1 downto ' + ns + '*32),',
+			'            m_gnt       => arb_gnt(' + ns + '),',
+			'            m_done      => arb_done(' + ns + '),',
+			'            m_rdata     => arb_rdata,',
+			'            -- pacing triggers: the IE-gated irq_* levels (A8/A9)',
+			'            trig_uart0_rc  => irq_uart0_rc,',
+			'            trig_qspi0_rxf => ' + qspiTap + ',',
+			'            trig_nfc0_rxf  => ' + nfcTap + ',',
+			'            irq_done    => irq_dma0_done,',
+			'            irq_err     => irq_dma0_err);',
+			'    -- D18: the DMA never does LR/SC and never grant-locks, so lrsc/lock are',
+			'    -- tied here in fabric (not DMA ports); arb_scfail(' + ns + ')/arb_resvvld(' + ns + ') from the',
+			'    -- arbiter/resv_unit are left ignored (the DMA never issues an SC). resv_unit',
+			'    -- N=nMasters still keys cur=' + ns + ' on a DMA plain write, killing matching',
+			'    -- reservations (cross-hart LR/SC stays sound across a DMA write).',
+			'    arb_lrsc(' + lr_hi + ' downto ' + lr_lo + ') <= "00";',
+			"    arb_lock(" + ns + ") <= '0';",
+		]
+		return lines
+
 	def emitGpio45Decls(self, port):
 		'''Mission B: GPIO4 (port 5) / GPIO5 (port 6) declarative region — the
 		registered-read shim nets, the register/AF-plane signals, and (in configs
@@ -2089,6 +2227,12 @@ class McuVhdEmitter():
 			raise Exception('MCU.vhd emitter: numHarts must be an int >= 2 for the MCU_MP template, got ' + str(n))
 		return n
 
+	def nMasters(self):
+		'''digperiphs #6: arbiter MASTER count = numHarts (+ 1 for the DMA engine when
+		present). The DMA is master index numHarts (the LAST slice). Degenerates to
+		numHarts when dma is off (byte-identical default; Argus is unaffected).'''
+		return self.nHarts() + (1 if self.dma else 0)
+
 	def hartsWord(self):
 		'''Count prose for "identical on all <N> tiles".'''
 		return _HARTS_WORD.get(self.nHarts(), str(self.nHarts()))
@@ -2125,23 +2269,33 @@ class McuVhdEmitter():
 		return lines
 
 	def emitArbFabricDecls(self):
+		# digperiphs #6: bus widths follow nMasters = numHarts (+ the DMA engine at
+		# index numHarts when present). The hart-tiles comment keeps numHarts-1 (the DMA
+		# is NOT a hart tile) — byte-identical when dma is off (nMasters == numHarts).
 		n = self.nHarts()
-		nm1 = str(n - 1)
+		M = self.nMasters()
+		nm1 = str(n - 1)		# hart-tiles range in the comment (unchanged by the DMA)
+		Ms = str(M)
+		Mm1 = str(M - 1)
 		lines = []
-		lines.append(self.sigDecl('arb_lrsc', 'std_logic_vector(' + str(n) + '*2-1 downto 0);'))
-		lines.append(self.sigDecl('arb_scfail', 'std_logic_vector(' + nm1 + ' downto 0);'))
-		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + nm1 + ' downto 0);  -- X1 Zawrs: per-master reservation-valid level'))
+		lines.append(self.sigDecl('arb_lrsc', 'std_logic_vector(' + Ms + '*2-1 downto 0);'))
+		lines.append(self.sigDecl('arb_scfail', 'std_logic_vector(' + Mm1 + ' downto 0);'))
+		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + Mm1 + ' downto 0);  -- X1 Zawrs: per-master reservation-valid level'))
 		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
-		lines.append(' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles).')
+		masterComment = ' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles'
+		if self.dma:
+			masterComment += '; master ' + str(n) + ' = DMA0 engine'
+		masterComment += ').'
+		lines.append(masterComment)
 		lines.append(' ' * 8 + '-- we = 4 active-high byte-lane strobes per master (M4a).')
-		lines.append(' ' * 8 + 'signal arb_req, arb_gnt, arb_done : std_logic_vector(' + nm1 + ' downto 0);')
+		lines.append(' ' * 8 + 'signal arb_req, arb_gnt, arb_done : std_logic_vector(' + Mm1 + ' downto 0);')
 		lines.append(' ' * 8 + "-- M8: per-master grant-lock (cores' amo_lock) " + EMDASH + ' pins the arbiter to a')
 		lines.append(' ' * 8 + '-- master across its AMO read+write transaction pair (cross-hart AMO')
 		lines.append(' ' * 8 + '-- atomicity).')
-		lines.append(self.sigDecl('arb_lock', 'std_logic_vector(' + nm1 + ' downto 0);'))
-		lines.append(self.sigDecl('arb_we', 'std_logic_vector(' + str(n) + '*4-1 downto 0);'))
-		lines.append(self.sigDecl('arb_addr', 'std_logic_vector(' + str(n) + '*SH_AW-1 downto 0);'))
-		lines.append(self.sigDecl('arb_wdata', 'std_logic_vector(' + str(n) + '*32-1 downto 0);'))
+		lines.append(self.sigDecl('arb_lock', 'std_logic_vector(' + Mm1 + ' downto 0);'))
+		lines.append(self.sigDecl('arb_we', 'std_logic_vector(' + Ms + '*4-1 downto 0);'))
+		lines.append(self.sigDecl('arb_addr', 'std_logic_vector(' + Ms + '*SH_AW-1 downto 0);'))
+		lines.append(self.sigDecl('arb_wdata', 'std_logic_vector(' + Ms + '*32-1 downto 0);'))
 		lines.append(self.sigDecl('arb_rdata', 'std_logic_vector(31 downto 0);'))
 		return lines
 
@@ -2174,7 +2328,10 @@ class McuVhdEmitter():
 		return lines
 
 	def emitShMasterDecl(self):
-		w = max(1, _clog2(self.nHarts()))
+		# digperiphs #6: sh_master width follows the arbiter master width (masterW =
+		# max(2, clog2(nMasters))). 2 bits at the numHarts=4 default; 3 bits when the DMA
+		# is present (nMasters=5). Byte-identical when dma is off.
+		w = self.masterW()
 		return [self.sigDecl('sh_master', 'std_logic_vector(' + str(w - 1) + ' downto 0);')]
 
 	def emitHart0Instance(self):
@@ -2261,19 +2418,26 @@ class McuVhdEmitter():
 		return lines
 
 	def masterW(self):
-		'''mp_arbiter s_master / mutex_bank master width (A2: the MW generic,
-		default 2 = the Castalia shape).'''
-		return max(1, _clog2(self.nHarts()))
+		'''mp_arbiter s_master / mutex_bank / irq_router master width (A2: the MW
+		generic, default 2 = the Castalia shape). digperiphs #6: sized to nMasters
+		(numHarts + the DMA), so enabling the DMA (nMasters=5) grows MW 2->3 across the
+		arbiter, mutex_bank and irq_router in lockstep. Degenerates to the numHarts value
+		when dma is off (byte-identical default; Argus numHarts=18 -> MW=5 unchanged).'''
+		return max(2, _clog2(self.nMasters()))
 
 	def emitArbGeneric(self):
-		# A2: MW (s_master width) is emitted only when it differs from the
-		# RTL default 2 (N=4 byte-identity)
+		# A2: MW (s_master width) is emitted only when it differs from the RTL default 2
+		# (N=4 byte-identity). digperiphs #6: N and MW follow nMasters — enabling the DMA
+		# takes N=>5, MW=>3 (2**MW >= N needs MW=3 at N=5).
 		mw = self.masterW()
-		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW, DATA_WIDTH => 32'
+		return [' ' * 8 + 'generic map (N => ' + str(self.nMasters()) + ', ADDR_WIDTH => SH_AW, DATA_WIDTH => 32'
 			+ ('' if mw == 2 else ', MW => ' + str(mw)) + ')']
 
 	def emitResvGeneric(self):
-		return [' ' * 8 + 'generic map (N => ' + str(self.nHarts()) + ', ADDR_WIDTH => SH_AW)']
+		# digperiphs #6: N follows nMasters so resv_unit's one-hot gnt->cur decode reaches
+		# index numHarts (the DMA) — a DMA plain write keys cur=numHarts and kills matching
+		# reservations, keeping cross-hart LR/SC sound across a DMA write (D18).
+		return [' ' * 8 + 'generic map (N => ' + str(self.nMasters()) + ', ADDR_WIDTH => SH_AW)']
 
 	def emitClintInstance(self):
 		n = self.nHarts()
@@ -3250,6 +3414,10 @@ class McuVhdEmitter():
 			return self.emitOwDecls()
 		if name == 'ow-instance':
 			return self.emitOwInstance()
+		if name == 'dma-decls':
+			return self.emitDmaDecls()
+		if name == 'dma-instance':
+			return self.emitDmaInstance()
 		if name == 'gpio4-decls':
 			return self.emitGpio45Decls(5)
 		if name == 'gpio5-decls':
@@ -3351,6 +3519,10 @@ def generateMcuVhd(gen, templatePath, outPath):
 		'pwm-decls', 'pwm-instance',
 		# digperiphs #5: OW0 (1-Wire master) in MUTEX-page (page 2) sub-slot 7 @0x6700
 		'ow-decls', 'ow-instance',
+		# digperiphs #6: DMA0 in MUTEX-page (page 2) sub-slot 8 @0x6800 (+ the arbiter
+		# fabric widening emitted through arb-fabric-decls / arb-generic / resv-generic /
+		# mutex-instance / irq-router-instance / sh-master-decl)
+		'dma-decls', 'dma-instance',
 		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions

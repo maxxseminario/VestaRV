@@ -119,6 +119,7 @@ def _libraryTailVectorsCount(cfg):
 		(periph.get('rtc', False), 1),   # vector 114
 		(periph.get('pwm', False), 2),   # vectors 115, 116
 		(periph.get('onewire', False), 1),  # vector 117
+		(periph.get('dma', False), 2),   # vectors 118, 119
 	]
 	base = 114
 	v = base

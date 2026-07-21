@@ -137,6 +137,10 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.onewire':  ('bool — True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7. One pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1 (unbonded on the QFN-44, reachable on the QFN-64 / respin package). Free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118: vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false',
 	                         _isBool),
+	'peripherals.dma':      ('bool — True instantiates the DMA0 configurable multi-channel single-shot DMA controller (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800: page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the DMA is master index numHarts, the last slice) — mp_arbiter N=>5/MW=>3, resv_unit N=>5, mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (119 <= 128). Default false',
+	                         _isBool),
+	'peripherals.dmaChannels': ('int — DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4',
+	                         lambda v: _isInt(v) and v in (2, 4)),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -204,6 +208,8 @@ _CONFIG_META = {
 	'peripherals.rtc':      {'type': 'bool', 'default': False},
 	'peripherals.pwm':      {'type': 'bool', 'default': False},
 	'peripherals.onewire':  {'type': 'bool', 'default': False},
+	'peripherals.dma':      {'type': 'bool', 'default': False},
+	'peripherals.dmaChannels': {'type': 'int', 'default': 4, 'min': 2, 'max': 4, 'step': 2},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -423,6 +429,28 @@ pwmPresent = _cfg('peripherals.pwm', False)
 # sub-slot 7, no MmrAddrOW0, P6.6/GPIO46 stays plain spare GPIO) is byte-identical.
 onewirePresent = _cfg('peripherals.onewire', False)
 
+# digperiphs #6 (DMA, 2026-07-21): the DMA0 configurable multi-channel single-shot
+# DMA controller (peripheral-paced or software-GO mem-to-mem transfers off the shared
+# arbiter, CRC16-CDMA2000 ride-along) claims page-2 (the MUTEX page) SUB-SLOT 8 @0x6800,
+# joining the I3C/NFC/GPIO4/GPIO5/RTC0/PWM0/OW0 carve. ZERO pins. DMA0 is architecturally
+# TWO peripherals fused: an arbiter SLAVE (register file @0x6800, D4-xcollapse-clean like
+# RTC/PWM/OW — plain raw-strobe shim, neither combinationalRead NOR in CAPTURE_CLOCK) AND
+# an arbiter MASTER (the transfer engine, D2/D3) — the FIRST new arbiter master since the
+# four harts (M13). Enabling DMA is THE ONE place the digperiphs program touches shared
+# fabric RTL: the arbiter master count goes N=4 -> N=5 (the DMA is master index numHarts,
+# the LAST slice), rippling through mp_arbiter (N=>5, MW=>3), resv_unit (N=>5),
+# mutex_bank/irq_router (MW=>3), the sh_master decl (2->3 bits) and the arb_* buses (a 5th
+# slice + the D18 lrsc/lock ties). Enabling DMA extends the IRQ source list per the GLOBAL
+# VECTOR RULE (A5, the library-tail machinery below): vectors 118 = DMA0_DONE (combined
+# channels-done), 119 = DMA0_ERR, with 114/115/116/117 backfilling as IRQB_RSVD per their
+# own rtc/pwm/onewire knobs. NUM_EN_WORDS stays 4 (ceil(119/32) = 4, 119 <= 128).
+# dmaChannels (the NCH generic, {2,4}) is consulted only when dma is true; the register
+# map is the 4-channel SUPERSET regardless (absent channels read 0, A19/D6). Default
+# FALSE — the default emission (no page-2 sub-slot 8, no MmrAddrDMA, arbiter stays
+# N=4/MW=2, sh_master 2 bits, no vectors 118/119) is byte-identical.
+dmaPresent = _cfg('peripherals.dma', False)
+dmaChannels = _cfg('peripherals.dmaChannels', 4)
+
 # ===========================================================================
 # digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
 # Beyond the 114 UNCONDITIONAL vectors (0-113: legacy + CLINT + meip placeholder +
@@ -440,6 +468,7 @@ _LIBRARY_TAIL_SPEC = [
 	('rtc', rtcPresent, 1),   # vector 114        (RTC0 combined alarm/tick)
 	('pwm', pwmPresent, 2),   # vectors 115, 116  (PWM0_FAULT, PWM0_EVT)
 	('onewire', onewirePresent, 1),  # vector 117  (OW0 combined TC/error)
+	('dma', dmaPresent, 2),   # vectors 118, 119  (DMA0_DONE, DMA0_ERR)
 ]
 def _libraryTailVectorsCount():
 	'''Total vector count = 114 + (last vector of the highest enabled tail block).
@@ -1978,6 +2007,84 @@ if onewirePresent:
 	ow.AddRegisterTemplate(r)
 	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
 
+# digperiphs #6 (2026-07-21): DMA0 register template (design doc D5 bit maps, the
+# 4-channel SUPERSET: 20 word slots @0x6800 -- global CR/SR, four fixed-stride
+# per-channel {SRC,DST,LEN,CFG} blocks, DMA0CRC, reserved DMA0DESC). Added only when
+# dmaPresent CreatePeripheral()s it; with DMA off it is never instanced (byte-identical
+# default). The register map is the 4-channel superset REGARDLESS of dmaChannels (the
+# NCH generic): a 2-channel build reads 0 on CH2/CH3 slots and their CR/SR bits and
+# ignores writes to them (D6). The register file rides the gated bus clock (ClkMem =
+# mclk at integration); the read mux registers on rising ClkMem over data already in
+# the mclk domain -- neither combinationalRead NOR in mcu_vhd.py's CAPTURE_CLOCK set
+# (a plain raw-strobe shim, D4). No latexIntroFileName here: the TRM chapter/intro is a
+# documentation follow-up (the register tables generate; the chapter carries no intro
+# prose until then).
+if dmaPresent:
+	dma = PeripheralTemplate(nameTemplate='DMAx', description='Configurable multi-channel single-shot DMA controller: it moves words source->dest over the shared arbiter as a stream of single-word transactions, either flat-out under software GO (memory-to-memory) or paced one word per peripheral data-ready event (UART0 RC / QSPI0 RX-full / NFC0 payload-ready), with optional per-channel source/dest auto-increment, a per-channel 2-level priority + word-granular round-robin, an optional CRC16-CDMA2000 ride-along, and a hardware read-side-effect guard (reads targeting the mutex sub-slot window 0x6000-0x60FF or the irq_router CLAIM word 0x7800 raise an error instead of issuing). The channel count is the NCH build generic ({2,4}); this register map is the 4-channel SUPERSET regardless -- on a 2-channel build the CH2/CH3 register blocks and their CR/SR bits read 0 and ignore writes. The whole transfer engine (master-port FSM, per-channel SRC/DST/LEN working counters, round-robin picker, CRC datapath, pacing edge-detectors, sticky W1C flags and the two IRQ combiners) rides the free-running MCLK; the register file rides the gated bus clock. The block has zero pins and delivers two interrupts: DMA0_DONE (combined channels-done, vector 118) and DMA0_ERR (vector 119).', registerPrefix='DMAx', bitFieldPrefix='DMA', latexIntroFileName='DMA-intro-castalia-2026-07.tex', latexFeatureSummary='{count} multi-channel single-shot DMA controller (2/4 channels, peripheral-paced or mem-to-mem, CRC16 ride-along, read-side-effect guard, two IRQs)')
+	m.AddPeripheralTemplate(dma)
+
+	# DMA0CR (slot 0) -- control (reset 0)
+	r = RegisterTemplate(nameTemplate='DMAxCR', registerMemorySlot=0, description='DMA control register. Holds the master enable (DMAEN), the per-channel arm/launch and orderly-abort command strobes (CHnGO / CHnABORT, self-clearing, read 0), and the two interrupt enables (DONEIE / ERRIE). Resets to 0. A byte-lane-0 write setting CHnGO[n] captures the channel n {SRC,DST,LEN,CFG} into the working registers and launches it (the launch is suppressed while DMAEN=0 or channel n is already busy). CHnGO/CHnABORT bits for n >= NCH read 0 and ignore writes.', size=32)
+	dma.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='DMAEN', msb=0, accessibility='rw', description='Master enable. When 0 all channels are held idle and every CHnGO launch is suppressed. Set to 1 before arming a channel.', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='DMAGO', msb=4, lsb=1, accessibility='rw', description='Per-channel arm+launch command (CHnGO[3:0], bit 1+n = channel n). Write 1 to a bit to capture that channel\'s programmed descriptor and start the transfer; self-clearing command (reads 0, D8). The launch is suppressed while DMAEN=0 or that channel is busy. Bits for n >= NCH read 0 / ignore writes.'))
+	r.AddBitField(BitField(name='DMAABORT', msb=8, lsb=5, accessibility='rw', description='Per-channel orderly-abort command (CHnABORT[3:0], bit 5+n = channel n). Write 1 to request channel n stop; any in-flight arbiter transaction completes normally (the handshake is never truncated), then the channel\'s busy drops WITHOUT setting CHnDONE or CHnERR (abort is neither done nor error, D15). Self-clearing command (reads 0). Bits for n >= NCH read 0 / ignore writes.'))
+	r.AddBitField(BitField(msb=11, lsb=9, unused=True))
+	r.AddBitField(BitField(name='DMADONEIE', msb=12, accessibility='rw', description='Combined-done interrupt enable. When set, DMA0SR.CHnDONE (OR over channels) drives the DMA0_DONE interrupt (vector 118).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='DMAERRIE', msb=13, accessibility='rw', description='Error interrupt enable. When set, DMA0SR.CHnERR (OR over channels) drives the DMA0_ERR interrupt (vector 119).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=31, lsb=14, unused=True))
+
+	# DMA0SR (slot 1) -- status (BUSY level + W1C event flags + ACTIVECH)
+	r = RegisterTemplate(nameTemplate='DMAxSR', registerMemorySlot=1, description='DMA status register. BUSY and ACTIVECH are read-only; CHnDONE and CHnERR are sticky write-1-to-clear event flags (write a 1 to a bit to clear it; writing 0 leaves it unchanged; never cleared by a read; a set arriving the same cycle as a clear survives). BUSY asserts the SAME cycle as the triggering CHnGO write (busy OR a GO pending, D8/D16), so a driver may write GO then immediately spin on BUSY. DMA0_DONE (vector 118) = (OR of CHnDONE) and CR.DONEIE; DMA0_ERR (vector 119) = (OR of CHnERR) and CR.ERRIE, both combinational. CHnDONE/CHnERR/ACTIVECH bits for n >= NCH read 0.', size=32)
+	dma.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='DMABUSY', msb=0, accessibility='r', description='Any channel active OR a GO pending. Asserts the same cycle as the CHnGO write and stays high through real engine activity (no blind window, D8).', valueDescriptions=[(0b0, 'Idle'), (0b1, 'Busy')]))
+	r.AddBitField(BitField(name='DMADONE', msb=4, lsb=1, accessibility='rw1', description='Per-channel done flags (CHnDONE[3:0], bit 1+n = channel n). Set when channel n reaches LEN=0 (clean completion); drives vector 118 when DONEIE is set. Write 1 to clear. Bits for n >= NCH read 0.'))
+	r.AddBitField(BitField(name='DMAERR', msb=8, lsb=5, accessibility='rw1', description='Per-channel error flags (CHnERR[3:0], bit 5+n = channel n). Set on a deny-guard hit, LEN=0 at GO, misaligned/out-of-window/TCM-hole SRC or DST (D13/A18); drives vector 119 when ERRIE is set. Write 1 to clear. Bits for n >= NCH read 0.'))
+	r.AddBitField(BitField(name='DMAACTIVECH', msb=11, lsb=9, accessibility='r', description='Index of the currently-serviced channel (0 when idle, engine-set, D16).'))
+	r.AddBitField(BitField(msb=31, lsb=12, unused=True))
+
+	# Slots 2..17 -- four fixed-stride per-channel {SRC,DST,LEN,CFG} blocks
+	# (CH0 = slots 2-5, CH1 = 6-9, CH2 = 10-13, CH3 = 14-17). The register map
+	# is the 4-channel superset; a 2-channel build reads 0 / ignores writes on
+	# the CH2/CH3 blocks (D6). Byte pointers (word-aligned; D19).
+	for _ch in range(4):
+		_base = 2 + 4 * _ch
+		_absent = ' (reads 0 / ignores writes when the build has NCH=2)' if _ch >= 2 else ''
+		r = RegisterTemplate(nameTemplate='DMAxC%dSRC' % _ch, registerMemorySlot=_base + 0, description='Channel %d source byte address in the 0x0-0x1FFFF shared window (word-aligned: bits[1:0] must be 0; bits[31:17] must be 0). The full written 32-bit value reads back; the engine presents byte_ptr(16:2) as the 15-bit arbiter word address. A misaligned, out-of-window (>= 0x20000), or TCM-hole (0x8000-0xBFFF) SRC is rejected at GO with CHnERR (D13/A18).%s' % (_ch, _absent), size=32)
+		dma.AddRegisterTemplate(r)
+		r.AddBitField(BitField(name='DMAC%dSRC' % _ch, msb=16, lsb=0, accessibility='rw', description='Source byte address (word-aligned).'))
+		r.AddBitField(BitField(msb=31, lsb=17, unused=True))
+
+		r = RegisterTemplate(nameTemplate='DMAxC%dDST' % _ch, registerMemorySlot=_base + 1, description='Channel %d destination byte address (same word-aligned / in-window / TCM-hole rules as C%dSRC, D13/A18).%s' % (_ch, _ch, _absent), size=32)
+		dma.AddRegisterTemplate(r)
+		r.AddBitField(BitField(name='DMAC%dDST' % _ch, msb=16, lsb=0, accessibility='rw', description='Destination byte address (word-aligned).'))
+		r.AddBitField(BitField(msb=31, lsb=17, unused=True))
+
+		r = RegisterTemplate(nameTemplate='DMAxC%dLEN' % _ch, registerMemorySlot=_base + 2, description='Channel %d transfer length in WORDS. Decrements as the engine runs (a read returns the current remaining count, so pointers/LEN show where an aborted transfer stopped, D15); reads 0 before the first GO. LEN=0 at GO is a programming error (CHnERR, no transfer issued, D13).%s' % (_ch, _absent), size=32)
+		dma.AddRegisterTemplate(r)
+		r.AddBitField(BitField(name='DMAC%dLEN' % _ch, msb=16, lsb=0, accessibility='rw', description='Remaining transfer length in words.'))
+		r.AddBitField(BitField(msb=31, lsb=17, unused=True))
+
+		r = RegisterTemplate(nameTemplate='DMAxC%dCFG' % _ch, registerMemorySlot=_base + 3, description='Channel %d configuration: source/dest auto-increment (SINC/DINC, +4 per word when set, else a fixed peripheral data register), trigger source (TRIG), channel priority class (PRIO) and CRC ride-along enable (CRCEN). Program before GO.%s' % (_ch, _absent), size=32)
+		dma.AddRegisterTemplate(r)
+		r.AddBitField(BitField(name='DMAC%dSINC' % _ch, msb=0, accessibility='rw', description='Source auto-increment. 1 = src += 4 per word (block copy); 0 = src held (peripheral data register, the paced-drain case, D11).', valueDescriptions=[(0b0, 'Fixed source'), (0b1, 'Increment source')]))
+		r.AddBitField(BitField(name='DMAC%dDINC' % _ch, msb=1, accessibility='rw', description='Destination auto-increment. 1 = dst += 4 per word; 0 = dst held (peripheral fill register, D11).', valueDescriptions=[(0b0, 'Fixed destination'), (0b1, 'Increment destination')]))
+		r.AddBitField(BitField(name='DMAC%dTRIG' % _ch, msb=5, lsb=2, accessibility='rw', description='Trigger source (D9/D10/A8). 0 = software / mem-to-mem (continuously serviceable); 1 = UART0 RC (one word per received byte, read-to-clear); 2 = QSPI0 RX-full (one word per event + an extra W1C ack txn); 3 = NFC0 payload-ready (a frame event launches the full LEN-word burst + one ack); 4-15 reserved. Pacing requires the source peripheral\'s own receive interrupt-enable bit set (A8).', valueDescriptions=[(0, 'Software / mem-to-mem'), (1, 'UART0 receive-complete'), (2, 'QSPI0 RX-full'), (3, 'NFC0 payload-ready')]))
+		r.AddBitField(BitField(name='DMAC%dPRIO' % _ch, msb=6, accessibility='rw', description='Priority class. Among serviceable channels the high class (1) is picked before the low class (0); within a class a round-robin pointer prevents starvation (D7). A continuously-serviceable PRIO=1 channel can hold off PRIO=0 channels (standard DMA priority semantic).', valueDescriptions=[(0b0, 'Low priority class'), (0b1, 'High priority class')]))
+		r.AddBitField(BitField(name='DMAC%dCRCEN' % _ch, msb=7, accessibility='rw', description='CRC ride-along enable. When set, each transferred word is folded (bytes low-to-high) into the shared DMA0CRC accumulator (CRC16-CDMA2000, D14). Use one CRCEN channel per measurement session (a single shared accumulator).', valueDescriptions=[(0b0, 'No CRC'), (0b1, 'Accumulate CRC')]))
+		r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# DMA0CRC (slot 18) -- CRC16-CDMA2000 accumulator / seed (reset 0xFFFF, D14)
+	r = RegisterTemplate(nameTemplate='DMAxCRC', registerMemorySlot=18, description='CRC16-CDMA2000 (poly 0xC857) accumulator / seed, resets to 0xFFFF. Firmware writes the 0xFFFF seed before GO (the SYSTEM0 seed-via-state convention, no auto-seed) and reads the result after DONE; the engine accumulates in the MCLK domain, feeding each CRCEN word\'s four bytes low-to-high. No input/output reflection, no final XOR (the work.CRC16 contract). Upper bits read 0.', size=32)
+	dma.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='DMACRC', msb=15, lsb=0, accessibility='rw', description='CRC16-CDMA2000 accumulator/seed (reset 0xFFFF).'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
+	# DMA0DESC (slot 19) -- reserved descriptor-chain head (single-shot phase, D5)
+	r = RegisterTemplate(nameTemplate='DMAxDESC', registerMemorySlot=19, description='Reserved for a descriptor-chain head pointer (out of scope this single-shot phase). Reads 0, writes ignored -- provisioned so scatter-gather bolts on at this slot without a register-map break. Slots >= 20 also read 0.', size=32)
+	dma.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
 m.CheckPeripheralTemplates()
 
 
@@ -2099,6 +2206,23 @@ if onewirePresent:
 	# NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4): a plain raw-strobe active-
 	# low en shim (ow0_sh_en_n <= not shslv_ow0_en), no falling_edge(EnMemPeriph) pre-latch.
 	m.CreatePeripheral(nameTemplate='OWx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=117, absoluteBaseAddress=0x6700, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 7; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the 1-Wire); DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1)')	# OW0 (digperiphs #5). native page-2 sub-slot 7; mcu_vhd hand-emits the raw-strobe shim + OneWire instance + P6.6 AF1 DQ routing
+if dmaPresent:
+	# digperiphs #6: DMA0 at 0x6800 = MUTEX page (page 2) SUB-SLOT 8. Same page-2
+	# native SLAVE shape as I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0/OW0 (sharedBus='native' =
+	# "outside the page-0 shim fabric"; the mutex-bank decode is already tightened to
+	# sub-slot 0 whenever any page-2 sub-slot device is present, A19). This
+	# CreatePeripheral exists for the register map, TRM chapter, address table, and the
+	# vector-118 interrupt-table entry (interruptPriority=118 = the FIRST of DMA's two
+	# frozen vectors, 118/119). clockDomain='mclk' names BOTH the bus clock (ClkMem) AND
+	# the free-running engine/master-port clock (clk => mclk, D1). NOT combinationalRead
+	# and NOT a CAPTURE_CLOCK slave (D4): a plain raw-strobe active-low en shim
+	# (dma0_sh_en_n <= not shslv_dma0_en), no falling_edge(EnMemPeriph) pre-latch. UNLIKE
+	# every prior library block DMA0 is ALSO an arbiter MASTER (slice numHarts of arb_*);
+	# the sub-slot-8 decode + raw-strobe read shim + the dma0 instance (NCH => dmaChannels)
+	# + the N->N+1 FABRIC WIDENING (mp_arbiter/resv_unit/mutex_bank/irq_router generics,
+	# the arb_* 5th slice + D18 lrsc/lock ties, the trigger taps, the two irq levels) are
+	# all hand-emitted by mcu_vhd.py under geo['dma'] / geo['dmaChannels'].
+	m.CreatePeripheral(nameTemplate='DMAx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=118, absoluteBaseAddress=0x6800, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 8; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine + arbiter MASTER (slice numHarts); enabling DMA widens the arbiter N=4->5 / MW=3, sh_master 2->3 bits (the ONE shared-fabric touch); read-side-effect guard denies engine reads of 0x6000-0x60FF / 0x7800')	# DMA0 (digperiphs #6). native page-2 sub-slot 8 + the FIRST new arbiter master; mcu_vhd hand-emits the raw-strobe shim + dma0 instance + fabric widening
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
 
 
@@ -2677,6 +2801,8 @@ _libraryTailEmit = [
 	(pwmPresent, [('IRQB_PWM0_FAULT', 'PWM0 fault-trip Interrupt'),
 		('IRQB_PWM0_EVT', 'PWM0 period-event Interrupt')]),
 	(onewirePresent, [('IRQB_OW0', 'OW0 1-Wire combined transaction-complete/error Interrupt')]),
+	(dmaPresent, [('IRQB_DMA0_DONE', 'DMA0 combined channels-done Interrupt'),
+		('IRQB_DMA0_ERR', 'DMA0 error (deny/LEN0/misalign/out-of-window) Interrupt')]),
 ]
 _tailHigh = _libraryTailVectorsCount()	# vector count including the tail high-water mark
 _v = _LIB_TAIL_BASE
@@ -2734,6 +2860,8 @@ if pwmPresent:
 	_mcuMpIrqFirstVector['PWM0'] = 'IRQB_PWM0_FAULT'	# vectors 115-116 (interruptPriority 115; fault at the lower id, D18)
 if onewirePresent:
 	_mcuMpIrqFirstVector['OW0'] = 'IRQB_OW0'	# vector 117 (interruptPriority 117; single combined TC/error source)
+if dmaPresent:
+	_mcuMpIrqFirstVector['DMA0'] = 'IRQB_DMA0_DONE'	# vectors 118-119 (interruptPriority 118; done at the lower id, err at 119)
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -2901,6 +3029,8 @@ m.McuMpGeometry = {
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
 	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P6.6/GPIO46 AF1 open-drain, vector 117, source list grows to 118 (A5 global vector rule)
+	'dma': dmaPresent,          # digperiphs #6: True = DMA0 in MUTEX-page sub-slot 8 (0x6800) + the FIRST new arbiter MASTER; raw-strobe slave shim, vectors 118/119, source list grows to 119, and the arbiter N=4->5 / MW=3 / sh_master 2->3 FABRIC WIDENING (the one shared-RTL touch)
+	'dmaChannels': dmaChannels, # digperiphs #6: DMA0 NCH generic {2,4} (consulted only when dma); the 4-channel register superset is emitted regardless
 }
 
 
@@ -3004,7 +3134,8 @@ _resolvedConfig = [
 		('spi1', spi1Present), ('timer1', timer1Present),
 		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
-		('onewire', onewirePresent)]),
+		('onewire', onewirePresent), ('dma', dmaPresent),
+		('dmaChannels', dmaChannels)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),

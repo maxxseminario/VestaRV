@@ -47,6 +47,8 @@ GENUS_BLOCKS = {
     "RTC":             ("Peripherals", "RTC (real-time clock)"),
     "PWM":             ("Peripherals", "PWM (2-channel buffered PWM)"),
     "OneWire":         ("Peripherals", "OneWire (1-Wire master)"),
+    "DMA_nch4":        ("Peripherals", "DMA (4-channel shape — wound config)"),
+    "DMA_nch2":        ("Peripherals", "DMA (2-channel shape — castalia_dma config)"),
 }
 GENUS_SKIP = {"MCU"}  # frozen Myshkin tape-out synth report
 

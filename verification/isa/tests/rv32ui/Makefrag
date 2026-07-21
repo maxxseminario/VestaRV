@@ -22,6 +22,7 @@ rv32ui_sc_tests = \
 	shfault \
 	shpwr \
 	shafe \
+	shdma \
 	wperiph \
 	wqspi wi3c wnfc wgpio \
 	afsel afselv2 \

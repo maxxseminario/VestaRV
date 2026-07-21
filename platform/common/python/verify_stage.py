@@ -77,6 +77,11 @@ CATALOG = [
     T('rv32ui-p-shmutex', 'tiles', True),
     T('rv32ui-p-shexec', 'tiles', True),
     T('rv32ui-p-shpwr', 'tiles', True),
+    # digperiphs #6: shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
+    # dma-enabled configs (castalia_dma NCH=2, wound NCH=4) -> tag 'dma' gates it
+    # into ONLY those verify runs (filtered out of the default/non-dma configs).
+    # Hart-0 directed (tiles parked), so no 'tiles' tag needed.
+    T('rv32ui-p-shdma', 'dma', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
@@ -177,6 +182,11 @@ def config_tags(cfg):
     for knob in ('uart1', 'spi1', 'timer1'):
         if cfg.get('peripherals', {}).get(knob, True):
             tags.add(knob)
+    # digperiphs #6: DMA0 is a config-gated ADDED instance (default off). Its
+    # DMA.vhd is compiled only when the config enables it (the NPU.vhd pattern);
+    # no sh-test tags change (shdma.S is a follow-up).
+    if cfg.get('peripherals', {}).get('dma'):
+        tags.add('dma')
     if int(cfg['numHarts']) >= 2:
         tags.add('tiles')
     return tags
@@ -224,6 +234,8 @@ def main():
     }
     seen = set()
     lines = []
+    dma_seen = False
+    crc16_idx = None
     with open(BASE_CELL_LIST) as f:
         for raw in f:
             p = raw.strip()
@@ -240,10 +252,28 @@ def main():
                 continue
             if p.endswith('periph/NPU.vhd') and 'npu' not in have:
                 continue    # NPU.vhd needs the MmrAddrNPU* constants -- NPU-less
+            # digperiphs #6: DMA.vhd is compiled only when the config enables the
+            # DMA (the NPU.vhd gate pattern). It depends on CRC16.vhd (already in the
+            # base list, before the periph block); if the base list ever carries
+            # DMA.vhd it is passed through when dma is on and dropped otherwise.
+            if p.endswith('periph/DMA.vhd'):
+                if 'dma' not in have:
+                    continue    # DMA off -> MCU.vhd has no dma0 instance
+                dma_seen = True
+            if p.endswith('commune/CRC16.vhd'):
+                crc16_idx = len(lines)
             lines.append(p)  # common cells: same ../../../ depth as behavioral_mp
     if len(seen) != 3:
         raise SystemExit('cell list swap points not all found in %s: got %s'
                          % (BASE_CELL_LIST, sorted(seen)))
+    # digperiphs #6: inject DMA.vhd (after CRC16.vhd, its only dependency, and well
+    # before MCU.vhd) when the config enables the DMA but the base list lacks it.
+    if 'dma' in have and not dma_seen:
+        dma_cell = '../../../hdl/common/periph/DMA.vhd'
+        if crc16_idx is None:
+            raise SystemExit('DMA config but commune/CRC16.vhd not in %s (DMA.vhd needs it)'
+                             % BASE_CELL_LIST)
+        lines.insert(crc16_idx + 1, dma_cell)
     with open(os.path.join(stage, 'cell_list_behavioral.txt'), 'w') as f:
         f.write('\n'.join(lines) + '\n')
 
