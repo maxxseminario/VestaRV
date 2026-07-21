@@ -1,0 +1,31 @@
+The real-time clock (\peripheral{RTCx}) is a 32.768\,kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, delivered on a single combined interrupt. It keeps a 32-bit seconds count with a 15-bit subsecond prescaler, compares the seconds against a programmable alarm, and generates a subsecond-cadence periodic tick. The whole point of the block is to present that autonomous, slowly-ticking counter domain coherently to firmware on the memory bus. It has \emph{no pins}. The main features are listed below:
+
+\begin{itemize}
+	\item A 32-bit seconds counter with a 15-bit subsecond prescaler (\register{RTCxSEC}, \register{RTCxSUB}); the prescaler rolls at exactly $2^{15} = 32768$, so seconds is literally its carry-out and the clock keeps exact 1\,Hz time
+	\item A one-shot alarm: the alarm flag sets once when the seconds count first equals \register{RTCxALM} (full 32-bit equality); re-arm by writing a new compare value (\register{RTCALMEN}, \register{RTCALMF})
+	\item An independent periodic tick: a subsecond down-counter reloaded from \register{RTCxPER} generates a recurring tick without disturbing the wall-clock prescaler (\register{RTCTICKEN}, \register{RTCTICKF})
+	\item Coherent, side-effect-free reads: \register{RTCxSEC} and \register{RTCxSUB} return a double-buffered snapshot synchronized into the bus domain
+	\item A single combined interrupt (\register{RTCALMF}, \register{RTCTICKF}, write-1-to-clear) demultiplexed by the interrupt service routine
+	\item An always-on clock domain: the count survives clock reconfiguration and power-gating of the harts
+	\item A reserved calibration slot (\register{RTCxTRIM}) for a future digital ppm-correction stage
+\end{itemize}
+
+\subsection{Always-On Clock Domain}
+
+Unlike the SPI, UART, I2C, QSPI, and I3C peripherals, \peripheral{RTCx} does \emph{not} run on SMCLK, and software must \emph{not} apply the usual ``write \register{SYS\_CLK\_CR} to 0 first'' rule to it. The counter, alarm compare, and tick engine all clock directly off the ungated LFXT crystal (the 32.768\,kHz pad clock), so timekeeping is immune to the SMCLK source: it keeps running through a clock reconfiguration and through power-gating of a hart, and firmware cannot stop it by clearing the SMCLK enable. Because the LFXT counter and the memory bus are asynchronous, every value that crosses between them does so through a held-level or toggle handshake --- there is no free-running FIFO, only quasi-static or once-per-LFXT-period data.
+
+The clock-domain-crossing synchronizers, the sticky event flags, and the interrupt combiner ride the free-running fabric clock (the same always-running clock that hosts the shared-window slaves), \emph{not} the gated bus clock. Consequently the flags set and the interrupt asserts autonomously while the bus is idle --- exactly the wake-the-CPU use case --- and interrupt \emph{delivery} is alive whenever the chip is alive. If timekeeping alone matters, it survives everything else the chip can do to its clocks.
+
+\subsection{Reading the Time Coherently}
+
+A read of \register{RTCxSEC} or \register{RTCxSUB} returns a snapshot taken from the same instant, so a single read is never torn mid-carry. The snapshot is up to about one LFXT period (roughly 30.5\,\textmu s) plus a few fabric-clock cycles behind the live count --- the inherent granularity of a 32\,kHz wall clock. Reading the full 47-bit \{seconds, subsecond\} value takes two bus accesses, which can straddle one snapshot update; to get a guaranteed-coherent pair, firmware uses the standard idiom: read \register{RTCxSEC}, read \register{RTCxSUB}, read \register{RTCxSEC} again, and retry if the seconds value changed. This preserves the block's no-read-side-effects rule (a read never latches or clears anything).
+
+\subsection{Setting the Time, the Alarm, and the Period}
+
+Set-time and alarm / period updates cross into the slow LFXT domain through a request / acknowledge handshake reported by \register{RTCSYNC} (the busy bit) in \register{RTCxSR}. Writing \register{RTCxSEC} atomically commits both seconds and the staged subsecond value (write \register{RTCxSUB} first if subseconds are also being set); on the applying LFXT edge the loaded value takes priority over the increment, so the count is never torn. Writing \register{RTCxALM} commits the alarm compare, and writing \register{RTCxPER} commits the periodic reload (16 bits, up to roughly a 2\,s interval). Only one commit may be outstanding: firmware must poll \register{RTCSYNC} to 0 before the next committing write to \register{RTCxSEC}, \register{RTCxALM}, or \register{RTCxPER}.
+
+The two event flags in \register{RTCxSR}, \register{RTCALMF} (alarm) and \register{RTCTICKF} (periodic tick), are write-1-to-clear: write a 1 to a bit to clear it; writing 0 leaves it unchanged, and a read never clears them. The alarm is one-shot --- it fires once at the matching second and does not re-fire the next second --- so firmware re-arms it by writing a new \register{RTCxALM} past the current time.
+
+\subsection{Shared Access on \AsicNameForUserGuide}
+
+In configurations that include it, \peripheral{RTC0} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 5 at \texttt{0x6500}, so any hart can use it. Its single combined interrupt source occupies vector 114 (alarm or periodic tick), delivered through the interrupt router like every other shared-peripheral source; the interrupt service routine reads \register{RTCxSR} and demultiplexes \register{RTCALMF} versus \register{RTCTICKF}, clearing whichever fired before returning. This source sits above the external-interrupt (meip) delivery vector, which stays fixed at vector 85, above the I3C and NFC sources at vectors 86 through 97, and above the \peripheral{GPIOx} port-4 and port-5 sources at vectors 98 through 113.

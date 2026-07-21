@@ -1326,6 +1326,15 @@ class ChipGenerator():
 					s += '\t};\n'
 					s += '} ' + rt.NameTemplate + '_Register_t;\n'
 					s += '\n'
+				else:
+					# A fully-reserved register (no named bit fields, e.g. RTC0TRIM) has
+					# no bit-field union to emit; alias its register type to a bare word
+					# so the peripheral struct member below still resolves. Reads 0 /
+					# writes ignored in hardware. (Only reached for all-reserved slots —
+					# every existing peripheral has at least one named field, so this is a
+					# no-op for their headers.)
+					s += 'typedef uint' + str(rt.Size) + '_t ' + rt.NameTemplate + '_Register_t;\n'
+					s += '\n'
 
 			s += '\n\n'
 

@@ -131,6 +131,8 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.nfc':      ('bool — True instantiates the NFC0 ISO 14443A tag / card-emulation engine at 0x6200: page-2 (MUTEX page) sub-slot 2. Like I3C it tightens the mutex-bank decode to its 256 B sub-slot 0 (retiring the aliased-CLAIM side effect) and adds the page-2 sub-decode. GROWS the IRQ source list to 98 (meip stays frozen at slot 85; sources 86-93 are I3C or reserved; NFC drives vectors 94-97: field/rxf/txdone/crcerr). The digital AFE / RF interface is off-die (placeholder-tied). Default false',
 	                         _isBool),
+	'peripherals.rtc':      ('bool — True instantiates the RTC0 real-time clock (32.768 kHz always-on wall clock + one-shot alarm + periodic tick) at 0x6500: page-2 (MUTEX page) sub-slot 5. Zero pins; clocks off the UNGATED lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK. GROWS the IRQ source list to 115: vector 114 = RTC0 (single combined alarm/tick IRQ, above GPIO5\'s 106-113). NUM_EN_WORDS stays 4 (115 <= 128). Default false',
+	                         _isBool),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -195,6 +197,7 @@ _CONFIG_META = {
 	'peripherals.qspi':     {'type': 'bool', 'default': False},
 	'peripherals.i3c':      {'type': 'bool', 'default': False},
 	'peripherals.nfc':      {'type': 'bool', 'default': False},
+	'peripherals.rtc':      {'type': 'bool', 'default': False},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -358,6 +361,24 @@ i3cPresent = _cfg('peripherals.i3c', False)
 # AFE / RF interface is off-die (placeholder-tied, no pads). Default FALSE — the
 # default emission (85-entry vector list, 3 glitch filters) is byte-identical.
 nfcPresent = _cfg('peripherals.nfc', False)
+
+# digperiphs #4 (RTC, 2026-07-20): the RTC0 real-time clock (32.768 kHz always-on
+# wall clock + one-shot alarm + recurring periodic tick, ONE combined IRQ) claims
+# page-2 (the MUTEX page) SUB-SLOT 5 @0x6500, joining the I3C/NFC/GPIO4/GPIO5 carve
+# (the mutex-bank decode is already tightened to sub-slot 0 whenever any page-2 sub-
+# slot device is present). RTC0 is ZERO-PIN: it clocks off the UNGATED lfxt_in pad
+# crystal (D1), with the LFXT->bus CDC synchronizers, the sticky W1C flags and the
+# IRQ combiner on the free-running MCLK (orchestrator adjudication A2 — wired to
+# mclk, not smclk). Unlike I3C/NFC it needs NO falling_edge(EnMemPeriph) pre-latch
+# (D4, post-X-collapse bus rules): it is the FIRST library block that is neither
+# combinationalRead NOR in mcu_vhd.py's CAPTURE_CLOCK set — a plain raw-strobe shim
+# (the GPIO4/5 native-slave idiom). Enabling RTC GROWS the IRQ SOURCE list from 114
+# to 115: vector 114 = RTC0 (single combined alarm/tick source), ABOVE GPIO5's
+# 106-113 (the I3C/NFC conditional-growth pattern, NOT the GPIO4/5 unconditional
+# one). NUM_EN_WORDS stays 4 (ceil(115/32) = 4, 115 <= 128). Default FALSE — the
+# default emission (114-source vector list, no page-2 sub-slot 5, no MmrAddrRTC0)
+# is byte-identical.
+rtcPresent = _cfg('peripherals.rtc', False)
 
 # Package model selection (G4): which _PACKAGE_MODELS entry builds the pad
 # ring below, and whether the TRM package section carries the "Preliminary"
@@ -587,7 +608,7 @@ m = ChipGenerator(
 	nativeSpiFlashMemoryWriteAccess=False,
 	stackPointerInit=0xC000,	# Stack pointer at top of the private TCM
 	bootloaderUsesSpiFlashCommands=True,
-	vectorsCount=114,	# digperiphs Mission B: GPIO4/5 are UNCONDITIONAL, so the source count is FIXED at 114 in every config. Layout: 0-84 legacy (incl CLINT msip 83 / mtip 84), 85 meip placeholder, 86-93 I3C (RSVD when off), 94-97 NFC (RSVD when off), 98-105 GPIO4, 106-113 GPIO5. meip slot stays 85 via m.MeipVector below
+	vectorsCount=(115 if rtcPresent else 114),	# digperiphs Mission B: GPIO4/5 are UNCONDITIONAL, so the source count is FIXED at 114. Layout: 0-84 legacy (incl CLINT msip 83 / mtip 84), 85 meip placeholder, 86-93 I3C (RSVD when off), 94-97 NFC (RSVD when off), 98-105 GPIO4, 106-113 GPIO5. digperiphs #4 (RTC): +1 -> 115 ONLY when rtc=true (vector 114 = RTC0, the I3C/NFC conditional-growth pattern). meip slot stays 85 via m.MeipVector below
 	padOutPosLogic=True,
 	padDIRPosLogic=False,
 	padRENPosLogic=False,
@@ -1665,6 +1686,67 @@ if nfcPresent:
 	r.AddBitField(BitField(name='NFCRXFRAMECNT', msb=15, lsb=0, accessibility='r', description='Received-frame count.'))
 	r.AddBitField(BitField(name='NFCTXFRAMECNT', msb=31, lsb=16, accessibility='r', description='Transmitted-frame count.'))
 
+# digperiphs #4 (2026-07-20): RTC0 register template (design doc D5, 6 live word
+# slots @0x6500 + a reserved TRIM slot). Added only when rtcPresent CreatePeripheral()s
+# it; with RTC off it is never instanced (byte-identical default). The register read
+# path is REGISTERED on rising ClkMem over data already synchronized into the bus
+# domain (D4/D7/D10) — NO combinationalRead bridge and NO CAPTURE_CLOCK pre-latch
+# shim (the RTC is the first library block clean of both). The wall clock rides the
+# ungated lfxt_in domain (D1); the CDC synchronizers + sticky W1C flags + IRQ combiner
+# ride the free-running clk (wired to MCLK at integration, A2). Coherent SEC/SUB reads
+# are up to ~1 LFXT period (~30.5 us) stale and a torn-free 47-bit pair needs the
+# firmware SEC-recompare idiom (driver contract, A3); the count is IMMUNE to clock
+# reconfig / PWRCTRL gating, so a driver must NOT copy the "write SYS_CLK_CR=0 first"
+# rule (inverted-SYS_CLK_CR note, D1).
+if rtcPresent:
+	rtc = PeripheralTemplate(nameTemplate='RTCx', description='Real-Time Clock: a 32.768 kHz always-on wall clock (32-bit seconds + 15-bit subsecond prescaler) with a one-shot alarm compare and a recurring periodic tick, delivered on ONE combined interrupt (vector 114). It clocks off the ungated LFXT crystal, so timekeeping survives clock reconfiguration and PWRCTRL tile power-gating; unlike the SMCLK peripherals it does NOT want SYS_CLK_CR = 0 (the count is immune to the SMCLK source). The {sec, subsecond} pair is one 47-bit counter (the prescaler rolls at exactly 2^15 = 32768, so seconds is literally its carry-out, giving exact 1 Hz). Reads return a coherent double-buffered snapshot synchronized into the bus domain (no read side effects); a torn-free 47-bit pair uses the standard read-SEC / read-SUB / read-SEC-again retry. Set-time and alarm / period updates cross into the LFXT domain through a request/acknowledge handshake reported by SR.SYNC; software must poll SR.SYNC = 0 before the next committing write. The block has zero pins.', registerPrefix='RTCx', bitFieldPrefix='RTC', latexIntroFileName='RTC-intro-castalia-2026-07.tex', latexFeatureSummary='{count} real-time clock (32.768 kHz always-on wall clock, one-shot alarm, periodic tick, single combined IRQ)')
+	m.AddPeripheralTemplate(rtc)
+
+	# RTC0CR (slot 0) -- control (reset 0)
+	r = RegisterTemplate(nameTemplate='RTCxCR', registerMemorySlot=0, description='RTC control register. Enables the seconds/subsecond counter, the alarm compare, and the periodic-tick down-counter, and holds the two interrupt enables. The three enables cross into the LFXT domain as synchronized held levels; the interrupt enables stay in the bus/MCLK domain and gate the combined interrupt combinationally. Resets to 0. The reserved upper bits hold a future trim-enable field (RTC0TRIM, digital calibration, deferred).', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='RTCEN', msb=0, accessibility='rw', description='Wall-clock enable. When set, the 47-bit {seconds, subsecond} counter advances on every LFXT edge; when clear the count is frozen (its value is preserved).', valueDescriptions=[(0b0, 'Counter frozen'), (0b1, 'Counting')]))
+	r.AddBitField(BitField(name='RTCALMEN', msb=1, accessibility='rw', description='Alarm-compare enable. When set, the alarm engine compares the seconds counter against RTC0ALM and sets the alarm flag on the match; when clear no alarm event is generated.', valueDescriptions=[(0b0, 'Alarm disabled'), (0b1, 'Alarm enabled')]))
+	r.AddBitField(BitField(name='RTCTICKEN', msb=2, accessibility='rw', description='Periodic-tick enable. When set, the independent subsecond down-counter reloaded from RTC0PER runs and sets the tick flag on each underflow; when clear no tick event is generated. The tick counter never disturbs the wall-clock prescaler.', valueDescriptions=[(0b0, 'Tick disabled'), (0b1, 'Tick enabled')]))
+	r.AddBitField(BitField(name='RTCALMIE', msb=3, accessibility='rw', description='Alarm interrupt enable. When set, RTC0SR.ALMF drives the combined RTC interrupt (vector 114).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='RTCTICKIE', msb=4, accessibility='rw', description='Periodic-tick interrupt enable. When set, RTC0SR.TICKF drives the combined RTC interrupt (vector 114).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=31, lsb=5, unused=True))
+
+	# RTC0SEC (slot 1) -- seconds (coherent snapshot read; atomic set-time write)
+	r = RegisterTemplate(nameTemplate='RTCxSEC', registerMemorySlot=1, description='Wall-clock seconds. READ returns a coherent double-buffered snapshot synchronized into the bus domain (up to ~1 LFXT period, ~30.5 us, behind the live count; no read side effects). WRITE stages the seconds value and atomically commits set-time {SEC, SUB} into the LFXT domain through the SR.SYNC handshake (write SUB first if subseconds are also being set); the loaded value takes priority over the increment on the applying LFXT edge.', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='RTCSEC', msb=31, lsb=0, accessibility='rw', description='Seconds counter (0 to 2^32-1).'))
+
+	# RTC0SUB (slot 2) -- subsecond prescaler
+	r = RegisterTemplate(nameTemplate='RTCxSUB', registerMemorySlot=2, description='Subsecond prescaler, 0 to 32767 (2^15 - 1). READ returns the coherent snapshot from the SAME instant as RTC0SEC (D7). WRITE only STAGES the subsecond value; it is committed by the following RTC0SEC write (to set subseconds alone, write SUB then SEC).', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='RTCSUB', msb=14, lsb=0, accessibility='rw', description='Subsecond prescaler count (0 to 32767); wraps at 32768, carrying seconds by exactly one (exact 1 Hz).'))
+	r.AddBitField(BitField(msb=31, lsb=15, unused=True))
+
+	# RTC0ALM (slot 3) -- alarm compare (seconds, one-shot)
+	r = RegisterTemplate(nameTemplate='RTCxALM', registerMemorySlot=3, description='Alarm compare value, in seconds. The alarm flag (RTC0SR.ALMF) sets once when the seconds counter first equals this value (one-shot, full 32-bit equality); re-arm by writing a new value past the current second. READ returns the last written value (bus-domain staging readback, no CDC). WRITE stages and commits the new compare through the SR.SYNC handshake.', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='RTCALM', msb=31, lsb=0, accessibility='rw', description='Alarm seconds compare value.'))
+
+	# RTC0PER (slot 4) -- periodic reload (subsecond ticks, 16-bit, A4)
+	r = RegisterTemplate(nameTemplate='RTCxPER', registerMemorySlot=4, description='Periodic-tick reload, in subsecond (LFXT) ticks: a tick event fires every reload+1 LFXT ticks (~2 s max interval at 32.768 kHz, adjudication A4). READ returns the last written value (bus-domain staging readback). WRITE stages and commits the new reload through the SR.SYNC handshake.', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='RTCPER', msb=15, lsb=0, accessibility='rw', description='Periodic-tick reload in LFXT ticks (0 to 65535).'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
+	# RTC0SR (slot 5) -- status (busy level + W1C event flags)
+	r = RegisterTemplate(nameTemplate='RTCxSR', registerMemorySlot=5, description='RTC status register. SYNC is read-only; the two event flags (ALMF, TICKF) are write-1-to-clear (write a 1 to a bit to clear it; writing 0 leaves it unchanged) and are never cleared by a read. The combined RTC interrupt (vector 114) is (ALMF and RTCALMIE) or (TICKF and RTCTICKIE).', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='RTCSYNC', msb=0, accessibility='r', description='Sync/busy. Reads 1 while a set-time / alarm / period commit is still crossing into the LFXT domain; software must poll this 0 before the next committing write (single outstanding commit).', valueDescriptions=[(0b0, 'Idle (safe to commit)'), (0b1, 'Commit in flight')]))
+	r.AddBitField(BitField(name='RTCALMF', msb=1, accessibility='rw1', description='Alarm flag. Set once when the seconds counter first matches RTC0ALM (one-shot); drives vector 114 when RTCALMIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Alarm fired')]))
+	r.AddBitField(BitField(name='RTCTICKF', msb=2, accessibility='rw1', description='Periodic-tick flag. Set on each periodic-tick underflow; drives vector 114 when RTCTICKIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Tick fired')]))
+	r.AddBitField(BitField(msb=31, lsb=3, unused=True))
+
+	# RTC0TRIM (slot 6) -- reserved (digital calibration deferred, D16)
+	r = RegisterTemplate(nameTemplate='RTCxTRIM', registerMemorySlot=6, description='Reserved for digital fractional-prescaler / ppm calibration (deferred). Reads 0, writes ignored. The slot and the RTC0CR trim-enable field are reserved so calibration bolts on without a register-map break.', size=32)
+	rtc.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
 m.CheckPeripheralTemplates()
 
 
@@ -1744,6 +1826,20 @@ if nfcPresent:
 # functions on AF1 when those controllers are present, plain GPIO otherwise.
 GPIO4 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=4, peripheralMemorySlot=None, interruptPriority=98, absoluteBaseAddress=0x6300, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 3; registered read; AF1 = QSPI0 (P5.0-5) + I3C0 (P5.6/7) pin functions when present')	# GPIO4 (Mission B). native page-2 sub-slot 3; mcu_vhd hand-emits the shim + GPIO instance + AF planes
 GPIO5 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=5, peripheralMemorySlot=None, interruptPriority=106, absoluteBaseAddress=0x6400, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 4; registered read; AF1 = NFC0 digital-AFE pin functions (P6.0-5) when present')	# GPIO5 (Mission B). native page-2 sub-slot 4; mcu_vhd hand-emits the shim + GPIO instance + AF planes
+if rtcPresent:
+	# digperiphs #4: RTC0 at 0x6500 = MUTEX page (page 2) SUB-SLOT 5. Same page-2
+	# native shape as I3C0/NFC0/GPIO4/GPIO5 (sharedBus='native' = "outside the page-0
+	# shim fabric"; the mutex-bank decode is already tightened to sub-slot 0 whenever
+	# any page-2 sub-slot device is present). This CreatePeripheral exists for the
+	# register map, TRM chapter, address table, and the vector-114 interrupt-table
+	# entry; the RTL (sub-slot 5 decode + the registered-read shim + the RTC instance)
+	# is hand-emitted by mcu_vhd.py under geo['rtc']. clockDomain='mclk' names BOTH the
+	# bus clock (ClkMem) AND the free-running CDC/flag/IRQ reference clock (clk => mclk,
+	# adjudication A2); the wall clock itself rides the ungated lfxt_in pad crystal (D1).
+	# NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4): the instance uses a plain
+	# raw-strobe active-low en shim (rtc0_sh_en_n <= not shslv_rtc0_en, the GPIO4/5 idiom),
+	# with no falling_edge(EnMemPeriph) pre-latch — the first library block clean of both.
+	m.CreatePeripheral(nameTemplate='RTCx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=114, absoluteBaseAddress=0x6500, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 5; registered read, no bridge, no CAPTURE_CLOCK pre-latch; ungated lfxt_in wall clock (D1); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the RTC)')	# RTC0 (digperiphs #4). native page-2 sub-slot 5; mcu_vhd hand-emits the raw-strobe shim + RTC instance
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
 
 
@@ -2292,7 +2388,13 @@ else:
 for _p in (4, 5):
 	for _b in range(8):
 		_mcuMpIrqVectors.append(('IRQB_GPIO' + str(_p) + '_B' + str(_b), 'GPIO' + str(_p) + ' Bit ' + str(_b) + ' Interrupt'))
-_expectedVectorCount = 114
+# digperiphs #4 (RTC): vector 114 = RTC0's SINGLE combined alarm/tick source, ABOVE
+# GPIO5's 106-113 — appended ONLY when rtc=true (the I3C/NFC conditional-growth
+# pattern, growing the source count from 114 to 115; NOT the GPIO4/5 unconditional
+# one). When RTC is absent the list stops at 114 entries (byte-identical default).
+if rtcPresent:
+	_mcuMpIrqVectors.append(('IRQB_RTC0', 'RTC0 combined alarm/periodic-tick Interrupt'))
+_expectedVectorCount = 115 if rtcPresent else 114
 if len(_mcuMpIrqVectors) != _expectedVectorCount:
 	raise Exception('MCU_MP IRQB vector list must have ' + str(_expectedVectorCount)
 		+ ' entries, has ' + str(len(_mcuMpIrqVectors)))
@@ -2327,6 +2429,8 @@ if i3cPresent:
 	_mcuMpIrqFirstVector['I3C0'] = 'IRQB_I3C0_TC'	# vectors 86-93 (interruptPriority 86)
 if nfcPresent:
 	_mcuMpIrqFirstVector['NFC0'] = 'IRQB_NFC0_FIELD'	# vectors 94-97 (interruptPriority 94)
+if rtcPresent:
+	_mcuMpIrqFirstVector['RTC0'] = 'IRQB_RTC0'	# vector 114 (interruptPriority 114; single combined source)
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -2486,6 +2590,7 @@ m.McuMpGeometry = {
 	'i3c': i3cPresent,          # digperiphs #2: True = I3C0 in MUTEX-page sub-slot 1 (0x6100); tightens the mutex decode, vectors 86-93
 	'nfc': nfcPresent,          # digperiphs #3: True = NFC0 in MUTEX-page sub-slot 2 (0x6200); tightens the mutex decode, vectors 94-97, 4th glitch filter
 	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
+	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 }
 
 
@@ -2588,7 +2693,7 @@ _resolvedConfig = [
 	('peripherals', [('npu', npuPresent), ('i2c1', i2c1Present), ('uart1', uart1Present),
 		('spi1', spi1Present), ('timer1', timer1Present),
 		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
-		('nfc', nfcPresent)]),
+		('nfc', nfcPresent), ('rtc', rtcPresent)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),
@@ -2596,7 +2701,7 @@ _resolvedConfig = [
 		('sharedRamBanks', _sharedRamBanks),
 		('flashBaseAddress', _hx(flashBase)),
 		('sharedRamEndAddress', _hx(0x10000 + _sharedRamLen - 1)),
-		('vectorsCount', 114),	# Mission B: GPIO4/5 unconditional -> fixed 114
+		('vectorsCount', 115 if rtcPresent else 114),	# Mission B: GPIO4/5 unconditional -> 114; digperiphs #4 (RTC): +1 -> 115 when rtc=true (vector 114 = RTC0)
 		('meipVector', 85),
 		('clintMsipVector', 83),
 		('clintMtipVector', 84),

@@ -127,7 +127,9 @@ def _derived(cfg):
 		'sharedRamBanks': banks,
 		'flashBaseAddress': _hx(flash),
 		'sharedRamEndAddress': _hx(0x10000 + sharedRam - 1),
-		'vectorsCount': 114,	# digperiphs Mission B: GPIO4/5 unconditional -> fixed 114 (was 85)
+		# digperiphs Mission B: GPIO4/5 unconditional -> 114; digperiphs #4 (RTC): +1
+		# -> 115 when peripherals.rtc is true (vector 114 = RTC0's combined source).
+		'vectorsCount': 115 if cfg.get('peripherals', {}).get('rtc', False) else 114,
 		'clintMsipVector': 83,
 		'clintMtipVector': 84,
 		'clintLayout': {
@@ -243,6 +245,7 @@ def buildWebData(gen):
 		'numHarts': resolved['numHarts'],
 		'isa': resolved['isa'],
 		'memory': resolved['memory'],
+		'peripherals': resolved['peripherals'],	# digperiphs #4: RTC grows vectorsCount 114 -> 115
 	})
 	for k in ('sharedWindowAddrWidth', 'sharedRamBanks', 'flashBaseAddress',
 			'sharedRamEndAddress', 'isaString', 'vectorsCount',

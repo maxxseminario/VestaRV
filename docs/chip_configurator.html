@@ -935,6 +935,11 @@ const VESTA_DATA = {
       "type": "bool",
       "default": false
     },
+    "peripherals.rtc": {
+      "description": "bool \u2014 True instantiates the RTC0 real-time clock (32.768 kHz always-on wall clock + one-shot alarm + periodic tick) at 0x6500: page-2 (MUTEX page) sub-slot 5. Zero pins; clocks off the UNGATED lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK. GROWS the IRQ source list to 115: vector 114 = RTC0 (single combined alarm/tick IRQ, above GPIO5's 106-113). NUM_EN_WORDS stays 4 (115 <= 128). Default false",
+      "type": "bool",
+      "default": false
+    },
     "package.model": {
       "description": "string \u2014 package model name defined in generate.py (_PACKAGE_MODELS: \"myshkin-qfn44\" QFN-44, \"castalia-quad-qfn64\" QFN-64 quad pinout \u2014 new pinouts are added as Python models, never as free-form config pin lists)",
       "type": "enum",
@@ -992,6 +997,7 @@ const VESTA_DATA = {
     "peripherals.qspi": false,
     "peripherals.i3c": false,
     "peripherals.nfc": false,
+    "peripherals.rtc": false,
     "package.model": "myshkin-qfn44",
     "package.preliminary": true
   },
@@ -2793,6 +2799,7 @@ const SCHEMA_TO_CFG = {
   "peripherals.npu":"npu", "peripherals.i2c1":"i2c1",
   "peripherals.uart1":"uart1", "peripherals.spi1":"spi1", "peripherals.timer1":"timer1",
   "peripherals.cqAfeStubs":"cqAfeStubs", "peripherals.qspi":"qspi", "peripherals.i3c":"i3c", "peripherals.nfc":"nfc",
+  "peripherals.rtc":"rtc",
   "package.model":"packageModel", "package.preliminary":"packagePreliminary",
 };
 
@@ -3031,7 +3038,8 @@ function render(){
    ["cqAfeStubs","AFE stubs","Castalia-Quad AFE register stubs (four 64 B sub-slots of page-0 slot 12 @0x4C00) + the shared EIS engine stub (0x7C00). On by default (the golden master + the shafe test depend on them). Off frees slot 12 for QSPI and reserves IRQ vectors 55/56."],
    ["qspi","QSPI0","Quad-SPI flash controller in page-0 slot 12 (0x4C00). Off by default. On requires AFE stubs off (both claim slot 12); drives IRQ vectors 55 (transfer complete) / 56 (RX full)."],
    ["i3c","I3C0","I3C controller (MVP + dynamic address assignment + in-band interrupts) in the MUTEX page, sub-slot 1 @0x6100. Off by default. On tightens the mutex-bank decode to 256 B (retiring the aliased-CLAIM side effect) and grows the IRQ source list to 94: the meip slot stays frozen at 85 and I3C drives vectors 86–93 (tc/rxf/txe/nack/eod/arb/daa/ibi)."],
-   ["nfc","NFC0","NFC ISO 14443A tag / card-emulation engine in the MUTEX page, sub-slot 2 @0x6200. Off by default. Like I3C it tightens the mutex-bank decode to 256 B; it grows the IRQ source list to 98 — the meip slot stays frozen at 85, sources 86–93 stay I3C's (or reserved), and NFC drives vectors 94–97 (field/rxf/txdone/crcerr). 98 sources add a 4th glitch-filter instance. The 13.56 MHz RF analog front-end is off-die (the digital AFE interface is placeholder-tied)."]].forEach(([key,name,desc])=>{
+   ["nfc","NFC0","NFC ISO 14443A tag / card-emulation engine in the MUTEX page, sub-slot 2 @0x6200. Off by default. Like I3C it tightens the mutex-bank decode to 256 B; it grows the IRQ source list to 98 — the meip slot stays frozen at 85, sources 86–93 stay I3C's (or reserved), and NFC drives vectors 94–97 (field/rxf/txdone/crcerr). 98 sources add a 4th glitch-filter instance. The 13.56 MHz RF analog front-end is off-die (the digital AFE interface is placeholder-tied)."],
+   ["rtc","RTC0","Real-time clock (32.768 kHz always-on wall clock + one-shot alarm + periodic tick) in the MUTEX page, sub-slot 5 @0x6500. Off by default. Zero pins: it clocks off the ungated lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK — so timekeeping survives clock reconfig and PWRCTRL tile gating (a driver must NOT write SYS_CLK_CR=0 for it). On grows the IRQ source list to 115: vector 114 = RTC0's single combined alarm/tick source (above GPIO5's 106–113); NUM_EN_WORDS stays 4."]].forEach(([key,name,desc])=>{
     const el = document.createElement("div"); el.className="peri"+(cfg[key]?" on":"");
     el.innerHTML = `<div class="pt"><span class="pn">${name}</span>
       <span class="lockbadge" style="color:var(--ok);border-color:var(--ok)">applied</span></div>
@@ -3384,6 +3392,7 @@ function outPython(){
   L.push(`<span class="k">qspiPresent</span> = ${b(cfg.qspi)}  <span class="c"># _cfg('peripherals.qspi', False)</span>`);
   L.push(`<span class="k">i3cPresent</span> = ${b(cfg.i3c)}  <span class="c"># _cfg('peripherals.i3c', False)</span>`);
   L.push(`<span class="k">nfcPresent</span> = ${b(cfg.nfc)}  <span class="c"># _cfg('peripherals.nfc', False)</span>`);
+  L.push(`<span class="k">rtcPresent</span> = ${b(cfg.rtc)}  <span class="c"># _cfg('peripherals.rtc', False)</span>`);
   L.push(`<span class="k">_regsDualPort</span> = ${b(cfg.ENABLE_REGS_DUALPORT)}`);
   L.push(`<span class="k">_romSize</span> = <span class="v">${cfg.romSize}</span>, <span class="k">_tcmSize</span> = <span class="v">${cfg.tcmSize}</span>`);
   L.push(`<span class="k">_sharedRamLen</span> = <span class="v">${hex(cfg.sharedRamSize)}</span>, <span class="k">_npuRamLen</span> = <span class="v">${hex(cfg.npuRamSize)}</span>`);
@@ -3429,7 +3438,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;
