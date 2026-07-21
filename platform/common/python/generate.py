@@ -133,6 +133,10 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.rtc':      ('bool — True instantiates the RTC0 real-time clock (32.768 kHz always-on wall clock + one-shot alarm + periodic tick) at 0x6500: page-2 (MUTEX page) sub-slot 5. Zero pins; clocks off the UNGATED lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK. GROWS the IRQ source list to 115: vector 114 = RTC0 (single combined alarm/tick IRQ, above GPIO5\'s 106-113). NUM_EN_WORDS stays 4 (115 <= 128). Default false',
 	                         _isBool),
+	'peripherals.pwm':      ('bool — True instantiates the PWM0 buffered PWM generator (2 channels, glitch-free double-buffered update, software fault trip, period-event tick) at 0x6600: page-2 (MUTEX page) sub-slot 6. Zero input pins; the two outputs pwm_out(0)/(1) REPLACE two redundant timer-compare spread copies (P2.2/P2.3 AF2, the pin-mux-v2 replaced-spread-slot precedent). Free-running MCLK engine (no LFXT, no generated clocks). GROWS the IRQ source list per the GLOBAL VECTOR RULE (A5): vectors 115 = PWM0_FAULT (lower id = router priority), 116 = PWM0_EVT; when a lower library block (RTC vector 114) is off but pwm is on, 114 backfills as IRQB_RSVD114. NUM_EN_WORDS stays 4 (117 <= 128). Default false',
+	                         _isBool),
+	'peripherals.onewire':  ('bool — True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7. One pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1 (unbonded on the QFN-44, reachable on the QFN-64 / respin package). Free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118: vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false',
+	                         _isBool),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -198,6 +202,8 @@ _CONFIG_META = {
 	'peripherals.i3c':      {'type': 'bool', 'default': False},
 	'peripherals.nfc':      {'type': 'bool', 'default': False},
 	'peripherals.rtc':      {'type': 'bool', 'default': False},
+	'peripherals.pwm':      {'type': 'bool', 'default': False},
+	'peripherals.onewire':  {'type': 'bool', 'default': False},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -379,6 +385,74 @@ nfcPresent = _cfg('peripherals.nfc', False)
 # default emission (114-source vector list, no page-2 sub-slot 5, no MmrAddrRTC0)
 # is byte-identical.
 rtcPresent = _cfg('peripherals.rtc', False)
+
+# digperiphs #5 (PWM, 2026-07-20): the PWM0 buffered PWM generator (2 channels,
+# glitch-free double-buffered update, software/mask-only fault, period-event tick)
+# claims page-2 (the MUTEX page) SUB-SLOT 6 @0x6600, joining the I3C/NFC/GPIO4/GPIO5/
+# RTC0 carve. PWM0 has ZERO INPUT pins: its two outputs pwm_out(0)/(1) REPLACE two
+# redundant timer-compare spread copies (A7 — the pin-mux-v2 replaced-spread-slot
+# precedent; NOT an AF0 co-tenant and NOT a new spread-pool member). The whole engine
+# (prescaler / 16-bit counter / comparators / shadow-commit / sticky FLTF/PEVF flags /
+# IRQ combiner) rides the free-running MCLK — no LFXT, no generated/gated clocks (D1/
+# D6), and the register file rides ClkMem (= mclk at integration). Like RTC0 it needs
+# NO falling_edge(EnMemPeriph) pre-latch (D4): a plain raw-strobe shim, neither
+# combinationalRead NOR in mcu_vhd.py's CAPTURE_CLOCK set. Enabling PWM extends the
+# IRQ source list per the GLOBAL VECTOR RULE (A5, see the library-tail machinery
+# below): vectors 115 = PWM0_FAULT (lower id -> router priority), 116 = PWM0_EVT.
+# NUM_EN_WORDS stays 4 (ceil(117/32) = 4, 117 <= 128). Default FALSE — the default
+# emission (no page-2 sub-slot 6, no MmrAddrPWM0, the two spread slots keep their
+# original T0CMP0/T0CMP1 copies) is byte-identical.
+pwmPresent = _cfg('peripherals.pwm', False)
+
+# digperiphs #5 (OneWire, 2026-07-20): the OW0 Dallas/Maxim 1-Wire master (reset+
+# presence, write/read bit + byte link-layer primitives off a programmable time base;
+# ROM search + CRC-8 in firmware; standard + overdrive speeds; one open-drain DQ)
+# claims page-2 (the MUTEX page) SUB-SLOT 7 @0x6700, joining the I3C/NFC/GPIO4/GPIO5/
+# RTC0/PWM0 carve. OW0 has ONE pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1
+# (the exact I3C0 SDA/SCL P5.6/7 AF1 pad mechanism; unbonded on the QFN-44, reachable
+# on the QFN-64 / respin package). The whole engine (OW0DIV time base / slot FSM / DQ
+# 2-FF synchronizer / sticky W1C flags / BUSY-PRES / IRQ combiner) rides the free-
+# running MCLK (clk => mclk, D1/D2) — no LFXT, no generated/gated clocks, and NO clock
+# on the DQ pad (DQ is 2-FF synchronized, PURE DATA, D10). Like RTC0/PWM0 it needs NO
+# falling_edge(EnMemPeriph) pre-latch (D4): a plain raw-strobe shim, neither
+# combinationalRead NOR in mcu_vhd.py's CAPTURE_CLOCK set. Enabling OneWire extends the
+# IRQ source list per the GLOBAL VECTOR RULE (A4/A5, see the library-tail machinery
+# below): vector 117 = OW0 (single combined transaction-complete/error source), with
+# 114/115/116 backfilling as IRQB_RSVD per their own rtc/pwm knobs. NUM_EN_WORDS stays
+# 4 (ceil(118/32) = 4, 118 <= 128). Default FALSE — the default emission (no page-2
+# sub-slot 7, no MmrAddrOW0, P6.6/GPIO46 stays plain spare GPIO) is byte-identical.
+onewirePresent = _cfg('peripherals.onewire', False)
+
+# ===========================================================================
+# digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
+# Beyond the 114 UNCONDITIONAL vectors (0-113: legacy + CLINT + meip placeholder +
+# I3C/NFC RSVD-or-real + GPIO4/5), each optional library block owns a FROZEN,
+# never-renumbered vector range in the "library tail" (RTC0 = 114, PWM0 = 115/116,
+# onewire = 117 when it lands...). The emitted IRQ source list extends up to the LAST
+# vector of the HIGHEST ENABLED tail block; every DISABLED block BELOW that high-water
+# mark backfills its slots as IRQB_RSVD<n> (the I2C1-drop idiom) so a higher block
+# keeps its number. Nothing is emitted above the highest enabled block (byte-identical
+# default when the whole tail is off). Adding a new library block is ONE table row
+# here + one row in the emission table further down (kept in lockstep by the
+# _LIB_TAIL_BASE cross-check). (name, present, vectorCount) per block, in vector order.
+_LIB_TAIL_BASE = 114
+_LIBRARY_TAIL_SPEC = [
+	('rtc', rtcPresent, 1),   # vector 114        (RTC0 combined alarm/tick)
+	('pwm', pwmPresent, 2),   # vectors 115, 116  (PWM0_FAULT, PWM0_EVT)
+	('onewire', onewirePresent, 1),  # vector 117  (OW0 combined TC/error)
+]
+def _libraryTailVectorsCount():
+	'''Total vector count = 114 + (last vector of the highest enabled tail block).
+	Returns 114 when the whole tail is off (byte-identical default).'''
+	_v = _LIB_TAIL_BASE
+	_high = _LIB_TAIL_BASE
+	for _name, _present, _cnt in _LIBRARY_TAIL_SPEC:
+		_v += _cnt
+		if _present:
+			_high = _v
+	return _high
+_vectorsCount = _libraryTailVectorsCount()
+# ===========================================================================
 
 # Package model selection (G4): which _PACKAGE_MODELS entry builds the pad
 # ring below, and whether the TRM package section carries the "Preliminary"
@@ -608,7 +682,7 @@ m = ChipGenerator(
 	nativeSpiFlashMemoryWriteAccess=False,
 	stackPointerInit=0xC000,	# Stack pointer at top of the private TCM
 	bootloaderUsesSpiFlashCommands=True,
-	vectorsCount=(115 if rtcPresent else 114),	# digperiphs Mission B: GPIO4/5 are UNCONDITIONAL, so the source count is FIXED at 114. Layout: 0-84 legacy (incl CLINT msip 83 / mtip 84), 85 meip placeholder, 86-93 I3C (RSVD when off), 94-97 NFC (RSVD when off), 98-105 GPIO4, 106-113 GPIO5. digperiphs #4 (RTC): +1 -> 115 ONLY when rtc=true (vector 114 = RTC0, the I3C/NFC conditional-growth pattern). meip slot stays 85 via m.MeipVector below
+	vectorsCount=_vectorsCount,	# digperiphs Mission B: GPIO4/5 UNCONDITIONAL -> fixed 114. Layout: 0-84 legacy (incl CLINT msip 83 / mtip 84), 85 meip placeholder, 86-93 I3C (RSVD when off), 94-97 NFC (RSVD when off), 98-105 GPIO4, 106-113 GPIO5. digperiphs #4/#5: the library tail (RTC 114, PWM 115/116, ...) extends the source count per the A5 GLOBAL VECTOR RULE (_libraryTailVectorsCount(); 114 when the tail is off). meip slot stays 85 via m.MeipVector below
 	padOutPosLogic=True,
 	padDIRPosLogic=False,
 	padRENPosLogic=False,
@@ -1747,6 +1821,163 @@ if rtcPresent:
 	rtc.AddRegisterTemplate(r)
 	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
 
+# digperiphs #5 (2026-07-20): PWM0 register template (design doc D5, 9 word slots
+# @0x6600). Added only when pwmPresent CreatePeripheral()s it; with PWM off it is
+# never instanced (byte-identical default). The register read path is REGISTERED on
+# rising ClkMem over data already in the bus/mclk domain (staging readback +
+# clk-domain sticky flags) — NO combinationalRead bridge and NO CAPTURE_CLOCK
+# pre-latch shim (D4; the second library block, after RTC0, clean of both). The
+# waveform words (PER/DTY0/DTY1) are DOUBLE-BUFFERED — a write stages them and arms
+# UPDF; they commit atomically at the next period boundary (D9, the glitch-free
+# guarantee). POL is immediate (D11). FLTTRIG is a write-1 self-clearing software
+# trip (A2); FLTF/PEVF are sticky W1C flags (D14). The engine rides the free-running
+# MCLK (D1) — the count is IMMUNE to clock reconfig, so unlike the SMCLK peripherals
+# a driver must NOT write SYS_CLK_CR=0 for the PWM. The reserved DTY2/DTY3/DT slots +
+# CR CH2EN/CH3EN/CNTMODE/DTEN/FLTPOL + POL[3:2]/[7:6] + SR.DIR bits are D16/D19
+# bolt-on reservations (4-channel, center-aligned, deadtime — read 0, no map break).
+if pwmPresent:
+	pwm = PeripheralTemplate(nameTemplate='PWMx', description='Buffered PWM Generator: a glitch-free 2-channel edge-aligned PWM engine (16-bit period + two 16-bit per-channel duties) with double-buffered waveform update, per-channel polarity and an absolute programmable safe/off level, a software fault trip that forces both outputs safe the same cycle, and a period-event tick. It runs on a prescaled free-running MCLK (no LFXT, no generated clocks); the register file rides the gated bus clock. The three waveform words (period + the two duties) are double-buffered: writes stage into shadow registers and commit atomically at the next period boundary (SR.UPDF reports a pending commit), so a mid-period duty/period change never produces a runt or double pulse. Polarity and the safe level are immediate (program them before enabling). The fault is software/mask-only (no HW pin): with FLTEN set, writing FLTTRIG forces both outputs to their safe levels within one clock and latches SR.FLTF (write-1-to-clear, then the output resumes tracking the still-running comparator). Two lean interrupts are delivered on the router: PWM0_FAULT (vector 115, lower id = router priority) and PWM0_EVT (vector 116). The two channel outputs ride existing bonded AF-spread pins (P2.2/P2.3 AF2); the block has zero input pins. Reserved slots and control bits are provisioned for deferred 4-channel, center-aligned and deadtime/complementary bolt-ons without a register-map break.', registerPrefix='PWMx', bitFieldPrefix='PWM', latexIntroFileName='PWM-intro-castalia-2026-07.tex', latexFeatureSummary='{count} buffered PWM generator (2 channels, glitch-free double-buffered update, software fault trip, period-event tick, two IRQs)')
+	m.AddPeripheralTemplate(pwm)
+
+	# PWM0CR (slot 0) -- control (reset 0)
+	r = RegisterTemplate(nameTemplate='PWMxCR', registerMemorySlot=0, description='PWM control register. Enables the prescaler + main counter (PWMEN) and each channel output (CH0EN/CH1EN), holds the two interrupt enables (PEVIE/FLTIE), the fault-system enable (FLTEN) and the write-1 software fault trip (FLTTRIG), and the 4-bit prescaler (PSC, divide by 2^PSC). Resets to 0 (disabled, outputs safe). The reserved bits are provisioned for the 4-channel (CH2EN/CH3EN), center-aligned (CNTMODE), deadtime (DTEN) and HW-fault-polarity (FLTPOL) bolt-ons.', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='PWMEN', msb=0, accessibility='rw', description='Master enable. When set, the prescaler and 16-bit main counter run; when clear the counter holds at 0 (clean restart on enable) and both outputs drive their safe levels.', valueDescriptions=[(0b0, 'Disabled (counter held, outputs safe)'), (0b1, 'Running')]))
+	r.AddBitField(BitField(name='CH0EN', msb=1, accessibility='rw', description='Channel 0 output enable. When clear, CH0 drives its absolute safe level (POL.SAFE0) regardless of the waveform.', valueDescriptions=[(0b0, 'CH0 drives safe level'), (0b1, 'CH0 drives the waveform')]))
+	r.AddBitField(BitField(name='CH1EN', msb=2, accessibility='rw', description='Channel 1 output enable. When clear, CH1 drives its absolute safe level (POL.SAFE1) regardless of the waveform.', valueDescriptions=[(0b0, 'CH1 drives safe level'), (0b1, 'CH1 drives the waveform')]))
+	r.AddBitField(BitField(msb=6, lsb=3, unused=True))	# CH2EN[3]/CH3EN[4] (4-ch), CNTMODE[5] (center-aligned), DTEN[6] (deadtime) — D16/D19 reserved
+	r.AddBitField(BitField(name='PEVIE', msb=7, accessibility='rw', description='Period-event interrupt enable. When set, SR.PEVF drives the PWM0_EVT interrupt (vector 116).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='FLTIE', msb=8, accessibility='rw', description='Fault interrupt enable. When set, SR.FLTF drives the PWM0_FAULT interrupt (vector 115).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=11, lsb=9, unused=True))
+	r.AddBitField(BitField(name='FLTEN', msb=12, accessibility='rw', description='Fault-system enable. Gates the software trip: a FLTTRIG write latches SR.FLTF only while FLTEN is set; with FLTEN clear the FLTTRIG write is ignored.', valueDescriptions=[(0b0, 'Fault system disabled (FLTTRIG ignored)'), (0b1, 'Fault system enabled')]))
+	r.AddBitField(BitField(msb=13, lsb=13, unused=True))	# FLTPOL[13] — HW fault-pin polarity, respin bolt-on (D16) reserved
+	r.AddBitField(BitField(name='FLTTRIG', msb=14, accessibility='w1', description='Software fault trip (write-1 self-clearing command; reads 0). Writing 1 requests a trip: while FLTEN is set it latches SR.FLTF and forces both outputs safe within one clock. Re-arm by write-1-clearing SR.FLTF.', valueDescriptions=[(0b1, 'Trip the fault (if FLTEN set)')]))
+	r.AddBitField(BitField(msb=15, lsb=15, unused=True))
+	r.AddBitField(BitField(name='PSC', msb=19, lsb=16, accessibility='rw', description='Prescaler: the main counter advances once every 2^PSC MCLK cycles (PSC=0 -> every cycle). Frequency = f_MCLK / 2^PSC / (PER+1).'))
+	r.AddBitField(BitField(msb=31, lsb=20, unused=True))
+
+	# PWM0PER (slot 1) -- period modulus (BUFFERED)
+	r = RegisterTemplate(nameTemplate='PWMxPER', registerMemorySlot=1, description='PWM period modulus (buffered, D9). The waveform period is (PER+1) prescale ticks: frequency = f_MCLK / 2^PSC / (PER+1). READ returns the last written value (bus-domain staging readback, no side effects). WRITE stages the value and arms SR.UPDF; it commits to the live waveform at the next period boundary (glitch-free).', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='PWMPER', msb=15, lsb=0, accessibility='rw', description='Period modulus (0 to 65535); the counter wraps 0..PER, so the period is PER+1 ticks.'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
+	# PWM0DTY0 (slot 2) -- CH0 duty (BUFFERED)
+	r = RegisterTemplate(nameTemplate='PWMxDTY0', registerMemorySlot=2, description='Channel 0 duty compare (buffered, D9). CH0 is active for the first DTY0 prescale ticks of each period (DTY0=0 -> constant inactive; DTY0 >= PER+1 -> constant active). READ returns the staging value; WRITE stages and arms SR.UPDF (commits at the next period boundary).', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='PWMDTY0', msb=15, lsb=0, accessibility='rw', description='Channel 0 duty compare (0 to 65535).'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
+	# PWM0DTY1 (slot 3) -- CH1 duty (BUFFERED)
+	r = RegisterTemplate(nameTemplate='PWMxDTY1', registerMemorySlot=3, description='Channel 1 duty compare (buffered, D9). CH1 is active for the first DTY1 prescale ticks of each period (same corner rules as DTY0). READ returns the staging value; WRITE stages and arms SR.UPDF (commits at the next period boundary).', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='PWMDTY1', msb=15, lsb=0, accessibility='rw', description='Channel 1 duty compare (0 to 65535).'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
+	# PWM0DTY2 (slot 4) -- reserved (4-channel bolt-on, D16)
+	r = RegisterTemplate(nameTemplate='PWMxDTY2', registerMemorySlot=4, description='Reserved for the channel 2 duty compare (4-channel bolt-on, D16). Reads 0, writes ignored — provisioned so >2 channels bolt on without a register-map break.', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
+	# PWM0DTY3 (slot 5) -- reserved (4-channel bolt-on, D16)
+	r = RegisterTemplate(nameTemplate='PWMxDTY3', registerMemorySlot=5, description='Reserved for the channel 3 duty compare (4-channel bolt-on, D16). Reads 0, writes ignored.', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
+	# PWM0POL (slot 6) -- polarity + absolute safe level (immediate, NOT buffered, D11)
+	r = RegisterTemplate(nameTemplate='PWMxPOL', registerMemorySlot=6, description='Per-channel polarity and absolute safe/off level (immediate, NOT buffered, D11; program before enabling). POLn inverts the channel waveform; SAFEn is the ABSOLUTE pin level (0 = drive low, 1 = drive high) forced when the channel is disabled or faulted — polarity-independent, so the fault/idle physical state is deterministic. Resets to 0 (active-high, safe = low). The reserved bits hold the CH2/CH3 polarity and safe fields (4-channel bolt-on, D16).', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='POL0', msb=0, accessibility='rw', description='Channel 0 polarity.', valueDescriptions=[(0b0, 'Active-high'), (0b1, 'Active-low (invert)')]))
+	r.AddBitField(BitField(name='POL1', msb=1, accessibility='rw', description='Channel 1 polarity.', valueDescriptions=[(0b0, 'Active-high'), (0b1, 'Active-low (invert)')]))
+	r.AddBitField(BitField(msb=3, lsb=2, unused=True))	# CH2/CH3 polarity (4-ch bolt-on, D16) reserved
+	r.AddBitField(BitField(name='SAFE0', msb=4, accessibility='rw', description='Channel 0 absolute safe/off pin level (driven when CH0 is disabled or faulted).', valueDescriptions=[(0b0, 'Drive low'), (0b1, 'Drive high')]))
+	r.AddBitField(BitField(name='SAFE1', msb=5, accessibility='rw', description='Channel 1 absolute safe/off pin level (driven when CH1 is disabled or faulted).', valueDescriptions=[(0b0, 'Drive low'), (0b1, 'Drive high')]))
+	r.AddBitField(BitField(msb=31, lsb=6, unused=True))	# CH2/CH3 safe (7:6, 4-ch bolt-on) + upper reserved
+
+	# PWM0DT (slot 7) -- reserved (deadtime bolt-on, D16)
+	r = RegisterTemplate(nameTemplate='PWMxDT', registerMemorySlot=7, description='Reserved for the deadtime value (deadtime / complementary-pair bolt-on, D16). Reads 0, writes ignored — provisioned so deadtime bolts on without a register-map break.', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
+	# PWM0SR (slot 8) -- status (sticky W1C flags + read-only UPDF)
+	r = RegisterTemplate(nameTemplate='PWMxSR', registerMemorySlot=8, description='PWM status register. FLTF and PEVF are sticky write-1-to-clear event flags (write a 1 to a bit to clear it; writing 0 leaves it unchanged; never cleared by a read; a set arriving the same cycle as a clear survives). UPDF is read-only. PWM0_FAULT (vector 115) = FLTF and CR.FLTIE; PWM0_EVT (vector 116) = PEVF and CR.PEVIE (both combinational). The reserved DIR bit is the center-aligned count direction (D19).', size=32)
+	pwm.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='FLTF', msb=0, accessibility='rw1', description='Fault flag. Set when a FLTTRIG trip is accepted (FLTEN set); while set both outputs are forced to their safe levels. Write 1 to clear (re-arm).', valueDescriptions=[(0b0, 'No fault'), (0b1, 'Fault latched (outputs safe)')]))
+	r.AddBitField(BitField(name='PEVF', msb=1, accessibility='rw1', description='Period-event flag. Set at every active period boundary. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Period event')]))
+	r.AddBitField(BitField(name='UPDF', msb=2, accessibility='r', description='Buffered-update pending. Reads 1 from a staged PER/DTY0/DTY1 write until that write has been absorbed at the next period boundary.', valueDescriptions=[(0b0, 'Staging absorbed'), (0b1, 'Commit pending')]))
+	r.AddBitField(BitField(msb=31, lsb=3, unused=True))	# DIR[3] (center-aligned direction, D19) + upper reserved
+
+# digperiphs #5 (2026-07-20): OW0 register template (design doc D5 maps, 6 live word
+# slots @0x6700 + a reserved SPU slot 6). Added only when onewirePresent
+# CreatePeripheral()s it; with OneWire off it is never instanced (byte-identical
+# default). The register read path is REGISTERED on rising ClkMem over data already in
+# the bus/mclk domain (the clk-domain sticky flags + DQ synchronizer are the same mclk
+# family at integration, D1/D4) — NO combinationalRead bridge and NO CAPTURE_CLOCK
+# pre-latch shim (the second library block, after RTC0, clean of both). OW0CMD is
+# WRITE-ONLY-LAUNCH: a byte-lane-0 write captures {OP,BITVAL,ODS,TX} into a launch
+# descriptor and (unless OWEN=0 or BUSY=1) starts the slot FSM (D8); OW0TX/OW0CR/OW0DIV
+# writes never launch. Results land side-effect-free in OW0RX (A3: RDBIT -> [0], RDBYTE
+# -> [7:0]). The engine rides the free-running MCLK (D1/D2), so unlike the SMCLK
+# peripherals a driver must NOT write SYS_CLK_CR=0 for the 1-Wire; OW0DIV calibrates the
+# 0.5 us tick base (A1: DIV=11 at 24 MHz). SPUEN (CR bit 2) + OW0SPU (slot 6) are the
+# strong-pullup reservation stub (D15 — writable-but-inert / reads 0, no driven-high
+# phase this stage), provisioned so a future parasite-power SPU bolts on without a
+# register-map break.
+if onewirePresent:
+	ow = PeripheralTemplate(nameTemplate='OWx', description='1-Wire Master: a Dallas/Maxim 1-Wire link-layer controller that runs the five microsecond-scale bus primitives in hardware — reset+presence, write-bit, read-bit, write-byte and read-byte — off a programmable time base, leaving ROM search and CRC-8 to firmware over those primitives. It is master-only and supports both standard and overdrive speeds (selected by CR.ODS, latched at each transaction launch). A transaction is described by the control and command registers and LAUNCHED by a byte-lane-0 write to OW0CMD (the launch is suppressed while the master is disabled or busy); the registered read path returns status and the received byte with no read side effects. The whole engine — the OW0DIV counter-compare time base, the slot state machine, the two-flop DQ synchronizer, the sticky write-1-to-clear status flags, and the interrupt combiner — rides the free-running MCLK, so the tick base is immune to clock reconfiguration and unlike the SMCLK peripherals a driver must NOT write SYS_CLK_CR to 0. One combined interrupt (transaction-complete or error) is delivered on the router at vector 117. The block has one open-drain DQ pin; the strong-pullup enable and its register slot are a reserved stub (no driven-high phase this stage).', registerPrefix='OWx', bitFieldPrefix='OW', latexIntroFileName='OneWire-intro-castalia-2026-07.tex', latexFeatureSummary='{count} 1-Wire master (reset/presence + bit/byte primitives, standard + overdrive, firmware ROM search + CRC-8, single combined IRQ)')
+	m.AddPeripheralTemplate(ow)
+
+	# OW0CR (slot 0) -- control (reset 0)
+	r = RegisterTemplate(nameTemplate='OWxCR', registerMemorySlot=0, description='1-Wire control register. Enables the master (OWEN), selects the bus speed (ODS: standard or overdrive, latched into the transaction descriptor at launch so a mid-flight change never glitches a running slot), holds the transaction-complete and error interrupt enables (TCIE, ERRIE), and carries the reserved strong-pullup enable stub (SPUEN, no effect this stage). Resets to 0 (master idle). The reserved upper bits reserve a future strong-pullup window and timing fields.', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='OWEN', msb=0, accessibility='rw', description='Master enable. When 0 the slot FSM is held idle and an OW0CMD launch is suppressed (the descriptor is still captured); RX and the status flags are preserved. Set to 1 to run transactions.', valueDescriptions=[(0b0, 'Disabled (FSM idle, launch suppressed)'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='OWODS', msb=1, accessibility='rw', description='Overdrive speed select, latched into the transaction descriptor at launch. 0 selects the standard slot-timing set, 1 the overdrive (~10x faster) set. (Named ODS; supersedes the spec sketch ODEN, adjudication A2.)', valueDescriptions=[(0b0, 'Standard speed'), (0b1, 'Overdrive speed')]))
+	r.AddBitField(BitField(name='OWSPUEN', msb=2, accessibility='rw', description='Strong-pullup enable (reserved stub, D15). Writable but inert this stage: there is no driven-high strong-pullup phase (DQ is open-drain, never driven high). Reserved so a future parasite-power SPU bolts on without a register-map break.', valueDescriptions=[(0b0, 'No effect'), (0b1, 'No effect (reserved)')]))
+	r.AddBitField(BitField(name='OWTCIE', msb=3, accessibility='rw', description='Transaction-complete interrupt enable. When set, OW0SR.TCIF drives the combined 1-Wire interrupt (vector 117).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='OWERRIE', msb=4, accessibility='rw', description='Error interrupt enable. When set, OW0SR.NOPRES or OW0SR.SHORT drives the combined 1-Wire interrupt (vector 117).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=31, lsb=5, unused=True))
+
+	# OW0CMD (slot 1) -- command (LANE-0 WRITE LAUNCHES, D8)
+	r = RegisterTemplate(nameTemplate='OWxCMD', registerMemorySlot=1, description='1-Wire command register. A byte-lane-0 write LAUNCHES a transaction (D8): it always captures {OP, BITVAL, current ODS, current OW0TX byte} into the launch descriptor, and starts the slot FSM unless OWEN=0 or the master is busy (in which case the content is captured but no bus activity or completion occurs). OP selects the primitive (reset / write-bit / read-bit / write-byte / read-byte); BITVAL is the write-bit value. A read returns the last-written OP and BITVAL. Bytes are transmitted/received LSB-first.', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='OWOP', msb=2, lsb=0, accessibility='rw', description='Operation: 000 = reset+presence, 001 = write-bit, 010 = read-bit, 011 = write-byte (OW0TX, LSB-first), 100 = read-byte (into OW0RX, LSB-first); 101-111 reserved (no bus activity, no launch).'))
+	r.AddBitField(BitField(msb=7, lsb=3, unused=True))
+	r.AddBitField(BitField(name='OWBITVAL', msb=8, accessibility='rw', description='Write-bit value for OP = write-bit (latched at launch; ignored by the other operations).', valueDescriptions=[(0b0, 'Write a 0 bit'), (0b1, 'Write a 1 bit')]))
+	r.AddBitField(BitField(msb=31, lsb=9, unused=True))
+
+	# OW0TX (slot 2) -- next write byte (NEVER launches, D8)
+	r = RegisterTemplate(nameTemplate='OWxTX', registerMemorySlot=2, description='Next write byte, the write-byte (OP = 011) source, transmitted LSB-first. Writing this register never launches a transaction (D8); the byte is sampled into the descriptor at the next OW0CMD launch.', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='OWTX', msb=7, lsb=0, accessibility='rw', description='Write byte (0 to 255).'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# OW0RX (slot 3) -- last received byte / bit (read-only, side-effect-free, A3)
+	r = RegisterTemplate(nameTemplate='OWxRX', registerMemorySlot=3, description='Last received data (read-only, side-effect-free, A3): a read-byte (OP = 100) assembles into [7:0] LSB-first; a read-bit (OP = 010) lands in [0]. Reset-cleared to 0; a read never clears or launches anything.', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='OWRX', msb=7, lsb=0, accessibility='r', description='Received byte (read-byte) or received bit in [0] (read-bit).'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# OW0DIV (slot 4) -- time-base divisor (D6/A1)
+	r = RegisterTemplate(nameTemplate='OWxDIV', registerMemorySlot=4, description='Time-base divisor. The slot FSM counts ticks; one tick is (OW0DIV + 1) MCLK cycles. Program OW0DIV = 11 for a 0.5 microsecond tick at 24 MHz MCLK (adjudication A1: all slot counts are integer half-microsecond ticks); a bench uses a small divisor to compress simulation time. Resets to 0.', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='OWDIV', msb=15, lsb=0, accessibility='rw', description='Time-base divisor (0 to 65535); tick period = OW0DIV + 1 MCLK cycles.'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
+	# OW0SR (slot 5) -- status (BUSY/PRES read-only + W1C error/complete flags, D12)
+	r = RegisterTemplate(nameTemplate='OWxSR', registerMemorySlot=5, description='1-Wire status register. BUSY and PRES are read-only levels; TCIF, NOPRES and SHORT are sticky write-1-to-clear flags (write a 1 to a bit to clear it; writing 0 leaves it unchanged; never cleared by a read; a set arriving the same cycle as a clear survives). BUSY covers the launch instant (it reads 1 the same cycle as the launching OW0CMD write, A6), so firmware may poll BUSY-clear immediately after CMD; observe the single-outstanding-transaction rule (poll BUSY before the next CMD). The combined interrupt (vector 117) is (TCIF and TCIE) or ((NOPRES or SHORT) and ERRIE). On a stuck-low bus SHORT wins and NOPRES is suppressed (A5).', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='OWBUSY', msb=0, accessibility='r', description='Transaction in progress. An OW0CMD launch is ignored while set. Reads 1 from the cycle of the launching write until completion (A6).', valueDescriptions=[(0b0, 'Idle'), (0b1, 'Busy')]))
+	r.AddBitField(BitField(name='OWTCIF', msb=1, accessibility='rw1', description='Transaction-complete flag. Set when the current transaction finishes; drives vector 117 when TCIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Transaction complete')]))
+	r.AddBitField(BitField(name='OWPRES', msb=2, accessibility='r', description='Presence detected. Set when a device answered the last reset with a presence pulse (updated per reset transaction).', valueDescriptions=[(0b0, 'No device / not yet reset'), (0b1, 'Device present')]))
+	r.AddBitField(BitField(name='OWNOPRES', msb=3, accessibility='rw1', description='No-presence error. Set when the last reset saw no presence pulse (clean high release, no device); suppressed if SHORT sets on the same reset (A5). Drives vector 117 when ERRIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No error'), (0b1, 'No presence pulse')]))
+	r.AddBitField(BitField(name='OWSHORT', msb=4, accessibility='rw1', description='Bus-short error. Set when DQ is still low at the end of a recovery window (bus stuck/short) after the master has released it. On a reset, SHORT wins over NOPRES (A5). Drives vector 117 when ERRIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No error'), (0b1, 'Bus stuck low')]))
+	r.AddBitField(BitField(msb=31, lsb=5, unused=True))
+
+	# OW0SPU (slot 6) -- reserved strong-pullup stub (D15)
+	r = RegisterTemplate(nameTemplate='OWxSPU', registerMemorySlot=6, description='Reserved for the strong-pullup / parasite-power stage (D15). Reads 0, writes ignored. The slot and the OW0CR.SPUEN field are reserved so a future driven-high strong-pullup (with its bounded firmware-armed safety window) bolts on without a register-map break.', size=32)
+	ow.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
 m.CheckPeripheralTemplates()
 
 
@@ -1840,6 +2071,34 @@ if rtcPresent:
 	# raw-strobe active-low en shim (rtc0_sh_en_n <= not shslv_rtc0_en, the GPIO4/5 idiom),
 	# with no falling_edge(EnMemPeriph) pre-latch — the first library block clean of both.
 	m.CreatePeripheral(nameTemplate='RTCx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=114, absoluteBaseAddress=0x6500, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 5; registered read, no bridge, no CAPTURE_CLOCK pre-latch; ungated lfxt_in wall clock (D1); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the RTC)')	# RTC0 (digperiphs #4). native page-2 sub-slot 5; mcu_vhd hand-emits the raw-strobe shim + RTC instance
+if pwmPresent:
+	# digperiphs #5: PWM0 at 0x6600 = MUTEX page (page 2) SUB-SLOT 6. Same page-2
+	# native shape as I3C0/NFC0/GPIO4/GPIO5/RTC0 (sharedBus='native' = "outside the
+	# page-0 shim fabric"; the mutex-bank decode is already tightened to sub-slot 0
+	# whenever any page-2 sub-slot device is present). This CreatePeripheral exists for
+	# the register map, TRM chapter, address table, and the vector-115 interrupt-table
+	# entry (interruptPriority=115 = the FIRST of PWM's two frozen vectors, 115/116); the
+	# RTL (sub-slot 6 decode + the raw-strobe registered-read shim + the PWM instance +
+	# the two pwm_out spread aliases) is hand-emitted by mcu_vhd.py under geo['pwm'].
+	# clockDomain='mclk' names BOTH the bus clock (ClkMem) AND the free-running engine
+	# clock (clk => mclk, D1 — prescaler/counter/compare/flags/IRQ all on MCLK). NOT
+	# combinationalRead and NOT a CAPTURE_CLOCK slave (D4): a plain raw-strobe active-low
+	# en shim (pwm0_sh_en_n <= not shslv_pwm0_en), no falling_edge(EnMemPeriph) pre-latch.
+	m.CreatePeripheral(nameTemplate='PWMx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=115, absoluteBaseAddress=0x6600, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 6; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (no LFXT, no generated clocks); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the PWM); pwm_out(0)/(1) replace P2.2/P2.3 AF2 spread slots (A7)')	# PWM0 (digperiphs #5). native page-2 sub-slot 6; mcu_vhd hand-emits the raw-strobe shim + PWM instance + spread aliases
+if onewirePresent:
+	# digperiphs #5: OW0 at 0x6700 = MUTEX page (page 2) SUB-SLOT 7. Same page-2
+	# native shape as I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0 (sharedBus='native' = "outside the
+	# page-0 shim fabric"; the mutex-bank decode is already tightened to sub-slot 0
+	# whenever any page-2 sub-slot device is present). This CreatePeripheral exists for
+	# the register map, TRM chapter, address table, and the vector-117 interrupt-table
+	# entry (interruptPriority=117 = OW0's single frozen vector); the RTL (sub-slot 7
+	# decode + the raw-strobe registered-read shim + the OneWire instance + the P6.6/AF1
+	# DQ pad routing) is hand-emitted by mcu_vhd.py under geo['onewire']. clockDomain=
+	# 'mclk' names BOTH the bus clock (ClkMem) AND the free-running engine clock (clk =>
+	# mclk, D1/D2 — time base / slot FSM / DQ synchronizer / flags / IRQ all on MCLK).
+	# NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4): a plain raw-strobe active-
+	# low en shim (ow0_sh_en_n <= not shslv_ow0_en), no falling_edge(EnMemPeriph) pre-latch.
+	m.CreatePeripheral(nameTemplate='OWx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=117, absoluteBaseAddress=0x6700, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 7; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the 1-Wire); DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1)')	# OW0 (digperiphs #5). native page-2 sub-slot 7; mcu_vhd hand-emits the raw-strobe shim + OneWire instance + P6.6 AF1 DQ routing
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(523))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block through word 522 = 0x7828)
 
 
@@ -2147,7 +2406,7 @@ GPIO5.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO42', funcName='', f
 GPIO5.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO43', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX modulation output when NFC present)', altFuncs=([(1, 'NFC_RF_TXMOD', 'o', 'NFC0 off-die TX load modulation (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
 GPIO5.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO44', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX enable output when NFC present)', altFuncs=([(1, 'NFC_RF_TX_EN', 'o', 'NFC0 off-die TX enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
 GPIO5.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO45', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 AFE enable output when NFC present)', altFuncs=([(1, 'NFC_AFE_EN', 'o', 'NFC0 off-die AFE enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=None) # spare plain GPIO
+GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if onewirePresent else 0), description=('General-purpose I/O (AF1 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else 'General-purpose I/O (spare)'), altFuncs=([(1, 'OW_DQ', 'io', 'OneWire DQ, open-drain (alt plane AF1)')] if onewirePresent else [])), packagePinNumber=None) # digperiphs #5: AF1 gated with OneWire (the I3C0 P5.6/7 pad mechanism); PxREN pull-up enabled at reset when OneWire present, else spare plain GPIO
 GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=None) # spare plain GPIO
 
 
@@ -2193,6 +2452,20 @@ _GPIO_AF_SPREAD = {
 	(3, 6): [(2, 'T0CMP0', 'o', 'TIMER0 compare 0 (PWM) (alt plane AF2)'), (3, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF3)'), (4, 'T1CMP1', 'o', 'TIMER1 compare 1 (PWM) (alt plane AF4)'), (5, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF5)'), (6, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF6)'), (7, 'MISO1', 'io', 'SPI1 master-in (alternate location; completes SPI1 on P3.4/5/6 AF7)')],
 	(3, 7): [(2, 'T0CMP1', 'o', 'TIMER0 compare 1 (PWM) (alt plane AF2)'), (3, 'T1CMP0', 'o', 'TIMER1 compare 0 (PWM) (alt plane AF3)'), (4, 'SCK1', 'o', 'SPI1 serial clock (alt plane AF4)'), (5, 'MOSI1', 'o', 'SPI1 master-out (alt plane AF5)'), (6, 'TX0', 'o', 'UART0 transmitter (alt plane AF6)'), (7, 'TX1', 'o', 'UART1 transmitter (alt plane AF7)')],
 }
+# digperiphs #5 (PWM, A7): pwm_out(0)/(1) REPLACE two REDUNDANT timer-compare spread
+# copies — the pin-mux-v2 replaced-spread-slot precedent (P4.5 AF2 RX0-was-TX1 /
+# P4.6 AF7 MISO1-was-TX0 above). Chosen slots: P2.2 AF2 (was the redundant T0CMP0
+# spread copy) -> PWM0, and P2.3 AF2 (was T0CMP1) -> PWM1. GPIO index 2 = port P2;
+# these two pins sit right beside the T0CMP0/T0CMP1 AF0 primaries on P2.0/P2.1
+# (teaching coherence, D20 pin class). REDUNDANCY PROOF: T0CMP0 and T0CMP1 each remain
+# spread onto ~20 other pins, so removing ONE copy of each keeps both timer compares
+# fully reachable (pure redundancy — the A7 constraint). Knob-gated: with PWM OFF the
+# two slots keep their original T0CMP0/T0CMP1 rows => byte-identical (D17); with PWM ON
+# they carry PWM0/PWM1 (SPREAD_SIG in mcu_vhd.py owns the pwm0/pwm1 RTL spellings; the
+# scalar aliases pwm0_out/pwm1_out are emitted in the gated PWM instance region).
+if pwmPresent:
+	_GPIO_AF_SPREAD[(2, 2)] = [(2, 'PWM0', 'o', 'PWM0 channel 0 output (replaces the redundant T0CMP0 spread copy; alt plane AF2)')] + _GPIO_AF_SPREAD[(2, 2)][1:]
+	_GPIO_AF_SPREAD[(2, 3)] = [(2, 'PWM1', 'o', 'PWM0 channel 1 output (replaces the redundant T0CMP1 spread copy; alt plane AF2)')] + _GPIO_AF_SPREAD[(2, 3)][1:]
 # G1b: a dropped second instance's outputs leave the spread pool BEFORE the
 # map is applied — its plane slots go unassigned everywhere (the RTL emitter
 # reads the surviving FromSpread altFuncs and wires '0' for the gaps).
@@ -2388,13 +2661,39 @@ else:
 for _p in (4, 5):
 	for _b in range(8):
 		_mcuMpIrqVectors.append(('IRQB_GPIO' + str(_p) + '_B' + str(_b), 'GPIO' + str(_p) + ' Bit ' + str(_b) + ' Interrupt'))
-# digperiphs #4 (RTC): vector 114 = RTC0's SINGLE combined alarm/tick source, ABOVE
-# GPIO5's 106-113 — appended ONLY when rtc=true (the I3C/NFC conditional-growth
-# pattern, growing the source count from 114 to 115; NOT the GPIO4/5 unconditional
-# one). When RTC is absent the list stops at 114 entries (byte-identical default).
-if rtcPresent:
-	_mcuMpIrqVectors.append(('IRQB_RTC0', 'RTC0 combined alarm/periodic-tick Interrupt'))
-_expectedVectorCount = 115 if rtcPresent else 114
+# digperiphs A5 (GLOBAL VECTOR RULE) — the library tail (vector 114+, ABOVE GPIO5's
+# 106-113). Ordered EMISSION table, one row per optional library block in FROZEN
+# vector order, kept in lockstep with _LIBRARY_TAIL_SPEC (present-flags + counts) up
+# near the flag hoists. Each row's names are emitted up to the LAST vector of the
+# HIGHEST ENABLED block; every DISABLED block BELOW that high-water mark backfills its
+# slots as IRQB_RSVD<n> (frozen numbering, the I2C1-drop idiom) so a higher block keeps
+# its number; nothing is emitted above the highest enabled block. Examples: rtc only ->
+# 114 real, len 115; pwm only -> 114 RSVD + 115/116 real, len 117; rtc+pwm -> all real,
+# len 117; nothing -> len 114 (byte-identical default). Adding onewire (117) is ONE row
+# here + one in _LIBRARY_TAIL_SPEC. The two tables' (present, len(names)) must agree —
+# cross-checked against _libraryTailVectorsCount() below.
+_libraryTailEmit = [
+	(rtcPresent, [('IRQB_RTC0', 'RTC0 combined alarm/periodic-tick Interrupt')]),
+	(pwmPresent, [('IRQB_PWM0_FAULT', 'PWM0 fault-trip Interrupt'),
+		('IRQB_PWM0_EVT', 'PWM0 period-event Interrupt')]),
+	(onewirePresent, [('IRQB_OW0', 'OW0 1-Wire combined transaction-complete/error Interrupt')]),
+]
+_tailHigh = _libraryTailVectorsCount()	# vector count including the tail high-water mark
+_v = _LIB_TAIL_BASE
+for _present, _names in _libraryTailEmit:
+	_rowStart = _v
+	_v += len(_names)
+	if _rowStart >= _tailHigh:
+		break	# this row (and every row above) is entirely above the high-water mark
+	for _i, (_nm, _desc) in enumerate(_names):
+		if _present:
+			_mcuMpIrqVectors.append((_nm, _desc))
+		else:
+			_vec = _rowStart + _i
+			_mcuMpIrqVectors.append(('IRQB_RSVD' + str(_vec),
+				'Reserved (vector ' + str(_vec) + '; ' + _nm[len('IRQB_'):]
+				+ ' source, disabled by this configuration)'))
+_expectedVectorCount = _tailHigh
 if len(_mcuMpIrqVectors) != _expectedVectorCount:
 	raise Exception('MCU_MP IRQB vector list must have ' + str(_expectedVectorCount)
 		+ ' entries, has ' + str(len(_mcuMpIrqVectors)))
@@ -2431,6 +2730,10 @@ if nfcPresent:
 	_mcuMpIrqFirstVector['NFC0'] = 'IRQB_NFC0_FIELD'	# vectors 94-97 (interruptPriority 94)
 if rtcPresent:
 	_mcuMpIrqFirstVector['RTC0'] = 'IRQB_RTC0'	# vector 114 (interruptPriority 114; single combined source)
+if pwmPresent:
+	_mcuMpIrqFirstVector['PWM0'] = 'IRQB_PWM0_FAULT'	# vectors 115-116 (interruptPriority 115; fault at the lower id, D18)
+if onewirePresent:
+	_mcuMpIrqFirstVector['OW0'] = 'IRQB_OW0'	# vector 117 (interruptPriority 117; single combined TC/error source)
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -2484,7 +2787,7 @@ _mcuMpRstVals = [
 		('RstValP6OUT', 0x00000000, 'all pads output low'),
 		('RstValP6DIR', 0x00000000, 'all pins input at reset'),
 		('RstValP6SEL', 0x00000000, 'all pins in GPIO mode at reset'),
-		('RstValP6REN', 0x00000000, 'disable rens'),
+		('RstValP6REN', (0x00000040 if onewirePresent else 0x00000000), 'P6.6 (OneWire DQ) pull-up enabled when OneWire present, else none'),
 		('RstValP6AFS', (0x00000001 if nfcPresent else 0x00000000), 'P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0'),
 	]),
 ]
@@ -2555,11 +2858,16 @@ _mcuMpPnums = [
 			('pnum_gpio4_af1_qspi_io0', 2), ('pnum_gpio4_af1_qspi_io1', 3),
 			('pnum_gpio4_af1_qspi_io2', 4), ('pnum_gpio4_af1_qspi_io3', 5)] if qspiPresent else [])
 		+ ([('pnum_gpio4_af1_i3c_sda', 6), ('pnum_gpio4_af1_i3c_scl', 7)] if i3cPresent else [])),
+	# digperiphs #5: GPIO5 (P6) AF1 also carries OW0's open-drain DQ on P6.6 (the
+	# I3C0-on-P5.6/7 pad mechanism), gated with onewire; bidirectional cross-check vs
+	# the GPIO46 AddGpio altFuncs above. Absent in the default config.
 	('GPIO5 (P6) AF1: '
-		+ ('NFC0 digital-AFE on P6.0-5' if nfcPresent else 'P6.0-5 reserved (NFC0 absent)'), 6,
+		+ ('NFC0 digital-AFE on P6.0-5' if nfcPresent else 'P6.0-5 reserved (NFC0 absent)')
+		+ (' + OW0 open-drain DQ on P6.6' if onewirePresent else ''), 6,
 		([('pnum_gpio5_af1_nfc_rf_clk', 0), ('pnum_gpio5_af1_nfc_rf_rx', 1),
 			('pnum_gpio5_af1_nfc_field_detect', 2), ('pnum_gpio5_af1_nfc_rf_txmod', 3),
-			('pnum_gpio5_af1_nfc_rf_tx_en', 4), ('pnum_gpio5_af1_nfc_afe_en', 5)] if nfcPresent else [])),
+			('pnum_gpio5_af1_nfc_rf_tx_en', 4), ('pnum_gpio5_af1_nfc_afe_en', 5)] if nfcPresent else [])
+		+ ([('pnum_gpio5_af1_ow_dq', 6)] if onewirePresent else [])),
 ]
 
 m.McuMpCompat = {
@@ -2591,6 +2899,8 @@ m.McuMpGeometry = {
 	'nfc': nfcPresent,          # digperiphs #3: True = NFC0 in MUTEX-page sub-slot 2 (0x6200); tightens the mutex decode, vectors 94-97, 4th glitch filter
 	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
+	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
+	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P6.6/GPIO46 AF1 open-drain, vector 117, source list grows to 118 (A5 global vector rule)
 }
 
 
@@ -2693,7 +3003,8 @@ _resolvedConfig = [
 	('peripherals', [('npu', npuPresent), ('i2c1', i2c1Present), ('uart1', uart1Present),
 		('spi1', spi1Present), ('timer1', timer1Present),
 		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
-		('nfc', nfcPresent), ('rtc', rtcPresent)]),
+		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
+		('onewire', onewirePresent)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),
@@ -2701,7 +3012,7 @@ _resolvedConfig = [
 		('sharedRamBanks', _sharedRamBanks),
 		('flashBaseAddress', _hx(flashBase)),
 		('sharedRamEndAddress', _hx(0x10000 + _sharedRamLen - 1)),
-		('vectorsCount', 115 if rtcPresent else 114),	# Mission B: GPIO4/5 unconditional -> 114; digperiphs #4 (RTC): +1 -> 115 when rtc=true (vector 114 = RTC0)
+		('vectorsCount', _vectorsCount),	# Mission B: GPIO4/5 unconditional -> 114; digperiphs #4/#5: the library tail (RTC 114, PWM 115/116) extends it per the A5 global vector rule (_libraryTailVectorsCount())
 		('meipVector', 85),
 		('clintMsipVector', 83),
 		('clintMtipVector', 84),

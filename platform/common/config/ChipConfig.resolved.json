@@ -47,7 +47,9 @@
     "qspi": false,
     "i3c": false,
     "nfc": false,
-    "rtc": false
+    "rtc": false,
+    "pwm": false,
+    "onewire": false
   },
   "package": {
     "model": "myshkin-qfn44",

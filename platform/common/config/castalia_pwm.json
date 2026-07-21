@@ -1,0 +1,5 @@
+{
+  "_comment": "digperiphs #5 proof configuration: the Castalia defaults with the PWM0 buffered PWM generator instantiated in the MUTEX page sub-slot 6 (peripherals.pwm=true, @0x6600). PWM0 has zero INPUT pins: the two outputs pwm_out(0)/(1) replace the redundant T0CMP0/T0CMP1 spread copies on P2.2/P2.3 AF2 (A7). The engine rides the free-running MCLK (no LFXT, no generated clocks). Enabling it extends the IRQ source list per the A5 GLOBAL VECTOR RULE from 114 to 117: vector 114 backfills as IRQB_RSVD114 (RTC off), 115 = PWM0_FAULT (lower id = router priority), 116 = PWM0_EVT; NUM_EN_WORDS stays 4 (117 <= 128). MmrAddrPWM0 + RegSlotPWM0* appear in MemoryMap.vhd only when the knob is on. Everything else is default. Prove with: make verify CONFIG=config/castalia_pwm.json",
+  "chipName": "CastaliaPWM",
+  "peripherals": { "pwm": true }
+}
