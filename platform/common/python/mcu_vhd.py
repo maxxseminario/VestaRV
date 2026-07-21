@@ -796,6 +796,13 @@ class McuVhdEmitter():
 		# sub-decode + shim/instance under self.nfc). When either I3C or NFC is
 		# present the mutex-bank decode is tightened to sub-slot 0. Default false.
 		self.nfc = geo.get('nfc', False)
+		# digperiphs #4: RTC0 in MUTEX-page (page 2) sub-slot 5 @0x6500. Same
+		# native-slave shape as I3C0/NFC0/GPIO4/GPIO5 (outside the page-0 shim
+		# fabric; hand-emitted sub-decode + shim/instance under self.rtc), but with
+		# a PLAIN raw-strobe en shim — NO falling_edge(EnMemPeriph) pre-latch and NO
+		# CAPTURE_CLOCK en_q (D4): the first library block clean of both. Default
+		# false => every RTC region is inert (byte-identical default).
+		self.rtc = geo.get('rtc', False)
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -887,6 +894,14 @@ class McuVhdEmitter():
 		if self.nfc:
 			self.shslv = dict(self.shslv)
 			self.shslv['NFC0'] = {'sel': 'nfc0', 'shim': None, 'rdata': 'nfc0_sh_rdata'}
+		# digperiphs #4: RTC0 joins the same native-slave fabric (MUTEX-page
+		# sub-slot 5). Its SEL is hand-decoded in emitShslvSubdecode; the shslv
+		# entry (shim=None) puts it through the standard enable / registered rd-sel
+		# / rdata-mux loops, and its active-low RAW-strobe en shim lives in
+		# emitRtcInstance (no en_q register — D4).
+		if self.rtc:
+			self.shslv = dict(self.shslv)
+			self.shslv['RTC0'] = {'sel': 'rtc0', 'shim': None, 'rdata': 'rtc0_sh_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -897,7 +912,7 @@ class McuVhdEmitter():
 		self.shslv['GPIO5'] = {'sel': 'gpio5', 'shim': None, 'rdata': 'gpio5_sh_rdata'}
 		nativeOrder = ['CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] \
 			+ (['I3C0'] if self.i3c else []) + (['NFC0'] if self.nfc else []) \
-			+ ['GPIO4', 'GPIO5']
+			+ ['GPIO4', 'GPIO5'] + (['RTC0'] if self.rtc else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1151,6 +1166,9 @@ class McuVhdEmitter():
 			lines.append(ind + 'shslv_nfc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0010" else \'0\';')
 		lines.append(ind + 'shslv_gpio4_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0011" else \'0\';')
 		lines.append(ind + 'shslv_gpio5_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0100" else \'0\';')
+		if self.rtc:
+			# digperiphs #4: RTC0 = page-2 sub-slot 5 (0x6500).
+			lines.append(ind + 'shslv_rtc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0101" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
 			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
@@ -1486,6 +1504,72 @@ class McuVhdEmitter():
 			'            rf_txmod     => nfc0_rf_txmod,',
 			'            rf_tx_en     => nfc0_rf_tx_en,',
 			'            afe_en       => nfc0_afe_en);',
+		]
+
+	def emitRtcDecls(self):
+		'''digperiphs #4: RTC0 (page-2 sub-slot 5 @0x6500) declarative region.
+		Fabric nets for the hand-emitted RAW-strobe shim; nothing when RTC is
+		absent. UNLIKE I3C0/NFC0 there is NO shslv_rtc0_en_q register (D4: the RTC
+		has no falling_edge(EnMemPeriph) snapshot capture, so no re-registered
+		strobe) and NO placeholder pins (the block is zero-pin; its only external
+		signal is the already-bonded ungated lfxt_in).'''
+		if not self.rtc:
+			return []
+		return [
+			'        -- digperiphs #4: RTC0 (real-time clock: 32.768 kHz always-on wall',
+			'        -- clock + one-shot alarm + periodic tick, ONE combined IRQ). Page-2',
+			'        -- (MUTEX page) sub-slot 5 @0x6500 — the mutex bank keeps sub-slot 0',
+			'        -- @0x6000. Registered-read native slave with a PLAIN active-low',
+			'        -- one-cycle en shim: NO falling_edge(EnMemPeriph) pre-latch and NO',
+			'        -- CAPTURE_CLOCK en_q register (D4 — the RTC registers its read on',
+			'        -- rising ClkMem over data already synchronized into the bus domain,',
+			'        -- so it needs neither a bridge nor a capture strobe; the first',
+			'        -- library block clean of both). clk => mclk (A2: the free-running',
+			'        -- fabric clock hosts the LFXT->bus CDC synchronizers, the sticky W1C',
+			'        -- flags and the IRQ combiner); the wall clock rides the ungated',
+			'        -- lfxt_in pad crystal (D1). Zero pins. irq_rtc -> vector 114.',
+			'        signal shslv_rtc0_sel, shslv_rtc0_en : std_logic;',
+			"        signal shslv_rd_rtc0    : std_logic := '0';",
+			'        signal rtc0_sh_rdata    : std_logic_vector(31 downto 0);',
+			'        signal rtc0_sh_en_n     : std_logic;',
+		]
+
+	def emitRtcInstance(self):
+		'''digperiphs #4: RTC0 instance region (page-2 sub-slot 5 @0x6500). The
+		PLAIN raw-strobe active-low en shim + the RTC entity; nothing when RTC is
+		absent. No enq_reg process (D4), no placeholder ties (zero pins).'''
+		if not self.rtc:
+			return []
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- RTC0 (digperiphs #4): 32.768 kHz always-on real-time clock, page-2',
+			'    -- (MUTEX page) sub-slot 5 @0x6500. The 47-bit {seconds, subsecond} wall',
+			'    -- clock, alarm compare and periodic-tick down-counter all ride the UNGATED',
+			'    -- lfxt_in pad crystal (D1) — firmware CANNOT stop it (SYS_CLK_CR is',
+			'    -- irrelevant to the count) and PWRCTRL cannot gate it. clk => mclk (A2):',
+			'    -- the free-running fabric clock hosts the LFXT->bus CDC synchronizers, the',
+			'    -- sticky ALMF/TICKF W1C flags and the combinational IRQ combiner, so the',
+			'    -- flags set and irq_rtc asserts autonomously while the bus is idle.',
+			'    -- Registered read (no bridge); register/RX reads have NO side effects.',
+			'    -- The single irq_rtc line drives vector 114 (combined alarm/tick) through',
+			'    -- the irq_router, ABOVE GPIO5\'s 106-113. Zero pins.',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) —',
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    rtc0_sh_en_n <= not shslv_rtc0_en;',
+			'    rtc0: entity work.RTC',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            lfxt_in     => lfxt_in,',
+			'            irq_rtc     => irq_rtc0,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => rtc0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => rtc0_sh_rdata);',
 		]
 
 	def emitGpio45Decls(self, port):
@@ -2935,6 +3019,10 @@ class McuVhdEmitter():
 			return self.emitNfcDecls()
 		if name == 'nfc-instance':
 			return self.emitNfcInstance()
+		if name == 'rtc-decls':
+			return self.emitRtcDecls()
+		if name == 'rtc-instance':
+			return self.emitRtcInstance()
 		if name == 'gpio4-decls':
 			return self.emitGpio45Decls(5)
 		if name == 'gpio5-decls':
@@ -3030,6 +3118,8 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200 +
 		# the geometry-driven glitch-filter region (NFC needs a 4th instance)
 		'nfc-decls', 'nfc-instance', 'irq-gf-decls', 'irq-gf-instances',
+		# digperiphs #4: RTC0 in MUTEX-page (page 2) sub-slot 5 @0x6500
+		'rtc-decls', 'rtc-instance',
 		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions

@@ -46,7 +46,8 @@
     "cqAfeStubs": true,
     "qspi": false,
     "i3c": false,
-    "nfc": false
+    "nfc": false,
+    "rtc": false
   },
   "package": {
     "model": "myshkin-qfn44",

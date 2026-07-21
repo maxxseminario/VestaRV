@@ -478,6 +478,7 @@ architecture behav of MCU is
 
         --@GEN:i3c-decls@
         --@GEN:nfc-decls@
+        --@GEN:rtc-decls@
         --@GEN:slot12-decls@
         --@GEN:sh-master-decl@
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
@@ -1006,6 +1007,7 @@ begin
     --@GEN:mutex-instance@
     --@GEN:i3c-instance@
     --@GEN:nfc-instance@
+    --@GEN:rtc-instance@
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
     -- One gate bit per tile hart; a per-tile FSM sequences the domain

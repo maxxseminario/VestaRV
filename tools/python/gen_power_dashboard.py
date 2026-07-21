@@ -44,6 +44,7 @@ GENUS_BLOCKS = {
     "QSPI":            ("Peripherals", "QSPI (quad-SPI controller)"),
     "I3C":             ("Peripherals", "I3C (I3C bus controller)"),
     "NFC":             ("Peripherals", "NFC (digital front-end; RF is off-die)"),
+    "RTC":             ("Peripherals", "RTC (real-time clock)"),
 }
 GENUS_SKIP = {"MCU"}  # frozen Myshkin tape-out synth report
 

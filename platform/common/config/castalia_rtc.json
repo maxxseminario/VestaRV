@@ -1,0 +1,5 @@
+{
+  "_comment": "digperiphs #4 proof configuration: the Castalia defaults with the RTC0 real-time clock instantiated in the MUTEX page sub-slot 5 (peripherals.rtc=true, @0x6500). RTC0 is zero-pin: it clocks off the ungated lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK. Enabling it GROWS the IRQ source list from 114 to 115: vector 114 = RTC0 (single combined alarm/tick IRQ, above GPIO5's 106-113); NUM_EN_WORDS stays 4 (115 <= 128). MmrAddrRTC0 appears in MemoryMap.vhd only when the knob is on. Everything else is default. Prove with: make verify CONFIG=config/castalia_rtc.json",
+  "chipName": "CastaliaRTC",
+  "peripherals": { "rtc": true }
+}
