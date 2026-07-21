@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/19 at 13:03:06 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/21 at 12:19:23 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -192,22 +192,28 @@ package MemoryMap is
 	constant RegSlotH0ENL			: natural := 00;	-- offset = 0 bytes
 	constant RegSlotH0ENM			: natural := 01;	-- offset = 4 bytes
 	constant RegSlotH0ENU			: natural := 02;	-- offset = 8 bytes
+	constant RegSlotH0ENX			: natural := 03;	-- offset = 12 bytes
 	constant RegSlotH1ENL			: natural := 04;	-- offset = 16 bytes
 	constant RegSlotH1ENM			: natural := 05;	-- offset = 20 bytes
 	constant RegSlotH1ENU			: natural := 06;	-- offset = 24 bytes
+	constant RegSlotH1ENX			: natural := 07;	-- offset = 28 bytes
 	constant RegSlotH2ENL			: natural := 08;	-- offset = 32 bytes
 	constant RegSlotH2ENM			: natural := 09;	-- offset = 36 bytes
 	constant RegSlotH2ENU			: natural := 10;	-- offset = 40 bytes
+	constant RegSlotH2ENX			: natural := 11;	-- offset = 44 bytes
 	constant RegSlotH3ENL			: natural := 12;	-- offset = 48 bytes
 	constant RegSlotH3ENM			: natural := 13;	-- offset = 52 bytes
 	constant RegSlotH3ENU			: natural := 14;	-- offset = 56 bytes
+	constant RegSlotH3ENX			: natural := 15;	-- offset = 60 bytes
 	constant RegSlotCLAIM			: natural := 512;	-- offset = 2048 bytes
 	constant RegSlotPENDL			: natural := 516;	-- offset = 2064 bytes
 	constant RegSlotPENDM			: natural := 517;	-- offset = 2068 bytes
 	constant RegSlotPENDU			: natural := 518;	-- offset = 2072 bytes
+	constant RegSlotPENDX			: natural := 519;	-- offset = 2076 bytes
 	constant RegSlotINSVCL			: natural := 520;	-- offset = 2080 bytes
 	constant RegSlotINSVCM			: natural := 521;	-- offset = 2084 bytes
 	constant RegSlotINSVCU			: natural := 522;	-- offset = 2088 bytes
+	constant RegSlotINSVCX			: natural := 523;	-- offset = 2092 bytes
 
 
 
@@ -298,7 +304,7 @@ package MemoryMap is
 	constant RstValP6OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
 	constant RstValP6DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
 	constant RstValP6SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
-	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"00000000";	-- disable rens
+	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.6 (OneWire DQ) pull-up enabled when OneWire present, else none
 	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
 
 
@@ -836,8 +842,12 @@ package MemoryMap is
 	constant IRQRH0ENM_LSB			: natural := 00;
 
 	-- H0ENU
-	constant IRQRH0ENU_MSB			: natural := 20;
+	constant IRQRH0ENU_MSB			: natural := 31;
 	constant IRQRH0ENU_LSB			: natural := 00;
+
+	-- H0ENX
+	constant IRQRH0ENX_MSB			: natural := 17;
+	constant IRQRH0ENX_LSB			: natural := 00;
 
 	-- H1ENL
 	constant IRQRH1ENL_MSB			: natural := 31;
@@ -848,8 +858,12 @@ package MemoryMap is
 	constant IRQRH1ENM_LSB			: natural := 00;
 
 	-- H1ENU
-	constant IRQRH1ENU_MSB			: natural := 20;
+	constant IRQRH1ENU_MSB			: natural := 31;
 	constant IRQRH1ENU_LSB			: natural := 00;
+
+	-- H1ENX
+	constant IRQRH1ENX_MSB			: natural := 17;
+	constant IRQRH1ENX_LSB			: natural := 00;
 
 	-- H2ENL
 	constant IRQRH2ENL_MSB			: natural := 31;
@@ -860,8 +874,12 @@ package MemoryMap is
 	constant IRQRH2ENM_LSB			: natural := 00;
 
 	-- H2ENU
-	constant IRQRH2ENU_MSB			: natural := 20;
+	constant IRQRH2ENU_MSB			: natural := 31;
 	constant IRQRH2ENU_LSB			: natural := 00;
+
+	-- H2ENX
+	constant IRQRH2ENX_MSB			: natural := 17;
+	constant IRQRH2ENX_LSB			: natural := 00;
 
 	-- H3ENL
 	constant IRQRH3ENL_MSB			: natural := 31;
@@ -872,8 +890,12 @@ package MemoryMap is
 	constant IRQRH3ENM_LSB			: natural := 00;
 
 	-- H3ENU
-	constant IRQRH3ENU_MSB			: natural := 20;
+	constant IRQRH3ENU_MSB			: natural := 31;
 	constant IRQRH3ENU_LSB			: natural := 00;
+
+	-- H3ENX
+	constant IRQRH3ENX_MSB			: natural := 17;
+	constant IRQRH3ENX_LSB			: natural := 00;
 
 	-- CLAIM
 	constant IRQRCLAIM_MSB			: natural := 31;
@@ -888,8 +910,12 @@ package MemoryMap is
 	constant IRQRPENDM_LSB			: natural := 00;
 
 	-- PENDU
-	constant IRQRPENDU_MSB			: natural := 20;
+	constant IRQRPENDU_MSB			: natural := 31;
 	constant IRQRPENDU_LSB			: natural := 00;
+
+	-- PENDX
+	constant IRQRPENDX_MSB			: natural := 17;
+	constant IRQRPENDX_LSB			: natural := 00;
 
 	-- INSVCL
 	constant IRQRINSVCL_MSB			: natural := 31;
@@ -900,8 +926,12 @@ package MemoryMap is
 	constant IRQRINSVCM_LSB			: natural := 00;
 
 	-- INSVCU
-	constant IRQRINSVCU_MSB			: natural := 20;
+	constant IRQRINSVCU_MSB			: natural := 31;
 	constant IRQRINSVCU_LSB			: natural := 00;
+
+	-- INSVCX
+	constant IRQRINSVCX_MSB			: natural := 17;
+	constant IRQRINSVCX_LSB			: natural := 00;
 
 
 
