@@ -149,6 +149,23 @@ The following peripherals are included in the example configuration shown above.
 
 ---
 
+## Open-source simulation & verification
+
+A fully open-source path — GHDL + cocotb + the riscv-tests-derived ISA suite, no
+proprietary EDA licenses required — verifies the `vesta` core RTL end-to-end:
+
+```bash
+git clone https://github.com/maxxseminario/VestaRV.git && cd VestaRV
+./opensource_sim/setup_env.sh && source opensource_sim/env.sh
+./opensource_sim/run_sim.sh
+```
+
+See [`opensource_sim/README.md`](opensource_sim/README.md) for the full flow (cocotb
+smoke test + ISA regression) and [`sky130/README.md`](sky130/README.md) for the
+companion open-source flow that takes the same RTL to a signed-off sky130 GDSII.
+
+---
+
 ## Author and Support
 
 **Author:**  
