@@ -964,12 +964,13 @@ const VESTA_DATA = {
       "step": 2
     },
     "package.model": {
-      "description": "string \u2014 package model name defined in generate.py (_PACKAGE_MODELS: \"myshkin-qfn44\" QFN-44, \"castalia-quad-qfn64\" QFN-64 quad pinout \u2014 new pinouts are added as Python models, never as free-form config pin lists)",
+      "description": "string \u2014 package model name defined in generate.py (_PACKAGE_MODELS: \"myshkin-qfn44\" QFN-44, \"castalia-quad-qfn64\" QFN-64 quad pinout, \"castalia-lqfp100\" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] \u2014 new pinouts are added as Python models, never as free-form config pin lists)",
       "type": "enum",
       "default": "myshkin-qfn44",
       "enum": [
         "myshkin-qfn44",
-        "castalia-quad-qfn64"
+        "castalia-quad-qfn64",
+        "castalia-lqfp100"
       ]
     },
     "package.preliminary": {
@@ -2656,6 +2657,1188 @@ const VESTA_DATA = {
           "name": "AVDD_0",
           "io": "Power Input",
           "powerDomain": "Analog0"
+        }
+      ]
+    },
+    "castalia-lqfp100": {
+      "_comment": "Derived pad ring \u2014 computed by make chip from the package model in generate.py (pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).",
+      "package": {
+        "type": "LQFP",
+        "pinCount": 100,
+        "dimensions": [
+          14,
+          14
+        ],
+        "units": "mm",
+        "pinPitch": 0.5,
+        "pinsOnEachSide": {
+          "W": 25,
+          "S": 25,
+          "E": 25,
+          "N": 25
+        }
+      },
+      "powerDomains": [
+        {
+          "name": "Digital Core",
+          "voltage": 1.0,
+          "positiveRail": {
+            "pin": 3,
+            "name": "VDD"
+          },
+          "negativeRail": {
+            "pin": 4,
+            "name": "VSS"
+          },
+          "positiveRailPins": [
+            {
+              "pin": 3,
+              "name": "VDD"
+            },
+            {
+              "pin": 35,
+              "name": "VDD"
+            },
+            {
+              "pin": 60,
+              "name": "VDD"
+            }
+          ],
+          "negativeRailPins": [
+            {
+              "pin": 4,
+              "name": "VSS"
+            },
+            {
+              "pin": 36,
+              "name": "VSS"
+            },
+            {
+              "pin": 61,
+              "name": "VSS"
+            }
+          ]
+        },
+        {
+          "name": "Digital I/O",
+          "voltage": 3.3,
+          "positiveRail": {
+            "pin": 13,
+            "name": "VDDPST"
+          },
+          "negativeRail": {
+            "pin": 14,
+            "name": "VSSPST"
+          },
+          "positiveRailPins": [
+            {
+              "pin": 13,
+              "name": "VDDPST"
+            },
+            {
+              "pin": 45,
+              "name": "VDDPST"
+            },
+            {
+              "pin": 70,
+              "name": "VDDPST"
+            }
+          ],
+          "negativeRailPins": [
+            {
+              "pin": 14,
+              "name": "VSSPST"
+            },
+            {
+              "pin": 46,
+              "name": "VSSPST"
+            },
+            {
+              "pin": 71,
+              "name": "VSSPST"
+            }
+          ]
+        },
+        {
+          "name": "Analog",
+          "voltage": 3.3,
+          "positiveRail": {
+            "pin": 76,
+            "name": "AVDD"
+          },
+          "negativeRail": {
+            "pin": 77,
+            "name": "AVSS"
+          }
+        }
+      ],
+      "pins": [
+        {
+          "pin": 1,
+          "side": "W",
+          "name": "RESETN",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 2,
+          "side": "W",
+          "name": "POC",
+          "io": "Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 3,
+          "side": "W",
+          "name": "VDD",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 4,
+          "side": "W",
+          "name": "VSS",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 5,
+          "side": "W",
+          "name": "P0.0(GPIO0)/CS_FLASH",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.0",
+          "af0": "CS_FLASH",
+          "altFuncs": {
+            "AF1": "TX0",
+            "AF2": "TX1",
+            "AF3": "T0CMP0",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 6,
+          "side": "W",
+          "name": "P0.1(GPIO1)/MISO0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.1",
+          "af0": "MISO0",
+          "altFuncs": {
+            "AF1": "TX1",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 7,
+          "side": "W",
+          "name": "P0.2(GPIO2)/MOSI0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.2",
+          "af0": "MOSI0",
+          "altFuncs": {
+            "AF1": "T0CMP0",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 8,
+          "side": "W",
+          "name": "P0.3(GPIO3)/SCK0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.3",
+          "af0": "SCK0",
+          "altFuncs": {
+            "AF1": "T0CMP1",
+            "AF2": "T1CMP0",
+            "AF3": "T1CMP1",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX0",
+            "AF7": "TX1"
+          }
+        },
+        {
+          "pin": 9,
+          "side": "W",
+          "name": "P0.4(GPIO4)/LFXT",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.4",
+          "af0": "LFXT",
+          "altFuncs": {
+            "AF1": "T1CMP0",
+            "AF2": "T1CMP1",
+            "AF3": "SCK1",
+            "AF4": "MOSI1",
+            "AF5": "TX0",
+            "AF6": "TX1",
+            "AF7": "T0CMP0"
+          }
+        },
+        {
+          "pin": 10,
+          "side": "W",
+          "name": "P0.5(GPIO5)/HFXT",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.5",
+          "af0": "HFXT",
+          "altFuncs": {
+            "AF1": "T1CMP1",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX0",
+            "AF5": "TX1",
+            "AF6": "T0CMP0",
+            "AF7": "T0CMP1"
+          }
+        },
+        {
+          "pin": 11,
+          "side": "W",
+          "name": "P0.6(GPIO6)/TRAP",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.6",
+          "af0": "TRAP",
+          "altFuncs": {
+            "AF1": "SCK1",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 12,
+          "side": "W",
+          "name": "P0.7(BOOT)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P0.7",
+          "altFuncs": {
+            "AF1": "MOSI1",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "T1CMP1"
+          }
+        },
+        {
+          "pin": 13,
+          "side": "W",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 14,
+          "side": "W",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 15,
+          "side": "W",
+          "name": "P1.0(GPIO8)/CS1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.0",
+          "af0": "CS1",
+          "altFuncs": {
+            "AF1": "T0CMP0",
+            "AF2": "TX1",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 16,
+          "side": "W",
+          "name": "P1.1(GPIO9)/MISO1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.1",
+          "af0": "MISO1",
+          "altFuncs": {
+            "AF1": "T0CMP1",
+            "AF2": "T0CMP0",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 17,
+          "side": "W",
+          "name": "P1.2(GPIO10)/MOSI1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.2",
+          "af0": "MOSI1",
+          "altFuncs": {
+            "AF1": "T1CMP0",
+            "AF2": "T1CMP1",
+            "AF3": "SCK1",
+            "AF4": "TX0",
+            "AF5": "TX1",
+            "AF6": "T0CMP0",
+            "AF7": "T0CMP1"
+          }
+        },
+        {
+          "pin": 18,
+          "side": "W",
+          "name": "P1.3(GPIO11)/SCK1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.3",
+          "af0": "SCK1",
+          "altFuncs": {
+            "AF1": "T1CMP1",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 19,
+          "side": "W",
+          "name": "P1.4(GPIO12)/TX0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.4",
+          "af0": "TX0",
+          "altFuncs": {
+            "AF1": "SDA1",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 20,
+          "side": "W",
+          "name": "P1.5(GPIO13)/RX0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.5",
+          "af0": "RX0",
+          "altFuncs": {
+            "AF1": "SCL1",
+            "AF2": "T1CMP1",
+            "AF3": "SCK1",
+            "AF4": "MOSI1",
+            "AF5": "TX0",
+            "AF6": "TX1",
+            "AF7": "T0CMP0"
+          }
+        },
+        {
+          "pin": 21,
+          "side": "W",
+          "name": "P1.6(GPIO14)/TX1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.6",
+          "af0": "TX1",
+          "altFuncs": {
+            "AF1": "SDA0",
+            "AF2": "TX0",
+            "AF3": "T0CMP0",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 22,
+          "side": "W",
+          "name": "P1.7(GPIO15)/RX1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P1.7",
+          "af0": "RX1",
+          "altFuncs": {
+            "AF1": "SCL0",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 23,
+          "side": "W",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 24,
+          "side": "W",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 25,
+          "side": "W",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 26,
+          "side": "S",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 27,
+          "side": "S",
+          "name": "P2.0(GPIO16)/T0CMP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.0",
+          "af0": "T0CMP0",
+          "altFuncs": {
+            "AF1": "TX1",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "T1CMP1"
+          }
+        },
+        {
+          "pin": 28,
+          "side": "S",
+          "name": "P2.1(GPIO17)/T0CMP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.1",
+          "af0": "T0CMP1",
+          "altFuncs": {
+            "AF1": "RX1",
+            "AF2": "T1CMP0",
+            "AF3": "T1CMP1",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX0",
+            "AF7": "TX1"
+          }
+        },
+        {
+          "pin": 29,
+          "side": "S",
+          "name": "P2.2(GPIO18)/T0CAP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.2",
+          "af0": "T0CAP0",
+          "altFuncs": {
+            "AF1": "SDA1",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 30,
+          "side": "S",
+          "name": "P2.3(GPIO19)/T0CAP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.3",
+          "af0": "T0CAP1",
+          "altFuncs": {
+            "AF1": "SCL1",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 31,
+          "side": "S",
+          "name": "P2.4(GPIO20)/T1CMP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.4",
+          "af0": "T1CMP0",
+          "altFuncs": {
+            "AF1": "TX0",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP1",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX1",
+            "AF7": "T0CMP0"
+          }
+        },
+        {
+          "pin": 32,
+          "side": "S",
+          "name": "P2.5(GPIO21)/T1CMP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.5",
+          "af0": "T1CMP1",
+          "altFuncs": {
+            "AF1": "RX0",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 33,
+          "side": "S",
+          "name": "P2.6(GPIO22)/T1CAP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.6",
+          "af0": "T1CAP0",
+          "altFuncs": {
+            "AF1": "SDA0",
+            "AF2": "SCK1",
+            "AF3": "MOSI1",
+            "AF4": "TX0",
+            "AF5": "TX1",
+            "AF6": "T0CMP0",
+            "AF7": "T0CMP1"
+          }
+        },
+        {
+          "pin": 34,
+          "side": "S",
+          "name": "P2.7(GPIO23)/T1CAP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P2.7",
+          "af0": "T1CAP1",
+          "altFuncs": {
+            "AF1": "SCL0",
+            "AF2": "MOSI1",
+            "AF3": "TX0",
+            "AF4": "TX1",
+            "AF5": "T0CMP0",
+            "AF6": "T0CMP1",
+            "AF7": "T1CMP0"
+          }
+        },
+        {
+          "pin": 35,
+          "side": "S",
+          "name": "VDD",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 36,
+          "side": "S",
+          "name": "VSS",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 37,
+          "side": "S",
+          "name": "P3.0(GPIO24)/SDA0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.0",
+          "af0": "SDA0",
+          "altFuncs": {
+            "AF1": "T0CAP0",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP0",
+            "AF5": "T0CMP1",
+            "AF6": "T1CMP0",
+            "AF7": "T1CMP1"
+          }
+        },
+        {
+          "pin": 38,
+          "side": "S",
+          "name": "P3.1(GPIO25)/SCL0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.1",
+          "af0": "SCL0",
+          "altFuncs": {
+            "AF1": "T0CAP1",
+            "AF2": "TX1",
+            "AF3": "T0CMP0",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 39,
+          "side": "S",
+          "name": "P3.2(GPIO26)/SDA1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.2",
+          "af0": "SDA1",
+          "altFuncs": {
+            "AF1": "T1CAP0",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 40,
+          "side": "S",
+          "name": "P3.3(GPIO27)/SCL1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.3",
+          "af0": "SCL1",
+          "altFuncs": {
+            "AF1": "T1CAP1",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "TX0"
+          }
+        },
+        {
+          "pin": 41,
+          "side": "S",
+          "name": "P3.4(GPIO28)/DTP0",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.4",
+          "af0": "DTP0",
+          "altFuncs": {
+            "AF1": "T0CMP0",
+            "AF2": "TX0",
+            "AF3": "TX1",
+            "AF4": "T0CMP1",
+            "AF5": "T1CMP0",
+            "AF6": "T1CMP1",
+            "AF7": "SCK1"
+          }
+        },
+        {
+          "pin": 42,
+          "side": "S",
+          "name": "P3.5(GPIO29)/DTP1",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.5",
+          "af0": "DTP1",
+          "altFuncs": {
+            "AF1": "T0CMP1",
+            "AF2": "RX0",
+            "AF3": "T0CMP0",
+            "AF4": "T1CMP0",
+            "AF5": "T1CMP1",
+            "AF6": "SCK1",
+            "AF7": "MOSI1"
+          }
+        },
+        {
+          "pin": 43,
+          "side": "S",
+          "name": "P3.6(GPIO30)/DTP2",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.6",
+          "af0": "DTP2",
+          "altFuncs": {
+            "AF1": "T1CMP0",
+            "AF2": "T0CMP0",
+            "AF3": "T0CMP1",
+            "AF4": "T1CMP1",
+            "AF5": "SCK1",
+            "AF6": "MOSI1",
+            "AF7": "MISO1"
+          }
+        },
+        {
+          "pin": 44,
+          "side": "S",
+          "name": "P3.7(GPIO31)/DTP3",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P3.7",
+          "af0": "DTP3",
+          "altFuncs": {
+            "AF1": "T1CMP1",
+            "AF2": "T0CMP1",
+            "AF3": "T1CMP0",
+            "AF4": "SCK1",
+            "AF5": "MOSI1",
+            "AF6": "TX0",
+            "AF7": "TX1"
+          }
+        },
+        {
+          "pin": 45,
+          "side": "S",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 46,
+          "side": "S",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 47,
+          "side": "S",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 48,
+          "side": "S",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 49,
+          "side": "S",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 50,
+          "side": "S",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 51,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 52,
+          "side": "E",
+          "name": "P4.0(GPIO32)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.0"
+        },
+        {
+          "pin": 53,
+          "side": "E",
+          "name": "P4.1(GPIO33)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.1"
+        },
+        {
+          "pin": 54,
+          "side": "E",
+          "name": "P4.2(GPIO34)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.2"
+        },
+        {
+          "pin": 55,
+          "side": "E",
+          "name": "P4.3(GPIO35)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.3"
+        },
+        {
+          "pin": 56,
+          "side": "E",
+          "name": "P4.4(GPIO36)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.4"
+        },
+        {
+          "pin": 57,
+          "side": "E",
+          "name": "P4.5(GPIO37)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.5"
+        },
+        {
+          "pin": 58,
+          "side": "E",
+          "name": "P4.6(GPIO38)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.6"
+        },
+        {
+          "pin": 59,
+          "side": "E",
+          "name": "P4.7(GPIO39)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P4.7"
+        },
+        {
+          "pin": 60,
+          "side": "E",
+          "name": "VDD",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 61,
+          "side": "E",
+          "name": "VSS",
+          "io": "Power Input",
+          "powerDomain": "Digital Core"
+        },
+        {
+          "pin": 62,
+          "side": "E",
+          "name": "P5.0(GPIO40)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.0"
+        },
+        {
+          "pin": 63,
+          "side": "E",
+          "name": "P5.1(GPIO41)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.1"
+        },
+        {
+          "pin": 64,
+          "side": "E",
+          "name": "P5.2(GPIO42)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.2"
+        },
+        {
+          "pin": 65,
+          "side": "E",
+          "name": "P5.3(GPIO43)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.3"
+        },
+        {
+          "pin": 66,
+          "side": "E",
+          "name": "P5.4(GPIO44)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.4"
+        },
+        {
+          "pin": 67,
+          "side": "E",
+          "name": "P5.5(GPIO45)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.5"
+        },
+        {
+          "pin": 68,
+          "side": "E",
+          "name": "P5.6(GPIO46)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.6"
+        },
+        {
+          "pin": 69,
+          "side": "E",
+          "name": "P5.7(GPIO47)",
+          "io": "Input/Output",
+          "powerDomain": "Digital I/O",
+          "gpio": "P5.7"
+        },
+        {
+          "pin": 70,
+          "side": "E",
+          "name": "VDDPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 71,
+          "side": "E",
+          "name": "VSSPST",
+          "io": "Power Input",
+          "powerDomain": "Digital I/O"
+        },
+        {
+          "pin": 72,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 73,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 74,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 75,
+          "side": "E",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 76,
+          "side": "N",
+          "name": "AVDD",
+          "io": "Power Input",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 77,
+          "side": "N",
+          "name": "AVSS",
+          "io": "Power Input",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 78,
+          "side": "N",
+          "name": "ARSV0",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 79,
+          "side": "N",
+          "name": "ARSV1",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 80,
+          "side": "N",
+          "name": "ARSV2",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 81,
+          "side": "N",
+          "name": "ARSV3",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 82,
+          "side": "N",
+          "name": "ARSV4",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 83,
+          "side": "N",
+          "name": "ARSV5",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 84,
+          "side": "N",
+          "name": "ARSV6",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 85,
+          "side": "N",
+          "name": "ARSV7",
+          "io": "Input/Output",
+          "powerDomain": "Analog"
+        },
+        {
+          "pin": 86,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 87,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 88,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 89,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 90,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 91,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 92,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 93,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 94,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 95,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 96,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 97,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 98,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 99,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
+        },
+        {
+          "pin": 100,
+          "side": "N",
+          "name": "NC",
+          "io": "NC",
+          "noConnect": true
         }
       ]
     }

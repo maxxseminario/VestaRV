@@ -15,7 +15,7 @@ class PackageData():
 	Pins = None
 
 	def __init__(self, packageType:str, pinCount:int, units:str, dimensions:list, pinsOnEachSide:dict, pinPitch:float, pinWidth:float, pinDepth:float, gpioPowerDomain=None):
-		allowedPackageTypes = ['QFN']
+		allowedPackageTypes = ['QFN', 'LQFP']
 		if packageType not in allowedPackageTypes:
 			raise Exception('Package type "' + str(packageType) + '" not in list of allowed package types: ' + str(allowedPackageTypes))
 		self.PackageType = packageType
