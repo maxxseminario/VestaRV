@@ -837,6 +837,16 @@ class McuVhdEmitter():
 		self.dmaChannels = geo.get('dmaChannels', 4)
 		if self.dma and self.dmaChannels not in (2, 4):
 			raise Exception('MCU.vhd emitter: dmaChannels must be 2 or 4, got ' + str(self.dmaChannels))
+		# digperiphs (I2CT): I2CT0 (hardware-autonomous I2C target) in MUTEX-page (page 2)
+		# sub-slot 10 @0x6A00. Same native-slave shape as RTC0/PWM0/OW0 — a PLAIN raw-strobe
+		# en shim (NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). NO
+		# new pins: I2CT0 shares I2C0's SDA0/SCL0 pad planes. The instance FANS OUT the
+		# existing sda0_in/scl0_in inputs to its SDA_IN/SCL_IN and drives the NEW open-drain
+		# DIR scalars i2ct0_sda_dir/i2ct0_scl_dir from its SDA_DIR/SCL_DIR ports; the
+		# wired-AND merge of those into the sda0/scl0 DIR planes is a SEPARATE shared-RTL edit
+		# (they are consumed nowhere in this emitter — an unused-signal state is expected at
+		# this stage). Default false => every I2CT0 region is inert (byte-identical default).
+		self.i2ctarget = geo.get('i2ctarget', False)
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -961,6 +971,13 @@ class McuVhdEmitter():
 		if self.dma:
 			self.shslv = dict(self.shslv)
 			self.shslv['DMA0'] = {'sel': 'dma0', 'shim': None, 'rdata': 'dma0_sh_rdata'}
+		# digperiphs (I2CT): I2CT0 joins the same native-slave fabric (MUTEX-page sub-slot
+		# 10). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None) puts
+		# its register file through the standard enable / registered rd-sel / rdata-mux loops,
+		# and its active-low RAW-strobe en shim lives in emitI2ctInstance (no en_q register, D4).
+		if self.i2ctarget:
+			self.shslv = dict(self.shslv)
+			self.shslv['I2CT0'] = {'sel': 'i2ct0', 'shim': None, 'rdata': 'i2ct0_sh_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -974,7 +991,8 @@ class McuVhdEmitter():
 			+ ['GPIO4', 'GPIO5'] + (['RTC0'] if self.rtc else []) \
 			+ (['PWM0'] if self.pwm else []) \
 			+ (['OW0'] if self.onewire else []) \
-			+ (['DMA0'] if self.dma else [])
+			+ (['DMA0'] if self.dma else []) \
+			+ (['I2CT0'] if self.i2ctarget else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1241,6 +1259,9 @@ class McuVhdEmitter():
 			# digperiphs #6: DMA0 = page-2 sub-slot 8 (0x6800). Slave register file
 			# only; the DMA's MASTER port slices into arb_*(numHarts) separately.
 			lines.append(ind + 'shslv_dma0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1000" else \'0\';')
+		if self.i2ctarget:
+			# digperiphs (I2CT): I2CT0 = page-2 sub-slot 10 (0x6A00).
+			lines.append(ind + 'shslv_i2ct0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1010" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
 			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
@@ -1905,6 +1926,104 @@ class McuVhdEmitter():
 		]
 		return lines
 
+	def emitI2ctDecls(self):
+		'''digperiphs (I2CT): I2CT0 (hardware-autonomous I2C target, page-2 sub-slot 10
+		@0x6A00) declarative region. Fabric nets for the hand-emitted RAW-strobe shim +
+		the NEW open-drain DIR scalars driven from the instance's SDA_DIR/SCL_DIR. Nothing
+		when I2CT0 is absent. Like RTC0/PWM0/OW0 there is NO shslv_i2ct0_en_q register (D4).
+		The two irq levels (irq_i2ct0_ae / irq_i2ct0_data -> vectors 122/123) are
+		auto-declared by emitIrqSignalDecls from the IRQB_I2CT0_* vector names. NO input
+		signal is declared: SDA_IN/SCL_IN fan out from the EXISTING sda0_in/scl0_in.'''
+		if not self.i2ctarget:
+			return []
+		return [
+			'        -- digperiphs (I2CT): I2CT0 (hardware-autonomous I2C TARGET: 7-bit',
+			'        -- address match + mask + general call, byte-at-a-time RX/TX with',
+			'        -- ready/empty status, hardware clock stretching, START/STOP/repeated-',
+			'        -- START/NACK framing flags, stuck-SCL watchdog). Page-2 (MUTEX page)',
+			'        -- sub-slot 10 @0x6A00 — the mutex bank keeps sub-slot 0 @0x6000.',
+			'        -- Registered-read native slave with a PLAIN active-low one-cycle en shim:',
+			'        -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q (D4 —',
+			'        -- registers its read on rising ClkMem over data already in the bus/mclk',
+			'        -- family). The whole target FSM / SDA-SCL 2-FF synchronizers / edge +',
+			'        -- framing detectors / sticky W1C flags / BUSY-TM / watchdog / IRQ combiners',
+			'        -- all ride the free-running MCLK (clk => mclk, D1/D2) — no LFXT, no',
+			'        -- generated/gated clocks, and NO clock on the SDA/SCL pads (they are PURE',
+			'        -- DATA, 2-FF synced, D6). irq_i2ct0_ae -> vector 122, irq_i2ct0_data ->',
+			"        -- vector 123. NO new pins: I2CT0 shares I2C0's SDA0/SCL0 pad planes —",
+			'        -- SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in inputs.',
+			'        signal shslv_i2ct0_sel, shslv_i2ct0_en : std_logic;',
+			"        signal shslv_rd_i2ct0   : std_logic := '0';",
+			'        signal i2ct0_sh_rdata   : std_logic_vector(31 downto 0);',
+			'        signal i2ct0_sh_en_n    : std_logic;',
+			"        -- SDA/SCL open-drain DIR scalars (D19): driven by the I2CT0 instance's",
+			"        -- SDA_DIR/SCL_DIR ('1' drives the line low, '0' releases Hi-Z). The",
+			'        -- *_mrg scalars are the D19 wired-AND merge consumed by the sda0/scl0',
+			'        -- DIR plane aggregates (all three locations: GPIO3 home + GPIO1/GPIO2',
+			"        -- relocations): either engine's drive-low wins — I2C0 (master) or I2CT0",
+			'        -- (target ACK/data on SDA, clock stretch on SCL). OUT planes stay tied',
+			"        -- '0' (open-drain); REN/pull policy stays I2C0's.",
+			'        signal i2ct0_sda_dir, i2ct0_scl_dir : std_logic;',
+			'        signal sda0_dir_mrg,  scl0_dir_mrg  : std_logic;',
+		]
+
+	def emitI2ctInstance(self):
+		'''digperiphs (I2CT): I2CT0 instance region (page-2 sub-slot 10 @0x6A00). The PLAIN
+		raw-strobe active-low en shim + the I2CTarget entity; nothing when I2CT0 is absent.
+		No en_q process (D4). SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in (pure
+		fanout); SDA_DIR/SCL_DIR drive the new i2ct0_sda_dir/i2ct0_scl_dir scalars (the
+		wired-AND DIR merge into the sda0/scl0 planes is a separate shared-RTL edit).'''
+		if not self.i2ctarget:
+			return []
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- I2CT0 (digperiphs I2CT): hardware-autonomous I2C TARGET (slave), page-2',
+			'    -- (MUTEX page) sub-slot 10 @0x6A00. The whole target FSM, the SDA/SCL 2-FF',
+			'    -- synchronizers, the edge/framing detectors, the address matcher, the RX/TX',
+			'    -- byte paths, the clock-stretch driver, the sticky W1C flags, BUSY/TM, the',
+			'    -- stuck-SCL watchdog and the two IRQ combiners all ride the free-running MCLK',
+			'    -- (clk => mclk, D1/D2), so the block is immune to clock reconfig; the register',
+			'    -- file rides ClkMem (= mclk at integration). No LFXT, no generated/gated',
+			'    -- clocks, and NO clock on the SDA/SCL pads — SDA_IN/SCL_IN are 2-FF',
+			"    -- synchronized, PURE DATA (D6), the deliberate contrast with I2C0's",
+			'    -- SCL-pad-clocked slave FSM. Registered read (no bridge, no CAPTURE_CLOCK',
+			'    -- pre-latch, D4). irq_i2ct0_ae -> vector 122 (address/error), irq_i2ct0_data',
+			'    -- -> vector 123 (tx-ready/rx-full) through the irq_router. NO new pins: I2CT0',
+			"    -- shares I2C0's open-drain SDA0/SCL0 pad planes — SDA_IN/SCL_IN fan out from",
+			'    -- the existing sda0_in/scl0_in, and SDA_DIR/SCL_DIR drive i2ct0_sda_dir/',
+			'    -- i2ct0_scl_dir (the wired-AND merge into the sda0/scl0 DIR planes is a',
+			'    -- separate shared-RTL edit; those scalars are unused here at this stage).',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) —',
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    i2ct0_sh_en_n <= not shslv_i2ct0_en;',
+			'    i2ct0: entity work.I2CTarget',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            irq_ae      => irq_i2ct0_ae,',
+			'            irq_data    => irq_i2ct0_data,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => i2ct0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => i2ct0_sh_rdata,',
+			'            SDA_IN      => sda0_in,     -- digperiphs I2CT: shared with I2C0 (pure fanout)',
+			'            SDA_DIR     => i2ct0_sda_dir,',
+			'            SCL_IN      => scl0_in,     -- digperiphs I2CT: shared with I2C0 (pure fanout)',
+			'            SCL_DIR     => i2ct0_scl_dir);',
+			'',
+			'    -- D19 shared-pad wired-AND (the one I2CT shared-RTL edit): the sda0/scl0',
+			'    -- DIR planes (GPIO3 home + GPIO1/GPIO2 relocations) bind these merges, so',
+			"    -- the pad drives low when EITHER engine drives — I2C0's master engine or",
+			"    -- I2CT0's target engine (ACK/data on SDA, clock stretch on SCL). This is",
+			'    -- what makes the wi2ct I2C0-as-host loopback on the SAME pads legal.',
+			'    sda0_dir_mrg <= sda0_dir or i2ct0_sda_dir;',
+			'    scl0_dir_mrg <= scl0_dir or i2ct0_scl_dir;',
+		]
+
 	def emitGpio45Decls(self, port):
 		'''Mission B: GPIO4 (port 5) / GPIO5 (port 6) declarative region — the
 		registered-read shim nets, the register/AF-plane signals, and (in configs
@@ -2545,11 +2664,35 @@ class McuVhdEmitter():
 			lines = [l for l in lines if 'i2c1' not in l]
 		return lines
 
+	def i2ctMergeDirRows(self, lines):
+		'''digperiphs (I2CT, D19 — Fable-owned shared-RTL edit): with I2CT0
+		present, the sda0/scl0 DIR-plane rows bind the wired-AND merge scalars
+		(sda0_dir_mrg/scl0_dir_mrg, driven next to the i2ct0 instance) so either
+		engine's drive-low wins on the shared open-drain pads. Applied to all
+		three plane locations (GPIO3 home + GPIO1/GPIO2 relocations). OUT rows
+		stay untouched (tied '0' open-drain at the source) and REN rows keep
+		I2C0's pull policy. Byte-exact golden text when the knob is off.'''
+		if not self.i2ctarget:
+			return lines
+		out = []
+		for l in lines:
+			m = re.match(r'^(\s*pnum_\w+_(?:sda0|scl0)\s*=> )((?:sda0|scl0)_dir)(,?)\s*(--.*)$', l)
+			if m:
+				col = l.index('--')
+				body = m.group(1) + m.group(2) + '_mrg' + m.group(3)
+				if len(body) + 1 > col:
+					l = body + ' ' + m.group(4)
+				else:
+					l = body.ljust(col) + m.group(4)
+			out.append(l)
+		return out
+
 	def emitGpio2Af1Planes(self):
 		'''The P3 (GPIO2) AF1 relocation-plane aggregates. Dropped I2C1/UART1
 		rows degrade to the existing "unassigned" hi-Z idiom (literal pin
 		index, since the pnum_gpio2_af1_{sda1,scl1,tx1,rx1} constants are
-		gated with their owner). The two knobs gate independently (G1b).'''
+		gated with their owner). The two knobs gate independently (G1b).
+		I2CT0 rebinds the sda0/scl0 DIR rows to the D19 merge (i2ctMergeDirRows).'''
 		lines = list(GPIO2_AF1_PLANES)
 		dropRows = {}
 		if not self.i2c1:
@@ -2572,7 +2715,7 @@ class McuVhdEmitter():
 					l = body.ljust(col) + '-- GPIO2 pin ' + pin + ': reserved, ' + owner + ' dropped (' + mode + ')'
 				out.append(l)
 			lines = out
-		return lines
+		return self.i2ctMergeDirRows(lines)
 
 	def emitI2cInputMuxes(self):
 		'''The I2C input/REN AF-selection muxes (fixed priority: v2 pad > AF1
@@ -2616,7 +2759,7 @@ class McuVhdEmitter():
 					l = body.ljust(col) + '-- GPIO3 pin ' + pin + ': reserved (I2C1 dropped)'
 				out.append(l)
 			lines = out
-		return lines
+		return self.i2ctMergeDirRows(lines)
 
 	# ------------------------------------------------------------------
 	# G1b emitters: UART1 / SPI1 / TIMER1 config-droppable regions
@@ -2741,7 +2884,7 @@ class McuVhdEmitter():
 					l = body.ljust(col) + '-- GPIO1 pin ' + pin + ': reserved, ' + owner + ' dropped (' + mode + ')'
 				out.append(l)
 			lines = out
-		return lines
+		return self.i2ctMergeDirRows(lines)
 
 	def emitGpio2TimerMuxes(self):
 		'''The TIMER compare-ren / capture-input AF-selection muxes. TIMER1's
@@ -3418,6 +3561,10 @@ class McuVhdEmitter():
 			return self.emitDmaDecls()
 		if name == 'dma-instance':
 			return self.emitDmaInstance()
+		if name == 'i2ct-decls':
+			return self.emitI2ctDecls()
+		if name == 'i2ct-instance':
+			return self.emitI2ctInstance()
 		if name == 'gpio4-decls':
 			return self.emitGpio45Decls(5)
 		if name == 'gpio5-decls':
@@ -3523,6 +3670,8 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# fabric widening emitted through arb-fabric-decls / arb-generic / resv-generic /
 		# mutex-instance / irq-router-instance / sh-master-decl)
 		'dma-decls', 'dma-instance',
+		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
+		'i2ct-decls', 'i2ct-instance',
 		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions

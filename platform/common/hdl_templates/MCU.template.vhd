@@ -482,6 +482,7 @@ architecture behav of MCU is
         --@GEN:pwm-decls@
         --@GEN:ow-decls@
         --@GEN:dma-decls@
+        --@GEN:i2ct-decls@
         --@GEN:slot12-decls@
         --@GEN:sh-master-decl@
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
@@ -1014,6 +1015,7 @@ begin
     --@GEN:pwm-instance@
     --@GEN:ow-instance@
     --@GEN:dma-instance@
+    --@GEN:i2ct-instance@
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
     -- One gate bit per tile hart; a per-tile FSM sequences the domain
