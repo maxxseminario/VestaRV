@@ -65,7 +65,7 @@ def _isMemSize(v, ceiling):
 # package model; a config SELECTS one by name. Free-form pin assignment in the
 # config is intentionally unsupported — a chip gets its own pinout by adding a
 # model here (Argus will, once its package is decided), never in JSON.
-_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64')
+_PACKAGE_MODELS = ('myshkin-qfn44', 'castalia-quad-qfn64', 'castalia-lqfp100')
 
 _CONFIG_SCHEMA = {
 	'chipName':             ('non-empty string — renames the chip in the TRM/headers (docs-only; CHIP_NAME env still wins)',
@@ -141,7 +141,7 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.dmaChannels': ('int — DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4',
 	                         lambda v: _isInt(v) and v in (2, 4)),
-	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout — new pinouts are added as Python models, never as free-form config pin lists)',
+	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
 	                         _isBool),
@@ -2466,6 +2466,84 @@ def _buildPackageData(model):
 		for (_epn, _enm, _edom) in _cqElectrodes:
 			package.AddPin(packagePinNumber=_epn, name=_enm, ioType='io', powerDomain=_edom)
 
+	elif model == 'castalia-lqfp100':
+		# Stage G2 (2026-07-22): the CastaliaDP LARGE package — LQFP-100,
+		# 14x14 mm body, 0.5 mm pitch, 25 pins/side. User directive 2026-07-22:
+		# the QFN-44 is retired as the respin target ("we can have more digital
+		# pins"); this model bonds the FULL digital complement — all 48 GPIO
+		# (prt1-prt6, first package to bond P5/P6), RESETN, POC — plus 3 core
+		# and 3 IO supply pairs (one per digital edge) and a NORTH analog-
+		# reserve band (AVDD/AVSS + ARSV0-7) for the U-tile-notch potentiostat
+		# drop-in. Numbering follows the house convention: pin 1 at the top of
+		# the WEST edge, counterclockwise (W 1-25 top->bottom, S 26-50 L->R,
+		# E 51-75 bottom->top, N 76-100 R->L). Leaded LQFP chosen for bring-up
+		# friendliness (probing/hand-rework) per the 2026-07-22 user pick.
+		package = PackageData(
+			packageType='LQFP',
+			pinCount=100,
+			units='mm',
+			dimensions=[14, 14],
+			pinsOnEachSide={'W': 25, 'S': 25, 'E': 25, 'N': 25},
+			pinPitch=0.5,
+			pinWidth=0.22,
+			pinDepth=0.6
+		)
+
+		# Three physical pad pairs per digital rail — one pair on each of the
+		# three digital edges (W primary, S/E extras; the multi-pad-rail
+		# mechanism from the CQ QFN-64 model).
+		digitalCorePowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital Core',
+			positiveVoltage=1.0,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=3,
+			positiveRailPinName='VDD',
+			negativeRailPinNumber=4,
+			negativeRailPinName='VSS',
+			positiveRailExtraPins=[(35, 'VDD'), (60, 'VDD')],
+			negativeRailExtraPins=[(36, 'VSS'), (61, 'VSS')]
+		)
+
+		digitalIOPowerDomain = package.AddPowerDomain(
+			powerDomainName='Digital I/O',
+			positiveVoltage=3.3,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=13,
+			positiveRailPinName='VDDPST',
+			negativeRailPinNumber=14,
+			negativeRailPinName='VSSPST',
+			isGpioPowerDomain=True,
+			positiveRailExtraPins=[(45, 'VDDPST'), (70, 'VDDPST')],
+			negativeRailExtraPins=[(46, 'VSSPST'), (71, 'VSSPST')]
+		)
+
+		# One analog domain on the NORTH edge: the CastaliaDP die is digital-only,
+		# but the four hart-tile U-notches (top-center analog reserve, potentiostat
+		# drop-in at Virtuoso) face north — the band reserves supply + 8 pins.
+		analogPowerDomain = package.AddPowerDomain(
+			powerDomainName='Analog',
+			positiveVoltage=3.3,
+			negativeVoltage=0.0,
+			positiveRailPinNumber=76,
+			positiveRailPinName='AVDD',
+			negativeRailPinNumber=77,
+			negativeRailPinName='AVSS'
+		)
+
+		# Special pins (both bonded for the first time on a Castalia package:
+		# the QFN-44 model has no POC ball).
+		package.AddPin(packagePinNumber=1, name='RESETN', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=2, name='POC', ioType='i', powerDomain=digitalIOPowerDomain)
+
+		# North analog-reserve band: 8 uncommitted analog pads for the notch
+		# drop-in (electrode/test points; unconnected until an analog respin).
+		for _ai in range(8):
+			package.AddPin(packagePinNumber=78 + _ai, name='ARSV' + str(_ai), ioType='io', powerDomain=analogPowerDomain)
+
+		# Explicit NC balls (every remaining pin; Myshkin-QFN44 precedent).
+		for _ncp in ([23, 24, 25] + [26, 47, 48, 49, 50] + [51, 72, 73, 74, 75] + list(range(86, 101))):
+			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
+
 	else:
 		raise Exception('package model "' + model + '" is declared but not implemented')
 	return package
@@ -2491,6 +2569,17 @@ _GPIO_PKG_PINS = {
 		(1, 0): 41, (1, 1): 42, (1, 2): 43, (1, 3): 44, (1, 4): 45, (1, 5): 46, (1, 6): 47, (1, 7): 48,
 		(2, 0): None, (2, 1): 16, (2, 2): 15, (2, 3): 14, (2, 4): None, (2, 5): 13, (2, 6): 12, (2, 7): 33,
 		(3, 0): 34, (3, 1): 35, (3, 2): 36, (3, 3): 37, (3, 4): 57, (3, 5): 56, (3, 6): 24, (3, 7): 25,
+	},
+	# Stage G2 LQFP-100: the FIRST model to bond all six ports (48 GPIO).
+	# W: P0 5-12, P1 15-22 · S: P2 27-34, P3 37-44 · E: P5 52-59, P6 62-69
+	# (ascending bit -> ascending pin on every port).
+	'castalia-lqfp100': {
+		(0, 0): 5, (0, 1): 6, (0, 2): 7, (0, 3): 8, (0, 4): 9, (0, 5): 10, (0, 6): 11, (0, 7): 12,
+		(1, 0): 15, (1, 1): 16, (1, 2): 17, (1, 3): 18, (1, 4): 19, (1, 5): 20, (1, 6): 21, (1, 7): 22,
+		(2, 0): 27, (2, 1): 28, (2, 2): 29, (2, 3): 30, (2, 4): 31, (2, 5): 32, (2, 6): 33, (2, 7): 34,
+		(3, 0): 37, (3, 1): 38, (3, 2): 39, (3, 3): 40, (3, 4): 41, (3, 5): 42, (3, 6): 43, (3, 7): 44,
+		(4, 0): 52, (4, 1): 53, (4, 2): 54, (4, 3): 55, (4, 4): 56, (4, 5): 57, (4, 6): 58, (4, 7): 59,
+		(5, 0): 62, (5, 1): 63, (5, 2): 64, (5, 3): 65, (5, 4): 66, (5, 5): 67, (5, 6): 68, (5, 7): 69,
 	},
 }
 def _gpioPkgPin(gpioIndex, bitNumber):
@@ -2556,31 +2645,32 @@ GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3
 # general-purpose I/O (funcName=''); AF1 carries the QSPI0 (P5.0-5) and I3C0
 # (P5.6/7) pin functions ONLY when those controllers are present (Hi-Z otherwise).
 # Pad names continue the numeric GPIOxx sequence (GPIO32+) to avoid colliding with
-# GPIO0's bit-4/5 pad names (LFXT/HFXT). No package pins (unbonded — the pad-ring
-# consequence of +16 pads is deferred; a new package model is a later phase).
+# GPIO0's bit-4/5 pad names (LFXT/HFXT). Package pins are MODEL-DRIVEN since G2
+# (2026-07-22): _gpioPkgPin returns None on the QFN-44/QFN-64 models (unbonded,
+# the pre-G2 behavior) and real balls on castalia-lqfp100 (E 52-59).
 GPIO4.ChangeGPIOPortSize(8)
-GPIO4.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO32', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 serial clock when QSPI present)', altFuncs=([(1, 'QSPI_SCK', 'o', 'QSPI0 serial clock (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
-GPIO4.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO33', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 chip select when QSPI present)', altFuncs=([(1, 'QSPI_CS', 'o', 'QSPI0 chip select (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
-GPIO4.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO34', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO0 when QSPI present)', altFuncs=([(1, 'QSPI_IO0', 'io', 'QSPI0 quad data 0 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
-GPIO4.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO35', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO1 when QSPI present)', altFuncs=([(1, 'QSPI_IO1', 'io', 'QSPI0 quad data 1 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
-GPIO4.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO36', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO2 when QSPI present)', altFuncs=([(1, 'QSPI_IO2', 'io', 'QSPI0 quad data 2 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
-GPIO4.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO37', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO3 when QSPI present)', altFuncs=([(1, 'QSPI_IO3', 'io', 'QSPI0 quad data 3 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=None) # AF1 gated with QSPI0
-GPIO4.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO38', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if i3cPresent else 0), description='General-purpose I/O (AF1 = I3C0 SDA, open-drain, when I3C present)', altFuncs=([(1, 'I3C_SDA', 'io', 'I3C0 serial data, open-drain (alt plane AF1)')] if i3cPresent else [])), packagePinNumber=None) # AF1 gated with I3C0; PxREN pull-up enabled at reset when I3C present
-GPIO4.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO39', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if i3cPresent else 0), description='General-purpose I/O (AF1 = I3C0 SCL, open-drain, when I3C present)', altFuncs=([(1, 'I3C_SCL', 'io', 'I3C0 serial clock, open-drain (alt plane AF1)')] if i3cPresent else [])), packagePinNumber=None) # AF1 gated with I3C0; PxREN pull-up enabled at reset when I3C present
+GPIO4.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO32', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 serial clock when QSPI present)', altFuncs=([(1, 'QSPI_SCK', 'o', 'QSPI0 serial clock (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=_gpioPkgPin(4, 0)) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO33', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 chip select when QSPI present)', altFuncs=([(1, 'QSPI_CS', 'o', 'QSPI0 chip select (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=_gpioPkgPin(4, 1)) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO34', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO0 when QSPI present)', altFuncs=([(1, 'QSPI_IO0', 'io', 'QSPI0 quad data 0 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=_gpioPkgPin(4, 2)) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO35', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO1 when QSPI present)', altFuncs=([(1, 'QSPI_IO1', 'io', 'QSPI0 quad data 1 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=_gpioPkgPin(4, 3)) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO36', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO2 when QSPI present)', altFuncs=([(1, 'QSPI_IO2', 'io', 'QSPI0 quad data 2 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=_gpioPkgPin(4, 4)) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO37', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = QSPI0 IO3 when QSPI present)', altFuncs=([(1, 'QSPI_IO3', 'io', 'QSPI0 quad data 3 (alt plane AF1)')] if qspiPresent else [])), packagePinNumber=_gpioPkgPin(4, 5)) # AF1 gated with QSPI0
+GPIO4.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO38', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if i3cPresent else 0), description='General-purpose I/O (AF1 = I3C0 SDA, open-drain, when I3C present)', altFuncs=([(1, 'I3C_SDA', 'io', 'I3C0 serial data, open-drain (alt plane AF1)')] if i3cPresent else [])), packagePinNumber=_gpioPkgPin(4, 6)) # AF1 gated with I3C0; PxREN pull-up enabled at reset when I3C present
+GPIO4.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO39', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if i3cPresent else 0), description='General-purpose I/O (AF1 = I3C0 SCL, open-drain, when I3C present)', altFuncs=([(1, 'I3C_SCL', 'io', 'I3C0 serial clock, open-drain (alt plane AF1)')] if i3cPresent else [])), packagePinNumber=_gpioPkgPin(4, 7)) # AF1 gated with I3C0; PxREN pull-up enabled at reset when I3C present
 
 # GPIO5 (P6.0-P6.7) — digperiphs Mission B. AF1 carries the NFC0 off-die digital-AFE
 # interface (P6.0-5) when NFC is present; P6.6/7 are always spare plain GPIO. P6.0's
 # reset AFS selects AF1 (RstValP6AFS below) so the off-die rf_clk arrives without a
-# runtime mux switch (D5). Unbonded, like GPIO4.
+# runtime mux switch (D5). Package pins model-driven like GPIO4 (LQFP-100: E 62-69).
 GPIO5.ChangeGPIOPortSize(8)
-GPIO5.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO40', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 off-die carrier clock input when NFC present)', altFuncs=([(1, 'NFC_RF_CLK', 'i', 'NFC0 off-die RF carrier clock (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0; reset AFS = AF1 (D5)
-GPIO5.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO41', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 RX envelope input when NFC present)', altFuncs=([(1, 'NFC_RF_RX', 'i', 'NFC0 off-die RX Miller envelope (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO42', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 field-detect input when NFC present)', altFuncs=([(1, 'NFC_FIELD_DETECT', 'i', 'NFC0 off-die RF field detect (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO43', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX modulation output when NFC present)', altFuncs=([(1, 'NFC_RF_TXMOD', 'o', 'NFC0 off-die TX load modulation (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO44', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX enable output when NFC present)', altFuncs=([(1, 'NFC_RF_TX_EN', 'o', 'NFC0 off-die TX enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO45', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 AFE enable output when NFC present)', altFuncs=([(1, 'NFC_AFE_EN', 'o', 'NFC0 off-die AFE enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=None) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if onewirePresent else 0), description=('General-purpose I/O (AF1 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else 'General-purpose I/O (spare)'), altFuncs=([(1, 'OW_DQ', 'io', 'OneWire DQ, open-drain (alt plane AF1)')] if onewirePresent else [])), packagePinNumber=None) # digperiphs #5: AF1 gated with OneWire (the I3C0 P5.6/7 pad mechanism); PxREN pull-up enabled at reset when OneWire present, else spare plain GPIO
-GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=None) # spare plain GPIO
+GPIO5.AddGpio(GpioConfigurator(bitNumber=0, primaryName='GPIO40', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 off-die carrier clock input when NFC present)', altFuncs=([(1, 'NFC_RF_CLK', 'i', 'NFC0 off-die RF carrier clock (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 0)) # AF1 gated with NFC0; reset AFS = AF1 (D5)
+GPIO5.AddGpio(GpioConfigurator(bitNumber=1, primaryName='GPIO41', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 RX envelope input when NFC present)', altFuncs=([(1, 'NFC_RF_RX', 'i', 'NFC0 off-die RX Miller envelope (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 1)) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO42', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 field-detect input when NFC present)', altFuncs=([(1, 'NFC_FIELD_DETECT', 'i', 'NFC0 off-die RF field detect (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 2)) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO43', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX modulation output when NFC present)', altFuncs=([(1, 'NFC_RF_TXMOD', 'o', 'NFC0 off-die TX load modulation (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 3)) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO44', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX enable output when NFC present)', altFuncs=([(1, 'NFC_RF_TX_EN', 'o', 'NFC0 off-die TX enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 4)) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO45', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 AFE enable output when NFC present)', altFuncs=([(1, 'NFC_AFE_EN', 'o', 'NFC0 off-die AFE enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 5)) # AF1 gated with NFC0
+GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if onewirePresent else 0), description=('General-purpose I/O (AF1 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else 'General-purpose I/O (spare)'), altFuncs=([(1, 'OW_DQ', 'io', 'OneWire DQ, open-drain (alt plane AF1)')] if onewirePresent else [])), packagePinNumber=_gpioPkgPin(5, 6)) # digperiphs #5: AF1 gated with OneWire (the I3C0 P5.6/7 pad mechanism); PxREN pull-up enabled at reset when OneWire present, else spare plain GPIO
+GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=_gpioPkgPin(5, 7)) # spare plain GPIO
 
 
 # --- GPIO alternate-function output-spread (v1): fill AF planes AF1..AF7 with the
@@ -3297,7 +3387,7 @@ def _padRingForModel(_model):
 	if _model == packageModel:
 		return m.PadRing	# the authoritative, already-built + side-assigned ring
 	_pkg = _buildPackageData(_model)
-	for _gp in (GPIO0, GPIO1, GPIO2, GPIO3):
+	for _gp in (GPIO0, GPIO1, GPIO2, GPIO3, GPIO4, GPIO5):	# G2: all six ports (P5/P6 bond on castalia-lqfp100; QFN models return None = skip)
 		_gi = int(_gp.Name[len('GPIO'):])
 		for _gpio in _gp.Pins:
 			_num = _GPIO_PKG_PINS[_model].get((_gi, _gpio.BitNumber))
