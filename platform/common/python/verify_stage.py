@@ -93,6 +93,13 @@ CATALOG = [
     T('rv32ui-p-wpwm', 'pwm', True),
     T('rv32ui-p-wow', 'onewire', True),
     T('rv32ui-p-wdma', 'dma', True),
+    # digperiphs (I2CT): wi2ct proves I2CT0 (hardware-autonomous I2C target) inside
+    # the full MCU via an I2C0-as-host loopback on the shared SDA0/SCL0 pads; it
+    # hardcodes the FROZEN vectors 122 (I2CT0_AE) / 123 (I2CT0_DATA). Gated by the
+    # 'i2ctarget' knob so it appears ONLY where I2CT0 is instantiated. The test .S is
+    # written by a later stage -- this CATALOG row is inert at make-chip time (tags only
+    # matter when `make verify` selects/stages tests) and tolerates a not-yet-built test.
+    T('rv32ui-p-wi2ct', 'i2ctarget', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
@@ -200,7 +207,7 @@ def config_tags(cfg):
         tags.add('dma')
     # digperiphs Stage E: firmware smoke companions gated by their peripheral
     # knob (wrtc/wpwm/wow join only the config(s) that instantiate the block).
-    for knob in ('rtc', 'pwm', 'onewire'):
+    for knob in ('rtc', 'pwm', 'onewire', 'i2ctarget'):
         if cfg.get('peripherals', {}).get(knob):
             tags.add(knob)
     if int(cfg['numHarts']) >= 2:

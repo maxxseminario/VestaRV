@@ -51,7 +51,8 @@
     "pwm": false,
     "onewire": false,
     "dma": false,
-    "dmaChannels": 4
+    "dmaChannels": 4,
+    "i2ctarget": false
   },
   "package": {
     "model": "myshkin-qfn44",

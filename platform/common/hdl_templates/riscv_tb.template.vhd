@@ -565,6 +565,15 @@ end component;
         prt4(i) <=  gpio3_drv_sig(i) when gpio3_oe_sig(i) = '1' and (gpio2_test = '1') else 'Z';
     end generate;
 
+    -- I2CT0 loopback (wi2ct): weak 'H' pull-ups on the shared I2C0 home pads
+    -- P4.0 (SDA0) and P4.1 (SCL0) so the open-drain bus idles high, mirroring a
+    -- board's I2C pull-ups. Weak 'H' resolves against the DUT's open-drain
+    -- strong '0' lows; the Verilog pad model's buf() normalizes the weak-high to
+    -- a clean '1' at the MCU input. P4.0/P4.1 only -- every other pad/test is
+    -- untouched (afsel drives P4.0 as a strong GPIO output, which overrides 'H').
+    prt4(0) <= 'H';
+    prt4(1) <= 'H';
+
     -- Main test sequence
     test_sequence: process
         variable file_exists : boolean;

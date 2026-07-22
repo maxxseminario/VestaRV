@@ -141,6 +141,8 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.dmaChannels': ('int — DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4',
 	                         lambda v: _isInt(v) and v in (2, 4)),
+	'peripherals.i2ctarget': ('bool — True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 are always-False DP-SG placeholders (npu-thinkdone / TRNG, not yet landed — irq_budget_phase0.md) that backfill as IRQB_RSVD120/121, so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false',
+	                         _isBool),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -210,6 +212,7 @@ _CONFIG_META = {
 	'peripherals.onewire':  {'type': 'bool', 'default': False},
 	'peripherals.dma':      {'type': 'bool', 'default': False},
 	'peripherals.dmaChannels': {'type': 'int', 'default': 4, 'min': 2, 'max': 4, 'step': 2},
+	'peripherals.i2ctarget': {'type': 'bool', 'default': False},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -451,6 +454,25 @@ onewirePresent = _cfg('peripherals.onewire', False)
 dmaPresent = _cfg('peripherals.dma', False)
 dmaChannels = _cfg('peripherals.dmaChannels', 4)
 
+# digperiphs (I2CT, 2026-07-22): the I2CT0 hardware-autonomous I2C TARGET (slave)
+# claims page-2 (the MUTEX page) SUB-SLOT 10 @0x6A00, joining the
+# I3C/NFC/GPIO4/GPIO5/RTC0/PWM0/OW0/DMA0 carve. 7-bit address match + mask + general
+# call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching,
+# START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the
+# free-running MCLK domain (D4-xcollapse-clean like RTC/PWM/OW: a plain raw-strobe
+# active-low shim, neither combinationalRead NOR in CAPTURE_CLOCK; 2-FF SDA/SCL sync,
+# no pad-clocked processes). NO new pins: I2CT0 SHARES I2C0's SDA0/SCL0 pad planes via
+# an open-drain wired-AND DIR merge (the one shared-RTL edit, done separately). Enabling
+# I2CT0 extends the IRQ source list per the GLOBAL VECTOR RULE (A5, the library-tail
+# machinery below): vectors 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/
+# rx-full). Vectors 120/121 are ALWAYS-FALSE placeholder rows (npu-thinkdone / TRNG)
+# reserving those slots for the not-yet-landed DP-SG blocks (irq_budget_phase0.md), so
+# 122/123 hold under the frozen-numbering rule and backfill as IRQB_RSVD120/121 when
+# I2CT0 is the highest enabled block. NUM_EN_WORDS stays 4 (124 <= 128). Default FALSE —
+# the default emission (no page-2 sub-slot 10, no MmrAddrI2CT0, no vectors 122/123, merged
+# planes at their golden-master text) is byte-identical.
+i2ctargetPresent = _cfg('peripherals.i2ctarget', False)
+
 # ===========================================================================
 # digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
 # Beyond the 114 UNCONDITIONAL vectors (0-113: legacy + CLINT + meip placeholder +
@@ -469,6 +491,12 @@ _LIBRARY_TAIL_SPEC = [
 	('pwm', pwmPresent, 2),   # vectors 115, 116  (PWM0_FAULT, PWM0_EVT)
 	('onewire', onewirePresent, 1),  # vector 117  (OW0 combined TC/error)
 	('dma', dmaPresent, 2),   # vectors 118, 119  (DMA0_DONE, DMA0_ERR)
+	# DP-SG PLACEHOLDERS (always-False): reserve vectors 120/121 for the not-yet-landed
+	# scatter-gather blocks (npu-thinkdone / TRNG) so I2CT0 holds 122/123 under the
+	# frozen-numbering rule. See ~/vesta_docs/digperiphs/irq_budget_phase0.md §1.
+	('npu_thinkdone', False, 1),  # vector 120  (PLACEHOLDER — DP-SG, not yet landed)
+	('trng', False, 1),           # vector 121  (PLACEHOLDER — DP-SG, not yet landed)
+	('i2ctarget', i2ctargetPresent, 2),  # vectors 122, 123  (I2CT0_AE, I2CT0_DATA)
 ]
 def _libraryTailVectorsCount():
 	'''Total vector count = 114 + (last vector of the highest enabled tail block).
@@ -2056,6 +2084,65 @@ if onewirePresent:
 	ow.AddRegisterTemplate(r)
 	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
 
+# digperiphs (2026-07-22): I2CT0 register template (design doc D5 bit maps, 5 live word
+# slots @0x6A00: I2CTCR / I2CTSR / I2CTTX / I2CTRX / I2CTWDG). Added only when
+# i2ctargetPresent CreatePeripheral()s it; with I2CT0 off it is never instanced
+# (byte-identical default). Registered read on rising ClkMem (D4 — no bridge, no
+# CAPTURE_CLOCK; the plain raw-strobe active-low en shim, RTC/PWM/OW precedent). W1C
+# status flags, BUSY same-cycle status rule where applicable, RSVD reads 0 (slots >=5
+# read 0). bitFieldPrefix I2CT.
+if i2ctargetPresent:
+	i2ct = PeripheralTemplate(nameTemplate='I2CTx', description='Hardware-Autonomous I2C Target: an I2C slave engine that handles the protocol in hardware — 7-bit address match with a wildcard mask and optional general-call response, byte-at-a-time receive and transmit with ready/empty status, hardware clock stretching for lossless flow control, START / STOP / repeated-START / NACK framing detection, and a configurable stuck-SCL watchdog. The whole engine — the two-flop SDA/SCL synchronizers, the edge/framing detectors, the address matcher, the RX/TX byte paths, the clock-stretch driver, the sticky write-1-to-clear status flags, and the two interrupt combiners — rides the free-running MCLK, so its timing is immune to clock reconfiguration and unlike the SMCLK I2C0/I2C1 cores a driver need not write SYS_CLK_CR to 0 for the target itself. Two combined interrupts are delivered on the router: vector 122 (address/error) and vector 123 (tx-ready/rx-full). It is complementary to the software-serviced slave-mode registers of I2C0/I2C1: I2CT0 shares the same open-drain SDA0/SCL0 pads through a wired-AND merge and needs no per-byte firmware bit-banging. The guaranteed bus-speed floor is f_SCL <= MCLK/24 (Standard 100 kHz and Fast 400 kHz at 24 MHz MCLK).', registerPrefix='I2CTx', bitFieldPrefix='I2CT', latexIntroFileName='I2CT-intro-castalia-2026-07.tex', latexFeatureSummary='{count} hardware-autonomous I2C target (7-bit address match + mask + general call, hardware clock stretching, START/STOP framing flags, single-byte RX/TX with ready/empty status, stuck-SCL watchdog, 2 combined IRQs)')
+	m.AddPeripheralTemplate(i2ct)
+
+	# I2CTCR (slot 0) -- control (reset 0)
+	r = RegisterTemplate(nameTemplate='I2CTxCR', registerMemorySlot=0, description='I2C target control register. Enables the target (EN), the general-call response (GCEN), and hardware clock stretching (CSEN); holds the two interrupt enables (AEIE for the address/error IRQ at vector 122, DATAIE for the tx-ready/rx-full IRQ at vector 123); and carries the 7-bit target address (SAD) with a per-bit wildcard mask (SADM, a 1 makes that address bit dont-care). Resets to 0 (target idle, SDA/SCL released).', size=32)
+	i2ct.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I2CTEN', msb=0, accessibility='rw', description='Target enable. When 0 the FSM is held idle with SDA/SCL released; the received byte and the status flags are preserved. Set to 1 to respond on the bus.', valueDescriptions=[(0b0, 'Disabled (FSM idle, bus released)'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='I2CTGCEN', msb=1, accessibility='rw', description='General-call enable. When set, the target also matches the general-call address (0x00, write direction) and sets GCF alongside AMF.', valueDescriptions=[(0b0, 'General call ignored'), (0b1, 'General call answered')]))
+	r.AddBitField(BitField(name='I2CTCSEN', msb=2, accessibility='rw', description='Clock-stretch enable. When set, the target holds SCL low after an ACK until firmware services the transfer (reads I2CTRX / writes I2CTTX) — lossless flow control. When 0 the target never stretches; firmware must service within one bit-time or accept an RX overrun / a stale 0xFF transmit byte.', valueDescriptions=[(0b0, 'No clock stretching'), (0b1, 'Clock stretching enabled')]))
+	r.AddBitField(BitField(name='I2CTAEIE', msb=3, accessibility='rw', description='Address/error interrupt enable. When set, the OR of the address/error status flags (AMF, GCF, OVF, NACKF, STOPF, RSTARTF, ERRF) drives the combined interrupt at vector 122.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='I2CTDATAIE', msb=4, accessibility='rw', description='Data interrupt enable. When set, the OR of RXF and TXE drives the combined interrupt at vector 123.', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=7, lsb=5, unused=True))
+	r.AddBitField(BitField(name='I2CTSAD', msb=14, lsb=8, accessibility='rw', description='7-bit target address matched against the incoming address byte (masked by SADM).'))
+	r.AddBitField(BitField(msb=15, lsb=15, unused=True))
+	r.AddBitField(BitField(name='I2CTSADM', msb=22, lsb=16, accessibility='rw', description='Address match mask: a 1 in a bit position makes the corresponding SAD address bit a wildcard (dont-care) during the match.'))
+	r.AddBitField(BitField(msb=31, lsb=23, unused=True))
+
+	# I2CTSR (slot 1) -- status (BUSY/TM/TXE read-only + W1C event flags, D5)
+	r = RegisterTemplate(nameTemplate='I2CTxSR', registerMemorySlot=1, description='I2C target status register. BUSY, TM and TXE are read-only levels; AMF, GCF, RXF, OVF, NACKF, STOPF, RSTARTF and ERRF are sticky write-1-to-clear event flags (write a 1 to a bit to clear it; writing 0 leaves it unchanged; never cleared by a read; a set arriving the same cycle as a clear survives). The address/error interrupt (vector 122) is (AMF or GCF or OVF or NACKF or STOPF or RSTARTF or ERRF) and AEIE; the data interrupt (vector 123) is (RXF or TXE) and DATAIE.', size=32)
+	i2ct.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I2CTBUSY', msb=0, accessibility='r', description='Bus busy: set on START, cleared on STOP or a watchdog abort. Distinguishes an initial START from a repeated-START.', valueDescriptions=[(0b0, 'Bus idle'), (0b1, 'Transaction in progress')]))
+	r.AddBitField(BitField(name='I2CTTM', msb=1, accessibility='r', description='Transfer direction (latched R/W from the matched address). 1 = target-transmitter (host read); 0 = target-receiver (host write).', valueDescriptions=[(0b0, 'Target-receiver (host write)'), (0b1, 'Target-transmitter (host read)')]))
+	r.AddBitField(BitField(name='I2CTAMF', msb=2, accessibility='rw1', description='Address-match flag: our address (masked) matched this transaction. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Address matched')]))
+	r.AddBitField(BitField(name='I2CTGCF', msb=3, accessibility='rw1', description='General-call flag: the general-call address matched (set alongside AMF when GCEN is set). Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'General call matched')]))
+	r.AddBitField(BitField(name='I2CTRXF', msb=4, accessibility='rw1', description='Receive-full flag: a received byte is available in I2CTRX. Read I2CTRX (side-effect-free) then write 1 here to free the buffer. Write 1 to clear.', valueDescriptions=[(0b0, 'Buffer empty'), (0b1, 'Byte available')]))
+	r.AddBitField(BitField(name='I2CTTXE', msb=5, accessibility='r', description='Transmit-empty level: asserted while the target is in transmit mode and needs the next byte loaded into I2CTTX. Reads clear (0) in the same cycle as the I2CTTX write that loads a byte (BUSY-same-cycle rule).', valueDescriptions=[(0b0, 'Byte loaded / not transmitting'), (0b1, 'Load I2CTTX')]))
+	r.AddBitField(BitField(name='I2CTOVF', msb=6, accessibility='rw1', description='Receive-overrun flag: a byte arrived while RXF was still set (previous byte unread); the target auto-NACKed and dropped the byte. Write 1 to clear.', valueDescriptions=[(0b0, 'No overrun'), (0b1, 'RX overrun')]))
+	r.AddBitField(BitField(name='I2CTNACKF', msb=7, accessibility='rw1', description='NACK flag: the host NACKed a transmitted byte (normal read termination), or the target auto-NACKed a received byte on overrun (disambiguate with TM/OVF). Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'NACK handshake')]))
+	r.AddBitField(BitField(name='I2CTSTOPF', msb=8, accessibility='rw1', description='STOP flag: a STOP condition was detected. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'STOP detected')]))
+	r.AddBitField(BitField(name='I2CTRSTARTF', msb=9, accessibility='rw1', description='Repeated-START flag: a repeated-START was detected (START while BUSY); the target re-enters the address phase without dropping BUSY. Write 1 to clear.', valueDescriptions=[(0b0, 'No event'), (0b1, 'Repeated-START detected')]))
+	r.AddBitField(BitField(name='I2CTERRF', msb=10, accessibility='rw1', description='Error flag: a protocol error or the SCL-low watchdog timeout (I2CTWDG). On expiry the transaction is aborted and BUSY drops. Write 1 to clear.', valueDescriptions=[(0b0, 'No error'), (0b1, 'Protocol error / watchdog timeout')]))
+	r.AddBitField(BitField(msb=31, lsb=11, unused=True))
+
+	# I2CTTX (slot 2) -- transmit byte (a lane-0 write loads the buffer, clears TXE, D10)
+	r = RegisterTemplate(nameTemplate='I2CTxTX', registerMemorySlot=2, description='Transmit byte buffer. A byte-lane-0 write loads the next transmit byte and clears TXE (the loaded byte is shifted out MSB-first on the next host read). Reads back the last-written value.', size=32)
+	i2ct.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I2CTTX', msb=7, lsb=0, accessibility='rw', description='Next transmit byte (0 to 255).'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# I2CTRX (slot 3) -- received byte (read-only, side-effect-free, D9)
+	r = RegisterTemplate(nameTemplate='I2CTxRX', registerMemorySlot=3, description='Last received byte (read-only, side-effect-free, D9): the most recent host-written byte, valid while RXF is set. A read never clears RXF (write 1 to I2CTSR.RXF to free the buffer). Reset 0.', size=32)
+	i2ct.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I2CTRX', msb=7, lsb=0, accessibility='r', description='Received byte.'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# I2CTWDG (slot 4) -- SCL-low watchdog timeout (0 = disabled, D13)
+	r = RegisterTemplate(nameTemplate='I2CTxWDG', registerMemorySlot=4, description='SCL-low watchdog timeout. A counter increments while SCL is held low and the bus is busy; on reaching WDTO x 256 MCLK cycles it sets ERRF, aborts the transaction and drops BUSY. WDTO = 0 disables the watchdog (the reset value, so the default is off — identity-safe). The counter resets on every SCL rising edge and when not busy, so a healthy idle bus never trips it.', size=32)
+	i2ct.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='I2CTWDTO', msb=15, lsb=0, accessibility='rw', description='SCL-low watchdog timeout in units of 256 MCLK cycles (0 to 65535); 0 disables the watchdog.'))
+	r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+
 # digperiphs #6 (2026-07-21): DMA0 register template (design doc D5 bit maps, the
 # 4-channel SUPERSET: 20 word slots @0x6800 -- global CR/SR, four fixed-stride
 # per-channel {SRC,DST,LEN,CFG} blocks, DMA0CRC, reserved DMA0DESC). Added only when
@@ -2255,6 +2342,22 @@ if onewirePresent:
 	# NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4): a plain raw-strobe active-
 	# low en shim (ow0_sh_en_n <= not shslv_ow0_en), no falling_edge(EnMemPeriph) pre-latch.
 	m.CreatePeripheral(nameTemplate='OWx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=117, absoluteBaseAddress=0x6700, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 7; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the 1-Wire); DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1)')	# OW0 (digperiphs #5). native page-2 sub-slot 7; mcu_vhd hand-emits the raw-strobe shim + OneWire instance + P6.6 AF1 DQ routing
+if i2ctargetPresent:
+	# digperiphs (I2CT): I2CT0 at 0x6A00 = MUTEX page (page 2) SUB-SLOT 10. Same page-2
+	# native shape as I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0/OW0/DMA0 (sharedBus='native' =
+	# "outside the page-0 shim fabric"; the mutex-bank decode is already tightened to
+	# sub-slot 0 whenever any page-2 sub-slot device is present). This CreatePeripheral
+	# exists for the register map, TRM chapter, address table, and the vector-122 interrupt-
+	# table entry (interruptPriority=122 = the FIRST of I2CT0's two frozen vectors, 122/123).
+	# clockDomain='mclk' names BOTH the bus clock (ClkMem) AND the free-running engine clock
+	# (clk => mclk, D1/D2 — the whole target FSM / SDA/SCL 2-FF sync / flags / watchdog / IRQ
+	# combiners on MCLK). NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4): a plain
+	# raw-strobe active-low en shim (i2ct0_sh_en_n <= not shslv_i2ct0_en), no
+	# falling_edge(EnMemPeriph) pre-latch. NO new pins — I2CT0 shares I2C0's SDA0/SCL0 pad
+	# planes via a wired-AND DIR merge (emitted separately); the RTL (sub-slot 10 decode +
+	# raw-strobe shim + the I2CTarget instance + SDA_IN/SCL_IN fanout + the new i2ct0_*_dir
+	# scalars) is hand-emitted by mcu_vhd.py under geo['i2ctarget'].
+	m.CreatePeripheral(nameTemplate='I2CTx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=122, absoluteBaseAddress=0x6A00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 10; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (whole target FSM + SDA/SCL 2-FF sync + flags + watchdog + IRQ on MCLK); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the target); shares I2C0 SDA0/SCL0 pads via a wired-AND DIR merge, no new pins')	# I2CT0 (digperiphs I2CT). native page-2 sub-slot 10; mcu_vhd hand-emits the raw-strobe shim + I2CTarget instance + SDA/SCL fanout + i2ct0_*_dir scalars
 if dmaPresent:
 	# digperiphs #6: DMA0 at 0x6800 = MUTEX page (page 2) SUB-SLOT 8. Same page-2
 	# native SLAVE shape as I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0/OW0 (sharedBus='native' =
@@ -2942,6 +3045,14 @@ _libraryTailEmit = [
 	(onewirePresent, [('IRQB_OW0', 'OW0 1-Wire combined transaction-complete/error Interrupt')]),
 	(dmaPresent, [('IRQB_DMA0_DONE', 'DMA0 combined channels-done Interrupt'),
 		('IRQB_DMA0_ERR', 'DMA0 error (deny/LEN0/misalign/out-of-window) Interrupt')]),
+	# DP-SG PLACEHOLDERS (always-False; kept in lockstep with _LIBRARY_TAIL_SPEC): vectors
+	# 120/121 backfill as IRQB_RSVD120/121 whenever a higher block (I2CT0) is enabled, so
+	# I2CT0 keeps 122/123 under the frozen-numbering rule (irq_budget_phase0.md §1). The
+	# names below are used only to build the RSVD description suffix.
+	(False, [('IRQB_NPU_THINKDONE', 'NPU think-done (DP-SG, not yet landed) Interrupt')]),
+	(False, [('IRQB_TRNG', 'TRNG (DP-SG, not yet landed) Interrupt')]),
+	(i2ctargetPresent, [('IRQB_I2CT0_AE', 'I2CT0 combined address-match/error Interrupt'),
+		('IRQB_I2CT0_DATA', 'I2CT0 combined tx-ready/rx-full Interrupt')]),
 ]
 _tailHigh = _libraryTailVectorsCount()	# vector count including the tail high-water mark
 _v = _LIB_TAIL_BASE
@@ -3001,6 +3112,8 @@ if onewirePresent:
 	_mcuMpIrqFirstVector['OW0'] = 'IRQB_OW0'	# vector 117 (interruptPriority 117; single combined TC/error source)
 if dmaPresent:
 	_mcuMpIrqFirstVector['DMA0'] = 'IRQB_DMA0_DONE'	# vectors 118-119 (interruptPriority 118; done at the lower id, err at 119)
+if i2ctargetPresent:
+	_mcuMpIrqFirstVector['I2CT0'] = 'IRQB_I2CT0_AE'	# vectors 122-123 (interruptPriority 122; AE=address/error at the lower id, DATA=tx-ready/rx-full at 123)
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -3170,6 +3283,7 @@ m.McuMpGeometry = {
 	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P6.6/GPIO46 AF1 open-drain, vector 117, source list grows to 118 (A5 global vector rule)
 	'dma': dmaPresent,          # digperiphs #6: True = DMA0 in MUTEX-page sub-slot 8 (0x6800) + the FIRST new arbiter MASTER; raw-strobe slave shim, vectors 118/119, source list grows to 119, and the arbiter N=4->5 / MW=3 / sh_master 2->3 FABRIC WIDENING (the one shared-RTL touch)
 	'dmaChannels': dmaChannels, # digperiphs #6: DMA0 NCH generic {2,4} (consulted only when dma); the 4-channel register superset is emitted regardless
+	'i2ctarget': i2ctargetPresent,  # digperiphs (I2CT): True = I2CT0 hardware-autonomous I2C target in MUTEX-page sub-slot 10 (0x6A00); raw-strobe shim, shares I2C0 SDA0/SCL0 pads (wired-AND DIR merge, emitted separately), vectors 122/123, source list grows to 124 (A5 global vector rule, with 120/121 always-RSVD DP-SG placeholders)
 }
 
 
@@ -3274,7 +3388,7 @@ _resolvedConfig = [
 		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
 		('onewire', onewirePresent), ('dma', dmaPresent),
-		('dmaChannels', dmaChannels)]),
+		('dmaChannels', dmaChannels), ('i2ctarget', i2ctargetPresent)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),
