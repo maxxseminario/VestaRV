@@ -1,0 +1,6 @@
+.venv/
+tools/
+env.sh
+isa/work/
+*.vcd
+__pycache__/
