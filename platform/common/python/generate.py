@@ -1354,7 +1354,9 @@ if npuPresent:
 r = RegisterTemplate(nameTemplate='NPUCR', registerMemorySlot=0, description='NPU control register', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(msb=31, lsb=20, unused=True))
+r.AddBitField(BitField(msb=31, lsb=26, unused=True))
+r.AddBitField(BitField(name='NPUACTF', msb=25, lsb=23, description='Post-accumulator activation function select, effective when NPUAEN = 1 (P4 architecture family). 0 = logistic sigmoid approximation (the legacy activation; reset default). Codes 1-7 are reserved in this revision and behave as 0 (sigmoid).', accessibility='rw'))
+r.AddBitField(BitField(name='NPUMODE', msb=22, lsb=20, description='Datapath mode select for the NPU architecture family (P4). 0 = multilayer-perceptron mode (the legacy datapath; reset default). 1 = one-dimensional convolution mode. Codes 2 (XNOR-popcount) and 3 (GEMM) are reserved for future family modes; codes 4-7 are reserved. Reserved and unimplemented codes behave as mode 0.', accessibility='rw'))
 r.AddBitField(BitField(name='NPUTDIE', msb=19, description='Think-done interrupt enable. When set, NPUSR.THINKDONE drives the NPU think-done interrupt (vector 120). When cleared (reset default) the NPU is polling-only, exactly as before the interrupt existed.', accessibility='rw', valueDescriptions=[(0b0, 'Interrupt disabled (polling only)'), (0b1, 'Interrupt enabled')]))
 r.AddBitField(BitField(name='NPUBEN', msb=18, description='Bias enable. When set, the first weight of each output neuron\'s row in the weight matrix is used as a bias term: it is multiplied by an implicit input of 1.0 and accumulated before the synaptic weights.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(name='NPUAEN', msb=17, description='Activation function enable. When set, the logistic sigmoid approximation activation function is applied to the accumulator output. When cleared, the raw accumulator output is used (linear/identity).', accessibility='rw', valueDescriptions=[(0b0, 'Disabled (linear output)'), (0b1, 'Enabled (logistic sigmoid approximation)')]))
@@ -1389,6 +1391,20 @@ p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=1, unused=True))
 r.AddBitField(BitField(name='NPUTHINKDONE', msb=0, accessibility='rw1', description='Think-done flag. Set once per computation, when the NPU finishes (the same event that self-clears NPUCR.NPUTHINK); sticky. Drives the think-done interrupt (vector 120) when NPUCR.NPUTDIE is set. Write 1 to clear. On a same-cycle collision between a completing computation and a write-1-to-clear, the set wins (a completion is never lost).', valueDescriptions=[(0b0, 'No completed computation pending'), (0b1, 'A computation has completed')]))
+
+# NPUCFG1/NPUCFG2 (P4.1 architecture family, npu_family_spec.md 2026-07-23):
+# per-mode configuration words behind the 4-bit MMR decode; word offsets 7-15
+# are reserved and read 0 (no storage until a future mode claims them).
+r = RegisterTemplate(nameTemplate='NPUCFG1', registerMemorySlot=5, description='NPU mode configuration word 1. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 3:0 = stride S (1-15), bits 7:4 = dilation D (1-15), bits 23:8 = input length L per channel in samples, bits 31:24 = number of input channels minus 1 (the actual channel count Cin is this field + 1). Reserved future modes assign their own interpretation (XNOR-popcount: signed 32-bit firing threshold).', size=32)
+p.AddRegisterTemplate(r)
+
+r.AddBitField(BitField(name='NPUCFG1', msb=31, lsb=0, description='Per-mode configuration word 1 (interpretation selected by NPUCR.NPUMODE)', accessibility='rw'))
+
+r = RegisterTemplate(nameTemplate='NPUCFG2', registerMemorySlot=6, description='NPU mode configuration word 2. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 15:0 = output length Lout per filter in samples. Lout is computed by the host (the sequencer trusts this value; the valid/same padding convention is a firmware decision) and every referenced input sample index j*S + k*D must be less than L. Bits 31:16 are reserved and read 0.', size=32)
+p.AddRegisterTemplate(r)
+
+r.AddBitField(BitField(msb=31, lsb=16, unused=True))
+r.AddBitField(BitField(name='NPUCFG2', msb=15, lsb=0, description='Per-mode configuration word 2 (interpretation selected by NPUCR.NPUMODE)', accessibility='rw'))
 
 
 
@@ -3021,6 +3037,8 @@ _mcuMpNpuMmrAddr = [
 	('MmrAddrNPUWVSAR', 'NPUWVSAR'),
 	('MmrAddrNPUOVSAR', 'NPUOVSAR'),
 	('MmrAddrNPUSR', 'NPUSR'),	# DP-SG think-done rider (slot 4)
+	('MmrAddrNPUCFG1', 'NPUCFG1'),	# P4.1 family per-mode config (slot 5)
+	('MmrAddrNPUCFG2', 'NPUCFG2'),	# P4.1 family per-mode config (slot 6)
 ]
 
 # Per-vector interrupt names (IRQB_*), copied verbatim from the RTL. List index = vector

@@ -1013,6 +1013,8 @@ package MemoryMap is
 	constant MmrAddrNPUWVSAR		: natural := 02;						-- offset = 8 bytes
 	constant MmrAddrNPUOVSAR		: natural := 03;						-- offset = 12 bytes
 	constant MmrAddrNPUSR			: natural := 04;						-- offset = 16 bytes
+	constant MmrAddrNPUCFG1			: natural := 05;						-- offset = 20 bytes
+	constant MmrAddrNPUCFG2			: natural := 06;						-- offset = 24 bytes
 
 	-- Interrupt Bit Assignments (per-vector; names from hdl/common/MemoryMap.vhd)
 	constant IVT_BASE_ADDR			: integer := 16#8000#;					-- IVT base address = 0x8000

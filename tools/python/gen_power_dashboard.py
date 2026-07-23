@@ -51,6 +51,8 @@ GENUS_BLOCKS = {
     "OneWire":         ("Peripherals", "OneWire (1-Wire master)"),
     "DMA_nch4":        ("Peripherals", "DMA (4-channel shape — wound config)"),
     "DMA_nch2":        ("Peripherals", "DMA (2-channel shape — castalia_dma config)"),
+    "I2CTarget":       ("Peripherals", "I2C target (hardware-autonomous slave)"),
+    "NPU":             ("Peripherals", "NPU (P4 family: MLP + CONV1D, chip generics)"),
 }
 GENUS_SKIP = {"MCU"}  # frozen Myshkin tape-out synth report
 
