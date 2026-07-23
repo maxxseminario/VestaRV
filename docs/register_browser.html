@@ -5861,7 +5861,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Datapath mode select for the NPU architecture family (P4). 0 = multilayer-perceptron mode (the legacy datapath; reset default). 1 = one-dimensional convolution mode. Codes 2 (XNOR-popcount) and 3 (GEMM) are reserved for future family modes; codes 4-7 are reserved. Reserved and unimplemented codes behave as mode 0.",
+							"Description": "Datapath mode select for the NPU architecture family (P4). 0 = multilayer-perceptron mode (the legacy datapath; reset default). 1 = one-dimensional convolution mode. 2 = XNOR-popcount binary mode (1-bit activations/weights packed 32 per word, LSB-first; NPUBEN and NPUAEN must be 0 in this mode). Code 3 (GEMM) is reserved for a future family mode; codes 4-7 are reserved. Reserved and unimplemented codes behave as mode 0.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6112,7 +6112,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 5,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "NPU mode configuration word 1. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 3:0 = stride S (1-15), bits 7:4 = dilation D (1-15), bits 23:8 = input length L per channel in samples, bits 31:24 = number of input channels minus 1 (the actual channel count Cin is this field + 1). Reserved future modes assign their own interpretation (XNOR-popcount: signed 32-bit firing threshold).",
+					"Description": "NPU mode configuration word 1. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 3:0 = stride S (1-15), bits 7:4 = dilation D (1-15), bits 23:8 = input length L per channel in samples, bits 31:24 = number of input channels minus 1 (the actual channel count Cin is this field + 1). XNOR-popcount mode (2): the full 32-bit signed firing threshold THRESH \u2014 a neuron fires (output +1.0) when 2*popcount(XNOR(activations, weights)) - K is greater than or equal to THRESH, else outputs -1.0.",
 					"BitFields": [
 						{
 							"BitFieldName": "NPUCFG1",
@@ -6133,7 +6133,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 6,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "NPU mode configuration word 2. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 15:0 = output length Lout per filter in samples. Lout is computed by the host (the sequencer trusts this value; the valid/same padding convention is a firmware decision) and every referenced input sample index j*S + k*D must be less than L. Bits 31:16 are reserved and read 0.",
+					"Description": "NPU mode configuration word 2. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 15:0 = output length Lout per filter in samples. Lout is computed by the host (the sequencer trusts this value; the valid/same padding convention is a firmware decision) and every referenced input sample index j*S + k*D must be less than L. XNOR-popcount mode (2): bits 12:0 = K, the exact input bit count (1-4096); NPUNI must hold ceil(K/32) - 1, the packed words per neuron, and when K mod 32 is nonzero the unused high bits of each last packed word are masked out of the popcount by hardware. Bits 31:16 are reserved and read 0.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",

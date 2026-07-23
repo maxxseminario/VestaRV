@@ -177,6 +177,58 @@ architecture behavioral of NPU is
 	signal conv_yptr	: unsigned(11 downto 0);				-- flat output write pointer
 	signal filter_base	: unsigned(11 downto 0);				-- current filter's weight-block base
 
+	----- P4.2 XNOR/popcount mode (npu_xnor_design.md D1-D6) -----
+	-- Addressing is byte-for-byte the as-built MLP walk (the KEY FINDING):
+	-- CurrXIndex = packed-word counter, CurrYIndex = neuron, CurrWAddr's
+	-- running +1 lands on each neuron-major weight block with no reload.
+	-- Everything below is additive-to-new-registers; the only shared-
+	-- expression edits are the NpuSramD override (D1 tp1) and the
+	-- adjudicated MacClkEn gate (D2 overrule) — both vacuously
+	-- as-built in modes 0/1.
+	constant MODE_XNOR	: std_logic_vector(2 downto 0) := "010";
+	signal xnor_aw		: std_logic_vector(31 downto 0);		-- packed activation word (GET_INPUT capture)
+	signal xnor_ww		: std_logic_vector(31 downto 0);		-- packed weight word (GET_WEIGHT capture)
+	signal thresh_run	: std_logic_vector(31 downto 0);		-- THRESH shadow (CFG1, signed)
+	signal K_run		: unsigned(12 downto 0);				-- exact K shadow (CFG2 12:0)
+	signal last_mask_run: std_logic_vector(31 downto 0);		-- tail mask for the LAST word (D3)
+	signal pop_acc		: unsigned(12 downto 0);				-- per-neuron popcount accumulator
+	signal xnor_outword	: std_logic_vector(31 downto 0);		-- +-1.0 Q7.24 result (MAC->SET_OUTPUT lifetime)
+	-- combinational cloud (D2/D3/D4)
+	signal xnor_masked	: std_logic_vector(31 downto 0);		-- tail-masked per-bit XNOR
+	signal xnor_pop6	: unsigned(5 downto 0);					-- popcount of the current word (0..32)
+	signal xnor_total	: unsigned(13 downto 0);				-- pop_acc + current word (comb, <= K)
+	signal xnor_value	: signed(31 downto 0);					-- 2*pop_total - K
+	signal xnor_fireword: std_logic_vector(31 downto 0);		-- +1.0 / -1.0 select
+	signal mlp_conv_sramd : std_logic_vector(31 downto 0);		-- the as-built NPUAEN write-data select
+
+	-- D2: plain loop-sum — Genus infers the ~6-level compressor tree.
+	function popcount32(v : std_logic_vector(31 downto 0)) return unsigned is
+		variable a : unsigned(5 downto 0);
+	begin
+		a := (others => '0');
+		for i in v'range loop
+			if v(i) = '1' then a := a + 1; end if;
+		end loop;
+		return a;
+	end popcount32;
+
+	-- D3: tail mask from K mod 32 (CFG2 4:0). Kmod=0 = a 32-aligned last
+	-- word, every bit real -> all-ones; else only the low Kmod bits count.
+	function tail_mask(kmod : std_logic_vector(4 downto 0)) return std_logic_vector is
+		variable m : std_logic_vector(31 downto 0);
+		variable n : integer;
+	begin
+		n := to_integer(unsigned(kmod));
+		if n = 0 then
+			m := (others => '1');
+		else
+			for i in 0 to 31 loop
+				if i < n then m(i) := '1'; else m(i) := '0'; end if;
+			end loop;
+		end if;
+		return m;
+	end tail_mask;
+
 begin
 
 	----------------------------------------------
@@ -321,6 +373,14 @@ begin
 			jS			<= (others => '0');
 			conv_yptr	<= (others => '0');
 			filter_base	<= (others => '0');
+			-- P4.2: XNOR shadows/registers all reset (X-collapse discipline)
+			xnor_aw		<= (others => '0');
+			xnor_ww		<= (others => '0');
+			thresh_run	<= (others => '0');
+			K_run		<= (others => '0');
+			last_mask_run <= (others => '0');
+			pop_acc		<= (others => '0');
+			xnor_outword <= (others => '0');
 		elsif (rising_edge(NpuClk)) then	-- Rising-Edge NPU FSM
 			case NpuState is
 				when NPU_BEGIN =>
@@ -348,6 +408,11 @@ begin
 					jS			<= (others => '0');
 					conv_yptr	<= unsigned(NPUOVSAR);
 					filter_base	<= unsigned(NPUWVSAR);
+					-- P4.2 D5: XNOR run shadows (additive; dead in modes 0/1)
+					thresh_run	<= NPUCFG1;
+					K_run		<= unsigned(NPUCFG2(12 downto 0));
+					last_mask_run <= tail_mask(NPUCFG2(4 downto 0));
+					pop_acc		<= (others => '0');
 					-- D10 G3 (FROZEN): conv with Lout=0 = zero outputs,
 					-- immediate done — never hangs, never touches the RAM.
 					if ((NPUCR(22 downto 20) = MODE_CONV) and (unsigned(NPUCFG2) = 0)) then
@@ -367,6 +432,7 @@ begin
 						AccResetN	<= '1';
 						-- Get Weight From SRAM
 						CurrW		<= SramQ_in((W_M_BITS + N_BITS) downto 0);
+						xnor_ww		<= SramQ_in;	-- P4.2: full-width packed capture (additive)
 						-- Weight address will be incremented after MAC
 						-- Update State
 						if ((NPUBEN = '1') and (BiasDone = '0')) then
@@ -391,6 +457,7 @@ begin
 					else
 						-- Get Input From SRAM
 						CurrX		<= SramQ_in((X_M_BITS + N_BITS) downto 0);
+						xnor_aw		<= SramQ_in;	-- P4.2: full-width packed capture (additive)
 						-- Input index will be incremented after MAC
 						-- Update State - Time to MAC (~￣3￣)~
 						NpuState	<= NPU_MAC;
@@ -412,6 +479,17 @@ begin
 						-- Neuron Not Done update state
 						NpuState	<= NPU_GET_WEIGHT;
 						MemReady	<= '0'; -- Memory not ready for read
+					end if;
+					-- P4.2 D2/D4: XNOR accumulate + decision (dead in modes
+					-- 0/1). pop_acc registers this word's count on this edge;
+					-- the NeuronDone decision therefore uses the COMBINATIONAL
+					-- total (pop_acc + this word) — xnor_fireword — latched
+					-- with the same lifetime as AccOutLtchd.
+					if (mode_run = MODE_XNOR) then
+						pop_acc <= pop_acc + xnor_pop6;
+						if (NeuronDone = '1') then
+							xnor_outword <= xnor_fireword;
+						end if;
 					end if;
 					if ((NPUBEN = '1') and (BiasDone = '0')) then
 						-- Bias was enabled and just got calculated and added to the accumulator.
@@ -482,9 +560,11 @@ begin
 						end if;
 						CurrYIndex	<= CurrYIndex + 1;
 					end if;
-					-- Reset states for next neuron (both modes)
+					-- Reset states for next neuron (all modes; pop_acc is a
+					-- P4.2-only register no other mode reads — additive)
 					BiasDone	<= '0';
 					CurrXIndex	<= (others => '0');
+					pop_acc		<= (others => '0');
 					-- Reset Accumulator
 					AccResetN	<= '0';
 					-- Reset MemReady Signal
@@ -544,7 +624,12 @@ begin
 	----- Combinational Logic
 	-- Clock Gate Enables
 	NpuClkEn 	<=	NpuThink or NpuDone;
-	MacClkEn	<=	'1'	when (NpuState = NPU_MAC) 	else
+	-- P4.2 D2 (adjudicated overrule): the FPMac accumulator clock is gated
+	-- OFF in XNOR mode — the mode's datapath never reads MacOut, and letting
+	-- the multiplier's accumulate-feedback loop churn garbage every MAC
+	-- cycle wastes the exact energy this mode exists to save. The added term
+	-- is vacuously true in modes 0/1 (as-built behavior bit-identical).
+	MacClkEn	<=	'1'	when ((NpuState = NPU_MAC) and (mode_run /= MODE_XNOR)) 	else
 					'0';
 
 	-- Combinational NPU Signals
@@ -574,10 +659,25 @@ begin
 						std_logic_vector(CurrXAddr) when NPU_GET_INPUT,
 						std_logic_vector(CurrYAddr) when NPU_SET_OUTPUT,
 		(others => '-')	when others;
-	with NPUAEN	select																	-- NPU SRAM D (Data Input) Selection
-		NpuSramD	<= 	(31 downto (N_BITS+1) => '0') & Decision				when '1', 	-- Activation Function Enabled
+	with NPUAEN	select																	-- NPU SRAM D (Data Input) Selection (MLP/CONV)
+		mlp_conv_sramd	<= 	(31 downto (N_BITS+1) => '0') & Decision				when '1', 	-- Activation Function Enabled
 						(31 downto (Y_M_BITS+N_BITS+1) => '0') & AccOutLtchd	when '0', 	-- Pass Through
 						(31 downto (N_BITS+1) => '0') & Decision				when others;-- Assumed Activation Function Enabled
+	-- P4.2 D1 touch point 1 (the ONE shared-expression edit): in XNOR mode
+	-- the write data is the +-1.0 decision word; in modes 0/1 the else arm
+	-- is the as-built NPUAEN select, bit-identical.
+	NpuSramD	<= xnor_outword when (mode_run = MODE_XNOR) else mlp_conv_sramd;
+
+	-- P4.2 D2/D3/D4 combinational cloud: tail-masked XNOR -> popcount ->
+	-- running total -> 2*pop - K -> signed >= THRESH -> +-1.0 Q7.24 literal
+	-- (exact at the MCU generics; deliberately NOT to_sfixed — the input-side
+	-- to_sfixed(1) quirk must not touch the output encoding).
+	xnor_masked	<= (xnor_aw xnor xnor_ww) and last_mask_run when (CurrXIndex = unsigned(NPUNI)) else
+				   (xnor_aw xnor xnor_ww);
+	xnor_pop6	<= popcount32(xnor_masked);
+	xnor_total	<= resize(pop_acc, 14) + resize(xnor_pop6, 14);
+	xnor_value	<= signed(resize(xnor_total & '0', 32)) - signed(resize(K_run, 32));
+	xnor_fireword <= x"01000000" when (xnor_value >= signed(thresh_run)) else x"FF000000";
 
 	--------------------------------------------
 	----- Memory Mapped Register Interface -----

@@ -1,4 +1,4 @@
-# verification/npu — NPU golden-model Python library (P4.1)
+# verification/npu — NPU golden-model Python library (P4.1/P4.2)
 
 Pure-Python, integer-only, bit-exact golden model of the VestaRV NPU's
 fixed-point datapath (`hdl/common/periph/NPU.vhd` + `hdl/common/commune/
@@ -71,6 +71,47 @@ misbehaves.
   ```
   /usr/bin/python3 gen_conv_vectors.py --cin 2 --l 16 --k 3 --cout 4 \
       --s 1 --d 1 --ben 1 --aen 1 --seed 1 --out /tmp/conv_vectors.hex
+  ```
+
+- **`gen_xnor_vectors.py`** — **PENDING-DESIGN-DOC (file format only).** Golden-vector
+  generator for the NPU XNOR/popcount binary mode (digperiphs P4.2,
+  `~/vesta_docs/digperiphs/npu_family_spec.md` D6/D9/D17). Unlike the conv
+  generator, this is a **new, standalone datapath** — no MAC, no sigmoid,
+  no dependency on `npu_fixed.py` — implementing exactly the frozen
+  bit-level contract:
+  ```
+  value_n = 2*popcount(XNOR(a, w_n)) - K     (LSB-first packing, tail-masked)
+  fires iff value_n >= THRESH                (Q7.24 +-1.0 output word)
+  ```
+  The library entry point is `xnor_layer(a_words, w_words_per_neuron, K,
+  THRESH)`. Three self-tests run automatically at script start (assertions,
+  not opt-in): **(1)** tail-mask invariance — independent garbage fills in
+  the unused tail bits of both `a` and every neuron's `w` (K=40 and K=33)
+  produce identical outputs; **(2)** value/K parity holds across random
+  cases; **(3)** a documentation-grade demo that `popcount(XNOR(a,w))` is
+  invariant under a uniform bit-reversal of *both* operands at full-word K
+  — proving why dense full-word vectors alone cannot catch a packing/bit-
+  order bug (family-spec D6's test-pattern correction) and that the real
+  discriminator is the partial-last-word tail-mask test.
+
+  Emits `npu_xnor_<case>_{cfg,in,w,exp}.txt` into `xnor_vectors/` — cases:
+  `base`, `tail40` (+ companion `tail40_tailalt`, byte-identical `exp`,
+  different tail garbage), `tail33` (single-bit tail mask), `tie` /
+  `tie_offlattice` (on-/off-lattice threshold boundaries), `extremes_k1` /
+  `extremes_k4096` / `extremes_n256` (K and N scope bounds, staging-RAM
+  footprint checked), `neuronorder` (neuron-major addressing-bug detector,
+  incl. an explicit pairwise weight-swap self-check).
+
+  **PROVISIONAL cfg-file header** (awaits the design doc): `npu_xnor_<case>_cfg.txt`
+  holds 6 scalars, one per line, in the order named by the `CFG_FIELDS` list
+  at the top of the script — `K N THRESH IVSAR WVSAR OVSAR`. Renaming or
+  reordering the header is a one-line change to that list; nothing else in
+  the file depends on the order. Data files (`in`/`w`/`exp`) are plain
+  signed-decimal-int-per-line, matching the conv generator's idiom exactly
+  (no comment lines).
+  ```
+  cd ~/vestarv/verification/npu
+  /usr/bin/python3 gen_xnor_vectors.py
   ```
 
 ## Validation result (current)
