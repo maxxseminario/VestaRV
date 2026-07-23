@@ -114,6 +114,15 @@ CATALOG = [
     # (tiles parked), so no 'tiles' tag; gated by 'npu' so NPU-less configs (Argus)
     # drop it, identically to shnpu.
     T('rv32ui-p-wnpuconv', 'npu', True),
+    # digperiphs P4.2 (NPU XNOR/popcount, S5): wxnpu proves NPU MODE=2 (xnor)
+    # inside the full MCU -- NPUCFG1/2 reinterpreted as THRESH/K, K=40 with
+    # ADVERSARIAL tail garbage staged in the partial last word (proven
+    # load-bearing: an unmasked-tail DUT would flip 2 of 4 neurons -- see
+    # verification/npu/gen_wxnpu_golden.py), exact +-1.0 Q7.24 output check,
+    # and the same vector-120 think-done IRQ leg wnpuconv.S/shnpu.S take.
+    # Hart-0 directed (tiles parked), so no 'tiles' tag; gated by 'npu' so
+    # NPU-less configs (Argus) drop it, identically to shnpu/wnpuconv.
+    T('rv32ui-p-wxnpu', 'npu', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
