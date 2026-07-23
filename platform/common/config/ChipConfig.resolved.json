@@ -52,7 +52,9 @@
     "onewire": false,
     "dma": false,
     "dmaChannels": 4,
-    "i2ctarget": false
+    "i2ctarget": false,
+    "trng": false,
+    "trngRings": 8
   },
   "package": {
     "model": "myshkin-qfn44",
@@ -64,7 +66,7 @@
     "sharedRamBanks": 4,
     "flashBaseAddress": "0x20000",
     "sharedRamEndAddress": "0x1FFFF",
-    "vectorsCount": 114,
+    "vectorsCount": 121,
     "meipVector": 85,
     "clintMsipVector": 83,
     "clintMtipVector": 84,

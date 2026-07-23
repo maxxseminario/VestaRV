@@ -143,6 +143,10 @@ _CONFIG_SCHEMA = {
 	                         lambda v: _isInt(v) and v in (2, 4)),
 	'peripherals.i2ctarget': ('bool — True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 are always-False DP-SG placeholders (npu-thinkdone / TRNG, not yet landed — irq_budget_phase0.md) that backfill as IRQB_RSVD120/121, so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false',
 	                         _isBool),
+	'peripherals.trng':      ('bool — True instantiates the TRNG0 ring-oscillator entropy source + harvest engine at 0x6900: page-2 (MUTEX page) sub-slot 9. Free-running RO ensemble (NRO rings, {4,8} via peripherals.trngRings) 2-FF synchronized into MCLK, decimated/packed into 32-bit words with a read-CONSUMES data register (exactly-once consume + DRDY same-cycle blind-window fix), and an SP 800-90B-lite repetition-count health test whose alarm auto-halts harvesting — all in the free-running MCLK domain (D4-clean, plain raw-strobe active-low shim, neither combinationalRead nor CAPTURE_CLOCK). ONE combined IRQ (data-ready | health-alarm) delivered per the GLOBAL VECTOR RULE (A5): vector 121 = TRNG0; vector 120 (npu-thinkdone) is gated by the EXISTING peripherals.npu knob. NUM_EN_WORDS stays 4 (ceil(122/32) = 4, 122 <= 128 when TRNG is the highest enabled tail block). Zero pins — the RO ensemble is internal combinational fabric behind a SIM/REAL architecture split (TrngRoEnsemble_sim.vhd behavioral-only, TrngRoEnsemble.vhd genus/gate-only; the two must never co-list). ENTROPY CAVEAT (bring-up-grade, not certified — see the TRM chapter): firmware MUST DRBG the raw words and honor ALMF. Default false — the default emission (no page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is byte-identical',
+	                         _isBool),
+	'peripherals.trngRings': ('int — TRNG0 ring-oscillator ensemble size, {4, 8} ONLY (the NRO generic; the register map is NRO-invariant — ROSEL/RCTC/RUNLEN semantics are unchanged by the knob). Consulted only when peripherals.trng is true. Default 8',
+	                         lambda v: _isInt(v) and v in (4, 8)),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -213,6 +217,8 @@ _CONFIG_META = {
 	'peripherals.dma':      {'type': 'bool', 'default': False},
 	'peripherals.dmaChannels': {'type': 'int', 'default': 4, 'min': 2, 'max': 4, 'step': 2},
 	'peripherals.i2ctarget': {'type': 'bool', 'default': False},
+	'peripherals.trng':      {'type': 'bool', 'default': False},
+	'peripherals.trngRings': {'type': 'int', 'default': 8, 'min': 4, 'max': 8, 'step': 4},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -473,6 +479,28 @@ dmaChannels = _cfg('peripherals.dmaChannels', 4)
 # planes at their golden-master text) is byte-identical.
 i2ctargetPresent = _cfg('peripherals.i2ctarget', False)
 
+# digperiphs (TRNG, 2026-07-22): the TRNG0 ring-oscillator entropy source + harvest
+# engine claims page-2 (the MUTEX page) SUB-SLOT 9 @0x6900, joining the
+# I3C/NFC/GPIO4/GPIO5/RTC0/PWM0/OW0/DMA0/I2CT0 carve. A free-running NRO-ring RO
+# ensemble (peripherals.trngRings, {4,8}) is 2-FF synchronized into the free-running
+# MCLK domain (D4-xcollapse-clean like RTC/PWM/OW/DMA/I2CT: a plain raw-strobe
+# active-low shim, neither combinationalRead nor CAPTURE_CLOCK), decimated and packed
+# into 32-bit words behind a read-CONSUMES data register (exactly-once consume strobe
+# + a DRDY same-cycle blind-window fix — the new library mechanism this block
+# introduces), with an SP 800-90B-lite repetition-count health test whose alarm
+# auto-halts harvesting. ZERO pins: the RO ensemble is internal combinational fabric
+# behind a SIM/REAL architecture split (TrngRoEnsemble_sim.vhd behavioral-only,
+# TrngRoEnsemble.vhd genus/gate-only — the two must never co-list, D6). Enabling TRNG
+# extends the IRQ source list per the GLOBAL VECTOR RULE (A5, the library-tail
+# machinery below): vector 121 = TRNG0 (single combined data-ready | health-alarm
+# source); vector 120 (npu-thinkdone) is gated by the EXISTING peripherals.npu knob,
+# not a new one. NUM_EN_WORDS stays 4 (ceil(122/32) = 4, 122 <= 128). Default FALSE —
+# the default emission (no page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is
+# byte-identical. Bring-up-grade entropy ONLY (THE ENTROPY CAVEAT, D16): no
+# certification, no HW conditioner — firmware MUST DRBG the output and honor ALMF.
+trngPresent = _cfg('peripherals.trng', False)
+trngRings = _cfg('peripherals.trngRings', 8)
+
 # ===========================================================================
 # digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
 # Beyond the 114 UNCONDITIONAL vectors (0-113: legacy + CLINT + meip placeholder +
@@ -491,11 +519,12 @@ _LIBRARY_TAIL_SPEC = [
 	('pwm', pwmPresent, 2),   # vectors 115, 116  (PWM0_FAULT, PWM0_EVT)
 	('onewire', onewirePresent, 1),  # vector 117  (OW0 combined TC/error)
 	('dma', dmaPresent, 2),   # vectors 118, 119  (DMA0_DONE, DMA0_ERR)
-	# DP-SG PLACEHOLDERS (always-False): reserve vectors 120/121 for the not-yet-landed
-	# scatter-gather blocks (npu-thinkdone / TRNG) so I2CT0 holds 122/123 under the
-	# frozen-numbering rule. See ~/vesta_docs/digperiphs/irq_budget_phase0.md §1.
-	('npu_thinkdone', False, 1),  # vector 120  (PLACEHOLDER — DP-SG, not yet landed)
-	('trng', False, 1),           # vector 121  (PLACEHOLDER — DP-SG, not yet landed)
+	# DP-SG (2026-07-22): vector 120 = NPU think-done, gated by the EXISTING
+	# peripherals.npu knob (no new schema key — npu_irq_spec.md). 121 = TRNG0
+	# (digperiphs TRNG, 2026-07-22), gated by the new peripherals.trng knob.
+	# See ~/vesta_docs/digperiphs/irq_budget_phase0.md §1.
+	('npu_thinkdone', npuPresent, 1),  # vector 120  (NPU0 think-done, DP-SG Part A)
+	('trng', trngPresent, 1),          # vector 121  (TRNG0 combined data-ready/alarm)
 	('i2ctarget', i2ctargetPresent, 2),  # vectors 122, 123  (I2CT0_AE, I2CT0_DATA)
 ]
 def _libraryTailVectorsCount():
@@ -1325,7 +1354,8 @@ if npuPresent:
 r = RegisterTemplate(nameTemplate='NPUCR', registerMemorySlot=0, description='NPU control register', size=32)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(msb=31, lsb=19, unused=True))
+r.AddBitField(BitField(msb=31, lsb=20, unused=True))
+r.AddBitField(BitField(name='NPUTDIE', msb=19, description='Think-done interrupt enable. When set, NPUSR.THINKDONE drives the NPU think-done interrupt (vector 120). When cleared (reset default) the NPU is polling-only, exactly as before the interrupt existed.', accessibility='rw', valueDescriptions=[(0b0, 'Interrupt disabled (polling only)'), (0b1, 'Interrupt enabled')]))
 r.AddBitField(BitField(name='NPUBEN', msb=18, description='Bias enable. When set, the first weight of each output neuron\'s row in the weight matrix is used as a bias term: it is multiplied by an implicit input of 1.0 and accumulated before the synaptic weights.', accessibility='rw', valueDescriptions=[(0b0, 'Disabled'), (0b1, 'Enabled')]))
 r.AddBitField(BitField(name='NPUAEN', msb=17, description='Activation function enable. When set, the logistic sigmoid approximation activation function is applied to the accumulator output. When cleared, the raw accumulator output is used (linear/identity).', accessibility='rw', valueDescriptions=[(0b0, 'Disabled (linear output)'), (0b1, 'Enabled (logistic sigmoid approximation)')]))
 r.AddBitField(BitField(name='NPUTHINK', msb=16, description='NPU computation start and status bit. Write 1 to start the NPU. Self-clears when the computation is complete. Poll this bit to determine when results are ready.', accessibility='rw1', valueDescriptions=[(0b0, 'Idle (computation complete or not started)'), (0b1, 'Running (write 1 to start)')]))
@@ -1352,6 +1382,13 @@ p.AddRegisterTemplate(r)
 
 r.AddBitField(BitField(msb=31, lsb=12, unused=True))
 r.AddBitField(BitField(name='NPUOVSAR', msb=11, lsb=0, description='Output vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)', accessibility='rw'))
+
+# NPUSR (DP-SG 2026-07-22: think-done IRQ rider, vector 120)
+r = RegisterTemplate(nameTemplate='NPUSR', registerMemorySlot=4, description='NPU status register. THINKDONE is write-1-to-clear (write a 1 to bit 0 to clear it; writing 0 leaves it unchanged) and is never cleared by a read. The NPU think-done interrupt (vector 120) is THINKDONE and NPUCR.NPUTDIE. Clearing THINKDONE does not affect NPUCR.NPUTHINK, which self-clears at completion as before; the staging-RAM ownership contract is unchanged (no hart may access 0xC000-0xFFFF until NPUCR bit 16 reads 0 again).', size=32)
+p.AddRegisterTemplate(r)
+
+r.AddBitField(BitField(msb=31, lsb=1, unused=True))
+r.AddBitField(BitField(name='NPUTHINKDONE', msb=0, accessibility='rw1', description='Think-done flag. Set once per computation, when the NPU finishes (the same event that self-clears NPUCR.NPUTHINK); sticky. Drives the think-done interrupt (vector 120) when NPUCR.NPUTDIE is set. Write 1 to clear. On a same-cycle collision between a completing computation and a write-1-to-clear, the set wins (a completion is never lost).', valueDescriptions=[(0b0, 'No completed computation pending'), (0b1, 'A computation has completed')]))
 
 
 
@@ -2221,7 +2258,53 @@ if dmaPresent:
 	dma.AddRegisterTemplate(r)
 	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
 
+# digperiphs (TRNG, 2026-07-22): TRNG0 register template (design doc D5 bit maps, 4 live
+# word slots @0x6900: TRNG0CR / TRNG0SR / TRNG0DR / TRNG0HT). Added only when trngPresent
+# CreatePeripheral()s it; with TRNG off it is never instanced (byte-identical default).
+# Registered read on rising ClkMem (D4 -- no bridge, no CAPTURE_CLOCK; the plain
+# raw-strobe active-low en shim, RTC/PWM/OW/DMA/I2CT precedent). TRNG0DR is the ONE
+# read-side-effect exception in this library (D9: read-CONSUMES, exactly-once, with a
+# DRDY same-cycle blind-window fix); ALMF is sticky W1C and auto-halts harvesting while
+# set (D8). Slots >= 4 read 0. bitFieldPrefix TRNG.
+if trngPresent:
+	trng = PeripheralTemplate(nameTemplate='TRNGx', description='Ring-oscillator entropy source and harvest engine: a free-running ensemble of NRO ring oscillators (peripherals.trngRings, {4,8}) is XOR-reduced to one noisy bit, 2-FF synchronized into the free-running MCLK, decimated (one raw sample every 2^DECIM MCLK cycles) and direct-packed 32 raw bits at a time into a holding register. A qualified read of the data register returns the word and CONSUMES it in the same access (DRDY clears the same cycle, the next word is requested) so no read ever exposes a stale or partial word; a read while no word is ready returns 0 and has no side effect. A lightweight SP 800-90B-style Repetition Count Test watches the raw stream: when RCTC (or the hardware default of 32) consecutive raw samples are identical it raises a sticky health alarm and AUTO-HALTS harvesting (the rings keep spinning only if EN is set and no alarm is latched) until firmware clears it. The whole engine -- the RO 2-flop synchronizer, the decimator, the 32-bit assembler, the repetition-count health test, the sticky alarm flag, and the interrupt combiner -- rides the free-running MCLK; the register file rides the gated bus clock. The block has zero pins (the RO ensemble is internal combinational fabric) and delivers one combined interrupt (data-ready or health-alarm, vector 121). THE ENTROPY CAVEAT: this is a bring-up-grade entropy source, not a certified one -- firmware MUST run the raw words through a vetted DRBG before using them as key material and MUST honor the health alarm.', registerPrefix='TRNGx', bitFieldPrefix='TRNG', latexIntroFileName='TRNG-intro-castalia-2026-07.tex', latexFeatureSummary='{count} ring-oscillator true-random-number-generator harvest engine (NRO-ring ensemble, read-consumes data register, repetition-count health test with auto-halt, single combined IRQ, bring-up-grade entropy)')
+	m.AddPeripheralTemplate(trng)
+
+	# TRNG0CR (slot 0) -- control (reset 0, D12)
+	r = RegisterTemplate(nameTemplate='TRNGxCR', registerMemorySlot=0, description='TRNG control register. EN gates the entropy source (0 parks the RO rings -- the power/leakage lever -- and freezes harvesting; flags and the last assembled word are preserved). DRDYIE/ALMIE independently gate the two halves of the combined interrupt (vector 121). ROSEL selects/masks which rings in the ensemble contribute to the XOR reduction (0000 = all rings, the safe default-on encoding, D6 ruling 4). DECIM sets the decimation: one raw sample is taken every 2^DECIM MCLK cycles (0 = every cycle); a larger DECIM lets more independent ring jitter accumulate between samples. Resets to 0 (disabled).', size=32)
+	trng.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='TRNGEN', msb=0, accessibility='rw', description='Entropy engine enable. 0 parks the RO ensemble and freezes the decimator/assembler/health test; the last assembled word, DRDY, and ALMF are preserved. 1 lets the rings oscillate and harvesting proceed (subject to the health-test auto-halt, D8/ruling 3).', valueDescriptions=[(0b0, 'Disabled (rings parked)'), (0b1, 'Enabled')]))
+	r.AddBitField(BitField(name='TRNGDRDYIE', msb=1, accessibility='rw', description='Data-ready interrupt enable. When set, TRNG0SR.DRDY drives the combined interrupt (vector 121).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(name='TRNGALMIE', msb=2, accessibility='rw', description='Health-alarm interrupt enable. When set, TRNG0SR.ALMF drives the combined interrupt (vector 121).', valueDescriptions=[(0b0, 'Interrupt disabled'), (0b1, 'Interrupt enabled')]))
+	r.AddBitField(BitField(msb=3, lsb=3, unused=True))
+	r.AddBitField(BitField(name='TRNGROSEL', msb=7, lsb=4, accessibility='rw', description='Ring-oscillator ensemble contribution select/mask, forwarded to the entropy source. 0000 selects every ring in the ensemble (the reset-safe all-on encoding); a nonzero value masks a subset of the NRO rings into the XOR reduction (D6 ruling 4).'))
+	r.AddBitField(BitField(name='TRNGDECIM', msb=11, lsb=8, accessibility='rw', description='Decimation exponent. One raw sample is taken every 2^TRNGDECIM MCLK cycles (0 = every MCLK cycle, up to 32768 cycles at 15). A nonzero value is recommended for real accumulation between independent samples (D7).'))
+	r.AddBitField(BitField(msb=31, lsb=12, unused=True))
+
+	# TRNG0SR (slot 1) -- status (DRDY/RUN read-only + ALMF W1C, D9/D8/D12)
+	r = RegisterTemplate(nameTemplate='TRNGxSR', registerMemorySlot=1, description='TRNG status register. DRDY and RUN are read-only levels; ALMF is a sticky write-1-to-clear health-alarm flag (write a 1 to clear it; writing 0 leaves it unchanged; never cleared by a read; a set arriving the same cycle as a clear survives, D8). DRDY reflects the D9 blind-window-corrected level: a qualifying TRNG0DR read clears DRDY in the SAME cycle as the consuming read (an SR read issued immediately after a DR read observes DRDY=0 even though the harvest engine has not yet finished tearing the word down internally), so polling DRDY right after draining TRNG0DR is always accurate. The combined interrupt (vector 121) is (DRDY and TRNGDRDYIE) or (ALMF and TRNGALMIE).', size=32)
+	trng.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='TRNGDRDY', msb=0, accessibility='r', description='Data ready: a fresh 32-bit entropy word is available in TRNG0DR. Clears the SAME cycle as the qualifying TRNG0DR read that consumes the word (D9 blind-window fix), and re-asserts only once the harvest engine assembles the NEXT word.', valueDescriptions=[(0b0, 'No word ready (a TRNG0DR read now returns 0 and does not consume)'), (0b1, 'Word ready')]))
+	r.AddBitField(BitField(name='TRNGALMF', msb=1, accessibility='rw1', description='Health-test alarm flag (sticky). Set when the repetition-count health test (TRNG0HT.RCTC, or the hardware default of 32) reaches its cutoff; while set, harvesting is AUTO-HALTED (D8/ruling 3: no new sample feeds the assembler, DRDY cannot re-assert, RUN reads 0) -- write 1 to clear and let harvesting resume once the raw stream is healthy again. Drives vector 121 when TRNGALMIE is set. Write 1 to clear.', valueDescriptions=[(0b0, 'No alarm'), (0b1, 'Repetition-count cutoff reached')]))
+	r.AddBitField(BitField(name='TRNGRUN', msb=2, accessibility='r', description='Entropy engine running: TRNGEN is set and no health alarm is currently latched (D12). Reads 0 whenever the rings are parked, either because TRNGEN=0 or because TRNGALMF is set (auto-halt).', valueDescriptions=[(0b0, 'Idle / halted'), (0b1, 'Running')]))
+	r.AddBitField(BitField(msb=31, lsb=3, unused=True))
+
+	# TRNG0DR (slot 2) -- entropy word (ro, READ-CONSUMES, D9)
+	r = RegisterTemplate(nameTemplate='TRNGxDR', registerMemorySlot=2, description='Entropy data register. [31:0] is the most recently assembled 32-bit entropy word, direct-packed MSB-first from decimated ring-oscillator samples (D7, ruling 1: no hardware whitening -- firmware DRBGs the output, D16). READ SIDE EFFECT (D9, the one exception to "no read side effects" in this register library): a qualifying read (TRNGDRDY=1 at the time of the access) CONSUMES the word -- TRNG0SR.DRDY clears the SAME cycle, and the harvest engine begins assembling the next word. The consume is gated to fire EXACTLY ONCE per real bus access (a repeated internal edge in the same access cannot double-pop). A read while TRNGDRDY=0 (no word ready, or the previous word is still being retired) returns 0 and does NOT consume anything -- the next real word is still delivered intact on a later read. Writes are ignored.', size=32)
+	trng.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='TRNGDR', msb=31, lsb=0, accessibility='r', description='Entropy word. A read while TRNGDRDY=1 returns the word and consumes it (DRDY clears the same cycle, D9); a read while TRNGDRDY=0 returns 0 and does not consume.'))
+
+	# TRNG0HT (slot 3) -- health-test cutoff (rw) + run-length diagnostic (ro), D8
+	r = RegisterTemplate(nameTemplate='TRNGxHT', registerMemorySlot=3, description='Health-test control/diagnostic register. RCTC is the repetition-count cutoff: the number of consecutive identical raw samples that trips the alarm (TRNG0SR.ALMF). RCTC=0 selects the hardware default of 32 (ruling 3), so the reset value is a safe default-on cutoff; a nonzero value is a firmware override. RUNLEN is a read-only saturating diagnostic exposing the CURRENT consecutive-identical-sample run length (resets to 1 on any change, saturates at 63) -- useful for tuning RCTC or observing ring health without waiting for an alarm. Other bits reserved, read 0. Resets to 0.', size=32)
+	trng.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='TRNGRCTC', msb=7, lsb=0, accessibility='rw', description='Repetition-count cutoff (0 to 255). 0 selects the hardware default of 32 consecutive identical raw samples (D8/ruling 3); a nonzero value overrides it.'))
+	r.AddBitField(BitField(msb=15, lsb=8, unused=True))
+	r.AddBitField(BitField(name='TRNGRUNLEN', msb=21, lsb=16, accessibility='r', description='Current consecutive-identical-raw-sample run length (0 to 63, saturating diagnostic). Resets to 1 (via have_prev) on the first sample after any change; does not itself trigger the alarm -- compare against TRNGRCTC to see how close the raw stream is to tripping it.'))
+	r.AddBitField(BitField(msb=31, lsb=22, unused=True))
+
+
 m.CheckPeripheralTemplates()
+
 
 
 
@@ -2254,7 +2337,7 @@ if timer1Present:
 GPIO2 = m.CreatePeripheral(nameTemplate='GPIOx', nameIndex=2, peripheralMemorySlot=None, interruptPriority=36, absoluteBaseAddress=0x4800, legacySlot=8, sharedBus='periph', clockDomain='mclk')	# GPIO2 shared (slot 8)
 m.CreatePeripheral(nameTemplate='SYSTEM', nameIndex='', peripheralMemorySlot=None, interruptPriority=0, absoluteBaseAddress=0x4900, legacySlot=9, sharedBus='periph', clockDomain='mclk', strobeNote='SYS_CLK_CR/SYS_CLK_DIV_CR reconfigure MCLK itself: quiesce the other harts before clock reconfiguration (software contract)')	# SYSTEM (M11 shared; clock/power/WDT monarch — hart-0 management by convention)
 if npuPresent:
-	m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x4A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='vectors live in the shared NPU staging RAM at 0xC000; do not touch 0xC000-0xFFFF during a THINK — poll NPUCR bit 16')	# NPU register bus shared (slot 10); data path = the 0xC000 staging RAM
+	m.CreatePeripheral(nameTemplate='NPU', nameIndex='', peripheralMemorySlot=None, interruptPriority=120, absoluteBaseAddress=0x4A00, legacySlot=10, sharedBus='periph', combinationalRead=True, clockDomain='mclk', strobeNote='vectors live in the shared NPU staging RAM at 0xC000; do not touch 0xC000-0xFFFF during a THINK — poll NPUCR bit 16 (or take the vector-120 think-done IRQ, DP-SG)')	# NPU register bus shared (slot 10); data path = the 0xC000 staging RAM
 # SARADC removed (vector 56 reserved gap; its slot 11 is PWRCTRL's since M17)
 # AFE: no CreatePeripheral. By default the four AFE + one EIS afe_stub instances
 # (peripherals.cqAfeStubs) occupy slot 12 / 0x7C00 as MCU.vhd wiring only (see
@@ -2375,6 +2458,24 @@ if dmaPresent:
 	# the arb_* 5th slice + D18 lrsc/lock ties, the trigger taps, the two irq levels) are
 	# all hand-emitted by mcu_vhd.py under geo['dma'] / geo['dmaChannels'].
 	m.CreatePeripheral(nameTemplate='DMAx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=118, absoluteBaseAddress=0x6800, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 8; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine + arbiter MASTER (slice numHarts); enabling DMA widens the arbiter N=4->5 / MW=3, sh_master 2->3 bits (the ONE shared-fabric touch); read-side-effect guard denies engine reads of 0x6000-0x60FF / 0x7800')	# DMA0 (digperiphs #6). native page-2 sub-slot 8 + the FIRST new arbiter master; mcu_vhd hand-emits the raw-strobe shim + dma0 instance + fabric widening
+if trngPresent:
+	# digperiphs (TRNG): TRNG0 at 0x6900 = MUTEX page (page 2) SUB-SLOT 9. Same page-2
+	# native shape as I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0/OW0/DMA0/I2CT0 (sharedBus='native' =
+	# "outside the page-0 shim fabric"; the mutex-bank decode is already tightened to
+	# sub-slot 0 whenever any page-2 sub-slot device is present). This CreatePeripheral
+	# exists for the register map, TRM chapter, address table, and the vector-121
+	# interrupt-table entry (interruptPriority=121 = TRNG0's single combined source).
+	# clockDomain='mclk' names BOTH the bus clock (ClkMem) AND the free-running engine
+	# clock (clk => mclk, D1/D2 -- the RO 2-FF sync / decimator / assembler / health test /
+	# IRQ combiner all on MCLK). NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4):
+	# a plain raw-strobe active-low en shim (trng0_sh_en_n <= not shslv_trng0_en), no
+	# falling_edge(EnMemPeriph) pre-latch. NO pins: the RO ensemble (u_ro, TrngRoEnsemble)
+	# is a sibling MCU.vhd instance wired through trng0's ro_enable/ro_sel/ro_sclk/ro_raw
+	# ports, never a pad; the sub-slot-9 decode + raw-strobe shim + the trng0 + u_ro
+	# instances (NRO => trngRings) are hand-emitted by mcu_vhd.py under geo['trng'] /
+	# geo['trngRings']. Bring-up-grade entropy only (THE ENTROPY CAVEAT, D16): firmware
+	# MUST DRBG the output and honor ALMF.
+	m.CreatePeripheral(nameTemplate='TRNGx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=121, absoluteBaseAddress=0x6900, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 9; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK harvest engine (RO 2-FF sync, decimator, assembler, repetition-count health test); do not poll TRNG0DR blindly -- check TRNG0SR.DRDY first (an empty read returns 0 and does not consume); bring-up-grade entropy only (see THE ENTROPY CAVEAT) -- firmware MUST DRBG the output and honor ALMF')	# TRNG0 (digperiphs TRNG). native page-2 sub-slot 9; mcu_vhd hand-emits the raw-strobe shim + trng0 instance + the sibling u_ro TrngRoEnsemble instance
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block; Stage E rider: through word 523 = 0x782C = INSVCX)
 
 
@@ -2919,6 +3020,7 @@ _mcuMpNpuMmrAddr = [
 	('MmrAddrNPUIVSAR', 'NPUIVSAR'),
 	('MmrAddrNPUWVSAR', 'NPUWVSAR'),
 	('MmrAddrNPUOVSAR', 'NPUOVSAR'),
+	('MmrAddrNPUSR', 'NPUSR'),	# DP-SG think-done rider (slot 4)
 ]
 
 # Per-vector interrupt names (IRQB_*), copied verbatim from the RTL. List index = vector
@@ -3045,12 +3147,13 @@ _libraryTailEmit = [
 	(onewirePresent, [('IRQB_OW0', 'OW0 1-Wire combined transaction-complete/error Interrupt')]),
 	(dmaPresent, [('IRQB_DMA0_DONE', 'DMA0 combined channels-done Interrupt'),
 		('IRQB_DMA0_ERR', 'DMA0 error (deny/LEN0/misalign/out-of-window) Interrupt')]),
-	# DP-SG PLACEHOLDERS (always-False; kept in lockstep with _LIBRARY_TAIL_SPEC): vectors
-	# 120/121 backfill as IRQB_RSVD120/121 whenever a higher block (I2CT0) is enabled, so
-	# I2CT0 keeps 122/123 under the frozen-numbering rule (irq_budget_phase0.md §1). The
-	# names below are used only to build the RSVD description suffix.
-	(False, [('IRQB_NPU_THINKDONE', 'NPU think-done (DP-SG, not yet landed) Interrupt')]),
-	(False, [('IRQB_TRNG', 'TRNG (DP-SG, not yet landed) Interrupt')]),
+	# DP-SG (2026-07-22): vector 120 = NPU0 think-done, live whenever the NPU is
+	# (backfills IRQB_RSVD120 in npu-less configs with a higher tail block on). 121 =
+	# TRNG0 (digperiphs TRNG, 2026-07-22 — combined data-ready/health-alarm),
+	# gated by the new peripherals.trng knob (backfills IRQB_RSVD121 when off with a
+	# higher tail block on). Kept in lockstep with _LIBRARY_TAIL_SPEC (irq_budget_phase0.md §1).
+	(npuPresent, [('IRQB_NPU0_TD', 'NPU0 think-done Interrupt')]),
+	(trngPresent, [('IRQB_TRNG0', 'TRNG0 combined data-ready/health-alarm Interrupt')]),
 	(i2ctargetPresent, [('IRQB_I2CT0_AE', 'I2CT0 combined address-match/error Interrupt'),
 		('IRQB_I2CT0_DATA', 'I2CT0 combined tx-ready/rx-full Interrupt')]),
 ]
@@ -3104,6 +3207,8 @@ if i3cPresent:
 	_mcuMpIrqFirstVector['I3C0'] = 'IRQB_I3C0_TC'	# vectors 86-93 (interruptPriority 86)
 if nfcPresent:
 	_mcuMpIrqFirstVector['NFC0'] = 'IRQB_NFC0_FIELD'	# vectors 94-97 (interruptPriority 94)
+if npuPresent:
+	_mcuMpIrqFirstVector['NPU'] = 'IRQB_NPU0_TD'	# vector 120 (interruptPriority 120; DP-SG think-done rider)
 if rtcPresent:
 	_mcuMpIrqFirstVector['RTC0'] = 'IRQB_RTC0'	# vector 114 (interruptPriority 114; single combined source)
 if pwmPresent:
@@ -3114,6 +3219,8 @@ if dmaPresent:
 	_mcuMpIrqFirstVector['DMA0'] = 'IRQB_DMA0_DONE'	# vectors 118-119 (interruptPriority 118; done at the lower id, err at 119)
 if i2ctargetPresent:
 	_mcuMpIrqFirstVector['I2CT0'] = 'IRQB_I2CT0_AE'	# vectors 122-123 (interruptPriority 122; AE=address/error at the lower id, DATA=tx-ready/rx-full at 123)
+if trngPresent:
+	_mcuMpIrqFirstVector['TRNG0'] = 'IRQB_TRNG0'	# vector 121 (interruptPriority 121; single combined data-ready/health-alarm source)
 
 # GPIO register reset values, transcribed VERBATIM (values + comments) from the RTL.
 # NOTE the RTL numbers GPIO ports from 1 (GPIO0 = P1 ... GPIO3 = P4) while this
@@ -3284,6 +3391,8 @@ m.McuMpGeometry = {
 	'dma': dmaPresent,          # digperiphs #6: True = DMA0 in MUTEX-page sub-slot 8 (0x6800) + the FIRST new arbiter MASTER; raw-strobe slave shim, vectors 118/119, source list grows to 119, and the arbiter N=4->5 / MW=3 / sh_master 2->3 FABRIC WIDENING (the one shared-RTL touch)
 	'dmaChannels': dmaChannels, # digperiphs #6: DMA0 NCH generic {2,4} (consulted only when dma); the 4-channel register superset is emitted regardless
 	'i2ctarget': i2ctargetPresent,  # digperiphs (I2CT): True = I2CT0 hardware-autonomous I2C target in MUTEX-page sub-slot 10 (0x6A00); raw-strobe shim, shares I2C0 SDA0/SCL0 pads (wired-AND DIR merge, emitted separately), vectors 122/123, source list grows to 124 (A5 global vector rule, with 120/121 always-RSVD DP-SG placeholders)
+	'trng': trngPresent,        # digperiphs (TRNG): True = TRNG0 ring-oscillator entropy source + harvest engine in MUTEX-page sub-slot 9 (0x6900); raw-strobe shim, sibling u_ro TrngRoEnsemble instance, vector 121, source list grows to 122 (A5 global vector rule)
+	'trngRings': trngRings,     # digperiphs (TRNG): TRNG0 NRO generic {4,8} (consulted only when trng); the register map is NRO-invariant
 }
 
 
@@ -3388,7 +3497,8 @@ _resolvedConfig = [
 		('cqAfeStubs', cqAfeStubsPresent), ('qspi', qspiPresent), ('i3c', i3cPresent),
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
 		('onewire', onewirePresent), ('dma', dmaPresent),
-		('dmaChannels', dmaChannels), ('i2ctarget', i2ctargetPresent)]),
+		('dmaChannels', dmaChannels), ('i2ctarget', i2ctargetPresent),
+		('trng', trngPresent), ('trngRings', trngRings)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),

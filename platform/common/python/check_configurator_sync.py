@@ -223,7 +223,18 @@ DERIVED_FRAGMENTS = [
     'mtime + 0x10',
     'loaderBase: 0x10500',
     'spInit: 0xC000',
-    'vectors: 114, msipVec: 83, mtipVec: 84',
+    # DP-SG (2026-07-22): derived() now mirrors _LIBRARY_TAIL_SPEC (the A5
+    # GLOBAL VECTOR RULE) instead of a hardcoded 114 — pin the tail rows AND
+    # the high-water computation so a silent edit still trips this gate.
+    '[cfg.rtc, 1]',
+    '[cfg.pwm, 2]',
+    '[cfg.onewire, 1]',
+    '[cfg.dma, 2]',
+    '[cfg.npu, 1]',
+    '[cfg.trng, 1]',
+    '[cfg.i2ctarget, 2]',
+    'vtail += c; if (p) vhigh = vtail;',
+    'vectors: vhigh, msipVec: 83, mtipVec: 84',
 ]
 
 

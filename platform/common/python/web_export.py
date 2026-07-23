@@ -120,8 +120,8 @@ def _libraryTailVectorsCount(cfg):
 		(periph.get('pwm', False), 2),   # vectors 115, 116
 		(periph.get('onewire', False), 1),  # vector 117
 		(periph.get('dma', False), 2),   # vectors 118, 119
-		(False, 1),   # vector 120 (DP-SG npu-thinkdone PLACEHOLDER, always off)
-		(False, 1),   # vector 121 (DP-SG TRNG PLACEHOLDER, always off)
+		(periph.get('npu', True), 1),   # vector 120 (NPU0 think-done, DP-SG Part A; npu defaults TRUE)
+		(periph.get('trng', False), 1),   # vector 121 (TRNG0 combined data-ready/health-alarm)
 		(periph.get('i2ctarget', False), 2),  # vectors 122, 123 (I2CT0_AE, I2CT0_DATA)
 	]
 	base = 114

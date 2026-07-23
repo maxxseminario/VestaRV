@@ -19,9 +19,20 @@ use work.fixed_pkg.all;
 	--							Number of inputs (NPUNI + 1)
 	--							Number of neurons/outputs (NPUNN + 1)
 	--							Starting NPU (NPUTHINK)
+	--							Think-Done Interrupt Enable (NPUCR.TDIE, bit 19)
 	--							SRAM Start Address For Inputs (NPUIVSAR)
 	--							SRAM Weight Address For Inputs (NPUWVSAR)
 	--							SRAM Output Address For Inputs (NPUOVSAR)
+	--
+	-- DP-SG think-done IRQ (2026-07-22, npu_irq_spec.md — irq_router source 120):
+	-- NPUSR (MmrAddrNPUSR=4) bit 0 THINKDONE sets on the NpuDone completion pulse
+	-- (once per THINK), sticky, W1C via a bit-0 write of '1' (set-dominant on a
+	-- same-cycle set/W1C collision). ThinkDoneIrq = THINKDONE and TDIE, one output
+	-- flop on the free-running Clk (NOT NpuClk — the gate is off between THINKs).
+	-- CONSTRAINT: MabMmrCLK and Clk must be the SAME clock (true in MCU_MP: both
+	-- mclk) — the W1C decode is sampled on Clk. Reset default TDIE=0 keeps legacy
+	-- polling firmware unaffected; the staging-RAM contract (poll NPUCR.16 before
+	-- touching 0xC000+) is unchanged by the IRQ.
 entity NPU is
     generic(
 		-- Fixed-Point M and N Bits for inputs, weights, and outputs
@@ -39,7 +50,7 @@ entity NPU is
         ResetN			: in	std_logic;					-- NPU Active-Low Reset
 
 		-- Memory Address Bus to Memory Mapped Registers Signals
-		MabMmrA			: in 	std_logic_vector(1 downto 0);	-- MCU To NPU MMR - Address
+		MabMmrA			: in 	std_logic_vector(2 downto 0);	-- MCU To NPU MMR - Address
 		MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
 		MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
 		MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable
@@ -63,7 +74,9 @@ entity NPU is
 		NpuSramGWEN_out		: out 	std_logic;						-- NPU To SRAM - Global Write Enable
 		NpuSramWEN_out		: out 	std_logic_vector(3 downto 0);	-- NPU To SRAM - Write Enable
 		-- NPU Status Signal
-		NpuActive		: out	std_logic						-- NPU Active Signal for Arbitration
+		NpuActive		: out	std_logic;						-- NPU Active Signal for Arbitration
+		-- NPU Interrupt Signal
+		ThinkDoneIrq	: out	std_logic						-- Think-Done IRQ (registered level, irq_router source 120)
     );
 end NPU;
 
@@ -75,15 +88,18 @@ architecture behavioral of NPU is
 
 
 	----- Memory Mapped Registers & Bits
-	signal NPUCR		: std_logic_vector(18 downto 0);		-- NPU Control Register
+	signal NPUCR		: std_logic_vector(19 downto 0);		-- NPU Control Register
 		signal NPUBEN	: std_logic;								-- NPU Bias Input Enable Bit (Enabled For First Layer)
 		signal NPUAEN	: std_logic;								-- NPU Activation Function Enable Bit (Disabled for Last Layer)
 		signal NPUTHINK	: std_logic;								-- NPU Start/Status Bit
+		signal TDIE		: std_logic;								-- NPU Think-Done Interrupt Enable Bit (NPUCR.19)
 		signal NPUNI	: std_logic_vector(7 downto 0);			-- NPU # Of Inputs
 		signal NPUNN	: std_logic_vector(7 downto 0);			-- NPU # Of Neurons/Outputs
 	signal NPUIVSAR		: std_logic_vector(11 downto 0);		-- NPU Input Vector Start Address Register
 	signal NPUWVSAR		: std_logic_vector(11 downto 0);		-- NPU Weight Vector Start Address Register
 	signal NPUOVSAR		: std_logic_vector(11 downto 0);		-- NPU Output Vector Start Address Register
+	signal THINKDONE	: std_logic;							-- NPUSR.0 Think-Done Flag (sticky, W1C, set-dominant)
+	signal ThinkDoneIrqQ: std_logic;							-- Registered IRQ level (THINKDONE and TDIE)
 
 	-- NPU to SRAM (Output) Signals 
 	signal NpuSramA		: std_logic_vector(11 downto 0);		-- NPU To NPU DP SRAM - Address 			(Combinational)
@@ -216,6 +232,31 @@ begin
 	-- M7d: raw OR delayed — the owner CPU sleeps from the THINK write until
 	-- one cycle AFTER the SRAM port has switched back (see mux comment)
 	NpuActive <= NPUTHINK or NpuMuxSel;
+
+	-- DP-SG think-done flag + registered IRQ level. Lives on the FREE-RUNNING
+	-- Clk, not NpuClk: the gated clock stops between THINKs, so a NpuClk flop
+	-- could never take the W1C reliably. NpuDone is registered on NpuClk (edges
+	-- aligned with Clk, and NpuClkEn = NpuThink or NpuDone keeps the gate open
+	-- through the pulse), so this process samples it exactly once per THINK.
+	-- Set-dominant: the NpuDone assignment is last, so a W1C landing on the
+	-- exact completion edge keeps the flag (a completion is never lost).
+	THINKDONE_SEQ: process(Clk, ResetN)
+	begin
+		if (ResetN = '0') then
+			THINKDONE		<= '0';
+			ThinkDoneIrqQ	<= '0';
+		elsif (rising_edge(Clk)) then
+			if ((MabMmrCEN = MEM_ASSERT) and (MabMmrAInt = MmrAddrNPUSR) and
+				(MabMmrWEN(0) = MEM_ASSERT) and (MabMmrD(0) = '1')) then
+				THINKDONE	<= '0';
+			end if;
+			if (NpuDone = '1') then
+				THINKDONE	<= '1';
+			end if;
+			ThinkDoneIrqQ	<= THINKDONE and TDIE;
+		end if;
+	end process THINKDONE_SEQ;
+	ThinkDoneIrq <= ThinkDoneIrqQ;
 
 	
 	----- Sequential Logic
@@ -418,7 +459,8 @@ begin
 	----- Memory Mapped Register Interface -----
 	--------------------------------------------
 	----- Memory Mapped Register - Bit-Field Mapping
-	-- NPUCR(18 downto 0)
+	-- NPUCR(19 downto 0)
+	TDIE		<= NPUCR(19);
 	NPUBEN		<= NPUCR(18);
 	NPUAEN		<= NPUCR(17);
 	-- NPUTHINK	<= NPUCR(16);
@@ -445,8 +487,8 @@ begin
 					when MmrAddrNPUCR =>
 						if MabMmrWEN(0) = MEM_ASSERT then NPUCR(7 downto 0) <= MabMmrD(7 downto 0); end if;
 						if MabMmrWEN(1) = MEM_ASSERT then NPUCR(15 downto 8) <= MabMmrD(15 downto 8); end if;
-						if MabMmrWEN(2) = MEM_ASSERT then 
-							NPUCR(18 downto 17) <= MabMmrD(18 downto 17); 
+						if MabMmrWEN(2) = MEM_ASSERT then
+							NPUCR(19 downto 17) <= MabMmrD(19 downto 17);
 							NPUTHINK <= MabMmrD(16);
 						end if;
 						if MabMmrWEN(3) = MEM_ASSERT then null; end if;
@@ -484,10 +526,11 @@ begin
 	-- bit 16 reads the dead NPUCR(16) and software (and the TB) can never observe
 	-- the NPU finishing (NPUTHINK 1->0).
 	with MabMmrAInt select
-		MabMmrQ <=	(31 downto 19 => '0') & NPUCR(18 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
+		MabMmrQ <=	(31 downto 20 => '0') & NPUCR(19 downto 17) & NPUTHINK & NPUCR(15 downto 0)	when MmrAddrNPUCR,
 					(31 downto 12 => '0') & NPUIVSAR	when MmrAddrNPUIVSAR,
 					(31 downto 12 => '0') & NPUWVSAR	when MmrAddrNPUWVSAR,
 					(31 downto 12 => '0') & NPUOVSAR	when MmrAddrNPUOVSAR,
+					(31 downto 1  => '0') & THINKDONE	when MmrAddrNPUSR,
 					(others => '0')						when others;
 
 end behavioral;

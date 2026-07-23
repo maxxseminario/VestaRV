@@ -52,7 +52,18 @@
 # harts 1/2/3 have DISTINCT roles and harts >= 4 fall into hart 1's role
 # (reconfigure + npu_run to OUT1); N=18 semantics UNVERIFIED (and NPU is dropped
 # in Argus anyway) — manual review. N=4 behaviour is unchanged.
-# (next free shared word: 0x10240 at N=4)
+# (TD scratch at 0x10260/64 -- 0x10240-0x1025C is the shlock band, ledger rule; next free 0x10268)
+#
+# IRQ LEG (digperiphs, 2026-07-22): NPU think-done = irq_router source 120
+# (IRQB_NPU0_TD; npu_irq_spec.md). NPUSR @0x4A10 bit0 THINKDONE (sticky W1C,
+# set once per THINK completion); NPUCR bit19 TDIE gates a registered level
+# -> source 120 -> meip -> env MEIP_DISPATCHER -> IVT slot 120 -> plain-ret
+# handler -> CLAIM/COMPLETE, exactly like wdma.S (119) / wrtc.S (114). Runs
+# on hart 0 ONLY, after the existing polling proof above, before RVTEST_PASS
+# — hart 1-3 behavior is unchanged. A THIRD output word (OV3, 0xC110) keeps
+# this run's completion unambiguous from the OUT1/OUT2 proof already checked.
+#     TD_FLAG = 0x10260   (ISR exactly-once counter)
+#     TD_ISVC = 0x10264   (handler's masked INSVCX readback)
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -70,8 +81,21 @@
 #define WV_WORD    0x41         /* staging-RAM word of W   (0xC104) */
 #define OV1_WORD   0x42         /* staging-RAM word of OUT1 (0xC108) */
 #define OV2_WORD   0x43         /* staging-RAM word of OUT2 (0xC10C) */
+#define OV3_WORD   0x44         /* staging-RAM word of OUT3 (0xC110), IRQ leg */
 #define CR_THINK   0x10000      /* THINK=1, NI=0 (1 input), NN=0 (1 neuron),
                                    BEN=0, AEN=0 (pass-through) */
+
+/* ---- IRQ leg (source 120, IRQB_NPU0_TD; npu_irq_spec.md) ---------------- */
+#define NPU_OVSAR_ADDR   0x4A0C      /* NPU +0xC: OVSAR (existing register) */
+#define NPUSR_ADDR  0x4A10      /* NPU +0x10 (word offset 4): NEW, W1C bit0 */
+#define TDIE        0x00080000 /* NPUCR bit19: think-done IRQ enable */
+#define CR_THINK_TDIE (CR_THINK | TDIE)  /* THINK | TDIE | 1-input | 1-neuron */
+#define IRTR_ENX    0x700C      /* HhENX, hart-0 row (sources 96-127) */
+#define IRTR_PENDX  0x781C      /* RO pending, sources 96-127 */
+#define IRTR_INSVCX 0x782C      /* RO in_service, sources 96-127 */
+#define TD_SRC_BIT  0x01000000  /* bit24: source 120 (120-96) in ENX/PENDX/INSVCX */
+#define TD_FLAG     0x10260     /* ISR exactly-once counter */
+#define TD_ISVC     0x10264     /* handler's masked INSVCX readback */
 
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
@@ -222,6 +246,131 @@ done_check:
     li   t2, W_VAL
     bne  t1, t2, shnpu_fail
 
+    # ================= IRQ leg: NPU think-done (vector 120) ================
+    # NPUSR (0x4A10) bit0 THINKDONE, sticky W1C, set on THINK completion.
+    # NPUCR bit19 TDIE gates a registered level -> irq_router source 120 ->
+    # meip -> MEIP_DISPATCHER -> IVT slot 120 -> plain-ret handler ->
+    # CLAIM/COMPLETE. Mirrors the wdma/wrtc Stage-E rider proof: PENDX read
+    # with the route OFF (deterministic, no delivery race), then enable ENX,
+    # INSVCX-in-handler rider, exactly-once, negctrl-lite, un-route. Hart 0
+    # only; harts 1-3 stay parked in their own tile_verify loops throughout.
+    li   t0, TD_FLAG
+    sw   x0, 0(t0)               # exactly-once counter = 0
+    li   t0, TD_ISVC
+    sw   x0, 0(t0)
+
+    # NPUSR.THINKDONE is STICKY (W1C) and the mainline proof above already
+    # ran two THINKs (hart 1's and hart 3's npu_run, no TDIE) -- THINKDONE
+    # may already be latched 1 from those, so this leg starts by clearing it
+    # unconditionally (not asserting a "resets 0" precondition that doesn't
+    # hold mid-test) and then proves the clear actually landed.
+    li   t0, NPUSR_ADDR
+    li   t1, 1
+    sw   t1, 0(t0)               # W1C: clear any stale THINKDONE
+    lw   t1, 0(t0)
+    bnez t1, shnpu_fail          # must read 0 right after the clear
+
+    li   t0, OV3_WORD
+    li   t1, NPU_OVSAR_ADDR
+    sw   t0, 0(t1)               # OVSAR -> OUT3 (0xC110): a fresh word so
+    lw   t2, 0(t1)               # this run can't alias the OUT1/OUT2 proof
+    bne  t2, t0, shnpu_fail
+
+    # start the THINK with TDIE set but the router route OFF -> NPUSR sets,
+    # the internal level asserts, but no meip is delivered yet
+    li   t0, SH_NPU
+    li   t1, CR_THINK_TDIE
+    sw   t1, 0(t0)               # NPUCR = THINK | TDIE | 1-input | 1-neuron
+
+    li   t6, 20000
+td_wait_busy:
+    li   t0, SH_NPU
+    lw   t1, 0(t0)
+    srli t1, t1, 16
+    andi t1, t1, 1               # NPUCR bit16 = THINK (busy)
+    beqz t1, td_wait_flag
+    addi t6, t6, -1
+    bnez t6, td_wait_busy
+    j    shnpu_fail
+
+td_wait_flag:
+    li   t0, NPUSR_ADDR
+    lw   t1, 0(t0)
+    andi t1, t1, 1
+    bnez t1, td_pendx
+    addi t6, t6, -1
+    bnez t6, td_wait_flag
+    j    shnpu_fail
+
+td_pendx:
+    # RIDER: PENDX bit24 must be set (raw source pending; route still off ->
+    # no delivery races this poll)
+    li   t0, IRTR_PENDX
+    lw   t1, 0(t0)
+    li   t2, TD_SRC_BIT
+    and  t1, t1, t2
+    beqz t1, shnpu_fail
+
+    # enable the route -> meip -> dispatcher -> claim 120 -> handler
+    li   t0, IRTR_ENX
+    li   t1, TD_SRC_BIT
+    sw   t1, 0(t0)
+    lw   t2, 0(t0)
+    bne  t2, t1, shnpu_fail
+
+    li   t6, 20000
+td_wait_deliv:
+    li   t0, TD_FLAG
+    lw   t1, 0(t0)
+    li   t2, 1
+    bge  t1, t2, td_deliv_ok
+    addi t6, t6, -1
+    bnez t6, td_wait_deliv
+    j    shnpu_fail
+
+td_deliv_ok:
+    # exactly one delivery (in_service gateway)
+    li   t0, TD_FLAG
+    lw   t1, 0(t0)
+    li   t2, 1
+    bne  t1, t2, shnpu_fail
+    # RIDER: the handler recorded INSVCX bit24 while claimed
+    li   t0, TD_ISVC
+    lw   t1, 0(t0)
+    li   t2, TD_SRC_BIT
+    bne  t1, t2, shnpu_fail
+    # handler W1C'd NPUSR bit0 -> level dropped -> NPUSR reads 0
+    li   t0, NPUSR_ADDR
+    lw   t1, 0(t0)
+    bnez t1, shnpu_fail
+    # PENDX bit24 clear now too (raw source level dropped)
+    li   t0, IRTR_PENDX
+    lw   t1, 0(t0)
+    li   t2, TD_SRC_BIT
+    and  t1, t1, t2
+    bnez t1, shnpu_fail
+    # end-to-end proof: the THINK that raised the IRQ really computed
+    li   t0, X_ADDR
+    lw   t1, 16(t0)              # OUT3 @ 0xC110
+    li   t2, OUT_VAL
+    bne  t1, t2, shnpu_fail
+
+    # negative-control-lite: let any (erroneous) second delivery happen (no
+    # new THINK started, route still on), then confirm counter stayed at 1
+    li   t6, 2000
+td_settle:
+    addi t6, t6, -1
+    bnez t6, td_settle
+    li   t0, TD_FLAG
+    lw   t1, 0(t0)
+    li   t2, 1
+    bne  t1, t2, shnpu_fail
+
+    li   t0, IRTR_ENX
+    sw   x0, 0(t0)               # un-route (clean)
+    li   t0, SH_NPU
+    sw   x0, 0(t0)               # NPUCR back to reset default (TDIE off too)
+
     RVTEST_PASS                 # a0 = 0xCAFEBABE, spin
 
 shnpu_fail:
@@ -245,6 +394,67 @@ think_wait:
     j    shnpu_fail
 think_done:
     jalr zero, 0(ra)
+
+    # ---- NPU think-done handler (vector 120; M19 plain-ret meip ABI).
+    # ---- Reached via CLAIM=120 -> dispatcher jalr through IVT slot 120.
+    # ---- Records the INSVCX in-handler proof, W1C-clears NPUSR bit0 (drops
+    # ---- the level) BEFORE returning (dispatcher COMPLETEs after), bumps
+    # ---- the exactly-once counter. t0-t2 dispatcher-saved scratch; ra
+    # ---- survives (ret). s-regs/other GPRs untouched. ----------------------
+    .section .text.init
+npu0_td_isr:
+    li   t0, IRTR_INSVCX
+    lw   t1, 0(t0)
+    li   t2, TD_SRC_BIT
+    and  t1, t1, t2               # isolate bit24 (source 120 in service)
+    li   t0, TD_ISVC
+    sw   t1, 0(t0)                # mainline requires == TD_SRC_BIT
+    li   t0, NPUSR_ADDR
+    li   t1, 1
+    sw   t1, 0(t0)                # W1C bit0 -> THINKDONE clears, level drops
+    li   t0, TD_FLAG
+    lw   t1, 0(t0)
+    addi t1, t1, 1
+    sw   t1, 0(t0)
+    ret
+
+    # ---- env meip dispatcher (.isr_meip @0xB100) + IVT slot 85 ----------
+    MEIP_DISPATCHER()
+    IVT_ARM_MEIP()
+
+    # ---- extend the IVT to slot 120 = NPU0_TD (DEFINE_IVT stops at 82,
+    # ---- IVT_ARM_MEIP fills 83-85). Slot 120 @ .ivt+4*120 = 0x1E0. --------
+    #
+    # flash_prepend.sh boot-image gotcha (found this session): the SPI-flash
+    # image builder splits the binary into loadSegmentToRAM regions on a run
+    # of >= GAP_MIN(8) zero WORDS; a run of 7 or fewer is left INSIDE the
+    # surrounding region instead. Slot 120 (0x81E0-0x81E3) is only 7 zero
+    # words short of .text.init's fixed link.ld address (0x8200) -- one word
+    # LESS than wdma.S's slot 119, whose 8-word gap DOES split (verified via
+    # flash_prepend.sh's own region scan: wdma gets a dedicated 0x8200
+    # segment, shnpu without this padding gets 0x81e0-0x85f4 MERGED into one
+    # oversized segment). The merged form was proven to corrupt the boot
+    # copy in simulation (hart 0 trapped on an illegal all-zero word fetched
+    # at 0x8200 -- the flashed data at that address was verified correct via
+    # the rcf itself, so the corruption is in the merged-segment copy, not
+    # the image). FIX: explicitly park the remaining reserved slots 121-127
+    # (never routed -- NUM_IRQ_SRCS=121, i.e. 120 is the last valid source)
+    # at 0xBB00 like every other unused slot, which fills the gap solid all
+    # the way to 0x8200 and removes the short zero-run entirely (matches the
+    # DEFINE_IVT convention for slots 0-82; slots 86-119 stay an ordinary
+    # zero gap exactly like wdma/wrtc, since that gap is provably >= 8 words
+    # and always gets its own split segment).
+    .section .ivt, "ax"
+    .org 4*120
+    jal  zero, npu0_td_isr        # slot 120 = IRQB_NPU0_TD
+    jal  zero, 0x0BB00            # slot 121 - reserved -> parked
+    jal  zero, 0x0BB00            # slot 122 - reserved -> parked
+    jal  zero, 0x0BB00            # slot 123 - reserved -> parked
+    jal  zero, 0x0BB00            # slot 124 - reserved -> parked
+    jal  zero, 0x0BB00            # slot 125 - reserved -> parked
+    jal  zero, 0x0BB00            # slot 126 - reserved -> parked
+    jal  zero, 0x0BB00            # slot 127 - reserved -> parked
+    .previous
 
     # NOTE: RVTEST_CODE_END is 'unimp' in this env (traps!) — never fall
     # through; every path above ends in a spin.

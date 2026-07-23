@@ -26,6 +26,12 @@ If bias is enabled (\texttt{NPUBEN}~=~1), the weight matrix contains \texttt{NPU
     \item Write the desired output word index to \texttt{NPUOVSAR}.
     \item Configure \texttt{NPUCR}: set \texttt{NPUNI} to (number of inputs~$-$~1), \texttt{NPUNN} to (number of output neurons~$-$~1), and configure \texttt{NPUBEN} and \texttt{NPUAEN} as required.
     \item Set \texttt{NPUTHINK} (\register{NPUCR} bit 16) to~1 to start the computation. The staging RAM is now owned by the NPU; no hart may access \texttt{0xC000}--\texttt{0xFFFF} until the computation completes.
-    \item Poll \register{NPUCR} bit 16 (\texttt{NPUTHINK}) until it reads~0, indicating that the computation is complete and the staging RAM has been released back to the harts.
+    \item Poll \register{NPUCR} bit 16 (\texttt{NPUTHINK}) until it reads~0, indicating that the computation is complete and the staging RAM has been released back to the harts --- or take the think-done interrupt (below).
     \item Read the output vector from the staging RAM at the word index stored in \texttt{NPUOVSAR}.
 \end{enumerate}
+
+\subsubsection*{Think-done interrupt (vector 120)}
+
+As an alternative to polling, the NPU raises the \textit{think-done} interrupt (interrupt vector 120) when a computation completes. The \texttt{NPUTHINKDONE} flag (\register{NPUSR} bit 0) is set once per computation --- by the same internal event that self-clears \texttt{NPUTHINK} --- and is \textit{sticky}: it remains set until software clears it by writing a 1 to \register{NPUSR} bit 0 (write-1-to-clear; writing 0 has no effect, and reading \register{NPUSR} never clears it). The interrupt is a level, asserted while both \texttt{NPUTHINKDONE} and the enable bit \texttt{NPUTDIE} (\register{NPUCR} bit 19) are set; it is routed, claimed, and completed through the interrupt router like every other peripheral source. \texttt{NPUTDIE} resets to 0, so software that polls is unaffected by the interrupt's existence.
+
+A typical interrupt-driven flow arms \texttt{NPUTDIE}, starts the computation, and sleeps; the handler clears \texttt{NPUTHINKDONE} (write-1-to-clear) before completing the interrupt at the router. \textbf{The staging-RAM ownership contract is unchanged by the interrupt}: the staging RAM belongs to the NPU while a computation may be active, and no hart may access \texttt{0xC000}--\texttt{0xFFFF} until \register{NPUCR} bit 16 (\texttt{NPUTHINK}) reads 0. Taking the think-done interrupt implies the computation has finished, but any hart \textit{other} than the one servicing the interrupt must still consult \texttt{NPUTHINK} before touching the staging RAM.

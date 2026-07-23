@@ -22,7 +22,7 @@
             ResetN			: in	std_logic;						-- NPU Active-Low Reset
 
             -- Memory Address Bus to Memory Mapped Registers Signals
-            MabMmrA			: in 	std_logic_vector(1 downto 0);	-- MCU To NPU MMR - Address
+            MabMmrA			: in 	std_logic_vector(2 downto 0);	-- MCU To NPU MMR - Address
             MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
             MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
             MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable
@@ -47,7 +47,9 @@
             NpuSramWEN_out		: out 	std_logic_vector(3 downto 0);	-- NPU To SRAM - Write Enable
 
             -- NPU Status Signal
-            NpuActive		: out	std_logic						-- NPU Active Signal for Arbitration
+            NpuActive		: out	std_logic;						-- NPU Active Signal for Arbitration
+            -- NPU Interrupt Signal
+            ThinkDoneIrq	: out	std_logic						-- Think-Done IRQ (registered level, irq_router source 120)
         );
     end component;
 --@NPUBLOCK:npu-fabric-decls@
@@ -116,7 +118,10 @@
             NpuSramGWEN_out => npu0_mux_ram_gwen,
             NpuSramWEN_out  => npu0_mux_wen,
 
-            NpuActive       => npu0_active -- Make irq
+            NpuActive       => npu0_active,
+            -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120
+            -- (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
+            ThinkDoneIrq    => irq_npu0_td
     );
 --@NPUBLOCK:npuram-instance@
     -- M11: NPU staging RAM @0xC000-0xFFFF (hart 0's retired private RAM1

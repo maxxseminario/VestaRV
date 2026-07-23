@@ -847,6 +847,19 @@ class McuVhdEmitter():
 		# (they are consumed nowhere in this emitter — an unused-signal state is expected at
 		# this stage). Default false => every I2CT0 region is inert (byte-identical default).
 		self.i2ctarget = geo.get('i2ctarget', False)
+		# digperiphs (TRNG): TRNG0 (ring-oscillator entropy source + harvest engine) in
+		# MUTEX-page (page 2) sub-slot 9 @0x6900. Same native-slave shape as
+		# RTC0/PWM0/OW0/DMA0/I2CT0 -- a PLAIN raw-strobe en shim (NO falling_edge
+		# (EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). Zero pins: the entropy
+		# source is a SIBLING instance (u_ro, TrngRoEnsemble) wired through trng0's
+		# ro_enable/ro_sel/ro_sclk (out) / ro_raw (in) ports -- not a pad group. trngRings
+		# ({4,8}) is the shared NRO generic for BOTH trng0 and u_ro (the register map is
+		# NRO-invariant). Default false => every TRNG region is inert (byte-identical
+		# default).
+		self.trng = geo.get('trng', False)
+		self.trngRings = geo.get('trngRings', 8)
+		if self.trng and self.trngRings not in (4, 8):
+			raise Exception('MCU.vhd emitter: trngRings must be 4 or 8, got ' + str(self.trngRings))
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -978,6 +991,15 @@ class McuVhdEmitter():
 		if self.i2ctarget:
 			self.shslv = dict(self.shslv)
 			self.shslv['I2CT0'] = {'sel': 'i2ct0', 'shim': None, 'rdata': 'i2ct0_sh_rdata'}
+		# digperiphs (TRNG): TRNG0 joins the same native-slave fabric (MUTEX-page sub-slot
+		# 9). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None)
+		# puts its register file through the standard enable / registered rd-sel /
+		# rdata-mux loops, and its active-low RAW-strobe en shim lives in emitTrngInstance
+		# (no en_q register, D4). The sibling u_ro TrngRoEnsemble instance (D6) is emitted
+		# alongside trng0 in the same instance region -- it is not itself a bus slave.
+		if self.trng:
+			self.shslv = dict(self.shslv)
+			self.shslv['TRNG0'] = {'sel': 'trng0', 'shim': None, 'rdata': 'trng0_sh_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -992,7 +1014,8 @@ class McuVhdEmitter():
 			+ (['PWM0'] if self.pwm else []) \
 			+ (['OW0'] if self.onewire else []) \
 			+ (['DMA0'] if self.dma else []) \
-			+ (['I2CT0'] if self.i2ctarget else [])
+			+ (['I2CT0'] if self.i2ctarget else []) \
+			+ (['TRNG0'] if self.trng else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1259,6 +1282,9 @@ class McuVhdEmitter():
 			# digperiphs #6: DMA0 = page-2 sub-slot 8 (0x6800). Slave register file
 			# only; the DMA's MASTER port slices into arb_*(numHarts) separately.
 			lines.append(ind + 'shslv_dma0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1000" else \'0\';')
+		if self.trng:
+			# digperiphs (TRNG): TRNG0 = page-2 sub-slot 9 (0x6900).
+			lines.append(ind + 'shslv_trng0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1001" else \'0\';')
 		if self.i2ctarget:
 			# digperiphs (I2CT): I2CT0 = page-2 sub-slot 10 (0x6A00).
 			lines.append(ind + 'shslv_i2ct0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1010" else \'0\';')
@@ -2022,6 +2048,103 @@ class McuVhdEmitter():
 			'    -- what makes the wi2ct I2C0-as-host loopback on the SAME pads legal.',
 			'    sda0_dir_mrg <= sda0_dir or i2ct0_sda_dir;',
 			'    scl0_dir_mrg <= scl0_dir or i2ct0_scl_dir;',
+		]
+
+	def emitTrngDecls(self):
+		'''digperiphs (TRNG): TRNG0 (ring-oscillator entropy source + harvest engine,
+		page-2 sub-slot 9 @0x6900) declarative region. Fabric nets for the hand-emitted
+		RAW-strobe shim + the four entropy-source fan-out scalars that wire trng0 to its
+		sibling u_ro TrngRoEnsemble instance (D6). Nothing when TRNG is absent. Like
+		RTC0/PWM0/OW0/DMA0/I2CT0 there is NO shslv_trng0_en_q register (D4). NO pad
+		signals: the RO ensemble is internal fabric, not a pin group.'''
+		if not self.trng:
+			return []
+		return [
+			'        -- digperiphs (TRNG): TRNG0 (ring-oscillator entropy source + harvest',
+			'        -- engine: NRO free-running rings 2-FF synchronized into MCLK, decimated',
+			'        -- and direct-packed into 32-bit words behind a read-CONSUMES data',
+			'        -- register, with a repetition-count health test that auto-halts',
+			'        -- harvesting on alarm). Page-2 (MUTEX page) sub-slot 9 @0x6900 — the',
+			'        -- mutex bank keeps sub-slot 0 @0x6000. Registered-read native slave with',
+			'        -- a PLAIN active-low one-cycle en shim: NO falling_edge(EnMemPeriph)',
+			'        -- pre-latch and NO CAPTURE_CLOCK en_q (D4 — registers its read on rising',
+			'        -- ClkMem over data already in the bus/mclk family). The RO 2-FF sync,',
+			'        -- decimator, 32-bit assembler, repetition-count health test, sticky ALMF',
+			'        -- and the IRQ combiner all ride the free-running MCLK (clk => mclk,',
+			'        -- D1/D2) — no LFXT, no generated/gated clocks. irq_trng -> vector 121.',
+			'        -- ZERO pins: the entropy source is the SIBLING u_ro TrngRoEnsemble',
+			'        -- instance (D6), wired through the four ro_* fan-out scalars below —',
+			'        -- never a pad group.',
+			'        signal shslv_trng0_sel, shslv_trng0_en : std_logic;',
+			"        signal shslv_rd_trng0   : std_logic := '0';",
+			'        signal trng0_sh_rdata   : std_logic_vector(31 downto 0);',
+			'        signal trng0_sh_en_n    : std_logic;',
+			'        -- Entropy-source fan-out to u_ro (D6): ro_enable/ro_sel/ro_sclk are',
+			'        -- trng0 OUTPUTS (ro_sclk = mclk, for the sim arch only); ro_raw is the',
+			'        -- XOR-ensembled jitter bit u_ro drives back INTO trng0 (2-FF',
+			'        -- synchronized inside TRNG before any use, D7 — never a clock).',
+			'        signal trng0_ro_enable  : std_logic;',
+			'        signal trng0_ro_sel     : std_logic_vector(3 downto 0);',
+			'        signal trng0_ro_sclk    : std_logic;',
+			'        signal trng0_ro_raw     : std_logic;',
+		]
+
+	def emitTrngInstance(self):
+		'''digperiphs (TRNG): TRNG0 instance region (page-2 sub-slot 9 @0x6900). The
+		PLAIN raw-strobe active-low en shim + the TRNG entity + the sibling u_ro
+		TrngRoEnsemble instance (D6), wired through the four ro_* fan-out scalars.
+		Nothing when TRNG is absent. No en_q process (D4), no pad ties (zero pins).
+		Both trng0 and u_ro take the SHARED NRO generic (trngRings, {4,8}) — the
+		register map is NRO-invariant.'''
+		if not self.trng:
+			return []
+		nro = str(self.trngRings)
+		return [
+			'',
+			'    -- =========================================================================',
+			'    -- TRNG0 (digperiphs TRNG): ring-oscillator entropy source + harvest engine,',
+			'    -- page-2 (MUTEX page) sub-slot 9 @0x6900. The RO 2-FF synchronizer, the',
+			'    -- decimator, the 32-bit direct-pack assembler, the repetition-count health',
+			'    -- test, the sticky ALMF flag and the IRQ combiner all ride the free-running',
+			'    -- MCLK (clk => mclk, D1/D2), so the harvest engine is immune to clock',
+			'    -- reconfig; the register file rides ClkMem (= mclk at integration). No LFXT,',
+			'    -- no generated/gated clocks. Registered read (no bridge, no CAPTURE_CLOCK',
+			'    -- pre-latch, D4); TRNG0DR is the ONE read-side-effect exception in this',
+			'    -- library (read-CONSUMES, D9). irq_trng -> vector 121 (combined data-ready |',
+			'    -- health-alarm) through the irq_router. ZERO pins: the entropy source is the',
+			'    -- sibling u_ro TrngRoEnsemble instance (D6) — an internal fabric-only',
+			'    -- instance, never wired to a pad. Both instances share the NRO generic',
+			'    -- (trngRings = ' + nro + ').',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) —',
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    trng0_sh_en_n <= not shslv_trng0_en;',
+			'    trng0: entity work.TRNG',
+			'        generic map (NRO => ' + nro + ')',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            irq_trng    => irq_trng0,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => trng0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => trng0_sh_rdata,',
+			'            ro_enable   => trng0_ro_enable,',
+			'            ro_sel      => trng0_ro_sel,',
+			'            ro_sclk     => trng0_ro_sclk,',
+			'            ro_raw      => trng0_ro_raw);',
+			'    -- D6: the sibling entropy-source instance — the SAME entity as trng0\'s',
+			'    -- expectation, bound to the sim (behavioral) or rtl (genus/gate) architecture',
+			'    -- by cell-list discipline (the two architectures\' files must never co-list).',
+			'    u_ro: entity work.TrngRoEnsemble',
+			'        generic map (NRO => ' + nro + ')',
+			'        port map (',
+			'            enable      => trng0_ro_enable,',
+			'            sel         => trng0_ro_sel,',
+			'            sclk        => trng0_ro_sclk,',
+			'            ro_raw      => trng0_ro_raw);',
 		]
 
 	def emitGpio45Decls(self, port):
@@ -3424,7 +3547,7 @@ class McuVhdEmitter():
 			return lines
 		if spec['comment'] == 'npu':
 			en = self.shslv[name]['shim'] + '_sh_en_n'
-			lines.append(ind + 'MabMmrA'.ljust(12) + '=> sh_addr(1 downto 0),')
+			lines.append(ind + 'MabMmrA'.ljust(12) + '=> sh_addr(2 downto 0),')
 			lines.append(ind + 'MabMmrD'.ljust(12) + '=> sh_wdata,')
 			lines.append(ind + 'MabMmrCLK'.ljust(12) + '=> mclk,')
 			lines.append(ind + 'MabMmrCEN'.ljust(12) + '=> ' + en + ',')
@@ -3565,6 +3688,10 @@ class McuVhdEmitter():
 			return self.emitI2ctDecls()
 		if name == 'i2ct-instance':
 			return self.emitI2ctInstance()
+		if name == 'trng-decls':
+			return self.emitTrngDecls()
+		if name == 'trng-instance':
+			return self.emitTrngInstance()
 		if name == 'gpio4-decls':
 			return self.emitGpio45Decls(5)
 		if name == 'gpio5-decls':
@@ -3672,6 +3799,8 @@ def generateMcuVhd(gen, templatePath, outPath):
 		'dma-decls', 'dma-instance',
 		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
 		'i2ct-decls', 'i2ct-instance',
+		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900
+		'trng-decls', 'trng-instance',
 		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions
