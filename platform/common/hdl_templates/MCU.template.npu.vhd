@@ -22,7 +22,7 @@
             ResetN			: in	std_logic;						-- NPU Active-Low Reset
 
             -- Memory Address Bus to Memory Mapped Registers Signals
-            MabMmrA			: in 	std_logic_vector(2 downto 0);	-- MCU To NPU MMR - Address
+            MabMmrA			: in 	std_logic_vector(3 downto 0);	-- MCU To NPU MMR - Address
             MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
             MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
             MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable

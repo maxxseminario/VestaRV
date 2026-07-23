@@ -5837,11 +5837,31 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 20,
+							"LSB": 26,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
 							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NPUACTF",
+							"MSB": 25,
+							"LSB": 23,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Post-accumulator activation function select, effective when NPUAEN = 1 (P4 architecture family). 0 = logistic sigmoid approximation (the legacy activation; reset default). Codes 1-7 are reserved in this revision and behave as 0 (sigmoid).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NPUMODE",
+							"MSB": 22,
+							"LSB": 20,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Datapath mode select for the NPU architecture family (P4). 0 = multilayer-perceptron mode (the legacy datapath; reset default). 1 = one-dimensional convolution mode. Codes 2 (XNOR-popcount) and 3 (GEMM) are reserved for future family modes; codes 4-7 are reserved. Reserved and unimplemented codes behave as mode 0.",
 							"ValueDescriptions": []
 						},
 						{
@@ -6082,6 +6102,58 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									""
 								]
 							]
+						}
+					]
+				},
+				{
+					"RegisterName": "NPUCFG1",
+					"Address": 18964,
+					"Offset": 20,
+					"RegisterMemorySlot": 5,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "NPU mode configuration word 1. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 3:0 = stride S (1-15), bits 7:4 = dilation D (1-15), bits 23:8 = input length L per channel in samples, bits 31:24 = number of input channels minus 1 (the actual channel count Cin is this field + 1). Reserved future modes assign their own interpretation (XNOR-popcount: signed 32-bit firing threshold).",
+					"BitFields": [
+						{
+							"BitFieldName": "NPUCFG1",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Per-mode configuration word 1 (interpretation selected by NPUCR.NPUMODE)",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NPUCFG2",
+					"Address": 18968,
+					"Offset": 24,
+					"RegisterMemorySlot": 6,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "NPU mode configuration word 2. The interpretation depends on NPUCR.NPUMODE. Multilayer-perceptron mode (0): unused, no effect. One-dimensional convolution mode (1): bits 15:0 = output length Lout per filter in samples. Lout is computed by the host (the sequencer trusts this value; the valid/same padding convention is a firmware decision) and every referenced input sample index j*S + k*D must be less than L. Bits 31:16 are reserved and read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 16,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NPUCFG2",
+							"MSB": 15,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Per-mode configuration word 2 (interpretation selected by NPUCR.NPUMODE)",
+							"ValueDescriptions": []
 						}
 					]
 				}

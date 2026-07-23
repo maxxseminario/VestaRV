@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/22 at 12:19:40 with the generate.py chip generator
+-- Generated on 2026/07/23 at 01:24:28 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -379,7 +379,7 @@ architecture behav of MCU is
             ResetN			: in	std_logic;						-- NPU Active-Low Reset
 
             -- Memory Address Bus to Memory Mapped Registers Signals
-            MabMmrA			: in 	std_logic_vector(2 downto 0);	-- MCU To NPU MMR - Address
+            MabMmrA			: in 	std_logic_vector(3 downto 0);	-- MCU To NPU MMR - Address
             MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
             MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
             MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable
@@ -4081,7 +4081,7 @@ begin
 
             -- Memory Bus Signals (arbiter slave side, M7d — window slot 10
             -- @0x04A00; MabMmrQ is COMBINATIONAL, registered by the bridge)
-            MabMmrA     => sh_addr(2 downto 0),
+            MabMmrA     => sh_addr(3 downto 0),
             MabMmrD     => sh_wdata,
             MabMmrCLK   => mclk,
             MabMmrCEN   => npu_sh_en_n,

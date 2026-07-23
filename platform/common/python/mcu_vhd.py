@@ -3547,7 +3547,7 @@ class McuVhdEmitter():
 			return lines
 		if spec['comment'] == 'npu':
 			en = self.shslv[name]['shim'] + '_sh_en_n'
-			lines.append(ind + 'MabMmrA'.ljust(12) + '=> sh_addr(2 downto 0),')
+			lines.append(ind + 'MabMmrA'.ljust(12) + '=> sh_addr(3 downto 0),')
 			lines.append(ind + 'MabMmrD'.ljust(12) + '=> sh_wdata,')
 			lines.append(ind + 'MabMmrCLK'.ljust(12) + '=> mclk,')
 			lines.append(ind + 'MabMmrCEN'.ljust(12) + '=> ' + en + ',')

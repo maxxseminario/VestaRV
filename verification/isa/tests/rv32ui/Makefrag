@@ -27,6 +27,7 @@ rv32ui_sc_tests = \
 	wqspi wi3c wnfc wgpio \
 	wrtc wpwm wow wdma \
 	wi2ct wtrng \
+	wnpuconv \
 	afsel afselv2 \
 	add addi \
 	and andi \

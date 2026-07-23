@@ -58,8 +58,8 @@ architecture testbench of NPU_tb is
     signal Clk			: std_logic;						-- NPU Main Clock
     signal ResetN		: std_logic;						-- NPU Active-Low Reset
     -- Memory Address Bus to Memory Mapped Registers Signals
-	signal  MabMmrA		: std_logic_vector(2 downto 0)
-							:= (others => '0');	    		-- MCU To NPU MMR - Address (3b widen, DP-SG think-done IRQ)
+	signal  MabMmrA		: std_logic_vector(3 downto 0)
+							:= (others => '0');	    		-- MCU To NPU MMR - Address (4b widen, P4.1 family CFG words)
     signal MabMmrD		: std_logic_vector(31 downto 0)
 								:= (others => '0');			-- MCU To NPU MMR - Data Input
     signal MabMmrCLK	: std_logic;						-- MCU To NPU MMR - Clock

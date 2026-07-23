@@ -106,6 +106,14 @@ CATALOG = [
     # alarm IRQ (vector 121) through the real meip path. Gated by the 'trng' knob
     # so it appears ONLY where TRNG0 is instantiated (castalia_trng.json + wound).
     T('rv32ui-p-wtrng', 'trng', True),
+    # digperiphs P4.1 (NPU CONV1D, S6): wnpuconv proves NPU MODE=1 (conv) inside
+    # the full MCU at the MCU/silicon generics (Q0.24 in / Q7.24 weight+acc+out) --
+    # NPUCFG1/2 config + 4-bit MabMmrA readback smoke, an exact Q7.24 output check
+    # (K=4 Cin=2 Cout=2 Lout=4 S=1 D=1 BEN=1), and the vector-120 think-done IRQ
+    # through the real meip path (same idiom as shnpu.S's IRQ leg). Hart-0 directed
+    # (tiles parked), so no 'tiles' tag; gated by 'npu' so NPU-less configs (Argus)
+    # drop it, identically to shnpu.
+    T('rv32ui-p-wnpuconv', 'npu', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
