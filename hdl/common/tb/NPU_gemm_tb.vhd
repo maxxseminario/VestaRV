@@ -381,10 +381,16 @@ begin
 		--   force_actf  : >=0 overrides the cfg file's ACTF (the P4.4
 		--                 fallback poke, G-AEN's ACTF=1 re-run -- conv
 		--                 G-AEN precedent).
+		--   exp_file_name : non-empty overrides the default
+		--                   npu_gemm_<case_name>_exp.txt (npu_actf_design.md
+		--                   D10/A2 -- the force_actf=>1 rerun now compares
+		--                   against the LIVE ReLU golden, not the case's own
+		--                   sigmoid exp file).
 		procedure run_gemm_case(case_name     : string;
 		                        check_no_x    : boolean := false;
 		                        corrupt_mid   : boolean := false;
-		                        force_actf    : integer := -1) is
+		                        force_actf    : integer := -1;
+		                        exp_file_name : string := "") is
 			file cfg_f : text;
 			file in_f  : text;
 			file w_f   : text;
@@ -462,7 +468,11 @@ begin
 
 			-- compare outputs (flat row-major m*N+n order); write actuals
 			-- for post-mortem
-			file_open(exp_f, "npu_gemm_" & case_name & "_exp.txt", read_mode);
+			if exp_file_name'length > 0 then
+				file_open(exp_f, exp_file_name, read_mode);
+			else
+				file_open(exp_f, "npu_gemm_" & case_name & "_exp.txt", read_mode);
+			end if;
 			file_open(act_f, "npu_gemm_" & case_name & "_act.txt", write_mode);
 			outc := 0;
 			sram_burst_start;
@@ -552,12 +562,15 @@ begin
 		run_gemm_case("degen_111");
 		run_gemm_case("maxfit");
 
-		-- G-AEN: ACTF=0 (sigmoid-legacy) then the P4.4 fallback poke:
-		-- ACTF=1 decodes but the activation mux itself lands in P4.4, so a
-		-- directed ACTF=1 rerun of the SAME case MUST produce the identical
-		-- sigmoid outputs (conv G-AEN precedent).
+		-- G-AEN: ACTF=0 (sigmoid-legacy) then the P4.4 fallback poke with
+		-- ACTF=1 reusing the SAME cfg/in/w data -- ACTF=1 is now LIVE ReLU
+		-- (the P4.4 inversion, npu_actf_design.md D10/A2; conv G-AEN
+		-- precedent), so the rerun compares against the aen_relu golden,
+		-- NOT the case's own sigmoid exp file (the aen accumulators are
+		-- mixed-sign, so ReLU != sigmoid on every negative one -- see
+		-- gen_gemm_vectors.py's gen_aen_relu_exp).
 		run_gemm_case("aen");
-		run_gemm_case("aen", force_actf => 1);
+		run_gemm_case("aen", force_actf => 1, exp_file_name => "npu_gemm_aen_relu_exp.txt");
 
 		----- Final verdict (D10 G-NEG bipartite banner) -----
 		wait for 1 us;

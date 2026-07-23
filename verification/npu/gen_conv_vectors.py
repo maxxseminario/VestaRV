@@ -81,13 +81,15 @@ def predicted_cycles(K, Cin, Cout, Lout, BEN):
     return 1 + Cout * Lout * (5 * Cin * K + 3 * B + 1) + 2
 
 
-def compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben, aen):
+def compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben, aen, actf=0):
     """inputs: list of Cin lists, each length L (raw Q(X_M).N_BITS).
     weights: flat list, filter-major, bias-first-per-filter if ben.
     Returns: list of Cout lists, each length Lout (raw Q(Y_M).N_BITS, or
-    Q0.N_BITS post-sigmoid if aen). Every MAC/sigmoid step runs through
-    npu_fixed.think_layer()/mac_step()/sigmoid() -- this function only
-    does index bookkeeping (the pinned c-outer/k-inner flattening)."""
+    post-activation if aen -- actf=0 default keeps the sigmoid-legacy
+    behavior every pre-P4.4 call site here relies on). Every MAC/
+    activation step runs through npu_fixed.think_layer()/mac_step()/
+    sigmoid()/activate() -- this function only does index bookkeeping
+    (the pinned c-outer/k-inner flattening)."""
     weights_per_filter = (1 if ben else 0) + cin * k
     outputs = []
     for f in range(cout):
@@ -103,7 +105,7 @@ def compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben, aen):
             ni = len(x_flat) - 1
             out_list, _ = think_layer(
                 x_flat, w_slice, ni=ni, nn=0, ben=ben, aen=aen,
-                x_m=X_M, w_m=W_M, y_m=Y_M, n_bits=N_BITS, rho=RHO)
+                x_m=X_M, w_m=W_M, y_m=Y_M, n_bits=N_BITS, rho=RHO, actf=actf)
             filt_out.append(out_list[0])
         outputs.append(filt_out)
     return outputs
@@ -303,6 +305,38 @@ def gen_aen():
               input_fn=in_val, weight_fn=w_val)
 
 
+def gen_aen_relu_exp():
+    # P4.4 adjudication amendment A2 (npu_actf_design.md D10): the
+    # NPU_conv_tb "aen" force_actf=>1 rerun now exercises LIVE ReLU (ACTF=1
+    # is a real activation post-P4.4, not a sigmoid-behaves-as-0 poke).
+    # Reuses the EXACT SAME inputs/weights as gen_aen() above (k=4 cin=2
+    # cout=2 lout=4 s=1 d=1, in_val/w_val, no bias) and recomputes through
+    # npu_fixed.think_layer(..., actf=1) via compute_conv's actf
+    # passthrough -- the frozen "aen" cfg/in/w/exp quartet itself is never
+    # touched; this emits ONLY the one new expected-output file.
+    k, cin, cout, lout, s, d = 4, 2, 2, 4, 1, 1
+    L = calc_L(k, s, d, lout)
+    inputs = [[in_val(c, t) for t in range(L)] for c in range(cin)]
+    weights = [w_val(f, c, kk) for f in range(cout) for c in range(cin) for kk in range(k)]
+
+    relu_out = compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben=False, aen=True, actf=1)
+    flat_relu = [relu_out[f][j] for f in range(cout) for j in range(lout)]
+
+    sigmoid_out = compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben=False, aen=True, actf=0)
+    flat_sigmoid = [sigmoid_out[f][j] for f in range(cout) for j in range(lout)]
+
+    ndiff = sum(1 for a, b in zip(flat_relu, flat_sigmoid) if a != b)
+    assert ndiff > 0, \
+        "aen_relu_exp: ReLU golden is IDENTICAL to the sigmoid golden on every " \
+        "output -- the aen accumulators are supposed to be mixed-sign (does not discriminate)"
+
+    path = os.path.join(OUT_DIR, "npu_conv_aen_relu_exp.txt")
+    write_lines(path, flat_relu)
+    print("  gen_aen_relu_exp: wrote %s (%d values; %d/%d differ from the "
+          "sigmoid 'aen' golden -- ACTF=1 is now live ReLU, the P4.4 inversion)"
+          % (path, len(flat_relu), ndiff, len(flat_relu)))
+
+
 def gen_sat():
     # G-SAT: drive the accumulator to both saturation rails. filter 0: all
     # taps at (max weight * max input) -> positive clamp. filter 1: all taps
@@ -361,6 +395,7 @@ def main():
     gen_stride_dil()
     gen_ben()
     gen_aen()
+    gen_aen_relu_exp()
     gen_sat()
     gen_multi()
     gen_degen()

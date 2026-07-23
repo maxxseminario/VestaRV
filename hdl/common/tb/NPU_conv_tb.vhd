@@ -362,12 +362,18 @@ begin
 		-- golden-file interface), runs the THINK, and compares every output.
 		--   corrupt_first : deliberately wrong first expected value (G-NEG).
 		--   check_no_x    : also assert each output is fully defined (G-DUP4).
-		--   force_actf    : >=0 overrides the cfg file's ACTF (the P4.1
+		--   force_actf    : >=0 overrides the cfg file's ACTF (the P4.1/P4.4
 		--                   fallback poke, G-AEN's ACTF=1 re-run).
+		--   exp_file_name : non-empty overrides the default
+		--                   npu_conv_<case_name>_exp.txt (P4.4 npu_actf_
+		--                   design.md D10/A2 -- the force_actf=>1 rerun now
+		--                   compares against the LIVE ReLU golden, not the
+		--                   case's own sigmoid exp file).
 		procedure run_conv_case(case_name     : string;
 		                        corrupt_first : boolean := false;
 		                        check_no_x    : boolean := false;
-		                        force_actf    : integer := -1) is
+		                        force_actf    : integer := -1;
+		                        exp_file_name : string := "") is
 			file cfg_f : text;
 			file in_f  : text;
 			file w_f   : text;
@@ -455,7 +461,11 @@ begin
 			              integer'image(THINK_POLL_MAX) & "-cycle bound", poll_ok);
 
 			-- compare outputs (flat f*Lout+j order)
-			file_open(exp_f, "npu_conv_" & case_name & "_exp.txt", read_mode);
+			if exp_file_name'length > 0 then
+				file_open(exp_f, exp_file_name, read_mode);
+			else
+				file_open(exp_f, "npu_conv_" & case_name & "_exp.txt", read_mode);
+			end if;
 			outc := 0;
 			sram_burst_start;
 			while not endfile(exp_f) loop
@@ -551,11 +561,14 @@ begin
 		run_conv_case("stride_dil");
 		run_conv_case("ben");
 
-		-- G-AEN: ACTF=0 (sigmoid-legacy) then the P4.1 fallback poke with
-		-- ACTF=1 reusing the SAME cfg/in/w/exp data -- must produce the
-		-- identical expected outputs (the activation mux itself is P4.4).
+		-- G-AEN: ACTF=0 (sigmoid-legacy) then the P4.4 fallback poke with
+		-- ACTF=1 reusing the SAME cfg/in/w data -- ACTF=1 is now LIVE ReLU
+		-- (the P4.4 inversion, npu_actf_design.md D10/A2), so the rerun
+		-- compares against the aen_relu golden, NOT the case's own sigmoid
+		-- exp file (the aen accumulators are mixed-sign, so ReLU != sigmoid
+		-- on every negative one -- see gen_conv_vectors.py's gen_aen_relu_exp).
 		run_conv_case("aen");
-		run_conv_case("aen", force_actf => 1);
+		run_conv_case("aen", force_actf => 1, exp_file_name => "npu_conv_aen_relu_exp.txt");
 
 		run_conv_case("sat");
 		run_conv_case("multi");

@@ -133,6 +133,13 @@ CATALOG = [
     # 'tiles' tag; gated by 'npu' so NPU-less configs (Argus) drop it,
     # identically to shnpu/wnpuconv/wxnpu.
     T('rv32ui-p-wgemm', 'npu', True),
+    # digperiphs P4.4 (NPU ACTF, S5): wactf proves the activation mux inside
+    # the full MCU -- a 7-THINK MLP sweep (sigmoid/ReLU/tanh/clamp/exp/
+    # reserved-as-sigmoid/AEN-0-passthrough) with exact 32-bit word checks
+    # from the validated golden (verification/npu/gen_wactf_golden.py) and
+    # the vector-120 think-done IRQ leg. Hart-0 directed, gated by 'npu'
+    # (Argus drops it), identically to the other four NPU smokes.
+    T('rv32ui-p-wactf', 'npu', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
