@@ -201,6 +201,22 @@ architecture behavioral of NPU is
 	signal xnor_fireword: std_logic_vector(31 downto 0);		-- +1.0 / -1.0 select
 	signal mlp_conv_sramd : std_logic_vector(31 downto 0);		-- the as-built NPUAEN write-data select
 
+	----- P4.3 GEMM mode (npu_gemm_design.md D1-D5) -----
+	-- GEMM = M as-built MLP THINKs (the KEY FINDING): the n-loop IS the
+	-- neuron loop (CurrYIndex, bound NPUNN=N-1), the k-loop IS the input
+	-- loop (CurrXIndex, bound NPUNI=K-1); m is the added super-outer row
+	-- loop (M-1 = NPUCFG1[7:0], latched at BEGIN). B column-major makes
+	-- the weight walk the as-built running +1 across abutting columns,
+	-- reloaded to the CONSTANT WVSAR once per row (conv's filter_base
+	-- reload simplified: no snapshot, M reloads total). Three shared-
+	-- expression edits (the CurrXAddr/CurrYAddr GEMM arms + the
+	-- SET_OUTPUT elsif); everything else is additive-to-new-registers.
+	constant MODE_GEMM	: std_logic_vector(2 downto 0) := "011";
+	signal M_m1_run		: unsigned(7 downto 0);					-- M-1 shadow (CFG1 7:0)
+	signal gemm_m		: unsigned(7 downto 0);					-- output row m (0..M-1)
+	signal mK			: unsigned(11 downto 0);				-- running m*K = input row base
+	signal gemm_yptr	: unsigned(11 downto 0);				-- flat C write pointer (row-major)
+
 	-- D2: plain loop-sum — Genus infers the ~6-level compressor tree.
 	function popcount32(v : std_logic_vector(31 downto 0)) return unsigned is
 		variable a : unsigned(5 downto 0);
@@ -381,6 +397,11 @@ begin
 			last_mask_run <= (others => '0');
 			pop_acc		<= (others => '0');
 			xnor_outword <= (others => '0');
+			-- P4.3: GEMM shadow/walkers all reset (X-collapse discipline)
+			M_m1_run	<= (others => '0');
+			gemm_m		<= (others => '0');
+			mK			<= (others => '0');
+			gemm_yptr	<= (others => '0');
 		elsif (rising_edge(NpuClk)) then	-- Rising-Edge NPU FSM
 			case NpuState is
 				when NPU_BEGIN =>
@@ -413,6 +434,12 @@ begin
 					K_run		<= unsigned(NPUCFG2(12 downto 0));
 					last_mask_run <= tail_mask(NPUCFG2(4 downto 0));
 					pop_acc		<= (others => '0');
+					-- P4.3 D5: GEMM run shadow + walker resets (additive;
+					-- dead in modes 0/1/2)
+					M_m1_run	<= unsigned(NPUCFG1(7 downto 0));
+					gemm_m		<= (others => '0');
+					mK			<= (others => '0');
+					gemm_yptr	<= unsigned(NPUOVSAR);
 					-- D10 G3 (FROZEN): conv with Lout=0 = zero outputs,
 					-- immediate done — never hangs, never touches the RAM.
 					if ((NPUCR(22 downto 20) = MODE_CONV) and (unsigned(NPUCFG2) = 0)) then
@@ -549,6 +576,29 @@ begin
 								NpuState	<= NPU_GET_WEIGHT;
 							end if;
 						end if;
+					elsif (mode_run = MODE_GEMM) then
+						-- P4.3 D2/D4 (TP3): row-major C via the running
+						-- flat pointer. Within a row CurrWAddr keeps its
+						-- running +1 across the abutting column-major B
+						-- columns (no per-column reload); at the row
+						-- boundary it reloads to the CONSTANT WVSAR (B
+						-- reused across rows) and the input row base mK
+						-- advances by K = NPUNI+1. Dead in modes 0/1/2.
+						gemm_yptr	<= gemm_yptr + 1;
+						if (CurrYIndex = unsigned(NPUNN)) then
+							CurrYIndex	<= (others => '0');
+							if (gemm_m = M_m1_run) then
+								NpuState	<= NPU_FINISH;
+							else
+								gemm_m		<= gemm_m + 1;
+								mK			<= mK + ("0000" & unsigned(NPUNI)) + 1;
+								CurrWAddr	<= unsigned(NPUWVSAR);
+								NpuState	<= NPU_GET_WEIGHT;
+							end if;
+						else
+							CurrYIndex	<= CurrYIndex + 1;
+							NpuState	<= NPU_GET_WEIGHT;
+						end if;
 					else
 						-- as-built MLP path (unchanged behavior)
 						if (CurrYIndex = unsigned(NPUNN)) then
@@ -637,9 +687,14 @@ begin
 	-- multiplier-free 4-input add IVSAR + c*L + j*S + k*D (running registers)
 	-- and the output address is the flat running pointer; in MLP (mode_run=0,
 	-- also the reset state) both collapse to the as-built expressions.
+	-- P4.3 D4 (TP1/TP2): GEMM arms — input = IVSAR + m*K + k (3-input add,
+	-- mK is the running row base), output = the flat row-major pointer.
+	-- Modes 0/2 fall through to the as-built else arms unchanged.
 	CurrXAddr	<= (unsigned(NPUIVSAR) + cL + jS + kD) when (mode_run = MODE_CONV) else
+				   (unsigned(NPUIVSAR) + mK + ("0000" & CurrXIndex)) when (mode_run = MODE_GEMM) else
 				   (unsigned(NPUIVSAR) + CurrXIndex);
 	CurrYAddr	<= conv_yptr when (mode_run = MODE_CONV) else
+				   gemm_yptr when (mode_run = MODE_GEMM) else
 				   (unsigned(NPUOVSAR) + CurrYIndex);
 	-- P4.1 D1 touch point 2: in conv the accumulation for one output is done
 	-- only on the LAST channel's last tap — the added term is vacuously true

@@ -261,8 +261,75 @@ def sigmoid(x_raw, x_m, n_bits, rho=2):
     return y_raw
 
 
+def relu(x_raw):
+    """ACTF=1 (P4.4 D2): ReLU on the signed Q(y_m).(n_bits) accumulator --
+    `max(0, x)`, no FPSigmoid involvement. Output format is the SAME
+    Q(y_m).(n_bits) as the accumulator (full range, NOT clamped to [0,1) --
+    a ReLU'd accumulator can still be up to +128 real at the MCU generics)."""
+    return x_raw if x_raw >= 0 else 0
+
+
+def tanh_approx(x_raw, y_m, n_bits, rho=2):
+    """ACTF=2 (P4.4 D3): `2*sigma(2x) - 1`, built ENTIRELY on the exact
+    FPSigmoid replica (`sigmoid()`) plus the two literal, exact primitives
+    already validated for the MAC path -- no new arithmetic.
+
+    `pre` reproduces the RTL's saturating pre-shift bit-for-bit: `scalb(x,
+    +1)` (same raw bits, scale becomes n_bits-1) then a saturating resize
+    back to the FPSigmoid input format Q(y_m).(n_bits) -- this is exactly
+    what keeps the sign correct for |x| >= 64 (GA4). The post-map `2y - 1`
+    is exact (a left-shift and a subtract only, no rounding of its own --
+    sigmoid()'s own output already fits Q0.(n_bits))."""
+    pre = resize_sfixed(x_raw, n_bits - 1, y_m, n_bits,
+                         round_style=ROUND_NEAREST,
+                         overflow_style=SAT_SATURATE)
+    y = sigmoid(pre, y_m, n_bits, rho)
+    return (y << 1) - (1 << n_bits)
+
+
+def clamp01(x_raw, n_bits):
+    """ACTF=3 (P4.4 D4): hardtanh -- saturating resize of the Q(y_m).
+    (n_bits) accumulator down to Q0.(n_bits) (clamp to [-1, 1-2**-n_bits]).
+    Reuses the same saturating-resize primitive already validated for the
+    MAC path (resize_sfixed) -- no new arithmetic."""
+    return resize_sfixed(x_raw, n_bits, 0, n_bits,
+                          round_style=ROUND_NEAREST,
+                          overflow_style=SAT_SATURATE)
+
+
+def exp_approx(x_raw, y_m, n_bits, rho=2):
+    """ACTF=4 (P4.4 D5): the softmax-leg surrogate `exp~(x) = 2*sigma(x)`
+    (no pre-shift, unlike tanh -- straight into FPSigmoid, same as the
+    sigmoid path). Exact: a left-shift of sigmoid()'s own output, which
+    already fits Q0.(n_bits), so `2*sigma(x)` fits Q1.(n_bits) with no
+    further rounding/saturation."""
+    return sigmoid(x_raw, y_m, n_bits, rho) << 1
+
+
+def activate(acc, aen, actf, y_m, n_bits, rho=2):
+    """P4.4 D9 dispatcher: the golden-side equivalent of the RTL's
+    ACTF-selected `act_out` mux (TP1), gated by the AEN master enable (D1).
+
+    aen=0            -> passthrough (acc unchanged), ACTF is a don't-care.
+    aen=1, actf=0     -> sigmoid (legacy).
+    aen=1, actf=1..4  -> relu / tanh_approx / clamp01 / exp_approx.
+    aen=1, actf=5..7  -> reserved: decode as sigmoid, no trap (D6).
+    """
+    if not aen:
+        return acc
+    if actf == 1:
+        return relu(acc)
+    if actf == 2:
+        return tanh_approx(acc, y_m, n_bits, rho)
+    if actf == 3:
+        return clamp01(acc, n_bits)
+    if actf == 4:
+        return exp_approx(acc, y_m, n_bits, rho)
+    return sigmoid(acc, y_m, n_bits, rho)   # actf==0 and reserved 5/6/7
+
+
 def think_layer(x_list, w_list, ni, nn, ben, aen, x_m, w_m, y_m, n_bits,
-                 rho=2, w_offset=0, trace=None):
+                 rho=2, w_offset=0, trace=None, actf=0):
     """One NPU THINK over one layer, exactly matching NPU.vhd's FSM weight
     walk: weight pointer runs contiguously from WVSAR across ALL neurons,
     bias tap first (if BEN) then inputs 0..ni in order, per neuron.
@@ -273,11 +340,16 @@ def think_layer(x_list, w_list, ni, nn, ben, aen, x_m, w_m, y_m, n_bits,
     ni, nn  : NPUNI/NPUNN register values (per-neuron loop count is ni+1,
               neuron count is nn+1)
     ben,aen : NPUBEN/NPUAEN
+    actf    : NPUCR ACTF field (P4.4 D9; default 0 = sigmoid-legacy). When
+              aen and actf==0 this calls the SAME `sigmoid(acc, y_m, n_bits,
+              rho)` line the pre-P4.4 golden always called (the 4-legacy-set
+              validation stays bit-for-bit untouched); nonzero actf
+              dispatches through `activate()`.
     trace   : optional list to append (neuron_index, acc_raw) tuples to,
               for debug (pre-activation accumulator per neuron)
 
     Returns (outputs, next_w_offset) where outputs has length nn+1, each
-    entry Q(y_m).(n_bits) raw (post-sigmoid if aen else the accumulator
+    entry Q(y_m).(n_bits) raw (post-activation if aen else the accumulator
     itself, pass-through).
     """
     outputs = []
@@ -297,7 +369,10 @@ def think_layer(x_list, w_list, ni, nn, ben, aen, x_m, w_m, y_m, n_bits,
         if trace is not None:
             trace.append(acc)
         if aen:
-            y = sigmoid(acc, y_m, n_bits, rho)
+            if actf == 0:
+                y = sigmoid(acc, y_m, n_bits, rho)
+            else:
+                y = activate(acc, 1, actf, y_m, n_bits, rho)
         else:
             y = acc
         outputs.append(y)
