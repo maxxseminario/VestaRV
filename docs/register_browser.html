@@ -531,10 +531,10 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 	"NativeSpiFlashMemoryReadAccess": true,
 	"NativeSpiFlashMemoryWriteAccess": false,
 	"VectorsStartAddress": 32768,
-	"VectorsSize": 456,
-	"VectorsCount": 114,
-	"VectorsEndAddress": 33223,
-	"RamProgramStartAddress": 33224,
+	"VectorsSize": 484,
+	"VectorsCount": 121,
+	"VectorsEndAddress": 33251,
+	"RamProgramStartAddress": 33252,
 	"ProgramCounterInit": 0,
 	"StackPointerInit": 49152,
 	"BootloaderUsesSpiFlashCommands": true,
@@ -5822,7 +5822,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 			"BaseAddress": 18944,
 			"PeripheralMemorySlot": null,
 			"isGPIO": false,
-			"InterruptPriority": null,
+			"InterruptPriority": 120,
 			"Description": "Fixed-point multilayer perceptron (MLP) neural network processing unit. Computes a single fully-connected layer of a neural network: given an input vector and a synaptic weight matrix, it produces an output vector. Multiple layers can be computed sequentially by the CPU. Inputs are signed Q0.24 numbers (25 bits); synaptic weights and outputs are signed Q7.24 numbers (32 bits). An optional bias weight and a logistic sigmoid approximation activation function are available. The input vector, output vector, and weight matrix must all reside in the shared NPU staging RAM (the 16 KiB SRAM at 0xC000-0xFFFF, multiplexed between the harts and the NPU compute port). Both the registers and the data path are reachable by every hart through the shared window: any hart may stage the operands in the staging RAM. No hart is put to sleep during a computation; while THINK is set the staging RAM is owned by the NPU, so no hart may access 0xC000-0xFFFF until NPUCR bit 16 (NPUTHINK) reads 0 again.",
 			"Registers": [
 				{
@@ -5837,12 +5837,33 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 19,
+							"LSB": 20,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
 							"Description": "",
 							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NPUTDIE",
+							"MSB": 19,
+							"LSB": 19,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Think-done interrupt enable. When set, NPUSR.THINKDONE drives the NPU think-done interrupt (vector 120). When cleared (reset default) the NPU is polling-only, exactly as before the interrupt existed.",
+							"ValueDescriptions": [
+								[
+									0,
+									"Interrupt disabled (polling only)",
+									""
+								],
+								[
+									1,
+									"Interrupt enabled",
+									""
+								]
+							]
 						},
 						{
 							"BitFieldName": "NPUBEN",
@@ -6019,6 +6040,48 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Unused": false,
 							"Description": "Output vector start word index within the NPU staging RAM (byte offset from 0xC000 divided by 4)",
 							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "NPUSR",
+					"Address": 18960,
+					"Offset": 16,
+					"RegisterMemorySlot": 4,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "NPU status register. THINKDONE is write-1-to-clear (write a 1 to bit 0 to clear it; writing 0 leaves it unchanged) and is never cleared by a read. The NPU think-done interrupt (vector 120) is THINKDONE and NPUCR.NPUTDIE. Clearing THINKDONE does not affect NPUCR.NPUTHINK, which self-clears at completion as before; the staging-RAM ownership contract is unchanged (no hart may access 0xC000-0xFFFF until NPUCR bit 16 reads 0 again).",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 1,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "NPUTHINKDONE",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "rw1",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Think-done flag. Set once per computation, when the NPU finishes (the same event that self-clears NPUCR.NPUTHINK); sticky. Drives the think-done interrupt (vector 120) when NPUCR.NPUTDIE is set. Write 1 to clear. On a same-cycle collision between a completing computation and a write-1-to-clear, the set wins (a completion is never lost).",
+							"ValueDescriptions": [
+								[
+									0,
+									"No completed computation pending",
+									""
+								],
+								[
+									1,
+									"A computation has completed",
+									""
+								]
+							]
 						}
 					]
 				}
@@ -10811,12 +10874,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 3,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 0 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
+					"Description": "Hart 0 interrupt routing register, vectors 120:96 (bits 24:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 18,
+							"LSB": 25,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -10825,12 +10888,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "IRQRH0ENX",
-							"MSB": 17,
+							"MSB": 24,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 0.",
+							"Description": "Interrupt enable bits for vectors 120:96, routed to hart 0.",
 							"ValueDescriptions": []
 						}
 					]
@@ -10905,12 +10968,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 7,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 1 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
+					"Description": "Hart 1 interrupt routing register, vectors 120:96 (bits 24:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 18,
+							"LSB": 25,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -10919,12 +10982,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "IRQRH1ENX",
-							"MSB": 17,
+							"MSB": 24,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 1.",
+							"Description": "Interrupt enable bits for vectors 120:96, routed to hart 1.",
 							"ValueDescriptions": []
 						}
 					]
@@ -10999,12 +11062,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 11,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 2 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
+					"Description": "Hart 2 interrupt routing register, vectors 120:96 (bits 24:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 18,
+							"LSB": 25,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11013,12 +11076,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "IRQRH2ENX",
-							"MSB": 17,
+							"MSB": 24,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 2.",
+							"Description": "Interrupt enable bits for vectors 120:96, routed to hart 2.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11093,12 +11156,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 15,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Hart 3 interrupt routing register, vectors 113:96 (bits 17:0; upper bits read as 0).",
+					"Description": "Hart 3 interrupt routing register, vectors 120:96 (bits 24:0; upper bits read as 0).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 18,
+							"LSB": 25,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11107,12 +11170,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "IRQRH3ENX",
-							"MSB": 17,
+							"MSB": 24,
 							"LSB": 0,
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Interrupt enable bits for vectors 113:96, routed to hart 3.",
+							"Description": "Interrupt enable bits for vectors 120:96, routed to hart 3.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11208,12 +11271,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 519,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Raw pending interrupt levels, vectors 113:96 (bits 17:0, read-only; upper bits read as 0). Completes the raw-level readback for the fourth enable word (added with the peripheral-library program; before it, sources above 95 were routable and claimable but absent from the debug readback).",
+					"Description": "Raw pending interrupt levels, vectors 120:96 (bits 24:0, read-only; upper bits read as 0). Completes the raw-level readback for the fourth enable word (added with the peripheral-library program; before it, sources above 95 were routable and claimable but absent from the debug readback).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 18,
+							"LSB": 25,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11222,12 +11285,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "IRQRPENDX",
-							"MSB": 17,
+							"MSB": 24,
 							"LSB": 0,
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Deglitched interrupt levels for vectors 113:96.",
+							"Description": "Deglitched interrupt levels for vectors 120:96.",
 							"ValueDescriptions": []
 						}
 					]
@@ -11302,12 +11365,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 523,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Under-service flags, vectors 113:96 (bits 17:0, read-only; upper bits read as 0). Completes the under-service readback for the fourth enable word.",
+					"Description": "Under-service flags, vectors 120:96 (bits 24:0, read-only; upper bits read as 0). Completes the under-service readback for the fourth enable word.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 18,
+							"LSB": 25,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -11316,12 +11379,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "IRQRINSVCX",
-							"MSB": 17,
+							"MSB": 24,
 							"LSB": 0,
 							"Accessibility": "r",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Under-service flags for vectors 113:96.",
+							"Description": "Under-service flags for vectors 120:96.",
 							"ValueDescriptions": []
 						}
 					]

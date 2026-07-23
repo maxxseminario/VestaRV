@@ -20,6 +20,14 @@ use work.fixed_pkg.all;
 -- points. Memory mapped registers are then reconfigured for second layer. NPU is then run again for all test points.
 -- Lastly, final outputs are read from SRAM and written to "npu_actual_fp_outputs.txt".
 entity NPU_tb is
+	generic (
+		-- DP-SG think-done IRQ negative control (npu_irq_spec.md, house rule):
+		-- 0 = clean run (the only PASS-eligible mode). 1 = deliberately SKIP
+		-- the W1C clear write in the IRQ-c phase but still CHECK for the
+		-- cleared flag/IRQ -- the flag/IRQ stay asserted, so that check must
+		-- FAIL (proves the check itself is load-bearing, both ways).
+		NEGCTRL : integer := 0
+	);
 end NPU_tb;
 
 architecture testbench of NPU_tb is
@@ -37,6 +45,7 @@ architecture testbench of NPU_tb is
 	constant MmrAddrNPUIVSAR	: natural	:= 1;
 	constant MmrAddrNPUWVSAR	: natural	:= 2;
 	constant MmrAddrNPUOVSAR	: natural	:= 3;
+	constant MmrAddrNPUSR		: natural	:= 4;	-- DP-SG think-done IRQ NPUSR (npu_irq_spec.md)
 	-- Generic Defaults Values
 	constant X_M_BITS					: integer := 0;
     constant W_M_BITS					: integer := 3;
@@ -49,8 +58,8 @@ architecture testbench of NPU_tb is
     signal Clk			: std_logic;						-- NPU Main Clock
     signal ResetN		: std_logic;						-- NPU Active-Low Reset
     -- Memory Address Bus to Memory Mapped Registers Signals
-	signal  MabMmrA		: std_logic_vector(1 downto 0)
-							:= (others => '0');	    		-- MCU To NPU MMR - Address
+	signal  MabMmrA		: std_logic_vector(2 downto 0)
+							:= (others => '0');	    		-- MCU To NPU MMR - Address (3b widen, DP-SG think-done IRQ)
     signal MabMmrD		: std_logic_vector(31 downto 0)
 								:= (others => '0');			-- MCU To NPU MMR - Data Input
     signal MabMmrCLK	: std_logic;						-- MCU To NPU MMR - Clock
@@ -68,6 +77,8 @@ architecture testbench of NPU_tb is
     signal NpuSramQ		: std_logic_vector(31 downto 0);	-- NPU From SRAM - Data Output
     -- NPU Status Signal
     signal NpuActive	: std_logic;						-- NPU Active Signal for Arbitration
+    -- NPU Interrupt Signal (DP-SG think-done IRQ, npu_irq_spec.md, irq_router source 120)
+    signal ThinkDoneIrq	: std_logic;						-- Think-Done IRQ (registered level on Clk)
 
 	-- SRAM Input Signals (MUXed by NPU)
 	signal NpuSramA_out	: std_logic_vector(11 downto 0);	-- NPU To SRAM - Address (to SRAM)
@@ -140,7 +151,9 @@ begin
         NpuSramWEN_out	=> NpuSramWEN_out,
 
 		-- Status
-        NpuActive	=> NpuActive
+        NpuActive	=> NpuActive,
+		-- Interrupt (DP-SG think-done IRQ, npu_irq_spec.md)
+        ThinkDoneIrq	=> ThinkDoneIrq
     );
 
     -- SRAM Clock Gate
@@ -217,6 +230,10 @@ begin
 		variable x_address		: integer 	:= 0;
 		variable y_address		: integer 	:= 256;
 		variable error_count	: integer 	:= 0;	-- self-checking mismatch tally
+		-- DP-SG think-done IRQ test phase (npu_irq_spec.md, vector 120)
+		variable irq_error_count	: integer	:= 0;	-- IRQ-phase mismatch tally
+		variable think_poll_i		: integer	:= 0;	-- bounded THINK-completion poll counter
+		constant THINK_POLL_MAX		: integer	:= 4096;	-- bounded poll ceiling (never an unbounded wait)
 	begin
 		----- Reset NPU
 		report "[NPU_TB] Starting NPU testbench simulation..." severity note;
@@ -482,6 +499,343 @@ begin
 		file_close(y_out_file);
 		file_close(y_exp_file);
 		wait for (5*clk_period);
+
+		----------------------------------------------------------------------
+		----- DP-SG Think-Done IRQ Test Phase (npu_irq_spec.md, vector 120) --
+		----- NPUSR @ MmrAddrNPUSR=4 (THINKDONE, sticky W1C); NPUCR.19=TDIE --
+		----------------------------------------------------------------------
+		report "[NPU_TB] Starting NPU IRQ test phase (NEGCTRL=" & integer'image(NEGCTRL) & ")..." severity note;
+
+		-- IRQ-a: after the two inference layers above, THINKDONE is
+		-- sticky-set from the last completed THINK and nobody has touched
+		-- NPUSR yet -- it must read 1. TDIE (NPUCR.19) is still 0 (reset
+		-- default; every Layer-1/2 CR write above explicitly wrote it 0), so
+		-- the registered IRQ level must read 0 (IE gating, way 1).
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(0)) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-a): NPUSR.THINKDONE expected 1 after the Layer-2 THINK completions, read '"
+					& std_logic'image(to_X01(MabMmrQ(0))) & "'" severity warning;
+		end if;
+		if to_X01(ThinkDoneIrq) /= '0' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-a): ThinkDoneIrq expected 0 (TDIE=0 gates it off), read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+		report "[NPU_TB] IRQ-a: THINKDONE=1 / ThinkDoneIrq=0 (TDIE=0) OK." severity note;
+
+		-- IRQ-b: set TDIE (NPUCR.19). WEN(2) gangs TDIE/NPUBEN/NPUAEN/NPUTHINK
+		-- into one byte lane (see NPU.vhd MMR_WRITE) -- supply the Layer-2
+		-- tail values for NPUBEN/NPUAEN ('0'/'0') and NPUTHINK='0' so this
+		-- write is a pure TDIE set, preserving every other CR field (WEN(0)/
+		-- (1) stay deasserted, so NPUNI/NPUNN are left completely untouched).
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrD		<= (31 downto 20 => '0')	&
+						'1'						&		-- TDIE = 1
+						'0'						&		-- NPUBEN (Layer-2 tail value, preserved)
+						'0'						&		-- NPUAEN (Layer-2 tail value, preserved)
+						'0'						&		-- NPUTHINK = 0 (do not start a THINK here)
+						(15 downto 0 => '0');
+		MabMmrWEN	<= (2 => MEM_ASSERT, others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+		-- Registered level, one output flop: sample within 2 Clk (bounded).
+		for k in 1 to 2 loop
+			wait until rising_edge(Clk);
+		end loop;
+		if to_X01(ThinkDoneIrq) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-b): ThinkDoneIrq expected 1 within 2 Clk of TDIE=1 (THINKDONE already 1), read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		report "[NPU_TB] IRQ-b: TDIE=1 -> ThinkDoneIrq=1 within 2 Clk OK." severity note;
+
+		-- IRQ-c: W1C. A write of 0 to NPUSR must be IGNORED (flag/IRQ stay
+		-- asserted); a write of 1 clears the flag and drops the IRQ within
+		-- 2 Clk. NEGCTRL=1 skips the clearing write below but the checks
+		-- still expect the flag/IRQ cleared -- those checks must then FAIL.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+		MabMmrD		<= (31 downto 1 => '0') & '0';
+		MabMmrWEN	<= (0 => MEM_ASSERT, others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(0)) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-c): NPUSR.THINKDONE expected to STAY 1 after a write-0 (W1C ignores 0), read '"
+					& std_logic'image(to_X01(MabMmrQ(0))) & "'" severity warning;
+		end if;
+		if to_X01(ThinkDoneIrq) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-c): ThinkDoneIrq expected to STAY 1 after a write-0 to NPUSR, read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+		report "[NPU_TB] IRQ-c(write-0): flag/IRQ unaffected OK." severity note;
+
+		if (NEGCTRL /= 1) then
+			wait until falling_edge(MabMmrCLK);
+			MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+			MabMmrD		<= (31 downto 1 => '0') & '1';
+			MabMmrWEN	<= (0 => MEM_ASSERT, others => MEM_DEASSERT);
+			MabMmrCEN	<= MEM_ASSERT;
+			wait until falling_edge(MabMmrCLK);
+			MabMmrWEN	<= (others => MEM_DEASSERT);
+			MabMmrCEN	<= MEM_DEASSERT;
+		else
+			report "[NPU_TB] NEGCTRL=1: deliberately SKIPPING the W1C clear write (IRQ-c) -- flag/IRQ must stay asserted and the checks below must FAIL." severity warning;
+		end if;
+		for k in 1 to 2 loop
+			wait until rising_edge(Clk);
+		end loop;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(0)) /= '0' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-c): NPUSR.THINKDONE expected 0 after the W1C write, read '"
+					& std_logic'image(to_X01(MabMmrQ(0))) & "'" severity warning;
+		end if;
+		if to_X01(ThinkDoneIrq) /= '0' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-c): ThinkDoneIrq expected 0 within 2 Clk of the W1C write, read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+		report "[NPU_TB] IRQ-c(W1C write-1): flag/IRQ cleared check complete." severity note;
+
+		-- IRQ-d: a second, short 1-input/1-neuron pass-through THINK (reuses
+		-- the Layer-1 input already staged at SRAM addr 0 and a Layer-1
+		-- weight already staged at addr 2048; output parked at addr 3000,
+		-- well clear of every address the inference passes above read or
+		-- wrote). TDIE is still 1 from IRQ-b (untouched by the W1C write) --
+		-- the IRQ must fire again exactly once.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUIVSAR, MabMmrA'length));
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(0, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUWVSAR, MabMmrA'length));
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(2048, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUOVSAR, MabMmrA'length));
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(3000, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		-- NPU Control Register: 1 input (NPUNI=0), 1 neuron (NPUNN=0), no
+		-- bias, no activation (pass-through), TDIE preserved =1, THINK=1.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrD		<=	(31 downto 20 => '0')					&
+						'1'										&		-- TDIE preserved = 1
+						'0'										&		-- NPUBEN disabled
+						'0'										&		-- NPUAEN disabled (pass-through)
+						'1'										&		-- Activate NPU
+						std_logic_vector(to_unsigned(0, 8))		&		-- NPU # Of Inputs = 1 (0+1)
+						std_logic_vector(to_unsigned(0, 8));			-- NPU # Of Neurons = 1 (0+1)
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		-- Bounded poll for completion (never an unbounded "wait until").
+		think_poll_i := 0;
+		MabMmrCEN	<= MEM_ASSERT;
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		wait until falling_edge(MabMmrCLK);
+		while (to_X01(MabMmrQ(16)) = '1') and (think_poll_i < THINK_POLL_MAX) loop
+			wait until falling_edge(MabMmrCLK);
+			think_poll_i := think_poll_i + 1;
+		end loop;
+		MabMmrCEN	<= MEM_DEASSERT;
+		if think_poll_i >= THINK_POLL_MAX then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-d): 2nd THINK did not complete within " & integer'image(THINK_POLL_MAX) &
+					" bounded poll cycles" severity warning;
+		end if;
+
+		-- 4 Clk (not 2): the bounded MabMmrCLK-falling-edge poll above detects
+		-- NPUTHINK clearing up to 1 cycle later than the original bench's
+		-- `wait until falling_edge(MabMmrQ(16))` idiom would (that waits on
+		-- the SIGNAL's own edge; polling on fixed clock edges instead can
+		-- catch it up to a cycle late) -- ON TOP of the real 2-cycle
+		-- NpuDone -> THINKDONE -> ThinkDoneIrqQ pipeline (THINKDONE_SEQ reads
+		-- last-cycle's NpuDone/THINKDONE, never the same-edge value). Traced
+		-- with xmsim `value` probes on NPU_INST:{NpuDone,THINKDONE,
+		-- ThinkDoneIrqQ} to confirm: NpuDone pulses cycle N, THINKDONE reads
+		-- 1 at N+1, ThinkDoneIrqQ reads 1 at N+2 -- a fixed 2-cycle wait from
+		-- our poll's (up to 1-cycle-late) exit landed exactly 1 cycle short.
+		for k in 1 to 4 loop
+			wait until rising_edge(Clk);
+		end loop;
+		if to_X01(ThinkDoneIrq) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-d): ThinkDoneIrq expected 1 after the 2nd THINK completed (TDIE still 1), read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		report "[NPU_TB] IRQ-d: 2nd THINK fired ThinkDoneIrq again OK." severity note;
+
+		-- W1C-clear, then prove "fires exactly once per THINK": with no new
+		-- THINK, the level must STAY 0 for ~50 Clk cycles.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+		MabMmrD		<= (31 downto 1 => '0') & '1';
+		MabMmrWEN	<= (0 => MEM_ASSERT, others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+		for k in 1 to 2 loop
+			wait until rising_edge(Clk);
+		end loop;
+		if to_X01(ThinkDoneIrq) /= '0' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-d): ThinkDoneIrq expected 0 within 2 Clk of the W1C clear, read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		for k in 1 to 50 loop
+			wait until rising_edge(Clk);
+			if to_X01(ThinkDoneIrq) /= '0' then
+				irq_error_count := irq_error_count + 1;
+				report "FAIL(IRQ-d): ThinkDoneIrq re-asserted at cycle " & integer'image(k) &
+						" with no new THINK -- IRQ must fire exactly once per THINK" severity warning;
+				exit;
+			end if;
+		end loop;
+		report "[NPU_TB] IRQ-d: once-per-THINK property holds (50 Clk quiet check) OK." severity note;
+
+		-- IRQ-e: a third short THINK (same pass-through config) re-arms
+		-- THINKDONE and fires the IRQ once more (TDIE still 1); clearing
+		-- TDIE must then drop the IRQ immediately while NPUSR.THINKDONE
+		-- keeps reading 1 (IE gating, way 2 -- the flag is TDIE-independent).
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrD		<=	(31 downto 20 => '0')					&
+						'1'										&		-- TDIE preserved = 1
+						'0'										&
+						'0'										&
+						'1'										&		-- Activate NPU
+						std_logic_vector(to_unsigned(0, 8))		&
+						std_logic_vector(to_unsigned(0, 8));
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		think_poll_i := 0;
+		MabMmrCEN	<= MEM_ASSERT;
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		wait until falling_edge(MabMmrCLK);
+		while (to_X01(MabMmrQ(16)) = '1') and (think_poll_i < THINK_POLL_MAX) loop
+			wait until falling_edge(MabMmrCLK);
+			think_poll_i := think_poll_i + 1;
+		end loop;
+		MabMmrCEN	<= MEM_DEASSERT;
+		if think_poll_i >= THINK_POLL_MAX then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-e): 3rd THINK did not complete within " & integer'image(THINK_POLL_MAX) &
+					" bounded poll cycles" severity warning;
+		end if;
+
+		-- 4 Clk margin -- same poll-phase + 2-cycle pipeline reasoning as
+		-- IRQ-d above.
+		for k in 1 to 4 loop
+			wait until rising_edge(Clk);
+		end loop;
+		if to_X01(ThinkDoneIrq) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-e): ThinkDoneIrq expected 1 after the 3rd THINK completed, read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+
+		-- Clear TDIE only (WEN(2) lane; NPUBEN/NPUAEN/NPUTHINK all 0 -- do
+		-- not touch NPUSR here, THINKDONE must stay sticky-1).
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrD		<= (31 downto 20 => '0') & '0' & '0' & '0' & '0' & (15 downto 0 => '0');
+		MabMmrWEN	<= (2 => MEM_ASSERT, others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+		for k in 1 to 2 loop
+			wait until rising_edge(Clk);
+		end loop;
+		if to_X01(ThinkDoneIrq) /= '0' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-e): ThinkDoneIrq expected 0 within 2 Clk of clearing TDIE, read '"
+					& std_logic'image(to_X01(ThinkDoneIrq)) & "'" severity warning;
+		end if;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUSR, MabMmrA'length));
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(0)) /= '1' then
+			irq_error_count := irq_error_count + 1;
+			report "FAIL(IRQ-e): NPUSR.THINKDONE expected to STAY 1 after clearing TDIE (flag is TDIE-independent), read '"
+					& std_logic'image(to_X01(MabMmrQ(0))) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+		report "[NPU_TB] IRQ-e: clearing TDIE drops ThinkDoneIrq while THINKDONE stays 1 (IE gating way 2) OK." severity note;
+
+		report "[NPU_TB] NPU IRQ test phase complete (" & integer'image(irq_error_count) & " check(s) failed)." severity note;
+
+		----- IRQ Phase Verdict -----
+		if irq_error_count = 0 then
+			report LF & LF &
+				"    ##################################################" & LF &
+				"    ##                                              ##" & LF &
+				"    ##       NPU IRQ TESTS PASSED                   ##" & LF &
+				"    ##                                              ##" & LF &
+				"    ##################################################" & LF
+				severity note;
+		else
+			report LF & LF &
+				"    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
+				"    !!                                              !!" & LF &
+				"    !!    NPU IRQ TESTS FAILED: " & integer'image(irq_error_count) &
+					   " CHECK(S) FAILED" & LF &
+				"    !!                                              !!" & LF &
+				"    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
+				severity warning;
+		end if;
+		error_count := error_count + irq_error_count;
 
 		----- Final verdict -----
 		if error_count = 0 then

@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/21 at 12:19:23 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/22 at 12:19:40 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -138,6 +138,7 @@ package MemoryMap is
 	constant RegSlotNPUIVSAR		: natural := 01;	-- offset = 4 bytes
 	constant RegSlotNPUWVSAR		: natural := 02;	-- offset = 8 bytes
 	constant RegSlotNPUOVSAR		: natural := 03;	-- offset = 12 bytes
+	constant RegSlotNPUSR			: natural := 04;	-- offset = 16 bytes
 
 	-- PWRCTRL
 	constant RegSlotPWRCR			: natural := 00;	-- offset = 0 bytes
@@ -602,6 +603,7 @@ package MemoryMap is
 
 	------ NPU
 	-- NPUCR
+	constant NPUTDIE_LSB			: natural := 19;
 	constant NPUBEN_LSB				: natural := 18;
 	constant NPUAEN_LSB				: natural := 17;
 	constant NPUTHINK_LSB			: natural := 16;
@@ -621,6 +623,9 @@ package MemoryMap is
 	-- NPUOVSAR
 	constant NPUOVSAR_MSB			: natural := 11;
 	constant NPUOVSAR_LSB			: natural := 00;
+
+	-- NPUSR
+	constant NPUTHINKDONE_LSB		: natural := 00;
 
 
 	------ PWRCTRL
@@ -846,7 +851,7 @@ package MemoryMap is
 	constant IRQRH0ENU_LSB			: natural := 00;
 
 	-- H0ENX
-	constant IRQRH0ENX_MSB			: natural := 17;
+	constant IRQRH0ENX_MSB			: natural := 24;
 	constant IRQRH0ENX_LSB			: natural := 00;
 
 	-- H1ENL
@@ -862,7 +867,7 @@ package MemoryMap is
 	constant IRQRH1ENU_LSB			: natural := 00;
 
 	-- H1ENX
-	constant IRQRH1ENX_MSB			: natural := 17;
+	constant IRQRH1ENX_MSB			: natural := 24;
 	constant IRQRH1ENX_LSB			: natural := 00;
 
 	-- H2ENL
@@ -878,7 +883,7 @@ package MemoryMap is
 	constant IRQRH2ENU_LSB			: natural := 00;
 
 	-- H2ENX
-	constant IRQRH2ENX_MSB			: natural := 17;
+	constant IRQRH2ENX_MSB			: natural := 24;
 	constant IRQRH2ENX_LSB			: natural := 00;
 
 	-- H3ENL
@@ -894,7 +899,7 @@ package MemoryMap is
 	constant IRQRH3ENU_LSB			: natural := 00;
 
 	-- H3ENX
-	constant IRQRH3ENX_MSB			: natural := 17;
+	constant IRQRH3ENX_MSB			: natural := 24;
 	constant IRQRH3ENX_LSB			: natural := 00;
 
 	-- CLAIM
@@ -914,7 +919,7 @@ package MemoryMap is
 	constant IRQRPENDU_LSB			: natural := 00;
 
 	-- PENDX
-	constant IRQRPENDX_MSB			: natural := 17;
+	constant IRQRPENDX_MSB			: natural := 24;
 	constant IRQRPENDX_LSB			: natural := 00;
 
 	-- INSVCL
@@ -930,7 +935,7 @@ package MemoryMap is
 	constant IRQRINSVCU_LSB			: natural := 00;
 
 	-- INSVCX
-	constant IRQRINSVCX_MSB			: natural := 17;
+	constant IRQRINSVCX_MSB			: natural := 24;
 	constant IRQRINSVCX_LSB			: natural := 00;
 
 
@@ -1007,6 +1012,7 @@ package MemoryMap is
 	constant MmrAddrNPUIVSAR		: natural := 01;						-- offset = 4 bytes
 	constant MmrAddrNPUWVSAR		: natural := 02;						-- offset = 8 bytes
 	constant MmrAddrNPUOVSAR		: natural := 03;						-- offset = 12 bytes
+	constant MmrAddrNPUSR			: natural := 04;						-- offset = 16 bytes
 
 	-- Interrupt Bit Assignments (per-vector; names from hdl/common/MemoryMap.vhd)
 	constant IVT_BASE_ADDR			: integer := 16#8000#;					-- IVT base address = 0x8000
@@ -1124,9 +1130,16 @@ package MemoryMap is
 	constant IRQB_GPIO5_B5			: natural := 111;						-- GPIO5 Bit 5 Interrupt, IVT address = 0x81BC
 	constant IRQB_GPIO5_B6			: natural := 112;						-- GPIO5 Bit 6 Interrupt, IVT address = 0x81C0
 	constant IRQB_GPIO5_B7			: natural := 113;						-- GPIO5 Bit 7 Interrupt, IVT address = 0x81C4
+	constant IRQB_RSVD114			: natural := 114;						-- Reserved (vector 114; RTC0 source, disabled by this configuration), IVT address = 0x81C8
+	constant IRQB_RSVD115			: natural := 115;						-- Reserved (vector 115; PWM0_FAULT source, disabled by this configuration), IVT address = 0x81CC
+	constant IRQB_RSVD116			: natural := 116;						-- Reserved (vector 116; PWM0_EVT source, disabled by this configuration), IVT address = 0x81D0
+	constant IRQB_RSVD117			: natural := 117;						-- Reserved (vector 117; OW0 source, disabled by this configuration), IVT address = 0x81D4
+	constant IRQB_RSVD118			: natural := 118;						-- Reserved (vector 118; DMA0_DONE source, disabled by this configuration), IVT address = 0x81D8
+	constant IRQB_RSVD119			: natural := 119;						-- Reserved (vector 119; DMA0_ERR source, disabled by this configuration), IVT address = 0x81DC
+	constant IRQB_NPU0_TD			: natural := 120;						-- NPU0 think-done Interrupt, IVT address = 0x81E0
 	constant IRQB_EXT_MEIP			: natural := 85;						-- External (peripheral) interrupt via IRQROUTER claim/complete, IVT address = 0x8154
-	constant NUM_IRQ_SRCS			: natural := 114;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
-	constant NUM_IRQS				: natural := 114;						-- Core IVT slot count = max(sources, meip slot + 1) (M19; digperiphs #2)
+	constant NUM_IRQ_SRCS			: natural := 121;						-- Peripheral IRQ SOURCES (deglitch/irq_router width; CLINT slots delivered per-hart)
+	constant NUM_IRQS				: natural := 121;						-- Core IVT slot count = max(sources, meip slot + 1) (M19; digperiphs #2)
 	constant NUM_GF_INSTANCES		: natural := (NUM_IRQ_SRCS + 31) / 32;	-- glitch-filter instance count
 
 	-- Core ISA Features (drive the hart_tile/vesta ENABLE_* generics; all four tiles identical)

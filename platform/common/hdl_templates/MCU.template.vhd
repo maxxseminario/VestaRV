@@ -482,6 +482,7 @@ architecture behav of MCU is
         --@GEN:pwm-decls@
         --@GEN:ow-decls@
         --@GEN:dma-decls@
+        --@GEN:trng-decls@
         --@GEN:i2ct-decls@
         --@GEN:slot12-decls@
         --@GEN:sh-master-decl@
@@ -1015,6 +1016,7 @@ begin
     --@GEN:pwm-instance@
     --@GEN:ow-instance@
     --@GEN:dma-instance@
+    --@GEN:trng-instance@
     --@GEN:i2ct-instance@
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).

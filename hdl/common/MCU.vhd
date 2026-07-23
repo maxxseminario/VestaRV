@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/20 at 03:57:23 with the generate.py chip generator
+-- Generated on 2026/07/22 at 12:19:40 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -379,7 +379,7 @@ architecture behav of MCU is
             ResetN			: in	std_logic;						-- NPU Active-Low Reset
 
             -- Memory Address Bus to Memory Mapped Registers Signals
-            MabMmrA			: in 	std_logic_vector(1 downto 0);	-- MCU To NPU MMR - Address
+            MabMmrA			: in 	std_logic_vector(2 downto 0);	-- MCU To NPU MMR - Address
             MabMmrD			: in	std_logic_vector(31 downto 0);	-- MCU To NPU MMR - Data Input
             MabMmrCLK		: in	std_logic;						-- MCU To NPU MMR - Clock
             MabMmrCEN		: in	std_logic;						-- MCU To NPU MMR - Chip Enable
@@ -404,7 +404,9 @@ architecture behav of MCU is
             NpuSramWEN_out		: out 	std_logic_vector(3 downto 0);	-- NPU To SRAM - Write Enable
 
             -- NPU Status Signal
-            NpuActive		: out	std_logic						-- NPU Active Signal for Arbitration
+            NpuActive		: out	std_logic;						-- NPU Active Signal for Arbitration
+            -- NPU Interrupt Signal
+            ThinkDoneIrq	: out	std_logic						-- Think-Done IRQ (registered level, irq_router source 120)
         );
     end component;
 
@@ -491,6 +493,7 @@ architecture behav of MCU is
         signal irq_i2c1_sovf   : std_logic;  -- I2C1 Slave Overflow Interrupt
         signal irq_i2c1_snr    : std_logic;  -- I2C1 Slave Mode NACK Received Interrupt
         signal irq_i2c1_sxc    : std_logic;  -- I2C1 Slave Transfer Complete Interrupt
+        signal irq_npu0_td      : std_logic;  -- NPU0 think-done Interrupt
 
         signal irq_comb         : std_logic_vector(127 downto 0);
         signal irq_deglitch     : std_logic_vector(NUM_IRQ_SRCS -1 downto 0);
@@ -2492,6 +2495,7 @@ begin
             IRQB_GPIO5_B5   => irq_gpio5(5),
             IRQB_GPIO5_B6   => irq_gpio5(6),
             IRQB_GPIO5_B7   => irq_gpio5(7),
+            IRQB_NPU0_TD    => irq_npu0_td,
             -- M19: the CLINT slots (83/84) fall through to irq_tielow — every
             -- hart gets its own msip/mtip on dedicated wires; the source
             -- vector feeds ONLY the irq_router (meip claim/complete delivery)
@@ -4077,7 +4081,7 @@ begin
 
             -- Memory Bus Signals (arbiter slave side, M7d — window slot 10
             -- @0x04A00; MabMmrQ is COMBINATIONAL, registered by the bridge)
-            MabMmrA     => sh_addr(1 downto 0),
+            MabMmrA     => sh_addr(2 downto 0),
             MabMmrD     => sh_wdata,
             MabMmrCLK   => mclk,
             MabMmrCEN   => npu_sh_en_n,
@@ -4104,7 +4108,10 @@ begin
             NpuSramGWEN_out => npu0_mux_ram_gwen,
             NpuSramWEN_out  => npu0_mux_wen,
 
-            NpuActive       => npu0_active -- Make irq
+            NpuActive       => npu0_active,
+            -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120
+            -- (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
+            ThinkDoneIrq    => irq_npu0_td
     );
 
     -- AFE / SARADC removed (digital-only Castalia). Peripheral-window slots

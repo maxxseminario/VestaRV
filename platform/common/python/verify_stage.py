@@ -100,6 +100,12 @@ CATALOG = [
     # written by a later stage -- this CATALOG row is inert at make-chip time (tags only
     # matter when `make verify` selects/stages tests) and tolerates a not-yet-built test.
     T('rv32ui-p-wi2ct', 'i2ctarget', True),
+    # digperiphs (TRNG): wtrng proves TRNG0 (ring-oscillator entropy harvest engine)
+    # inside the full MCU -- register resets, the DR read-CONSUME contract, two
+    # successive words (LFSR-stub movement), and the combined data-ready/health-
+    # alarm IRQ (vector 121) through the real meip path. Gated by the 'trng' knob
+    # so it appears ONLY where TRNG0 is instantiated (castalia_trng.json + wound).
+    T('rv32ui-p-wtrng', 'trng', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
@@ -205,6 +211,12 @@ def config_tags(cfg):
     # no sh-test tags change (shdma.S is a follow-up).
     if cfg.get('peripherals', {}).get('dma'):
         tags.add('dma')
+    # digperiphs (TRNG): TRNG0 is a config-gated ADDED instance (default off), same
+    # shape as DMA0. TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only when the
+    # config enables it (below). No sh-test tags change yet -- no shared-suite test
+    # uses TRNG0 (this tag exists solely to drive the cell-list injection).
+    if cfg.get('peripherals', {}).get('trng'):
+        tags.add('trng')
     # digperiphs Stage E: firmware smoke companions gated by their peripheral
     # knob (wrtc/wpwm/wow join only the config(s) that instantiate the block).
     for knob in ('rtc', 'pwm', 'onewire', 'i2ctarget'):
@@ -258,7 +270,9 @@ def main():
     seen = set()
     lines = []
     dma_seen = False
+    trng_seen = False
     crc16_idx = None
+    uart0_idx = None
     with open(BASE_CELL_LIST) as f:
         for raw in f:
             p = raw.strip()
@@ -283,12 +297,43 @@ def main():
                 if 'dma' not in have:
                     continue    # DMA off -> MCU.vhd has no dma0 instance
                 dma_seen = True
+            # digperiphs (TRNG): TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only
+            # when the config enables TRNG (the NPU.vhd/DMA.vhd gate pattern). The
+            # RTL ensemble file (TrngRoEnsemble.vhd, the genus/gate-only `rtl` arch)
+            # must NEVER be referenced here -- if the base list ever carries it, drop
+            # it unconditionally (behavioral flows compile the `sim` arch only, D6).
+            if p.endswith('periph/TrngRoEnsemble.vhd'):
+                continue    # the rtl (real-ring) architecture NEVER enters verify staging
+            if p.endswith('periph/TrngRoEnsemble_sim.vhd') or p.endswith('periph/TRNG.vhd'):
+                if 'trng' not in have:
+                    continue    # TRNG off -> MCU.vhd has no trng0/u_ro instance
+                trng_seen = True
             if p.endswith('commune/CRC16.vhd'):
                 crc16_idx = len(lines)
+            if p.endswith('periph/UART.vhd') and uart0_idx is None:
+                uart0_idx = len(lines)
             lines.append(p)  # common cells: same ../../../ depth as behavioral_mp
     if len(seen) != 3:
         raise SystemExit('cell list swap points not all found in %s: got %s'
                          % (BASE_CELL_LIST, sorted(seen)))
+    # digperiphs (TRNG): inject TrngRoEnsemble_sim.vhd then TRNG.vhd (dependency
+    # order -- TRNG.vhd instantiates TrngRoEnsemble as a component) when the config
+    # enables TRNG but the base list lacks them. Anchored just before UART.vhd (the
+    # rest of the digperiphs periph family -- RTC/PWM/OneWire/I2CTarget -- already
+    # sits there in the base list); NEVER TrngRoEnsemble.vhd (the rtl arch, D6). Done
+    # BEFORE the DMA injection below: uart0_idx/crc16_idx were both captured against
+    # the ORIGINAL (pre-insertion) `lines`, and uart0_idx > crc16_idx in that base
+    # list, so inserting at the LATER index first keeps the EARLIER crc16_idx valid
+    # for the DMA insertion that follows (inserting in the other order would shift
+    # uart0_idx out from under this block).
+    if 'trng' in have and not trng_seen:
+        sim_cell = '../../../hdl/common/periph/TrngRoEnsemble_sim.vhd'
+        trng_cell = '../../../hdl/common/periph/TRNG.vhd'
+        if uart0_idx is None:
+            raise SystemExit('TRNG config but periph/UART.vhd not in %s (no anchor to inject before)'
+                             % BASE_CELL_LIST)
+        lines.insert(uart0_idx, trng_cell)
+        lines.insert(uart0_idx, sim_cell)
     # digperiphs #6: inject DMA.vhd (after CRC16.vhd, its only dependency, and well
     # before MCU.vhd) when the config enables the DMA but the base list lacks it.
     if 'dma' in have and not dma_seen:

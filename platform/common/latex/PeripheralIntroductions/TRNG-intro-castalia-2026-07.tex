@@ -1,0 +1,41 @@
+The TRNG (\peripheral{TRNGx}) is a ring-oscillator entropy source and harvest engine: a free-running ensemble of ring oscillators is XOR-reduced to one noisy bit, sampled by the free-running fabric clock (MCLK) through a two-flop synchronizer, decimated to let independent ring jitter accumulate between samples, and direct-packed 32 raw bits at a time into a data register that a driver drains one word at a time. A lightweight repetition-count health test watches the raw stream and raises a sticky alarm --- which automatically halts harvesting --- if the source looks stuck. The block has zero pins (the ring oscillators are internal combinational fabric, never a pad) and delivers one combined interrupt. The main features are listed below:
+
+\begin{itemize}
+	\item A free-running ring-oscillator ensemble (\register{TRNGROSEL} selects/masks which rings contribute to the XOR reduction; 0000 selects every ring, the safe default-on encoding), gated on and off by \register{TRNGEN} (the power/leakage lever)
+	\item A programmable decimator (\register{TRNGDECIM}): one raw sample is taken every $2^{\mathrm{TRNGDECIM}}$ MCLK cycles, so software can trade harvest rate for per-bit entropy accumulation
+	\item Direct-pack whitening into a 32-bit word (\register{TRNGxDR}), with a \textbf{read-consumes} data register: a qualified read returns the word and consumes it in the SAME access --- \register{TRNGDRDY} clears the same cycle, so no read ever returns a stale or already-consumed word
+	\item An SP 800-90B-style Repetition Count Test (RCT) health check (\register{TRNGRCTC} cutoff, default 32) that sets a sticky alarm (\register{TRNGALMF}) and \textbf{auto-halts harvesting} while it is set
+	\item A read-only run-length diagnostic (\register{TRNGRUNLEN}) for tuning the health-test cutoff or observing ring health directly
+	\item One combined interrupt (data-ready or health-alarm) on the router
+\end{itemize}
+
+\subsection{The Entropy Caveat}
+
+\noindent\colorbox{tablehighlightcolor}{%
+	\begin{minipage}{0.97\textwidth}
+	\vspace{0.3em}
+	\peripheral{TRNGx} derives entropy from free-running digital ring-oscillator jitter sampled by MCLK on a standard-cell synthesized flow with dont\_touch preservation. \textbf{This is a BRING-UP-GRADE entropy source, NOT a certified one.} RO jitter on a synthesized digital flow is sensitive to placement, temperature, voltage, and on-die coupling; the ensemble XOR + decimation + repetition-count health test raise the bar but do NOT constitute an SP 800-90B / AIS-31 validated design, and no conditioning component (DRBG) is included in hardware. Firmware MUST run the raw output through a vetted DRBG (e.g. the X3 SHA path) before using it as cryptographic key material, MUST honor the \register{TRNGALMF} health alarm (discard output while it is set), and MUST NOT treat the raw 32-bit words as directly usable keys. Certification would require an analog-assisted source and a formal entropy assessment --- explicitly out of scope for this all-digital bring-up block.
+	\vspace{0.3em}
+	\end{minipage}%
+}
+
+\subsection{Enabling, Configuring, and Draining the Harvest}
+
+Setting \register{TRNGEN} lets the ring-oscillator ensemble oscillate and starts the decimator, the 32-bit assembler and the health test; clearing it (or an active health alarm, Section \ref{s:trngx-health}) parks the rings and freezes the harvest engine, preserving the last assembled word and every status flag. \register{TRNGROSEL} selects which rings in the ensemble feed the XOR reduction (0000 = every ring); \register{TRNGDECIM} sets how many MCLK cycles separate two raw samples, from every cycle (0) up to $2^{15}$ cycles apart --- a nonzero value is recommended so consecutive samples reflect independently-accumulated jitter rather than the same ring phase. Once 32 raw samples have been packed, \register{TRNGDRDY} sets (and the data-ready interrupt fires if \register{TRNGDRDYIE} is set); software either polls \register{TRNGDRDY} or waits on the interrupt, then reads \register{TRNGxDR}. That read is the one place in this register library where reading has a side effect: a qualifying read (\register{TRNGDRDY} = 1 at the time of the access) returns the word and \textbf{consumes} it --- \register{TRNGDRDY} clears in the SAME cycle as the consuming read, so a status read issued immediately afterward correctly reports ``no word ready'' rather than a stale ``still ready''. A read while \register{TRNGDRDY} = 0 (nothing assembled yet, or the previous word is still being retired internally) simply returns 0 and does not consume anything --- the next genuinely new word is still delivered intact on a later read. The engine holds only one assembled word at a time (no FIFO): if a new word finishes assembling before the previous one is drained, the engine holds it internally without dropping bits and promotes it into \register{TRNGxDR} the instant the register frees up.
+
+\subsection{Health Test}
+\label{s:trngx-health}
+
+A repetition-count run-length counter watches the raw (pre-whitening) sample stream: it increments while consecutive raw samples are identical and resets to 1 on any change. When the run length reaches the cutoff in \register{TRNGRCTC} --- or the hardware default of 32 when \register{TRNGRCTC} is left at its reset value of 0 --- the sticky \register{TRNGALMF} flag sets and harvesting \textbf{automatically halts}: no new sample feeds the assembler, \register{TRNGDRDY} cannot re-assert, and \register{TRNGRUN} reads 0, because continuing to emit words from a source that just failed its health check is the unsafe choice. Firmware clears \register{TRNGALMF} by writing a 1 to it; harvesting resumes as soon as the raw stream produces a healthy run. \register{TRNGRUNLEN} is a read-only saturating diagnostic that exposes the CURRENT run length at any time, letting firmware watch how close the source is running to the cutoff without waiting for an alarm. Only the Repetition Count Test is implemented in this block; an Adaptive Proportion Test is a possible future addition and the register map reserves headroom for it.
+
+\subsection{Interrupt}
+
+The one combined interrupt is $(\register{TRNGDRDY} \wedge \register{TRNGDRDYIE}) \vee (\register{TRNGALMF} \wedge \register{TRNGALMIE})$, combinational and never latched. A service routine reads \register{TRNGxSR} to demultiplex the source, then either drains \register{TRNGxDR} (which clears \register{TRNGDRDY} as a side effect of the read) or writes 1 to \register{TRNGALMF} to clear the alarm, before returning.
+
+\subsection{Clocking}
+
+The whole harvest engine --- the RO synchronizer, the decimator, the assembler, the health test, and the interrupt combiner --- rides the free-running fabric clock (MCLK), so its timing is immune to clock reconfiguration and, unlike the SMCLK-domain serial peripherals, software does \emph{not} need to write \register{SYS\_CLK\_CR} to 0 before using it. The ring oscillators themselves are independent of every chip clock: they self-oscillate from their own inverter delays whenever \register{TRNGEN} is set (which is precisely why they are usable as an entropy source), and MCLK only samples them --- it never drives them.
+
+\subsection{Firmware Contract}
+
+Treat every word out of \peripheral{TRNGx} as raw, unconditioned entropy: run it through a vetted DRBG before using it as key material, seed material, or a nonce; never use it directly. Discard anything read while \register{TRNGALMF} is set (or, better, avoid reading while the alarm is set at all --- \register{TRNGDRDY} will not assert during a halt). Because the engine holds only one word at a time, poll \register{TRNGDRDY} (or take the interrupt) between reads rather than reading on a fixed schedule. A nonzero \register{TRNGDECIM} is recommended for real accumulation between samples --- see Section \ref{s:trngx-health} and the entropy caveat above.
