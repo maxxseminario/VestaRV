@@ -123,6 +123,16 @@ CATALOG = [
     # Hart-0 directed (tiles parked), so no 'tiles' tag; gated by 'npu' so
     # NPU-less configs (Argus) drop it, identically to shnpu/wnpuconv.
     T('rv32ui-p-wxnpu', 'npu', True),
+    # digperiphs P4.3 (NPU GEMM, S5): wgemm proves NPU MODE=3 (GEMM) inside the
+    # full MCU -- NPUCFG1[7:0] reinterpreted as M-1, two CHAINED THINKs (layer 1
+    # AEN=1 sigmoid so its row-major Q0.24 C feeds layer 2's A in place at the
+    # same staging-RAM words, the D2 zero-repack proof), exact Q7.24/Q0.24
+    # output checks from the validated golden model (verification/npu/
+    # gen_wgemm_golden.py), and the same vector-120 think-done IRQ leg
+    # shnpu.S/wnpuconv.S/wxnpu.S take. Hart-0 directed (tiles parked), so no
+    # 'tiles' tag; gated by 'npu' so NPU-less configs (Argus) drop it,
+    # identically to shnpu/wnpuconv/wxnpu.
+    T('rv32ui-p-wgemm', 'npu', True),
     T('rv32ui-p-afsel', '', True),
     T('rv32ui-p-afselv2', 'spi1', True),
     T('rv32ua-p-shspin', 'tiles atomics', True),
