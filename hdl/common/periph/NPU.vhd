@@ -21,7 +21,7 @@ use work.fixed_pkg.all;
 	--							Starting NPU (NPUTHINK)
 	--							Think-Done Interrupt Enable (NPUCR.TDIE, bit 19)
 	--							Datapath Mode Select (NPUCR.MODE, bits 22:20 — P4.1 family; 0 = legacy MLP)
-	--							Activation Select (NPUCR.ACTF, bits 25:23 — only 0 = sigmoid until P4.4)
+	--							Activation Select (NPUCR.ACTF, bits 25:23 — P4.4: 0=sigmoid(legacy) 1=ReLU 2=tanh 3=clamp 4=exp-approx; 5-7 reserved, act as 0)
 	--							Per-Mode Config Words (NPUCFG1 @5, NPUCFG2 @6; offsets 7-15 reserved read-0)
 	--							SRAM Start Address For Inputs (NPUIVSAR)
 	--							SRAM Weight Address For Inputs (NPUWVSAR)
@@ -217,6 +217,31 @@ architecture behavioral of NPU is
 	signal mK			: unsigned(11 downto 0);				-- running m*K = input row base
 	signal gemm_yptr	: unsigned(11 downto 0);				-- flat C write pointer (row-major)
 
+	----- P4.4 ACTF activation mux (npu_actf_design.md D1-D8) -----
+	-- Every activation is a shift-and-add wrapper around the ONE existing
+	-- combinational FPSigmoid, selected BELOW the XNOR NpuSramD override
+	-- (mode 2 never reads it). actf_run=0 collapses act_out to the as-built
+	-- Decision arm and sig_in to AccOutLtchd — the ACTF=0 compatibility
+	-- invariant holds by inspection. NPUAEN stays the LIVE master enable
+	-- (AEN=0 = passthrough, ACTF don't-care). All nets generic-parametric:
+	-- the legacy NPU_tb still binds the DEFAULT generics.
+	constant ACTF_SIG	: std_logic_vector(2 downto 0) := "000";	-- sigmoid (legacy)
+	constant ACTF_RELU	: std_logic_vector(2 downto 0) := "001";
+	constant ACTF_TANH	: std_logic_vector(2 downto 0) := "010";	-- 2*sigma(2x)-1
+	constant ACTF_CLAMP	: std_logic_vector(2 downto 0) := "011";	-- hardtanh to [-1,1)
+	constant ACTF_EXP	: std_logic_vector(2 downto 0) := "100";	-- exp-approx = 2*sigma(x)
+	signal actf_run		: std_logic_vector(2 downto 0);			-- ACTF shadow (BEGIN latch, D1)
+	signal sig_in		: std_logic_vector((Y_M_BITS+N_BITS) downto 0);	-- FPSigmoid X (TP2 mux)
+	signal tanh_pre		: std_logic_vector((Y_M_BITS+N_BITS) downto 0);	-- SATURATING 2x (D3)
+	signal tanh_q		: signed((N_BITS+2) downto 0);			-- 2*sigma(2x) - 1, headroom
+	signal clamp_q		: signed(N_BITS downto 0);				-- saturated Q0.N slice (D4)
+	signal sig_word		: std_logic_vector(31 downto 0);		-- as-built AEN=1 arm
+	signal relu_word	: std_logic_vector(31 downto 0);
+	signal tanh_word	: std_logic_vector(31 downto 0);
+	signal clamp_word	: std_logic_vector(31 downto 0);
+	signal exp_word		: std_logic_vector(31 downto 0);
+	signal act_out		: std_logic_vector(31 downto 0);		-- ACTF-selected activated word
+
 	-- D2: plain loop-sum — Genus infers the ~6-level compressor tree.
 	function popcount32(v : std_logic_vector(31 downto 0)) return unsigned is
 		variable a : unsigned(5 downto 0);
@@ -323,7 +348,7 @@ begin
 		RHO			=> RHO
 	)
 	port map(
-		X			=> AccOutLtchd,
+		X			=> sig_in,	-- P4.4 TP2: AccOutLtchd for every ACTF except tanh (sat 2x)
 		Y			=> Decision
 	);
 
@@ -402,6 +427,8 @@ begin
 			gemm_m		<= (others => '0');
 			mK			<= (others => '0');
 			gemm_yptr	<= (others => '0');
+			-- P4.4: ACTF shadow reset (X-collapse discipline)
+			actf_run	<= (others => '0');
 		elsif (rising_edge(NpuClk)) then	-- Rising-Edge NPU FSM
 			case NpuState is
 				when NPU_BEGIN =>
@@ -417,6 +444,8 @@ begin
 					-- P4.1 D4: latch the run shadows (mode + conv shape) at the
 					-- first NpuClk edge of every THINK; D2: reset the walkers.
 					mode_run	<= NPUCR(22 downto 20);
+					-- P4.4 D1/TP3: the ACTF latch the conv doc deferred
+					actf_run	<= NPUCR(25 downto 23);
 					S_run		<= unsigned(NPUCFG1(3 downto 0));
 					D_run		<= unsigned(NPUCFG1(7 downto 4));
 					L_run		<= unsigned(NPUCFG1(23 downto 8));
@@ -714,10 +743,64 @@ begin
 						std_logic_vector(CurrXAddr) when NPU_GET_INPUT,
 						std_logic_vector(CurrYAddr) when NPU_SET_OUTPUT,
 		(others => '-')	when others;
-	with NPUAEN	select																	-- NPU SRAM D (Data Input) Selection (MLP/CONV)
-		mlp_conv_sramd	<= 	(31 downto (N_BITS+1) => '0') & Decision				when '1', 	-- Activation Function Enabled
+	-- P4.4 activation cloud (D2-D5). All combinational on the SET_OUTPUT
+	-- write path (one full NpuClk cycle to settle, D7). Encoding contract
+	-- (D8): sigmoid/exp are non-negative ZERO-extended; tanh/clamp are
+	-- signed SIGN-extended (a zero-extended negative reads as a huge
+	-- positive word); ReLU keeps the full passthrough shape.
+	-- TP2 (D3): the tanh pre-shift MUST SATURATE — a plain drop-MSB shift
+	-- sign-flips for |x| in the top half of the accumulator range and lands
+	-- FPSigmoid in the wrong out-of-range branch. scalb(+1) + saturating
+	-- resize; it only ever ACTS for |x| >= 2^(Y_M_BITS-1), deep inside the
+	-- sigmoid's saturated zone, so tanh's active region is untouched.
+	tanh_pre	<= AccOutLtchd((Y_M_BITS+N_BITS-1) downto 0) & '0'
+					when (AccOutLtchd(Y_M_BITS+N_BITS) = AccOutLtchd(Y_M_BITS+N_BITS-1)) else
+				   '0' & ((Y_M_BITS+N_BITS-1) downto 0 => '1')
+					when (AccOutLtchd(Y_M_BITS+N_BITS) = '0') else
+				   '1' & ((Y_M_BITS+N_BITS-1) downto 0 => '0');
+	sig_in		<= tanh_pre when (actf_run = ACTF_TANH) else AccOutLtchd;
+	-- the as-built AEN=1 arm, now named (zero-extended sigmoid word)
+	sig_word	<= (31 downto (N_BITS+1) => '0') & Decision;
+	-- D2 ReLU: sign mux on the accumulator, full Q(Y_M).(N) passthrough shape
+	relu_word	<= (31 downto (Y_M_BITS+N_BITS+1) => '0') & AccOutLtchd
+					when (AccOutLtchd(Y_M_BITS+N_BITS) = '0') else
+				   (others => '0');
+	-- D3 tanh = 2*sigma(2x) - 1: exact double + subtract 1.0, sign-extended
+	tanh_q		<= signed('0' & Decision & '0') - to_signed(2**N_BITS, N_BITS+3);
+	tanh_word	<= std_logic_vector(resize(tanh_q, 32));
+	-- D4 clamp/hardtanh: saturate Q(Y_M).(N) -> Q0.(N), sign-extended.
+	-- In [-1,1) iff the integer bits are pure sign extension.
+	clamp_q		<= to_signed(2**N_BITS - 1, N_BITS+1)
+					when ((AccOutLtchd(Y_M_BITS+N_BITS) = '0') and
+						  (unsigned(AccOutLtchd((Y_M_BITS+N_BITS-1) downto N_BITS)) /= 0)) else
+				   to_signed(-(2**N_BITS), N_BITS+1)
+					when ((AccOutLtchd(Y_M_BITS+N_BITS) = '1') and
+						  (unsigned(not AccOutLtchd((Y_M_BITS+N_BITS-1) downto N_BITS)) /= 0)) else
+				   signed(AccOutLtchd(N_BITS downto 0));
+	clamp_word	<= std_logic_vector(resize(clamp_q, 32));
+	-- D5 exp-approx = 2*sigma(x), Q1.(N) in [0,2), zero-extended. Decision's
+	-- top bit is structurally '0' (sigma < 1.0 always), so the double is the
+	-- low N bits shifted left one.
+	exp_word	<= (31 downto (N_BITS+1) => '0') & Decision((N_BITS-1) downto 0) & '0';
+	-- D1/D6: the ACTF select; reserved codes 5-7 act as sigmoid. Choices are
+	-- string LITERALS (array constants are not locally static in VHDL-93 —
+	-- the ACTF_* constants above are for the conditional tests only).
+	with actf_run select
+		act_out		<= sig_word		when "000",		-- ACTF_SIG (legacy)
+					   relu_word	when "001",		-- ACTF_RELU
+					   tanh_word	when "010",		-- ACTF_TANH
+					   clamp_word	when "011",		-- ACTF_CLAMP
+					   exp_word		when "100",		-- ACTF_EXP
+					   sig_word		when others;	-- reserved 5-7 + metavalues
+	-- TP1 (adjudication amendment A1): the OUTER select keeps the as-built
+	-- 3-arm NPUAEN shape — arm '1' and the metavalue OTHERS arm both take
+	-- the activated word (at actf_run=0 act_out = sig_word = the as-built
+	-- Decision arm, so the whole select is byte-identical to legacy in all
+	-- nine std_logic values of NPUAEN).
+	with NPUAEN	select																	-- NPU SRAM D (Data Input) Selection (MLP/CONV/GEMM)
+		mlp_conv_sramd	<= 	act_out												when '1', 	-- Activation Function Enabled (ACTF-selected)
 						(31 downto (Y_M_BITS+N_BITS+1) => '0') & AccOutLtchd	when '0', 	-- Pass Through
-						(31 downto (N_BITS+1) => '0') & Decision				when others;-- Assumed Activation Function Enabled
+						act_out												when others;-- Assumed Activation Function Enabled
 	-- P4.2 D1 touch point 1 (the ONE shared-expression edit): in XNOR mode
 	-- the write data is the +-1.0 decision word; in modes 0/1 the else arm
 	-- is the as-built NPUAEN select, bit-identical.
