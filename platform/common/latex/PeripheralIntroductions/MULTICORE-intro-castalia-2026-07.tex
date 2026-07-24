@@ -94,6 +94,28 @@ The canonical release sequence for hart $h$ is therefore: stage the tile's progr
 
 \textbf{Stacks:} each hart needs its own stack in its own private TCM. When an interrupt is taken, the hardware pushes the return program counter at $\mathtt{sp}-4$ (see Section \ref{s:interrupts}), so every hart --- including a freshly loaded tile hart --- must have a valid stack pointer before enabling interrupts or sleeping. The boot ROM guarantees this for parked and freshly-entered tiles; application code keeps the convention of placing each hart's stack at the top of its TCM, growing downward.
 
+\subsubsection{Harvested (field-powered) boot}
+
+In configurations wired for field power, hart 0's boot path has a second entry, selected by a hardware strap sampled at reset and reported by the \peripheral{PWRCTRL} controller. Before any SPI or flash activity, hart 0 polls the strap-valid flag and, if the harvested-boot strap is set, branches to a ROM-resident service path instead of the SPI-flash download described above. This path is built for a chip running on harvested field energy, where the multi-kilobyte flash copy is the single most power-hungry cold-start step and is therefore skipped entirely.
+
+The harvested path keeps both MCLK and SMCLK on HFXT --- the SPI path's mid-boot SMCLK-to-LFXT switch does not run, so the clock configuration is written explicitly rather than inherited --- then power-gates every tile hart through \peripheral{PWRCTRL} (the tiles are already ROM-parked in WFI, the sanctioned quiesced state, so gating them is safe at any hart count). It configures the port-6 GPIO alternate-function plane for the six off-die NFC analog-front-end wires, provisions the NFC tag identity (a ROM-default UID, \texttt{ATQA} and \texttt{SAK}) and a short status payload, and arms the NFC block in LISTEN mode with auto-read enabled, so the hardware answers Type-2 read commands with no firmware in the loop. Finally it arms its own software-interrupt vector with a harmless clear-and-return handler (a stray \register{MSIP} must not disturb the parked hart), divides MCLK down --- the parked service loop needs no speed, and dynamic power scales with the divide --- and sleeps.
+
+On a configuration built without the NFC block, the NFC register writes land in an unused alias of the \peripheral{MUTEX} page and are harmless; the path is written to never \textit{read} an NFC register, because a read of that alias would claim a mutex.
+
+The exact sequence, in the order the ROM executes it (register addresses in the peripheral chapters):
+
+\begin{enumerate}
+\item \textbf{Common entry (shared with the SPI path):} interrupts off, all memory blocks powered, stack pointer set, and the shared-RAM mailbox region \texttt{0x10000}--\texttt{0x107FC} zeroed --- the write-before-read contract. At a 24\,MHz \texttt{MCLK} this zeroing, 512 word writes through the shared-bus arbiter, dominates the harvested cold-start (about 625\,\textmu s of the roughly 690\,\textmu s from gate release to sleep).
+\item \textbf{Strap branch:} poll \register{PWRSTS} until \bitfield{PWSTRAPVLD}, then branch on \bitfield{PWSTRAP}. (The sample completed a handful of cycles after reset release, long before this code runs; the poll is cheap insurance.)
+\item \textbf{Clock story, explicitly:} write \register{CLKCR}\,=\,0 --- both \texttt{MCLK} and \texttt{SMCLK} stay on \texttt{HFXT}. The SPI path's mid-boot switch of \texttt{SMCLK} to \texttt{LFXT} never runs on this path, so the choice is written rather than inherited.
+\item \textbf{Gate the tiles:} write all-ones to \peripheral{PWRCTRL} \register{PWRCR}. The register masks the write to the tile bits that exist, so the same ROM gates every tile hart at any hart count; the tiles are parked in their boot-ROM \texttt{WFI}, the sanctioned quiesced state.
+\item \textbf{Pin mux:} select the alternate-function planes for the six off-die NFC AFE wires on port~6 pins 0--5 (\texttt{PxSEL}, then the AF-select fields). Pins 6 and 7 --- the strap and \texttt{PGOOD} --- are untouched and stay plain inputs.
+\item \textbf{Provision the tag:} write the ROM-default identity (UID \texttt{0xC0FFEE01}, \texttt{ATQA}~\texttt{0x0044}, \texttt{SAK}~\texttt{0x00}), point the payload index register at byte 0 with auto-increment, and write a three-byte status payload: \texttt{'H'}, \texttt{'V'}, then the live \register{PWRSTS} snapshot --- the honest ``sensor record'' of the base chip. A fielded product replaces all of this by relaunching with real firmware.
+\item \textbf{Arm LISTEN:} a \textit{byte} store of \texttt{NFCEN}\,$|$\,\texttt{LISTEN} to the NFC control register's low lane. A full-word store would also write the second byte lane and clear the auto-read enable, whose reset default is set --- auto-read is what lets the hardware answer Type-2 \texttt{READ}s with the processor asleep.
+\item \textbf{Stray-interrupt guard:} arm interrupt-vector slot~83 (the software interrupt) in hart~0's own TCM with a return stub, so an unexpected \texttt{msip} is cleared and returns the hart to sleep instead of vectoring into uninitialized memory.
+\item \textbf{Slow down and sleep:} divide \texttt{MCLK} by eight (\register{CLKDIVCR}), then sleep. The clock reconfiguration is legal here because every other bus master is gated. From this point the NFC hardware serves readers autonomously; a field arrival can be taken as an interrupt only if firmware later opts in.
+\end{enumerate}
+
 
 
 \subsection{Synchronization} \label{ss:multicore-sync}
