@@ -31,3 +31,51 @@ To wake the tile, clear the same bit and wait for the state nibble to return to 
 Because gating is \textit{cold}, everything on the tile dies with the rail: the register file, CSRs, and the private TCM contents. Any data the tile must keep across a power cycle has to be staged to shared RAM before gating. The isolation clamps drive every outbound tile signal to its inactive level, which is identical to the tile's reset state, so the rest of the chip observes a gated tile simply as a silent one.
 
 The sequencer never aborts a transition: a gate-bit change made mid-sequence takes effect when the current sequence completes. The rail-settle delay on wake is sized for the header-switch daisy chain of one tile domain; software does not need to add its own delays beyond polling \texttt{PWRSR}.
+
+\subsection{Field-Powered Boot Gate and Wake Sources}
+
+In configurations wired for field power --- the harvested-energy NFC operating mode --- the power controller additionally supervises \textit{when} the chip is allowed to start executing, so that the harts are held quiescent until the harvested supply can actually carry a transaction. Two package pins participate: a power-good input (\texttt{PGOOD}), driven by an external supply supervisor, and a boot-mode strap that selects harvested boot. On the LQFP-100 package these are the two spare pins \texttt{P6.7} (\texttt{PGOOD}, pin 69) and \texttt{P6.6} (strap, pin 68). Both pads reset to inputs with their pull-downs enabled, so an unconnected pin reads as ``power not good'' and ``normal boot'': a board that does not use the feature behaves exactly like earlier revisions, and the whole mechanism is a provable no-op with the inputs tied inactive.
+
+Two registers expose the feature. \texttt{PWRWAKE} (read/write, offset \texttt{0x14}, reset 0) arms and configures the boot gate; \texttt{PWRSTS} (read-only, offset \texttt{0x18}) reports the synchronized live pin states, the once-sampled strap value, and the current gate state. Both sit at fixed offsets above the \texttt{PWRSR} words, so this part of the map does not depend on the hart count. All three pad-side inputs are asynchronous and are double-flop synchronized inside the controller on the always-on clock domain.
+
+\textbf{The boot gate is a hold-in-reset.} An internal release signal is ANDed into \textit{every} hart's outer reset --- hart 0 included, which gains a reset fold it does not otherwise have --- so a held hart fetches nothing and issues no shared-bus request; the rest of the chip cannot distinguish it from a hart still in power-on reset. When the release conditions are met the harts leave reset and run the ordinary boot ROM, with no software-visible partial state.
+
+\textbf{The strap drives policy; software ORs in overrides.} The strap is sampled exactly once, a few master-clock cycles after reset release, and sets the \textit{hardware defaults} of the gate; the \texttt{PWRWAKE} bits then OR in software overrides. This resolves the chicken-and-egg of a gate that holds the very cores that would program it: a harvested board self-arms with zero firmware (arm the gate, make \texttt{PGOOD} a release condition, and re-hold on brownout), while a normally-powered board leaves the gate disarmed. Software may independently arm the gate, add \texttt{PGOOD} and/or the NFC \textit{field-detect} input as release conditions, force a release, or choose between a one-shot latched release and re-holding whenever a release condition later drops.
+
+\textbf{Field detect is a wake path, not an interrupt.} The NFC field-detect signal --- asserted when a reader's RF field is present --- can be selected as a gate release condition, in which case it brings the chip out of the boot hold and consumes no interrupt vector. (The same signal remains separately available as an ordinary interrupt to firmware that is already running; the two uses are independent.)
+
+\textbf{Brownout is a cold boot.} With re-hold enabled, a \texttt{PGOOD} deassertion re-asserts the boot gate and its later return releases the harts into a fresh boot ROM run. Because gating is cold and the chip keeps no retention, a full cold boot is the honest model of losing and regaining the harvested rail, and is exactly what re-hold produces.
+
+The same silicon supports two field-power schemes. In the \textit{batteryless} scheme the gate is the mechanism: the chip holds in reset until \texttt{PGOOD}, cold-boots the harvested-boot ROM path (see the multi-core boot chapter), serves the reader, and re-holds when the field collapses. In the more robust \textit{supercap duty-cycled} scheme an external buffer stays charged and the gate is left disarmed after the initial boot; the service loop sleeps between transactions and is resumed by the ordinary field-detect interrupt, never re-entering reset.
+
+\subsubsection{Exact mechanism and timing}
+
+All of the boot-gate state lives on the always-on master-clock domain and evaluates once per \texttt{MCLK} cycle. Writing the effective policy as logic (\texttt{PWRWAKE} bit names on the right):
+
+\begin{quote}\ttfamily
+strap\_harvest = STRAP\_VALID and STRAP\\
+arm\ \ \ = PWGATEEN\ \ \,or strap\_harvest\\
+p\_rls\ = PWRLSPGOOD or strap\_harvest\\
+f\_rls\ = PWRLSFIELD\\
+rehold = PWREHOLD\ \ \,or strap\_harvest\\[2pt]
+release = PWSWRLS or (p\_rls and PGOOD\_live) or (f\_rls and FIELD\_live)\\
+hold\ \ \ = arm and not (rehold ? release : release\_latched)\\
+pgood\_rstn = not hold \hfill(registered; reset value = released)
+\end{quote}
+
+\noindent The external inputs \texttt{PGOOD\_live} and \texttt{FIELD\_live} are the double-flop-synchronized pad and field-detect levels (two \texttt{MCLK} cycles of latency); \texttt{release\_latched} is a sticky OR of every past release, giving the one-shot behaviour when \texttt{PWREHOLD}\,=\,0. The gate output itself is registered, so releases and re-holds are glitch-free and take effect one cycle after their condition resolves.
+
+The strap is sampled exactly once: a free-running counter starts at reset release and, after the settle delay (eight \texttt{MCLK} cycles in this implementation, comfortably beyond the two-cycle synchronizer and the board pull's settling during the much longer power-on-reset), latches the synchronized strap level and sets \texttt{PWSTRAPVLD}. On a strapped (harvested) board the whole self-arm therefore completes roughly eleven cycles after reset release. The gate is \textit{released} during that sampling window --- deliberately, so that a normal board's boot is never delayed --- which means a harvested board's harts may begin their first boot-ROM fetch and then be re-held. That is harmless by construction: the hold is the same outer reset that cleared the harts at power-on, the boot-fetch tracking state resets with it, and the eventual release simply runs a clean cold boot. The same argument makes every hold/release transition safe at any moment: a held hart's bus interface sits at its reset values, which the shared-bus arbiter already treats as ``no request'' (the cold-gate isolation contract of the tile domains).
+
+Note the asymmetry between the two \texttt{PWRWAKE} policies. With \texttt{PWREHOLD}\,=\,1 the hold \textit{tracks} the release condition: \texttt{PGOOD} dropping re-asserts the hold on the next cycle, and the harts re-enter reset immediately --- there is no grace period, because without retention there is nothing a grace period could save. With \texttt{PWREHOLD}\,=\,0 the first release is final until the next chip reset; use this when supervising software, not the gate, should own brownout policy. An armed gate with \textit{no} release source enabled holds indefinitely until \texttt{PWSWRLS} --- this is intentional and is used by the production test to prove the gate is load-bearing.
+
+\subsubsection{Programming sequences}
+
+\textbf{Harvested board (zero firmware).} Strap \texttt{P6.6} high, wire the supervisor's power-good output to \texttt{P6.7}. Nothing else: the hardware defaults arm the gate, wait on \texttt{PGOOD}, and re-hold on brownout. The first instruction any hart executes happens after the supply is declared good.
+
+\textbf{Software-armed gate (test or supervised systems).} From any running hart:
+write \texttt{PWRWAKE}\,=\,\texttt{PWGATEEN}\,$|$\,\texttt{PWRLSPGOOD} (optionally $|$\,\texttt{PWREHOLD}); the gate now follows \texttt{PGOOD}. To add the RF field as a release source, set \texttt{PWRLSFIELD}. To force a release regardless of pins, set \texttt{PWSWRLS}. Poll \texttt{PWRSTS.PWBOOTHOLD} to observe the gate; note that software can only observe the gate \textit{released} or arm it for the \textit{next} hold --- while the hold is active there is, by design, nobody executing.
+
+\textbf{Supercap duty-cycled service loop (gate disarmed).} Boot normally, then: gate the unused tile harts through \texttt{PWRCR}; route the NFC field-detect interrupt (vector 94) to the serving hart in its interrupt-router enable row; provision and arm the NFC block in LISTEN with auto-read; optionally divide \texttt{MCLK} down; sleep with \texttt{WFI}. A reader arriving raises field-detect, the router delivers the external interrupt, and the hart resumes with all state intact --- the boot gate plays no part. \texttt{PWRSTS.PWFIELDLIV} remains available for polling designs.
+
+\textbf{Choosing bank power (service-loop floor).} In either scheme the deepest useful power state keeps one shared-RAM bank (stack and payload) and the serving hart powered: gate the tiles via \texttt{PWRCR}, gate the unused shared banks and memories via \texttt{BLOCKPWR} (see the SYSTEM chapter --- gated macros halve their leakage; contents are lost), and divide the clock. Dynamic power scales with the divider; the floor that remains is the leakage of the always-on fabric and whatever memories stay powered.

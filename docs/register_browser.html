@@ -5343,17 +5343,101 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 8,
 					"ResetValue": 0,
-					"Description": "Block power control register. Controls power gating for on-chip memory blocks.",
+					"Description": "Block power control register. Controls power gating for on-chip memory blocks. All bits reset to 0 (every block powered). DP-S3: bits 6:3 gate the four low shared bulk-RAM banks individually; a gated bank LOSES ITS CONTENTS (no retention) and stops responding \u2014 software must keep the bank holding its stack, mailboxes, or live payload powered, and must treat a re-powered bank as uninitialized (the boot-ROM zero-fill contract is write-before-read anyway). In configurations with more than four banks, banks 4 and up are hardwired always-on.",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
 							"MSB": 7,
-							"LSB": 3,
+							"LSB": 7,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
 							"Description": "",
 							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "SYSSHB3OFF",
+							"MSB": 6,
+							"LSB": 6,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Shared bulk-RAM bank 3 (0x1C000-0x1FFFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).",
+							"ValueDescriptions": [
+								[
+									0,
+									"Bank 3 powered on",
+									""
+								],
+								[
+									1,
+									"Bank 3 powered off (contents lost)",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "SYSSHB2OFF",
+							"MSB": 5,
+							"LSB": 5,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Shared bulk-RAM bank 2 (0x18000-0x1BFFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).",
+							"ValueDescriptions": [
+								[
+									0,
+									"Bank 2 powered on",
+									""
+								],
+								[
+									1,
+									"Bank 2 powered off (contents lost)",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "SYSSHB1OFF",
+							"MSB": 4,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Shared bulk-RAM bank 1 (0x14000-0x17FFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).",
+							"ValueDescriptions": [
+								[
+									0,
+									"Bank 1 powered on",
+									""
+								],
+								[
+									1,
+									"Bank 1 powered off (contents lost)",
+									""
+								]
+							]
+						},
+						{
+							"BitFieldName": "SYSSHB0OFF",
+							"MSB": 3,
+							"LSB": 3,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Shared bulk-RAM bank 0 (0x10000-0x13FFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).",
+							"ValueDescriptions": [
+								[
+									0,
+									"Bank 0 powered on",
+									""
+								],
+								[
+									1,
+									"Bank 0 powered off (contents lost)",
+									""
+								]
+							]
 						},
 						{
 							"BitFieldName": "SYSRAM1OFF",
@@ -6272,6 +6356,158 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Hart 0 state: always 0 (ON, always-on domain).",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PWRWAKE",
+					"Address": 19220,
+					"Offset": 20,
+					"RegisterMemorySlot": 5,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Boot-gate / wake-source control (DP-S3 field-powered mode). The harvested-boot STRAP drives the hardware defaults (a strapped board self-arms the gate, waits on PGOOD, and re-holds on brownout with no software involvement); these bits OR-IN software overrides on top. Resets to 0 = no software override = the gate is released on every normal boot. Write with full-word stores (byte-lane-0 qualified, like PWRCR).",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 5,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWREHOLD",
+							"MSB": 4,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Re-hold policy override: 1 = re-assert the boot hold when the release condition drops (brownout re-hold; PGOOD return then cold-boots the harts through the shared ROM). 0 = one-shot \u2014 once released, stays released (see PWRSTS.PWRRLSLATCH). The strap ORs this in on a harvested board.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWSWRLS",
+							"MSB": 3,
+							"LSB": 3,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Software-forced release: 1 releases an armed gate unconditionally (test/override, or \"software says proceed\"). With no release source enabled, an armed gate holds until this bit \u2014 the negative-control proof that the gate is load-bearing.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWRLSFIELD",
+							"MSB": 2,
+							"LSB": 2,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "1 = the synchronized NFC field level (PWRSTS.PWFIELDLIV) is a release condition \u2014 the field_detect WAKE source: a reader arriving releases the boot gate. No IRQ vector is involved. Reads as tied-0 field when NFC is absent or fieldPower is off.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWRLSPGOOD",
+							"MSB": 1,
+							"LSB": 1,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "1 = the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) is a release condition. The strap ORs this in on a harvested board (it always waits on the supply supervisor).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWGATEEN",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Software boot-gate arm: 1 arms the HOLD-IN-RESET gate (every hart's outer reset held until a release condition fires). The harvested-boot strap ORs this in \u2014 a strapped board arms with no software.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PWRSTS",
+					"Address": 19224,
+					"Offset": 24,
+					"RegisterMemorySlot": 6,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Boot-gate / wake-source status (read-only). The synchronized live pad levels, the one-shot strap sample (THE bootrom harvested-boot branch bit), and the gate state.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 6,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWRRLSLATCH",
+							"MSB": 5,
+							"LSB": 5,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "One-shot release has latched (sticky until reset; only meaningful with PWREHOLD = 0).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWBOOTHOLD",
+							"MSB": 4,
+							"LSB": 4,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Current gate state: 1 = the boot gate is holding every hart in reset (pgood_rstn asserted).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWSTRAPVLD",
+							"MSB": 3,
+							"LSB": 3,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Strap sample complete (the one-shot sample lands a few mclk after reset release; poll before consuming PWSTRAP).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWSTRAP",
+							"MSB": 2,
+							"LSB": 2,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Latched harvested-boot strap sample: 1 = harvested boot (the bootrom skips the SPI-flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled ONCE after reset; mid-run strap changes are ignored.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWFIELDLIV",
+							"MSB": 1,
+							"LSB": 1,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Synchronized NFC field_detect level (0 when NFC is absent or fieldPower is off).",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWPGOODLIV",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Synchronized PGOOD pad level (P6.7). Reads 0 = power-not-good when the pin is unconnected (reset pull-down).",
 							"ValueDescriptions": []
 						}
 					]

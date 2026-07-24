@@ -950,6 +950,11 @@ const VESTA_DATA = {
       "type": "bool",
       "default": false
     },
+    "peripherals.fieldPower": {
+      "description": "bool \u2014 True wires the DP-S3 field-powered-mode supervision inputs into PWRCTRL: P6.7/GPIO47 = PGOOD supply-supervisor input, P6.6/GPIO46 = harvested-boot strap. Both are plain-GPIO DIRECT TAPS of the pad-input plane (always readable, independent of PxSEL/PxAFS \u2014 PGOOD must gate boot before any software can program a mux), with reset attrs rstDIR=input, rstREN=1, pull-DOWN: unconnected reads power-not-good + NORMAL(SPI) boot. Also taps NFC0's field_detect level as an optional PWRCTRL wake/release source (tied 0 when NFC is absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL unconditionally; this knob only controls the pad-side ties, so False leaves the feature a provable NO-OP (gate stuck released). CONFLICTS with peripherals.onewire \u2014 OW0's DQ owns P6.6. Default true (the Castalia golden master and castalia_dp carry the live wiring)",
+      "type": "bool",
+      "default": true
+    },
     "peripherals.dma": {
       "description": "bool \u2014 True instantiates the DMA0 configurable multi-channel single-shot DMA controller (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800: page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the DMA is master index numHarts, the last slice) \u2014 mp_arbiter N=>5/MW=>3, resv_unit N=>5, mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (119 <= 128). Default false",
       "type": "bool",
@@ -1042,6 +1047,7 @@ const VESTA_DATA = {
     "peripherals.rtc": false,
     "peripherals.pwm": false,
     "peripherals.onewire": false,
+    "peripherals.fieldPower": true,
     "peripherals.dma": false,
     "peripherals.dmaChannels": 4,
     "peripherals.i2ctarget": false,
@@ -4031,6 +4037,7 @@ const SCHEMA_TO_CFG = {
   "peripherals.uart1":"uart1", "peripherals.spi1":"spi1", "peripherals.timer1":"timer1",
   "peripherals.cqAfeStubs":"cqAfeStubs", "peripherals.qspi":"qspi", "peripherals.i3c":"i3c", "peripherals.nfc":"nfc",
   "peripherals.rtc":"rtc", "peripherals.pwm":"pwm", "peripherals.onewire":"onewire",
+  "peripherals.fieldPower":"fieldPower",
   "peripherals.dma":"dma", "peripherals.dmaChannels":"dmaChannels",
   "peripherals.i2ctarget":"i2ctarget",
   "peripherals.trng":"trng", "peripherals.trngRings":"trngRings",
@@ -4290,6 +4297,7 @@ function render(){
    ["rtc","RTC0","Real-time clock (32.768 kHz always-on wall clock + one-shot alarm + periodic tick) in the MUTEX page, sub-slot 5 @0x6500. Off by default. Zero pins: it clocks off the ungated lfxt_in pad crystal, with the CDC synchronizers / sticky W1C flags / IRQ combiner on the free-running MCLK — so timekeeping survives clock reconfig and PWRCTRL tile gating (a driver must NOT write SYS_CLK_CR=0 for it). On grows the IRQ source list to 115: vector 114 = RTC0's single combined alarm/tick source (above GPIO5's 106–113); NUM_EN_WORDS stays 4."],
    ["pwm","PWM0","Buffered PWM generator (2 channels, glitch-free double-buffered update, software fault trip, period-event tick) in the MUTEX page, sub-slot 6 @0x6600. Off by default. Zero input pins: the two outputs replace the redundant T0CMP0/T0CMP1 spread copies on P2.2/P2.3 AF2 (no new package pads). The engine runs on the free-running MCLK (no LFXT, no generated clocks), so its count is immune to clock reconfig (a driver must NOT write SYS_CLK_CR=0 for it). On extends the IRQ source list per the global vector rule: vector 115 = PWM0_FAULT (lower id = router priority), 116 = PWM0_EVT; when RTC (vector 114) is off but PWM is on, 114 backfills as reserved so PWM keeps 115/116. NUM_EN_WORDS stays 4 (117 ≤ 128)."],
    ["onewire","OW0","Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive) in the MUTEX page, sub-slot 7 @0x6700. Off by default. One open-drain DQ pad on P6.6 / GPIO46 AF1 (rstREN=1) — unbonded on the QFN-44, reachable on the QFN-64 / respin package; off, P6.6 stays spare GPIO. The engine runs on the free-running MCLK (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized), so its tick base is immune to clock reconfig (a driver must NOT write SYS_CLK_CR=0 for it). On extends the IRQ source list per the global vector rule to 118: vector 117 = OW0's single combined transaction-complete/error source; when RTC (114) or PWM (115/116) are off but OneWire is on, those slots backfill as reserved so OW0 keeps 117. NUM_EN_WORDS stays 4 (118 ≤ 128)."],
+   ["fieldPower","Field power","DP-S3 field-powered NFC mode supervision wiring into PWRCTRL: P6.7/GPIO47 becomes the PGOOD supply-supervisor input and P6.6/GPIO46 the harvested-boot strap — both plain-GPIO DIRECT pad taps (always readable, independent of PxSEL/PxAFS, since the boot gate must work before any software runs), with reset pulls enabled pull-down (unconnected reads power-not-good + NORMAL/SPI boot). NFC0's field_detect level is also tapped as an optional PWRCTRL wake/release source (tied 0 when NFC is off). PWRCTRL's PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL in every configuration; this knob only wires or ties the pad-side inputs, so off leaves the whole feature a provable no-op. On by default. CONFLICTS with OW0 (its DQ owns P6.6) — the generator refuses both on. Zero IRQ vectors."],
    ["i2ctarget","I2CT0","Hardware-autonomous I2C target (slave): 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean: 2-FF SDA/SCL sync, no pad-clocked processes). In the MUTEX page, sub-slot 10 @0x6A00. Off by default. NO new pins: it shares the I2C0 SDA0/SCL0 pads via an open-drain wired-AND DIR merge (target clock stretching + ACK/data driving), complementary to I2C0/I2C1's software-serviced slave registers. Because it clocks off MCLK, the SYS_CLK_CR=0 footgun does NOT bind it. On extends the IRQ source list per the global vector rule to 124: vectors 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vector 120 (NPU0 think-done, DP-SG) rides the NPU knob and 121 (TRNG0, DP-SG) rides the TRNG knob — either backfills as reserved when its block is off so 122/123 hold. NUM_EN_WORDS stays 4 (124 ≤ 128)."]].forEach(([key,name,desc])=>{
     const el = document.createElement("div"); el.className="peri"+(cfg[key]?" on":"");
     el.innerHTML = `<div class="pt"><span class="pn">${name}</span>
@@ -4712,6 +4720,7 @@ function outPython(){
   L.push(`<span class="k">rtcPresent</span> = ${b(cfg.rtc)}  <span class="c"># _cfg('peripherals.rtc', False)</span>`);
   L.push(`<span class="k">pwmPresent</span> = ${b(cfg.pwm)}  <span class="c"># _cfg('peripherals.pwm', False)</span>`);
   L.push(`<span class="k">onewirePresent</span> = ${b(cfg.onewire)}  <span class="c"># _cfg('peripherals.onewire', False)</span>`);
+  L.push(`<span class="k">fieldPowerPresent</span> = ${b(cfg.fieldPower)}  <span class="c"># _cfg('peripherals.fieldPower', True) — DP-S3 PGOOD/strap/field wiring into PWRCTRL (conflicts with onewire)</span>`);
   L.push(`<span class="k">dmaPresent</span> = ${b(cfg.dma)}  <span class="c"># _cfg('peripherals.dma', False)</span>`);
   L.push(`<span class="k">dmaChannels</span> = <span class="v">${cfg.dmaChannels}</span>  <span class="c"># _cfg('peripherals.dmaChannels', 4) — NCH generic {2,4}, only when dma</span>`);
   L.push(`<span class="k">i2ctargetPresent</span> = ${b(cfg.i2ctarget)}  <span class="c"># _cfg('peripherals.i2ctarget', False) — I2CT0 target @0x6A00, vectors 122/123</span>`);
@@ -4762,7 +4771,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;

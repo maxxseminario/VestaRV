@@ -1,59 +1,54 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VestaRV — a from-scratch RISC-V core, three chips in silicon</title>
-<meta name="description" content="VestaRV: a from-scratch RV32IMAC+Zb* RISC-V core taped out on TSMC 65nm (plus two more signoff-closed, tape-out-ready designs), and a chip generator that emits verified RTL, C headers, linker scripts and a full reference manual from one config file.">
-<!--
-  SELF-CONTAINED landing page. No external stylesheet/script/font/image loads.
-  The <style> block below between VESTA_THEME_BEGIN / VESTA_THEME_END is spliced
-  verbatim from docs/vesta_theme.css (the canonical source). Do not hand-edit it
-  here in isolation — change vesta_theme.css and re-splice.
--->
+<title>Field-Powered NFC Mode &mdash; Castalia (DP-S3) &middot; VestaRV</title>
+<meta name="description" content="How Castalia boots, serves an NFC reader, and sleeps on harvested RF energy: the PWRCTRL PGOOD boot gate and the harvested-boot ROM path.">
 <style>
 /* VESTA_THEME_BEGIN */
 :root{
   /* ---- Ember palette: DARK (default) ---------------------------------- */
-  --bg:            #14100e;
-  --bg-2:          #0e0b09;
-  --surface:       #1d1713;
-  --surface-2:     #271f19;
-  --surface-3:     #322820;
-  --border:        #3a2e25;
-  --border-strong: #4d3d30;
+  --bg:            #14100e;  /* near-black warm charcoal (the cold hearth)   */
+  --bg-2:          #0e0b09;  /* deepest well — page gutters / behind elev    */
+  --surface:       #1d1713;  /* card / panel base                            */
+  --surface-2:     #271f19;  /* raised surface, table header, input          */
+  --surface-3:     #322820;  /* hover / active surface                       */
+  --border:        #3a2e25;  /* hairline dividers                            */
+  --border-strong: #4d3d30;  /* emphasised borders                          */
 
-  --text:          #f5ede4;
-  --text-muted:    #bcab9c;
-  --text-dim:      #8b7a6c;
+  --text:          #f5ede4;  /* warm off-white primary                       */
+  --text-muted:    #bcab9c;  /* secondary                                    */
+  --text-dim:      #8b7a6c;  /* tertiary / captions / disabled               */
 
-  --accent:        #ff6a1a;
-  --accent-hover:  #ff8438;
-  --accent-press:  #e6560d;
-  --amber:         #ffb020;
-  --amber-deep:    #d98a12;
-  --accent-soft:   rgba(255,106,26,.14);
+  --accent:        #ff6a1a;  /* flame orange — primary accent                */
+  --accent-hover:  #ff8438;  /* brighter flame on hover                      */
+  --accent-press:  #e6560d;  /* pressed                                      */
+  --amber:         #ffb020;  /* ember amber — secondary accent / highlights  */
+  --amber-deep:    #d98a12;  /* amber on light or as underlays               */
+  --accent-soft:   rgba(255,106,26,.14);  /* tinted fills (badges, hero glow)*/
   --amber-soft:    rgba(255,176,32,.14);
-  --on-accent:     #1a0f07;
+  --on-accent:     #1a0f07;  /* text on a solid flame button                 */
 
-  --ok:            #4bbf73;
-  --warn:          #ffb020;
-  --err:           #f0553d;
-  --link:          #ff8f52;
+  --ok:            #4bbf73;  /* pass / green                                 */
+  --warn:          #ffb020;  /* caution (reuses amber)                       */
+  --err:           #f0553d;  /* fail / danger                                */
+  --link:          #ff8f52;  /* inline links on dark                         */
 
   --ok-soft:       rgba(75,191,115,.15);
   --err-soft:      rgba(240,85,61,.15);
 
+  /* ---- Type scale ------------------------------------------------------- */
   --font-sans: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --font-mono: ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
-  --fs-xs:   .75rem;
-  --fs-sm:   .8125rem;
-  --fs-base: .9375rem;
-  --fs-md:   1.0625rem;
-  --fs-lg:   1.375rem;
-  --fs-xl:   1.875rem;
-  --fs-2xl:  2.5rem;
-  --fs-3xl:  3.25rem;
+  --fs-xs:   .75rem;    /* 12 */
+  --fs-sm:   .8125rem;  /* 13 */
+  --fs-base: .9375rem;  /* 15 */
+  --fs-md:   1.0625rem; /* 17 */
+  --fs-lg:   1.375rem;  /* 22 */
+  --fs-xl:   1.875rem;  /* 30 */
+  --fs-2xl:  2.5rem;    /* 40 */
+  --fs-3xl:  3.25rem;   /* 52 hero */
   --lh-tight: 1.15;
   --lh-body:  1.6;
   --fw-normal: 400;
@@ -61,12 +56,15 @@
   --fw-semi:   600;
   --fw-bold:   700;
 
+  /* ---- Spacing (4px base) ---------------------------------------------- */
   --sp-1: .25rem;  --sp-2: .5rem;   --sp-3: .75rem;  --sp-4: 1rem;
   --sp-5: 1.5rem;  --sp-6: 2rem;    --sp-8: 3rem;    --sp-10: 4rem;
   --sp-12: 6rem;
 
+  /* ---- Radii ------------------------------------------------------------ */
   --r-xs: 4px;  --r-sm: 6px;  --r-md: 10px;  --r-lg: 16px;  --r-pill: 999px;
 
+  /* ---- Elevation / effects --------------------------------------------- */
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
   --shadow-md: 0 6px 20px rgba(0,0,0,.45);
   --shadow-glow: 0 0 40px rgba(255,106,26,.18);
@@ -76,6 +74,7 @@
   --trans: 160ms ease;
 }
 
+/* ---- Ember palette: LIGHT ("ash") — warm off-white + ember accents ----- */
 :root[data-theme="light"]{
   --bg:            #f7f1ea;
   --bg-2:          #efe6db;
@@ -89,7 +88,7 @@
   --text-muted:    #6c5b4c;
   --text-dim:      #93806f;
 
-  --accent:        #d2560a;
+  --accent:        #d2560a;  /* deeper flame for AA contrast on light        */
   --accent-hover:  #b8480a;
   --accent-press:  #9c3d06;
   --amber:         #c07d10;
@@ -112,6 +111,9 @@
   --ring: 0 0 0 3px var(--accent-soft);
 }
 
+/* Honour OS preference on first visit (before any stored choice is applied).
+   The boot script promotes a stored choice by setting data-theme explicitly,
+   which wins over this @media rule via specificity of the [data-theme] tokens. */
 @media (prefers-color-scheme: light){
   :root:not([data-theme]){
     --bg:#f7f1ea; --bg-2:#efe6db; --surface:#fffaf3; --surface-2:#f3e9dd;
@@ -127,6 +129,7 @@
   }
 }
 
+/* ---- Base ------------------------------------------------------------- */
 *,*::before,*::after{box-sizing:border-box}
 html{color-scheme:dark}
 :root[data-theme="light"]{color-scheme:light}
@@ -146,12 +149,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-accent{color:var(--accent)}
 .vesta-mono{font-family:var(--font-mono)}
 
+/* ---- Shared header / nav --------------------------------------------- */
 .vesta-header{
   position:sticky; top:0; z-index:50;
-  background:var(--bg);
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter:saturate(1.4) blur(10px);
-  border-bottom:1px solid var(--border-strong);
-  box-shadow:var(--shadow-sm);
+  border-bottom:1px solid var(--border);
 }
 .vesta-header-inner{
   max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5);
@@ -179,6 +182,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-nav a:hover{color:var(--text); background:var(--surface-2); text-decoration:none}
 .vesta-nav a[aria-current="page"]{color:var(--accent); background:var(--accent-soft)}
 
+/* ---- Theme toggle ----------------------------------------------------- */
 .vesta-toggle{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:var(--sp-2);
   background:var(--surface-2); color:var(--text); border:1px solid var(--border);
@@ -196,6 +200,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   :root:not([data-theme]) .vesta-toggle .icon-moon{display:none}
 }
 
+/* ---- Buttons ---------------------------------------------------------- */
 .vesta-btn{
   display:inline-flex; align-items:center; gap:var(--sp-2);
   padding:var(--sp-3) var(--sp-5); border-radius:var(--r-md);
@@ -209,6 +214,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-btn-ghost:hover{background:var(--surface-2); border-color:var(--accent); text-decoration:none}
 .vesta-btn:focus-visible{outline:none; box-shadow:var(--ring)}
 
+/* ---- Cards ------------------------------------------------------------ */
 .vesta-card{
   background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
   padding:var(--sp-5); transition:var(--trans);
@@ -224,6 +230,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   text-transform:uppercase; color:var(--accent); margin-bottom:var(--sp-2);
 }
 
+/* ---- Badges ----------------------------------------------------------- */
 .vesta-badge{
   display:inline-flex; align-items:center; gap:var(--sp-1);
   padding:2px var(--sp-2); border-radius:var(--r-pill);
@@ -234,6 +241,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-badge-amber{background:var(--amber-soft); color:var(--amber-deep); border-color:transparent}
 .vesta-badge-ok{background:var(--ok-soft); color:var(--ok); border-color:transparent}
 
+/* ---- Tables ----------------------------------------------------------- */
 .vesta-table-wrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--r-lg)}
 .vesta-table{width:100%; border-collapse:collapse; font-size:var(--fs-base)}
 .vesta-table th,.vesta-table td{
@@ -248,6 +256,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-table tbody tr:hover{background:var(--surface)}
 .vesta-table th:first-child{color:var(--text); font-weight:var(--fw-semi); white-space:nowrap}
 
+/* ---- Footer ----------------------------------------------------------- */
 .vesta-footer{
   border-top:1px solid var(--border); margin-top:var(--sp-12);
   padding:var(--sp-8) 0; color:var(--text-dim); font-size:var(--fs-sm);
@@ -256,327 +265,191 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-footer a:hover{color:var(--accent)}
 /* VESTA_THEME_END */
 
-/* ---- index.html page-specific ---------------------------------------- */
-.section{padding:var(--sp-10) 0}
-.section-tight{padding:var(--sp-8) 0}
+/* ---- page-specific: Field-Powered NFC Mode ------------------------- */
+:root{
+  /* schematic accents mapped onto the ember tokens (both themes) */
+  --pin:#33260f;      --pin-edge:#b78832;   --pin-ink:#f0c878;
+  --gate:#341a20;     --gate-edge:#c05f6d;  --gate-ink:#f2b8c0;
+  --hart:#182a45;     --hart-edge:#4d78c4;  --hart-ink:#bcd4ff;
+  --sync:#271a3a;     --sync-edge:#8a63c0;  --sync-ink:#d6bcf0;
+  --field:#0f2e28;    --field-edge:#3f9a83; --field-ink:#9fe6d3;
+  --wire:#8b7a6c;
+}
+:root[data-theme="light"]{
+  --pin:#fdefd6;   --pin-edge:#d9a441;  --pin-ink:#8a5a12;
+  --gate:#fce4e6;  --gate-edge:#d9727f; --gate-ink:#9a2c3b;
+  --hart:#dfeaff;  --hart-edge:#5b86d6; --hart-ink:#1e3f7a;
+  --sync:#efe6fb;  --sync-edge:#9b6cd6; --sync-ink:#5a2f8f;
+  --field:#dcf3ee; --field-edge:#4bb69a;--field-ink:#1c6a58;
+  --wire:#93806f;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme]){
+  --pin:#fdefd6;   --pin-edge:#d9a441;  --pin-ink:#8a5a12;
+  --gate:#fce4e6;  --gate-edge:#d9727f; --gate-ink:#9a2c3b;
+  --hart:#dfeaff;  --hart-edge:#5b86d6; --hart-ink:#1e3f7a;
+  --sync:#efe6fb;  --sync-edge:#9b6cd6; --sync-ink:#5a2f8f;
+  --field:#dcf3ee; --field-edge:#4bb69a;--field-ink:#1c6a58;
+  --wire:#93806f;
+}}
+
+/* Opaque sticky header (skill rule: never translucent over scrolled text) */
+.vesta-header{background:var(--bg); backdrop-filter:none}
+
+.fp-wrap{max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5)}
+.fp-section{padding:var(--sp-8) 0}
+.fp-section + .fp-section{border-top:1px solid var(--border)}
 .eyebrow{
   font-size:var(--fs-xs); font-weight:var(--fw-bold); letter-spacing:.14em;
-  text-transform:uppercase; color:var(--accent); margin:0 0 var(--sp-3);
+  text-transform:uppercase; color:var(--accent); margin:0 0 var(--sp-2);
 }
-.section-title{font-size:var(--fs-xl); margin:0 0 var(--sp-2)}
-.section-sub{color:var(--text-muted); max-width:60ch; margin:0 0 var(--sp-6)}
+.fp-section h2{font-size:var(--fs-xl); margin:0 0 var(--sp-3)}
+.fp-section h3{font-size:var(--fs-lg); margin:var(--sp-6) 0 var(--sp-3)}
+.lede{font-size:var(--fs-md); color:var(--text-muted); max-width:70ch; line-height:1.65}
+.prose{max-width:74ch; color:var(--text); line-height:var(--lh-body)}
+.prose p{margin:0 0 var(--sp-4)}
+.prose b{color:var(--text)}
 
-/* hero */
-.hero{position:relative; overflow:hidden; padding:var(--sp-12) 0 var(--sp-10)}
-.hero::before{
-  content:""; position:absolute; inset:-40% 0 auto -10%; height:520px; z-index:0;
+/* Hero */
+.fp-hero{
+  padding:var(--sp-10) 0 var(--sp-8);
   background:
-    radial-gradient(ellipse 60% 70% at 25% 0%, var(--accent-soft), transparent 60%),
-    radial-gradient(ellipse 50% 60% at 80% 10%, var(--amber-soft), transparent 60%);
-  pointer-events:none;
+    radial-gradient(1000px 380px at 78% -8%, var(--accent-soft), transparent 60%),
+    radial-gradient(760px 320px at 8% 4%, var(--amber-soft), transparent 62%);
 }
-.hero-inner{position:relative; z-index:1; max-width:860px}
-.hero h1{font-size:var(--fs-3xl); letter-spacing:-.5px; margin-bottom:var(--sp-5)}
-.hero h1 .flame{
-  background:linear-gradient(100deg,var(--amber),var(--accent) 60%);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.hero-lede{font-size:var(--fs-md); color:var(--text-muted); max-width:64ch; margin-bottom:var(--sp-6)}
-.hero-cta{display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:center}
-.hero-pills{display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-top:var(--sp-6)}
+.fp-hero h1{font-size:var(--fs-3xl); letter-spacing:-.5px; margin:var(--sp-3) 0}
+.fp-hero .lede{font-size:var(--fs-lg); max-width:62ch}
+.badge-row{display:flex; gap:var(--sp-2); flex-wrap:wrap; margin:var(--sp-5) 0 0}
 
-@media (max-width:640px){
-  .hero h1{font-size:var(--fs-2xl)}
+/* Callouts */
+.callout{
+  border:1px solid var(--border); border-left:3px solid var(--accent);
+  background:var(--surface); border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5); margin:var(--sp-5) 0; color:var(--text-muted);
+  font-size:var(--fs-base); line-height:1.6;
 }
+.callout b{color:var(--text)}
+.callout.amber{border-left-color:var(--amber)}
+.callout.ok{border-left-color:var(--ok)}
 
-/* generic grid */
-.grid{display:grid; gap:var(--sp-5)}
-.grid-3{grid-template-columns:repeat(3,1fr)}
-.grid-2{grid-template-columns:repeat(2,1fr)}
-@media (max-width:900px){ .grid-3{grid-template-columns:1fr} .grid-2{grid-template-columns:1fr} }
-
-/* chip family cards */
-.chip-card .meta{display:flex; gap:var(--sp-2); flex-wrap:wrap; margin:var(--sp-3) 0}
-.chip-card p{color:var(--text-muted); margin:0 0 var(--sp-4)}
-.chip-card .trm{font-weight:var(--fw-semi); color:var(--accent); font-size:var(--fs-sm)}
-.chip-card .trm::after{content:" \2192"}
-
-/* achievement strip */
-.award{
-  display:flex; gap:var(--sp-5); align-items:center; flex-wrap:wrap;
-  background:linear-gradient(120deg,var(--accent-soft),var(--amber-soft));
-  border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--sp-6);
+/* Two-pin layout */
+.pin-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-5); margin-top:var(--sp-5)}
+@media (max-width:720px){.pin-grid{grid-template-columns:1fr}}
+.pin-card .pinno{
+  font-family:var(--font-mono); font-size:var(--fs-sm); color:var(--amber-deep);
+  font-weight:var(--fw-bold); letter-spacing:.04em;
 }
-.award .medal{font-size:2.6rem; line-height:1; flex:0 0 auto}
-.award .body{flex:1 1 320px}
-.award .body h3{margin:0 0 var(--sp-1)}
-.award .body p{margin:0; color:var(--text-muted)}
-.award-photos{display:grid; grid-template-columns:repeat(2,1fr); gap:var(--sp-4); margin-top:var(--sp-5)}
-@media (max-width:560px){ .award-photos{grid-template-columns:1fr} }
-.award-photo-frame{
-  border:1px dashed var(--border-strong); border-radius:var(--r-md);
-  background:
-    repeating-linear-gradient(45deg,var(--surface),var(--surface) 12px,var(--surface-2) 12px,var(--surface-2) 24px);
-  aspect-ratio:4/3; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:var(--sp-2); color:var(--text-dim); text-align:center; padding:var(--sp-4);
-}
-.award-photo-frame .cam{font-size:1.6rem; line-height:1; opacity:.7}
-.award-photo-frame .cap{font-size:var(--fs-sm); font-weight:var(--fw-med); color:var(--text-muted)}
-.award-photo-frame .await{font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--text-dim)}
-
-/* gallery */
-.gallery-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5)}
-@media (max-width:900px){ .gallery-grid{grid-template-columns:repeat(2,1fr)} }
-@media (max-width:560px){ .gallery-grid{grid-template-columns:1fr} }
-.gallery-frame{
-  border:1px dashed var(--border-strong); border-radius:var(--r-lg);
-  background:
-    repeating-linear-gradient(45deg,var(--surface),var(--surface) 12px,var(--surface-2) 12px,var(--surface-2) 24px);
-  aspect-ratio:4/3; display:flex; align-items:center; justify-content:center;
-  color:var(--text-dim); text-align:center; padding:var(--sp-4);
-  position:relative; overflow:hidden;
-}
-.gallery-frame .ph{font-size:var(--fs-sm); font-weight:var(--fw-med)}
-.gallery-frame .ph small{display:block; margin-top:var(--sp-1); font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--text-dim)}
-/* frames that actually hold a render: solid neutral inset + padding so the
-   dark-background GDS PNGs read cleanly on both light and dark themes */
-.gallery-frame.has-image{
-  border:1px solid var(--border-strong); background:#0e0b09; padding:var(--sp-2);
-}
-.gallery-frame.has-image img{display:block; border-radius:var(--r-xs)}
-/* line-art diagram (black strokes, transparent bg): needs a light backing
-   so it reads in BOTH themes */
-.gallery-frame.has-diagram{
-  border:1px solid var(--border-strong); background:#fdfdfb; padding:var(--sp-3);
-}
-.gallery-frame.has-diagram img{display:block}
-/* per-die aspect ratios matching the real dies */
-.gallery-frame.ar-myshkin{aspect-ratio:1.5/1}
-.gallery-frame.ar-square{aspect-ratio:1/1}
-.gallery-item figcaption{margin-top:var(--sp-3); font-size:var(--fs-sm); color:var(--text-muted)}
-.gallery-item figcaption b{color:var(--text); font-weight:var(--fw-semi)}
-.gallery-item{margin:0}
-
-/* footer layout */
-.footer-inner{display:flex; gap:var(--sp-5); flex-wrap:wrap; justify-content:space-between; align-items:center}
-
-/* ---- theme toggle: make it an unmistakable "view in dark/light mode" control.
-   Page-specific overrides (the base .vesta-toggle lives in the shared theme
-   block); the #themeToggle id + vesta-theme storage contract are untouched. ---- */
-#themeToggle{
-  background:var(--accent-soft); color:var(--accent);
-  border:1px solid var(--accent); font-weight:var(--fw-semi);
-  padding:var(--sp-2) var(--sp-4); box-shadow:var(--shadow-sm);
-}
-#themeToggle:hover{
-  background:var(--accent); color:var(--on-accent); border-color:var(--accent);
-  box-shadow:var(--shadow-glow);
-}
-#themeToggle .label{font-weight:var(--fw-semi); white-space:nowrap}
-#themeToggle .icon-sun,#themeToggle .icon-moon{font-size:1.05em; line-height:1}
-/* Icon shows the DESTINATION (what a click gives you): dark default -> offers a
-   sun (light); light -> offers a moon (dark). Overrides the theme block's
-   current-state convention. */
-#themeToggle .icon-sun{display:inline}
-#themeToggle .icon-moon{display:none}
-:root[data-theme="light"] #themeToggle .icon-sun{display:none}
-:root[data-theme="light"] #themeToggle .icon-moon{display:inline}
-@media (prefers-color-scheme:light){
-  :root:not([data-theme]) #themeToggle .icon-sun{display:none}
-  :root:not([data-theme]) #themeToggle .icon-moon{display:inline}
+.pin-card h3{margin:var(--sp-1) 0 var(--sp-3); font-size:var(--fs-lg)}
+.pin-card p{margin:0; color:var(--text-muted); font-size:var(--fs-base); line-height:1.6}
+.pin-card .reset{
+  margin-top:var(--sp-3); font-family:var(--font-mono); font-size:var(--fs-xs);
+  color:var(--text-dim);
 }
 
-/* ---- connect / author section --------------------------------------- */
-.connect-grid{margin-top:var(--sp-6)}
-.connect-card{display:flex; align-items:center; gap:var(--sp-4)}
-.connect-icon{
-  flex:0 0 auto; width:46px; height:46px; display:inline-flex;
-  align-items:center; justify-content:center; border-radius:var(--r-md);
-  background:var(--accent-soft); color:var(--accent); transition:var(--trans);
+/* Code / equation block */
+.codeblock{
+  background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5); margin:var(--sp-4) 0; overflow-x:auto;
+  font-family:var(--font-mono); font-size:var(--fs-sm); line-height:1.7; color:var(--text);
+  white-space:pre;
 }
-.connect-icon svg{width:24px; height:24px; display:block}
-.connect-card:hover .connect-icon{background:var(--accent); color:var(--on-accent)}
-.connect-body{display:flex; flex-direction:column; min-width:0; gap:2px}
-.connect-label{font-weight:var(--fw-semi); color:var(--text); font-size:var(--fs-md)}
-.connect-sub{
-  font-size:var(--fs-sm); color:var(--text-muted);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
+.codeblock .cm{color:var(--text-dim)}
+.codeblock .kw{color:var(--accent)}
+.codeblock .rg{color:var(--amber-deep); font-weight:var(--fw-semi)}
 
-/* ---- scroll-driven ember wick (left gutter) --------------------------
-   A bold travelling flame rides the wick as you scroll. The wick above the
-   ember is a bright, glowing "burned/traced" line; below it a dim unlit wick.
-   Everything animates on transform/opacity only (rAF-driven --p + CSS
-   keyframes) — no layout thrash — and the whole thing is gutter-only,
-   hidden below 1100px and under prefers-reduced-motion.               ---- */
-.wick{
-  position:fixed; top:0; bottom:0; z-index:40; width:2px;
-  left:max(16px, calc((100vw - var(--maxw))/2 - 30px));
-  pointer-events:none;
-  --p:0;             /* scroll progress 0..1, set by JS */
-  --ember-h:64px;    /* ember box height (kept in sync with the JS travel calc) */
+/* Diagram figure */
+.diagram{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+  padding:var(--sp-5); margin:var(--sp-5) 0;
 }
-/* dim, unlit wick below the ember */
-.wick-track{
-  position:absolute; inset:0; width:2px; border-radius:2px;
-  background:linear-gradient(to bottom,
-    var(--border-strong) 0%, var(--border) 65%, transparent 100%);
-  opacity:.5;
+.diagram .svgwrap{overflow-x:auto}
+.diagram svg{display:block; width:100%; height:auto; min-width:560px}
+.figcap{
+  margin-top:var(--sp-3); font-size:var(--fs-sm); color:var(--text-dim);
+  line-height:1.55; max-width:80ch;
 }
-/* bright glowing traced wick above the ember (thicker + vividly lit) */
-.wick-trace{
-  position:absolute; top:0; left:-1px; width:4px; height:100%; border-radius:4px;
-  transform:scaleY(var(--p)); transform-origin:top center;
-  background:linear-gradient(to bottom, var(--amber) 0%, var(--accent) 70%, var(--accent-press) 100%);
-  box-shadow:
-    0 0 6px 1px var(--accent),
-    0 0 16px 2px var(--amber-soft);
-}
-/* the travelling ember: box centred on the wick, translated by scroll --p */
-.wick-ember{
-  position:absolute; top:0; left:-28px; width:56px; height:var(--ember-h);
-  transform:translateY(calc(var(--p) * (100vh - var(--ember-h))));
-  transition:transform .10s linear;
-}
-/* soft blurred halo behind the flame — the "strong glow" */
-.wick-glow{
-  position:absolute; left:50%; top:38%; width:70px; height:70px;
-  transform:translate(-50%,-50%);
-  border-radius:50%;
-  background:radial-gradient(circle at 50% 50%,
-    var(--accent) 0%, var(--amber-soft) 42%, transparent 72%);
-  opacity:.85; filter:blur(6px);
-  animation:wick-glow-pulse 2.6s ease-in-out infinite;
-}
-/* the layered flame itself; the flicker rides on transform/opacity only */
-.wick-flame{
-  position:absolute; left:50%; bottom:6px; width:44px; height:56px;
-  transform:translateX(-50%);
-  transform-origin:50% 100%;
-  filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 12px var(--amber-soft));
-}
-.wick-flame svg{display:block; width:100%; height:100%}
-.wick-flame .flame-anim{
-  transform-box:fill-box; transform-origin:50% 100%;
-  animation:wick-flicker 1.6s ease-in-out infinite;
-}
-/* flame gradient stops — CSS-styled so both themes get the right palette */
-.fl-out-0{stop-color:var(--accent-press)}
-.fl-out-1{stop-color:var(--accent)}
-.fl-out-2{stop-color:var(--amber)}
-.fl-in-0{stop-color:var(--accent)}
-.fl-in-1{stop-color:var(--amber)}
-.fl-in-2{stop-color:var(--on-accent)}
-/* rising ember sparks */
-.wick-spark{
-  position:absolute; left:50%; bottom:44px; width:4px; height:4px;
-  margin-left:-2px; border-radius:50%;
-  background:var(--amber);
-  box-shadow:0 0 5px 1px var(--accent);
-  opacity:0;
-}
-.wick-spark.s1{animation:wick-rise 2.3s ease-out infinite}
-.wick-spark.s2{left:calc(50% - 6px); animation:wick-rise 2.9s .7s ease-out infinite}
-.wick-spark.s3{left:calc(50% + 7px); width:3px; height:3px; animation:wick-rise 2.5s 1.4s ease-out infinite}
+.figcap b{color:var(--text-muted)}
+/* svg label helpers driven by tokens */
+.d-lbl{font-family:var(--font-sans); font-size:13px; font-weight:600; fill:var(--text)}
+.d-sub{font-family:var(--font-mono); font-size:10.5px; fill:var(--text-muted)}
+.d-note{font-family:var(--font-sans); font-size:11.5px; fill:var(--text-dim)}
+.d-wire{fill:none; stroke:var(--wire); stroke-width:1.7}
+.d-wire.dash{stroke-dasharray:5 4}
+.d-tick{font-family:var(--font-mono); font-size:10px; fill:var(--text-dim)}
 
-@keyframes wick-flicker{
-  0%,100%{transform:scaleY(1)    scaleX(1);    opacity:1}
-  20%    {transform:scaleY(1.07) scaleX(.95);  opacity:.9}
-  45%    {transform:scaleY(.96)  scaleX(1.04); opacity:1}
-  70%    {transform:scaleY(1.05) scaleX(.97);  opacity:.94}
+/* Register summary tables */
+.reg-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-5); margin-top:var(--sp-4)}
+@media (max-width:820px){.reg-grid{grid-template-columns:1fr}}
+.reg-title{
+  font-family:var(--font-mono); font-size:var(--fs-sm); font-weight:var(--fw-bold);
+  color:var(--text); margin:0 0 var(--sp-2);
 }
-@keyframes wick-glow-pulse{
-  0%,100%{opacity:.7;  transform:translate(-50%,-50%) scale(1)}
-  50%    {opacity:1;   transform:translate(-50%,-50%) scale(1.15)}
-}
-@keyframes wick-rise{
-  0%  {opacity:0; transform:translateY(0)     scale(1)}
-  12% {opacity:1}
-  100%{opacity:0; transform:translateY(-30px) scale(.35)}
-}
+.reg-title .off{color:var(--text-dim); font-weight:var(--fw-normal)}
+.vesta-table td .bit{font-family:var(--font-mono); color:var(--amber-deep); font-weight:var(--fw-semi)}
+.vesta-table td .fn{font-family:var(--font-mono); color:var(--text)}
 
-/* narrow band (1100–1199px): the gutter is thin, so shrink the ember and
-   keep its right edge clear of the body text; still hidden below 1100px */
-@media (max-width:1199px){
-  .wick{--ember-h:40px}
-  .wick-ember{left:-28px; width:34px}
-  .wick-glow{width:44px; height:44px; top:42%}
-  .wick-flame{width:28px; height:36px; bottom:4px}
-  .wick-spark{bottom:30px}
+/* Step list */
+.steps{counter-reset:step; list-style:none; padding:0; margin:var(--sp-5) 0 0; max-width:80ch}
+.steps li{
+  position:relative; counter-increment:step; padding:0 0 var(--sp-5) var(--sp-8);
+  border-left:1.5px solid var(--border); margin-left:14px;
 }
-@media (max-width:1099px){ .wick{display:none} }
-@media (prefers-reduced-motion:reduce){
-  .wick{display:none}
-  .wick-flame .flame-anim,.wick-glow,.wick-spark{animation:none}
+.steps li:last-child{border-left-color:transparent}
+.steps li::before{
+  content:counter(step); position:absolute; left:-14px; top:-2px;
+  width:28px; height:28px; border-radius:var(--r-pill);
+  background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  font-size:var(--fs-sm); font-weight:var(--fw-bold); font-family:var(--font-mono);
 }
+.steps li .st{font-weight:var(--fw-semi); color:var(--text); display:block; margin-bottom:2px}
+.steps li p{margin:0; color:var(--text-muted); font-size:var(--fs-base); line-height:1.6}
+.steps li code{background:var(--surface-2); padding:1px 5px; border-radius:var(--r-xs); font-size:.9em}
 
-/* ---- in-page nav overlay (view the other docs pages WITHOUT leaving index) --
-   Plain left-clicks on the header nav are intercepted and the target page is
-   shown in a full-viewport iframe ABOVE everything (sticky header z 50, wick
-   z 40). The bar is OPAQUE (same --bg rule as the sticky header); the scrim
-   behind it is --bg too. Modifier-clicks / middle-clicks fall through to the
-   real href, so new-tab / middle-click still work naturally. ----------------- */
-.nav-overlay{
-  position:fixed; inset:0; z-index:1000;
-  display:flex; flex-direction:column;
-  background:var(--bg);
+/* Stat tiles (power) */
+.stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:var(--sp-4); margin-top:var(--sp-5)}
+@media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.stat-grid{grid-template-columns:1fr}}
+.stat{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:var(--sp-4); text-align:left;
 }
-.nav-overlay[hidden]{display:none}
-.nav-overlay-bar{
-  flex:0 0 auto; display:flex; align-items:center; gap:var(--sp-4);
-  height:var(--header-h); padding:0 var(--sp-5);
-  background:var(--bg);                       /* opaque — matches sticky header */
-  border-bottom:1px solid var(--border-strong);
-  box-shadow:var(--shadow-sm);
+.stat .num{font-size:var(--fs-xl); font-weight:var(--fw-bold); color:var(--accent); line-height:1.1}
+.stat .num small{font-size:var(--fs-md); color:var(--text-muted); font-weight:var(--fw-semi)}
+.stat .k{font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin-top:var(--sp-2)}
+.stat .d{font-size:var(--fs-sm); color:var(--text-muted); margin-top:var(--sp-1); line-height:1.45}
+
+/* Power bar (leak / int / sw of 12.60 mW) */
+.pbar{margin-top:var(--sp-5)}
+.pbar .track{display:flex; height:34px; border-radius:var(--r-sm); overflow:hidden; border:1px solid var(--border)}
+.pbar .seg{display:flex; align-items:center; justify-content:center; font-size:var(--fs-xs); font-weight:var(--fw-semi); color:var(--on-accent); white-space:nowrap}
+.pbar .seg.leak{background:var(--accent)}
+.pbar .seg.int{background:var(--amber)}
+.pbar .seg.sw{background:var(--field-edge); color:#06231d}
+.pbar .legend{display:flex; gap:var(--sp-5); flex-wrap:wrap; margin-top:var(--sp-3); font-size:var(--fs-sm); color:var(--text-muted)}
+.pbar .legend .sw-dot{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:6px; vertical-align:middle}
+
+/* Scheme cards */
+.scheme-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-5); margin-top:var(--sp-5)}
+@media (max-width:820px){.scheme-grid{grid-template-columns:1fr}}
+.scheme h3{margin:0 0 var(--sp-2); font-size:var(--fs-md)}
+.scheme .tag{font-size:var(--fs-xs); font-weight:var(--fw-bold); letter-spacing:.08em; text-transform:uppercase}
+.scheme p{color:var(--text-muted); font-size:var(--fs-base); line-height:1.6; margin:var(--sp-2) 0 0}
+.scheme ul{margin:var(--sp-3) 0 0; padding-left:1.1em; color:var(--text-muted); font-size:var(--fs-sm); line-height:1.6}
+
+/* Three programming sequences */
+.seq{margin-top:var(--sp-5)}
+.seq h3{font-size:var(--fs-md); margin:0 0 var(--sp-2)}
+.seq .code{
+  font-family:var(--font-mono); font-size:var(--fs-sm); background:var(--bg-2);
+  border:1px solid var(--border); border-radius:var(--r-sm); padding:var(--sp-3) var(--sp-4);
+  color:var(--text); overflow-x:auto; margin-top:var(--sp-2); white-space:pre;
 }
-.nav-overlay-brand{display:flex; align-items:center; gap:var(--sp-3); min-width:0}
-.nav-overlay-title{
-  font-weight:var(--fw-bold); font-size:var(--fs-md); color:var(--text);
-  letter-spacing:.2px; min-width:0; overflow:hidden;
-  text-overflow:ellipsis; white-space:nowrap;
-}
-.nav-overlay-eyebrow{
-  font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--text-dim);
-  padding:2px 8px; border:1px solid var(--border); border-radius:var(--r-pill);
-  white-space:nowrap; flex:0 0 auto;
-}
-.nav-overlay-spacer{margin-left:auto}
-.nav-overlay-open-tab{
-  color:var(--text-muted); font-size:var(--fs-sm); font-weight:var(--fw-med);
-  padding:var(--sp-2) var(--sp-3); border-radius:var(--r-sm);
-  border:1px solid var(--border); transition:var(--trans); white-space:nowrap;
-}
-.nav-overlay-open-tab:hover{
-  color:var(--text); background:var(--surface-2);
-  text-decoration:none; border-color:var(--border-strong);
-}
-.nav-overlay-close{
-  display:inline-flex; align-items:center; gap:var(--sp-2);
-  font-family:inherit; font-size:var(--fs-sm); font-weight:var(--fw-semi);
-  cursor:pointer; white-space:nowrap;
-  background:var(--accent); color:var(--on-accent);
-  border:1px solid var(--accent);
-  padding:var(--sp-2) var(--sp-4); border-radius:var(--r-sm);
-  box-shadow:var(--shadow-sm); transition:var(--trans);
-}
-.nav-overlay-close:hover{
-  background:var(--accent-hover); border-color:var(--accent-hover);
-  box-shadow:var(--shadow-glow);
-}
-.nav-overlay-close .x{font-size:1.2em; line-height:1}
-.nav-overlay-frame{
-  flex:1 1 auto; width:100%; border:0; display:block; background:var(--bg);
-}
-/* lock the landing-page scroll while the overlay is up */
-html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
-@media (max-width:560px){
-  .nav-overlay-open-tab{display:none}   /* keep the bar uncluttered on narrow */
-}
+.seq .code .kw{color:var(--accent)}
+
+.footlinks{display:flex; gap:var(--sp-5); flex-wrap:wrap}
+
 </style>
 <script>
-/* Boot theme BEFORE first paint. Matches docs/chip_configurator.html:
-   key "vesta-theme"; stored "light" => light; stored "" / null => dark, but
-   fall back to prefers-color-scheme when nothing has been chosen yet. */
 (function(){
   try{
     var saved = localStorage.getItem("vesta-theme");
@@ -589,7 +462,6 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
 </script>
 </head>
 <body>
-
 <header class="vesta-header">
   <div class="vesta-header-inner">
     <a class="vesta-brand" href="index.html" aria-label="VestaRV home">
@@ -598,7 +470,7 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
       <span class="vesta-brand-name">Vesta<b>RV</b></span>
     </a>
     <nav class="vesta-nav" aria-label="Primary">
-      <a href="index.html" aria-current="page">Home</a>
+      <a href="index.html">Home</a>
       <a href="vestarv_core.html">Core</a>
       <a href="castalia_soc.html">SoC</a>
       <a href="castalia_full.html">SoC&#8202;&middot;&#8202;Lens</a>
@@ -606,534 +478,514 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
       <a href="register_browser.html">Registers</a>
       <a href="vestarv_roadmap.html">Roadmap</a>
     </nav>
-    <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Switch colour theme" title="Switch colour theme">
+    <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Toggle colour theme" title="Toggle light / dark">
       <span class="icon-moon" aria-hidden="true">&#9789;</span>
       <span class="icon-sun" aria-hidden="true">&#9788;</span>
-      <span class="label">Light mode</span>
+      <span class="label">Theme</span>
     </button>
   </div>
 </header>
 
-<!-- scroll-driven ember wick (decorative; gutter-only, hidden on narrow / reduced-motion) -->
-<div class="wick" id="wick" aria-hidden="true">
-  <span class="wick-track"></span>
-  <span class="wick-trace"></span>
-  <span class="wick-ember">
-    <span class="wick-glow"></span>
-    <span class="wick-flame">
-      <svg viewBox="0 0 44 56" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="wickFlameOuter" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0"   class="fl-out-0"/>
-            <stop offset="0.55" class="fl-out-1"/>
-            <stop offset="1"   class="fl-out-2"/>
-          </linearGradient>
-          <linearGradient id="wickFlameInner" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0"   class="fl-in-0"/>
-            <stop offset="0.55" class="fl-in-1"/>
-            <stop offset="1"   class="fl-in-2"/>
-          </linearGradient>
-        </defs>
-        <g class="flame-anim">
-          <!-- outer flame body: deep-orange base rising to amber tip -->
-          <path fill="url(#wickFlameOuter)"
-                d="M22 2 C 30 14, 38 22, 33 38 A 13 13 0 1 1 11 38 C 7 30, 14 26, 13 17 C 16 22, 19 23, 22 16 Z"/>
-          <!-- inner core: brighter, hotter -->
-          <path fill="url(#wickFlameInner)"
-                d="M22 20 C 26 27, 30 32, 26.5 41 A 6 6 0 1 1 17.5 40.5 C 16 34, 20 30, 22 20 Z"/>
-        </g>
-      </svg>
-    </span>
-    <span class="wick-spark s1"></span>
-    <span class="wick-spark s2"></span>
-    <span class="wick-spark s3"></span>
-  </span>
-</div>
+<!-- ================= HERO ================= -->
+<section class="fp-hero">
+  <div class="fp-wrap">
+    <p class="eyebrow">Castalia &middot; DP-S3</p>
+    <h1>Field-Powered NFC Mode</h1>
+    <p class="lede">How a Castalia chip boots, serves an NFC reader, and goes back to sleep
+      on nothing but the energy a reader&rsquo;s RF field delivers &mdash; and why the whole trick
+      lives in <b>digital logic</b>, not in a new analog block.</p>
+    <div class="badge-row">
+      <span class="vesta-badge vesta-badge-accent">PGOOD boot gate</span>
+      <span class="vesta-badge vesta-badge-accent">Harvested-boot ROM path</span>
+      <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
+      <span class="vesta-badge">TSMC&nbsp;65&nbsp;nm</span>
+    </div>
+  </div>
+</section>
 
-<main>
+<!-- ================= INTRO ================= -->
+<section class="fp-section">
+  <div class="fp-wrap">
+    <div class="prose">
+    <p>Energy harvesting on Castalia is deliberately <b>ordinary board-level engineering</b>.
+      The chip keeps its normal rails; everything that turns a reader&rsquo;s field into a
+      usable supply is commodity off-die analog: a rectifier, a supercapacitor (or a small
+      buffer), an LDO, and a <b>supply supervisor</b> that says &ldquo;the rail is good enough to
+      run.&rdquo; An NTAG-5-class front end can stand in purely as the harvester. Nothing about
+      that is novel &mdash; and nothing about it needed a new silicon block.</p>
+    <p>The novelty is entirely digital, and it lives in two places: the
+      <b>PWRCTRL boot gate</b> (registers at <span class="vesta-mono">0x4B00</span>) and a
+      <b>harvested branch in the shared boot ROM</b>. Between them they solve the awkward
+      problem of a chip that must stay perfectly still until its harvested supply can carry a
+      whole transaction, then wake, answer the reader, and re-hold when the field collapses.
+      The NFC peripheral itself stays purely a <b>communications</b> block &mdash; it never
+      touches power policy.</p>
+    </div>
+    <div class="callout ok">
+      <b>Status &amp; provenance.</b> Castalia is a tape-out-ready design that has been through
+      the full synthesis and place-and-route flow &mdash; only the single-core Myshkin chip has
+      actually been fabricated. Every number and timing figure on this page is a
+      <b>pre-layout, typical-corner estimate</b> from the design flow, never a measurement of
+      silicon. The diagrams are hand-drawn schematics, kept in sync with the RTL by hand.
+    </div>
+  </div>
+</section>
 
-  <!-- ================= HERO ================= -->
-  <section class="hero">
-    <div class="vesta-wrap hero-inner">
-      <p class="eyebrow">RISC-V &middot; From the spec up &middot; TSMC 65&nbsp;nm</p>
-      <h1>A RISC-V core built <span class="flame">from the spec up</span>, carried all the way to silicon.</h1>
-      <p class="hero-lede">
-        VestaRV is a from-scratch <b>RV32IMAC&#8202;+&#8202;Zba/Zbb/Zbc/Zbs</b> RISC-V core &mdash;
-        designed straight from the ISA manual, not forked from anyone's reference. It has been
-        <b>taped out on TSMC 65&nbsp;nm</b> &mdash; one chip in silicon and two more designs
-        signed off and regression-proven, ready for their own tape-outs. And it comes with a
-        chip generator that turns <b>one config file</b> into verified RTL, C headers, linker scripts, and a
-        ~160-page reference manual. Vesta is the Roman hearth; each chip is another fire lit
-        from the same flame.
-      </p>
-      <div class="hero-cta">
-        <a class="vesta-btn vesta-btn-primary" href="chip_configurator.html">Open the chip configurator</a>
-        <a class="vesta-btn vesta-btn-ghost" href="vestarv_core.html">Explore the microarchitecture</a>
+<!-- ================= THE TWO PINS ================= -->
+<section class="fp-section">
+  <div class="fp-wrap">
+    <p class="eyebrow">The interface</p>
+    <h2>Two pins, and a promise about the unconnected board</h2>
+    <p class="lede">The whole feature reaches the outside world through two spare package pins.
+      Both are direct taps of the pad-input plane &mdash; readable independently of the pin-mux,
+      because PGOOD has to gate boot <em>before</em> any software could program a mux.</p>
+    <div class="pin-grid">
+      <div class="vesta-card pin-card">
+        <div class="pinno">P6.7 &middot; LQFP-100 pin 69</div>
+        <h3>PGOOD &mdash; supply-good input</h3>
+        <p>Driven by the external supply supervisor. When it reads high, the harvested rail is
+          strong enough to carry a transaction and the boot gate is allowed to release.</p>
+        <div class="reset">reset: input &middot; pull-down &middot; unconnected &rarr; &ldquo;power not good&rdquo;</div>
       </div>
-      <div class="hero-pills">
-        <span class="vesta-badge vesta-badge-accent">1 tape-out + 2 tape-out-ready</span>
-        <span class="vesta-badge vesta-badge-amber">1&ndash;18 harts</span>
-        <span class="vesta-badge">NPU accelerator</span>
-        <span class="vesta-badge">Recursive interrupts</span>
-        <span class="vesta-badge">HW mutexes + LR/SC + AMO</span>
-        <span class="vesta-badge vesta-badge-ok">Config-driven generator</span>
+      <div class="vesta-card pin-card">
+        <div class="pinno">P6.6 &middot; LQFP-100 pin 68</div>
+        <h3>STRAP &mdash; harvested-boot select</h3>
+        <p>A board-level strap. High selects the harvested-boot ROM path and sets the hardware
+          defaults that let a board self-arm the gate with zero firmware.</p>
+        <div class="reset">reset: input &middot; pull-down &middot; unconnected &rarr; &ldquo;normal (SPI) boot&rdquo;</div>
       </div>
     </div>
-  </section>
-
-  <!-- ================= HEADLINE SPECS ================= -->
-  <section class="section-tight" id="specs">
-    <div class="vesta-wrap">
-      <p class="eyebrow">At a glance</p>
-      <h2 class="section-title">Headline specifications</h2>
-      <p class="section-sub">One core family, scaled from a single microcontroller to an 18-hart
-        teaching chip &mdash; every configuration emitted from the same generator and proven by regression.</p>
-      <div class="vesta-table-wrap">
-        <table class="vesta-table">
-          <thead>
-            <tr><th scope="col">Feature</th><th scope="col">What VestaRV provides</th></tr>
-          </thead>
-          <tbody>
-            <tr><th scope="row">Base ISA</th><td>RV32I with <b>M</b> (mul/div), <b>A</b> (atomics), <b>C</b> (compressed) and bit-manip <b>Zba&nbsp;/&nbsp;Zbb&nbsp;/&nbsp;Zbc&nbsp;/&nbsp;Zbs</b>. Extensions are generator knobs (<code>misa</code> reflects them).</td></tr>
-            <tr><th scope="row">Harts</th><td><b>1 to 18</b> harts from one RTL source. <b>4 harts = Castalia</b>, <b>18 harts = Argus</b> &mdash; both regression-proven end to end.</td></tr>
-            <tr><th scope="row">Interrupts</th><td><b>Stack-based recursive interrupts</b> plus a <b>PLIC-lite</b> external fabric with atomic <b>claim / complete</b> delivery and per-hart routing.</td></tr>
-            <tr><th scope="row">Synchronization</th><td><b>Hardware mutex bank</b> (1-instruction acquire), <b>LR/SC</b> reservations, and <b>cross-hart AMOs</b> made atomic through the shared-bus arbiter.</td></tr>
-            <tr><th scope="row">Accelerator</th><td><b>NPU</b> &mdash; a fixed-point neural-network accelerator with a MAC datapath and shared staging RAM, shared across all harts.</td></tr>
-            <tr><th scope="row">Process</th><td><b>TSMC 65&nbsp;nm</b>, full RTL-to-GDS flow (synthesis, place-and-route, signoff DRC/LVS).</td></tr>
-            <tr><th scope="row">Silicon</th><td><b>One tape-out in silicon</b> &mdash; Myshkin (single-core), fabricated on TSMC 65&nbsp;nm in Nov&nbsp;2025. Castalia (4-hart) and Argus (18-hart teaching chip) are <b>signed off and regression-proven</b>, ready to tape out.</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="callout">
+      Because both pads reset to inputs with pull-downs enabled, an <b>unconnected pin reads
+      inactive</b>: a board that does not use the feature behaves exactly like earlier
+      revisions, and with the inputs tied inactive the entire mechanism is a
+      <b>provable no-op</b> &mdash; the gate is stuck released and the PWRCTRL power-gating
+      registers are bit-identical to the plain multi-core chip.
     </div>
-  </section>
+    <p class="figcap" style="max-width:74ch">
+      <b>Naming note.</b> &ldquo;P6.x&rdquo; is the one-based register-domain
+      (<span class="vesta-mono">PxDIR/PxSEL</span>) numbering; the padring and pinout use the
+      zero-based aliases <span class="vesta-mono">P5.7 = GPIO47</span> (pin&nbsp;69) and
+      <span class="vesta-mono">P5.6 = GPIO46</span> (pin&nbsp;68). Same physical pins.
+    </p>
+  </div>
+</section>
 
-  <!-- ================= CHIP FAMILY ================= -->
-  <section class="section" id="family">
-    <div class="vesta-wrap">
-      <p class="eyebrow">The family</p>
-      <h2 class="section-title">Three chips, one hearth</h2>
-      <p class="section-sub">Each chip is a different configuration of the same core, taken through the same flow to a signed-off layout.</p>
-      <div class="grid grid-3">
-
-        <a class="vesta-card vesta-card-link chip-card" href="../implementations/asic/myshkin-2025-11/docs/TRM.pdf">
-          <div class="vesta-card-eyebrow">First silicon</div>
-          <h3>Myshkin</h3>
-          <div class="meta">
-            <span class="vesta-badge">Single-core</span>
-            <span class="vesta-badge vesta-badge-ok">First silicon &middot; Nov 2025</span>
-            <span class="vesta-badge">QFN-44</span>
-          </div>
-          <p>The original single-core VestaRV MCU &mdash; taped out on TSMC 65&nbsp;nm, the first fire lit, and the reference every later chip is measured against.</p>
-          <span class="trm">Read the technical reference manual</span>
-        </a>
-
-        <a class="vesta-card vesta-card-link chip-card" href="../implementations/asic/castalia/docs/TRM.pdf">
-          <div class="vesta-card-eyebrow">Multicore</div>
-          <h3>Castalia</h3>
-          <div class="meta">
-            <span class="vesta-badge">4 harts</span>
-            <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
-            <span class="vesta-badge">Shared bus + NPU</span>
-          </div>
-          <p>A symmetric 4-hart SoC: shared boot ROM, hardware mutexes, cross-hart atomics, and a shared NPU behind an arbitrated bus. Signoff-closed and regression-proven &mdash; a future tape-out.</p>
-          <span class="trm">Read the technical reference manual</span>
-        </a>
-
-        <a class="vesta-card vesta-card-link chip-card" href="../implementations/asic/argus/docs/TRM.pdf">
-          <div class="vesta-card-eyebrow">Teaching chip</div>
-          <h3>Argus</h3>
-          <div class="meta">
-            <span class="vesta-badge">18 harts</span>
-            <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
-            <span class="vesta-badge">Tiled P&amp;R</span>
-          </div>
-          <p>An 18-hart teaching chip built from the same generator &mdash; identical tiles, one shared ROM, hardened and assembled as a tiled layout. Signoff-closed and regression-proven &mdash; a future tape-out.</p>
-          <span class="trm">Read the technical reference manual</span>
-        </a>
-
-      </div>
-      <p class="section-sub" style="margin-top:var(--sp-5)">
-        Deep dive &mdash; <a href="field_power.html">how Castalia&rsquo;s field-powered NFC mode works</a>:
-        the PGOOD boot gate, the harvested-boot ROM path, and whether it closes on harvested energy.
-      </p>
+<!-- ================= HOW THE BOOT GATE WORKS ================= -->
+<section class="fp-section">
+  <div class="fp-wrap">
+    <p class="eyebrow">Mechanism</p>
+    <h2>The boot gate is a hold-in-reset</h2>
+    <div class="prose">
+      <p>There is no clever standby state and no retention. An internal release signal,
+        <span class="vesta-mono">pgood_rstn</span>, is simply <b>ANDed into every hart&rsquo;s outer
+        reset</b> &mdash; hart&nbsp;0 included, which gains a reset fold it does not otherwise
+        have. A held hart fetches nothing and issues no shared-bus request, so the rest of the
+        chip cannot tell it apart from a hart still in power-on reset. When the release
+        conditions are met the harts leave reset together and run the ordinary boot ROM, with
+        no software-visible partial state.</p>
+      <p>This reuses the existing guarantee that a reset-held hart is <b>bus-silent</b>: its
+        outbound registers sit at their reset values, which is exactly what the round-robin
+        arbiter already treats as &ldquo;no request.&rdquo; The gate needs no new arbiter contract.</p>
     </div>
-  </section>
 
-  <!-- ================= ACHIEVEMENT STRIP ================= -->
-  <section class="section-tight" id="award">
-    <div class="vesta-wrap">
-      <div class="award">
-        <div class="medal" aria-hidden="true">&#127942;</div>
-        <div class="body">
-          <span class="vesta-badge vesta-badge-amber">IEEE ISCAS 2026 &middot; Best Student Paper Award</span>
-          <h3>Myshkin won the Best Student Paper Award at IEEE ISCAS 2026</h3>
-          <p>The Myshkin single-core VestaRV chip itself &mdash; designed from the RISC-V spec up and
-             taped out on TSMC 65&nbsp;nm &mdash; received the <b>Best Student Paper Award at IEEE ISCAS 2026</b>.</p>
+    <figure class="diagram">
+      <div class="svgwrap">
+        <svg viewBox="0 0 900 372" role="img" aria-label="Block diagram: three synchronized inputs feed PWRCTRL policy logic, whose registered pgood_rstn output folds into every hart's outer reset.">
+          <!-- inputs -->
+          <g>
+            <rect x="16" y="34"  width="164" height="40" rx="7" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="98" y="52" text-anchor="middle">PGOOD</text>
+            <text class="d-sub" x="98" y="66" text-anchor="middle">P6.7 &#183; pin 69</text>
+
+            <rect x="16" y="104" width="164" height="40" rx="7" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="98" y="122" text-anchor="middle">STRAP</text>
+            <text class="d-sub" x="98" y="136" text-anchor="middle">P6.6 &#183; pin 68</text>
+
+            <rect x="16" y="174" width="164" height="40" rx="7" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="98" y="192" text-anchor="middle">field_detect</text>
+            <text class="d-sub" x="98" y="206" text-anchor="middle">NFC &#183; reader RF</text>
+          </g>
+          <!-- wires to sync -->
+          <path class="d-wire" d="M180 54 H236"/>
+          <path class="d-wire" d="M180 124 H236"/>
+          <path class="d-wire" d="M180 194 H236"/>
+          <!-- sync -->
+          <rect x="236" y="34" width="96" height="180" rx="8" style="fill:var(--sync);stroke:var(--sync-edge);stroke-width:1.5"/>
+          <text class="d-lbl" x="284" y="118" text-anchor="middle">2-FF</text>
+          <text class="d-lbl" x="284" y="136" text-anchor="middle">sync</text>
+          <text class="d-sub" x="284" y="156" text-anchor="middle">mclk</text>
+          <!-- sync to policy -->
+          <path class="d-wire" d="M332 124 H384"/>
+          <!-- policy -->
+          <rect x="384" y="58" width="196" height="132" rx="9" style="fill:var(--gate);stroke:var(--gate-edge);stroke-width:1.7"/>
+          <text class="d-lbl" x="482" y="86" text-anchor="middle">PWRCTRL policy</text>
+          <text class="d-sub" x="482" y="108" text-anchor="middle">arm &#183; release</text>
+          <text class="d-sub" x="482" y="123" text-anchor="middle">rehold &#183; strap-arm</text>
+          <text class="d-sub" x="482" y="146" text-anchor="middle">strap sampled once</text>
+          <text class="d-sub" x="482" y="168" text-anchor="middle">registered output</text>
+          <!-- pgood_rstn wire -->
+          <path class="d-wire" d="M580 124 H636"/>
+          <text class="d-sub" x="608" y="116" text-anchor="middle">pgood_rstn</text>
+          <!-- fan bus -->
+          <path class="d-wire" d="M636 124 V52 M636 124 V124 M636 124 V196 M636 124 V268"/>
+          <circle cx="636" cy="124" r="3.4" style="fill:var(--wire)"/>
+          <path class="d-wire" d="M636 52 H700 M636 124 H700 M636 196 H700 M636 268 H700"/>
+          <!-- harts -->
+          <g>
+            <rect x="700" y="30"  width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="792" y="49" text-anchor="middle">hart 0</text>
+            <text class="d-sub" x="792" y="64" text-anchor="middle">reset &#8743; pgood_rstn *</text>
+
+            <rect x="700" y="102" width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="792" y="121" text-anchor="middle">hart 1</text>
+            <text class="d-sub" x="792" y="136" text-anchor="middle">pd_rstn &#8743; pgood_rstn</text>
+
+            <rect x="700" y="174" width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="792" y="193" text-anchor="middle">hart 2</text>
+            <text class="d-sub" x="792" y="208" text-anchor="middle">pd_rstn &#8743; pgood_rstn</text>
+
+            <rect x="700" y="246" width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="792" y="265" text-anchor="middle">hart 3</text>
+            <text class="d-sub" x="792" y="280" text-anchor="middle">pd_rstn &#8743; pgood_rstn</text>
+          </g>
+          <!-- bottom note -->
+          <text class="d-note" x="16" y="326">* hart 0 (management hart) gains a reset fold it never had &#8212; the gate holds it too.</text>
+          <text class="d-note" x="16" y="348">A held hart drives no <tspan style="font-family:var(--font-mono)">sh_req</tspan>: the arbiter sees bus silence, identical to power-on reset.</text>
+        </svg>
+      </div>
+      <figcaption class="figcap"><b>Figure 1 &mdash; hand-drawn.</b> The three asynchronous
+        inputs are double-flop synchronized on the always-on <span class="vesta-mono">mclk</span>
+        domain, evaluated by the policy logic once per cycle, and the single registered
+        <span class="vesta-mono">pgood_rstn</span> folds into every hart&rsquo;s outer reset.</figcaption>
+    </figure>
+
+    <h3>The policy, as logic</h3>
+    <p class="prose">The strap sets the <b>hardware defaults</b>; the <span class="vesta-mono">PWRWAKE</span>
+      register bits OR in software overrides on top. That split is what lets a harvested board
+      self-arm the gate that holds the very cores that would otherwise program it.</p>
+    <div class="codeblock"><span class="cm"># evaluated every mclk cycle on the always-on domain</span>
+strap_harvest <span class="kw">=</span> PWSTRAPVLD <span class="kw">and</span> PWSTRAP
+arm           <span class="kw">=</span> PWGATEEN    <span class="kw">or</span>  strap_harvest
+p_rls         <span class="kw">=</span> PWRLSPGOOD  <span class="kw">or</span>  strap_harvest
+f_rls         <span class="kw">=</span> PWRLSFIELD
+rehold        <span class="kw">=</span> PWREHOLD    <span class="kw">or</span>  strap_harvest
+
+release       <span class="kw">=</span> PWSWRLS <span class="kw">or</span> (p_rls <span class="kw">and</span> PGOOD_live) <span class="kw">or</span> (f_rls <span class="kw">and</span> FIELD_live)
+hold          <span class="kw">=</span> arm <span class="kw">and not</span> (rehold ? release : release_latched)
+<span class="rg">pgood_rstn</span>    <span class="kw">=</span> <span class="kw">not</span> hold          <span class="cm"># registered; reset value = released</span></div>
+    <p class="prose"><span class="vesta-mono">PGOOD_live</span> and <span class="vesta-mono">FIELD_live</span>
+      are the synchronized pad and field levels (two cycles of latency);
+      <span class="vesta-mono">release_latched</span> is a sticky OR of every past release, which
+      gives the <b>one-shot</b> behaviour when <span class="vesta-mono">PWREHOLD = 0</span>. An armed
+      gate with no release source holds indefinitely until <span class="vesta-mono">PWSWRLS</span> &mdash;
+      that is intentional, and is exactly how the production test proves the gate is load-bearing.</p>
+
+    <h3>Sampling &amp; timing</h3>
+    <p class="prose">The strap is sampled <b>exactly once</b>. A counter starts at reset release,
+      and after an eight-cycle settle (comfortably past the two-cycle synchronizer) it latches the
+      strap level and sets <span class="vesta-mono">PWSTRAPVLD</span> &mdash; roughly cycle eleven.
+      The gate is deliberately <em>released</em> during that window so a normal board is never
+      delayed, which means a harvested board&rsquo;s harts may take their first boot-ROM fetch and
+      then be re-held. That is harmless by construction: the hold is the same outer reset that
+      cleared them at power-on, so the eventual release simply runs a clean cold boot.</p>
+
+    <figure class="diagram">
+      <div class="svgwrap">
+        <svg viewBox="0 0 900 320" role="img" aria-label="Timeline: reset release, two-cycle sync, eight-cycle settle, strap sample near cycle ten, self-arm near cycle eleven, wait for PGOOD, release into a clean cold boot; and a brownout re-hold loop below.">
+          <!-- axis -->
+          <path class="d-wire" d="M70 96 H840"/>
+          <path class="d-wire" d="M840 96 l-9 -5 v10 z" style="fill:var(--wire)"/>
+          <text class="d-sub" x="838" y="118" text-anchor="end">mclk cycles &#8594;</text>
+          <!-- reset release marker -->
+          <path class="d-wire" d="M70 66 V126"/>
+          <text class="d-lbl" x="70" y="56" text-anchor="middle">reset release</text>
+          <text class="d-tick" x="70" y="142" text-anchor="middle">0</text>
+          <!-- sync band -->
+          <rect x="70" y="80" width="70" height="32" rx="5" style="fill:var(--sync);stroke:var(--sync-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="105" y="100" text-anchor="middle">2-cyc sync</text>
+          <!-- settle band -->
+          <rect x="140" y="80" width="200" height="32" rx="5" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="240" y="100" text-anchor="middle">8-cycle settle</text>
+          <!-- sample marker -->
+          <path class="d-wire" d="M340 60 V128"/>
+          <circle cx="340" cy="96" r="4" style="fill:var(--gate-edge)"/>
+          <text class="d-lbl" x="340" y="50" text-anchor="middle">sample &#183; ~cyc 10</text>
+          <text class="d-sub" x="340" y="150" text-anchor="middle">latch PWSTRAP</text>
+          <text class="d-sub" x="340" y="164" text-anchor="middle">set PWSTRAPVLD</text>
+          <!-- self arm -->
+          <path class="d-wire" d="M406 72 V120"/>
+          <text class="d-sub" x="406" y="188" text-anchor="middle">self-arm ~cyc 11</text>
+          <!-- wait for pgood (dashed) -->
+          <path class="d-wire dash" d="M372 96 H620"/>
+          <text class="d-sub" x="496" y="88" text-anchor="middle">&#8230; held: wait for PGOOD &#8230;</text>
+          <!-- release marker -->
+          <path class="d-wire" d="M620 60 V128"/>
+          <circle cx="620" cy="96" r="4" style="fill:var(--field-edge)"/>
+          <text class="d-lbl" x="620" y="50" text-anchor="middle">PGOOD &#10003; &#8594; release</text>
+          <!-- cold boot band -->
+          <rect x="620" y="80" width="200" height="32" rx="5" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="720" y="100" text-anchor="middle">clean cold boot</text>
+
+          <!-- brownout loop -->
+          <text class="d-note" x="70" y="248" style="font-weight:600;fill:var(--text-muted)">Brownout, with PWREHOLD = 1:</text>
+          <g transform="translate(70,262)">
+            <rect x="0" y="0" width="150" height="34" rx="6" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.4"/>
+            <text class="d-sub" x="75" y="21" text-anchor="middle">running &#183; PGOOD &#10003;</text>
+            <path class="d-wire" d="M150 17 H186"/><path class="d-wire" d="M186 17 l-9 -5 v10 z" style="fill:var(--wire)"/>
+            <rect x="186" y="0" width="150" height="34" rx="6" style="fill:var(--gate);stroke:var(--gate-edge);stroke-width:1.4"/>
+            <text class="d-sub" x="261" y="21" text-anchor="middle">PGOOD &#10007; &#8594; re-hold</text>
+            <path class="d-wire" d="M336 17 H372"/><path class="d-wire" d="M372 17 l-9 -5 v10 z" style="fill:var(--wire)"/>
+            <rect x="372" y="0" width="150" height="34" rx="6" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.4"/>
+            <text class="d-sub" x="447" y="21" text-anchor="middle">harts in reset</text>
+            <path class="d-wire" d="M522 17 H558"/><path class="d-wire" d="M558 17 l-9 -5 v10 z" style="fill:var(--wire)"/>
+            <rect x="558" y="0" width="200" height="34" rx="6" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.4"/>
+            <text class="d-sub" x="658" y="21" text-anchor="middle">PGOOD &#10003; &#8594; clean cold boot</text>
+          </g>
+          <text class="d-note" x="70" y="316">With PWREHOLD = 0 the first release is final until the next chip reset &#8212; supervising software owns brownout.</text>
+        </svg>
+      </div>
+      <figcaption class="figcap"><b>Figure 2 &mdash; hand-drawn.</b> The self-arm completes about
+        eleven cycles after reset release; the gate then waits for PGOOD before running a clean
+        cold boot. With re-hold enabled, a lost rail simply re-enters reset and the rail&rsquo;s
+        return runs a fresh boot &mdash; the honest model of losing and regaining harvested power,
+        since the chip keeps no retention.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= REGISTERS ================= -->
+<section class="fp-section" id="registers">
+  <div class="fp-wrap">
+    <p class="eyebrow">Registers at a glance</p>
+    <h2>PWRWAKE and PWRSTS</h2>
+    <p class="lede">Two words sit at fixed offsets above the power-gating registers, so this part
+      of the map does not depend on the hart count. These summaries are intentionally minimal &mdash;
+      the authoritative bit tables live in the register browser.</p>
+    <div class="reg-grid">
+      <div>
+        <p class="reg-title">PWRWAKE <span class="off">&#183; RW &#183; +0x14 &#183; reset 0</span></p>
+        <div class="vesta-table-wrap">
+          <table class="vesta-table">
+            <thead><tr><th>Bit</th><th>Field</th><th>Arms / selects</th></tr></thead>
+            <tbody>
+              <tr><td><span class="bit">0</span></td><td><span class="fn">PWGATEEN</span></td><td>Software-arm the boot gate</td></tr>
+              <tr><td><span class="bit">1</span></td><td><span class="fn">PWRLSPGOOD</span></td><td>PGOOD is a release condition</td></tr>
+              <tr><td><span class="bit">2</span></td><td><span class="fn">PWRLSFIELD</span></td><td>NFC field is a release condition</td></tr>
+              <tr><td><span class="bit">3</span></td><td><span class="fn">PWSWRLS</span></td><td>Software-forced release</td></tr>
+              <tr><td><span class="bit">4</span></td><td><span class="fn">PWREHOLD</span></td><td>Re-hold on brownout (0 = one-shot)</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="award-photos">
-        <figure class="award-photo-frame" id="award-photo-accepting">
-          <div class="cam" aria-hidden="true">&#128247;</div>
-          <figcaption class="cap">Accepting the award</figcaption>
-          <div class="await">photo coming soon</div>
-        </figure>
-        <figure class="award-photo-frame" id="award-photo-presenting">
-          <div class="cam" aria-hidden="true">&#128247;</div>
-          <figcaption class="cap">Presenting the chip</figcaption>
-          <div class="await">photo coming soon</div>
-        </figure>
+      <div>
+        <p class="reg-title">PWRSTS <span class="off">&#183; RO &#183; +0x18</span></p>
+        <div class="vesta-table-wrap">
+          <table class="vesta-table">
+            <thead><tr><th>Bit</th><th>Field</th><th>Reports</th></tr></thead>
+            <tbody>
+              <tr><td><span class="bit">0</span></td><td><span class="fn">PWPGOODLIV</span></td><td>Synchronized PGOOD level</td></tr>
+              <tr><td><span class="bit">1</span></td><td><span class="fn">PWFIELDLIV</span></td><td>Synchronized field level</td></tr>
+              <tr><td><span class="bit">2</span></td><td><span class="fn">PWSTRAP</span></td><td>Latched strap (the ROM branch bit)</td></tr>
+              <tr><td><span class="bit">3</span></td><td><span class="fn">PWSTRAPVLD</span></td><td>Strap sample complete</td></tr>
+              <tr><td><span class="bit">4</span></td><td><span class="fn">PWBOOTHOLD</span></td><td>Gate is currently holding</td></tr>
+              <tr><td><span class="bit">5</span></td><td><span class="fn">PWRRLSLATCH</span></td><td>One-shot release has latched</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </section>
+    <p style="margin-top:var(--sp-5)">
+      <a class="vesta-btn vesta-btn-ghost" href="register_browser.html">Open the register browser &#8594;</a>
+    </p>
+  </div>
+</section>
 
-  <!-- ================= GALLERY ================= -->
-  <section class="section" id="gallery">
-    <div class="vesta-wrap">
-      <p class="eyebrow">Gallery</p>
-      <h2 class="section-title">Silicon &amp; layout</h2>
-      <p class="section-sub">One die or layout render per chip, at its real dimensions, then the building blocks
-        behind them. Frames without a render are placeholders until the imagery lands.</p>
+<!-- ================= HARVESTED BOOT PATH ================= -->
+<section class="fp-section">
+  <div class="fp-wrap">
+    <p class="eyebrow">Zero-firmware serving</p>
+    <h2>The harvested boot path</h2>
+    <p class="lede">When the strap selects harvested boot, hart&nbsp;0 branches to a ROM-resident
+      service path <em>before</em> any SPI or flash activity &mdash; the multi-kilobyte flash copy is
+      the single most power-hungry cold-start step, so it is skipped entirely. The nine steps below
+      run in exactly this order.</p>
+    <ol class="steps">
+      <li><span class="st">Common entry</span><p>Interrupts off, all memory blocks powered, stack
+        pointer set, and the shared-RAM mailbox region <code>0x10000&ndash;0x107FC</code> zeroed &mdash;
+        the write-before-read contract. At 24&nbsp;MHz this zeroing (512 word writes through the
+        arbiter) dominates the cold start: about <b>625&nbsp;&micro;s</b> of the roughly
+        <b>690&nbsp;&micro;s</b> from gate release to sleep.</p></li>
+      <li><span class="st">Strap branch</span><p>Poll <code>PWRSTS</code> until <code>PWSTRAPVLD</code>,
+        then branch on <code>PWSTRAP</code>. The sample completed a handful of cycles after reset
+        release, long before this code runs &mdash; the poll is cheap insurance.</p></li>
+      <li><span class="st">Clock story, explicitly</span><p>Write <code>CLKCR = 0</code> so both MCLK
+        and SMCLK stay on HFXT. The SPI path&rsquo;s mid-boot SMCLK&#8594;LFXT switch never runs here, so
+        the choice is written rather than inherited.</p></li>
+      <li><span class="st">Gate the tiles</span><p>Write all-ones to <code>PWRCR</code>; the register
+        masks the write to the tile bits that exist, so the same ROM gates every tile hart at any
+        hart count. The tiles are already parked in their boot-ROM WFI, the sanctioned quiesced
+        state.</p></li>
+      <li><span class="st">Pin mux</span><p>Select the alternate-function planes for the six off-die
+        NFC AFE wires on port&nbsp;6 pins&nbsp;0&ndash;5. Pins&nbsp;6 and&nbsp;7 &mdash; the strap and
+        PGOOD &mdash; are untouched and stay plain inputs.</p></li>
+      <li><span class="st">Provision the tag</span><p>Write the ROM-default identity
+        (UID <code>0xC0FFEE01</code>, ATQA <code>0x0044</code>, SAK <code>0x00</code>), point the
+        payload index at byte&nbsp;0 with auto-increment, and write a three-byte status payload:
+        <code>'H'</code>, <code>'V'</code>, then a live <code>PWRSTS</code> snapshot &mdash; the honest
+        &ldquo;sensor record&rdquo; of the base chip.</p></li>
+      <li><span class="st">Arm LISTEN</span><p>A <b>byte</b> store of <code>NFCEN | LISTEN</code> to the
+        NFC control register&rsquo;s low lane. A full-word store would also clear the auto-read enable,
+        whose reset default is set &mdash; auto-read is what lets the hardware answer Type-2
+        <code>READ</code>s with the processor asleep.</p></li>
+      <li><span class="st">Stray-interrupt guard</span><p>Arm interrupt-vector slot&nbsp;83 in
+        hart&nbsp;0&rsquo;s own TCM with a return stub, so an unexpected <code>msip</code> is cleared and
+        returns the hart to sleep instead of vectoring into uninitialized memory.</p></li>
+      <li><span class="st">Slow down and sleep</span><p>Divide MCLK by eight
+        (<code>CLKDIVCR</code>), then sleep. From here the NFC hardware serves readers autonomously;
+        a field arrival can be taken as an interrupt only if firmware later opts in.</p></li>
+    </ol>
+    <div class="callout amber">
+      <b>NFC-less configurations are safe.</b> On a build without the NFC block, the NFC register
+      writes land in an unused alias of the mutex page and are harmless. The path is written to
+      never <em>read</em> an NFC register &mdash; a read of that alias would claim a mutex.
+    </div>
+  </div>
+</section>
 
-      <!-- Lead row: one die / layout per chip, real dimensions -->
-      <div class="gallery-grid">
+<!-- ================= POWER STORY ================= -->
+<section class="fp-section" id="power">
+  <div class="fp-wrap">
+    <p class="eyebrow">The power story</p>
+    <h2>Does it close on harvested energy?</h2>
+    <p class="lede">A cheap go/no-go came first: a typical-corner power run of the one-hart,
+      ROM-resident service loop. The mode turns out to be <b>leakage-dominated</b> &mdash; clock
+      division buys almost nothing past &#247;8, and the activity assumptions barely move the
+      answer.</p>
 
-        <figure class="gallery-item">
-          <div class="gallery-frame ar-myshkin" id="gallery-die-myshkin">
-            <div class="ph">Myshkin die photograph
-              <small>1.5 &times; 1.0 mm &middot; image coming soon</small>
-            </div>
-          </div>
-          <figcaption><b>Myshkin</b> &mdash; single-core die, <b>1.5 &times; 1.0 mm</b> (TSMC 65&nbsp;nm, first silicon).</figcaption>
-        </figure>
-
-        <figure class="gallery-item">
-          <div class="gallery-frame ar-square has-image" id="gallery-die-castalia">
-            <img src="assets/layout_castalia_chip_top.png" alt="Castalia 4-hart chip_top layout inside the connected pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption><b>Castalia</b> &mdash; 4-hart <code>chip_top</code> layout, <b>3 &times; 3 mm</b> (signed-off, tape-out ready).</figcaption>
-        </figure>
-
-        <figure class="gallery-item">
-          <div class="gallery-frame ar-square has-image" id="gallery-die-argus">
-            <img src="assets/layout_argus_array.png" alt="Argus 18-hart teaching chip: full replicated-tile array plus pad ring" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption><b>Argus</b> &mdash; 18-hart tiled array layout, <b>3 &times; 3 mm</b> (signed-off, tape-out ready).</figcaption>
-        </figure>
-
+    <div class="pbar">
+      <div class="track" aria-hidden="true">
+        <div class="seg leak" style="width:47.2%">leak 5.95</div>
+        <div class="seg int"  style="width:43.5%">internal 5.48</div>
+        <div class="seg sw"   style="width:9.3%">sw 1.17</div>
       </div>
-
-      <!-- Secondary row: the building blocks -->
-      <div class="gallery-grid" style="margin-top:var(--sp-6)">
-
-        <figure class="gallery-item">
-          <div class="gallery-frame has-image" id="gallery-tile-layout">
-            <img src="assets/layout_hart_tile.png" alt="One hardened hart_tile: RISC-V core plus TCM SRAM" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption>One hardened <code>hart_tile</code> (RISC-V core + TCM SRAM) &mdash; the replicated unit.</figcaption>
-        </figure>
-
-        <figure class="gallery-item">
-          <div class="gallery-frame has-image" id="gallery-mcu-layout">
-            <img src="assets/layout_castalia_mcu_assembly.png" alt="Castalia 4-hart MCU core assembly: four tiles plus shared bulk-RAM bank row" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption>Castalia 4-hart MCU core assembly (4 tiles + shared bulk-RAM bank row).</figcaption>
-        </figure>
-
-        <figure class="gallery-item">
-          <div class="gallery-frame has-diagram" id="gallery-block-diagram">
-            <img src="assets/block_mcu_clock_system.svg" alt="MCU clock-system block diagram" style="max-width:100%; max-height:100%; object-fit:contain">
-          </div>
-          <figcaption>MCU clock-system block diagram (scalable, theme-neutral line art).</figcaption>
-        </figure>
-
+      <div class="legend">
+        <span><span class="sw-dot" style="background:var(--accent)"></span>Leakage 5.95&nbsp;mW</span>
+        <span><span class="sw-dot" style="background:var(--amber)"></span>Internal 5.48&nbsp;mW</span>
+        <span><span class="sw-dot" style="background:var(--field-edge)"></span>Switching 1.17&nbsp;mW</span>
+        <span>&#8212; full chip, all tiles on: <b>12.60&nbsp;mW</b></span>
       </div>
     </div>
-  </section>
 
-  <!-- ================= CONNECT ================= -->
-  <section class="section" id="connect" aria-labelledby="connect-title">
-    <div class="vesta-wrap">
-      <p class="eyebrow">Get in touch</p>
-      <h2 class="section-title" id="connect-title">Connect with the author</h2>
-      <p class="section-sub">
-        VestaRV is designed and maintained by <b>Maxx Seminario</b>, a PhD student in
-        Electrical &amp; Computer Engineering at the <b>University of Nebraska&ndash;Lincoln</b>.
-        Questions about the core, the chip generator, or the silicon &mdash; or just want to
-        talk RISC-V? Reach out.
-      </p>
-      <div class="grid grid-3 connect-grid">
-
-        <a class="vesta-card vesta-card-link connect-card" href="mailto:mseminario2@huskers.unl.edu">
-          <span class="connect-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="5" width="18" height="14" rx="2.5"/>
-              <path d="M3.5 7.5l8.5 5.5 8.5-5.5"/>
-            </svg>
-          </span>
-          <span class="connect-body">
-            <span class="connect-label">Email</span>
-            <span class="connect-sub">mseminario2@huskers.unl.edu</span>
-          </span>
-        </a>
-
-        <a class="vesta-card vesta-card-link connect-card" href="https://github.com/maxxseminario/VestaRV">
-          <span class="connect-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.11-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58C20.56 22.29 24 17.8 24 12.5 24 5.87 18.63.5 12 .5z"/>
-            </svg>
-          </span>
-          <span class="connect-body">
-            <span class="connect-label">GitHub</span>
-            <span class="connect-sub">maxxseminario/VestaRV</span>
-          </span>
-        </a>
-
-        <!-- TODO(user): replace with your real LinkedIn URL -->
-        <a class="vesta-card vesta-card-link connect-card" href="https://www.linkedin.com/in/FILL-IN-YOUR-PROFILE">
-          <span class="connect-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3.2 9h3.6v12H3.2zM9.2 9h3.45v1.64h.05c.48-.9 1.66-1.85 3.42-1.85 3.66 0 4.33 2.4 4.33 5.52V21h-3.6v-4.9c0-1.17-.02-2.67-1.63-2.67-1.63 0-1.88 1.27-1.88 2.58V21H9.2z"/>
-            </svg>
-          </span>
-          <span class="connect-body">
-            <span class="connect-label">LinkedIn</span>
-            <span class="connect-sub">Connect on LinkedIn</span>
-          </span>
-        </a>
-
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="num">&#8722;4.99<small>&nbsp;mW</small></div>
+        <div class="k">Gate harts 1&ndash;3</div>
+        <div class="d">Switched-rail leakage and dynamic gone &rarr; 7.60&nbsp;mW remaining.</div>
+      </div>
+      <div class="stat">
+        <div class="num">&#8776;3.97<small>&nbsp;mW</small></div>
+        <div class="k">Leakage floor</div>
+        <div class="d">The ungated leakage that clock division cannot touch.</div>
+      </div>
+      <div class="stat">
+        <div class="num">4.2&ndash;4.4<small>&nbsp;mW</small></div>
+        <div class="k">Service loop, mclk &#247;8&ndash;&#247;16</div>
+        <div class="d">Continuous draw of the one-hart serving scenario.</div>
+      </div>
+      <div class="stat">
+        <div class="num">2.5&ndash;2.8<small>&nbsp;mW</small></div>
+        <div class="k">+ shared-bank gating</div>
+        <div class="d">Gate unused RAM banks via BLOCKPWR (contents lost).</div>
       </div>
     </div>
-  </section>
 
-</main>
+    <div class="callout">
+      <b>Read these as estimates.</b> All figures are pre-layout, typical-corner
+      (<span class="vesta-mono">tt, 1.00&nbsp;V, 25&nbsp;&deg;C</span>) numbers from the synthesis
+      flow at 24&nbsp;MHz with statistical 0.2 activity &mdash; no clock tree, no VCD, no measured
+      silicon. A hotter corner adds leakage but does not change the conclusion.
+    </div>
+
+    <p class="prose" style="margin-top:var(--sp-6)">Against ISO-14443 harvest budgets &mdash; roughly
+      <b>1&ndash;5&nbsp;mW</b> at loose coupling and <b>5&ndash;10&nbsp;mW</b> at close coupling or
+      NTAG-5-class harvesting &mdash; the verdict is nuanced: pure batteryless operation is
+      <b>plausible at moderate coupling</b> once the shared banks are gated, and comfortable at
+      close coupling, while the robust production answer is a supercap that buffers the same
+      draw across a duty cycle.</p>
+  </div>
+</section>
+
+<!-- ================= TWO SCHEMES ================= -->
+<section class="fp-section">
+  <div class="fp-wrap">
+    <p class="eyebrow">Both schemes, one silicon</p>
+    <h2>The same RTL serves two power strategies</h2>
+    <div class="scheme-grid">
+      <div class="vesta-card scheme">
+        <span class="tag" style="color:var(--accent)">Batteryless</span>
+        <h3>The gate is the mechanism</h3>
+        <p>The chip holds in reset until PGOOD, cold-boots the harvested-boot ROM path, serves the
+          reader from the auto-read payload, and re-holds when the field collapses. Plausible at
+          moderate coupling, a bonus operating point at close coupling.</p>
+      </div>
+      <div class="vesta-card scheme">
+        <span class="tag" style="color:var(--field-edge)">Supercap duty-cycled</span>
+        <h3>The robust scheme</h3>
+        <p>An external buffer stays charged and the gate is left disarmed after the first boot. The
+          service loop sleeps between transactions and is resumed by the ordinary field-detect
+          interrupt (vector&nbsp;94) &mdash; with all state intact, never re-entering reset.</p>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin-top:var(--sp-8)">Programming sequences</p>
+    <div class="seq">
+      <h3>Harvested board &mdash; zero firmware</h3>
+      <p class="prose">Strap P6.6 high, wire the supervisor&rsquo;s power-good output to P6.7. Nothing
+        else: the hardware defaults arm the gate, wait on PGOOD, and re-hold on brownout. The first
+        instruction any hart executes happens after the supply is declared good.</p>
+    </div>
+    <div class="seq">
+      <h3>Software-armed gate &mdash; test or supervised systems</h3>
+      <div class="code"><span class="kw">PWRWAKE</span> = PWGATEEN | PWRLSPGOOD   <span style="color:var(--text-dim)">// optionally | PWREHOLD</span>
+<span style="color:var(--text-dim)">// | PWRLSFIELD adds the RF field as a release source</span>
+<span style="color:var(--text-dim)">// | PWSWRLS forces a release regardless of pins</span>
+poll <span class="kw">PWRSTS</span>.PWBOOTHOLD to observe the gate</div>
+    </div>
+    <div class="seq">
+      <h3>Supercap duty-cycled service loop &mdash; gate disarmed</h3>
+      <p class="prose">Boot normally, then: gate the unused tile harts through <code>PWRCR</code>;
+        route the NFC field-detect interrupt to the serving hart&rsquo;s router row; provision and arm
+        the NFC block in LISTEN with auto-read; optionally divide MCLK down; sleep with WFI. A reader
+        arriving raises field-detect, the router delivers the external interrupt, and the hart resumes
+        &mdash; the boot gate plays no part. For the deepest floor, additionally gate unused shared
+        banks and memories via <code>BLOCKPWR</code> and divide the clock.</p>
+    </div>
+  </div>
+</section>
 
 <!-- ================= FOOTER ================= -->
 <footer class="vesta-footer">
-  <div class="vesta-wrap footer-inner">
-    <div>
-      <div class="vesta-brand-name" style="font-size:var(--fs-base)">Vesta<b>RV</b></div>
-      <p style="margin:var(--sp-2) 0 0">A from-scratch RISC-V core &amp; chip generator.</p>
+  <div class="fp-wrap">
+    <div class="footlinks">
+      <a href="index.html">&#8592; VestaRV home</a>
+      <a href="castalia_soc.html">Castalia SoC diagram</a>
+      <a href="register_browser.html">Register browser</a>
+      <a href="chip_configurator.html">Chip configurator</a>
     </div>
-    <div style="text-align:right">
-      <p style="margin:0"><a href="https://github.com/maxxseminario/VestaRV">github.com/maxxseminario/VestaRV</a></p>
-      <p class="vesta-dim" style="margin:var(--sp-1) 0 0">Released under the MIT License.</p>
-    </div>
+    <p style="margin-top:var(--sp-4)">VestaRV &mdash; a custom RISC-V MCU family on TSMC&nbsp;65&nbsp;nm.
+      Castalia is a tape-out-ready design; figures on this page are hand-drawn schematics and the
+      power numbers are pre-layout, typical-corner estimates.</p>
   </div>
 </footer>
 
 <script>
-/* Theme toggle. Compatible with docs/chip_configurator.html:
-   localStorage key "vesta-theme"; value "light" for light, "" for dark. */
 (function(){
-  var root = document.documentElement;
-  var btn  = document.getElementById("themeToggle");
-  var label = btn && btn.querySelector(".label");
-  function isLight(){
-    var a = root.getAttribute("data-theme");
-    if(a === "light") return true;
-    if(a === "dark")  return false;
-    return !!(window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches);
-  }
-  /* Label + a11y text always describe what a click DOES (the destination). */
-  function syncLabel(){
-    if(!btn) return;
-    var toDark = isLight();               /* currently light -> a click goes dark */
-    if(label) label.textContent = toDark ? "Dark mode" : "Light mode";
-    btn.setAttribute("aria-label", toDark ? "Switch to dark mode" : "Switch to light mode");
-    btn.setAttribute("title",      toDark ? "Switch to dark mode" : "Switch to light mode");
-  }
-  syncLabel();
-  btn.addEventListener("click", function(){
-    var next = isLight() ? "" : "light";
-    if(next){ root.setAttribute("data-theme","light"); }
-    else    { root.removeAttribute("data-theme"); }
-    try{ localStorage.setItem("vesta-theme", next); }catch(e){}
-    syncLabel();
-  });
-  /* keep the label honest if the OS theme changes while on first-visit fallback */
-  if(window.matchMedia){
-    try{ matchMedia("(prefers-color-scheme: light)").addEventListener("change", syncLabel); }catch(e){}
-  }
-})();
-
-/* Scroll-driven ember: sets --p (0..1) on the wick from scroll progress.
-   rAF-throttled, transform-only (no layout thrash), and a no-op when the
-   wick is hidden (narrow viewport / prefers-reduced-motion via CSS). */
-(function(){
-  var wick = document.getElementById("wick");
-  if(!wick) return;
-  var ticking = false;
-  function update(){
-    ticking = false;
-    var doc = document.documentElement;
-    var max = (doc.scrollHeight - doc.clientHeight);
-    var p = max > 0 ? (doc.scrollTop || document.body.scrollTop) / max : 0;
-    if(p < 0) p = 0; else if(p > 1) p = 1;
-    wick.style.setProperty("--p", p.toFixed(4));
-  }
-  function onScroll(){
-    if(!ticking){ ticking = true; requestAnimationFrame(update); }
-  }
-  window.addEventListener("scroll", onScroll, {passive:true});
-  window.addEventListener("resize", onScroll, {passive:true});
-  update();
+  var root=document.documentElement, btn=document.getElementById("themeToggle");
+  if(!btn) return;
+  function isLight(){var a=root.getAttribute("data-theme");if(a==="light")return true;if(a==="dark")return false;return !!(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches);}
+  btn.addEventListener("click",function(){var next=isLight()?"":"light";if(next)root.setAttribute("data-theme","light");else root.removeAttribute("data-theme");try{localStorage.setItem("vesta-theme",next);}catch(e){}});
 })();
 </script>
-
-<!-- in-page nav overlay: shows another docs page in a full-viewport iframe
-     WITHOUT leaving index.html (hidden until a nav link is intercepted) -->
-<div class="nav-overlay" id="navOverlay" hidden role="dialog" aria-modal="true" aria-label="In-page document view">
-  <div class="nav-overlay-bar">
-    <div class="nav-overlay-brand">
-      <span class="nav-overlay-title" id="navOverlayTitle">&nbsp;</span>
-      <span class="nav-overlay-eyebrow" aria-hidden="true">in&#8202;&middot;&#8202;page view</span>
-    </div>
-    <span class="nav-overlay-spacer"></span>
-    <a class="nav-overlay-open-tab" id="navOverlayOpenTab" href="#" target="_blank" rel="noopener">Open in its own tab &#8599;</a>
-    <button class="nav-overlay-close" id="navOverlayClose" type="button" aria-label="Close in-page view (Esc)">
-      <span class="x" aria-hidden="true">&#10005;</span><span>Close</span>
-    </button>
-  </div>
-  <iframe class="nav-overlay-frame" id="navOverlayFrame" title="In-page document view"></iframe>
-</div>
-
-<script>
-/* ---- In-page nav overlay ------------------------------------------------
-   Plain left-clicking a header nav link (everything except Home/aria-current)
-   opens the target page in a full-viewport iframe instead of navigating away.
-   Close paths — the X button, the Esc key, AND browser Back — ALL return to the
-   untouched landing page. history.pushState('#view=<key>') on open + a popstate
-   handler keep Back symmetric; the button/Esc call history.back() so history
-   stays clean. Deep-link/screenshot hook: loading with #view=<key> opens that
-   overlay. Theme is shared same-origin via localStorage; on a live toggle we
-   best-effort postMessage the theme into the frame (core honors it). --------- */
-(function(){
-  var VIEWS = {
-    core:         {href:"vestarv_core.html",      title:"Core microarchitecture"},
-    soc:          {href:"castalia_soc.html",      title:"SoC block diagram"},
-    lens:         {href:"castalia_full.html",     title:"SoC · Lens"},
-    configurator: {href:"chip_configurator.html", title:"Chip configurator"},
-    registers:    {href:"register_browser.html",  title:"Register browser"},
-    roadmap:      {href:"vestarv_roadmap.html",   title:"Roadmap"}
-  };
-  var BY_HREF = {};
-  Object.keys(VIEWS).forEach(function(k){ BY_HREF[VIEWS[k].href] = k; });
-
-  var overlay  = document.getElementById("navOverlay");
-  var frame    = document.getElementById("navOverlayFrame");
-  var titleEl  = document.getElementById("navOverlayTitle");
-  var openTab  = document.getElementById("navOverlayOpenTab");
-  var closeBtn = document.getElementById("navOverlayClose");
-  if(!overlay || !frame) return;
-
-  var current = null;   /* view key currently shown, or null when closed */
-
-  function curTheme(){
-    var a = document.documentElement.getAttribute("data-theme");
-    if(a === "light") return "light";
-    if(a === "dark")  return "dark";
-    return (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
-  }
-  function postTheme(){
-    try{ frame.contentWindow.postMessage({vestaTheme:curTheme()}, "*"); }catch(e){}
-  }
-
-  /* Show (or swap to) a view. Never touches history — callers do that. */
-  function show(key){
-    var v = VIEWS[key];
-    if(!v) return;
-    if(current !== key){
-      var src = v.href;
-      /* only vestarv_core supports an embed/theme mode; everyone else gets the
-         plain page (double header inside the frame is acceptable) */
-      if(key === "core") src += "?embed=1&theme=" + curTheme();
-      frame.src = src;
-      frame.onload = postTheme;   /* re-assert theme once the framed page loads */
-      titleEl.textContent = v.title;
-      openTab.href = v.href;      /* the real page, plain, in its own tab */
-    }
-    overlay.hidden = false;
-    document.documentElement.classList.add("nav-overlay-lock");
-    current = key;
-  }
-  function hide(){
-    if(current === null && overlay.hidden) return;
-    overlay.hidden = true;
-    document.documentElement.classList.remove("nav-overlay-lock");
-    current = null;
-    frame.onload = null;
-    frame.removeAttribute("src");   /* blank + release the framed page */
-    frame.src = "";
-  }
-
-  function keyFromHash(){
-    var m = /(?:^|[#&])view=([a-z]+)/.exec(location.hash || "");
-    return (m && VIEWS[m[1]]) ? m[1] : null;
-  }
-
-  /* single source of truth: reconcile the overlay with the URL hash */
-  function sync(){
-    var key = keyFromHash();
-    if(key) show(key); else hide();
-  }
-
-  /* open from a click: create or replace the history entry, then reconcile */
-  function openView(key){
-    var hash = "#view=" + key;
-    if(current === null){
-      history.pushState({vView:key}, "", hash);    /* new entry so Back closes */
-    }else{
-      history.replaceState({vView:key}, "", hash); /* swap in place, history clean */
-    }
-    sync();
-  }
-
-  /* close via history so Back / Esc / X all land on the same clean entry */
-  function closeView(){
-    if(history.state && history.state.vView){
-      history.back();               /* pop our pushed entry -> popstate -> sync -> hide */
-    }else{
-      /* deep-linked straight onto a view (no landing entry beneath): strip hash */
-      history.replaceState(null, "", location.pathname + location.search);
-      sync();
-    }
-  }
-
-  /* intercept plain left-clicks on the header nav links */
-  var nav = document.querySelector(".vesta-nav");
-  if(nav){
-    nav.addEventListener("click", function(e){
-      var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
-      if(!a || !nav.contains(a)) return;
-      if(a.getAttribute("aria-current") === "page") return;         /* Home */
-      if(e.defaultPrevented || e.button !== 0) return;              /* not a plain left-click */
-      if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;  /* let new-tab / new-window through */
-      var key = BY_HREF[a.getAttribute("href")];
-      if(!key) return;                                              /* unknown target -> navigate normally */
-      e.preventDefault();
-      openView(key);
-    });
-  }
-
-  closeBtn && closeBtn.addEventListener("click", closeView);
-  document.addEventListener("keydown", function(e){
-    if((e.key === "Escape" || e.key === "Esc") && current !== null) closeView();
-  });
-  window.addEventListener("popstate", sync);
-
-  /* live theme toggle -> push the theme into an open frame (best-effort) */
-  var tbtn = document.getElementById("themeToggle");
-  if(tbtn){
-    tbtn.addEventListener("click", function(){
-      if(current !== null) requestAnimationFrame(postTheme);   /* after the toggle IIFE flips data-theme */
-    });
-  }
-
-  /* deep-link / headless-screenshot hook: open immediately if the URL asks */
-  sync();
-})();
-</script>
-
 </body>
 </html>
