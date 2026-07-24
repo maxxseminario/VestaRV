@@ -56,6 +56,45 @@
 --                0=ON  1=ISO (clamping)  2=RSTOFF (reset, rail dying)
 --                3=OFF (gated)  4=RAIL (waking, rail settling)
 --                5=UNISO (clamp release)   Hart 0 nibble reads 0.
+--
+-- DP-S3 (field-powered NFC mode) — PGOOD boot gate + wake sources. The two
+-- new words sit at FIXED offsets 5/6, above PWRSR's worst case (NSRW <= 4 at
+-- NHARTS <= 32), so the map is NHARTS-independent:
+--   +0x14 PWRWAKE : RW, reset 0 (NO-OP). Byte-lane-0-qualified like PWRCR.
+--                bit 0 GATE_EN    software-arm the boot gate (OR strap-arm)
+--                bit 1 RLS_PGOOD  pgood_live is a release condition
+--                bit 2 RLS_FIELD  field_live is a release condition (the
+--                                 field_detect WAKE source — no IRQ vector)
+--                bit 3 SW_RELEASE software-forced release / "proceed"
+--                bit 4 REHOLD     re-assert the hold when the release
+--                                 condition drops (brownout re-hold); 0 =
+--                                 one-shot latched release
+--   +0x18 PWRSTS : RO.  bit 0 PGOOD_LIVE (synced pgood_pad)
+--                bit 1 FIELD_LIVE (synced field_detect)
+--                bit 2 STRAP (latched: 1 = harvested boot — the bootrom
+--                      branch bit)   bit 3 STRAP_VALID (sample complete)
+--                bit 4 BOOT_HOLD (gate currently holding the harts)
+--                bit 5 RLS_LATCHED (one-shot release has latched)
+--
+-- BOOT GATE (HOLD-IN-RESET, DP-S3 decision): pgood_rstn (reset value '1' =
+-- release) is ANDed into EVERY hart's outer reset at the top level (hart 0
+-- included — it gains a fold it never had; tiles extend the pd_rstn fold).
+-- A held hart issues no sh_req (the M12 outer-reset qualification), so the
+-- arbiter sees the same bus silence pd_rstn already guarantees — no new
+-- arbiter contract. STRAP POLICY: the strap drives HARDWARE DEFAULTS and
+-- the register bits OR-in software overrides — a harvested board self-arms
+-- (arm + RLS_PGOOD + REHOLD) with zero software, resolving the
+-- chicken-and-egg of the gate holding the very cores that would program it.
+-- The strap is sampled ONCE, STRAP_SETTLE mclk after reset release (the gate
+-- is released during that window; on a harvested board the ensuing re-hold
+-- is a clean M12 cold boot). PGOOD deassert with REHOLD re-holds = cold
+-- boot on PGOOD return — the sanctioned cold-gate semantics, honestly
+-- modelled by reset in sim. All three pad-side inputs are ASYNC and 2-FF
+-- synchronized HERE on the always-on mclk/resetn domain (the NFC's own
+-- smclk synchronizers do not cover this path). Ties on a config without the
+-- feature (pgood_pad='1', strap_pad='0', field_detect='0') make the whole
+-- block a provable NO-OP: pgood_rstn is stuck at '1' and PWRCR/PWRSR are
+-- bit-identical to M17.
 -- =============================================================================
 
 library IEEE;
@@ -78,7 +117,12 @@ entity pwr_ctrl is
         -- tile-sized domain; revisit against the Innovus rush-current
         -- staging when the switch fabric is characterized (M17 note).
         T_SEQ  : natural := 4;
-        T_RAIL : natural := 256
+        T_RAIL : natural := 256;
+        -- DP-S3: strap sample delay after reset release, in mclk cycles —
+        -- beyond the 2-FF sync, with the pad pull long settled during the
+        -- ms-scale POR. The sample is one-shot (a mid-run strap change is
+        -- ignored).
+        STRAP_SETTLE : natural := 8
     );
     port (
         clk    : in  std_logic;   -- free-running mclk
@@ -100,7 +144,15 @@ entity pwr_ctrl is
         --             cold-gate reset that makes wake = M12 boot.
         pd_iso_en : out std_logic_vector(NHARTS-1 downto 1);
         pd_sleep  : out std_logic_vector(NHARTS-1 downto 1);
-        pd_rstn   : out std_logic_vector(NHARTS-1 downto 1)
+        pd_rstn   : out std_logic_vector(NHARTS-1 downto 1);
+
+        -- DP-S3 field-powered mode. The pad-side inputs are ASYNC and 2-FF
+        -- synchronized inside this block (always-on mclk domain).
+        pgood_pad    : in  std_logic;  -- PGOOD supervisor level (P6.7); tie '1' when unused
+        strap_pad    : in  std_logic;  -- harvest boot-mode strap (P6.6); tie '0' when unused
+        field_detect : in  std_logic;  -- NFC0 field level; tie '0' when NFC absent
+        pgood_rstn   : out std_logic   -- active-low boot gate, ANDed into every
+                                       -- hart's outer reset. Reset value '1' = release.
     );
 end entity;
 
@@ -129,6 +181,20 @@ architecture behav of pwr_ctrl is
     signal rstn_r    : std_logic_vector(NHARTS-1 downto 1);
     signal rdata_reg : std_logic_vector(31 downto 0);
 
+    -- DP-S3: boot-gate / wake-source state (all on the always-on domain).
+    -- Register word offsets for the two new words (see header).
+    constant W_PWRWAKE : integer := 5;
+    constant W_PWRSTS  : integer := 6;
+    signal pgood_s1, pgood_s2 : std_logic;   -- 2-FF sync, pgood_pad
+    signal field_s1, field_s2 : std_logic;   -- 2-FF sync, field_detect
+    signal strap_s1, strap_s2 : std_logic;   -- 2-FF sync, strap_pad
+    signal strap_sampled : std_logic;        -- one-shot latched strap ('1' = harvest)
+    signal strap_valid   : std_logic;        -- sample complete
+    signal strap_cnt     : natural range 0 to 65535;
+    signal wake_cr       : std_logic_vector(4 downto 0);  -- PWRWAKE bits 4:0
+    signal rls_latch     : std_logic;        -- sticky release (one-shot mode)
+    signal boot_hold_r   : std_logic;        -- registered gate state ('1' = hold)
+
 begin
 
     -- A2 coverage asserts (elaboration-time constants; no hardware): the
@@ -140,17 +206,30 @@ begin
     assert 1 + NSRW <= 16
         report "pwr_ctrl: PWRSR array outgrows the 16-word decode"
         severity failure;
+    -- DP-S3: PWRWAKE/PWRSTS sit at fixed words 5/6 — PWRSR must stay below
+    assert NSRW < 5
+        report "pwr_ctrl: PWRSR array collides with PWRWAKE/PWRSTS (words 5/6)"
+        severity failure;
 
     rdata     <= rdata_reg;
     pd_iso_en <= iso_r;
     pd_sleep  <= sleep_r;
     pd_rstn   <= rstn_r;
+    -- DP-S3: registered (glitch-free) boot gate; reset value '1' = release.
+    pgood_rstn <= not boot_hold_r;
 
     pwr_proc: process(clk, resetn)
         -- A2: sr is the concatenated PWRSR word array (hart h's nibble at
         -- 4h, 8 harts per 32-bit word — one word at the NHARTS=4 default)
         variable sr   : std_logic_vector(NSRW*32-1 downto 0);
         variable widx : integer range 0 to 15;
+        -- DP-S3 effective-policy terms (strap OR software override)
+        variable strap_harvest : std_logic;
+        variable eff_arm       : std_logic;
+        variable eff_pgood     : std_logic;
+        variable eff_field     : std_logic;
+        variable eff_rehold    : std_logic;
+        variable rls_now       : std_logic;
     begin
         if resetn = '0' then
             -- reset = every tile ON (iso off, switches on, reset released):
@@ -163,6 +242,21 @@ begin
             state     <= (others => S_ON);
             cnt       <= (others => 0);
             rdata_reg <= (others => '0');
+            -- DP-S3: gate released at reset (normal boots unperturbed); a
+            -- harvested board self-arms within the strap settle window and
+            -- the re-hold is a clean M12 cold boot.
+            pgood_s1      <= '1';
+            pgood_s2      <= '1';
+            field_s1      <= '0';
+            field_s2      <= '0';
+            strap_s1      <= '0';
+            strap_s2      <= '0';
+            strap_sampled <= '0';
+            strap_valid   <= '0';
+            strap_cnt     <= 0;
+            wake_cr       <= (others => '0');
+            rls_latch     <= '0';
+            boot_hold_r   <= '0';
         elsif rising_edge(clk) then
 
             -- ---- register access (1-cycle registered read) ----
@@ -179,6 +273,17 @@ begin
                 elsif widx <= NSRW then
                     -- PWRSR0..NSRW-1 at +0x4.. (one word at NHARTS=4)
                     rdata_reg <= sr(32*widx - 1 downto 32*(widx-1));
+                elsif widx = W_PWRWAKE then
+                    -- DP-S3 PWRWAKE readback
+                    rdata_reg(4 downto 0) <= wake_cr;
+                elsif widx = W_PWRSTS then
+                    -- DP-S3 PWRSTS (RO)
+                    rdata_reg(0) <= pgood_s2;
+                    rdata_reg(1) <= field_s2;
+                    rdata_reg(2) <= strap_sampled;
+                    rdata_reg(3) <= strap_valid;
+                    rdata_reg(4) <= boot_hold_r;
+                    rdata_reg(5) <= rls_latch;
                 end if;                        -- reserved words read 0
 
                 -- PWRCR write (qualified by byte lane 0 — the gate bits are
@@ -187,6 +292,10 @@ begin
                 -- so it can never be gated)
                 if widx = 0 and we(0) = '1' then
                     gate_req <= wdata(NHARTS-1 downto 1);
+                end if;
+                -- DP-S3 PWRWAKE write (byte-lane-0-qualified like PWRCR)
+                if widx = W_PWRWAKE and we(0) = '1' then
+                    wake_cr <= wdata(4 downto 0);
                 end if;
             end if;
 
@@ -247,6 +356,50 @@ begin
 
                 end case;
             end loop;
+
+            -- ---- DP-S3: boot gate + wake sources -------------------------
+            -- 2-FF synchronizers (pad-side inputs are async)
+            pgood_s1 <= pgood_pad;
+            pgood_s2 <= pgood_s1;
+            field_s1 <= field_detect;
+            field_s2 <= field_s1;
+            strap_s1 <= strap_pad;
+            strap_s2 <= strap_s1;
+
+            -- one-shot strap sample, STRAP_SETTLE cycles after reset release
+            if strap_valid = '0' then
+                if strap_cnt = STRAP_SETTLE then
+                    strap_sampled <= strap_s2;      -- '1' = harvested boot
+                    strap_valid   <= '1';
+                else
+                    strap_cnt <= strap_cnt + 1;
+                end if;
+            end if;
+
+            -- strap drives hardware defaults; PWRWAKE bits OR-in software
+            -- overrides (a harvested board self-arms with zero software:
+            -- arm + wait-on-PGOOD + brownout re-hold)
+            strap_harvest := strap_valid and strap_sampled;
+            eff_arm    := wake_cr(0) or strap_harvest;      -- GATE_EN
+            eff_pgood  := wake_cr(1) or strap_harvest;      -- RLS_PGOOD
+            eff_field  := wake_cr(2);                       -- RLS_FIELD
+            eff_rehold := wake_cr(4) or strap_harvest;      -- REHOLD
+
+            rls_now := wake_cr(3)                           -- SW_RELEASE
+                       or (eff_pgood and pgood_s2)
+                       or (eff_field and field_s2);
+            rls_latch <= rls_latch or rls_now;
+
+            -- REHOLD=1: hold tracks the live release condition (drop =
+            -- re-hold = cold boot on return). REHOLD=0: one-shot — once
+            -- released, stays released. With no release source enabled an
+            -- armed gate holds until SW_RELEASE (the "prove it holds"
+            -- negctrl relies on this).
+            if eff_rehold = '1' then
+                boot_hold_r <= eff_arm and not rls_now;
+            else
+                boot_hold_r <= eff_arm and not (rls_latch or rls_now);
+            end if;
         end if;
     end process;
 

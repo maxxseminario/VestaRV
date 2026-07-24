@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/23 at 01:24:28 with the generate.py chip generator
+-- Generated on 2026/07/24 at 01:25:41 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -130,7 +130,7 @@ architecture behav of MCU is
             DCO1_BIAS          : out std_logic_vector(11 downto 0);
 
             --Memory Power 
-            PGEN_mem        : out std_logic_vector(2 downto 0) -- '0' mem on, '1' mem off
+            PGEN_mem        : out std_logic_vector(6 downto 0) -- '0' mem on, '1' mem off (DP-S3 3b: 6:3 = shbank0-3)
         );
     end component;
 
@@ -624,6 +624,8 @@ architecture behav of MCU is
         signal pd_sleep         : std_logic_vector(3 downto 1);
         signal pd_rstn          : std_logic_vector(3 downto 1);
         signal tile_rstn        : std_logic_vector(3 downto 1);
+        signal pgood_rstn       : std_logic := '1';
+        signal hart0_rstn       : std_logic;
         -- M17 isolation: the tile outputs land on these _raw nets and are
         -- AND-clamped LOW onto the arbiter/observation buses by pd_iso_en —
         -- the EXPLICIT always-on-side isolation cells (electrically the
@@ -783,8 +785,10 @@ architecture behav of MCU is
         -- (M13: hart 0's adddec<->TCM bus moved into hart_tile; pgen_mem
         -- stays — SYSTEM0's BLOCKPWR gates rom0 (0), hart 0's TCM via the
         -- tile's tcm_pgen port (1) and npuram0 (2).)
+        -- DP-S3 3b: bits 6:3 gate the shared bulk-RAM banks shbank0-3
+        -- (per-bank, reset ON; contents LOST on gate — see SYSTEM.vhd).
         signal RAM_Dout         : std_logic_vector(31 downto 0);
-        signal pgen_mem         : std_logic_vector(2 downto 0);
+        signal pgen_mem         : std_logic_vector(6 downto 0);
 
         -- Flash Extended Memory Signals
         signal mem_en_flash    : std_logic;
@@ -2563,7 +2567,10 @@ begin
         )
         port map (
             clk       => mclk,
-            resetn    => resetn,
+            -- DP-S3: the PGOOD boot gate folds into hart 0 too (hart0_rstn
+            -- = resetn and pgood_rstn; stuck at resetn when the gate is
+            -- unarmed/tied — see the tile_rstn fold)
+            resetn    => hart0_rstn,
             sleep     => sleep_cpu,
             hart_id   => x"00000000",
             msip_in   => clint_msip(0),
@@ -3027,7 +3034,15 @@ begin
             rdata     => pwr_rdata,
             pd_iso_en => pd_iso_en,
             pd_sleep  => pd_sleep,
-            pd_rstn   => pd_rstn
+            pd_rstn   => pd_rstn,
+            -- DP-S3 supervision inputs: PGOOD P6.7 + harvested-boot strap
+            -- P6.6 as DIRECT pad taps (always readable — the gate must work
+            -- before any software runs); field level tied '0' (no NFC). 2-FF
+            -- synchronized inside pwr_ctrl.
+            pgood_pad    => prt6_in(7),
+            strap_pad    => prt6_in(6),
+            field_detect => '0',
+            pgood_rstn   => pgood_rstn
         );
 
     -- =========================================================================
@@ -3070,9 +3085,11 @@ begin
     -- M17: the cold-gate reset — a gated (or waking) tile is held in reset,
     -- which is also what keeps it bus-silent at the arbiter (sh_req is
     -- qualified by the tile's resetn since M12).
-    tile_rstn(1) <= resetn and pd_rstn(1);
-    tile_rstn(2) <= resetn and pd_rstn(2);
-    tile_rstn(3) <= resetn and pd_rstn(3);
+    tile_rstn(1) <= resetn and pd_rstn(1) and pgood_rstn;
+    tile_rstn(2) <= resetn and pd_rstn(2) and pgood_rstn;
+    tile_rstn(3) <= resetn and pd_rstn(3) and pgood_rstn;
+    -- DP-S3: hart 0 has no pd_rstn row (always-on domain) — only the boot gate
+    hart0_rstn <= resetn and pgood_rstn;
 
     -- M17 isolation clamps (see the _raw signal comment): every outbound
     -- tile signal is forced to its reset value while pd_iso_en(h) is high,
@@ -3133,7 +3150,7 @@ begin
             EMA   => "000",
             GWEN  => shmem_gwen_n,
             RETN  => '1',
-            PGEN  => '0'
+            PGEN  => pgen_mem(3)  -- DP-S3 3b: BLOCKPWR SYSSHB0OFF
         );
 
     shbank1: entity work.sram1p16k_hvt_pg
@@ -3147,7 +3164,7 @@ begin
             EMA   => "000",
             GWEN  => shmem_gwen_n,
             RETN  => '1',
-            PGEN  => '0'
+            PGEN  => pgen_mem(4)  -- DP-S3 3b: BLOCKPWR SYSSHB1OFF
         );
 
     shbank2: entity work.sram1p16k_hvt_pg
@@ -3161,7 +3178,7 @@ begin
             EMA   => "000",
             GWEN  => shmem_gwen_n,
             RETN  => '1',
-            PGEN  => '0'
+            PGEN  => pgen_mem(5)  -- DP-S3 3b: BLOCKPWR SYSSHB2OFF
         );
 
     shbank3: entity work.sram1p16k_hvt_pg
@@ -3175,7 +3192,7 @@ begin
             EMA   => "000",
             GWEN  => shmem_gwen_n,
             RETN  => '1',
-            PGEN  => '0'
+            PGEN  => pgen_mem(6)  -- DP-S3 3b: BLOCKPWR SYSSHB3OFF
         );
 
     -- M3b: harts 1-3 as PRIVATE-MEMORY tiles (hdl/common/hart_tile.vhd). Each

@@ -117,7 +117,7 @@ architecture behav of MCU is
             DCO1_BIAS          : out std_logic_vector(11 downto 0);
 
             --Memory Power 
-            PGEN_mem        : out std_logic_vector(2 downto 0) -- '0' mem on, '1' mem off
+            PGEN_mem        : out std_logic_vector(6 downto 0) -- '0' mem on, '1' mem off (DP-S3 3b: 6:3 = shbank0-3)
         );
     end component;
 

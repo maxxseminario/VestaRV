@@ -75,7 +75,7 @@ architecture sim of SYSTEM_tb is
     -- DCO / power outputs
     signal en_dco0_out, en_dco1_out : std_logic;
     signal DCO0_BIAS, DCO1_BIAS     : std_logic_vector(11 downto 0);
-    signal PGEN_mem                 : std_logic_vector(2 downto 0);
+    signal PGEN_mem                 : std_logic_vector(6 downto 0);  -- DP-S3 3b: 6:3 = shbank0-3
 
     -- edge counters for clock-output activity checks
     signal cnt_mclk  : natural := 0;

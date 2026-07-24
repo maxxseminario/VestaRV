@@ -822,6 +822,14 @@ class McuVhdEmitter():
 		# AF-plane emitter exactly like I3C0's SDA/SCL on GPIO4 P5.6/7. Default false =>
 		# every OneWire region is inert (byte-identical default; P6.6 stays spare GPIO).
 		self.onewire = geo.get('onewire', False)
+		# DP-S3 (field-powered NFC mode): True wires pwr0's supervision inputs
+		# (pgood_pad => prt6_in(7), strap_pad => prt6_in(6), field_detect =>
+		# nfc0_field_detect-or-'0'); False ties all three inert ('1'/'0'/'0').
+		# The pgood_rstn/hart0_rstn decls and the reset folds are emitted
+		# UNCONDITIONALLY (a tied gate is stuck released — provable no-op);
+		# only the pwr0 port-map ties vary. Conflict with onewire (both claim
+		# P6.6) is raised in generate.py before geometry is built.
+		self.fieldpower = geo.get('fieldPower', True)
 		# digperiphs #6: DMA0 in MUTEX-page (page 2) sub-slot 8 @0x6800. Same
 		# native-slave shape as RTC0/PWM0/OW0 (outside the page-0 shim fabric;
 		# hand-decoded SEL + a PLAIN raw-strobe en shim, NO falling_edge(EnMemPeriph)
@@ -2555,7 +2563,12 @@ class McuVhdEmitter():
 
 	def emitPdDecls(self):
 		rng = 'std_logic_vector(' + str(self.nHarts() - 1) + ' downto 1);'
-		return [self.sigDecl(nm, rng) for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn', 'tile_rstn')]
+		lines = [self.sigDecl(nm, rng) for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn', 'tile_rstn')]
+		# DP-S3: the HOLD-IN-RESET boot gate (pwr0 output, reset '1' = release)
+		# and hart 0's folded reset (hart 0 never had a fold before the gate).
+		lines.append(self.sigDecl('pgood_rstn', "std_logic := '1';"))
+		lines.append(self.sigDecl('hart0_rstn', 'std_logic;'))
+		return lines
 
 	def emitTileRawDecls(self):
 		n = self.nHarts()
@@ -2627,7 +2640,10 @@ class McuVhdEmitter():
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
-		lines.append('            resetn    => resetn,')
+		lines.append('            -- DP-S3: the PGOOD boot gate folds into hart 0 too (hart0_rstn')
+		lines.append('            -- = resetn and pgood_rstn; stuck at resetn when the gate is')
+		lines.append('            -- unarmed/tied ' + EMDASH + ' see the tile_rstn fold)')
+		lines.append('            resetn    => hart0_rstn,')
 		lines.append('            sleep     => sleep_cpu,')
 		lines.append('            hart_id   => x"00000000",')
 		lines.append('            msip_in   => clint_msip(0),')
@@ -3229,8 +3245,12 @@ class McuVhdEmitter():
 			lines.append(ind + '-- stays ' + EMDASH + " SYSTEM0's BLOCKPWR gates rom0 (0) and hart 0's TCM via the")
 			lines.append(ind + "-- tile's tcm_pgen port (1); bit 2 (ex-npuram0) has no consumer")
 			lines.append(ind + '-- in this configuration ' + EMDASH + ' the NPU and its staging RAM are dropped.)')
+		lines.append(ind + '-- DP-S3 3b: bits 6:3 gate the shared bulk-RAM banks shbank0-3')
+		lines.append(ind + '-- (per-bank, reset ON; contents LOST on gate ' + EMDASH + ' see SYSTEM.vhd).')
+		if self.banks > 4:
+			lines.append(ind + '-- Banks 4-' + str(self.banks - 1) + " of this configuration stay hardwired ON (PGEN => '0').")
 		lines.append(ind + 'signal ' + 'RAM_Dout'.ljust(17) + ': std_logic_vector(31 downto 0);')
-		lines.append(ind + 'signal ' + 'pgen_mem'.ljust(17) + ': std_logic_vector(2 downto 0);')
+		lines.append(ind + 'signal ' + 'pgen_mem'.ljust(17) + ': std_logic_vector(6 downto 0);')
 		return lines
 
 	def emitShslvBanner(self):
@@ -3294,7 +3314,13 @@ class McuVhdEmitter():
 			lines.append(ind * 3 + 'EMA   => "000",')
 			lines.append(ind * 3 + 'GWEN  => shmem_gwen_n,')
 			lines.append(ind * 3 + "RETN  => '1',")
-			lines.append(ind * 3 + "PGEN  => '0'")
+			if b < 4:
+				# DP-S3 3b: BLOCKPWR bits 6:3 gate shbank0-3 (reset ON;
+				# contents lost on gate). Banks 4+ (Argus 8-bank shape)
+				# stay hardwired ON — BLOCKPWR has no bits for them.
+				lines.append(ind * 3 + 'PGEN  => pgen_mem(' + str(3 + b) + ')  -- DP-S3 3b: BLOCKPWR SYSSHB' + str(b) + 'OFF')
+			else:
+				lines.append(ind * 3 + "PGEN  => '0'")
 			lines.append(ind * 2 + ');')
 		return lines
 
@@ -3335,18 +3361,37 @@ class McuVhdEmitter():
 		array formula ceil(N/8) (RAISES on drift, like the CLINT layout).'''
 		n = self.nHarts()
 		nsrw = (n + 7) // 8
-		maxSlot = 0
-		for r in self.periph('PWRCTRL').Registers:
-			if r.RegisterMemorySlot > maxSlot:
-				maxSlot = r.RegisterMemorySlot
-		if maxSlot != nsrw:
+		# DP-S3: the register set is PWRCR(0) + PWRSR words 1..ceil(N/8) +
+		# PWRWAKE(5)/PWRSTS(6) at FIXED slots — PWRSR must stay below 5 and
+		# the description's top slot must be PWRSTS. Cross-checked like the
+		# CLINT layout (RAISES on drift).
+		if nsrw >= 5:
+			raise Exception('MCU.vhd emitter: PWRSR nibble array (ceil(N/8) words) collides '
+				+ 'with the DP-S3 PWRWAKE/PWRSTS words 5/6 ' + EMDASH + ' N > 32 unsupported')
+		slots = sorted(r.RegisterMemorySlot for r in self.periph('PWRCTRL').Registers)
+		expected = [0] + list(range(1, nsrw + 1)) + [5, 6]
+		if slots != expected:
 			raise Exception('MCU.vhd emitter: PWRCTRL register layout does not match the A2 '
-				+ 'PWRSR nibble-array formula (PWRCR + ceil(N/8) PWRSR words) '
+				+ 'PWRSR nibble-array formula + DP-S3 PWRWAKE/PWRSTS (expected slots '
+				+ str(expected) + ', got ' + str(slots) + ') '
 				+ EMDASH + ' generate.py and pwr_ctrl.vhd must agree')
 		gm = 'generic map ('
 		if n != 4:
 			gm += 'NHARTS => ' + str(n) + ', '
 		gm += 'T_SEQ => 4, T_RAIL => 256)'
+		if self.fieldpower:
+			ties = ('prt6_in(7)', 'prt6_in(6)',
+				'nfc0_field_detect' if self.nfc else "'0'")
+			tieNote = ('            -- DP-S3 supervision inputs: PGOOD P6.7 + harvested-boot strap'
+				, '            -- P6.6 as DIRECT pad taps (always readable ' + EMDASH + ' the gate must work'
+				, '            -- before any software runs); field level '
+				+ ('from NFC0' if self.nfc else "tied '0' (no NFC)") + '. 2-FF'
+				, '            -- synchronized inside pwr_ctrl.')
+		else:
+			ties = ("'1'", "'0'", "'0'")
+			tieNote = ('            -- DP-S3 supervision inputs TIED INERT (peripherals.fieldPower'
+				, '            -- off): pgood good / strap NORMAL / no field ' + EMDASH + ' pgood_rstn is'
+				, "            -- stuck '1' and the boot gate is a provable no-op.")
 		lines = []
 		lines.append('    pwr0: entity work.pwr_ctrl')
 		lines.append(' ' * 8 + gm)
@@ -3360,13 +3405,28 @@ class McuVhdEmitter():
 		lines.append('            rdata     => pwr_rdata,')
 		lines.append('            pd_iso_en => pd_iso_en,')
 		lines.append('            pd_sleep  => pd_sleep,')
-		lines.append('            pd_rstn   => pd_rstn')
+		lines.append('            pd_rstn   => pd_rstn,')
+		for ln in tieNote:
+			lines.append(ln)
+		lines.append('            pgood_pad    => ' + ties[0] + ',')
+		lines.append('            strap_pad    => ' + ties[1] + ',')
+		lines.append('            field_detect => ' + ties[2] + ',')
+		lines.append('            pgood_rstn   => pgood_rstn')
 		lines.append('        );')
 		return lines
 
 	def emitTileRstn(self):
-		return ['    tile_rstn(' + str(h) + ') <= resetn and pd_rstn(' + str(h) + ');'
+		# DP-S3: pgood_rstn (the HOLD-IN-RESET boot gate) folds into EVERY
+		# hart's outer reset — the tiles extend the M17 pd_rstn fold and hart 0
+		# gains the fold it never had. A held hart issues no sh_req (the M12
+		# outer-reset qualification), so the arbiter sees the same bus silence
+		# pd_rstn already guarantees. pgood_rstn resets '1' and is stuck there
+		# unless a strap/software arms the gate — every normal boot unperturbed.
+		lines = ['    tile_rstn(' + str(h) + ') <= resetn and pd_rstn(' + str(h) + ') and pgood_rstn;'
 			for h in range(1, self.nHarts())]
+		lines.append('    -- DP-S3: hart 0 has no pd_rstn row (always-on domain) ' + EMDASH + ' only the boot gate')
+		lines.append('    hart0_rstn <= resetn and pgood_rstn;')
+		return lines
 
 	def emitIsoClamps(self):
 		n = self.nHarts()
