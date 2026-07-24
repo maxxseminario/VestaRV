@@ -62,6 +62,7 @@ INNOVUS_DESIGNS = {
     "MCU_MP":        ("Castalia", "MCU assembly — full-power report"),
     "MCU_DP":        ("Castalia", "MCU_DP assembly (CastaliaDP respin) — full-power report"),
     "chip_top":      ("Castalia", "chip_top (C0 connected chip)"),
+    "chip_top_dp":   ("Castalia", "chip_top_dp (CastaliaDP G2 chip, LQFP-100)"),
     "chip_top_quad": ("Castalia", "chip_top_quad (CQ 4-corner chip)"),
     "MCU_ARGUS":     ("Argus", "MCU_ARGUS assembly"),
     "hart_tile_argus": ("Argus", "hart_tile_argus (hardened tile)"),
