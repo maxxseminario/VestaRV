@@ -57,6 +57,25 @@
 #define BOOT_MB_BASE        0x10500     // loader mailbox rows (h=1..N-1 used)
 #define MB_ZERO_BASE        0x10000     // zeroed region start
 #define MB_ZERO_END         0x10800     // zeroed region end (exclusive)
+
+// DP-S3 harvested boot (stage 4): PWRCTRL sampled the P6.6 strap at reset
+// release; PWRSTS @+0x18 reports it. NFC0 (wound config) sits in the mutex
+// page at 0x6200; GPIO5 (port 6) at 0x6400. On a config WITHOUT NFC the
+// 0x6200 window aliases the MUTEX BANK: writes there are ignored/harmless,
+// but a READ would CLAIM a mutex — the harvested path must NEVER read an
+// NFC register.
+#define PWRCTRL_BASE        0x4B00
+#define PWR_STS             0x18        // PWRSTS word offset
+#define PWR_STS_STRAP       0x04        // bit 2: 1 = harvested boot
+#define PWR_STS_STRAPVLD    0x08        // bit 3: sample complete
+#define GPIO5_BASE          0x6400
+#define GPIO_PxAFS          0x2C        // AF-plane select (3-bit fields)
+#define NFC0_BASE           0x6200
+#define NFC_CR              0x00        // NFCEN(0) LISTEN(1); AUTOREAD(12) resets 1
+#define NFC_UID             0x08
+#define NFC_CFG             0x0C        // [15:0] ATQA, [23:16] SAK
+#define NFC_IDX             0x18        // [5:0] IDX, [6] AINC, [8] SEL
+#define NFC_DATA            0x1C        // payload byte window (lane 0)
 #define IVT_MSIP_SLOT       (IVT_BASE_ADDR + 4*83)  // IVT slot 83 (CLINT msip) = 0x814C
 #define RET_INSN            0x00008067  // 'jalr x0,0(ra)' — parked tile's IVT slot 83
 #define TILE_SP_INIT        0xBFFC      // tile sp: top word of its own TCM
@@ -99,6 +118,19 @@ zero_mailboxes:
     sw zero, 0(a2)
     addi a2, a2, 4
     bltu a2, a3, zero_mailboxes
+
+    // DP-S3 harvested-boot strap: branch BEFORE any SPI/flash work. The
+    // one-shot sample landed a few mclk after reset release (long before
+    // this code), but poll STRAP_VALID anyway — cheap and robust. On a
+    // normal board the strap pull-down reads 0 and this falls straight
+    // through to the SPI boot with a4/a5 dead.
+    li a3, PWRCTRL_BASE
+harv_strap_poll:
+    lw a4, PWR_STS(a3)
+    andi a5, a4, PWR_STS_STRAPVLD
+    beqz a5, harv_strap_poll
+    andi a5, a4, PWR_STS_STRAP
+    bnez a5, harvested_boot
 
     // Set Periphearl Base Addresses
     li a0, PERIPH_SPI0_BASE
@@ -477,6 +509,89 @@ tile_isr_go:
                                 // the stack word too)
     IGNITE                      // cancel the sleep re-entry (M5b: ignite-before-iret)
     IRET                        // pops ENTRY -> the tile enters the program
+
+
+// =============================================================================
+// DP-S3 harvested boot (hart 0, strap-selected): the chip runs on harvested
+// field power — NO SPI flash (the single most power-hungry cold-start step),
+// no download. Provision the NFC tag identity + payload from ROM, arm LISTEN
+// (AUTOREAD hardware then serves Type-2 READs with zero firmware in the
+// loop), gate the tile rails, slow mclk, and sleep. The PGOOD boot gate
+// (PWRCTRL hold-in-reset) already guaranteed the supercap can carry us.
+// CLOCK STORY (kickoff landmine): the SPI path's SMCLK->LFXT switch is
+// skipped, so choose EXPLICITLY — both MCLK and SMCLK stay on HFXT
+// (= the SYS_CLK_CR reset value, written anyway to make the choice robust),
+// then mclk divides /8 at the END (the parked loop needs no speed; dynamic
+// power scales with the divide, the go/no-go verdict's service-loop point).
+// Mailboxes were already zeroed above (write-before-read contract holds).
+// =============================================================================
+harvested_boot:
+    li   a0, PERIPH_SYSTEM0_BASE
+    sw   zero, SYS_CLK_CR(a0)      // EXPLICIT: MCLK=HFXT, SMCLK=HFXT
+
+    // Gate every tile hart's switched rail: they are ROM-parked in WFI
+    // (= quiesced, the sanctioned gating state). PWRCR masks the write to
+    // bits NHARTS-1:1 and bit 0 is RO, so all-ones gates all tiles at ANY
+    // hart count (this ROM is shared by every config, incl. N=18 Argus).
+    li   a1, PWRCTRL_BASE
+    li   a2, -1                    // 0xFFFFFFFF
+    sw   a2, 0(a1)                 // PWRCR: gate harts 1..N-1
+
+    // GPIO5 (port 6) AF plane for the six off-die NFC AFE wires P6.0-P6.5:
+    // PxSEL=1 selects the AF planes for the outputs, PxAFS field=AF1 routes
+    // both directions (input muxes key on AFS alone). P6.6/P6.7 (strap /
+    // PGOOD) stay plain inputs. Benign when NFC is absent (planes are '0').
+    li   a1, GPIO5_BASE
+    li   a2, 0x3F
+    sw   a2, GPIO_PxSEL(a1)
+    li   a2, 0x9249                // pins 0-5 3-bit AFS fields = "001" (AF1)
+    sw   a2, GPIO_PxAFS(a1)
+
+    // NFC0 tag provisioning (WRITES ONLY — see the alias warning at the
+    // #defines). UID/ATQA/SAK are the ROM defaults a fielded app replaces
+    // by relaunching with real firmware; the payload is an honest 3-byte
+    // status record: 'H','V' + the PWRSTS snapshot from the strap poll
+    // (still live in a4: pgood/field/strap bits — the "sensor read" of the
+    // base chip).
+    li   a1, NFC0_BASE
+    li   a2, 0xC0FFEE01            // 4-byte UID (ROM default identity)
+    sw   a2, NFC_UID(a1)
+    li   a2, 0x00000044            // ATQA=0x0044, SAK=0x00 (Type-2 profile)
+    sw   a2, NFC_CFG(a1)
+    li   a2, 0x40                  // IDXSEL=0 (payload), AINC=1, IDX=0
+    sw   a2, NFC_IDX(a1)
+    li   a2, 0x48                  // 'H'
+    sw   a2, NFC_DATA(a1)
+    li   a2, 0x56                  // 'V'
+    sw   a2, NFC_DATA(a1)
+    sw   a4, NFC_DATA(a1)          // PWRSTS low byte (lane 0 only is consumed)
+    // Arm LISTEN with a BYTE store to CR lane 0 (NFCEN|LISTEN): a full-word
+    // store's lane-1 zeros would CLEAR the AUTOREAD reset default (bit 12).
+    li   a2, 0x03
+    sb   a2, NFC_CR(a1)
+
+    // Arm IVT slot 83 (our own TCM) with 'ret' + ra -> the stray-msip ISR
+    // below, so an unexpected msip is harmless: clear the level, iret with
+    // NO ignite — the hart returns to its sleep (M5b: iret without ignite
+    // resumes the sleeping state). sp has been valid since spi_flash_boot.
+    li   a2, RET_INSN
+    li   a3, IVT_MSIP_SLOT
+    sw   a2, 0(a3)
+    la   ra, harv_stray_isr
+
+    // Slow the service clock LAST (the management hart may reconfigure:
+    // tiles are gated, no other master in flight): mclk /8, smclk undivided.
+    li   a2, 0x03
+    sw   a2, SYS_CLK_DIV_CR(a0)
+
+harv_park:
+    EXTINGUISH                     // sleep; AUTOREAD serves readers in HW
+    j harv_park                    // paranoia: re-park if ever resumed
+
+harv_stray_isr:
+    li   t0, CLINT_MSIP_BASE
+    sw   zero, 0(t0)               // clear msip[0] (or the IRQ re-fires)
+    IRET                           // no IGNITE: return to the sleep state
 
 
 # VestaRV Documentation
