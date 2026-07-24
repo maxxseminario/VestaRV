@@ -3701,6 +3701,21 @@ _padTclLines = [
 	'# Instance names are placeholders (PAD_<pad>); Flavor B binds cells and nets.',
 	'',
 ]
+# Uniquify repeated instance placeholders (G2 2026-07-23: multi-pair supply
+# models emit PAD_VDD three times etc. — an illegal duplicate instance name the
+# consuming netlist/padlists then have to hand-fix). Bases that occur ONCE keep
+# their bare name (PAD_RESETN, PAD_P3_0, ... — QFN models unchanged); repeats
+# get _0/_1/... in EMISSION order (W desc, S asc, E asc, N desc — the same
+# order the chip_top_dp staging used, so the names line up).
+_instTotals = {}
+for _sd, _sideName, _desc in _sideGeom:
+	for _p in sorted([_q for _q in m.Package.Pins if _q.Side == _sd],
+			key=lambda _q: _q.PackagePinNumber, reverse=_desc):
+		if _p.NoConnect:
+			continue
+		_b = _padInstName(_p.Name)
+		_instTotals[_b] = _instTotals.get(_b, 0) + 1
+_instSeen = {}
 for _sd, _sideName, _desc in _sideGeom:
 	_sidePins = sorted([_p for _p in m.Package.Pins if _p.Side == _sd],
 		key=lambda _p: _p.PackagePinNumber, reverse=_desc)
@@ -3711,8 +3726,14 @@ for _sd, _sideName, _desc in _sideGeom:
 			continue
 		_nm = _p.FullName
 		_dom = _p.PowerDomain.Name
+		_b = _padInstName(_p.Name)
+		if _instTotals[_b] > 1:
+			_inst = _b + '_' + str(_instSeen.get(_b, 0))
+			_instSeen[_b] = _instSeen.get(_b, 0) + 1
+		else:
+			_inst = _b
 		_padTclLines.append('lappend PADRING_' + _sideName.upper() + ' '
-			+ _padInstName(_p.Name).ljust(16)
+			+ _inst.ljust(16)
 			+ ';# pin ' + str(_p.PackagePinNumber).rjust(2) + ': ' + _nm + '  [' + _dom + ']')
 	_padTclLines.append('')
 _pnrDir = chipRootDirectory + '/out/pnr'

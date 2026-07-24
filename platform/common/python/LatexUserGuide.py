@@ -154,6 +154,7 @@ class LatexUserGuide():
 			'RamEndWordAddress': fmthex(self.Gen.RamEndAddress - 3),
 			'RamNumPages': str(self.Gen.RamSize // 256),
 			'PackageSize': str(self.Gen.Package.Dimensions[0]),
+			'PackageTypeName': self.Gen.Package.PackageType,
 			'PackagePinCount': str(self.Gen.Package.PinCount),
 			'PackagePinPitch': str(self.Gen.Package.PinPitch),
 			'PackagePinWidth': str(self.Gen.Package.PinWidth),

@@ -95,7 +95,7 @@ This document, the memory-map headers, the linker scripts, and the drop-in RTL a
 % Config-driven (G4): package.preliminary=false suppresses this banner once a
 % chip's package is finalized (its own model in generate.py's _PACKAGE_MODELS).
 \ifpackagepreliminary
-\textbf{Preliminary:} the package and pinout in this section are inherited from the single-core Myshkin MCU and have not yet been finalized for \AsicNameForUserGuide. Pin assignments, package type, and pin count are subject to change.
+\textbf{Preliminary:} the package model for this configuration ({\PackageTypeName}-{\PackagePinCount}) has not been finalized for \AsicNameForUserGuide{} — the bonding shown here is the planned assignment, not a confirmed bond-out. Pin assignments, package type, and pin count are subject to change.
 \fi
 
 % Generated, fully-labeled pinout diagram — derived from the package model in
@@ -103,11 +103,11 @@ This document, the memory-map headers, the linker scripts, and the drop-in RTL a
 \begin{figure}[h]
 	\centering
 	\resizebox{0.98\linewidth}{!}{\input{include/PackagePinoutDiagram.tex}}
-	\caption{QFN-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch). Each pin is labeled with its pad name and, for GPIO pins, its AF0 (reset-selected) alternate function; power-rail pins are shaded and bold. The full per-pin alternate-function matrix is in Table \ref{t:gpio-afs}.}
+	\caption{{\PackageTypeName}-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch). Each pin is labeled with its pad name and, for GPIO pins, its AF0 (reset-selected) alternate function; power-rail pins are shaded and bold. The full per-pin alternate-function matrix is in Table \ref{t:gpio-afs}.}
 	\label{fig:package}
 \end{figure}
 
-The chip package is a QFN-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint (as seen from the top down) is shown in Figure \ref{fig:package}. The pins on the package are listed in Table \ref{t:package-pins}. The pin ordering, side assignment, and power domains in both the figure and the table are derived from the generator's package model and are also exported machine-readably to \texttt{config/PadRing.json} at every \texttt{make chip} build.
+The chip package is a {\PackageTypeName}-{\PackagePinCount} with dimensions $\PackageSize \times \PackageSize$ {\PackageUnits} and pitch {\PackagePinPitch} {\PackageUnits}. The package footprint (as seen from the top down) is shown in Figure \ref{fig:package}. The pins on the package are listed in Table \ref{t:package-pins}. The pin ordering, side assignment, and power domains in both the figure and the table are derived from the generator's package model and are also exported machine-readably to \texttt{config/PadRing.json} at every \texttt{make chip} build.
 
 \input{include/PackagePinsConfigurationTable.tex}
 
