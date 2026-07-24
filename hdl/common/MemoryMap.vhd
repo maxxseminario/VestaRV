@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/22 at 12:19:40 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/24 at 01:25:41 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -139,10 +139,14 @@ package MemoryMap is
 	constant RegSlotNPUWVSAR		: natural := 02;	-- offset = 8 bytes
 	constant RegSlotNPUOVSAR		: natural := 03;	-- offset = 12 bytes
 	constant RegSlotNPUSR			: natural := 04;	-- offset = 16 bytes
+	constant RegSlotNPUCFG1			: natural := 05;	-- offset = 20 bytes
+	constant RegSlotNPUCFG2			: natural := 06;	-- offset = 24 bytes
 
 	-- PWRCTRL
 	constant RegSlotPWRCR			: natural := 00;	-- offset = 0 bytes
 	constant RegSlotPWRSR			: natural := 01;	-- offset = 4 bytes
+	constant RegSlotPWRWAKE			: natural := 05;	-- offset = 20 bytes
+	constant RegSlotPWRSTS			: natural := 06;	-- offset = 24 bytes
 
 	-- I2Cx
 	constant RegSlotI2CxCR			: natural := 00;	-- offset = 0 bytes
@@ -305,7 +309,7 @@ package MemoryMap is
 	constant RstValP6OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
 	constant RstValP6DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
 	constant RstValP6SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
-	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.6 (OneWire DQ) pull-up enabled when OneWire present, else none
+	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"000000C0";	-- P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull-DOWN: PxOUT resets 0 -- unconnected reads NORMAL boot + power-not-good)
 	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
 
 
@@ -561,6 +565,10 @@ package MemoryMap is
 	constant SYSMCLKDIV_LSB			: natural := 00;
 
 	-- BLOCKPWR
+	constant SYSSHB3OFF_LSB			: natural := 06;
+	constant SYSSHB2OFF_LSB			: natural := 05;
+	constant SYSSHB1OFF_LSB			: natural := 04;
+	constant SYSSHB0OFF_LSB			: natural := 03;
 	constant SYSRAM1OFF_LSB			: natural := 02;
 	constant SYSRAM0OFF_LSB			: natural := 01;
 	constant SYSROMOFF_LSB			: natural := 00;
@@ -603,6 +611,10 @@ package MemoryMap is
 
 	------ NPU
 	-- NPUCR
+	constant NPUACTF_MSB			: natural := 25;
+	constant NPUACTF_LSB			: natural := 23;
+	constant NPUMODE_MSB			: natural := 22;
+	constant NPUMODE_LSB			: natural := 20;
 	constant NPUTDIE_LSB			: natural := 19;
 	constant NPUBEN_LSB				: natural := 18;
 	constant NPUAEN_LSB				: natural := 17;
@@ -627,6 +639,14 @@ package MemoryMap is
 	-- NPUSR
 	constant NPUTHINKDONE_LSB		: natural := 00;
 
+	-- NPUCFG1
+	constant NPUCFG1_MSB			: natural := 31;
+	constant NPUCFG1_LSB			: natural := 00;
+
+	-- NPUCFG2
+	constant NPUCFG2_MSB			: natural := 15;
+	constant NPUCFG2_LSB			: natural := 00;
+
 
 	------ PWRCTRL
 	-- PWRCR
@@ -643,6 +663,21 @@ package MemoryMap is
 	constant PWRST1_LSB				: natural := 04;
 	constant PWRST0_MSB				: natural := 03;
 	constant PWRST0_LSB				: natural := 00;
+
+	-- PWRWAKE
+	constant PWREHOLD_LSB			: natural := 04;
+	constant PWSWRLS_LSB			: natural := 03;
+	constant PWRLSFIELD_LSB			: natural := 02;
+	constant PWRLSPGOOD_LSB			: natural := 01;
+	constant PWGATEEN_LSB			: natural := 00;
+
+	-- PWRSTS
+	constant PWRRLSLATCH_LSB		: natural := 05;
+	constant PWBOOTHOLD_LSB			: natural := 04;
+	constant PWSTRAPVLD_LSB			: natural := 03;
+	constant PWSTRAP_LSB			: natural := 02;
+	constant PWFIELDLIV_LSB			: natural := 01;
+	constant PWPGOODLIV_LSB			: natural := 00;
 
 
 	------ I2Cx

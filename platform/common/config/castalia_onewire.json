@@ -1,5 +1,5 @@
 {
   "_comment": "digperiphs #5 proof configuration: the Castalia defaults with the OW0 Dallas/Maxim 1-Wire master instantiated in the MUTEX page sub-slot 7 (peripherals.onewire=true, @0x6700). OW0 has ONE pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1 (the exact I3C0 SDA/SCL P5.6/7 AF1 pad mechanism; unbonded on the QFN-44, reachable on the QFN-64 / respin package). The engine rides the free-running MCLK (no LFXT, no generated clocks, no clock on the DQ pad -- DQ is 2-FF synchronized). Enabling it extends the IRQ source list per the A5 GLOBAL VECTOR RULE from 114 to 118: vectors 114/115/116 backfill as IRQB_RSVD114/115/116 (RTC and PWM off), 117 = OW0 (single combined transaction-complete/error source); NUM_EN_WORDS stays 4 (118 <= 128). MmrAddrOW0 + RegSlotOW0* appear in MemoryMap.vhd only when the knob is on. Everything else is default. Prove with: make verify CONFIG=config/castalia_onewire.json",
   "chipName": "CastaliaOneWire",
-  "peripherals": { "onewire": true }
+  "peripherals": { "onewire": true, "fieldPower": false }
 }

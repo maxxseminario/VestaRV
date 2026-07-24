@@ -59,9 +59,15 @@ entity SYSTEM is
         en_dco1_out        : out std_logic;
         DCO1_BIAS           : out std_logic_vector(11 downto 0);
 
-        --Memory Power 
+        --Memory Power
         -- PGEN_rom        : out std_logic; -- '0' rom on, '1' rom off
-        PGEN_mem        : out std_logic_vector(2 downto 0) -- '0' ram on, '1' ram off
+        -- DP-S3 3b: widened 3 -> 7 bits. 0 = ROM, 1 = hart0 TCM (RAM0),
+        -- 2 = npuram (RAM1), 6:3 = shared bulk-RAM banks shbank0-3 (per-bank;
+        -- banks 4+ of a wider config stay hardwired ON at the MCU level).
+        -- CONTENTS ARE LOST when a bank is gated (no retention) -- the M12
+        -- bootrom zero-fill is write-before-read anyway, but running software
+        -- must keep its stack/payload bank ON.
+        PGEN_mem        : out std_logic_vector(6 downto 0) -- '0' mem on, '1' mem off
 
     );
 end SYSTEM;
@@ -71,7 +77,7 @@ architecture rtl of SYSTEM is
     -- Registers 
     signal SYS_CLK_CR         : std_logic_vector(8 downto 0);
     signal SYS_CLK_DIV_CR     : std_logic_vector(5 downto 0);
-    signal SYS_BLOCK_PWR      : std_logic_vector(2 downto 0);
+    signal SYS_BLOCK_PWR      : std_logic_vector(6 downto 0);  -- DP-S3 3b: 6:3 = shbank0-3 off
     signal SYS_CRC_DATA       : std_logic_vector(7 downto 0);
     signal SYS_CRC_STATE      : std_logic_vector(15 downto 0);
     -- M19: SYS_IRQ_EN / SYS_IRQ_PRI / SYS_IRQ_CR are RETIRED (irq_router
@@ -99,6 +105,7 @@ architecture rtl of SYSTEM is
     --SYS_BLOCK_PWR
     signal rom_off            : std_logic;
     signal ram_off            : std_logic_vector(1 downto 0);
+    signal shb_off            : std_logic_vector(3 downto 0);  -- DP-S3 3b: shbank0-3 off
 
     --SYS_WDT_CR
     signal wdt_en             : std_logic;
@@ -183,6 +190,7 @@ begin
 
     ram_off       <= SYS_BLOCK_PWR(2 downto 1);
     rom_off       <= SYS_BLOCK_PWR(0);
+    shb_off       <= SYS_BLOCK_PWR(6 downto 3);  -- DP-S3 3b
 
     wdt_en        <= SYS_WDT_CR(7);
     wdt_cdiv      <= SYS_WDT_CR(5 downto 2);
@@ -558,7 +566,7 @@ begin
 
     --Additional signal routing 
     -- PGEN_rom <= rom_off;
-    PGEN_mem <= ram_off & rom_off;
+    PGEN_mem <= shb_off & ram_off & rom_off;  -- DP-S3 3b: 6:3 = shbank0-3
 
     -- IRQ Signals
     -- M19: the WDT level source goes LIVE (pre-M19 this was hardwired '0'

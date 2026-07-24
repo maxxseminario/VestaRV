@@ -137,6 +137,8 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.onewire':  ('bool — True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7. One pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1 (unbonded on the QFN-44, reachable on the QFN-64 / respin package). Free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118: vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false',
 	                         _isBool),
+	'peripherals.fieldPower': ('bool — True wires the DP-S3 field-powered-mode supervision inputs into PWRCTRL: P6.7/GPIO47 = PGOOD supply-supervisor input, P6.6/GPIO46 = harvested-boot strap. Both are plain-GPIO DIRECT TAPS of the pad-input plane (always readable, independent of PxSEL/PxAFS — PGOOD must gate boot before any software can program a mux), with reset attrs rstDIR=input, rstREN=1, pull-DOWN: unconnected reads power-not-good + NORMAL(SPI) boot. Also taps NFC0\'s field_detect level as an optional PWRCTRL wake/release source (tied 0 when NFC is absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL unconditionally; this knob only controls the pad-side ties, so False leaves the feature a provable NO-OP (gate stuck released). CONFLICTS with peripherals.onewire — OW0\'s DQ owns P6.6. Default true (the Castalia golden master and castalia_dp carry the live wiring)',
+	                         _isBool),
 	'peripherals.dma':      ('bool — True instantiates the DMA0 configurable multi-channel single-shot DMA controller (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800: page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the DMA is master index numHarts, the last slice) — mp_arbiter N=>5/MW=>3, resv_unit N=>5, mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (119 <= 128). Default false',
 	                         _isBool),
 	'peripherals.dmaChannels': ('int — DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4',
@@ -214,6 +216,7 @@ _CONFIG_META = {
 	'peripherals.rtc':      {'type': 'bool', 'default': False},
 	'peripherals.pwm':      {'type': 'bool', 'default': False},
 	'peripherals.onewire':  {'type': 'bool', 'default': False},
+	'peripherals.fieldPower': {'type': 'bool', 'default': True},
 	'peripherals.dma':      {'type': 'bool', 'default': False},
 	'peripherals.dmaChannels': {'type': 'int', 'default': 4, 'min': 2, 'max': 4, 'step': 2},
 	'peripherals.i2ctarget': {'type': 'bool', 'default': False},
@@ -437,6 +440,19 @@ pwmPresent = _cfg('peripherals.pwm', False)
 # 4 (ceil(118/32) = 4, 118 <= 128). Default FALSE — the default emission (no page-2
 # sub-slot 7, no MmrAddrOW0, P6.6/GPIO46 stays plain spare GPIO) is byte-identical.
 onewirePresent = _cfg('peripherals.onewire', False)
+
+# DP-S3 (field-powered NFC mode, 2026-07-24): PWRCTRL supervision-input wiring.
+# PGOOD on P6.7/GPIO47, harvested-boot strap on P6.6/GPIO46 — plain-GPIO direct
+# taps (NOT AF1 planes: they must be readable before any software runs), pull
+# defaults chosen so an unfitted board reads power-good-not-asserted + NORMAL
+# boot. The pwr_ctrl.vhd RTL (PWRWAKE/PWRSTS words 5/6, pgood_rstn boot gate)
+# is unconditional; this knob only decides the pad-side ties in the generated
+# pwr0 port map. P6.6 is double-claimed by OW0's DQ — hard conflict below.
+fieldPowerPresent = _cfg('peripherals.fieldPower', True)
+if fieldPowerPresent and onewirePresent:
+	raise Exception('Chip-config conflict: peripherals.fieldPower and peripherals.onewire '
+		'both claim P6.6/GPIO46 (harvested-boot strap vs OW0 DQ) — set fieldPower=false '
+		'to enable onewire (or re-pin one of them first).')
 
 # digperiphs #6 (DMA, 2026-07-21): the DMA0 configurable multi-channel single-shot
 # DMA controller (peripheral-paced or software-GO mem-to-mem transfers off the shared
@@ -904,10 +920,12 @@ r.AddBitField(BitField(name='SYSSMCLKDIV', msb=5, lsb=3, accessibility='rw', des
 r.AddBitField(BitField(name='SYSMCLKDIV', msb=2, lsb=0, accessibility='rw', description='MCLK clock division selection. Division is applied after clock source selection through glitch-free divider multiplexer.', valueDescriptions=[(0b000, '/1 (no division)', '_1'), (0b001, '/2', '_2'), (0b010, '/4', '_4'), (0b011, '/8', '_8'), (0b100, '/16', '_16'), (0b101, '/32', '_32'), (0b110, '/64', '_64'), (0b111, '/128', '_128')]))
 
 # BLOCKPWR
-r = RegisterTemplate(nameTemplate='BLOCKPWR', registerMemorySlot=2, description='Block power control register. Controls power gating for on-chip memory blocks.', size=8)
+r = RegisterTemplate(nameTemplate='BLOCKPWR', registerMemorySlot=2, description='Block power control register. Controls power gating for on-chip memory blocks. All bits reset to 0 (every block powered). DP-S3: bits 6:3 gate the four low shared bulk-RAM banks individually; a gated bank LOSES ITS CONTENTS (no retention) and stops responding — software must keep the bank holding its stack, mailboxes, or live payload powered, and must treat a re-powered bank as uninitialized (the boot-ROM zero-fill contract is write-before-read anyway). In configurations with more than four banks, banks 4 and up are hardwired always-on.', size=8)
 p.AddRegisterTemplate(r)
 
-r.AddBitField(BitField(unused=True, msb=7, lsb=3))
+r.AddBitField(BitField(unused=True, msb=7, lsb=7))
+for _b in range(3, -1, -1):
+	r.AddBitField(BitField(name='SYSSHB' + str(_b) + 'OFF', msb=3 + _b, description='Shared bulk-RAM bank ' + str(_b) + ' (0x' + format(0x10000 + _b * 0x4000, 'X') + '-0x' + format(0x10000 + _b * 0x4000 + 0x3FFF, 'X') + ') power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).', accessibility='rw', valueDescriptions=[(0b0, 'Bank ' + str(_b) + ' powered on'), (0b1, 'Bank ' + str(_b) + ' powered off (contents lost)')]))
 r.AddBitField(BitField(name='SYSRAM1OFF', msb=2, description='RAM block 1 power control. When set, RAM block 1 is powered off. All data becomes undefined and the block no longer responds to memory access. Reduces static power consumption.', accessibility='rw', valueDescriptions=[(0b0, 'RAM block 1 powered on'), (0b1, 'RAM block 1 powered off')]))
 r.AddBitField(BitField(name='SYSRAM0OFF', msb=1, description='RAM block 0 power control. When set, RAM block 0 is powered off. All data becomes undefined and the block no longer responds to memory access. Reduces static power consumption.', accessibility='rw', valueDescriptions=[(0b0, 'RAM block 0 powered on'), (0b1, 'RAM block 0 powered off')]))
 r.AddBitField(BitField(name='SYSROMOFF', msb=0, description='ROM power control. When set, boot ROM is powered off. ROM no longer responds to read access. Reduces static power consumption.', accessibility='rw', valueDescriptions=[(0b0, 'ROM powered on'), (0b1, 'ROM powered off')]))
@@ -1654,6 +1672,31 @@ for _w in range(_pwrsrWords):
 			r.AddBitField(BitField(name='PWRST0', msb=3, lsb=0, accessibility='r', description='Hart 0 state: always 0 (ON, always-on domain).'))
 		else:
 			r.AddBitField(BitField(name='PWRST' + str(_h), msb=_lsb + 3, lsb=_lsb, accessibility='r', description='Tile hart ' + str(_h) + ' sequencer state.'))
+
+# DP-S3 (field-powered NFC mode, 2026-07-24): PWRWAKE/PWRSTS at FIXED word
+# offsets 5/6 — above the PWRSR nibble array's worst case (ceil(N/8) <= 4 at
+# N <= 32), so the layout is hart-count-independent. Both reset to a provable
+# NO-OP; the boot gate they control is the HOLD-IN-RESET pgood_rstn output
+# (ANDed into every hart's outer reset at the top level). The registers exist
+# in every configuration; peripherals.fieldPower only decides whether the
+# pad-side inputs (PGOOD P6.7, strap P6.6, NFC field level) are wired or tied.
+r = RegisterTemplate(nameTemplate='PWRWAKE', registerMemorySlot=5, size=32, description='Boot-gate / wake-source control (DP-S3 field-powered mode). The harvested-boot STRAP drives the hardware defaults (a strapped board self-arms the gate, waits on PGOOD, and re-holds on brownout with no software involvement); these bits OR-IN software overrides on top. Resets to 0 = no software override = the gate is released on every normal boot. Write with full-word stores (byte-lane-0 qualified, like PWRCR).')
+r.AddBitField(BitField(unused=True, msb=31, lsb=5))
+r.AddBitField(BitField(name='PWREHOLD', msb=4, lsb=4, accessibility='rw', description='Re-hold policy override: 1 = re-assert the boot hold when the release condition drops (brownout re-hold; PGOOD return then cold-boots the harts through the shared ROM). 0 = one-shot — once released, stays released (see PWRSTS.PWRRLSLATCH). The strap ORs this in on a harvested board.'))
+r.AddBitField(BitField(name='PWSWRLS', msb=3, lsb=3, accessibility='rw', description='Software-forced release: 1 releases an armed gate unconditionally (test/override, or "software says proceed"). With no release source enabled, an armed gate holds until this bit — the negative-control proof that the gate is load-bearing.'))
+r.AddBitField(BitField(name='PWRLSFIELD', msb=2, lsb=2, accessibility='rw', description='1 = the synchronized NFC field level (PWRSTS.PWFIELDLIV) is a release condition — the field_detect WAKE source: a reader arriving releases the boot gate. No IRQ vector is involved. Reads as tied-0 field when NFC is absent or fieldPower is off.'))
+r.AddBitField(BitField(name='PWRLSPGOOD', msb=1, lsb=1, accessibility='rw', description='1 = the synchronized PGOOD pad level (PWRSTS.PWPGOODLIV) is a release condition. The strap ORs this in on a harvested board (it always waits on the supply supervisor).'))
+r.AddBitField(BitField(name='PWGATEEN', msb=0, lsb=0, accessibility='rw', description='Software boot-gate arm: 1 arms the HOLD-IN-RESET gate (every hart\'s outer reset held until a release condition fires). The harvested-boot strap ORs this in — a strapped board arms with no software.'))
+p.AddRegisterTemplate(r)
+r = RegisterTemplate(nameTemplate='PWRSTS', registerMemorySlot=6, size=32, description='Boot-gate / wake-source status (read-only). The synchronized live pad levels, the one-shot strap sample (THE bootrom harvested-boot branch bit), and the gate state.')
+r.AddBitField(BitField(unused=True, msb=31, lsb=6))
+r.AddBitField(BitField(name='PWRRLSLATCH', msb=5, lsb=5, accessibility='r', description='One-shot release has latched (sticky until reset; only meaningful with PWREHOLD = 0).'))
+r.AddBitField(BitField(name='PWBOOTHOLD', msb=4, lsb=4, accessibility='r', description='Current gate state: 1 = the boot gate is holding every hart in reset (pgood_rstn asserted).'))
+r.AddBitField(BitField(name='PWSTRAPVLD', msb=3, lsb=3, accessibility='r', description='Strap sample complete (the one-shot sample lands a few mclk after reset release; poll before consuming PWSTRAP).'))
+r.AddBitField(BitField(name='PWSTRAP', msb=2, lsb=2, accessibility='r', description='Latched harvested-boot strap sample: 1 = harvested boot (the bootrom skips the SPI-flash copy and runs the ROM-resident service loop), 0 = normal SPI boot. Sampled ONCE after reset; mid-run strap changes are ignored.'))
+r.AddBitField(BitField(name='PWFIELDLIV', msb=1, lsb=1, accessibility='r', description='Synchronized NFC field_detect level (0 when NFC is absent or fieldPower is off).'))
+r.AddBitField(BitField(name='PWPGOODLIV', msb=0, lsb=0, accessibility='r', description='Synchronized PGOOD pad level (P6.7). Reads 0 = power-not-good when the pin is unconnected (reset pull-down).'))
+p.AddRegisterTemplate(r)
 
 
 
@@ -2889,8 +2932,8 @@ GPIO5.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO42', funcName='', f
 GPIO5.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO43', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX modulation output when NFC present)', altFuncs=([(1, 'NFC_RF_TXMOD', 'o', 'NFC0 off-die TX load modulation (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 3)) # AF1 gated with NFC0
 GPIO5.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO44', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX enable output when NFC present)', altFuncs=([(1, 'NFC_RF_TX_EN', 'o', 'NFC0 off-die TX enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 4)) # AF1 gated with NFC0
 GPIO5.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO45', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 AFE enable output when NFC present)', altFuncs=([(1, 'NFC_AFE_EN', 'o', 'NFC0 off-die AFE enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 5)) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if onewirePresent else 0), description=('General-purpose I/O (AF1 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else 'General-purpose I/O (spare)'), altFuncs=([(1, 'OW_DQ', 'io', 'OneWire DQ, open-drain (alt plane AF1)')] if onewirePresent else [])), packagePinNumber=_gpioPkgPin(5, 6)) # digperiphs #5: AF1 gated with OneWire (the I3C0 P5.6/7 pad mechanism); PxREN pull-up enabled at reset when OneWire present, else spare plain GPIO
-GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (spare)', altFuncs=[]), packagePinNumber=_gpioPkgPin(5, 7)) # spare plain GPIO
+GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if (onewirePresent or fieldPowerPresent) else 0), description=('General-purpose I/O (AF1 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else ('General-purpose I/O; also the DP-S3 harvested-boot strap (direct PWRCTRL tap, always readable; pull-down at reset = NORMAL/SPI boot when unconnected, strap high = harvested boot)' if fieldPowerPresent else 'General-purpose I/O (spare)')), altFuncs=([(1, 'OW_DQ', 'io', 'OneWire DQ, open-drain (alt plane AF1)')] if onewirePresent else [])), packagePinNumber=_gpioPkgPin(5, 6)) # digperiphs #5: AF1 gated with OneWire (the I3C0 P5.6/7 pad mechanism); DP-S3: harvested-boot strap direct tap when fieldPower (conflict-checked against OneWire), pull-down at reset
+GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if fieldPowerPresent else 0), description=('General-purpose I/O; also the DP-S3 PGOOD supply-supervisor input (direct PWRCTRL tap, always readable; pull-down at reset = power-not-good when unconnected)' if fieldPowerPresent else 'General-purpose I/O (spare)'), altFuncs=[]), packagePinNumber=_gpioPkgPin(5, 7)) # DP-S3: PGOOD direct tap when fieldPower (pull-down at reset), else spare plain GPIO
 
 
 # --- GPIO alternate-function output-spread (v1): fill AF planes AF1..AF7 with the
@@ -3292,7 +3335,7 @@ _mcuMpRstVals = [
 		('RstValP6OUT', 0x00000000, 'all pads output low'),
 		('RstValP6DIR', 0x00000000, 'all pins input at reset'),
 		('RstValP6SEL', 0x00000000, 'all pins in GPIO mode at reset'),
-		('RstValP6REN', (0x00000040 if onewirePresent else 0x00000000), 'P6.6 (OneWire DQ) pull-up enabled when OneWire present, else none'),
+		('RstValP6REN', (0x00000040 if onewirePresent else (0x000000C0 if fieldPowerPresent else 0x00000000)), ('P6.6 (OneWire DQ) pull-up enabled when OneWire present, else none' if onewirePresent or not fieldPowerPresent else 'P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull-DOWN: PxOUT resets 0 -- unconnected reads NORMAL boot + power-not-good)')),
 		('RstValP6AFS', (0x00000001 if nfcPresent else 0x00000000), 'P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0'),
 	]),
 ]
@@ -3406,6 +3449,7 @@ m.McuMpGeometry = {
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
 	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P6.6/GPIO46 AF1 open-drain, vector 117, source list grows to 118 (A5 global vector rule)
+	'fieldPower': fieldPowerPresent,  # DP-S3: True = pwr0's supervision inputs wired (pgood_pad=prt6_in(7), strap_pad=prt6_in(6), field_detect=NFC tap-or-0); False = all tied inert. The pgood_rstn reset folds are emitted unconditionally (provable no-op when tied).
 	'dma': dmaPresent,          # digperiphs #6: True = DMA0 in MUTEX-page sub-slot 8 (0x6800) + the FIRST new arbiter MASTER; raw-strobe slave shim, vectors 118/119, source list grows to 119, and the arbiter N=4->5 / MW=3 / sh_master 2->3 FABRIC WIDENING (the one shared-RTL touch)
 	'dmaChannels': dmaChannels, # digperiphs #6: DMA0 NCH generic {2,4} (consulted only when dma); the 4-channel register superset is emitted regardless
 	'i2ctarget': i2ctargetPresent,  # digperiphs (I2CT): True = I2CT0 hardware-autonomous I2C target in MUTEX-page sub-slot 10 (0x6A00); raw-strobe shim, shares I2C0 SDA0/SCL0 pads (wired-AND DIR merge, emitted separately), vectors 122/123, source list grows to 124 (A5 global vector rule, with 120/121 always-RSVD DP-SG placeholders)
