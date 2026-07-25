@@ -2,7 +2,10 @@
 -- UART_tb.vhd
 -------------------------------------------------------------------------------
 -- Standalone, self-checking testbench for the UART peripheral
--- (hdl/myshkin/periph/UART.vhd).
+-- (hdl/common/periph/UART.vhd -- moved here 2026-07-24 from the Myshkin
+-- original; hdl/common's UART forked off with the ROOT-2 flag-CDC rework
+-- (2026-07-20, digperiphs xcollapse_findings) and now also carries the
+-- EVFAB evt_rx producer tap, GROUP EV below).
 --
 -- Uses the shared support packages: tb/periph_tb_pkg.vhd (scoreboard +
 -- register-bus BFM) and tb/uart_bfm_pkg.vhd (pad-level TX capture / RX drive).
@@ -12,10 +15,24 @@
 -- error counter (the scoreboard) prints a single PASS/FAIL banner at the end.
 --
 -- Bus contract recap (see periph/UART.vhd):
---   * en_mem / wen ACTIVE-LOW ; clk_mem = clk while en_mem='0'
---   * SR and RX read back a snapshot taken on the falling edge of en_mem
+--   * en_mem / wen ACTIVE-LOW ; SR and RX read back a snapshot taken on the
+--     falling edge of en_mem
 --   * Reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF)
 -- Baud timing: one UART bit lasts 16*(BR+1) core-clock periods.
+--
+-- clk_mem (2026-07-24, DUT-swap note): the ROOT-2 rework moved ALL of UART's
+-- flag/status logic into the clk_mem domain, synchronizing the serial-side
+-- events in from clk_baud/clk_tx via toggle + 3-stage synchronizer (see
+-- UART.vhd's flags_cdc_proc) -- exactly the "clk_mem = free-running mclk at
+-- integration" the EVFAB tap comment documents. The legacy
+-- `clk_mem <= clk when en_mem = '0' else '0'` idiom (fine for the old
+-- Myshkin UART, and still fine for RTC/PWM below) starves that synchronizer
+-- almost completely here -- empirically it regresses 18 of this bench's
+-- pre-existing checks (TX byte corruption, RCIF/irq_rc never seen, framing/
+-- parity/overflow flags never observed) the moment the DUT is pointed at
+-- hdl/common/periph/UART.vhd. clk_mem is free-running below instead, which
+-- restores every pre-existing check but one (GROUP 6, fixed inline with a
+-- one-cycle settle -- see its comment) -- a bench-only fix, no RTL touched.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -74,15 +91,62 @@ architecture sim of UART_tb is
     signal RX_DIR      : std_logic;
     signal RX_REN      : std_logic;
 
+    -- ---- EVFAB tap (event_fabric_spec.md 2026-07-24, GROUP EV) ------------
+    signal evt_rx : std_logic;
+
+    -- ---- EVFAB pulse monitor (checker independence, GROUP EV) -------------
+    -- Continuous background tracker of evt_rx: counts pulse STARTS (rising
+    -- transitions) and total HIGH samples, both at clk_mem rising edges,
+    -- since the last evt_mon_clear pulse -- mirrors PWM_tb's evt_mon_proc
+    -- (same idiom, ported to the domain evt_rx actually lives in). A run of
+    -- exactly N one-clk_mem-wide pulses satisfies starts=N AND highs=N
+    -- simultaneously. NEVER reads a DUT internal -- only the exported evt_rx
+    -- port. Also tracks whether irq_rc was EVER seen high in the window
+    -- (GROUP EV-b's masked-IRQ discipline check), same window discipline.
+    signal evt_rx_starts, evt_rx_highs : natural := 0;
+    signal evt_rx_prev   : std_logic := '0';
+    signal evt_mon_clear : std_logic := '0';
+    signal irq_rc_seen_high : boolean := false;
+
     shared variable sb : scoreboard;
 
 begin
 
     -----------------------------------------------------------------------
-    -- Clocks. clk_mem only runs while the peripheral is selected.
+    -- Clocks. clk_mem is free-running (see the file-header note): the
+    -- ROOT-2 flag-CDC rework needs a live clk_mem to synchronize serial-side
+    -- events in, matching "clk_mem = free-running mclk at integration".
     -----------------------------------------------------------------------
     clk     <= not clk after CLK_PERIOD / 2;
-    clk_mem <= clk when pbus.en_mem = '0' else '0';
+    clk_mem <= clk;
+
+    -----------------------------------------------------------------------
+    -- EVFAB pulse monitor (see the signal-declaration comment above).
+    -----------------------------------------------------------------------
+    evt_mon_proc : process(clk_mem)
+        variable r_lvl : std_logic;
+    begin
+        if rising_edge(clk_mem) then
+            r_lvl := to_X01(evt_rx);
+            if evt_mon_clear = '1' then
+                evt_rx_starts    <= 0;
+                evt_rx_highs     <= 0;
+                evt_rx_prev      <= r_lvl;
+                irq_rc_seen_high <= false;
+            else
+                if r_lvl = '1' then
+                    evt_rx_highs <= evt_rx_highs + 1;
+                    if evt_rx_prev /= '1' then
+                        evt_rx_starts <= evt_rx_starts + 1;
+                    end if;
+                end if;
+                evt_rx_prev <= r_lvl;
+                if to_X01(irq_rc) = '1' then
+                    irq_rc_seen_high <= true;
+                end if;
+            end if;
+        end if;
+    end process;
 
     -----------------------------------------------------------------------
     -- DUT
@@ -106,7 +170,8 @@ begin
             RX_IN       => RX_IN,
             RX_OUT      => RX_OUT,
             RX_DIR      => RX_DIR,
-            RX_REN      => RX_REN
+            RX_REN      => RX_REN,
+            evt_rx      => evt_rx
         );
 
     -----------------------------------------------------------------------
@@ -125,6 +190,19 @@ begin
         begin
             w(val'length - 1 downto 0) := val;
             bus_write(clk, pbus, slot, w);
+        end procedure;
+
+        -- ---- GROUP EV helper (EVFAB tap) -----------------------------------
+        -- Clear the evt_rx pulse monitor's accumulators (see the
+        -- signal-declaration comment: mirrors PWM_tb's mon_reset/
+        -- evt_mon_reset exactly). Call only outside a timing-critical window.
+        procedure evt_mon_reset is
+        begin
+            wait until clk_mem = '0';
+            evt_mon_clear <= '1';
+            wait until clk_mem = '1';
+            wait until clk_mem = '0';
+            evt_mon_clear <= '0';
         end procedure;
 
     begin
@@ -269,6 +347,14 @@ begin
         sb.check_bit("irq_rc asserted (RCIF & CIE)", irq_rc, '1');
         bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
         sb.check_slv("RX byte 0x5A received", rdw(7 downto 0), x"5A");
+        -- ROOT-2 note (2026-07-24 DUT swap): clr_SR_RX is itself a registered
+        -- clk_mem pulse (set the edge the RX read lands on, consumed the
+        -- FOLLOWING clk_mem edge by flags_cdc_proc -- see UART.vhd), so
+        -- USR_RCIF/irq_rc clear one clk_mem cycle later than the read that
+        -- triggers it. A settle wait here (bench-only; same latency GROUP 9's
+        -- "dummy access: retire clr_SR_RX" comment already documents) lets
+        -- that clear land before the check -- no RTL touched.
+        wait for 2 * CLK_PERIOD;
         sb.check_bit("irq_rc deasserted after RX read", irq_rc, '0');
 
         ----------------------------------------------------------------
@@ -379,6 +465,114 @@ begin
         sb.check_bit("irq_rc low when disabled",   irq_rc, '0');
         sb.check_bit("irq_te low when disabled",   irq_te, '0');
         sb.check_bit("irq_tc low when disabled",   irq_tc, '0');
+
+        ----------------------------------------------------------------
+        -- GROUP EV: EVFAB tap (evt_rx, event_fabric_spec.md 2026-07-24)
+        -- evt_rx is documented (UART.vhd port comment) as the RCIF SET
+        -- condition itself (rx_done_s2 /= rx_done_s3 in flags_cdc_proc),
+        -- PRE-MASK -- fires every received frame regardless of CIE, and
+        -- fires AGAIN on an overrun (the set is unconditional even when
+        -- RCIF was already 1). Exactly one clk_mem pulse per set edge.
+        -- Proven with the background evt_mon_proc pulse monitor (checker
+        -- independence: it only samples the exported evt_rx/irq_rc ports,
+        -- never a DUT internal), windowed via evt_mon_reset the same way
+        -- PWM_tb's GROUP G-EV is windowed via its own evt_mon_reset.
+        ----------------------------------------------------------------
+        report "=== GROUP EV: EVFAB tap (evt_rx) ===" severity note;
+
+        -- EV-a: three clean frames, each read (and its clr_SR_RX pulse
+        -- retired via a dummy CR access, the GROUP 9 idiom) before the next
+        -- frame arrives -- no overrun. Exactly 3 evt_rx pulse starts, each
+        -- one clk_mem wide; RCIF/RX readback behave exactly like GROUP 5/6.
+        bus_write_small(RegSlotUARTxCR, "000000");
+        wait for 2 * CLK_PERIOD;
+        bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);   -- clear stale RX flags
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- dummy access: retire clr_SR_RX
+
+        evt_mon_reset;
+
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"11", false, '0', false, true);
+        bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
+        sb.check_bit("EV-a1: RCIF set after frame 1 (unchanged by the tap)", rdw(2), '1');
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
+        sb.check_slv("EV-a1: RX byte 0x11 received", rdw(7 downto 0), x"11");
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- retire clr_SR_RX
+
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"22", false, '0', false, true);
+        bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
+        sb.check_bit("EV-a2: RCIF set after frame 2 (unchanged by the tap)", rdw(2), '1');
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
+        sb.check_slv("EV-a2: RX byte 0x22 received", rdw(7 downto 0), x"22");
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- retire clr_SR_RX
+
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"33", false, '0', false, true);
+        bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
+        sb.check_bit("EV-a3: RCIF set after frame 3 (unchanged by the tap)", rdw(2), '1');
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
+        sb.check_slv("EV-a3: RX byte 0x33 received", rdw(7 downto 0), x"33");
+
+        sb.check_true("EV-a4: evt_rx pulses exactly 3 times for 3 received frames",
+                      evt_rx_starts = 3);
+        sb.check_true("EV-a5: every evt_rx pulse is exactly one clk_mem wide (highs = starts)",
+                      evt_rx_highs = evt_rx_starts);
+
+        -- EV-b: THE DISCIPLINE CHECK. RCIE masked (CR_EN_NOPAR = EN=1,
+        -- CIE=0) -- evt_rx must STILL pulse (the tap sits pre-mask, ahead of
+        -- the CIE gate that drives irq_rc), and irq_rc must never be seen
+        -- high across the whole frame.
+        bus_write_small(RegSlotUARTxCR, "000000");
+        wait for 2 * CLK_PERIOD;
+        bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);          -- EN=1, CIE=0 (masked)
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);   -- clear stale RX flags
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- retire clr_SR_RX
+
+        evt_mon_reset;
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"44", false, '0', false, true);
+        bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
+        sb.check_bit("EV-b1: RCIF still sets with CIE=0 (RCIF is IRQ-enable-independent)",
+                     rdw(2), '1');
+        sb.check_true("EV-b2: evt_rx pulses exactly once despite CIE=0 (pre-mask tap)",
+                      evt_rx_starts = 1 and evt_rx_highs = 1);
+        sb.check_true("EV-b3: irq_rc never asserted while CIE=0 (masked, unlike evt_rx)",
+                      not irq_rc_seen_high);
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
+        sb.check_slv("EV-b4: RX byte 0x44 received", rdw(7 downto 0), x"44");
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- retire clr_SR_RX
+
+        -- EV-c: overrun. First frame left UNREAD (RCIF stays set); a second
+        -- frame arrives before the first is read -> the RCIF SET condition
+        -- fires AGAIN (UART.vhd: "if USR_RCIF='1' then USR_OVF<='1'; end if;
+        -- USR_RCIF<='1';" -- the set itself is unconditional) -- evt_rx must
+        -- pulse a SECOND time, and OVF sets exactly per pre-existing
+        -- (pre-EVFAB) GROUP 9 behavior.
+        bus_write_small(RegSlotUARTxCR, "000000");
+        wait for 2 * CLK_PERIOD;
+        bus_write_small(RegSlotUARTxCR, CR_EN_NOPAR);
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);   -- clear stale RX flags
+        bus_read(clk, pbus, read_data, RegSlotUARTxCR, rdw);   -- retire clr_SR_RX
+
+        evt_mon_reset;
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"55", false, '0', false, true);   -- byte A, unread
+        uart_drive_rx(BIT_PERIOD, clk, RX_IN, x"66", false, '0', false, true);   -- byte B -> overrun
+        bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
+        sb.check_bit("EV-c1: overflow flag set on unread 2nd byte (unchanged by the tap)",
+                     rdw(3), '1');
+        sb.check_bit("EV-c2: RCIF still set during overflow (unchanged by the tap)",
+                     rdw(2), '1');
+        sb.check_true("EV-c3: evt_rx pulses TWICE (fires again on the overrun set, even "
+                     & "though RCIF was already 1)", evt_rx_starts = 2);
+        sb.check_true("EV-c4: both evt_rx pulses are exactly one clk_mem wide",
+                      evt_rx_highs = 2);
+        bus_read(clk, pbus, read_data, RegSlotUARTxRX, rdw);
+        bus_read(clk, pbus, read_data, RegSlotUARTxSR, rdw);
+        sb.check_bit("EV-c5: overflow cleared by RX read (unchanged by the tap)", rdw(3), '0');
+
+        -- EV-d: quiet window, no RX traffic at all -> evt_rx never pulses.
+        evt_mon_reset;
+        wait for 40 * CLK_PERIOD;   -- bounded quiet window, no stimulus
+        sb.check_true("EV-d1: evt_rx never pulses during a quiet window (no RX traffic)",
+                      evt_rx_starts = 0 and evt_rx_highs = 0);
 
         ----------------------------------------------------------------
         -- Final verdict

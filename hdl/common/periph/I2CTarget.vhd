@@ -132,7 +132,12 @@ entity I2CTarget is
         SDA_DIR     : out std_logic;                     -- '1' drives SDA low (ACK / '0' data bit);
                                                          -- '0' releases Hi-Z. NEVER driven high (D8).
         SCL_IN      : in  std_logic;                     -- SCL pad input; 2-FF synced in clk (D6). PURE DATA.
-        SCL_DIR     : out std_logic                      -- '1' holds SCL low (clock stretch, D11); '0' releases
+        SCL_DIR     : out std_logic;                     -- '1' holds SCL low (clock stretch, D11); '0' releases
+
+        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): registered
+        -- one-clk pulse at the amf SET site (address match incl. general call),
+        -- pre-IE. P-mode producer EV14.
+        evt_amf     : out std_logic
     );
 end I2CTarget;
 
@@ -448,7 +453,14 @@ begin
             errf      <= '0';
             wdg_pre   <= (others => '0');
             wdg_cnt   <= (others => '0');
+            evt_amf   <= '0';
         elsif rising_edge(clk) then
+
+            -- EVFAB tap (event_fabric_spec.md 2026-07-24): registered one-clk
+            -- event pulse, default-cleared every cycle, set ONLY at the amf SET
+            -- site below -- fires on every address match (even when amf was
+            -- already sticky-set), pre-IE (cr_aeie never touches it).
+            evt_amf <= '0';
 
             -- (1) W1C default clears (SET below wins over a coincident clear).
             if camf_pulse   = '1' then amf     <= '0'; end if;
@@ -503,6 +515,7 @@ begin
                                 ack_phase <= 0;
                                 if match or gc then
                                     amf <= '1';
+                                    evt_amf <= '1';   -- EVFAB EV14: the amf SET condition
                                     if gc then gcf <= '1'; end if;
                                     tm  <= rnw;   -- D12: latch direction
                                     state <= T_ACK_ADDR;

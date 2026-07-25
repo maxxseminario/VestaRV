@@ -64,6 +64,8 @@ architecture sim of I2CTarget_tb is
 
     -- FROZEN DUT entity (design doc D3), declared as a component so the bench
     -- compiles standalone before hdl/common/periph/I2CTarget.vhd exists.
+    -- EVFAB tap (event_fabric_spec.md 2026-07-24, EV14) added to the
+    -- component so default binding sees the FULL entity port list.
     component I2CTarget is
         port (
             clk         : in  std_logic;
@@ -79,7 +81,8 @@ architecture sim of I2CTarget_tb is
             SDA_IN      : in  std_logic;
             SDA_DIR     : out std_logic;
             SCL_IN      : in  std_logic;
-            SCL_DIR     : out std_logic
+            SCL_DIR     : out std_logic;
+            evt_amf     : out std_logic
         );
     end component;
 
@@ -128,6 +131,22 @@ architecture sim of I2CTarget_tb is
 
     -- DUT pad drive-enables (this entity has no *_OUT ports, D19)
     signal dut_sda_dir, dut_scl_dir : std_logic;
+
+    -- ---- EVFAB tap (event_fabric_spec.md 2026-07-24, EV14, G-EV) ----------
+    signal evt_amf : std_logic;
+
+    -- ---- EVFAB pulse monitor (checker independence, G-EV) -----------------
+    -- Continuous background tracker of the evt_amf tap port: counts pulse
+    -- STARTS (rising transitions) and total HIGH samples, both at `clk`
+    -- rising edges, since the last evt_amf_mon_clear pulse -- mirrors
+    -- PWM_tb's evt_mon_proc (evt_period/evt_fault). A run of exactly N
+    -- one-clk-wide pulses satisfies starts=N AND highs=N simultaneously: any
+    -- wider pulse pushes highs above starts, and any missed pulse leaves
+    -- starts short. NEVER reads a DUT internal -- only the exported evt_amf
+    -- port.
+    signal evt_amf_starts, evt_amf_highs : natural := 0;
+    signal evt_amf_prev                  : std_logic := '0';
+    signal evt_amf_mon_clear             : std_logic := '0';
 
     -- host-model open-drain drive
     signal host_sda_out, host_sda_oe : std_logic;
@@ -189,6 +208,32 @@ begin
     scl_bus_x01 <= to_X01(scl_bus);
 
     ----------------------------------------------------------------------------
+    -- EVFAB pulse monitor (see the signal-declaration comment): samples
+    -- evt_amf (to_X01-normalized) on every clk rising edge, windowed via
+    -- evt_amf_mon_clear the same way PWM_tb's evt_mon_proc is windowed.
+    ----------------------------------------------------------------------------
+    evt_amf_mon_proc : process(clk)
+        variable a_lvl : std_logic;
+    begin
+        if rising_edge(clk) then
+            a_lvl := to_X01(evt_amf);
+            if evt_amf_mon_clear = '1' then
+                evt_amf_starts <= 0;
+                evt_amf_highs  <= 0;
+                evt_amf_prev   <= a_lvl;
+            else
+                if a_lvl = '1' then
+                    evt_amf_highs <= evt_amf_highs + 1;
+                    if evt_amf_prev /= '1' then
+                        evt_amf_starts <= evt_amf_starts + 1;
+                    end if;
+                end if;
+                evt_amf_prev <= a_lvl;
+            end if;
+        end if;
+    end process;
+
+    ----------------------------------------------------------------------------
     -- DUT
     ----------------------------------------------------------------------------
     dut : component I2CTarget
@@ -206,7 +251,8 @@ begin
             SDA_IN      => sda_bus_x01,
             SDA_DIR     => dut_sda_dir,
             SCL_IN      => scl_bus_x01,
-            SCL_DIR     => dut_scl_dir
+            SCL_DIR     => dut_scl_dir,
+            evt_amf     => evt_amf
         );
 
     ----------------------------------------------------------------------------
@@ -311,6 +357,19 @@ begin
                 g := g + 1;
                 exit when g > 400000;   -- bounded (never hangs)
             end loop;
+        end procedure;
+
+        -- Clear the evt_amf pulse monitor's accumulators (mirrors PWM_tb's
+        -- evt_mon_reset exactly: held across one clk edge so the concurrent
+        -- evt_amf_mon_proc samples the clear on a real edge). Call only
+        -- OUTSIDE a timing-critical window.
+        procedure evt_amf_mon_reset is
+        begin
+            wait until clk = '0';
+            evt_amf_mon_clear <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            evt_amf_mon_clear <= '0';
         end procedure;
 
         -- Wait (bounded) until the host model is blocked on a genuine stretch.
@@ -610,6 +669,81 @@ begin
         sb.check_bit("G8: AMF still pending under the mask", to_X01(rdw(I2CT_SR_AMF)), '1');
         bus_read(clk, pbus, rdata_out, I2CT_SLOT_RX, rdw);
         w1c(x"000007DC");
+
+        ------------------------------------------------------------------
+        -- GROUP G-EV: EVFAB tap (event_fabric_spec.md 2026-07-24, EV14)
+        -- evt_amf = registered one-clk pulse at the amf SET site (address
+        -- match incl. general call), pre-IE (cr_aeie never touches it).
+        -- Pulse counts are proven with the continuous evt_amf_mon_proc
+        -- background monitor (checker independence: it only samples the
+        -- exported evt_amf port, never a DUT internal), windowed via
+        -- evt_amf_mon_reset the same way PWM_tb's G-EV group windows
+        -- evt_period/evt_fault via evt_mon_reset.
+        ------------------------------------------------------------------
+        report "=== GROUP G-EV: EVFAB tap (evt_amf) ===" severity note;
+
+        -- G-EV-a: one addressed transaction -> exactly one evt_amf pulse,
+        -- one clk wide; amf sticky sets as before (mirrors G1's exact-match
+        -- check).
+        set_cr('1', '0', '0', '0', '0', SAD, "0000000");
+        evt_amf_mon_reset;
+        launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
+        finish;
+        sb.check_true("G-EV a1: evt_amf pulses exactly once on address match", evt_amf_starts = 1);
+        sb.check_true("G-EV a2: that evt_amf pulse is exactly one clk wide", evt_amf_highs = 1);
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_SR, rdw);
+        sb.check_bit("G-EV a3: AMF sticky set as before", to_X01(rdw(I2CT_SR_AMF)), '1');
+
+        -- G-EV-b: a second addressed transaction WITHOUT a W1C of AMF in
+        -- between -- the set-site fires again even though the sticky flag
+        -- is already 1 (the tap has no W1C suppression).
+        evt_amf_mon_reset;
+        launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
+        finish;
+        sb.check_true("G-EV b1: evt_amf pulses again with AMF already sticky-set", evt_amf_starts = 1);
+        sb.check_true("G-EV b2: that pulse is still exactly one clk wide", evt_amf_highs = 1);
+        bus_read(clk, pbus, rdata_out, I2CT_SLOT_SR, rdw);
+        sb.check_bit("G-EV b3: AMF still reads 1 (never W1C'd since a1)", to_X01(rdw(I2CT_SR_AMF)), '1');
+        w1c(x"000007DC");
+
+        -- G-EV-c: DISCIPLINE CHECK -- AEIE=0 (address/error IRQ enable off):
+        -- the tap still pulses (pre-IE, D16 never gates it) while the
+        -- combinational irq_ae stays low.
+        set_cr('1', '0', '0', '0', '0', SAD, "0000000");   -- AEIE=0
+        evt_amf_mon_reset;
+        launch(I2CT_OP_XFER, false, true, SAD, '0', 0);
+        finish;
+        sb.check_true("G-EV c1: evt_amf pulses with AEIE=0 (pre-IE tap)", evt_amf_starts = 1);
+        wait for 2 * PERIOD;
+        sb.check_bit("G-EV c2: irq_ae stays low despite the pulse (AEIE=0 masks the IRQ, not the tap)",
+                     to_X01(irq_ae), '0');
+        w1c(x"000007DC");
+
+        -- G-EV-d: a non-matching address produces NO evt_amf pulse over the
+        -- whole transaction (mirrors G1's mismatch check); a general call
+        -- (GCEN=1) DOES pulse -- gc also sets amf (D7), so the tap fires
+        -- identically (mirrors G2's general-call check).
+        evt_amf_mon_reset;
+        launch(I2CT_OP_XFER, false, true, "0101010", '0', 0);   -- 0x2A: full mismatch (G1)
+        finish;
+        sb.check_true("G-EV d1: no evt_amf pulse over a non-matching address",
+                      evt_amf_starts = 0 and evt_amf_highs = 0);
+
+        set_cr('1', '1', '0', '0', '0', SAD, "0000000");   -- GCEN=1
+        evt_amf_mon_reset;
+        launch(I2CT_OP_XFER, false, true, "0000000", '0', 0);   -- general call (G2)
+        finish;
+        sb.check_true("G-EV d2: a general call also pulses evt_amf exactly once (gc sets amf too)",
+                      evt_amf_starts = 1 and evt_amf_highs = 1);
+        w1c(x"000007DC");
+
+        -- G-EV-e: quiet window (no transaction in flight) -> evt_amf never
+        -- pulses.
+        set_cr('1', '0', '0', '0', '0', SAD, "0000000");
+        evt_amf_mon_reset;
+        wait for 40 * PERIOD;
+        sb.check_true("G-EV e1: evt_amf stays 0 over a quiet window with no transaction",
+                      evt_amf_starts = 0 and evt_amf_highs = 0);
 
         ------------------------------------------------------------------
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE

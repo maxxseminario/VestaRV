@@ -868,6 +868,19 @@ class McuVhdEmitter():
 		self.trngRings = geo.get('trngRings', 8)
 		if self.trng and self.trngRings not in (4, 8):
 			raise Exception('MCU.vhd emitter: trngRings must be 4 or 8, got ' + str(self.trngRings))
+		# digperiphs (EVFAB): EVFAB0 (event/trigger fabric, PPI-style crossbar) in
+		# MUTEX-page (page 2) sub-slot 11 @0x6B00. Same native-slave shape as
+		# RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0 -- a PLAIN raw-strobe en shim (NO
+		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). Zero pins,
+		# VECTORLESS (no irq net at all, D20). Its instance region ALSO owns the
+		# crossbar wiring: the ev_in / gpio0_evin / task_busy inputs and the
+		# task_pulse fan-out, with every producer or consumer whose block this config
+		# drops TIED '0' (D23 -- never left open). The tap PORT-MAP lines on the
+		# existing peripheral instances are emitted conditionally next to those
+		# instances (generated ones inline, fixed/side-template ones through the
+		# --@GEN:evfab-taps:<inst>@ markers). Default false => every EVFAB region is
+		# inert and no existing instance grows a port (byte-identical default).
+		self.eventFabric = geo.get('eventFabric', False)
 
 		# Geometry-filtered copies of the transcribed structure tables. The
 		# module-level tables stay the Castalia golden-master transcription;
@@ -1008,6 +1021,16 @@ class McuVhdEmitter():
 		if self.trng:
 			self.shslv = dict(self.shslv)
 			self.shslv['TRNG0'] = {'sel': 'trng0', 'shim': None, 'rdata': 'trng0_sh_rdata'}
+		# digperiphs (EVFAB): EVFAB0 joins the same native-slave fabric (MUTEX-page
+		# sub-slot 11). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry
+		# (shim=None) puts its register file through the standard enable / registered
+		# rd-sel / rdata-mux loops, and its active-low RAW-strobe en shim lives in
+		# emitEvfabInstance (no en_q register, D4). The description peripheral is named
+		# EVFAB (single instance, unindexed registers like PWRCTRL/MUTEX), while the
+		# RTL nets/instance carry the 0 (evfab0_*) like every other page-2 block.
+		if self.eventFabric:
+			self.shslv = dict(self.shslv)
+			self.shslv['EVFAB'] = {'sel': 'evfab0', 'shim': None, 'rdata': 'evfab0_sh_rdata'}
 		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
 		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
 		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
@@ -1023,7 +1046,8 @@ class McuVhdEmitter():
 			+ (['OW0'] if self.onewire else []) \
 			+ (['DMA0'] if self.dma else []) \
 			+ (['I2CT0'] if self.i2ctarget else []) \
-			+ (['TRNG0'] if self.trng else [])
+			+ (['TRNG0'] if self.trng else []) \
+			+ (['EVFAB'] if self.eventFabric else [])
 		self.enOrder = ['rom'] \
 			+ (['npuram'] if self.npu else []) \
 			+ ['bank' + str(b) for b in range(self.banks)] \
@@ -1296,6 +1320,9 @@ class McuVhdEmitter():
 		if self.i2ctarget:
 			# digperiphs (I2CT): I2CT0 = page-2 sub-slot 10 (0x6A00).
 			lines.append(ind + 'shslv_i2ct0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1010" else \'0\';')
+		if self.eventFabric:
+			# digperiphs (EVFAB): EVFAB0 = page-2 sub-slot 11 (0x6B00).
+			lines.append(ind + 'shslv_evfab0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1011" else \'0\';')
 		if self.afeStubs:
 			lines.append(ind + '-- CQ2a: page-3 sub-decode ' + EMDASH + ' irq_router keeps 0x7000-0x7BFF; the shared')
 			lines.append(ind + '-- EIS engine stub owns the top quarter 0x7C00-0x7FFF (irq_router ADDR_W=10')
@@ -1589,7 +1616,7 @@ class McuVhdEmitter():
 		NFC is absent.'''
 		if not self.nfc:
 			return []
-		return [
+		lines = [
 			'',
 			'    -- =========================================================================',
 			'    -- NFC0 (digperiphs #3): ISO 14443A tag / card-emulation engine, page-2',
@@ -1632,6 +1659,8 @@ class McuVhdEmitter():
 			'            rf_tx_en     => nfc0_rf_tx_en,',
 			'            afe_en       => nfc0_afe_en);',
 		]
+		# digperiphs (EVFAB): EV8/EV9 producer taps (toggle exports)
+		return self.evfabInsertTaps(lines, '            irq_crcerr   => irq_nfc0_crcerr,', 'nfc0')
 
 	def emitRtcDecls(self):
 		'''digperiphs #4: RTC0 (page-2 sub-slot 5 @0x6500) declarative region.
@@ -1667,7 +1696,7 @@ class McuVhdEmitter():
 		absent. No enq_reg process (D4), no placeholder ties (zero pins).'''
 		if not self.rtc:
 			return []
-		return [
+		lines = [
 			'',
 			'    -- =========================================================================',
 			'    -- RTC0 (digperiphs #4): 32.768 kHz always-on real-time clock, page-2',
@@ -1698,6 +1727,8 @@ class McuVhdEmitter():
 			'            wdata       => sh_wdata,',
 			'            rdata_out   => rtc0_sh_rdata);',
 		]
+		# digperiphs (EVFAB): EV1/EV0 producer taps
+		return self.evfabInsertTaps(lines, '            irq_rtc     => irq_rtc0,', 'rtc0')
 
 	def emitPwmDecls(self):
 		'''digperiphs #5: PWM0 (page-2 sub-slot 6 @0x6600) declarative region.
@@ -1738,7 +1769,7 @@ class McuVhdEmitter():
 		(D4), no placeholder input ties (zero input pins).'''
 		if not self.pwm:
 			return []
-		return [
+		lines = [
 			'',
 			'    -- =========================================================================',
 			'    -- PWM0 (digperiphs #5): 2-channel buffered PWM generator, page-2 (MUTEX',
@@ -1779,6 +1810,8 @@ class McuVhdEmitter():
 			"    pwm1_dir <= '1';",
 			"    pwm1_ren <= '0';",
 		]
+		# digperiphs (EVFAB): EV2/EV3 producer taps + the T4 fault-trip task
+		return self.evfabInsertTaps(lines, '            irq_evt     => irq_pwm0_evt,', 'pwm0')
 
 	def emitOwDecls(self):
 		'''digperiphs #5: OW0 (1-Wire master, page-2 sub-slot 7 @0x6700) declarative
@@ -1958,7 +1991,8 @@ class McuVhdEmitter():
 			'    arb_lrsc(' + lr_hi + ' downto ' + lr_lo + ') <= "00";',
 			"    arb_lock(" + ns + ") <= '0';",
 		]
-		return lines
+		# digperiphs (EVFAB): the T0/T1 GO tasks + the EV10-EV12 event pulses + ch_busy
+		return self.evfabInsertTaps(lines, '            m_rdata     => arb_rdata,', 'dma0')
 
 	def emitI2ctDecls(self):
 		'''digperiphs (I2CT): I2CT0 (hardware-autonomous I2C target, page-2 sub-slot 10
@@ -2009,7 +2043,7 @@ class McuVhdEmitter():
 		wired-AND DIR merge into the sda0/scl0 planes is a separate shared-RTL edit).'''
 		if not self.i2ctarget:
 			return []
-		return [
+		lines = [
 			'',
 			'    -- =========================================================================',
 			'    -- I2CT0 (digperiphs I2CT): hardware-autonomous I2C TARGET (slave), page-2',
@@ -2057,6 +2091,8 @@ class McuVhdEmitter():
 			'    sda0_dir_mrg <= sda0_dir or i2ct0_sda_dir;',
 			'    scl0_dir_mrg <= scl0_dir or i2ct0_scl_dir;',
 		]
+		# digperiphs (EVFAB): EV14 producer tap
+		return self.evfabInsertTaps(lines, '            irq_data    => irq_i2ct0_data,', 'i2ct0')
 
 	def emitTrngDecls(self):
 		'''digperiphs (TRNG): TRNG0 (ring-oscillator entropy source + harvest engine,
@@ -2107,7 +2143,7 @@ class McuVhdEmitter():
 		if not self.trng:
 			return []
 		nro = str(self.trngRings)
-		return [
+		lines = [
 			'',
 			'    -- =========================================================================',
 			'    -- TRNG0 (digperiphs TRNG): ring-oscillator entropy source + harvest engine,',
@@ -2154,6 +2190,325 @@ class McuVhdEmitter():
 			'            sclk        => trng0_ro_sclk,',
 			'            ro_raw      => trng0_ro_raw);',
 		]
+		# digperiphs (EVFAB): EV13 producer tap (the true data-ready level)
+		return self.evfabInsertTaps(lines, '            irq_trng    => irq_trng0,', 'trng0')
+
+	# ------------------------------------------------------------------
+	# digperiphs (EVFAB): the event/trigger fabric — page-2 sub-slot 11
+	# @0x6B00 — plus the whole producer/consumer crossbar wiring. The
+	# EVSEL/TASKSEL id tables below are the FROZEN ABI of
+	# ~/vesta_docs/digperiphs/event_fabric_spec.md §2/§3: (id, net, source
+	# block flag attribute, human note). A row whose block is absent from
+	# the configuration TIES '0' (design-doc D23) — never left open.
+	# ------------------------------------------------------------------
+	EVFAB_GPIO_EV = 15		# EVFAB EV_GPIO_IDX generic: the event served by the GPIO0 front end
+
+	def evfabEvRows(self):
+		'''The 16 ev_in rows: (EVSEL id, tap net or None, present?, note).
+		None net at EVFAB_GPIO_EV = generated INSIDE the fabric from gpio0_evin.'''
+		return [
+			(0,  'evfab0_rtc0_tick',    self.rtc,      'RTC0 tick (P)'),
+			(1,  'evfab0_rtc0_alarm',   self.rtc,      'RTC0 alarm (P)'),
+			(2,  'evfab0_pwm0_period',  self.pwm,      'PWM0 period boundary (P)'),
+			(3,  'evfab0_pwm0_fault',   self.pwm,      'PWM0 fault trip (P)'),
+			(4,  'evfab0_tim0_cmp0',    True,          'TIMER0 compare0 (T, timer_clock)'),
+			(5,  'evfab0_tim0_ovf',     True,          'TIMER0 overflow (T, timer_clock)'),
+			(6,  'evfab0_tim1_cmp0',    self.timer1,   'TIMER1 compare0 (T, timer_clock)'),
+			(7,  'evfab0_uart0_rx',     True,          'UART0 rx-done (P)'),
+			(8,  'evfab0_nfc0_field',   self.nfc,      'NFC0 field detect (T, smclk)'),
+			(9,  'evfab0_nfc0_rxframe', self.nfc,      'NFC0 rx frame (T, smclk)'),
+			(10, 'evfab0_dma0_evt_done(0)', self.dma,  'DMA0 ch0 done (P)'),
+			(11, 'evfab0_dma0_evt_done(1)', self.dma,  'DMA0 ch1 done (P)'),
+			(12, 'evfab0_dma0_evt_err', self.dma,      'DMA0 error, combined (P)'),
+			(13, 'evfab0_trng0_drdy',   self.trng,     'TRNG0 data ready (L)'),
+			(14, 'evfab0_i2ct0_amf',    self.i2ctarget, 'I2CT0 address match (P)'),
+			(15, None,                  True,          'GPIO0 masked edge (served INSIDE the fabric from gpio0_evin)'),
+		]
+
+	def emitEvfabDecls(self):
+		'''digperiphs (EVFAB): EVFAB0 (event/trigger fabric, page-2 sub-slot 11
+		@0x6B00) declarative region. The native-slave fabric nets for the hand-emitted
+		RAW-strobe shim + the crossbar wiring vectors + one named tap net per PRESENT
+		producer. Nothing when the fabric is absent. Like RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0
+		there is NO shslv_evfab0_en_q register (D4), and unlike all of them there is no
+		irq net at all (VECTORLESS v1, D20).'''
+		if not self.eventFabric:
+			return []
+		lines = [
+			'        -- digperiphs (EVFAB): EVFAB0 (event/trigger fabric, PPI-style crossbar:',
+			'        -- 8 channels routing 16 hardware EVENTS to 10 hardware TASKS as REGISTERED',
+			'        -- one-mclk pulses, 1 mclk of in-fabric latency). Page-2 (MUTEX page)',
+			'        -- sub-slot 11 @0x6B00 ' + EMDASH + ' the mutex bank keeps sub-slot 0 @0x6000.',
+			'        -- Registered-read native slave with a PLAIN active-low one-cycle en shim:',
+			'        -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q (D4).',
+			'        -- The WHOLE fabric ' + EMDASH + ' event front-end, GPIO0 edge path, crossbar, output',
+			'        -- register, sticky flags and the D3 action path ' + EMDASH + ' rides the FREE-RUNNING',
+			'        -- mclk in the always-on domain (D1/D2): WFI keeps it alive, DP-S3',
+			'        -- field-power only slows it, PWRCTRL never gates it, so chains keep firing',
+			'        -- with every hart asleep. VECTORLESS v1 (D20): irq_evfab is a constant \'0\'',
+			'        -- inside the block and is left OPEN here ' + EMDASH + ' no irq net, no vector spent.',
+			'        signal shslv_evfab0_sel, shslv_evfab0_en : std_logic;',
+			"        signal shslv_rd_evfab0  : std_logic := '0';",
+			'        signal evfab0_sh_rdata  : std_logic_vector(31 downto 0);',
+			'        signal evfab0_sh_en_n   : std_logic;',
+			'        -- Crossbar wiring. ev_in index = the FROZEN EVSEL id, task index = the',
+			'        -- FROZEN TASKSEL id (event_fabric_spec.md §2/§3 ' + EMDASH + ' ABI, never renumbered).',
+			'        -- Every bit whose producer/consumer block is absent from this',
+			"        -- configuration is tied '0' in the instance region below (D23), never left",
+			'        -- open; the per-tap nets exist only when their block does.',
+			'        signal evfab0_ev_in     : std_logic_vector(15 downto 0);',
+			'        signal evfab0_gpio0_evin : std_logic_vector(7 downto 0);',
+			'        signal evfab0_task_busy : std_logic_vector(9 downto 0);',
+			'        signal evfab0_task_pulse : std_logic_vector(9 downto 0);',
+		]
+		# producer tap nets, in EVSEL order, only for present blocks (the DMA's are
+		# vectors: the block exports 4-wide evt_done/ch_busy and takes a 4-wide task_go)
+		if self.rtc:
+			lines.append('        signal evfab0_rtc0_tick, evfab0_rtc0_alarm : std_logic;      -- EV0/EV1')
+		if self.pwm:
+			lines.append('        signal evfab0_pwm0_period, evfab0_pwm0_fault : std_logic;    -- EV2/EV3')
+		lines.append('        signal evfab0_tim0_cmp0, evfab0_tim0_ovf : std_logic;        -- EV4/EV5 (toggles)')
+		if self.timer1:
+			lines.append('        signal evfab0_tim1_cmp0 : std_logic;                         -- EV6 (toggle)')
+		lines.append('        signal evfab0_uart0_rx  : std_logic;                         -- EV7')
+		if self.nfc:
+			lines.append('        signal evfab0_nfc0_field, evfab0_nfc0_rxframe : std_logic;   -- EV8/EV9 (toggles)')
+		if self.dma:
+			lines.append('        signal evfab0_dma0_evt_done : std_logic_vector(3 downto 0);  -- EV10/EV11 = bits 0/1')
+			lines.append('        signal evfab0_dma0_evt_err  : std_logic;                     -- EV12')
+			lines.append('        signal evfab0_dma0_ch_busy  : std_logic_vector(3 downto 0);  -- task_busy(0)/(1)')
+			lines.append('        signal evfab0_dma0_task_go  : std_logic_vector(3 downto 0);  -- T0/T1 = bits 0/1')
+		if self.trng:
+			lines.append('        signal evfab0_trng0_drdy : std_logic;                        -- EV13 (level)')
+		if self.i2ctarget:
+			lines.append('        signal evfab0_i2ct0_amf : std_logic;                         -- EV14')
+		return lines
+
+	def emitEvfabInstance(self):
+		'''digperiphs (EVFAB): EVFAB0 instance region (page-2 sub-slot 11 @0x6B00). The
+		PLAIN raw-strobe active-low en shim, the D23 crossbar wiring ledger (ev_in /
+		gpio0_evin / task_busy in, task_pulse out, every absent source tied \'0\') and the
+		EVFAB entity. Nothing when the fabric is absent. No en_q process (D4), no pad
+		ties (zero pins), no generic map: N_CH=8 / N_EV=16 / N_TASK=10 / EV_GPIO_IDX=15 /
+		EV_MODE_TGL=X"00000370" / EV_MODE_LVL=X"00002000" / VER=1 are the ENTITY DEFAULTS
+		and this integration wires exactly that shape (the house rule: emit a generic only
+		when it differs from the RTL default).'''
+		if not self.eventFabric:
+			return []
+		lines = [
+			'',
+			'    -- =========================================================================',
+			'    -- EVFAB0 (digperiphs EVFAB): event/trigger fabric, page-2 (MUTEX page)',
+			'    -- sub-slot 11 @0x6B00. A PPI-style crossbar: 8 channels, each {EVSEL,',
+			'    -- TASKSEL}, turn one of 16 hardware EVENTS into a registered one-mclk pulse',
+			'    -- on one of 10 hardware TASKS ' + EMDASH + ' peripheral-to-peripheral command paths that',
+			'    -- run with every hart in WFI. The fabric is NEVER a bus master, never',
+			'    -- stalls and never rate-limits; it rides the free-running mclk in the',
+			'    -- always-on domain (D1/D2) and owns ALL the CDC for its taps (per-input',
+			'    -- pulse/toggle/level modes carried by the EV_MODE_* generic masks, D7/D9).',
+			'    -- Registered read (no bridge, no CAPTURE_CLOCK pre-latch, D4). VECTORLESS',
+			'    -- v1 (D20): irq_evfab is constant \'0\' in the block and is left open here.',
+			'    -- =========================================================================',
+			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) ' + EMDASH,
+			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
+			'    evfab0_sh_en_n <= not shslv_evfab0_en;',
+			'    -- D23 TIE-OFF LEDGER (ev_in): index = the frozen EVSEL id',
+			'    -- (event_fabric_spec.md §2). Producers this configuration does not build',
+			"    -- are tied '0' here, never left open.",
+		]
+		for (evId, net, present, note) in self.evfabEvRows():
+			idx = 'evfab0_ev_in(' + str(evId) + ')'
+			if evId == self.EVFAB_GPIO_EV:
+				src = "'0'"
+			elif present:
+				src = net
+			else:
+				src = "'0'"
+				note = note + ' ' + EMDASH + ' block absent'
+			lines.append('    ' + idx.ljust(21) + '<= ' + (src + ';').ljust(28)
+				+ '-- EV' + str(evId) + ' ' + note)
+		lines.append('    -- GPIO0 masked-edge path: the RAW pre-mask edge-select vector (prt1_in xor')
+		lines.append('    -- P1IES, GPIO.vhd) ' + EMDASH + ' PxIE is NEVER consulted. The fabric does the per-bit')
+		lines.append('    -- 2-FF sync + rising edge + EVGPIOMASK AND-before-OR (D10; the AND is what')
+		lines.append('    -- absorbs an X from an unbonded pad) and serves the result as EV15.')
+		lines.append('    -- (gpio0_evin is driven by the gpio0 instance below.)')
+		lines.append('    -- D23 TIE-OFF LEDGER (task_busy): index = the frozen TASKSEL id')
+		lines.append('    -- (event_fabric_spec.md §3). A busy level only feeds OVR ' + EMDASH + ' it can never')
+		lines.append('    -- gate, delay or suppress a task pulse (D15).')
+		if self.dma:
+			lines.append('    evfab0_task_busy(0)  <= evfab0_dma0_ch_busy(0);   -- T0 DMA0 ch0 GO')
+			lines.append('    evfab0_task_busy(1)  <= evfab0_dma0_ch_busy(1);   -- T1 DMA0 ch1 GO')
+		else:
+			lines.append("    evfab0_task_busy(0)  <= '0';                      -- T0 DMA0 ch0 GO " + EMDASH + ' block absent')
+			lines.append("    evfab0_task_busy(1)  <= '0';                      -- T1 DMA0 ch1 GO " + EMDASH + ' block absent')
+		lines.append("    evfab0_task_busy(5 downto 2) <= (others => '0');  -- T2/T3 TIMER0, T4 PWM0, T5 PWRCTRL:")
+		lines.append('                                                     -- no busy line exists (idempotent tasks)')
+		if self.npu:
+			lines.append('    evfab0_task_busy(6)  <= npu0_active;              -- T6 NPU0 THINK (the EXISTING NpuActive)')
+		else:
+			lines.append("    evfab0_task_busy(6)  <= '0';                      -- T6 NPU0 THINK " + EMDASH + ' block absent')
+		lines.append("    evfab0_task_busy(9 downto 7) <= (others => '0');  -- T7/T8 GPIO0 set/clr (idempotent),")
+		lines.append('                                                     -- T9 reserved (unconnected)')
+		if self.dma:
+			lines.append('    -- T0/T1 fan-out: the DMA takes a 4-wide task_go; only channels 0/1 are')
+			lines.append("    -- fabric-driven, channels 2/3 are tied '0' (reserved TASKSEL codes, D23).")
+			lines.append('    evfab0_dma0_task_go <= "00" & evfab0_task_pulse(1 downto 0);')
+		lines += [
+			'    evfab0: entity work.EVFAB',
+			'        port map (',
+			'            clk         => mclk,',
+			'            resetn      => resetn,',
+			'            irq_evfab   => open,',
+			'            ClkMem      => mclk,',
+			'            EnMemPeriph => evfab0_sh_en_n,',
+			'            WEn         => sh_wen_n,',
+			'            MABPart     => sh_addr(5 downto 0),',
+			'            wdata       => sh_wdata,',
+			'            rdata_out   => evfab0_sh_rdata,',
+			'            ev_in       => evfab0_ev_in,',
+			'            gpio0_evin  => evfab0_gpio0_evin,',
+			'            task_busy   => evfab0_task_busy,',
+			'            task_pulse  => evfab0_task_pulse);',
+		]
+		return lines
+
+	# The producer/consumer TAP port-map lines, keyed by instance. Emitted into the
+	# --@GEN:evfab-taps:<inst>@ markers (fixed template + side templates) and inline
+	# by the generated instance emitters. Every one of these formals has a VHDL
+	# default (in) or is an out port that may stay unassociated, so a cut WITHOUT the
+	# fabric simply omits the lines and stays byte-identical.
+	def emitEvfabTaps(self, instKey):
+		if not self.eventFabric:
+			return []
+		taps = {
+			# fixed-template instances
+			'gpio0': [
+				'            -- EVFAB taps: the pre-mask pad-edge export (EV15 front-end) and the',
+				'            -- two output tasks, acting on the pins selected by P1TASK (T7/T8).',
+				'            evt_edge_raw    => evfab0_gpio0_evin,',
+				'            task_outset     => evfab0_task_pulse(7),',
+				'            task_outclr     => evfab0_task_pulse(8),',
+			],
+			'uart0': [
+				'            -- EVFAB tap: the RCIF SET condition, pre-mask (EV7)',
+				'            evt_rx       => evfab0_uart0_rx,',
+			],
+			'timer0': [
+				'            -- EVFAB taps: producer toggles EV4/EV5 (timer_clock domain, the',
+				'            -- fabric does the 2-FF + XOR) and the START/STOP tasks (T2/T3).',
+				'            evt_compare0 => evfab0_tim0_cmp0,',
+				'            evt_overflow => evfab0_tim0_ovf,',
+				'            task_start   => evfab0_task_pulse(2),',
+				'            task_stop    => evfab0_task_pulse(3),',
+			],
+			# side-template instances
+			'timer1': [
+				'            -- EVFAB tap: TIMER1 contributes EV6 only (compare0); its overflow',
+				'            -- toggle is a reserved event in v1 and stays unconnected.',
+				'            evt_compare0 => evfab0_tim1_cmp0,',
+			],
+			'npu0': [
+				'            -- EVFAB task (T6): one-mclk THINK launch, ORed with the NPUCR bit-16',
+				'            -- write path. The fabric\'s task_busy(6) tap is NpuActive above.',
+				'            task_think      => evfab0_task_pulse(6),',
+			],
+			# instances emitted by this module (inserted through evfabInsertTaps)
+			'rtc0': [
+				'            -- EVFAB taps: the synchronized alarm/tick event edges (EV1/EV0),',
+				'            -- taken from the flags\' SET conditions, pre-IE.',
+				'            evt_alarm   => evfab0_rtc0_alarm,',
+				'            evt_tick    => evfab0_rtc0_tick,',
+			],
+			'pwm0': [
+				'            -- EVFAB taps: period boundary + fault SET condition (EV2/EV3), and',
+				'            -- the fault-trip task (T4, still FLTEN-gated inside the block).',
+				'            evt_period  => evfab0_pwm0_period,',
+				'            evt_fault   => evfab0_pwm0_fault,',
+				'            task_flttrig => evfab0_task_pulse(4),',
+			],
+			'nfc0': [
+				'            -- EVFAB taps: field-detect / rx-frame TOGGLES (EV8/EV9). NFC0 runs on',
+				'            -- smclk, so these are toggle exports and the fabric owns the CDC.',
+				'            evt_field    => evfab0_nfc0_field,',
+				'            evt_rxframe  => evfab0_nfc0_rxframe,',
+			],
+			'dma0': [
+				'            -- EVFAB taps: the channel GO tasks (T0/T1 in bits 0/1, channels 2/3',
+				'            -- tied \'0\'), the done/err event pulses (EV10/EV11/EV12) and the',
+				'            -- per-channel busy levels the fabric samples for OVR.',
+				'            task_go     => evfab0_dma0_task_go,',
+				'            evt_done    => evfab0_dma0_evt_done,',
+				'            evt_err     => evfab0_dma0_evt_err,',
+				'            ch_busy     => evfab0_dma0_ch_busy,',
+			],
+			'trng0': [
+				'            -- EVFAB tap: the true data-ready LEVEL (EV13, L-mode input)',
+				'            evt_drdy    => evfab0_trng0_drdy,',
+			],
+			'i2ct0': [
+				'            -- EVFAB tap: the address-match SET condition (EV14)',
+				'            evt_amf     => evfab0_i2ct0_amf,',
+			],
+			'pwr0': [
+				'            -- EVFAB task (T5): one-mclk tile-wake pulse. Policy stays in PWRCTRL',
+				'            -- (the pulse clears gate_req under PWRWAKE\'s mask); the boot-gate',
+				'            -- release is deliberately NOT a task.',
+				'            task_wake    => evfab0_task_pulse(5),',
+			],
+		}
+		if instKey not in taps:
+			raise Exception('MCU.vhd emitter: no EVFAB tap group for instance "' + instKey + '"')
+		return taps[instKey]
+
+	def emitEvfabCompPorts(self, comp):
+		'''The matching tap PORT DECLARATIONS for the three COMPONENT declarations the
+		fixed template still uses (gpio0/uart0/timer0/timer1 are component instances,
+		not `entity work.X` ones, so their component decl must grow the same ports or
+		the association is an unknown formal). Every added line ends in ";" and is
+		inserted after an existing port that already does, so the list's LAST
+		declaration is never touched; with the fabric off nothing is added and the
+		component decls are byte-identical.'''
+		if not self.eventFabric:
+			return []
+		ports = {
+			'gpio': [
+				'            -- EVFAB taps (digperiphs): the PRE-MASK pad-edge export that feeds',
+				'            -- the fabric\'s GPIO0 front end, and the two PxTASK-selected output',
+				'            -- tasks. Only GPIO0 wires them; every other port leaves them open.',
+				'            evt_edge_raw    : out std_logic_vector(num_pins - 1 downto 0);',
+				"            task_outset     : in  std_logic := '0';",
+				"            task_outclr     : in  std_logic := '0';",
+			],
+			'uart': [
+				'            -- EVFAB tap (digperiphs): the RCIF SET condition, pre-mask (EV7)',
+				'            evt_rx      : out std_logic;',
+			],
+			'timer': [
+				'            -- EVFAB taps (digperiphs): the producer TOGGLES (timer_clock domain;',
+				'            -- the fabric does the 2-FF + XOR) and the START/STOP tasks.',
+				'            evt_compare0 : out std_logic;',
+				'            evt_overflow : out std_logic;',
+				"            task_start   : in  std_logic := '0';",
+				"            task_stop    : in  std_logic := '0';",
+			],
+		}
+		if comp not in ports:
+			raise Exception('MCU.vhd emitter: no EVFAB component-port group for "' + comp + '"')
+		return ports[comp]
+
+	def evfabInsertTaps(self, lines, anchor, instKey):
+		'''Insert instKey's EVFAB tap port-map lines directly after `anchor` inside a
+		port map this module emits. The anchor is a line that already ends in a comma,
+		so the insertion never has to touch the map's LAST association (and with the
+		fabric off nothing is inserted at all — byte-identical). RAISES if the anchor
+		moved: a silent miss would drop a tap.'''
+		if not self.eventFabric:
+			return lines
+		if anchor not in lines:
+			raise Exception('MCU.vhd emitter: EVFAB tap anchor "' + anchor.strip()
+				+ '" not found in the ' + instKey + ' instance region')
+		at = lines.index(anchor)
+		return lines[:at + 1] + self.emitEvfabTaps(instKey) + lines[at + 1:]
 
 	def emitGpio45Decls(self, port):
 		'''Mission B: GPIO4 (port 5) / GPIO5 (port 6) declarative region — the
@@ -2762,16 +3117,18 @@ class McuVhdEmitter():
 	# ------------------------------------------------------------------
 
 	def spliceSideBlock(self, blocks, sourceName, name):
-		'''Verbatim side-template block, re-running any inner --@GEN:bus:*@
-		marker through the bus emitter (the instance blocks carry their own
-		bus marker since the main template no longer does).'''
+		'''Verbatim side-template block, re-running any inner --@GEN:*@ marker
+		through the region emitter: the instance blocks carry their own bus
+		marker (the main template no longer does) and, since the EVFAB knob,
+		their own --@GEN:evfab-taps:<inst>@ marker. Inner markers are resolved
+		HERE, so they never enter generateMcuVhd's seen/expected accounting.'''
 		if name not in blocks:
 			raise Exception('MCU.vhd emitter: ' + sourceName + ' has no block "' + name + '"')
 		lines = []
 		for line in blocks[name]:
-			m = re.match(r'^\s*--@GEN:bus:(\w+)@\s*$', line)
+			m = re.match(r'^\s*--@GEN:([A-Za-z0-9:_-]+)@\s*$', line)
 			if m:
-				lines.extend(self.emitBus(m.group(1)))
+				lines.extend(self.emitRegion(m.group(1)))
 			else:
 				lines.append(line)
 		return lines
@@ -3413,7 +3770,8 @@ class McuVhdEmitter():
 		lines.append('            field_detect => ' + ties[2] + ',')
 		lines.append('            pgood_rstn   => pgood_rstn')
 		lines.append('        );')
-		return lines
+		# digperiphs (EVFAB): the T5 tile-wake task
+		return self.evfabInsertTaps(lines, '            pd_rstn   => pd_rstn,', 'pwr0')
 
 	def emitTileRstn(self):
 		# DP-S3: pgood_rstn (the HOLD-IN-RESET boot gate) folds into EVERY
@@ -3752,6 +4110,14 @@ class McuVhdEmitter():
 			return self.emitTrngDecls()
 		if name == 'trng-instance':
 			return self.emitTrngInstance()
+		if name == 'evfab-decls':
+			return self.emitEvfabDecls()
+		if name == 'evfab-instance':
+			return self.emitEvfabInstance()
+		if name.startswith('evfab-taps:'):
+			return self.emitEvfabTaps(name[len('evfab-taps:'):])
+		if name.startswith('evfab-comp:'):
+			return self.emitEvfabCompPorts(name[len('evfab-comp:'):])
 		if name == 'gpio4-decls':
 			return self.emitGpio45Decls(5)
 		if name == 'gpio5-decls':
@@ -3861,6 +4227,15 @@ def generateMcuVhd(gen, templatePath, outPath):
 		'i2ct-decls', 'i2ct-instance',
 		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900
 		'trng-decls', 'trng-instance',
+		# digperiphs (EVFAB): EVFAB0 in MUTEX-page (page 2) sub-slot 11 @0x6B00 + the
+		# producer/consumer tap port-map lines on the FIXED-template instances (the
+		# timer1/npu0 tap markers live inside their side templates, so they are spliced
+		# by spliceSideBlock and never appear in the main template's seen set)
+		'evfab-decls', 'evfab-instance',
+		'evfab-taps:gpio0', 'evfab-taps:uart0', 'evfab-taps:timer0',
+		# ... and the matching port declarations in the GPIO/UART/TIMER COMPONENT
+		# declarations those four instances bind through
+		'evfab-comp:gpio', 'evfab-comp:uart', 'evfab-comp:timer',
 		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
 		# A1 N-hart regions

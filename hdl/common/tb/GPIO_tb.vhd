@@ -2,40 +2,48 @@
 -- GPIO_tb.vhd
 -------------------------------------------------------------------------------
 -- Standalone, self-checking testbench for the GPIO peripheral
--- (hdl/myshkin/periph/GPIO.vhd), configured like the SoC's GPIO1 port:
---   num_pins = 8, PadOUTPosLogic = true, PadDIRPosLogic = false,
---   PadRENPosLogic = false, all reset values = 0.
+-- (hdl/common/periph/GPIO.vhd). GPIO predates the bench ritual (it was
+-- proved only at ISA level) -- this bench is deliberately MINIMAL and
+-- TAP-FOCUSED: it exists to prove the EVFAB taps Fable's RTL edit added
+-- (event_fabric_spec.md 2026-07-24), not to re-verify the whole peripheral
+-- (PxSEL/PxAFS alt-function muxing and the PxIE/PxIF edge-interrupt
+-- machinery are unchanged and out of scope here). Follows the house style of
+-- tb/TIMER_tb.vhd (component DUT so this bench compiles standalone,
+-- work.periph_tb_pkg's scoreboard + register-bus BFM, G-NEG last).
 --
--- Drives the peripheral register bus + pad inputs directly and checks the
--- register file, the atomic OUT set/clear/toggle aliases, the pad output mux
--- (GPIO vs alternate function) including the DIR/REN logic-level inversion,
--- the PxIN read path, and per-pin edge interrupts. All checks are assertions;
--- failures are warnings (so the whole suite runs) and a final banner reports
--- the verdict before std.env.stop halts the sim.
+-- LIBRARY NOTE: GPIO.vhd needs work.MemoryMap.RegSlotPxAFS and
+-- work.MemoryMap.GPIO_NUM_AFS (multi-AF support, predates the EVFAB taps),
+-- which hdl/myshkin's MemoryMap package (the `work` library shared by most
+-- of this suite -- needed by the still-myshkin SYSTEM/I2C/SPI/UART benches)
+-- does not carry. This bench therefore compiles into its OWN library,
+-- "gpio_lib" (cell_list_gpio, xrun_parallel), alongside hdl/common's
+-- constants/MemoryMap/ClkGate/GPIO -- same arrangement as the NPU family.
 --
--- Bus contract (shared with the other periph benches; see tb/CLAUDE.md):
---   * en  is ACTIVE-LOW ('0' selects the GPIO)
---   * wen is ACTIVE-LOW per byte lane (only wen(0) used for 8 pins)
---   * clk_mem = clk while en='0' ; writes/reads register on rising_edge
---   * PxIN and PxIF read a snapshot taken on the falling edge of en
---
--- Pad polarity for this configuration (SEL(i)=0 => GPIO, =1 => alt function):
---   prt_out_out =     reg/alt   (PadOUTPosLogic = true)
---   prt_dir_out = not reg/alt   (PadDIRPosLogic = false)
---   prt_ren_out = not reg/alt   (PadRENPosLogic = false)
---
--- Multi-AF (PxAFS): the alt-function inputs carry GPIO_NUM_AFS flattened
--- planes (plane k, pin i at bit k*num_pins+i). When SEL(i)='1' the pin drives
--- the plane selected by its PxAFS field (a nibble per pin, low 3 bits used).
--- Group 7b proves the plane mux, the nibble readback (bit 3 reserved), the
--- byte-lane write masking, and that AFS is a don't-care while SEL(i)='0'.
+-- EVFAB taps under test (see hdl/common/periph/GPIO.vhd's EVFAB comment
+-- block):
+--   evt_edge_raw -- the PRE-MASK edge-select comb vector (prt_in xor
+--     PxIES), purely combinational, PxIE NEVER consulted. Sampled straight
+--     off the DUT's exported port after a settle delay -- never a DUT
+--     internal.
+--   task_outset / task_outclr -- one-clk_mem consumer TASK pulses that set/
+--     clear the PxTASK-selected PxOUT bits OUTSIDE the en gate (clk_mem
+--     free-runs at integration -- so this bench ties clk_mem directly to
+--     the free-running reference clock, matching TIMER_tb's idiom, not the
+--     `clk_mem <= clk when en='0' else '0'` gating some older benches use).
+--     CLR wins a same-cycle set+clr overlap; a task wins its PxTASK pins
+--     over a coincident CPU PxOUT write (case-statement write lands first
+--     in RTL program order, the task blocks execute after and overwrite
+--     only their own pins -- see GPIO.vhd's own EVFAB comment).
+--   PxTASK -- new RW register (LOCAL slot 12 -- NOT yet exported via
+--     MemoryMap.vhd, see GPIO.vhd's own comment -- this bench hardcodes the
+--     slot number too), one bit per pin, resets to 0.
 -------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use std.env.all;
-use work.constants.all;
+use work.periph_tb_pkg.all;
 use work.MemoryMap.all;
 
 entity GPIO_tb is
@@ -43,92 +51,117 @@ end entity GPIO_tb;
 
 architecture sim of GPIO_tb is
 
-    constant NUM_PINS   : natural := 8;
-    constant CLK_PERIOD : time    := 50 ns;
+    constant PERIOD   : time    := 20 ns;   -- free-running reference clock
+    constant NUM_PINS : natural := 8;
 
-    -- Must match the generic map below (used to predict pad outputs)
-    constant OUT_POS : boolean := true;
-    constant DIR_POS : boolean := false;
-    constant REN_POS : boolean := false;
+    -- EVFAB TASKPINS slot is a GPIO-local constant (not yet exported via
+    -- MemoryMap.vhd -- see GPIO.vhd's own comment), so the bench hardcodes
+    -- it too.
+    constant RegSlotPxTASK : natural := 12;
 
-    subtype  pinvec is std_logic_vector(NUM_PINS - 1 downto 0);
-    subtype  afvec  is std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0);
+    -- FROZEN DUT entity (hdl/common/periph/GPIO.vhd), declared as a
+    -- component so default binding resolves it once GPIO.vhd is analyzed
+    -- into `gpio_lib` -- Fable owns the RTL, never edited here.
+    component GPIO is
+        generic (
+            num_pins       : natural;
+            PadOUTPosLogic : boolean;
+            PadDIRPosLogic : boolean;
+            PadRENPosLogic : boolean;
+            RstValPxOUT    : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxDIR    : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxSEL    : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxREN    : std_logic_vector(31 downto 0) := (others => '0');
+            RstValPxAFS    : std_logic_vector(31 downto 0) := (others => '0')
+        );
+        port (
+            resetn      : in  std_logic;
+            irq         : out std_logic_vector(num_pins - 1 downto 0);
 
-    -- TB-side model of the per-pin AF plane selection (mirrors PxAFS)
-    type afs_array is array (0 to NUM_PINS - 1) of natural;
-    constant AFS_ZERO : afs_array := (others => 0);
+            clk_mem     : in  std_logic;
+            en          : in  std_logic;
+            wen         : in  std_logic_vector(3 downto 0);
+            write_data  : in  std_logic_vector(31 downto 0);
+            read_data   : out std_logic_vector(31 downto 0);
+            addr_periph : in  std_logic_vector(7 downto 2);
 
-    -- DUT bus / system
-    signal clk         : std_logic := '0';
-    signal clk_mem     : std_logic := '0';
-    signal resetn      : std_logic := '0';
-    signal irq         : pinvec;
+            prt_in      : in  std_logic_vector(num_pins - 1 downto 0);
+            prt_out_out : out std_logic_vector(num_pins - 1 downto 0);
+            prt_dir_out : out std_logic_vector(num_pins - 1 downto 0);
+            prt_ren_out : out std_logic_vector(num_pins - 1 downto 0);
 
-    signal en          : std_logic := '1';                       -- inactive high
-    signal wen         : std_logic_vector(3 downto 0) := (others => '1');
-    signal addr_periph : std_logic_vector(7 downto 2) := (others => '0');
-    signal write_data  : word := (others => '0');
-    signal read_data   : word;
+            PxOUT_out   : out std_logic_vector(num_pins - 1 downto 0);
+            PxDIR_out   : out std_logic_vector(num_pins - 1 downto 0);
+            PxREN_out   : out std_logic_vector(num_pins - 1 downto 0);
+            PxSEL_out   : out std_logic_vector(num_pins - 1 downto 0);
+            PxAFS_out   : out std_logic_vector(3 * num_pins - 1 downto 0);
 
-    -- Pad library interface
-    signal prt_in      : pinvec := (others => '0');
-    signal prt_out_out : pinvec;
-    signal prt_dir_out : pinvec;
-    signal prt_ren_out : pinvec;
+            alt_func_out_in : in std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);
+            alt_func_dir_in : in std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);
+            alt_func_ren_in : in std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);
 
-    -- Register-value outputs
-    signal PxOUT_out   : pinvec;
-    signal PxDIR_out   : pinvec;
-    signal PxREN_out   : pinvec;
-    signal PxSEL_out   : pinvec;
-    signal PxAFS_out   : std_logic_vector(3 * NUM_PINS - 1 downto 0);
+            evt_edge_raw : out std_logic_vector(num_pins - 1 downto 0);
+            task_outset  : in  std_logic := '0';
+            task_outclr  : in  std_logic := '0'
+        );
+    end component;
 
-    -- Alternate-function drivers (GPIO_NUM_AFS flattened planes)
-    signal alt_func_out_in : afvec := (others => '0');
-    signal alt_func_dir_in : afvec := (others => '0');
-    signal alt_func_ren_in : afvec := (others => '0');
+    -- ---- clocks / reset ----------------------------------------------------
+    signal clk     : std_logic := '0';
+    signal clk_mem : std_logic;   -- free-running (task_outset/clr act outside en)
+    signal resetn  : std_logic := '0';
 
-    -- Human-readable value for failure messages
-    function img(v : std_logic_vector) return string is
-    begin
-        if is_x(v) then
-            return "X";
-        else
-            return integer'image(to_integer(unsigned(v)));
-        end if;
-    end function;
+    -- ---- register bus -------------------------------------------------------
+    signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
+    signal read_data : std_logic_vector(31 downto 0);
 
-    -- Predict a pad output vector from the source register, the alt-function
-    -- planes, the SEL mux, the per-pin AF plane selection, and the pad logic
-    -- polarity.
-    function pad_route(reg : pinvec; alt : afvec; sel : pinvec;
-                       afs : afs_array; pos_logic : boolean) return pinvec is
-        variable r : pinvec;
-    begin
-        for i in reg'range loop
-            if sel(i) = '0' then
-                r(i) := reg(i);
-            else
-                r(i) := alt((afs(i) * NUM_PINS) + i);
-            end if;
-            if not pos_logic then
-                r(i) := not r(i);
-            end if;
-        end loop;
-        return r;
-    end function;
+    -- ---- interrupts / pads ---------------------------------------------------
+    signal irq         : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal prt_in       : std_logic_vector(NUM_PINS - 1 downto 0) := (others => '0');
+    signal prt_out_out  : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal prt_dir_out  : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal prt_ren_out  : std_logic_vector(NUM_PINS - 1 downto 0);
+
+    signal PxOUT_out : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal PxDIR_out : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal PxREN_out : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal PxSEL_out : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal PxAFS_out : std_logic_vector(3 * NUM_PINS - 1 downto 0);
+
+    -- Alt-function planes -- tied to zero (tap-focused bench; PxSEL is never
+    -- asserted here, so the AF mux is never exercised -- out of scope, see
+    -- the file header).
+    signal alt_func_out_in : std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0) := (others => '0');
+    signal alt_func_dir_in : std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0) := (others => '0');
+    signal alt_func_ren_in : std_logic_vector(GPIO_NUM_AFS * NUM_PINS - 1 downto 0) := (others => '0');
+
+    -- ---- EVFAB taps (event_fabric_spec.md 2026-07-24) ----------------------
+    signal evt_edge_raw : std_logic_vector(NUM_PINS - 1 downto 0);
+    signal task_outset  : std_logic := '0';   -- tb-driven, default '0'
+    signal task_outclr  : std_logic := '0';   -- tb-driven, default '0'
+
+    signal tb_done : boolean := false;
+
+    shared variable sb : scoreboard;
 
 begin
 
-    clk     <= not clk after CLK_PERIOD / 2;
-    clk_mem <= clk when en = '0' else '0';
+    ----------------------------------------------------------------------------
+    -- clocks: one free-running reference drives clk_mem directly (task
+    -- pulses must be observed even with the bus idle -- see header).
+    ----------------------------------------------------------------------------
+    clk     <= not clk after PERIOD / 2;
+    clk_mem <= clk;
 
-    dut : entity work.GPIO
+    ----------------------------------------------------------------------------
+    -- DUT
+    ----------------------------------------------------------------------------
+    dut : component GPIO
         generic map (
             num_pins       => NUM_PINS,
-            PadOUTPosLogic => OUT_POS,
-            PadDIRPosLogic => DIR_POS,
-            PadRENPosLogic => REN_POS,
+            PadOUTPosLogic => true,
+            PadDIRPosLogic => false,
+            PadRENPosLogic => false,
             RstValPxOUT    => (others => '0'),
             RstValPxDIR    => (others => '0'),
             RstValPxSEL    => (others => '0'),
@@ -139,11 +172,11 @@ begin
             resetn          => resetn,
             irq             => irq,
             clk_mem         => clk_mem,
-            en              => en,
-            wen             => wen,
-            write_data      => write_data,
+            en              => pbus.en_mem,
+            wen             => pbus.wen,
+            write_data      => pbus.write_data,
             read_data       => read_data,
-            addr_periph     => addr_periph,
+            addr_periph     => pbus.addr_periph,
             prt_in          => prt_in,
             prt_out_out     => prt_out_out,
             prt_dir_out     => prt_dir_out,
@@ -155,443 +188,270 @@ begin
             PxAFS_out       => PxAFS_out,
             alt_func_out_in => alt_func_out_in,
             alt_func_dir_in => alt_func_dir_in,
-            alt_func_ren_in => alt_func_ren_in
+            alt_func_ren_in => alt_func_ren_in,
+            evt_edge_raw    => evt_edge_raw,
+            task_outset     => task_outset,
+            task_outclr     => task_outclr
         );
 
+    ----------------------------------------------------------------------------
+    -- Watchdog: abort with a FAIL banner if the stimulus ever hangs.
+    ----------------------------------------------------------------------------
+    watchdog : process
+    begin
+        wait for 20 ms;
+        if not tb_done then
+            report LF & LF &
+                "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
+                "    !!   GPIO_TB FAIL (WATCHDOG TIMEOUT -- stimulus never finished)" & LF &
+                "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
+                severity warning;
+            stop;
+        end if;
+        wait;
+    end process;
+
+    ----------------------------------------------------------------------------
+    -- stimulus
+    ----------------------------------------------------------------------------
     stim_proc : process
+        variable rdw : std_logic_vector(31 downto 0);
 
-        variable error_count : natural := 0;
-        variable rdw         : word;
-
-        procedure check_slv(tag : in string;
-                            got : in std_logic_vector;
-                            exp : in std_logic_vector) is
+        -- Reset pulse: resetn low for a few PERIODs then back high.
+        procedure reset_pulse is
         begin
-            if got = exp then
-                report "PASS: " & tag severity note;
-            else
-                error_count := error_count + 1;
-                assert false
-                    report "FAIL: " & tag &
-                           " (expected " & img(exp) & ", got " & img(got) & ")"
-                    severity warning;
-            end if;
+            resetn      <= '0';
+            pbus        <= PERIPH_BUS_IDLE;
+            task_outset <= '0';
+            task_outclr <= '0';
+            prt_in      <= (others => '0');
+            wait for 6 * PERIOD;
+            wait for 1 ns;
+            resetn <= '1';
+            wait for 4 * PERIOD;
         end procedure;
 
-        procedure check_bit(tag : in string;
-                            got : in std_logic;
-                            exp : in std_logic) is
+        -- Drive `sig` high across exactly one clk_mem rising edge, then drop
+        -- it -- the one-clk_mem task-pulse idiom (TIMER_tb's pulse1).
+        procedure pulse1(signal sig : out std_logic) is
         begin
-            if got = exp then
-                report "PASS: " & tag severity note;
-            else
-                error_count := error_count + 1;
-                assert false
-                    report "FAIL: " & tag &
-                           " (expected " & std_logic'image(exp) &
-                           ", got " & std_logic'image(got) & ")"
-                    severity warning;
-            end if;
+            wait until clk = '0';
+            sig <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            sig <= '0';
         end procedure;
 
-        procedure bus_write(slot : in natural;
-                            data : in std_logic_vector(31 downto 0)) is
+        -- Pulse task_outset AND task_outclr across the SAME clk_mem rising
+        -- edge (the "same-cycle set+clr" corner).
+        procedure pulse_both_tasks is
         begin
-            wait until falling_edge(clk);
-            addr_periph <= std_logic_vector(to_unsigned(slot, 6));
-            write_data  <= data;
-            wen         <= (others => '0');
-            en          <= '0';
-            wait until rising_edge(clk);
-            wait until falling_edge(clk);
-            en          <= '1';
-            wen         <= (others => '1');
+            wait until clk = '0';
+            task_outset <= '1';
+            task_outclr <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            task_outset <= '0';
+            task_outclr <= '0';
         end procedure;
 
-        -- write an 8-bit value into the low byte
-        procedure bus_write8(slot : in natural; val : in pinvec) is
-            variable w : word := (others => '0');
+        -- CPU PxOUT write coincident with a task pulse, landing on the SAME
+        -- clk_mem rising edge. Mirrors periph_tb_pkg.bus_write's exact
+        -- timing, with task_outset/task_outclr asserted across the same
+        -- capture edge.
+        procedure coincident_out_write_task(out_word       : std_logic_vector(31 downto 0);
+                                             do_set, do_clr : std_logic) is
         begin
-            w(NUM_PINS - 1 downto 0) := val;
-            bus_write(slot, w);
-        end procedure;
-
-        procedure bus_read(slot : in natural;
-                           data : out std_logic_vector(31 downto 0)) is
-        begin
-            wait until falling_edge(clk);
-            addr_periph <= std_logic_vector(to_unsigned(slot, 6));
-            en          <= '0';                 -- falling edge snapshots PxIN/PxIF
-            wait until rising_edge(clk);
-            wait until falling_edge(clk);
-            data := read_data;
-            en          <= '1';
-        end procedure;
-
-        -- Verify the three pad outputs against the predicted routing for the
-        -- current PxOUT/PxDIR/PxREN, SEL, per-pin AF plane selection, and
-        -- alt-function inputs.
-        procedure check_pads(tag : in string;
-                             pxout, pxdir, pxren, sel : in pinvec;
-                             afs : in afs_array := AFS_ZERO) is
-        begin
-            check_slv(tag & ": prt_out_out",
-                      prt_out_out, pad_route(pxout, alt_func_out_in, sel, afs, OUT_POS));
-            check_slv(tag & ": prt_dir_out",
-                      prt_dir_out, pad_route(pxdir, alt_func_dir_in, sel, afs, DIR_POS));
-            check_slv(tag & ": prt_ren_out",
-                      prt_ren_out, pad_route(pxren, alt_func_ren_in, sel, afs, REN_POS));
-        end procedure;
-
-        -- write with an explicit byte-lane mask (lanes = wen, ACTIVE LOW)
-        procedure bus_write_lanes(slot  : in natural;
-                                  data  : in std_logic_vector(31 downto 0);
-                                  lanes : in std_logic_vector(3 downto 0)) is
-        begin
-            wait until falling_edge(clk);
-            addr_periph <= std_logic_vector(to_unsigned(slot, 6));
-            write_data  <= data;
-            wen         <= lanes;
-            en          <= '0';
-            wait until rising_edge(clk);
-            wait until falling_edge(clk);
-            en          <= '1';
-            wen         <= (others => '1');
+            wait until clk = '0';
+            pbus.addr_periph <= std_logic_vector(to_unsigned(RegSlotPxOUT, 6));
+            pbus.write_data  <= out_word;
+            pbus.wen         <= (others => '0');
+            pbus.en_mem      <= '0';
+            task_outset      <= do_set;
+            task_outclr      <= do_clr;
+            wait until clk = '1';
+            wait until clk = '0';
+            pbus.en_mem <= '1';
+            pbus.wen    <= (others => '1');
+            task_outset <= '0';
+            task_outclr <= '0';
         end procedure;
 
     begin
-        ----------------------------------------------------------------
+        ------------------------------------------------------------------
         -- Reset
-        ----------------------------------------------------------------
-        resetn <= '0';
-        en     <= '1';
-        wen    <= (others => '1');
-        prt_in <= (others => '0');
-        wait for 4 * CLK_PERIOD;
-        wait for 1 ns;
-        resetn <= '1';
-        wait for 4 * CLK_PERIOD;
+        ------------------------------------------------------------------
+        reset_pulse;
 
-        ----------------------------------------------------------------
-        -- GROUP 1: reset / default state
-        ----------------------------------------------------------------
-        report "=== GROUP 1: reset & defaults ===" severity note;
+        ------------------------------------------------------------------
+        -- GROUP G1: minimal existing-behavior regression -- PxOUT write/
+        -- readback, PxDIR, and an input-latch (PxIN) read.
+        ------------------------------------------------------------------
+        report "=== GROUP G1: PxOUT / PxDIR / PxIN regression ===" severity note;
+        bus_write(clk, pbus, RegSlotPxOUT, x"000000A5");
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G1a: PxOUT write/readback (0xA5)", rdw(7 downto 0), x"A5");
+        sb.check_slv("G1a: PxOUT_out mirrors PxOUT", PxOUT_out, x"A5");
 
-        check_slv("irq cleared at reset", irq, (NUM_PINS - 1 downto 0 => '0'));
-
-        bus_read(RegSlotPxOUT, rdw);
-        check_slv("PxOUT resets to 0", rdw(NUM_PINS - 1 downto 0), x"00");
-        bus_read(RegSlotPxDIR, rdw);
-        check_slv("PxDIR resets to 0", rdw(NUM_PINS - 1 downto 0), x"00");
-        bus_read(RegSlotPxSEL, rdw);
-        check_slv("PxSEL resets to 0", rdw(NUM_PINS - 1 downto 0), x"00");
-        bus_read(RegSlotPxREN, rdw);
-        check_slv("PxREN resets to 0", rdw(NUM_PINS - 1 downto 0), x"00");
-        bus_read(RegSlotPxIE, rdw);
-        check_slv("PxIE resets to 0", rdw(NUM_PINS - 1 downto 0), x"00");
-        bus_read(RegSlotPxIES, rdw);
-        check_slv("PxIES resets to 0", rdw(NUM_PINS - 1 downto 0), x"00");
-        bus_read(RegSlotPxAFS, rdw);
-        check_slv("PxAFS resets to 0", rdw, x"00000000");
-
-        -- With everything 0 and SEL=0: out=0, dir/ren inverted -> all 1
-        check_slv("reset PxOUT_out", PxOUT_out, x"00");
-        check_pads("reset", x"00", x"00", x"00", x"00");
-
-        ----------------------------------------------------------------
-        -- GROUP 2: PxOUT write / read / pad drive
-        ----------------------------------------------------------------
-        report "=== GROUP 2: PxOUT ===" severity note;
-
-        bus_write8(RegSlotPxOUT, x"A5");
-        bus_read(RegSlotPxOUT, rdw);
-        check_slv("PxOUT readback 0xA5", rdw(NUM_PINS - 1 downto 0), x"A5");
-        check_slv("PxOUT_out mirror 0xA5", PxOUT_out, x"A5");
-        check_pads("PxOUT=A5", x"A5", x"00", x"00", x"00");
-
-        ----------------------------------------------------------------
-        -- GROUP 3: atomic OUT set / clear / toggle aliases
-        ----------------------------------------------------------------
-        report "=== GROUP 3: OUT set/clear/toggle ===" severity note;
-
-        bus_write8(RegSlotPxOUT, x"0F");                 -- known base
-        bus_write8(RegSlotPxOUTS, x"30");                -- set bits 4,5
-        bus_read(RegSlotPxOUT, rdw);
-        check_slv("PxOUTS sets bits (0F|30=3F)", rdw(NUM_PINS - 1 downto 0), x"3F");
-
-        bus_write8(RegSlotPxOUTC, x"03");                -- clear bits 0,1
-        bus_read(RegSlotPxOUT, rdw);
-        check_slv("PxOUTC clears bits (3F&~03=3C)", rdw(NUM_PINS - 1 downto 0), x"3C");
-
-        bus_write8(RegSlotPxOUTT, x"FF");                -- toggle all
-        bus_read(RegSlotPxOUT, rdw);
-        check_slv("PxOUTT toggles (3C^FF=C3)", rdw(NUM_PINS - 1 downto 0), x"C3");
-
-        -- read-side quirks: OUTS/OUTT read PxOUT, OUTC reads inverted PxOUT
-        bus_read(RegSlotPxOUTS, rdw);
-        check_slv("PxOUTS reads PxOUT (C3)", rdw(NUM_PINS - 1 downto 0), x"C3");
-        bus_read(RegSlotPxOUTT, rdw);
-        check_slv("PxOUTT reads PxOUT (C3)", rdw(NUM_PINS - 1 downto 0), x"C3");
-        bus_read(RegSlotPxOUTC, rdw);
-        check_slv("PxOUTC reads ~PxOUT (3C)", rdw(NUM_PINS - 1 downto 0), x"3C");
-
-        -- restore a clean PxOUT
-        bus_write8(RegSlotPxOUT, x"00");
-
-        ----------------------------------------------------------------
-        -- GROUP 4: PxDIR (neg-logic pad direction)
-        ----------------------------------------------------------------
-        report "=== GROUP 4: PxDIR ===" severity note;
-
-        bus_write8(RegSlotPxDIR, x"C3");
-        bus_read(RegSlotPxDIR, rdw);
-        check_slv("PxDIR readback 0xC3", rdw(NUM_PINS - 1 downto 0), x"C3");
-        check_slv("PxDIR_out mirror 0xC3", PxDIR_out, x"C3");
-        -- prt_dir_out should be the inverse (neg logic)
-        check_slv("prt_dir_out = ~PxDIR (3C)", prt_dir_out, x"3C");
-        check_pads("PxDIR=C3", x"00", x"C3", x"00", x"00");
-        bus_write8(RegSlotPxDIR, x"00");
-
-        ----------------------------------------------------------------
-        -- GROUP 5: PxREN (neg-logic resistor enable)
-        ----------------------------------------------------------------
-        report "=== GROUP 5: PxREN ===" severity note;
-
-        bus_write8(RegSlotPxREN, x"5A");
-        bus_read(RegSlotPxREN, rdw);
-        check_slv("PxREN readback 0x5A", rdw(NUM_PINS - 1 downto 0), x"5A");
-        check_slv("PxREN_out mirror 0x5A", PxREN_out, x"5A");
-        check_slv("prt_ren_out = ~PxREN (A5)", prt_ren_out, x"A5");
-        bus_write8(RegSlotPxREN, x"00");
-
-        ----------------------------------------------------------------
-        -- GROUP 6: PxIN read path
-        ----------------------------------------------------------------
-        report "=== GROUP 6: PxIN ===" severity note;
+        bus_write(clk, pbus, RegSlotPxDIR, x"000000C3");
+        bus_read(clk, pbus, read_data, RegSlotPxDIR, rdw);
+        sb.check_slv("G1b: PxDIR write/readback (0xC3)", rdw(7 downto 0), x"C3");
+        sb.check_slv("G1b: PxDIR_out mirrors PxDIR", PxDIR_out, x"C3");
 
         prt_in <= x"96";
-        wait for 2 * CLK_PERIOD;
-        bus_read(RegSlotPxIN, rdw);
-        check_slv("PxIN reads pin levels 0x96", rdw(NUM_PINS - 1 downto 0), x"96");
-        prt_in <= x"69";
-        wait for 2 * CLK_PERIOD;
-        bus_read(RegSlotPxIN, rdw);
-        check_slv("PxIN reads pin levels 0x69", rdw(NUM_PINS - 1 downto 0), x"69");
+        wait for 2 * PERIOD;
+        bus_read(clk, pbus, read_data, RegSlotPxIN, rdw);
+        sb.check_slv("G1c: PxIN input-latch read (0x96)", rdw(7 downto 0), x"96");
         prt_in <= (others => '0');
-        wait for 2 * CLK_PERIOD;
+        bus_write(clk, pbus, RegSlotPxOUT, x"00000000");
+        wait for 2 * PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 7: alternate-function mux (PxSEL)
-        ----------------------------------------------------------------
-        report "=== GROUP 7: alt-function mux ===" severity note;
+        ------------------------------------------------------------------
+        -- GROUP G2: PxTASK register -- RW walking-1 at slot 12, reset 0,
+        -- readback.
+        ------------------------------------------------------------------
+        report "=== GROUP G2: PxTASK register (RW walking-1) ===" severity note;
+        bus_read(clk, pbus, read_data, RegSlotPxTASK, rdw);
+        sb.check_slv("G2a: PxTASK resets to 0", rdw(7 downto 0), x"00");
 
-        -- Set distinct GPIO-reg values and alt-function values, then prove the
-        -- per-pin SEL bit routes each pad to the right source.
-        bus_write8(RegSlotPxOUT, x"0F");
-        bus_write8(RegSlotPxDIR, x"00");
-        bus_write8(RegSlotPxREN, x"00");
-        alt_func_out_in(NUM_PINS - 1 downto 0) <= x"A0";   -- plane 0 (AF0)
-        alt_func_dir_in(NUM_PINS - 1 downto 0) <= x"50";
-        alt_func_ren_in(NUM_PINS - 1 downto 0) <= x"30";
-        wait for 2 * CLK_PERIOD;
+        for i in 0 to NUM_PINS - 1 loop
+            bus_write(clk, pbus, RegSlotPxTASK,
+                      std_logic_vector(to_unsigned(2 ** i, 32)));
+            bus_read(clk, pbus, read_data, RegSlotPxTASK, rdw);
+            sb.check_slv("G2b: PxTASK walking-1 bit " & integer'image(i),
+                         rdw(7 downto 0),
+                         std_logic_vector(to_unsigned(2 ** i, 8)));
+        end loop;
+        bus_write(clk, pbus, RegSlotPxTASK, x"00000000");
 
-        -- All GPIO (SEL=0): pads follow Px registers
-        bus_write8(RegSlotPxSEL, x"00");
-        wait for 2 * CLK_PERIOD;
-        check_pads("SEL=00 (all GPIO)", x"0F", x"00", x"00", x"00");
+        ------------------------------------------------------------------
+        -- GROUP G3: task_outset / task_outclr basic operation -- PxTASK=
+        -- 0x0F, set pulses PxOUT(3:0), clear pulses them back down;
+        -- PxOUT(7:4) (outside PxTASK) is untouched throughout.
+        ------------------------------------------------------------------
+        report "=== GROUP G3: task_outset / task_outclr basic ===" severity note;
+        bus_write(clk, pbus, RegSlotPxOUT, x"000000B0");   -- preload 7:4 pattern (B), 3:0=0
+        bus_write(clk, pbus, RegSlotPxTASK, x"0000000F");  -- task owns pins 0-3
 
-        -- All alt (SEL=FF): pads follow alt-function inputs, Px ignored
-        bus_write8(RegSlotPxSEL, x"FF");
-        wait for 2 * CLK_PERIOD;
-        check_pads("SEL=FF (all alt)", x"0F", x"00", x"00", x"FF");
+        pulse1(task_outset);
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G3a: task_outset sets PxOUT(3:0), leaves 7:4 (0xBF)",
+                     rdw(7 downto 0), x"BF");
 
-        -- Mixed: upper nibble alt, lower nibble GPIO
-        bus_write8(RegSlotPxSEL, x"F0");
-        wait for 2 * CLK_PERIOD;
-        check_pads("SEL=F0 (mixed)", x"0F", x"00", x"00", x"F0");
+        pulse1(task_outclr);
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G3b: task_outclr clears PxOUT(3:0), leaves 7:4 (0xB0)",
+                     rdw(7 downto 0), x"B0");
 
-        -- restore GPIO mode
-        bus_write8(RegSlotPxSEL, x"00");
-        alt_func_out_in <= (others => '0');
-        alt_func_dir_in <= (others => '0');
-        alt_func_ren_in <= (others => '0');
-        bus_write8(RegSlotPxOUT, x"00");
+        ------------------------------------------------------------------
+        -- GROUP G4: same-cycle task_outset + task_outclr -> CLR wins.
+        ------------------------------------------------------------------
+        report "=== GROUP G4: same-cycle set+clr -- CLR wins ===" severity note;
+        bus_write(clk, pbus, RegSlotPxOUT, x"000000BF");   -- 3:0 pre-set so a no-op clear would be masked
+        pulse_both_tasks;
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G4: coincident set+clr -> PxOUT(3:0) cleared, 7:4 untouched (0xB0)",
+                     rdw(7 downto 0), x"B0");
 
-        ----------------------------------------------------------------
-        -- GROUP 7b: multi-AF plane mux (PxAFS)
-        ----------------------------------------------------------------
-        report "=== GROUP 7b: multi-AF plane mux (PxAFS) ===" severity note;
+        ------------------------------------------------------------------
+        -- GROUP G5: coincident CPU PxOUT write + task pulse -- the task
+        -- wins its PxTASK pins, the CPU value lands on the others. Both
+        -- directions (set and clear) exercised.
+        ------------------------------------------------------------------
+        report "=== GROUP G5: coincident CPU write + task pulse ===" severity note;
+        bus_write(clk, pbus, RegSlotPxOUT, x"00000000");   -- baseline: all clear
+        -- CPU writes PxOUT=0x50 (7:4=5,3:0=0) while task_outset pulses on
+        -- the SAME edge -> 3:0 forced to 1 (task wins), 7:4 = CPU's 5.
+        coincident_out_write_task(x"00000050", '1', '0');
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G5a: coincident write(0x50)+task_outset -> 0x5F (task wins the set)",
+                     rdw(7 downto 0), x"5F");
 
-        -- Distinct pattern in every plane so a plane-select error is visible
-        alt_func_out_in(7 downto 0)   <= x"01";  -- plane 0 (AF0)
-        alt_func_out_in(15 downto 8)  <= x"23";  -- plane 1
-        alt_func_out_in(23 downto 16) <= x"45";  -- plane 2
-        alt_func_out_in(31 downto 24) <= x"67";  -- plane 3
-        alt_func_out_in(39 downto 32) <= x"89";  -- plane 4
-        alt_func_out_in(47 downto 40) <= x"AB";  -- plane 5
-        alt_func_out_in(55 downto 48) <= x"CD";  -- plane 6
-        alt_func_out_in(63 downto 56) <= x"EF";  -- plane 7
-        alt_func_dir_in(7 downto 0)   <= x"FE";
-        alt_func_dir_in(15 downto 8)  <= x"DC";
-        alt_func_dir_in(23 downto 16) <= x"BA";
-        alt_func_dir_in(31 downto 24) <= x"98";
-        alt_func_dir_in(39 downto 32) <= x"76";
-        alt_func_dir_in(47 downto 40) <= x"54";
-        alt_func_dir_in(55 downto 48) <= x"32";
-        alt_func_dir_in(63 downto 56) <= x"10";
-        alt_func_ren_in(7 downto 0)   <= x"11";
-        alt_func_ren_in(15 downto 8)  <= x"22";
-        alt_func_ren_in(23 downto 16) <= x"44";
-        alt_func_ren_in(31 downto 24) <= x"88";
-        alt_func_ren_in(39 downto 32) <= x"33";
-        alt_func_ren_in(47 downto 40) <= x"66";
-        alt_func_ren_in(55 downto 48) <= x"CC";
-        alt_func_ren_in(63 downto 56) <= x"99";
-        wait for 2 * CLK_PERIOD;
+        -- CPU writes PxOUT=0xFF while task_outclr pulses on the SAME edge
+        -- -> 3:0 forced to 0 (task wins), 7:4 = CPU's F.
+        coincident_out_write_task(x"000000FF", '0', '1');
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("G5b: coincident write(0xFF)+task_outclr -> 0xF0 (task wins the clear)",
+                     rdw(7 downto 0), x"F0");
 
-        -- Pin i selects plane i (nibble per pin), readback must match
-        bus_write(RegSlotPxAFS, x"76543210");
-        bus_read(RegSlotPxAFS, rdw);
-        check_slv("PxAFS readback 0x76543210", rdw, x"76543210");
-        check_slv("PxAFS_out packed 3-bit export", PxAFS_out,
-                  std_logic_vector'("111110101100011010001000"));
+        bus_write(clk, pbus, RegSlotPxTASK, x"00000000");  -- release the task mask
+        bus_write(clk, pbus, RegSlotPxOUT,  x"00000000");
 
-        -- AFS is a don't-care while SEL=0: pads still follow the GPIO regs
-        bus_write8(RegSlotPxOUT, x"3C");
-        check_pads("SEL=00 ignores AFS", x"3C", x"00", x"00", x"00",
-                   (0, 1, 2, 3, 4, 5, 6, 7));
+        ------------------------------------------------------------------
+        -- GROUP G6: evt_edge_raw = prt_in xor PxIES, combinationally, and
+        -- independent of PxIE.
+        ------------------------------------------------------------------
+        report "=== GROUP G6: evt_edge_raw (pre-mask edge-select tap) ===" severity note;
+        bus_write(clk, pbus, RegSlotPxIES, x"00000000");   -- rising-edge select, all pins
+        prt_in <= x"A5";
+        wait for 2 * PERIOD;
+        sb.check_slv("G6a: evt_edge_raw = prt_in xor PxIES (A5 xor 00 = A5)",
+                     evt_edge_raw, x"A5");
 
-        -- All pins alt: pin i must drive plane i
-        bus_write8(RegSlotPxSEL, x"FF");
-        wait for 2 * CLK_PERIOD;
-        check_slv("PxSEL_out export", PxSEL_out, x"FF");
-        check_pads("SEL=FF, AFS=(0..7)", x"3C", x"00", x"00", x"FF",
-                   (0, 1, 2, 3, 4, 5, 6, 7));
+        bus_write(clk, pbus, RegSlotPxIES, x"000000FF");   -- falling-edge select, all pins
+        wait for 2 * PERIOD;
+        sb.check_slv("G6b: evt_edge_raw follows a PxIES change (A5 xor FF = 5A)",
+                     evt_edge_raw, x"5A");
 
-        -- Reversed plane selection, mixed SEL (upper nibble GPIO)
-        bus_write(RegSlotPxAFS, x"01234567");
-        wait for 2 * CLK_PERIOD;
-        check_pads("SEL=0F, AFS=(7..0)", x"3C", x"00", x"00", x"FF",
-                   (7, 6, 5, 4, 3, 2, 1, 0));
-        bus_write8(RegSlotPxSEL, x"0F");
-        wait for 2 * CLK_PERIOD;
-        check_pads("SEL=0F mixed, AFS=(7..0)", x"3C", x"00", x"00", x"0F",
-                   (7, 6, 5, 4, 3, 2, 1, 0));
+        prt_in <= x"3C";
+        wait for 2 * PERIOD;
+        sb.check_slv("G6c: evt_edge_raw follows a prt_in change (3C xor FF = C3)",
+                     evt_edge_raw, x"C3");
 
-        -- Reserved nibble bit 3 reads back 0
-        bus_write(RegSlotPxAFS, x"FFFFFFFF");
-        bus_read(RegSlotPxAFS, rdw);
-        check_slv("PxAFS nibble bit3 reserved (FFFFFFFF -> 77777777)",
-                  rdw, x"77777777");
+        -- Discipline: PxIE is never consulted -- toggling it (either
+        -- direction) leaves evt_edge_raw exactly where it was.
+        bus_write(clk, pbus, RegSlotPxIE, x"00000000");    -- all masked
+        wait for 2 * PERIOD;
+        sb.check_slv("G6d: evt_edge_raw unaffected by PxIE=0x00 (masked)",
+                     evt_edge_raw, x"C3");
+        bus_write(clk, pbus, RegSlotPxIE, x"000000FF");    -- all enabled
+        wait for 2 * PERIOD;
+        sb.check_slv("G6e: evt_edge_raw unaffected by PxIE=0xFF (enabled) -- pre-mask by construction",
+                     evt_edge_raw, x"C3");
 
-        -- Byte-lane write masking: only lane 1 (pins 2,3) may change
-        bus_write_lanes(RegSlotPxAFS, x"00000000", "1101");
-        bus_read(RegSlotPxAFS, rdw);
-        check_slv("PxAFS byte-lane masked write", rdw, x"77770077");
-
-        -- restore GPIO mode
-        bus_write(RegSlotPxAFS, x"00000000");
-        bus_write8(RegSlotPxSEL, x"00");
-        alt_func_out_in <= (others => '0');
-        alt_func_dir_in <= (others => '0');
-        alt_func_ren_in <= (others => '0');
-        bus_write8(RegSlotPxOUT, x"00");
-        wait for 2 * CLK_PERIOD;
-
-        ----------------------------------------------------------------
-        -- GROUP 8: rising-edge interrupt (PxIES=0)
-        ----------------------------------------------------------------
-        report "=== GROUP 8: rising-edge interrupt ===" severity note;
-
-        prt_in <= (others => '0');                       -- idle low
-        bus_write8(RegSlotPxIES, x"00");                 -- low-to-high
-        bus_write8(RegSlotPxIE,  x"01");                 -- enable pin 0
-        wait for 2 * CLK_PERIOD;
-        check_bit("no spurious IRQ before edge", irq(0), '0');
-
-        prt_in(0) <= '1';                                -- rising edge on pin 0
-        wait for 4 * CLK_PERIOD;
-        check_bit("irq(0) set on rising edge", irq(0), '1');
-        bus_read(RegSlotPxIF, rdw);
-        check_bit("PxIF(0) set on rising edge", rdw(0), '1');
-
-        bus_write8(RegSlotPxIF, x"01");                  -- write 1 clears flag
-        wait for 2 * CLK_PERIOD;
-        check_bit("irq(0) cleared by PxIF write", irq(0), '0');
-        bus_read(RegSlotPxIF, rdw);
-        check_bit("PxIF(0) cleared", rdw(0), '0');
-
-        bus_write8(RegSlotPxIE, x"00");                  -- disable
+        bus_write(clk, pbus, RegSlotPxIE,  x"00000000");
+        bus_write(clk, pbus, RegSlotPxIES, x"00000000");
         prt_in <= (others => '0');
-        wait for 2 * CLK_PERIOD;
+        wait for 2 * PERIOD;
 
-        ----------------------------------------------------------------
-        -- GROUP 9: falling-edge interrupt (PxIES=1)
-        ----------------------------------------------------------------
-        report "=== GROUP 9: falling-edge interrupt ===" severity note;
+        ------------------------------------------------------------------
+        -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE
+        -- deliberately-wrong expected value so the scoreboard proves it can
+        -- fail.
+        ------------------------------------------------------------------
+        report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
+        bus_write(clk, pbus, RegSlotPxOUT,  x"00000000");
+        bus_write(clk, pbus, RegSlotPxTASK, x"0000000F");
+        pulse1(task_outset);
+        bus_read(clk, pbus, read_data, RegSlotPxOUT, rdw);
+        sb.check_slv("NEGATIVE CONTROL: wrong expected PxOUT after task_outset (must FAIL)",
+                     rdw(7 downto 0), x"00");   -- actual is 0x0F -- deliberately wrong
 
-        prt_in(1) <= '1';                                -- idle high for pin 1
-        bus_write8(RegSlotPxIES, x"02");                 -- pin 1 high-to-low
-        bus_write8(RegSlotPxIE,  x"02");                 -- enable pin 1
-        wait for 2 * CLK_PERIOD;
-        check_bit("no spurious IRQ before edge", irq(1), '0');
-
-        prt_in(1) <= '0';                                -- falling edge on pin 1
-        wait for 4 * CLK_PERIOD;
-        check_bit("irq(1) set on falling edge", irq(1), '1');
-        bus_read(RegSlotPxIF, rdw);
-        check_bit("PxIF(1) set on falling edge", rdw(1), '1');
-
-        bus_write8(RegSlotPxIF, x"02");                  -- clear
-        wait for 2 * CLK_PERIOD;
-        check_bit("irq(1) cleared", irq(1), '0');
-
-        bus_write8(RegSlotPxIE, x"00");
-        bus_write8(RegSlotPxIES, x"00");
-        prt_in <= (others => '0');
-        wait for 2 * CLK_PERIOD;
-
-        ----------------------------------------------------------------
-        -- GROUP 10: interrupt masking (PxIE=0)
-        ----------------------------------------------------------------
-        report "=== GROUP 10: interrupt masking ===" severity note;
-
-        bus_write8(RegSlotPxIES, x"00");                 -- rising-edge
-        bus_write8(RegSlotPxIE,  x"00");                 -- all disabled
-        bus_write8(RegSlotPxIF,  x"FF");                 -- ensure flags clear
-        wait for 2 * CLK_PERIOD;
-        prt_in(2) <= '1';                                -- edge on a masked pin
-        wait for 4 * CLK_PERIOD;
-        check_bit("masked pin raises no IRQ", irq(2), '0');
-        bus_read(RegSlotPxIF, rdw);
-        check_bit("masked pin sets no PxIF", rdw(2), '0');
-        prt_in <= (others => '0');
-
-        ----------------------------------------------------------------
-        -- Final verdict
-        ----------------------------------------------------------------
+        ------------------------------------------------------------------
+        -- Final verdict: sb.errors must be EXACTLY 1 (the negative control).
+        ------------------------------------------------------------------
         wait for 1 us;
-        if error_count = 0 then
+        sb.report_summary("GPIO TB");
+
+        if sb.errors = 1 then
             report LF & LF &
                 "    ##################################################" & LF &
-                "    ##                                              ##" & LF &
-                "    ##        GPIO TB:  ALL CHECKS PASSED           ##" & LF &
-                "    ##                                              ##" & LF &
+                "    ##   GPIO_TB PASS (1 expected negative-control failure)" & LF &
+                "    ##   GPIO TB:  ALL CHECKS PASSED" & LF &
                 "    ##################################################" & LF
                 severity note;
         else
             report LF & LF &
                 "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
-                "    !!                                              !!" & LF &
-                "    !!   GPIO TB:  " & integer'image(error_count) &
-                       " CHECK(S) FAILED" & LF &
-                "    !!                                              !!" & LF &
+                "    !!   GPIO_TB FAIL (expected exactly 1 failure [negative control], got " &
+                integer'image(sb.errors) & ")" & LF &
                 "    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
                 severity warning;
         end if;
 
+        tb_done <= true;
         stop;
         wait;
-    end process;
+    end process stim_proc;
 
 end architecture sim;

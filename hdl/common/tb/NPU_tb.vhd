@@ -79,6 +79,9 @@ architecture testbench of NPU_tb is
     signal NpuActive	: std_logic;						-- NPU Active Signal for Arbitration
     -- NPU Interrupt Signal (DP-SG think-done IRQ, npu_irq_spec.md, irq_router source 120)
     signal ThinkDoneIrq	: std_logic;						-- Think-Done IRQ (registered level on Clk)
+    -- EVFAB task port (event_fabric_spec.md, 2026-07-24): one-MabMmrCLK pulse
+    -- that starts a THINK exactly like a register write of NPUCR bit 16.
+    signal task_think	: std_logic := '0';					-- EVFAB task pulse (MabMmrCLK domain)
 
 	-- SRAM Input Signals (MUXed by NPU)
 	signal NpuSramA_out	: std_logic_vector(11 downto 0);	-- NPU To SRAM - Address (to SRAM)
@@ -153,7 +156,9 @@ begin
 		-- Status
         NpuActive	=> NpuActive,
 		-- Interrupt (DP-SG think-done IRQ, npu_irq_spec.md)
-        ThinkDoneIrq	=> ThinkDoneIrq
+        ThinkDoneIrq	=> ThinkDoneIrq,
+		-- EVFAB task port (event_fabric_spec.md, 2026-07-24)
+        task_think	=> task_think
     );
 
     -- SRAM Clock Gate
@@ -234,6 +239,12 @@ begin
 		variable irq_error_count	: integer	:= 0;	-- IRQ-phase mismatch tally
 		variable think_poll_i		: integer	:= 0;	-- bounded THINK-completion poll counter
 		constant THINK_POLL_MAX		: integer	:= 4096;	-- bounded poll ceiling (never an unbounded wait)
+		-- EVFAB task_think phase (event_fabric_spec.md, 2026-07-24)
+		variable evfab_error_count	: integer	:= 0;	-- EVFAB-phase mismatch tally
+		variable evfab_poll_i		: integer	:= 0;	-- bounded THINK-completion poll counter (own copy)
+		variable reg_launch_val		: integer	:= 0;	-- register-launched THINK output (reference)
+		variable task_launch_val	: integer	:= 0;	-- task-launched THINK output (compared)
+		variable task_launch_val2	: integer	:= 0;	-- re-read after the pulse-consumed check
 	begin
 		----- Reset NPU
 		report "[NPU_TB] Starting NPU testbench simulation..." severity note;
@@ -836,6 +847,295 @@ begin
 				severity warning;
 		end if;
 		error_count := error_count + irq_error_count;
+
+		----------------------------------------------------------------------
+		----- EVFAB task_think Test Phase (event_fabric_spec.md, 2026-07-24) -
+		----- Fabric task port: one-MabMmrCLK pulse starts a THINK exactly  --
+		----- like an NPUCR bit-16 register write, outside CEN, after the   --
+		----- register case (task wins a coincident write); the trailing   --
+		----- NpuDone/reset clear still wins over both paths.               --
+		----------------------------------------------------------------------
+		report "[NPU_TB] Starting EVFAB task_think test phase..." severity note;
+
+		-- Reuse the exact pass-through descriptor already proven by IRQ-d/e:
+		-- IVSAR=0 (Layer-1 x[0] still staged), WVSAR=2048 (Layer-1 w[0] still
+		-- staged), NI=0 (1 input), NN=0 (1 neuron), no bias, no activation.
+		-- EVFAB-a: launch via the REGISTER path (bit 16) to a fresh output
+		-- address (3100) to establish the reference value.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUIVSAR, MabMmrA'length));
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(0, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUWVSAR, MabMmrA'length));
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(2048, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUOVSAR, MabMmrA'length));
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(3100, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		-- Register-launched THINK (NPUCR bit 16 = 1 via a normal write).
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrD		<=	(31 downto 20 => '0')					&
+						'0'										&		-- TDIE = 0
+						'0'										&		-- NPUBEN disabled
+						'0'										&		-- NPUAEN disabled (pass-through)
+						'1'										&		-- Activate NPU (register path)
+						std_logic_vector(to_unsigned(0, 8))		&		-- NI = 1 (0+1)
+						std_logic_vector(to_unsigned(0, 8));			-- NN = 1 (0+1)
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		evfab_poll_i := 0;
+		MabMmrCEN	<= MEM_ASSERT;
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		wait until falling_edge(MabMmrCLK);
+		while (to_X01(MabMmrQ(16)) = '1') and (evfab_poll_i < THINK_POLL_MAX) loop
+			wait until falling_edge(MabMmrCLK);
+			evfab_poll_i := evfab_poll_i + 1;
+		end loop;
+		MabMmrCEN	<= MEM_DEASSERT;
+		if evfab_poll_i >= THINK_POLL_MAX then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-a): register-launched reference THINK did not complete within " &
+					integer'image(THINK_POLL_MAX) & " bounded poll cycles" severity warning;
+		end if;
+
+		-- Read the reference (register-launched) output.
+		MabSramCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabSramCLK);
+		MabSramA	<= std_logic_vector(to_unsigned(3100, MabSramA'length));
+		wait until falling_edge(MabSramCLK);
+		reg_launch_val := to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0)));
+		report "[NPU_TB] EVFAB-a: register-launched reference value = " & integer'image(reg_launch_val) & "." severity note;
+
+		-- EVFAB-b: retarget OVSAR only (no NPUCR touch, so NPUTHINK is
+		-- untouched by this write -- WEN(2) stays deasserted) to a fresh
+		-- address, then launch the SAME descriptor via a single task_think
+		-- pulse on MabMmrCLK instead of a register write.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUOVSAR, MabMmrA'length));
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(3110, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		-- One-MabMmrCLK task_think pulse, CEN left DEASSERTED throughout to
+		-- prove the task path acts outside the CEN qualifier.
+		wait until falling_edge(MabMmrCLK);
+		task_think	<= '1';
+		wait until falling_edge(MabMmrCLK);
+		task_think	<= '0';
+		report "[NPU_TB] EVFAB-b: task_think pulsed for one MabMmrCLK (CEN deasserted throughout)." severity note;
+
+		-- EVFAB-c (NpuActive check): sample within a couple of Clk of the
+		-- pulse -- NPUCR bit 16 must read 1 (task started the THINK exactly
+		-- like a register write) and NpuActive must read 1 (busy level the
+		-- fabric consumes; no new busy port).
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(16)) /= '1' then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-c): NPUCR bit 16 expected 1 shortly after the task_think pulse (task-started THINK running), read '"
+					& std_logic'image(to_X01(MabMmrQ(16))) & "'" severity warning;
+		end if;
+		if to_X01(NpuActive) /= '1' then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-c): NpuActive expected 1 while the task-started THINK is running, read '"
+					& std_logic'image(to_X01(NpuActive)) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+		report "[NPU_TB] EVFAB-c: NPUCR.16=1 / NpuActive=1 during the task-started THINK OK." severity note;
+
+		-- Poll to completion (bounded), then confirm the trailing clear and
+		-- NpuActive dropping.
+		evfab_poll_i := 0;
+		MabMmrCEN	<= MEM_ASSERT;
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		wait until falling_edge(MabMmrCLK);
+		while (to_X01(MabMmrQ(16)) = '1') and (evfab_poll_i < THINK_POLL_MAX) loop
+			wait until falling_edge(MabMmrCLK);
+			evfab_poll_i := evfab_poll_i + 1;
+		end loop;
+		MabMmrCEN	<= MEM_DEASSERT;
+		if evfab_poll_i >= THINK_POLL_MAX then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-b): task-started THINK did not complete within " &
+					integer'image(THINK_POLL_MAX) & " bounded poll cycles" severity warning;
+		end if;
+
+		for k in 1 to 4 loop
+			wait until rising_edge(Clk);
+		end loop;
+		if to_X01(NpuActive) /= '0' then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-c): NpuActive expected 0 after the task-started THINK completed, read '"
+					& std_logic'image(to_X01(NpuActive)) & "'" severity warning;
+		end if;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(16)) /= '0' then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-b): NPUCR bit 16 expected 0 after the task-started THINK completed (trailing clear), read '"
+					& std_logic'image(to_X01(MabMmrQ(16))) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		-- EVFAB-b verdict: task-started output must match the register-
+		-- launched reference exactly (same descriptor, same inputs/weights).
+		MabSramCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabSramCLK);
+		MabSramA	<= std_logic_vector(to_unsigned(3110, MabSramA'length));
+		wait until falling_edge(MabSramCLK);
+		task_launch_val := to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0)));
+		if task_launch_val /= reg_launch_val then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-b): task-launched THINK output mismatch (task = " &
+					integer'image(task_launch_val) & ", register-launched reference = " &
+					integer'image(reg_launch_val) & ")" severity warning;
+		end if;
+		report "[NPU_TB] EVFAB-b: task-launched value = " & integer'image(task_launch_val) &
+				" (register-launched reference = " & integer'image(reg_launch_val) & ") OK." severity note;
+
+		-- EVFAB-d (pulse-only contract): the pulse is consumed exactly once
+		-- -- confirm no second THINK auto-started (bounded quiet poll: bit 16
+		-- stays 0) and the output stays stable (re-read, unchanged).
+		for k in 1 to 50 loop
+			wait until rising_edge(Clk);
+			if (k mod 10) = 0 then
+				wait until falling_edge(MabMmrCLK);
+				MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+				MabMmrCEN	<= MEM_ASSERT;
+				wait until falling_edge(MabMmrCLK);
+				if to_X01(MabMmrQ(16)) /= '0' then
+					evfab_error_count := evfab_error_count + 1;
+					report "FAIL(EVFAB-d): NPUCR bit 16 re-asserted at quiet-check " & integer'image(k) &
+							" -- the task_think pulse must be consumed exactly once" severity warning;
+				end if;
+				MabMmrCEN	<= MEM_DEASSERT;
+			end if;
+		end loop;
+		MabSramCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabSramCLK);
+		MabSramA	<= std_logic_vector(to_unsigned(3110, MabSramA'length));
+		wait until falling_edge(MabSramCLK);
+		task_launch_val2 := to_integer(signed(MabSramQ((Y_M_BITS + N_BITS) downto 0)));
+		if task_launch_val2 /= task_launch_val then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-d): task-launched output changed after the pulse-only quiet check (was " &
+					integer'image(task_launch_val) & ", now " & integer'image(task_launch_val2) & ")" severity warning;
+		end if;
+		report "[NPU_TB] EVFAB-d: pulse consumed exactly once (50 Clk quiet check), output stable OK." severity note;
+
+		-- EVFAB-e: coincident register write + task pulse, same MabMmrCLK
+		-- edge. The register write carries NPUCR bit 16 = 0 (does NOT ask
+		-- for a THINK by itself); task_think fires on the SAME edge. Per the
+		-- RTL comment (task processing sits AFTER the register case in the
+		-- same clocked process), the task path wins the coincidence and a
+		-- THINK must start regardless of what the register write's bit 16
+		-- carried.
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUOVSAR, MabMmrA'length));
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		MabMmrD		<= (31 downto 12 => '0') & std_logic_vector(to_unsigned(3120, 12));
+		wait until falling_edge(MabMmrCLK);
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrD		<=	(31 downto 20 => '0')					&
+						'0'										&		-- TDIE = 0
+						'0'										&		-- NPUBEN disabled
+						'0'										&		-- NPUAEN disabled
+						'0'										&		-- THINK = 0 in the coincident WRITE (task must still win)
+						std_logic_vector(to_unsigned(0, 8))		&
+						std_logic_vector(to_unsigned(0, 8));
+		MabMmrWEN	<= (others => MEM_ASSERT);
+		MabMmrCEN	<= MEM_ASSERT;
+		task_think	<= '1';						-- same edge as the register write above
+		wait until falling_edge(MabMmrCLK);
+		MabMmrWEN	<= (others => MEM_DEASSERT);
+		MabMmrCEN	<= MEM_DEASSERT;
+		task_think	<= '0';
+
+		wait until falling_edge(MabMmrCLK);
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		MabMmrCEN	<= MEM_ASSERT;
+		wait until falling_edge(MabMmrCLK);
+		if to_X01(MabMmrQ(16)) /= '1' then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-e): NPUCR bit 16 expected 1 after a coincident register-write(bit16=0)+task_think pulse (task must win), read '"
+					& std_logic'image(to_X01(MabMmrQ(16))) & "'" severity warning;
+		end if;
+		MabMmrCEN	<= MEM_DEASSERT;
+		report "[NPU_TB] EVFAB-e: coincident NPUCR write (bit16=0) + task_think pulse still started a THINK OK." severity note;
+
+		-- Drain this THINK (bounded) so the bench ends idle.
+		evfab_poll_i := 0;
+		MabMmrCEN	<= MEM_ASSERT;
+		MabMmrA		<= std_logic_vector(to_unsigned(MmrAddrNPUCR, MabMmrA'length));
+		wait until falling_edge(MabMmrCLK);
+		while (to_X01(MabMmrQ(16)) = '1') and (evfab_poll_i < THINK_POLL_MAX) loop
+			wait until falling_edge(MabMmrCLK);
+			evfab_poll_i := evfab_poll_i + 1;
+		end loop;
+		MabMmrCEN	<= MEM_DEASSERT;
+		if evfab_poll_i >= THINK_POLL_MAX then
+			evfab_error_count := evfab_error_count + 1;
+			report "FAIL(EVFAB-e): coincident-launched THINK did not complete within " &
+					integer'image(THINK_POLL_MAX) & " bounded poll cycles" severity warning;
+		end if;
+
+		report "[NPU_TB] EVFAB task_think test phase complete (" & integer'image(evfab_error_count) & " check(s) failed)." severity note;
+
+		----- EVFAB Phase Verdict -----
+		if evfab_error_count = 0 then
+			report LF & LF &
+				"    ##################################################" & LF &
+				"    ##                                              ##" & LF &
+				"    ##       NPU EVFAB TASK_THINK TESTS PASSED      ##" & LF &
+				"    ##                                              ##" & LF &
+				"    ##################################################" & LF
+				severity note;
+		else
+			report LF & LF &
+				"    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF &
+				"    !!                                              !!" & LF &
+				"    !!    NPU EVFAB TASK_THINK TESTS FAILED: " & integer'image(evfab_error_count) &
+					   " CHECK(S) FAILED" & LF &
+				"    !!                                              !!" & LF &
+				"    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" & LF
+				severity warning;
+		end if;
+		error_count := error_count + evfab_error_count;
 
 		----- Final verdict -----
 		if error_count = 0 then

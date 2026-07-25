@@ -137,6 +137,7 @@ architecture behav of MCU is
         port (
             resetn           : in  std_logic;
             irq              : out std_logic_vector(num_pins - 1 downto 0);	-- Interrupt request output signal, active high
+            --@GEN:evfab-comp:gpio@
 
             clk_mem         : in  std_logic;
             en              : in  std_logic;
@@ -230,6 +231,7 @@ architecture behav of MCU is
             irq_rc      : out std_logic;   
             irq_te      : out std_logic; 
             irq_tc      : out std_logic;  
+            --@GEN:evfab-comp:uart@
 
             -- Memory Bus
             clk_mem     : in  std_logic;
@@ -316,6 +318,7 @@ architecture behav of MCU is
             irq_cmp0    : out std_logic;  -- Compare 0 Interrupt
             irq_cmp1    : out std_logic;  -- Compare 1 Interrupt
             irq_cmp2    : out std_logic;  -- Compare 2 Interrupt
+            --@GEN:evfab-comp:timer@
 
             -- Memory Bus
             clk_mem      : in  std_logic;
@@ -484,6 +487,7 @@ architecture behav of MCU is
         --@GEN:dma-decls@
         --@GEN:trng-decls@
         --@GEN:i2ct-decls@
+        --@GEN:evfab-decls@
         --@GEN:slot12-decls@
         --@GEN:sh-master-decl@
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
@@ -1018,6 +1022,7 @@ begin
     --@GEN:dma-instance@
     --@GEN:trng-instance@
     --@GEN:i2ct-instance@
+    --@GEN:evfab-instance@
 
     -- M17: MTCMOS power controller (window slot 11 @0x4B00, ex-SARADC0).
     -- One gate bit per tile hart; a per-tile FSM sequences the domain
@@ -1119,6 +1124,7 @@ begin
         port map (
             resetn           => resetn, 
             irq              => irq_gpio0,
+            --@GEN:evfab-taps:gpio0@
 
             --@GEN:bus:gpio0@
 
@@ -1315,6 +1321,7 @@ begin
             irq_rc       => irq_uart0_rc,
             irq_te       => irq_uart0_te,
             irq_tc       => irq_uart0_tc,
+            --@GEN:evfab-taps:uart0@
 
             --@GEN:bus:uart0@
 
@@ -1389,6 +1396,7 @@ begin
             irq_cmp0     => irq_tim0_cmp0,
             irq_cmp1     => irq_tim0_cmp1,
             irq_cmp2     => irq_tim0_cmp2,
+            --@GEN:evfab-taps:timer0@
 
             --@GEN:bus:timer0@
 

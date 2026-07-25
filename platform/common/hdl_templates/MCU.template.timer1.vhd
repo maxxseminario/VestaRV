@@ -50,6 +50,7 @@
             irq_cmp0     => irq_tim1_cmp0,
             irq_cmp1     => irq_tim1_cmp1,
             irq_cmp2     => irq_tim1_cmp2,
+            --@GEN:evfab-taps:timer1@
 
             --@GEN:bus:timer1@
 

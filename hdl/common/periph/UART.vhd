@@ -32,7 +32,13 @@ entity UART is
         RX_IN           : in    std_logic;
         RX_OUT          : out   std_logic;
         RX_DIR          : out   std_logic;
-        RX_REN          : out   std_logic
+        RX_REN          : out   std_logic;
+
+        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): the RCIF
+        -- SET condition (the clk_mem-synchronized rx_done edge), pre-mask --
+        -- IRQ enables never touch it. One clk_mem pulse per received frame
+        -- (P-mode producer EV7; clk_mem = free-running mclk at integration).
+        evt_rx          : out   std_logic
     );
 end entity UART;
 
@@ -528,6 +534,12 @@ begin
             end if;
         end if;
     end process;
+
+    -- EVFAB producer tap: the RCIF SET condition itself (the synchronized
+    -- rx_done edge above), exported combinationally -- one clk_mem pulse per
+    -- received frame, fires even when RCIF was already set (overrun), and no
+    -- IRQ enable ever touches it.
+    evt_rx <= '1' when rx_done_s2 /= rx_done_s3 else '0';
 
     -- =============================================================================
     -- Pad Control Assignments

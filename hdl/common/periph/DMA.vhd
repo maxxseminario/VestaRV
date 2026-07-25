@@ -174,7 +174,22 @@ entity DMA is
 
         -- interrupts (M19 PLIC-lite levels into irq_router)
         irq_done    : out std_logic;                     -- combined channels-done (vector 118)
-        irq_err     : out std_logic                      -- error (vector 119)
+        irq_err     : out std_logic;                     -- error (vector 119)
+
+        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24).
+        -- task_go: one-clk fabric pulses (T0/T1 wire bits 0/1); consumed at the
+        -- SAME arm site as go_pulse -> reject-at-GO, busy suppression and
+        -- pacing arm behave IDENTICALLY to a register GO (frozen D8/D13
+        -- semantics). DMAEN is re-applied at the tap (the ClkMem-side wdata(0)
+        -- qualifier does not see task GOs). busy_any/BUSY covers a task GO the
+        -- same cycle it arrives (no blind window vs the register path's
+        -- go_pending). evt_done/evt_err: registered one-clk pulses at the
+        -- flags' SET sites (pre-IE; abort sets NEITHER, by D15 design).
+        -- ch_busy: per-channel engaged levels for the fabric's OVR input.
+        task_go     : in  std_logic_vector(3 downto 0) := (others => '0');
+        evt_done    : out std_logic_vector(3 downto 0); -- EV10/EV11 wire bits 0/1
+        evt_err     : out std_logic;                     -- EV12 (combined set sites)
+        ch_busy     : out std_logic_vector(3 downto 0)  -- fabric task_busy taps
     );
 end DMA;
 
@@ -248,6 +263,9 @@ architecture behavioral of DMA is
     signal abort_req : sl_arr;                             -- latched abort request
     signal done_flag : sl_arr;                             -- CHnDONE sticky (clk)
     signal err_flag  : sl_arr;                             -- CHnERR sticky (clk)
+    signal task_go_eff : sl_arr;                           -- EVFAB task GO, DMAEN-gated (comb)
+    signal evt_done_p  : sl_arr;                           -- EVFAB one-clk done pulses (reg)
+    signal evt_err_p   : std_logic;                        -- EVFAB one-clk err pulse (reg)
     signal cur_ch    : natural range 0 to 3;               -- channel being serviced this txn
     signal rr_ptr    : natural range 0 to 3;               -- D7 round-robin pointer
     signal activech  : std_logic_vector(2 downto 0);       -- SR.ACTIVECH (0 when idle)
@@ -282,8 +300,10 @@ begin
     -- BUSY same-cycle (D8/D16): any channel busy OR any GO pending (go_pending
     -- asserts the instant the CHnGO write lands, clears when the engine has
     -- observed the launch) -- no assert blind window for a write-then-poll.
-    busy_any <= (busy(0) or go_pending(0)) or (busy(1) or go_pending(1))
-             or (busy(2) or go_pending(2)) or (busy(3) or go_pending(3));
+    busy_any <= (busy(0) or go_pending(0) or task_go_eff(0))
+             or (busy(1) or go_pending(1) or task_go_eff(1))
+             or (busy(2) or go_pending(2) or task_go_eff(2))
+             or (busy(3) or go_pending(3) or task_go_eff(3));
 
     -- combined done/err (ch>=NCH flags never driven -> read 0, D6).
     done_any <= done_flag(0) or done_flag(1) or done_flag(2) or done_flag(3);
@@ -472,6 +492,16 @@ begin
         end if;
     end process;
 
+    -- EVFAB task GO: DMAEN re-applied clk-side (quasi-static level, crosses
+    -- bare per D4) -- a task GO with DMAEN=0 is completely inert, matching the
+    -- register path's ClkMem-side wdata(0) suppression.
+    task_gates: for i in 0 to 3 generate
+        task_go_eff(i) <= task_go(i) and dmaen;
+        ch_busy(i)     <= busy(i) or go_pending(i) or task_go_eff(i);
+        evt_done(i)    <= evt_done_p(i);   -- element-wise: sl_arr vs slv port
+    end generate;
+    evt_err  <= evt_err_p;
+
     -- one-clk edge pulses (toggle: any change; trigger: RISING only, D9).
     go_edges: for i in 0 to 3 generate
         go_pulse(i)       <= '1' when (go_c2(i) /= go_prev(i)) else '0';
@@ -520,6 +550,8 @@ begin
             err_flag  <= (others => '0');
             cur_ch    <= 0;
             rr_ptr    <= 0;
+            evt_done_p <= (others => '0');
+            evt_err_p  <= '0';
             activech  <= "000";
             in_clr    <= '0';
             data_hold <= (others => '0');
@@ -535,6 +567,11 @@ begin
                 if clr_done_pulse(ch) = '1' then done_flag(ch) <= '0'; end if;
                 if clr_err_pulse(ch)  = '1' then err_flag(ch)  <= '0'; end if;
             end loop;
+
+            -- EVFAB event pulses: default-cleared every cycle, set ONLY at the
+            -- done/err SET sites below -> registered one-clk pulses, pre-IE.
+            evt_done_p <= (others => '0');
+            evt_err_p  <= '0';
 
             -- (b) DMA0CRC seed commit (RTC write-commit; crc_acc single owner)
             if crc_wr_pulse = '1' then
@@ -561,7 +598,7 @@ begin
             -- (d) GO arm / reject-at-GO (D8/D13/A18): sample the programmed
             -- stores on the go edge (quasi-static, data-before-flag).
             for ch in 0 to 3 loop
-                if ch < NCH and go_pulse(ch) = '1' then
+                if ch < NCH and (go_pulse(ch) = '1' or task_go_eff(ch) = '1') then
                     if (len_reg(ch) = X"00000000")
                        or (src_reg(ch)(1 downto 0) /= "00")
                        or (dst_reg(ch)(1 downto 0) /= "00")
@@ -570,6 +607,7 @@ begin
                        or (src_reg(ch)(16 downto 14) = "010")
                        or (dst_reg(ch)(16 downto 14) = "010") then
                         err_flag(ch) <= '1';               -- channel never runs
+                        evt_err_p    <= '1';               -- EVFAB EV12 set site
                     elsif busy(ch) = '0' then
                         -- Fable R2 fix: exact clk-domain re-launch suppression.
                         -- The ClkMem-side busy_sync qualifier has a 2-gated-edge
@@ -636,6 +674,7 @@ begin
                                 or (sword = "001111000000000");
                         if deny then
                             err_flag(selv) <= '1';
+                            evt_err_p      <= '1';        -- EVFAB EV12 set site
                             busy(selv)     <= '0';        -- abort channel (D12)
                         else
                             trg := cfg_work(selv)(5 downto 2);
@@ -706,8 +745,9 @@ begin
                         else
                             lenzero := (newlen = X"00000000");
                             if lenzero then
-                                done_flag(cur_ch) <= '1';
-                                busy(cur_ch)      <= '0';
+                                done_flag(cur_ch)  <= '1';
+                                busy(cur_ch)       <= '0';
+                                evt_done_p(cur_ch) <= '1';  -- EVFAB EV10/11 set site
                             end if;
                             trg     := cfg_work(cur_ch)(5 downto 2);
                             needclr := (trg = "0010") or (trg = "0011" and lenzero);

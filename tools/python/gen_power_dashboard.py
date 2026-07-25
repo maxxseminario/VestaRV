@@ -53,6 +53,7 @@ GENUS_BLOCKS = {
     "DMA_nch2":        ("Peripherals", "DMA (2-channel shape — castalia_dma config)"),
     "I2CTarget":       ("Peripherals", "I2C target (hardware-autonomous slave)"),
     "NPU":             ("Peripherals", "NPU (P4 family: MLP + CONV1D, chip generics)"),
+    "EVFAB":           ("Peripherals", "EVFAB (event/trigger fabric, PPI-style crossbar)"),
 }
 GENUS_SKIP = {"MCU"}  # frozen Myshkin tape-out synth report
 

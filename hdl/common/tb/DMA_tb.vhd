@@ -390,6 +390,9 @@ architecture sim of DMA_tb is
 
     -- FROZEN DUT entity (design doc "FROZEN ENTITY"), declared as a component so
     -- the bench compiles standalone before hdl/common/periph/DMA.vhd exists.
+    -- EVFAB taps (event_fabric_spec.md 2026-07-24) added to the component so
+    -- default binding sees the FULL entity port list -- task_go carries the
+    -- same all-zero default as the entity (PWM_tb task_flttrig discipline).
     component DMA is
         generic (
             NCH : natural := 4;
@@ -415,7 +418,11 @@ architecture sim of DMA_tb is
             trig_qspi0_rxf : in std_logic := '0';
             trig_nfc0_rxf  : in std_logic := '0';
             irq_done    : out std_logic;
-            irq_err     : out std_logic
+            irq_err     : out std_logic;
+            task_go     : in  std_logic_vector(3 downto 0) := (others => '0');
+            evt_done    : out std_logic_vector(3 downto 0);
+            evt_err     : out std_logic;
+            ch_busy     : out std_logic_vector(3 downto 0)
         );
     end component;
 
@@ -456,6 +463,31 @@ architecture sim of DMA_tb is
     signal denied_hits, uart_reads, nfc_reads : natural;
     signal qspi_sr_obs    : std_logic_vector(7 downto 0);
     signal qspi_clr_wdata : std_logic_vector(31 downto 0);
+
+    -- ==== EVFAB taps (event_fabric_spec.md 2026-07-24, G-EV) ==============
+    -- DUT#1 only (G10's dut2 leaves these at the component's default /
+    -- open -- G10 is register-shape only, no task-tap coverage needed there).
+    signal task_go  : std_logic_vector(3 downto 0) := "0000";  -- tb-driven, default 0000
+    signal evt_done : std_logic_vector(3 downto 0);
+    signal evt_err  : std_logic;
+    signal ch_busy  : std_logic_vector(3 downto 0);
+
+    -- ---- EVFAB pulse/level monitor (checker independence, PWM_tb G-EV idiom)
+    -- Continuous background tracker of evt_done(3:0)/evt_err (pulse starts +
+    -- total-high samples, mirrors PWM_tb's evt_period/evt_fault tracker) and
+    -- ch_busy(3:0) (episode starts + total-high samples, same shape, proving
+    -- both "did it ever assert" and "exactly one contiguous engaged episode").
+    -- NEVER reads a DUT internal -- only the exported evt_done/evt_err/ch_busy
+    -- ports. Windowed via evt_mon_clear, held across exactly one clk edge
+    -- (mon_reset idiom).
+    type nat_arr4 is array (0 to 3) of natural;
+    signal evt_done_starts, evt_done_highs : nat_arr4 := (others => 0);
+    signal evt_done_prev : std_logic_vector(3 downto 0) := (others => '0');
+    signal evt_err_starts, evt_err_highs : natural := 0;
+    signal evt_err_prev  : std_logic := '0';
+    signal ch_busy_starts, ch_busy_highs : nat_arr4 := (others => 0);
+    signal ch_busy_prev  : std_logic_vector(3 downto 0) := (others => '0');
+    signal evt_mon_clear : std_logic := '0';
 
     -- ==== DUT #2 (NCH=2) harness (G10) ===================================
     signal pbus2  : periph_bus_t := PERIPH_BUS_IDLE;
@@ -506,6 +538,62 @@ begin
     c3: CRC16 port map (DataIn => crc_word(31 downto 24), CrcOld => crc_s3,   CrcOut => crc_res);
 
     ----------------------------------------------------------------------------
+    -- EVFAB pulse/level monitor (see the signal-declaration comment above):
+    -- samples evt_done(3:0)/evt_err/ch_busy(3:0) (to_X01-normalized, per bit)
+    -- on every clk rising edge, windowed via evt_mon_clear the same way
+    -- PWM_tb's evt_mon_proc is windowed via evt_mon_clear.
+    ----------------------------------------------------------------------------
+    evt_mon_proc : process(clk)
+        variable d_lvl, b_lvl : std_logic_vector(3 downto 0);
+        variable e_lvl        : std_logic;
+    begin
+        if rising_edge(clk) then
+            for ch in 0 to 3 loop
+                d_lvl(ch) := to_X01(evt_done(ch));
+                b_lvl(ch) := to_X01(ch_busy(ch));
+            end loop;
+            e_lvl := to_X01(evt_err);
+            if evt_mon_clear = '1' then
+                for ch in 0 to 3 loop
+                    evt_done_starts(ch) <= 0;
+                    evt_done_highs(ch)  <= 0;
+                    evt_done_prev(ch)   <= d_lvl(ch);
+                    ch_busy_starts(ch)  <= 0;
+                    ch_busy_highs(ch)   <= 0;
+                    ch_busy_prev(ch)    <= b_lvl(ch);
+                end loop;
+                evt_err_starts <= 0;
+                evt_err_highs  <= 0;
+                evt_err_prev   <= e_lvl;
+            else
+                for ch in 0 to 3 loop
+                    if d_lvl(ch) = '1' then
+                        evt_done_highs(ch) <= evt_done_highs(ch) + 1;
+                        if evt_done_prev(ch) /= '1' then
+                            evt_done_starts(ch) <= evt_done_starts(ch) + 1;
+                        end if;
+                    end if;
+                    evt_done_prev(ch) <= d_lvl(ch);
+                    if b_lvl(ch) = '1' then
+                        ch_busy_highs(ch) <= ch_busy_highs(ch) + 1;
+                        if ch_busy_prev(ch) /= '1' then
+                            ch_busy_starts(ch) <= ch_busy_starts(ch) + 1;
+                        end if;
+                    end if;
+                    ch_busy_prev(ch) <= b_lvl(ch);
+                end loop;
+                if e_lvl = '1' then
+                    evt_err_highs <= evt_err_highs + 1;
+                    if evt_err_prev /= '1' then
+                        evt_err_starts <= evt_err_starts + 1;
+                    end if;
+                end if;
+                evt_err_prev <= e_lvl;
+            end if;
+        end if;
+    end process;
+
+    ----------------------------------------------------------------------------
     -- DUT #1 (NCH=4) + its arbiter-side model
     ----------------------------------------------------------------------------
     dut : component DMA
@@ -519,7 +607,9 @@ begin
             m_gnt => m_gnt, m_done => m_done, m_rdata => m_rda,
             trig_uart0_rc => trig_uart, trig_qspi0_rxf => trig_qspi,
             trig_nfc0_rxf => trig_nfc,
-            irq_done => irq_done, irq_err => irq_err
+            irq_done => irq_done, irq_err => irq_err,
+            task_go => task_go, evt_done => evt_done, evt_err => evt_err,
+            ch_busy => ch_busy
         );
 
     arb : entity work.dma_arb_model
@@ -551,7 +641,8 @@ begin
             m_req => m_req2, m_we => m_we2, m_addr => m_addr2, m_wdata => m_wda2,
             m_gnt => m_gnt2, m_done => m_done2, m_rdata => m_rda2,
             trig_uart0_rc => '0', trig_qspi0_rxf => '0', trig_nfc0_rxf => '0',
-            irq_done => irq_done2, irq_err => irq_err2
+            irq_done => irq_done2, irq_err => irq_err2,
+            evt_done => open, evt_err => open, ch_busy => open
         );
 
     arb2 : entity work.dma_arb_model
@@ -611,6 +702,7 @@ begin
         constant SRAB : natural := 16#13000#;   constant DRAB : natural := 16#13400#;
         constant LEGM : natural := 16#6100#;    constant LEGR : natural := 16#7804#;
         constant DLEG : natural := 16#13800#;
+        constant DSTT : natural := 16#13C00#;   -- G-EV task-launched-copy dst (fresh, clear of DLEG)
 
         -- program a channel's {SRC,DST,LEN,CFG}
         procedure prog_ch(signal b : inout periph_bus_t;
@@ -641,6 +733,32 @@ begin
         begin
             bus_write(clk, b, DMA_SLOT_SR, mask);
             wait for 6 * PERIOD;
+        end procedure;
+
+        -- ---- G-EV helpers (EVFAB taps) -------------------------------------
+
+        -- Drive task_go(ch) high across EXACTLY one clk rising edge (same
+        -- held-across-one-edge idiom as PWM_tb's pulse_task_flttrig), then
+        -- drop it back to '0'.
+        procedure pulse_task_go(ch : natural) is
+        begin
+            wait until clk = '0';
+            task_go(ch) <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            task_go(ch) <= '0';
+        end procedure;
+
+        -- Clear the evt_done/evt_err/ch_busy pulse+level monitor's
+        -- accumulators (PWM_tb evt_mon_reset idiom). Call only outside a
+        -- timing-critical window.
+        procedure evt_mon_reset is
+        begin
+            wait until clk = '0';
+            evt_mon_clear <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            evt_mon_clear <= '0';
         end procedure;
 
         -- backdoor RAM poke of DUT#1's model (one word)
@@ -1178,6 +1296,158 @@ begin
         sb.check_bit("FINAL: DUT#2 arbiter protocol monitor clean", to_X01(prot_err2), '0');
         sb.check_true("FINAL: no deny-word master txn ever issued (DUT#1)", denied_hits = 0);
         sb.check_true("FINAL: no deny-word master txn ever issued (DUT#2)", denied2 = 0);
+
+        ------------------------------------------------------------------
+        -- GROUP G-EV: EVFAB taps (event_fabric_spec.md 2026-07-24). task_go
+        -- is consumed at the SAME arm site as a register CHnGO (D8/D13
+        -- reject-at-GO, busy suppression and pacing arm are IDENTICAL);
+        -- DMAEN gates task GOs clk-side (task_go_eff = task_go and dmaen);
+        -- busy_any covers a task GO the same cycle it arrives; evt_done/
+        -- evt_err are registered one-clk pulses at the flags' SET sites
+        -- (pre-IE, abort sets neither); ch_busy = busy or go_pending or a
+        -- gated task pulse. Pulse counts / episode counts are proven with
+        -- the continuous evt_mon_proc background monitor (checker
+        -- independence: it only samples the exported evt_done/evt_err/
+        -- ch_busy ports, never a DUT internal), windowed via evt_mon_reset
+        -- -- the PWM_tb G-EV idiom.
+        ------------------------------------------------------------------
+        report "=== GROUP G-EV: EVFAB taps (task_go/evt_done/evt_err/ch_busy) ===" severity note;
+
+        -- (a)+(b) INDISTINGUISHABILITY + BUSY same-cycle: reuse G1's
+        -- mem-to-mem setup (same SRCA source values, re-poked -- idempotent,
+        -- SRCA is unchanged since G1) but launch CH0 via a one-clk
+        -- task_go(0) pulse instead of the register CHnGO write.
+        dma_enable(pbus, '1', '0');   -- DMAEN=1, DONEIE=1, ERRIE=0 (G1 shape)
+        for k in 0 to 3 loop
+            buf(k) := x"A1B2C3" & std_logic_vector(to_unsigned(16#40# + k, 8));
+            ram_poke1(dma_word_idx(SRCA) + k, buf(k));
+        end loop;
+        prog_ch(pbus, 0, SRCA, DSTT, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        evt_mon_reset;
+        pulse_task_go(0);
+        -- (b) BUSY same-cycle: bus_read's own select/capture latency puts its
+        -- data phase >=1 clk after the pulse -- BUSY must already read 1.
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV b: BUSY reads 1 immediately after task_go(0) (D8-identical same-cycle cover)",
+                     to_X01(rdw(DMA_SR_BUSY)), '1');
+        sb.check_true("G-EV b: ch_busy(0) was already high in the task_go(0) pulse cycle (monitor)",
+                      ch_busy_highs(0) > 0);
+        dma_wait_busy_clear(clk, pbus, rdata, ok);
+        sb.check_true("G-EV a: BUSY clears after the task-launched copy", ok);
+        for k in 0 to 3 loop
+            ram_peek1(dma_word_idx(DSTT) + k, got);
+            sb.check_slv("G-EV a: task-launched copy dst matches the register-launched equivalent (G1 values)",
+                         got, buf(k));
+        end loop;
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV a: CH0DONE sets for a task-launched copy", to_X01(rdw(DMA_SR_DONE0)), '1');
+        sb.check_true("G-EV a: exactly one evt_done(0) pulse for the task-launched copy",
+                      evt_done_starts(0) = 1);
+        sb.check_true("G-EV a: that evt_done(0) pulse is exactly one clk wide",
+                      evt_done_highs(0) = evt_done_starts(0));
+        sb.check_true("G-EV a: ch_busy(0) rose exactly once (one contiguous engaged episode, no double-run)",
+                      ch_busy_starts(0) = 1);
+        dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
+
+        -- (c) DMAEN=0: task_go(0) is completely inert (DMAEN re-applied
+        -- clk-side) -- no arm, no busy blip, no flags, no evt pulses.
+        bus_write(clk, pbus, DMA_SLOT_CR, dma_mk_cr('0', "0000", "0000", '0', '0'));   -- DMAEN=0
+        wait for 4 * PERIOD;
+        prog_ch(pbus, 0, SRCA, DSTT, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));   -- legal, irrelevant
+        evt_mon_reset;
+        pulse_task_go(0);
+        wait for 12 * PERIOD;
+        sb.check_true("G-EV c: ch_busy(0) never asserts on a task_go(0) pulse while DMAEN=0",
+                      ch_busy_starts(0) = 0 and ch_busy_highs(0) = 0);
+        sb.check_true("G-EV c: no evt_done(0) pulse while DMAEN=0", evt_done_starts(0) = 0);
+        sb.check_true("G-EV c: no evt_err pulse while DMAEN=0", evt_err_starts = 0);
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV c: BUSY stays 0 (task_go inert under DMAEN=0)", to_X01(rdw(DMA_SR_BUSY)), '0');
+        sb.check_bit("G-EV c: CH0DONE stays 0 (no arm under DMAEN=0)", to_X01(rdw(DMA_SR_DONE0)), '0');
+        sb.check_bit("G-EV c: CH0ERR stays 0 (no arm under DMAEN=0)", to_X01(rdw(DMA_SR_ERR0)), '0');
+
+        -- (d) task GO to a BUSY channel: mid-flight task_go(0) is a safe
+        -- no-op (busy(ch)='0' guard blocks re-arm; the descriptor is still
+        -- legal so no reject-at-GO fires either -- the copy just finishes).
+        dma_enable(pbus, '1', '1');   -- DMAEN=1, DONEIE=1, ERRIE=1 (catch a false CH0ERR too)
+        for k in 0 to 15 loop
+            buf(k) := x"3D00" & std_logic_vector(to_unsigned(k, 16));
+            ram_poke1(dma_word_idx(SRAB) + k, buf(k));
+        end loop;
+        prog_ch(pbus, 0, SRAB, DRAB, 16, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        dma_go(pbus, "0001", '1', '1');
+        wait for 20 * PERIOD;   -- let a few words go (G8 idiom)
+        evt_mon_reset;
+        pulse_task_go(0);
+        sb.check_true("G-EV d: ch_busy(0) already high at the mid-flight task_go(0) pulse",
+                      ch_busy_highs(0) > 0);
+        dma_wait_busy_clear(clk, pbus, rdata, ok);
+        sb.check_true("G-EV d: BUSY clears (mid-flight task pulse is a safe no-op)", ok);
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV d: CH0DONE set (copy completed normally)", to_X01(rdw(DMA_SR_DONE0)), '1');
+        sb.check_bit("G-EV d: CH0ERR stays 0 (mid-flight task pulse is not a reject-at-GO)",
+                     to_X01(rdw(DMA_SR_ERR0)), '0');
+        bus_read(clk, pbus, rdata, dma_ch_slot(0,2), rdw);
+        sb.check_slv("G-EV d: CH0 LEN drained to 0 (no double-run restart)", rdw, x"00000000");
+        for k in 0 to 15 loop
+            ram_peek1(dma_word_idx(DRAB) + k, got);
+            sb.check_slv("G-EV d: DRAB word correct after the mid-flight task pulse (no restart corruption)",
+                         got, buf(k));
+        end loop;
+        sb.check_true("G-EV d: exactly one evt_done(0) pulse (no extra run fired)", evt_done_starts(0) = 1);
+        dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
+
+        -- (e) reject-at-GO via the tap: LEN=0, task_go(0) -> CH0ERR, one
+        -- evt_err pulse, channel never runs (D13/A18-identical reject-at-GO).
+        dma_enable(pbus, '0', '1');   -- DMAEN=1, DONEIE=0, ERRIE=1
+        ram_poke1(dma_word_idx(DSTT), x"5EED5EED");   -- sentinel (G7 idiom)
+        prog_ch(pbus, 0, SRCA, DSTT, 0, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        evt_mon_reset;
+        pulse_task_go(0);
+        wait for 12 * PERIOD;
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV e: LEN=0 task_go(0) -> CH0ERR", to_X01(rdw(DMA_SR_ERR0)), '1');
+        sb.check_bit("G-EV e: LEN=0 task_go(0) -> irq_err asserts (ERRIE=1)", to_X01(irq_err), '1');
+        sb.check_bit("G-EV e: LEN=0 task_go(0) -> CH0DONE stays 0 (channel never runs)",
+                     to_X01(rdw(DMA_SR_DONE0)), '0');
+        sb.check_bit("G-EV e: LEN=0 task_go(0) -> BUSY never asserts", to_X01(rdw(DMA_SR_BUSY)), '0');
+        ram_peek1(dma_word_idx(DSTT), got);
+        sb.check_slv("G-EV e: LEN=0 task_go(0) -> NO transfer (dst sentinel intact)", got, x"5EED5EED");
+        sb.check_true("G-EV e: exactly one evt_err pulse for the task reject-at-GO", evt_err_starts = 1);
+        sb.check_true("G-EV e: that evt_err pulse is exactly one clk wide", evt_err_highs = evt_err_starts);
+        dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_ERR0, 32)));
+
+        -- (f) DISCIPLINE: DONEIE/ERRIE masked off -- a task-launched copy
+        -- still produces its evt_done pulse (EVFAB is pre-IE), but irq_done
+        -- stays low (only the irq path is IE-gated).
+        dma_enable(pbus, '0', '0');   -- DMAEN=1, DONEIE=0, ERRIE=0
+        prog_ch(pbus, 0, SRCA, DSTT, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        evt_mon_reset;
+        pulse_task_go(0);
+        dma_wait_busy_clear(clk, pbus, rdata, ok);
+        sb.check_true("G-EV f: BUSY clears (task-launched copy under DONEIE=0/ERRIE=0)", ok);
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV f: CH0DONE sets even though DONEIE=0 (status is unconditional)",
+                     to_X01(rdw(DMA_SR_DONE0)), '1');
+        sb.check_true("G-EV f: evt_done(0) still pulses under DONEIE=0 (EVFAB tap is pre-IE)",
+                      evt_done_starts(0) = 1);
+        sb.check_bit("G-EV f: irq_done stays low under DONEIE=0 (only the irq path is IE-gated)",
+                     to_X01(irq_done), '0');
+        dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
+
+        -- (g) register-path regression: the producer taps fire for a
+        -- CPU-launched (register CHnGO) copy too, not only for task_go.
+        evt_mon_reset;
+        prog_ch(pbus, 0, SRCA, DSTT, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        dma_go(pbus, "0001", '1', '0');   -- DONEIE=1 -- also proves irq_done still works
+        dma_wait_busy_clear(clk, pbus, rdata, ok);
+        sb.check_true("G-EV g: BUSY clears (register-launched copy)", ok);
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-EV g: CH0DONE set (register path)", to_X01(rdw(DMA_SR_DONE0)), '1');
+        sb.check_true("G-EV g: evt_done(0) pulses once for a REGISTER CHnGO launch too (tap covers both paths)",
+                      evt_done_starts(0) = 1);
+        sb.check_bit("G-EV g: irq_done still asserts normally on the register path", to_X01(irq_done), '1');
+        dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
 
         ------------------------------------------------------------------
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE

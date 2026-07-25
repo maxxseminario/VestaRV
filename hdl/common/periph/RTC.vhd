@@ -116,7 +116,14 @@ entity RTC is
         WEn         : in  std_logic_vector(3 downto 0);  -- ACTIVE-LOW per byte lane
         MABPart     : in  std_logic_vector(7 downto 2);  -- word slot in the 256 B window
         wdata       : in  std_logic_vector(31 downto 0);
-        rdata_out   : out std_logic_vector(31 downto 0)
+        rdata_out   : out std_logic_vector(31 downto 0);
+
+        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24): the flags'
+        -- SET conditions (the D10 synchronized event edges), pre-IE -- ALMIE/
+        -- TICKIE never touch these. Already one-clk pulses in the clk domain
+        -- (P-mode producers EV1/EV0).
+        evt_alarm   : out std_logic;                     -- EV1: almt_c2 /= almt_prev
+        evt_tick    : out std_logic                      -- EV0: tickt_c2 /= tickt_prev
     );
 end RTC;
 
@@ -344,6 +351,12 @@ begin
             end if;
         end if;
     end process;
+
+    -- EVFAB producer taps: the same D10 synchronized event edges the sticky
+    -- flags set from, exported combinationally (one clk pulse per event --
+    -- almt_prev/tickt_prev advance every clk). Pre-IE by construction.
+    evt_alarm <= '1' when almt_c2 /= almt_prev else '0';
+    evt_tick  <= '1' when tickt_c2 /= tickt_prev else '0';
 
     -- ------------------------- B6: LFXT reset synchronizer (D14) --------------
     -- ASYNC assert on resetn='0' (both flops cleared), SYNC de-assert clocked by

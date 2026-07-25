@@ -151,8 +151,16 @@ entity pwr_ctrl is
         pgood_pad    : in  std_logic;  -- PGOOD supervisor level (P6.7); tie '1' when unused
         strap_pad    : in  std_logic;  -- harvest boot-mode strap (P6.6); tie '0' when unused
         field_detect : in  std_logic;  -- NFC0 field level; tie '0' when NFC absent
-        pgood_rstn   : out std_logic   -- active-low boot gate, ANDed into every
+        pgood_rstn   : out std_logic;  -- active-low boot gate, ANDed into every
                                        -- hart's outer reset. Reset value '1' = release.
+
+        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): one-mclk
+        -- fabric pulse; clears gate_req bits selected by the W_TASKWKM mask
+        -- register (per-bit, AFTER the bus writes -> merges with a coincident
+        -- PWRCR write, task wins its bits). The MTCMOS FSM sequences rail-up
+        -- as for any register-cleared gate. NEVER touches the DP-S3 boot-gate
+        -- (rls_latch/strap logic) -- that wake path stays PWRCTRL-only.
+        task_wake    : in  std_logic := '0'
     );
 end entity;
 
@@ -185,6 +193,8 @@ architecture behav of pwr_ctrl is
     -- Register word offsets for the two new words (see header).
     constant W_PWRWAKE : integer := 5;
     constant W_PWRSTS  : integer := 6;
+    constant W_TASKWKM : integer := 7;   -- EVFAB task-wake mask (event fabric,
+                                         -- event_fabric_spec.md 2026-07-24)
     signal pgood_s1, pgood_s2 : std_logic;   -- 2-FF sync, pgood_pad
     signal field_s1, field_s2 : std_logic;   -- 2-FF sync, field_detect
     signal strap_s1, strap_s2 : std_logic;   -- 2-FF sync, strap_pad
@@ -192,6 +202,7 @@ architecture behav of pwr_ctrl is
     signal strap_valid   : std_logic;        -- sample complete
     signal strap_cnt     : natural range 0 to 65535;
     signal wake_cr       : std_logic_vector(4 downto 0);  -- PWRWAKE bits 4:0
+    signal task_wkm      : std_logic_vector(NHARTS-1 downto 1);  -- EVFAB task-wake mask
     signal rls_latch     : std_logic;        -- sticky release (one-shot mode)
     signal boot_hold_r   : std_logic;        -- registered gate state ('1' = hold)
 
@@ -255,6 +266,7 @@ begin
             strap_valid   <= '0';
             strap_cnt     <= 0;
             wake_cr       <= (others => '0');
+            task_wkm      <= (others => '0');   -- EVFAB task-wake inert out of reset
             rls_latch     <= '0';
             boot_hold_r   <= '0';
         elsif rising_edge(clk) then
@@ -273,6 +285,8 @@ begin
                 elsif widx <= NSRW then
                     -- PWRSR0..NSRW-1 at +0x4.. (one word at NHARTS=4)
                     rdata_reg <= sr(32*widx - 1 downto 32*(widx-1));
+                elsif widx = W_TASKWKM then
+                    rdata_reg(NHARTS-1 downto 1) <= task_wkm;
                 elsif widx = W_PWRWAKE then
                     -- DP-S3 PWRWAKE readback
                     rdata_reg(4 downto 0) <= wake_cr;
@@ -297,6 +311,23 @@ begin
                 if widx = W_PWRWAKE and we(0) = '1' then
                     wake_cr <= wdata(4 downto 0);
                 end if;
+                -- EVFAB task-wake mask write (byte-lane-0-qualified like PWRCR)
+                if widx = W_TASKWKM and we(0) = '1' then
+                    task_wkm <= wdata(NHARTS-1 downto 1);
+                end if;
+            end if;
+
+            -- EVFAB task wake: OUTSIDE the bus qualifier (fires with the bus
+            -- idle -- the whole point), per-bit AFTER the writes above so a
+            -- coincident PWRCR write merges (CPU lands the word, the task then
+            -- clears its masked bits). FSM rail-up sequencing is identical to
+            -- a register-cleared gate.
+            if task_wake = '1' then
+                for h in 1 to NHARTS-1 loop
+                    if task_wkm(h) = '1' then
+                        gate_req(h) <= '0';
+                    end if;
+                end loop;
             end if;
 
             -- ---- per-tile MTCMOS sequencers ----
