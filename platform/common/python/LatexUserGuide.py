@@ -62,6 +62,9 @@ class LatexUserGuide():
 		self.GenerateSystemBlockDiagram()
 		self.GenerateBootFlowDiagram()
 		self.GenerateSyncPrimitiveDecisionTree()
+		self.GenerateTimerRolloverDiagram()
+		self.GenerateTimerOutputCompareDiagram()
+		self.GenerateArbiterHandshakeDiagram()
 		self.GeneratePackagePinoutDiagram()
 		self.GenerateInterruptsTable()
 		self.GeneratePackagePinsConfigurationTable()
@@ -213,6 +216,9 @@ class LatexUserGuide():
 			npuPresent = geo['npu']
 			defines['SharedRamSizeKiB'] = str(banks * 16)
 			defines['SharedRamBanks'] = str(banks)
+			# Start address too: the generated arbiter handshake diagram labels
+			# its example transaction with it, so the figure follows the config.
+			defines['SharedRamStartAddress'] = fmthex(0x10000)
 			defines['SharedRamEndAddress'] = fmthex(0x10000 + banks * 0x4000 - 1)
 			defines['FlashBaseAddress'] = fmthex(1 << (geo['shAw'] + 2))
 		# Boot-ROM contracts + TCM geometry (used by the multi-core chapter and
@@ -936,6 +942,143 @@ class LatexUserGuide():
 		s += '\\end{tikzpicture}\n'
 		with open(self.IncludeDirectory + '/SyncPrimitiveDecisionTree.tex', 'w') as f:
 			f.write(s)
+		return
+
+	# -------------------------------------------------------------------------
+	# Timing / waveform diagrams (tikz-timing + plain TikZ).
+	#
+	# These replaced three matplotlib .pgf figures. Two rules learned building
+	# them, both of which fail SILENTLY:
+	#   * \timing carries its OWN x unit (default ~1ex). timing/xunit MUST be set
+	#     to the enclosing picture's x= or the digital rows do not line up with
+	#     anything else drawn in the picture.
+	#   * the clock char C is a HALF period per unit. One full cycle per unit is
+	#     `2{0.5C}` — `C` alone draws half as many cycles as you counted.
+	# Annotations are plain TikZ over \timing rows rather than a
+	# tikztimingtable's \extracode: the table's row pitch is not 1 unit/row, so
+	# overlay coordinates silently land on the wrong signal.
+	# -------------------------------------------------------------------------
+
+	def _timingPreamble(self, xunit, extra=''):
+		'''Shared tikzpicture options for the generated waveform figures.'''
+		s = '\\begin{tikzpicture}[\n'
+		s += '\tx=' + xunit + ', y=1cm,\n'
+		s += '\tlbl/.style={font=\\sffamily\\scriptsize, anchor=east},\n'
+		s += '\tguide/.style={densely dotted, gray!65},\n'
+		s += '\tann/.style={font=\\sffamily\\scriptsize, inner sep=1.5pt},\n'
+		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=0.50cm, semithick,\n'
+		s += '\t            timing/d/text/.style={font=\\sffamily\\tiny}}' + extra + ']\n'
+		return s
+
+	def GenerateTimerRolloverDiagram(self):
+		'''include/TimerRolloverDiagram.tex — the free-running counter ramping to
+		   TIMxCMP2 and rolling over. Pure line plot (the counter value is not a
+		   digital signal), so this one is plain TikZ, NOT tikz-timing.'''
+		s = '% Generated timer rollover diagram\n'
+		s += self._timingPreamble('0.62cm')
+		s += '\\def\\NPER{4}\\def\\PER{3}\\def\\HR{2.0}\\def\\CMPTWO{0.75}\n'
+		s += '\\foreach \\k in {1,...,4} { \\draw[guide] ({\\k*\\PER}, {\\HR*\\CMPTWO}) -- ({\\k*\\PER}, -0.45); }\n'
+		s += '\\draw[semithick] (0,0) -- (0,\\HR);\n'
+		s += '\\draw[densely dashed] (0,{\\HR*\\CMPTWO}) -- ({\\NPER*\\PER},{\\HR*\\CMPTWO});\n'
+		s += '\\foreach \\k in {0,...,3} {\n'
+		s += '\t\\draw[red, semithick] ({\\k*\\PER},0) -- ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER},0);\n'
+		s += '}\n'
+		s += '\\node[lbl] at (0,0) {0};\n'
+		s += '\\node[lbl] at (0,{\\HR*\\CMPTWO}) {\\register{TIMxCMP2}};\n'
+		s += '\\node[lbl] at (0,\\HR) {$2^{32}-1$ (max)};\n'
+		s += '\\node[font=\\sffamily\\scriptsize, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
+		s += '\\draw[<->, >=Stealth] (0,-0.45) -- (\\PER,-0.45);\n'
+		s += '\\node[ann, below] at (1.5,-0.47) {rollover period};\n'
+		s += '\\node[font=\\sffamily\\scriptsize, anchor=west] at ({\\NPER*\\PER+0.4}, 0) {Time $\\rightarrow$};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('TimerRolloverDiagram.tex', s)
+		return
+
+	def GenerateTimerOutputCompareDiagram(self):
+		'''include/TimerOutputCompareDiagram.tex — the counter ramp AND the two
+		   TxCMP0 pin polarities in ONE picture on ONE x-axis, with dotted guides
+		   tying each TIMxCMP0 crossing and each rollover to the pin edge it
+		   causes. One timer period = 3 units so the crossing lands exactly on a
+		   unit boundary (the old three-subplot matplotlib figure only LOOKED
+		   aligned; nothing enforced it).'''
+		s = '% Generated timer output-compare / PWM diagram\n'
+		s += self._timingPreamble('0.62cm')
+		s += '\\def\\NPER{4}\\def\\PER{3}\\def\\HR{2.0}\n'
+		s += '\\def\\CMPTWO{0.75}\\def\\CMPZERO{0.25}\\def\\YONE{-1.50}\\def\\YTWO{-2.80}\n'
+		s += '\\foreach \\k in {0,...,3} {\n'
+		s += '\t\\draw[guide] ({\\k*\\PER+1}, {\\HR*\\CMPZERO}) -- ({\\k*\\PER+1}, \\YTWO);\n'
+		s += '\t\\draw[guide] ({\\k*\\PER+\\PER}, {\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER}, \\YTWO);\n'
+		s += '}\n'
+		s += '\\draw[semithick] (0,0) -- (0,\\HR);\n'
+		s += '\\draw[densely dashed] (0,{\\HR*\\CMPTWO}) -- ({\\NPER*\\PER},{\\HR*\\CMPTWO});\n'
+		s += '\\draw[densely dashed] (0,{\\HR*\\CMPZERO}) -- ({\\NPER*\\PER},{\\HR*\\CMPZERO});\n'
+		s += '\\foreach \\k in {0,...,3} {\n'
+		s += '\t\\draw[red, semithick] ({\\k*\\PER},0) -- ({\\k*\\PER+\\PER},{\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER},0);\n'
+		s += '}\n'
+		s += '\\node[lbl] at (0,0) {0};\n'
+		s += '\\node[lbl] at (0,{\\HR*\\CMPZERO}) {\\register{TIMxCMP0}};\n'
+		s += '\\node[lbl] at (0,{\\HR*\\CMPTWO}) {\\register{TIMxCMP2}};\n'
+		s += '\\node[lbl] at (0,\\HR) {$2^{32}-1$ (max)};\n'
+		s += '\\node[font=\\sffamily\\scriptsize, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
+		# 1 unit LOW/HIGH then 2 units of the opposite level = the CMP0 crossing
+		# at 1/3 of the period, matching the ramp above.
+		s += '\\timing[tim] at (0,\\YONE) {4{1L 2H}};\n'
+		s += '\\timing[tim] at (0,\\YTWO) {4{1H 2L}};\n'
+		s += '\\node[lbl] at (0,\\YONE) {LOW};   \\node[lbl] at (0,{\\YONE+0.55}) {HIGH};\n'
+		s += '\\node[lbl] at (0,\\YTWO) {LOW};   \\node[lbl] at (0,{\\YTWO+0.55}) {HIGH};\n'
+		s += '\\node[lbl, align=right] at (-2.5,{\\YONE+0.275}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=0$};\n'
+		s += '\\node[lbl, align=right] at (-2.5,{\\YTWO+0.275}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=1$};\n'
+		s += '\\draw[<->, >=Stealth, red] (1,-0.70) -- (\\PER,-0.70);\n'
+		s += '\\node[ann, above, text=red] at (2,-0.68) {HIGH time};\n'
+		s += '\\draw[<->, >=Stealth] (0,-3.20) -- (\\PER,-3.20);\n'
+		s += '\\node[ann, below] at (1.5,-3.22) {PWM period};\n'
+		s += '\\node[font=\\sffamily\\scriptsize, anchor=west] at ({\\NPER*\\PER+0.4}, {\\YONE+0.275}) {Time $\\rightarrow$};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('TimerOutputCompareDiagram.tex', s)
+		return
+
+	def GenerateArbiterHandshakeDiagram(self):
+		'''include/ArbiterHandshakeDiagram.tex — one uncontended shared-window
+		   read at the mp_arbiter pins. CYCLE-ACCURATE against hdl/common/
+		   mp_arbiter.vhd: IDLE -> LATCH -> DATA -> IDLE, with done/rdata
+		   registered together at the edge leaving DATA (3 mclk from an
+		   observed req to done; the depth-1 registered tile boundary adds one
+		   more each way, which is the ~5 mclk a hart actually sees). If that
+		   FSM changes, this figure must change with it.'''
+		s = '% Generated mp_arbiter handshake diagram\n'
+		s += self._timingPreamble('0.85cm')
+		s += '\\def\\YBOT{-6.0}\n'
+		s += '\\fill[black!7] (5,0.62) rectangle (6,{\\YBOT-0.12});\n'
+		s += '\\foreach \\k in {1,...,6} { \\draw[guide] (\\k,0.62) -- (\\k,{\\YBOT-0.12}); }\n'
+		rows = [
+			('0.00',  '14{0.5C}',                                    '\\register{mclk}'),
+			('-0.75', 'L 5H L',                                      '\\register{req(0)}'),
+			('-1.50', '2L 3H 2L',                                    '\\register{gnt(0)}'),
+			('-2.25', '2D{IDLE} D{LATCH} D{DATA} 3D{IDLE}',          '\\textit{state}'),
+			('-3.00', '2L H 4L',                                     '\\register{s\\_en}'),
+			('-3.75', '2U 5D{\\SharedRamStartAddress}',              '\\register{s\\_addr}'),
+			('-4.50', '3U D{mem} 3U',                                '\\register{s\\_rdata}'),
+			('-5.25', '4L H 2L',                                     '\\register{done(0)}'),
+			('-6.00', '4U 3D{mem}',                                  '\\register{rdata}'),
+		]
+		for y, chars, label in rows:
+			s += '\\timing[tim] at (0,' + y + ') {' + chars + '};\n'
+			s += '\\node[lbl] at (-0.2,{' + y + '+0.25}) {' + label + '};\n'
+		s += '\\draw[<->, >=Stealth] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
+		s += '\\node[ann, below] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}, arbiter pins (uncontended)};\n'
+		s += '\\node[ann, align=left, anchor=north west] at (6.15,{\\YBOT-0.30})\n'
+		s += '\t{\\textit{ghost window:} \\register{req} is stale-high for one\\\\[-2pt]\n'
+		s += '\t cycle after \\register{done} --- masked by \\register{need\\_release}};\n'
+		s += '\\draw[gray!65] (5.5,{\\YBOT-0.12}) -- (5.5,{\\YBOT-0.42}) -- (6.1,{\\YBOT-0.42});\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
+		return
+
+	def _writeInclude(self, name, contents):
+		if not os.path.isdir(self.IncludeDirectory):
+			os.makedirs(self.IncludeDirectory)
+		with open(self.IncludeDirectory + '/' + name, 'w') as f:
+			f.write(contents)
 		return
 
 	def GeneratePackagePinoutDiagram(self):
