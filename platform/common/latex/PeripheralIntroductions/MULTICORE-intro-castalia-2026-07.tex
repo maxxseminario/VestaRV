@@ -125,7 +125,9 @@ The exact sequence, in the order the ROM executes it (register addresses in the 
 % Generated synchronization-primitive decision tree (make chip)
 \begin{figure}[h]
 	\centering
-	\resizebox{0.95\linewidth}{!}{\input{include/SyncPrimitiveDecisionTree.tex}}
+	% Input at NATURAL SIZE. A \resizebox to \linewidth here scaled the picture UP
+	% (natural width < \linewidth), magnifying every node font past the body text.
+	\input{include/SyncPrimitiveDecisionTree.tex}
 	\caption{Choosing a synchronization primitive. The dashed box lists the two rules that apply to every branch.}
 	\label{fig:sync-decision}
 \end{figure}

@@ -893,26 +893,44 @@ class LatexUserGuide():
 	def GenerateSyncPrimitiveDecisionTree(self):
 		'''include/SyncPrimitiveDecisionTree.tex — which synchronization
 		   primitive to use (HW mutex vs AMO vs LR/SC), as a decision tree.'''
+		# Sizing contract: this picture is \input at NATURAL SIZE (no \resizebox in
+		# the multi-core intro) — scaling it to \linewidth magnified every font past
+		# the 11pt body text. Keep the natural width under \linewidth (16.5cm): the
+		# widest elements are the rules box and the lrfree leaf, both ending ~15.4cm.
+		# Node text is \scriptsize so it reads smaller than the body, and the
+		# questions carry explicit line breaks so the diamonds stay compact enough
+		# to contain them.
 		s = '% Generated synchronization-primitive decision tree\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tdec/.style={draw, thick, diamond, aspect=2.6, align=center, font=\\sffamily\\small, inner sep=1pt},\n'
-		s += '\tleaf/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, text width=4.1cm, inner sep=5pt, fill=black!8},\n'
-		s += '\tflow/.style={->, >=Stealth, thick},\n'
-		s += '\tlab/.style={font=\\sffamily\\scriptsize, fill=white, inner sep=1pt}]\n'
-		s += '\\node[dec] (q1) at (6.2, 8.6) {Single shared word to update atomically?\\\\ \\scriptsize (counter, swap, flag)};\n'
-		s += '\\node[leaf] (amo) at (1.9, 6.6) {\\textbf{AMO} (\\asminline{amoadd}, \\asminline{amoswap}, \\ldots)\\\\ \\scriptsize one-shot cross-hart RMW; the arbiter grant is held across the pair ($\\sim$5 cycles, pins the shared bus)};\n'
-		s += '\\node[dec] (q2) at (8.6, 6.4) {Guarding a multi-word critical section?};\n'
-		s += '\\node[dec] (q3) at (5.9, 4.2) {Hardware mutex free?\\\\ \\scriptsize (\\NumMutexes{} in the bank)};\n'
-		s += '\\node[leaf] (lrfree) at (11.4, 4.2) {\\textbf{LR/SC} retry loop\\\\ \\scriptsize lock-free structures; failed \\asminline{SC} never writes};\n'
-		s += '\\node[leaf] (mtx) at (2.9, 2.0) {\\textbf{Hardware mutex} (preferred)\\\\ \\scriptsize \\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases --- one instruction, no retry state};\n'
-		s += '\\node[leaf] (lrlock) at (8.8, 2.0) {\\textbf{LR/SC spinlock} in shared RAM\\\\ \\scriptsize reservation-based lock};\n'
-		s += '\\draw[flow] (q1.west) -| node[lab, pos=0.3] {yes} (amo.north);\n'
-		s += '\\draw[flow] (q1.east) -| node[lab, pos=0.3] {no} (q2.north);\n'
-		s += '\\draw[flow] (q2.west) -| node[lab, pos=0.3] {yes} (q3.north);\n'
-		s += '\\draw[flow] (q2.east) -| node[lab, pos=0.3] {no} (lrfree.north);\n'
-		s += '\\draw[flow] (q3.west) -| node[lab, pos=0.3] {yes} (mtx.north);\n'
-		s += '\\draw[flow] (q3.east) -| node[lab, pos=0.3] {no} (lrlock.north);\n'
-		s += '\\node[draw, thick, dashed, align=left, font=\\sffamily\\scriptsize, text width=12.6cm, inner sep=5pt] at (6.2, -0.1) {'
+		s += '\tdec/.style={draw, semithick, diamond, aspect=2.2, align=center, font=\\sffamily\\scriptsize, inner sep=1pt},\n'
+		# Auto-hyphenation inside a 3.7cm box produces "in-struction"/"cy-cles"; the
+		# leaves are short enough to wrap without it. The penalty MUST go in
+		# `execute at begin node` — in `font=` its number scan swallows the
+		# align=center skip assignments and "0pt plus2em" gets typeset into the box.
+		s += '\tleaf/.style={draw, semithick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, execute at begin node={\\hyphenpenalty=10000\\relax}, text width=3.7cm, inner sep=4pt, fill=black!8},\n'
+		s += '\tflow/.style={->, >=Stealth, semithick},\n'
+		# The yes/no labels anchor to the branch vertex itself (pos=0 + a corner
+		# anchor) rather than riding the path at a fixed pos= — the six branch runs
+		# have different lengths, so a midway/pos=0.3 label sat on the diamond's
+		# text on the short ones and drifted far away on the long ones.
+		s += '\tyeslab/.style={font=\\sffamily\\scriptsize, inner sep=1pt, pos=0, anchor=south east, xshift=-2pt, yshift=1pt},\n'
+		s += '\tnolab/.style={font=\\sffamily\\scriptsize, inner sep=1pt, pos=0, anchor=south west, xshift=2pt, yshift=1pt}]\n'
+		s += '\\node[dec] (q1) at (5.6, 8.9) {Single shared word\\\\to update atomically?\\\\[1pt](counter, swap, flag)};\n'
+		s += '\\node[leaf] (amo) at (1.95, 6.5) {\\textbf{AMO}\\\\(\\asminline{amoadd}, \\asminline{amoswap}, \\ldots)\\\\[1pt]one-shot cross-hart RMW; the arbiter grant is held across the pair ($\\sim$5 cycles, pins the shared bus)};\n'
+		s += '\\node[dec] (q2) at (9.7, 6.6) {Guarding a multi-word\\\\critical section?};\n'
+		s += '\\node[dec] (q3) at (5.9, 4.1) {Hardware mutex free?\\\\[1pt](\\NumMutexes{} in the bank)};\n'
+		s += '\\node[leaf] (lrfree) at (13.5, 4.1) {\\textbf{LR/SC} retry loop\\\\[1pt]lock-free structures; failed \\asminline{SC} never writes};\n'
+		s += '\\node[leaf] (mtx) at (2.4, 1.6) {\\textbf{Hardware mutex}\\\\(preferred)\\\\[1pt]\\asminline{lw} claims (0 $=$ yours), \\asminline{sw 0} releases --- one instruction, no retry state};\n'
+		s += '\\node[leaf] (lrlock) at (9.3, 1.6) {\\textbf{LR/SC spinlock}\\\\in shared RAM\\\\[1pt]reservation-based lock};\n'
+		# Each branch is an explicit two-segment path (out of the vertex, then down)
+		# so the label sits on the horizontal run, clear of both shapes.
+		s += '\\draw[flow] (q1.west) -- node[yeslab] {yes} (amo.north |- q1.west) -- (amo.north);\n'
+		s += '\\draw[flow] (q1.east) -- node[nolab] {no} (q2.north |- q1.east) -- (q2.north);\n'
+		s += '\\draw[flow] (q2.west) -- node[yeslab] {yes} (q3.north |- q2.west) -- (q3.north);\n'
+		s += '\\draw[flow] (q2.east) -- node[nolab] {no} (lrfree.north |- q2.east) -- (lrfree.north);\n'
+		s += '\\draw[flow] (q3.west) -- node[yeslab] {yes} (mtx.north |- q3.west) -- (mtx.north);\n'
+		s += '\\draw[flow] (q3.east) -- node[nolab] {no} (lrlock.north |- q3.east) -- (lrlock.north);\n'
+		s += '\\node[draw, semithick, dashed, align=left, font=\\sffamily\\scriptsize, text width=14.9cm, inner sep=5pt] at (7.75, -0.6) {'
 		s += '\\textbf{Rules that apply to every branch:} never use \\asminline{LR}/\\asminline{SC} or AMO instructions on \\peripheral{MUTEX} bank addresses (the claim-on-read side effect fires); '
 		s += 'every retry loop needs a hart-scaled backoff ($\\mathtt{delay} \\propto \\register{mhartid}+1$) and a bounded retry count --- identical harts on the fair round-robin arbiter can otherwise livelock.};\n'
 		s += '\\end{tikzpicture}\n'
