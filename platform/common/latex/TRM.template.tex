@@ -111,7 +111,7 @@ The chip package is a {\PackageTypeName}-{\PackagePinCount} with dimensions $\Pa
 
 \input{include/PackagePinsConfigurationTable.tex}
 
-Many of the digital I/O pins are GPIO pins. These pins can be in either primary/GPIO mode, or secondary/peripheral mode (see Section \ref{peripheralGPIOx} on the GPIO peripherals for more details). A list of all the GPIO pins, along with their primary and secondary functions and reset values, is shown in Table \ref{t:gpio-pins}.
+Many of the digital I/O pins are GPIO pins. These pins can be in either primary/GPIO mode, or secondary/peripheral mode (see Section \ref{peripheralGPIOx} on the GPIO peripherals for more details). A list of all the GPIO pins, along with their primary function, their reset-selected alternate function (AF0), and the reset state of their \register{PxSEL}, \register{PxOUT}, \register{PxDIR}, and \register{PxREN} bits, is shown in Table \ref{t:gpio-pins}. The remaining alternate functions each pin can select (AF1--AF7) are listed separately in the alternate-function matrix, Table \ref{t:gpio-afs}.
 
 \input{include/GpioPinsConfigurationTable.tex}
 

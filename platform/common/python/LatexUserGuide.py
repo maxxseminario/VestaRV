@@ -1074,18 +1074,22 @@ class LatexUserGuide():
 			if p.IsGPIO():
 				gpioPeripherals.append(p)
 		
-		# Create the GPIO pins configuration table
-		s = '\\begin{longtable}[c]{ l l l l l l l l }\n'
-		s += '\\caption{GPIO Pins} \\label{t:gpio-pins} \\\\ \n'
+		# Create the GPIO pins configuration table. The pin's additional alternate
+		# functions (AF1-AF7) are deliberately NOT a column here: the full per-pin
+		# plane matrix is Table \ref{t:gpio-afs}, and inlining the comma-joined list
+		# made this table overrun the text block and push the reset-value columns
+		# off the page.
+		s = '\\begin{longtable}[c]{ l l l l l l l }\n'
+		s += '\\caption{GPIO Pin Functions and Reset Values} \\label{t:gpio-pins} \\\\ \n'
 
-		s += '\\hline & \\textbf{Primary} & \\textbf{Alternate} & \\textbf{Additional Alternate} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{5-8}\n'
-		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function (AF0)} & \\textbf{Functions (PxAFS)} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\  \\hline \\endfirsthead\n'
+		s += '\\hline & \\textbf{Primary} & \\textbf{Alternate} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{4-7}\n'
+		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function (AF0)} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\  \\hline \\endfirsthead\n'
 
-		s += '\\multicolumn{8}{c}{\\textit{\\tablename\ \\thetable\ continued from previous page}} \\\\ \\hline\n'
-		s += ' & \\textbf{Primary} & \\textbf{Alternate} & \\textbf{Additional Alternate} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{5-8}\n'
-		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function (AF0)} & \\textbf{Functions (PxAFS)} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\ \\hline \\endhead\n'
+		s += '\\multicolumn{7}{c}{\\textit{\\tablename\ \\thetable\ continued from previous page}} \\\\ \\hline\n'
+		s += ' & \\textbf{Primary} & \\textbf{Alternate} & \\multicolumn{4}{c}{\\textbf{\\textit{Reset Values}}}\\\\ \\cline{4-7}\n'
+		s += '\\textbf{Pin} & \\textbf{Function} & \\textbf{Function (AF0)} & \\textbf{SEL} & \\textbf{OUT} & \\textbf{DIR} & \\textbf{REN} \\\\ \\hline \\endhead\n'
 
-		s += '\\hline \\multicolumn{8}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
+		s += '\\hline \\multicolumn{7}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
 
 		thisRowColored = False
 
@@ -1104,11 +1108,6 @@ class LatexUserGuide():
 
 				if len(pin.FuncName) > 0:
 					s += '\\pin{' + fmttex(pin.FuncName) + '} & '
-				else:
-					s += '-- & '
-
-				if len(pin.AltFuncs) > 0:
-					s += ', '.join(['AF' + str(af.Index) + ': \\pin{' + fmttex(af.Name) + '}' for af in pin.AltFuncs]) + ' & '
 				else:
 					s += '-- & '
 
