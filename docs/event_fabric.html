@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VestaRV core — microarchitecture block diagram</title>
+<title>Event Fabric &mdash; EVFAB0 (Castalia) &middot; VestaRV</title>
+<meta name="description" content="EVFAB0, VestaRV's 8-channel PPI-style event/task crossbar: peripherals triggering peripherals while the CPU sleeps in WFI.">
 <style>
 /* VESTA_THEME_BEGIN */
 :root{
@@ -263,88 +264,164 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-footer a{color:var(--text-muted)}
 .vesta-footer a:hover{color:var(--accent)}
 /* VESTA_THEME_END */
-/* ---- page-specific: map the figure tokens onto the ember theme ---- */
+
+/* ---- page-specific: Event Fabric -------------------------------------- */
 :root{
-  --font:var(--font-sans); --mono:var(--font-mono);
-  --ink:var(--text); --muted:var(--text-muted); --hair:var(--border);
-  --panel:var(--surface); --paneledge:var(--border-strong);
-  /* schematic block palette — DARK (default), a coordinated variant tuned for legibility */
-  --iface:#1a2029; --iface-edge:#5a6675; --iface-ink:#aeb9c6;
-  --fetch:#182a45; --fetch-edge:#4d78c4; --fetch-ink:#bcd4ff;
-  --ctrl:#271a3a; --ctrl-edge:#8a63c0; --ctrl-ink:#d6bcf0;
-  --dpath:#0f2e28; --dpath-edge:#3f9a83; --dpath-ink:#9fe6d3;
-  --mux:#33260f; --mux-edge:#b78832; --mux-ink:#f0c878;
-  --csr:#341a20; --csr-edge:#c05f6d; --csr-ink:#f2b8c0;
-  --irq:#33240f; --irq-edge:#b8802f; --irq-ink:#f0c890;
-  --atom:#331717; --atom-edge:#c05a5a; --atom-ink:#f0b0b0;
-  --clk:#1a2029; --clk-edge:#5a6675; --clk-ink:#aeb9c6;
+  /* schematic accents mapped onto the ember tokens (both themes) */
+  --prod:  #182a45; --prod-edge:  #4d78c4; --prod-ink:  #bcd4ff;  /* producers, blue */
+  --xbar:  #341a20; --xbar-edge:  #c05f6d; --xbar-ink:  #f2b8c0;  /* crossbar, rose  */
+  --cons:  #0f2e28; --cons-edge:  #3f9a83; --cons-ink:  #9fe6d3;  /* consumers, teal */
+  --cpu:   #271a3a; --cpu-edge:   #8a63c0; --cpu-ink:   #d6bcf0;  /* CPU/sleep, violet */
+  --wire:  #8b7a6c;
 }
 :root[data-theme="light"]{
-  --iface:#eef1f4; --iface-edge:#9aa6b4; --iface-ink:#3a4552;
-  --fetch:#dfeaff; --fetch-edge:#5b86d6; --fetch-ink:#1e3f7a;
-  --ctrl:#efe6fb; --ctrl-edge:#9b6cd6; --ctrl-ink:#5a2f8f;
-  --dpath:#dcf3ee; --dpath-edge:#4bb69a; --dpath-ink:#1c6a58;
-  --mux:#fdefd6; --mux-edge:#d9a441; --mux-ink:#8a5a12;
-  --csr:#fce4e6; --csr-edge:#d9727f; --csr-ink:#9a2c3b;
-  --irq:#ffe9d6; --irq-edge:#e0913f; --irq-ink:#8a4e12;
-  --atom:#f6dede; --atom-edge:#cf6060; --atom-ink:#8f2626;
-  --clk:#eef1f4; --clk-edge:#9aa6b4; --clk-ink:#495562;
+  --prod:#dfeaff; --prod-edge:#5b86d6; --prod-ink:#1e3f7a;
+  --xbar:#fce4e6; --xbar-edge:#d9727f; --xbar-ink:#9a2c3b;
+  --cons:#dcf3ee; --cons-edge:#4bb69a; --cons-ink:#1c6a58;
+  --cpu: #efe6fb; --cpu-edge: #9b6cd6; --cpu-ink: #5a2f8f;
+  --wire:#93806f;
 }
 @media (prefers-color-scheme:light){:root:not([data-theme]){
-  --iface:#eef1f4; --iface-edge:#9aa6b4; --iface-ink:#3a4552;
-  --fetch:#dfeaff; --fetch-edge:#5b86d6; --fetch-ink:#1e3f7a;
-  --ctrl:#efe6fb; --ctrl-edge:#9b6cd6; --ctrl-ink:#5a2f8f;
-  --dpath:#dcf3ee; --dpath-edge:#4bb69a; --dpath-ink:#1c6a58;
-  --mux:#fdefd6; --mux-edge:#d9a441; --mux-ink:#8a5a12;
-  --csr:#fce4e6; --csr-edge:#d9727f; --csr-ink:#9a2c3b;
-  --irq:#ffe9d6; --irq-edge:#e0913f; --irq-ink:#8a4e12;
-  --atom:#f6dede; --atom-edge:#cf6060; --atom-ink:#8f2626;
-  --clk:#eef1f4; --clk-edge:#9aa6b4; --clk-ink:#495562;
+  --prod:#dfeaff; --prod-edge:#5b86d6; --prod-ink:#1e3f7a;
+  --xbar:#fce4e6; --xbar-edge:#d9727f; --xbar-ink:#9a2c3b;
+  --cons:#dcf3ee; --cons-edge:#4bb69a; --cons-ink:#1c6a58;
+  --cpu: #efe6fb; --cpu-edge: #9b6cd6; --cpu-ink: #5a2f8f;
+  --wire:#93806f;
 }}
 
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font)}
-  header:not(.vesta-header){padding:16px 22px 12px;border-bottom:1px solid var(--hair)}
-  .fig{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
-  h1{margin:4px 0 3px;font-size:21px;font-weight:650}
-  .cap{color:var(--muted);font-size:13.5px;max-width:1040px;line-height:1.5}
-  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
-  .btn{background:var(--panel);border:1px solid var(--paneledge);color:var(--ink);
-    padding:6px 12px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:var(--font)}
-  .btn:hover{border-color:var(--fetch-edge)}
-  .btn.on{background:var(--fetch);border-color:var(--fetch-edge);color:var(--fetch-ink)}
-  .sp{flex:1}
-  .hint{color:var(--muted);font-size:12px}
-  .stage{position:relative;width:100%;height:calc(100vh - 250px);min-height:520px;
-    overflow:hidden;background:radial-gradient(circle at 1px 1px, var(--hair) 1px, transparent 0) 0 0/26px 26px;cursor:grab}
-  .stage:active{cursor:grabbing}
-  /* embed mode (?embed=1): chrome-free, for the Castalia callout iframe */
-  html.embed header,html.embed footer,html.embed .legend{display:none}
-  html.embed .stage{height:100vh;min-height:0}
-  svg{display:block;width:100%;height:100%;touch-action:none}
-  .blk rect,.blk path.sym,.blk polygon{stroke-width:1.5;stroke-linejoin:round}
-  .blk .t{font-weight:640;font-size:13.5px}
-  .blk .s{font-size:10.5px}
-  .blk .a{font-family:var(--mono);font-size:10px}
-  .blk .ln{font-size:10px}
-  .blk{cursor:pointer}
-  .blk.hot rect,.blk.hot path.sym,.blk.hot polygon{stroke-width:2.6}
-  text{-webkit-user-select:none;user-select:none;pointer-events:none}
-  .link{fill:none;stroke:var(--muted);stroke-width:1.5}
-  .link.wide{stroke-width:2.6;stroke:var(--dpath-edge)}
-  .link.sig{stroke-dasharray:5 4;stroke:var(--ctrl-edge)}
-  .link.dash{stroke-dasharray:4 4}
-  .linklabel{font-family:var(--mono);font-size:9.5px;fill:var(--muted)}
-  .info{position:absolute;top:14px;right:14px;width:300px;max-width:44%;
-    background:var(--panel);border:1px solid var(--paneledge);border-radius:11px;
-    padding:14px 16px;box-shadow:0 8px 26px rgba(20,30,50,.14);font-size:13px;line-height:1.55}
-  .info h3{margin:0 0 6px;font-size:14.5px}
-  .info .k{font-family:var(--mono);font-size:11px;color:var(--muted);display:block;margin-bottom:8px}
-  .info.empty{color:var(--muted)}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 22px 16px;border-top:1px solid var(--hair)}
-  .lg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
-  .lg .sw{width:15px;height:11px;border-radius:3px;border:1.4px solid}
-  footer{padding:0 22px 26px;color:var(--muted);font-size:11.5px}
+/* Opaque sticky header (skill rule: never translucent over scrolled text) */
+.vesta-header{background:var(--bg); backdrop-filter:none}
+
+.ef-wrap{max-width:var(--maxw); margin:0 auto; padding:0 var(--sp-5)}
+.ef-section{padding:var(--sp-8) 0}
+.ef-section + .ef-section{border-top:1px solid var(--border)}
+.eyebrow{
+  font-size:var(--fs-xs); font-weight:var(--fw-bold); letter-spacing:.14em;
+  text-transform:uppercase; color:var(--accent); margin:0 0 var(--sp-2);
+}
+.ef-section h2{font-size:var(--fs-xl); margin:0 0 var(--sp-3)}
+.ef-section h3{font-size:var(--fs-lg); margin:var(--sp-6) 0 var(--sp-3)}
+.lede{font-size:var(--fs-md); color:var(--text-muted); max-width:70ch; line-height:1.65}
+.prose{max-width:74ch; color:var(--text); line-height:var(--lh-body)}
+.prose p{margin:0 0 var(--sp-4)}
+.prose b{color:var(--text)}
+
+/* Hero */
+.ef-hero{
+  padding:var(--sp-10) 0 var(--sp-8);
+  background:
+    radial-gradient(1000px 380px at 78% -8%, var(--accent-soft), transparent 60%),
+    radial-gradient(760px 320px at 8% 4%, var(--amber-soft), transparent 62%);
+}
+.ef-hero h1{font-size:var(--fs-3xl); letter-spacing:-.5px; margin:var(--sp-3) 0}
+.ef-hero .lede{font-size:var(--fs-lg); max-width:66ch}
+.badge-row{display:flex; gap:var(--sp-2); flex-wrap:wrap; margin:var(--sp-5) 0 0}
+
+/* Callouts */
+.callout{
+  border:1px solid var(--border); border-left:3px solid var(--accent);
+  background:var(--surface); border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5); margin:var(--sp-5) 0; color:var(--text-muted);
+  font-size:var(--fs-base); line-height:1.6;
+}
+.callout b{color:var(--text)}
+.callout.amber{border-left-color:var(--amber)}
+.callout.ok{border-left-color:var(--ok)}
+
+/* Why-it-exists 3-card grid */
+.why-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5); margin-top:var(--sp-5)}
+@media (max-width:860px){.why-grid{grid-template-columns:1fr}}
+.why-grid .vesta-card h3{margin:0 0 var(--sp-2); font-size:var(--fs-md)}
+.why-grid .vesta-card p{color:var(--text-muted); font-size:var(--fs-base); line-height:1.6; margin:0}
+.why-grid .vesta-card p + p{margin-top:var(--sp-3)}
+
+/* Diagram figure */
+.diagram{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+  padding:var(--sp-5); margin:var(--sp-5) 0;
+}
+.diagram .svgwrap{overflow-x:auto}
+.diagram svg{display:block; width:100%; height:auto; min-width:600px}
+.figcap{
+  margin-top:var(--sp-3); font-size:var(--fs-sm); color:var(--text-dim);
+  line-height:1.55; max-width:80ch;
+}
+.figcap b{color:var(--text-muted)}
+.d-lbl{font-family:var(--font-sans); font-size:13px; font-weight:600; fill:var(--text)}
+.d-sub{font-family:var(--font-mono); font-size:10.5px; fill:var(--text-muted)}
+.d-note{font-family:var(--font-sans); font-size:11.5px; fill:var(--text-dim)}
+.d-wire{fill:none; stroke:var(--wire); stroke-width:1.7}
+.d-wire.dash{stroke-dasharray:5 4}
+.d-tick{font-family:var(--font-mono); font-size:10px; fill:var(--text-dim)}
+
+/* ID tables */
+.idtable td .idnum{font-family:var(--font-mono); color:var(--amber-deep); font-weight:var(--fw-semi)}
+.idtable td .idmode{
+  display:inline-block; font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:var(--fw-bold);
+  padding:1px 6px; border-radius:var(--r-xs); background:var(--surface-2); color:var(--text-muted);
+}
+
+/* Register-map table */
+.reg-title{
+  font-family:var(--font-mono); font-size:var(--fs-sm); font-weight:var(--fw-bold);
+  color:var(--text); margin:var(--sp-5) 0 var(--sp-2);
+}
+.reg-title .off{color:var(--text-dim); font-weight:var(--fw-normal)}
+.vesta-table td .bit{font-family:var(--font-mono); color:var(--amber-deep); font-weight:var(--fw-semi)}
+.vesta-table td .fn{font-family:var(--font-mono); color:var(--text)}
+
+/* Step list */
+.steps{counter-reset:step; list-style:none; padding:0; margin:var(--sp-5) 0 0; max-width:80ch}
+.steps li{
+  position:relative; counter-increment:step; padding:0 0 var(--sp-5) var(--sp-8);
+  border-left:1.5px solid var(--border); margin-left:14px;
+}
+.steps li:last-child{border-left-color:transparent}
+.steps li::before{
+  content:counter(step); position:absolute; left:-14px; top:-2px;
+  width:28px; height:28px; border-radius:var(--r-pill);
+  background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  font-size:var(--fs-sm); font-weight:var(--fw-bold); font-family:var(--font-mono);
+}
+.steps li.asleep::before{background:var(--cpu); color:var(--cpu-ink); border-color:var(--cpu-edge)}
+.steps li .st{font-weight:var(--fw-semi); color:var(--text); display:block; margin-bottom:2px}
+.steps li p{margin:0; color:var(--text-muted); font-size:var(--fs-base); line-height:1.6}
+.steps li code{background:var(--surface-2); padding:1px 5px; border-radius:var(--r-xs); font-size:.9em}
+
+/* Code / equation block */
+.codeblock{
+  background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:var(--sp-4) var(--sp-5); margin:var(--sp-4) 0; overflow-x:auto;
+  font-family:var(--font-mono); font-size:var(--fs-sm); line-height:1.7; color:var(--text);
+  white-space:pre;
+}
+.codeblock .cm{color:var(--text-dim)}
+.codeblock .kw{color:var(--accent)}
+.codeblock .rg{color:var(--amber-deep); font-weight:var(--fw-semi)}
+
+/* Recipe steps */
+.recipe{counter-reset:rstep; list-style:none; padding:0; margin:var(--sp-4) 0 0; max-width:80ch}
+.recipe li{position:relative; counter-increment:rstep; padding:var(--sp-1) 0 var(--sp-1) var(--sp-8); margin-bottom:var(--sp-2)}
+.recipe li::before{
+  content:counter(rstep); position:absolute; left:0; top:2px;
+  width:22px; height:22px; border-radius:var(--r-pill);
+  background:var(--amber-soft); color:var(--amber-deep); border:1px solid var(--amber);
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:var(--fw-bold); font-family:var(--font-mono);
+}
+.recipe li b{color:var(--text)}
+.recipe li p{margin:2px 0 0; color:var(--text-muted); font-size:var(--fs-base); line-height:1.6}
+
+/* Status card grid */
+.status-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-5); margin-top:var(--sp-5)}
+@media (max-width:820px){.status-grid{grid-template-columns:1fr}}
+.status-grid h3{margin:0 0 var(--sp-2); font-size:var(--fs-md)}
+.status-grid p{color:var(--text-muted); font-size:var(--fs-base); line-height:1.6; margin:0}
+.status-grid ul{margin:var(--sp-3) 0 0; padding-left:1.1em; color:var(--text-muted); font-size:var(--fs-sm); line-height:1.6}
+
+.footlinks{display:flex; gap:var(--sp-5); flex-wrap:wrap}
+
 </style>
 <script>
 (function(){
@@ -368,12 +445,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
     </a>
     <nav class="vesta-nav" aria-label="Primary">
       <a href="index.html">Home</a>
-      <a href="vestarv_core.html" aria-current="page">Core</a>
+      <a href="vestarv_core.html">Core</a>
       <a href="castalia_soc.html">SoC</a>
       <a href="castalia_full.html">SoC&#8202;&middot;&#8202;Lens</a>
       <a href="chip_configurator.html">Configurator</a>
       <a href="register_browser.html">Registers</a>
-      <a href="event_fabric.html">Event Fabric</a>
+      <a href="event_fabric.html" aria-current="page">Event Fabric</a>
       <a href="vestarv_roadmap.html">Roadmap</a>
     </nav>
     <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Toggle colour theme" title="Toggle light / dark">
@@ -384,245 +461,512 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   </div>
 </header>
 
-<header>
-  <div class="fig">Figure 1</div>
-  <h1>VestaRV core — multi-cycle RISC-V microarchitecture</h1>
-  <div class="cap">A multi-cycle (Harris-style FSM) RISC-V core implementing <b>RV32IMAC + Zicsr</b> over a single <b>unified instruction/data bus</b> —
-    the fetched word doubles as the instruction during decode. An 18-state control FSM sequences the datapath through fetch, execute, load/store,
-    multi-cycle divide, atomic read-modify-write (A-extension), and vectored interrupt entry/return. A clock gate freezes the entire datapath
-    (<span style="font-family:var(--mono)">clk_cpu</span>) on back-pressure, sleep, or a stalled shared-memory access, while the interrupt controller runs on the ungated clock.</div>
-  <div class="toolbar">
-    <button class="btn on" id="tCtrl">Control signals</button>
-    <button class="btn on" id="tData">Data paths</button>
-    <button class="btn" id="reset">Reset view</button>
-    <span class="sp"></span>
-    <span class="hint">drag to pan · scroll to zoom · click a block for detail</span>
+<!-- ================= HERO ================= -->
+<section class="ef-hero">
+  <div class="ef-wrap">
+    <p class="eyebrow">Castalia &middot; EVFAB0 &middot; 0x6B00</p>
+    <h1>The event fabric</h1>
+    <p class="lede">Peripherals triggering peripherals while the CPU sleeps. EVFAB0 is a tiny
+      8-channel switchboard: each channel wires one hardware <b>EVENT</b> (a timer compare fired, a
+      byte arrived, an NFC field was detected&hellip;) to one hardware <b>TASK</b> (start a DMA copy,
+      trip a PWM fault output, wake a sleeping tile, kick off an NPU inference). Once a channel is
+      enabled, that chain runs entirely in hardware &mdash; the core can sit in <span class="vesta-mono">WFI</span>
+      at microwatts while the chip keeps doing real work. The idea has a well-known ancestor: it is
+      the same shape as Nordic Semiconductor&rsquo;s PPI (Programmable Peripheral Interconnect) on the
+      nRF52 family, adapted to VestaRV&rsquo;s shared-bus, multi-hart fabric.</p>
+    <div class="badge-row">
+      <span class="vesta-badge vesta-badge-accent">8 channels</span>
+      <span class="vesta-badge vesta-badge-accent">16 events &#8594; 10 tasks</span>
+      <span class="vesta-badge vesta-badge-amber">Vectorless v1</span>
+      <span class="vesta-badge">Simulation-proven, gate &amp; behavioral</span>
+    </div>
   </div>
-</header>
+</section>
 
-<div class="stage" id="stage">
-  <svg id="svg" viewBox="0 0 1560 900" preserveAspectRatio="xMidYMid meet">
-    <defs>
-      <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="var(--muted)"/></marker>
-      <marker id="arrowd" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="var(--dpath-edge)"/></marker>
-      <marker id="arrows" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="var(--ctrl-edge)"/></marker>
-    </defs>
-    <g id="links"></g>
-    <g id="blocks"></g>
-  </svg>
-  <div class="info empty" id="info">Click any block to read what it does. Toggle the control-signal and data-path overlays above.</div>
-</div>
+<!-- ================= INTRO / STATUS ================= -->
+<section class="ef-section">
+  <div class="ef-wrap">
+    <div class="prose">
+      <p>Most VestaRV peripherals speak to the core through registers and interrupts: firmware
+        configures a block, the block eventually raises an IRQ, a handler runs, and the core reacts.
+        That path is flexible but it always spends a hart. EVFAB0 adds a second, much narrower path
+        that skips the hart entirely for the specific case where one peripheral&rsquo;s output should
+        become another peripheral&rsquo;s input &mdash; &ldquo;when the timer hits its compare value,
+        start the DMA channel that empties this buffer,&rdquo; with nobody watching.</p>
+      <p>It is peripheral #12 of the digital-peripheral library, one instance, native page-2 slave
+        at <span class="vesta-mono">0x6B00</span>, cell name <span class="vesta-mono">EVFAB</span>.
+        It is never a bus master, never stalls a transaction, and never rate-limits &mdash; it is
+        pure combinational routing plus one register stage, sitting on the free-running clock.</p>
+    </div>
+    <div class="callout ok">
+      <b>Status &amp; provenance.</b> EVFAB0 has never been fabricated &mdash; only the single-core
+      Myshkin chip has taped out. The fabric is proven in <b>simulation only</b>: a 2459-check
+      behavioral bench (plus the mandatory one-error negative control, proven both ways) and a
+      SDF-annotated gate-level run after synthesis (Error&#8239;=&#8239;0, all timing paths met). It
+      is integrated as an opt-in Castalia generator option, <span class="vesta-mono">peripherals.eventFabric</span>
+      (default <span class="vesta-mono">false</span>) &mdash; never implied as silicon.
+    </div>
+  </div>
+</section>
 
-<div class="legend" id="legend"></div>
-<footer>Hand-drawn schematic, kept in sync by hand against <span style="font-family:var(--mono)">hdl/common/vesta/</span> (vesta.vhd, controller/maindec, datapath, alu+div, regfile, extend, loadext/store_ext, csr_unit, irq_handler, c_dec) and <span style="font-family:var(--mono)">hdl/common/resv_unit.vhd</span> · updated 2026-07-16.</footer>
+<!-- ================= WHY IT EXISTS ================= -->
+<section class="ef-section">
+  <div class="ef-wrap">
+    <p class="eyebrow">Why it exists</p>
+    <h2>Three reasons a crossbar earns its silicon</h2>
+    <p class="lede">None of these three stories needs the other two &mdash; each alone would justify
+      the block &mdash; but they compound.</p>
+    <div class="why-grid">
+      <div class="vesta-card">
+        <h3>Power</h3>
+        <p>EVFAB0 lives on the always-on, free-running <span class="vesta-mono">mclk</span> domain,
+          never inside a PWRCTRL-gated power domain. <span class="vesta-mono">WFI</span> keeps
+          <span class="vesta-mono">mclk</span> alive, so a chain keeps firing with the core parked.</p>
+        <p>That compounds with two other features: it is the natural partner for <b>DMA</b> (the data
+          mover the core would otherwise have to babysit) and for the
+          <a href="field_power.html">field-powered NFC mode</a> &mdash; on a harvested board the
+          fabric&rsquo;s chains keep running on the slowed harvested clock, since the boot gate never
+          touches this domain.</p>
+      </div>
+      <div class="vesta-card">
+        <h3>Latency</h3>
+        <p>In-fabric latency is exactly <b>1 mclk</b> from a live event to the registered task
+          pulse; add the consumer&rsquo;s own input stage and most chains land in about
+          <b>2 mclk cycles</b>, event to action.</p>
+        <p>Compare that to an interrupt round trip &mdash; claim, dispatch through the PLIC-lite
+          router, save and restore registers, run handler code &mdash; which costs on the order of
+          <b>hundreds of core cycles</b> even on a fast core. Events wired through a toggle or level
+          input (an async signal needing a metastability-safe synchronizer) add a 2-flop sync stage
+          and land more like 3&ndash;4 mclk &mdash; still a different order of magnitude from an ISR.</p>
+      </div>
+      <div class="vesta-card">
+        <h3>Teaching</h3>
+        <p>A crossbar with clean, inspectable state &mdash; sticky <span class="vesta-mono">FIRED</span>/<span class="vesta-mono">OVR</span>/<span class="vesta-mono">EVSTAT</span>
+          bits, software injection via <span class="vesta-mono">CHTRIG</span>/<span class="vesta-mono">EVTRIG</span>
+          &mdash; turns &ldquo;peripherals talking to each other&rdquo; into something a student can
+          single-step and reconstruct from firmware alone, with no oscilloscope. The flagship
+          regression below is, in effect, a lab exercise already written.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-<script>
-if(/[?&]embed/.test(location.search)) document.documentElement.classList.add('embed');
-(function(){ // theme from ?theme=, and live theme from a parent postMessage (canonical light-opt-in polarity)
-  function apply(t){ if(t==="light") document.documentElement.setAttribute("data-theme","light"); else document.documentElement.removeAttribute("data-theme"); }
-  var m=location.search.match(/[?&]theme=(dark|light)/);
-  if(m) apply(m[1]);
-  window.addEventListener("message",function(e){
-    if(e&&e.data&&e.data.vestaTheme!==undefined) apply(e.data.vestaTheme);
-  });
-})();
-const CLS={
-  iface:{fill:"var(--iface)",edge:"var(--iface-edge)",ink:"var(--iface-ink)",name:"Memory bus / ports"},
-  fetch:{fill:"var(--fetch)",edge:"var(--fetch-edge)",ink:"var(--fetch-ink)",name:"Fetch / decode"},
-  ctrl: {fill:"var(--ctrl)", edge:"var(--ctrl-edge)", ink:"var(--ctrl-ink)", name:"Control (decoder + FSM)"},
-  dpath:{fill:"var(--dpath)",edge:"var(--dpath-edge)",ink:"var(--dpath-ink)",name:"Datapath"},
-  mux:  {fill:"var(--mux)",  edge:"var(--mux-edge)",  ink:"var(--mux-ink)",  name:"Mux"},
-  csr:  {fill:"var(--csr)",  edge:"var(--csr-edge)",  ink:"var(--csr-ink)",  name:"CSR & counters"},
-  irq:  {fill:"var(--irq)",  edge:"var(--irq-edge)",  ink:"var(--irq-ink)",  name:"Interrupts (IVT)"},
-  atom: {fill:"var(--atom)", edge:"var(--atom-edge)", ink:"var(--atom-ink)", name:"Atomics (A-ext)"},
-  clk:  {fill:"var(--clk)",  edge:"var(--clk-edge)",  ink:"var(--clk-ink)",  name:"Clock & power"},
-};
-const B=[]; const push=(o)=>{B.push(o);return o;};
+<!-- ================= HOW A CHANNEL WORKS ================= -->
+<section class="ef-section">
+  <div class="ef-wrap">
+    <p class="eyebrow">Mechanism</p>
+    <h2>How a channel works</h2>
+    <div class="prose">
+      <p>Ten producer blocks feed sixteen live events into the crossbar; the crossbar drives ten
+        live tasks across six consumer blocks. A <b>channel</b> is just three fields:
+        <span class="vesta-mono">EVSEL</span> (which event to watch), <span class="vesta-mono">TASKSEL</span>
+        (which task to fire), and an enable bit. Eight channels exist (sixteen register slots are
+        reserved for growth); every one is independent and can point at any event and any task.</p>
+      <p>The crossbar itself is a pure one-hot equality decode &mdash; never a <span class="vesta-mono">case</span>
+        or an indexed lookup &mdash; so an unconfigured or mid-write channel is simply inert rather
+        than dangerous. Every producer&rsquo;s output is a clean one-mclk pulse (or is turned into one
+        by the fabric&rsquo;s own front-end for toggle- and level-style sources), and the single output
+        flop means every <span class="vesta-mono">TASK</span> pulse the fabric emits is itself exactly
+        one mclk wide, glitch-free, by construction.</p>
+      <p>Two structural rules make the block predictable under load: <b>simultaneous events on
+        different channels all fire in the same cycle</b> &mdash; there is no arbitration, because the
+        fabric is not a bus and never contends for anything; and <b>two channels that target the same
+        task in the same cycle OR-merge into one pulse</b> for the consumer, recorded as an
+        <span class="vesta-mono">OVR</span> (overrun) bit on both colliding channels. The pulse is
+        never lost, never duplicated, and never delayed &mdash; only the bookkeeping tells you a
+        collision happened.</p>
+    </div>
 
-/* ---- region panels (containers, drawn behind) ---- */
-push({id:"P_iface",x:40,y:36,w:1480,h:64,cls:"iface",container:true,titleTop:true,t:"Unified instruction + data memory bus",cap:"One bus carries both instructions and data. read_data returns the fetched instruction during decode and the load result during a data access; data_addr / write_data / wen[3:0] drive out; mem_ready back-pressures the core and mask[1:0] gives alignment. Because read_data≡instr, any combinational decode of it must be registered before use (the unified-bus hazard)."});
-push({id:"P_fetch",x:40,y:120,w:400,h:150,cls:"fetch",container:true,titleTop:true,t:"Fetch / decode"});
-push({id:"P_ctrl",x:40,y:286,w:400,h:436,cls:"ctrl",container:true,titleTop:true,t:"Control"});
-push({id:"P_dpath",x:460,y:120,w:690,h:602,cls:"dpath",container:true,titleTop:true,t:"Datapath  ·  clk_cpu domain"});
-push({id:"P_csr",x:1170,y:120,w:350,h:150,cls:"csr",container:true,titleTop:true,t:"CSR & machine counters"});
-push({id:"P_irq",x:1170,y:286,w:350,h:250,cls:"irq",container:true,titleTop:true,t:"Interrupt handling (IVT)"});
-push({id:"P_clk",x:1170,y:552,w:350,h:170,cls:"clk",container:true,titleTop:true,t:"Clock & power"});
-push({id:"P_atom",x:40,y:742,w:1480,h:120,cls:"atom",container:true,titleTop:true,t:"Atomics — A extension (shared-memory LR/SC & AMO)"});
+    <figure class="diagram">
+      <div class="svgwrap">
+        <svg viewBox="0 0 900 495" role="img" aria-label="Block diagram: ten producer peripherals feed sixteen events into an eight-channel one-hot crossbar, which drives ten tasks across six consumer peripherals.">
+          <!-- producers -->
+          <g>
+            <rect x="10" y="6"   width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="27" text-anchor="middle" style="fill:var(--prod-ink)">RTC0</text>
+            <rect x="10" y="50"  width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="71" text-anchor="middle" style="fill:var(--prod-ink)">PWM0</text>
+            <rect x="10" y="94"  width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="115" text-anchor="middle" style="fill:var(--prod-ink)">TIMER0</text>
+            <rect x="10" y="138" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="159" text-anchor="middle" style="fill:var(--prod-ink)">TIMER1</text>
+            <rect x="10" y="182" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="203" text-anchor="middle" style="fill:var(--prod-ink)">UART0</text>
+            <rect x="10" y="226" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="247" text-anchor="middle" style="fill:var(--prod-ink)">NFC0</text>
+            <rect x="10" y="270" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="291" text-anchor="middle" style="fill:var(--prod-ink)">DMA0</text>
+            <rect x="10" y="314" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="335" text-anchor="middle" style="fill:var(--prod-ink)">TRNG0</text>
+            <rect x="10" y="358" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="379" text-anchor="middle" style="fill:var(--prod-ink)">I2CT0</text>
+            <rect x="10" y="402" width="150" height="34" rx="7" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="85" y="423" text-anchor="middle" style="fill:var(--prod-ink)">GPIO0 pads</text>
+          </g>
+          <text class="d-note" x="10" y="452">10 producer blocks &#8594; 16 live events (EVSEL 0&ndash;15)</text>
 
-/* ---- fetch/decode ---- */
-push({id:"cdec",x:60,y:162,w:150,h:64,cls:"fetch",t:"c_dec",s:"RVC → 32-bit",a:"expander",
-  cap:"Combinational compressed-instruction (RVC / C-extension) decompressor: a 16-bit compressed instruction is expanded to its 32-bit equivalent. is_compressed selects between the expanded form and the raw 32-bit word."});
-push({id:"imux",x:238,y:162,w:182,h:64,cls:"mux",shape:"mux",t:"instr_curr mux",s:"expanded / split-fetch / held",
-  cap:"Selects the current instruction from: the RVC-expanded word, a re-assembled split fetch (a 32-bit instruction straddling two 16-bit fetch slots), or the half-cycle-advanced held copy (instr_curr_prev). Its output instr_curr feeds both the decoder and the datapath's instruction fields."});
+          <!-- wires producers -> crossbar: staggered L-elbows, each landing exactly on the crossbar's left edge (x=330) at its own distinct y so no two wires overlap and none stop short of the box -->
+          <path class="d-wire" d="M160 23  H180 V133 H330"/>
+          <path class="d-wire" d="M160 67  H192 V160 H330"/>
+          <path class="d-wire" d="M160 111 H204 V187 H330"/>
+          <path class="d-wire" d="M160 155 H216 V214 H330"/>
+          <path class="d-wire" d="M160 199 H228 V241 H330"/>
+          <path class="d-wire" d="M160 243 H240 V268 H330"/>
+          <path class="d-wire" d="M160 287 H252 V295 H330"/>
+          <path class="d-wire" d="M160 331 H264 V322 H330"/>
+          <path class="d-wire" d="M160 375 H276 V349 H330"/>
+          <path class="d-wire" d="M160 419 H288 V376 H330"/>
 
-/* ---- control ---- */
-push({id:"ctrl",x:60,y:322,w:360,h:70,cls:"ctrl",t:"controller",s:"maindec + branch_valid",a:"combinational decode → control word",
-  cap:"Pure combinational decoder (wraps maindec and branch_valid). From instr_curr it emits the full control word — result_src, ALU_src, imm_src, alu_control, reg_write, mem_access, jump/jalr/pc_src, csr_op, and the operation-class flags amo_op/lr_op/sc_op/fence_op/div_op — plus the branch-taken condition from funct3 and the ALU Zero flag."});
-push({id:"fsm",x:60,y:408,w:360,h:302,cls:"ctrl",t:"Control FSM · 18 states",
-  lines:["EXECUTE (reset & dispatch hub)","MEMORY_WAIT · FENCE_WAIT","DIV_WAIT → DIV_DONE","LR_READ · SC_CHECK","AMO_READ → WRITEBACK → COMPUTE","        → AMO_WRITE → COMPLETE","IRQ_SV → IRQ_JUMP · IRQ_REST","TRAP_STATE · INITIALIZE · SLEEPING"],
-  cap:"The multi-cycle control FSM (reset state = EXECUTE, which is the decode/dispatch hub). It sequences: single-cycle ops in EXECUTE; loads/stores via MEMORY_WAIT; multi-cycle divide via DIV_WAIT→DIV_DONE; the A-extension chain LR_READ / SC_CHECK / AMO_READ→AMO_WRITEBACK→AMO_COMPUTE→AMO_WRITE→AMO_COMPLETE; interrupt entry/return IRQ_SV→IRQ_JUMP / IRQ_REST; FENCE_WAIT; and the power states INITIALIZE/SLEEPING, with TRAP_STATE terminal. It gates the decoded control word into datapath-facing strobes (pc_en, reg_write, wen, div_start, amo_phase, alu_control overrides)."});
+          <!-- crossbar -->
+          <rect x="330" y="120" width="240" height="270" rx="12" style="fill:var(--xbar);stroke:var(--xbar-edge);stroke-width:1.8"/>
+          <text class="d-lbl" x="450" y="148" text-anchor="middle" style="fill:var(--xbar-ink)">8-channel crossbar</text>
+          <text class="d-sub" x="450" y="166" text-anchor="middle">one-hot EVSEL/TASKSEL match</text>
+          <g font-family="var(--font-mono)">
+            <rect x="352" y="182" width="196" height="20" rx="4" style="fill:var(--surface-2);stroke:var(--border)"/>
+            <text class="d-sub" x="450" y="196" text-anchor="middle">CH0 {EVSEL,TASKSEL,EN}</text>
+            <rect x="352" y="206" width="196" height="20" rx="4" style="fill:var(--surface-2);stroke:var(--border)"/>
+            <text class="d-sub" x="450" y="220" text-anchor="middle">CH1 {EVSEL,TASKSEL,EN}</text>
+            <rect x="352" y="230" width="196" height="20" rx="4" style="fill:var(--surface-2);stroke:var(--border)"/>
+            <text class="d-sub" x="450" y="244" text-anchor="middle">CH2 {EVSEL,TASKSEL,EN}</text>
+            <text class="d-sub" x="450" y="266" text-anchor="middle" style="fill:var(--text-dim)">&#8942;</text>
+            <rect x="352" y="280" width="196" height="20" rx="4" style="fill:var(--surface-2);stroke:var(--border)"/>
+            <text class="d-sub" x="450" y="294" text-anchor="middle">CH7 {EVSEL,TASKSEL,EN}</text>
+          </g>
+          <text class="d-note" x="352" y="320">one registered TASK pulse per firing &mdash;</text>
+          <text class="d-note" x="352" y="334">1 mclk in-fabric latency, no bus mastering</text>
+          <text class="d-note" x="352" y="352">two channels &#8594; same task, same cycle:</text>
+          <text class="d-note" x="352" y="366">merge to ONE pulse, OVR set on both</text>
 
-/* ---- datapath ---- */
-push({id:"pclogic",x:480,y:158,w:300,h:64,cls:"dpath",t:"PC logic",s:"pc · pc+2 / pc+4 · pc_next mux",a:"pc_target = base + imm",
-  cap:"Program-counter unit. Holds pc (reset = PC_RST_VAL), computes pc+2 / pc+4 (compressed vs aligned link), and the branch/jump target pc_target = (JALR? rs1 : pc) + imm. A final pc_next mux picks the IVT entry (IRQ_JUMP), the return PC (IRQ_REST), a held value (SLEEPING / AMO / LR / SC), or the sequential/target PC. Drives data_addr during fetch."});
-push({id:"rf",x:480,y:246,w:230,h:84,cls:"dpath",shape:"reg",t:"Register file",s:"32×32 · async read · sync write",a:"x0=0 · SP side-port (IRQ push/pop)",
-  cap:"32 general-purpose 32-bit registers with two asynchronous read ports (rs1, rs2) and one synchronous write port (rd, gated on rd≠x0). A dedicated stack-pointer side-port supports the hardware IRQ push/pop. x10 (a0) is exported for the pass/fail test harness. rs1 is also exported phase-independently (rs1_value) for atomic address compares."});
-push({id:"ext",x:480,y:352,w:230,h:54,cls:"dpath",shape:"trap",t:"extend",s:"immediate gen · I / S / B / J / U",
-  cap:"Immediate generator: sign-extends and re-orders the instruction bits into the five RISC-V immediate formats (I, S, B, J, U), selected by imm_src from the decoder."});
-push({id:"srcb",x:748,y:344,w:64,h:72,cls:"mux",shape:"mux",t:"SrcB",
-  cap:"ALU B-operand mux: selects the immediate (ALU_src=1) or rs2. In atomic phases the FSM overrides this to inject constants for the SC success/fail result."});
-push({id:"alu",x:860,y:240,w:270,h:118,cls:"dpath",shape:"alu",t:"ALU  (+ div)",s:"RV32I · M (mul/div) · A min/max",a:"Zba/Zbb/Zbs/Zbc · PASS-A / PASS-B",
-  cap:"Arithmetic/logic unit with a 6-bit control. Base RV32I ops plus M-extension multiply and a multi-cycle restoring divider (div, 34 cycles, handshaked), A-extension AMO min/max, the Zb bit-manipulation groups, and PASS-A / PASS-B modes used to route an operand straight through during AMO addressing and SC result generation. Produces the Zero flag for branches."});
-push({id:"resmux",x:900,y:406,w:200,h:56,cls:"mux",shape:"mux",t:"Result mux",s:"ALU / load / pc+4 / pc_tgt / csr",
-  cap:"Writeback source mux (result_src): ALU result, extended load data, pc+4 (JAL/JALR link), pc_target (AUIPC), or CSR read data. Its output is written back to rd."});
-push({id:"loadext",x:480,y:440,w:230,h:54,cls:"dpath",t:"loadext",s:"LB / LBU / LH / LHU / LW",
-  cap:"Load extender: sign- or zero-extends the byte/half/word returned on read_data, keyed on funct3 and the latched alignment mask."});
-push({id:"storeext",x:480,y:518,w:230,h:54,cls:"dpath",t:"store_ext",s:"SB / SH / SW format",
-  cap:"Store formatter: replicates the store data across the correct byte lanes (SB×4, SH×2, SW passthrough) so the byte-enable write commits the right bytes."});
+          <!-- wires crossbar -> consumers: same staggered-elbow discipline, mirrored -->
+          <path class="d-wire" d="M570 142 H620 V52  H700"/>
+          <path class="d-wire" d="M570 187 H632 V128 H700"/>
+          <path class="d-wire" d="M570 232 H644 V204 H700"/>
+          <path class="d-wire" d="M570 277 H656 V280 H700"/>
+          <path class="d-wire" d="M570 322 H668 V356 H700"/>
+          <path class="d-wire" d="M570 367 H680 V432 H700"/>
 
-/* ---- csr ---- */
-push({id:"csr",x:1190,y:162,w:310,h:88,cls:"csr",t:"csr_unit  (Zicsr)",s:"mhartid ← hart_id port",a:"mcycle / minstret 64-bit counters",
-  cap:"Zicsr register file. Implements mhartid (sourced from the hart_id port — one netlist for all four tiles) and the 64-bit machine counters mcycle (every cycle) and minstret (per retired instruction), with their read-only user shadows. CSRRW/RS/RC and immediate variants are decoded from funct3. Trap CSRs (mstatus/mtvec/mepc/mcause) are intentionally not present — interrupts are handled structurally through the IVT: the in-core irq_handler for the three hardwired sources, with external sources arriving as meip from the SoC\u2019s irq_router."});
+          <!-- consumers -->
+          <g>
+            <rect x="700" y="30"  width="150" height="44" rx="7" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="775" y="49" text-anchor="middle" style="fill:var(--cons-ink)">DMA0</text>
+            <text class="d-sub" x="775" y="64" text-anchor="middle">CH0/CH1 GO</text>
 
-/* ---- irq ---- */
-push({id:"irqh",x:1190,y:326,w:310,h:96,cls:"irq",t:"irq_handler",s:"3 live sources · ungated clk",a:"meip (ext) · msip · mtip",
-  cap:"Interrupt sequencer on the ungated clock (so it can wake a hart whose clk_cpu is gated off). Post-M19 only three sources are live and hardwire-enabled — the external meip wire from the SoC\u2019s PLIC-lite irq_router plus the CLINT msip/mtip lines. Per-source enables, masking and fixed lowest-ID priority now live in the irq_router, so the core\u2019s NUM_IRQS-wide priority encoder and the recursion path are pruned away. On an assertion it drives the core FSM: irq_save \u2192 IRQ_SV, then IRQ_JUMP to the vector, and IRQ_REST on return."});
-push({id:"ivt",x:1190,y:440,w:310,h:78,cls:"irq",t:"IVT vectoring",s:"ivt_entry = 0x8000 + irq×4",a:"IVT_BASE = 0x8000 · slot 85 = meip",
-  cap:"The interrupt vector table lives at 0x8000, one jump per slot. The handler forms ivt_entry = 0x8000 + latched_irq×4 and hands it to PC logic on IRQ_JUMP. Hardware stacking stays: on IRQ_SV the core pushes only the return PC at sp\u22124 and pops it on IRQ_REST; ISRs save/restore their own registers and clear the source level before returning. The live vectors are the CLINT pair (83/84) and slot 85 (IRQB_EXT_MEIP), whose ISR is the meip dispatcher — it reads the router\u2019s CLAIM to find the source and writes COMPLETE when done."});
+            <rect x="700" y="106" width="150" height="44" rx="7" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="775" y="125" text-anchor="middle" style="fill:var(--cons-ink)">TIMER0</text>
+            <text class="d-sub" x="775" y="140" text-anchor="middle">START / STOP</text>
 
-/* ---- clock ---- */
-push({id:"clkgate",x:1190,y:588,w:310,h:60,cls:"clk",shape:"and",t:"clock gate · cg_clk_cpu",a:"en: mem_ready > irq > sleep > SLEEPING",
-  cap:"Generates the gated CPU clock clk_cpu that drives the FSM, PC, datapath, register file and ALU/divider. Enable priority: mem_ready=0 forces off (top priority — freezes the core across a stalled shared-memory transaction); else an active interrupt forces on; else sleep / SLEEPING gate off. csr_unit and irq_handler run on the ungated clk."});
-push({id:"clkports",x:1190,y:660,w:310,h:46,cls:"clk",t:"clk · resetn · sleep",a:"free-running clk in · clk_cpu out",
-  cap:"Core clock/reset/power inputs. clk is free-running; resetn is active-low; sleep (from the tile — e.g. an XIP flash stall) gates clk_cpu. clk_cpu is exported so peripherals/memories in the tile share the gated domain."});
+            <rect x="700" y="182" width="150" height="44" rx="7" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="775" y="201" text-anchor="middle" style="fill:var(--cons-ink)">PWM0</text>
+            <text class="d-sub" x="775" y="216" text-anchor="middle">FLTTRIG</text>
 
-/* ---- atomics ---- */
-push({id:"resloc",x:70,y:772,w:270,h:64,cls:"atom",t:"local reservation",s:"reservation_valid / _addr flops",
-  cap:"Per-hart LR/SC reservation registers set on LR_READ and cleared on SC_CHECK / IRQ_SV. Correct for a single hart in isolation; for shared memory the verdict is adjudicated globally by resv_unit in the arbiter's serialization order."});
-push({id:"amoif",x:370,y:772,w:320,h:64,cls:"atom",t:"LR/SC & AMO interface",s:"lr_sc_bus · amo_lock out",a:"sc_fail_ext in",
-  cap:"The core's atomic interface to the shared fabric: lr_sc_bus tags the current access (01=LR read, 10=SC write attempt), amo_lock stays high across the whole AMO read-modify-write so the arbiter pins the grant (cross-hart AMO atomicity), and sc_fail_ext returns the global SC verdict which folds into the SC success/fail result."});
-push({id:"resvext",x:730,y:772,w:340,h:64,cls:"atom",dash:true,t:"resv_unit  (shared fabric)",s:"global LR/SC table @ arbiter",a:"external — see Figure 2",
-  cap:"Not part of the core: the global reservation unit sits between the arbiter and shared RAM. It tracks a reservation per master, kills reservations on any matching committed write, and returns sc_fail to the losing hart. This is what makes LR/SC correct across all four harts. See Figure 2 (Castalia SoC)."});
+            <rect x="700" y="258" width="150" height="44" rx="7" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="775" y="277" text-anchor="middle" style="fill:var(--cons-ink)">PWRCTRL</text>
+            <text class="d-sub" x="775" y="292" text-anchor="middle">TILEWAKE</text>
 
-/* ================= links (orthogonal routing in clear channels) ================= */
-const L=[];
-const dl=(d,c,m)=>L.push({d,c,m});
-const lab=(x,y,t,sig)=>L.push({label:t,lx:x,ly:y,sig:sig});
-// ---- memory bus <-> core ----
-dl("M135,100 L135,162","wide","arrowd");                     lab(141,131,"read_data ≡ instr / load");
-dl("M630,158 L630,100","wide","arrowd");                     lab(636,127,"data_addr (fetch / EA)");
-dl("M480,545 L452,545 L452,100","wide","arrowd");            lab(456,116,"write_data");   // store_ext -> bus (far-left channel)
-dl("M225,100 L225,280 L48,280 L48,559 L60,559","sig","arrows");                      lab(231,140,"mem_ready");    // bus -> FSM (gap channel)
-// ---- fetch / decode ----
-dl("M210,194 L236,194","","arrow");                          // c_dec -> imux
-dl("M329,226 L329,300 L240,300 L240,322","","arrow");        lab(250,258,"instr");        // imux -> FSM/controller
-dl("M420,177 L440,177 L440,150 L1240,150 L1240,162","","arrow");               lab(830,144,"csr_addr");     // imux -> csr (top channel)
-// ---- control ----
-dl("M240,392 L240,408","","arrow");                          // controller -> FSM
-dl("M420,480 L478,480","sig","arrows");                      lab(452,474,"control",true); // FSM -> datapath control word
-// ---- datapath backbone ----
-dl("M710,278 L860,278","wide","arrowd");                     lab(776,272,"rs1");
-dl("M710,310 L730,310 L730,378 L748,378","wide","arrowd");   lab(716,336,"rs2");
-dl("M710,379 L748,379","wide","arrowd");                     lab(719,373,"imm");
-dl("M812,380 L840,380 L840,345 L860,345","wide","arrowd");   // SrcB -> ALU
-dl("M995,358 L995,406","wide","arrowd");                     // ALU -> Result mux
-dl("M710,460 L886,460 L886,446 L900,446","wide","arrowd");   lab(772,455,"load");
-dl("M1000,462 L1000,672 L468,672 L468,300 L480,300","wide","arrowd"); lab(690,666,"rd (writeback)");
-dl("M710,325 L732,325 L732,545 L710,545","wide","arrowd");   lab(736,432,"store data");
-// ---- CSR ----
-dl("M1345,120 L1345,162","","arrow");                        lab(1350,138,"hart_id");
-dl("M1345,250 L1154,250 L1154,440 L1100,440","wide","arrowd"); lab(1200,262,"csr_rdata");
-// ---- interrupts (IVT) ----
-dl("M1520,374 L1500,374","","arrow");                        lab(1372,318,"meip · msip · mtip");
-dl("M1190,410 L1160,410 L1160,728 L400,728 L400,710","sig","arrows"); lab(740,722,"irq_save handshake",true);
-dl("M1190,479 L1166,479 L1166,738 L826,738 L826,190 L780,190","sig","arrows"); lab(834,620,"ivt_entry → PC",true);
-// ---- clock & power ----
-dl("M420,700 L1154,700 L1154,618 L1190,618","sig","arrows"); lab(740,694,"en_clk_cpu",true);
-dl("M1190,632 L1152,632","sig","arrows");                    lab(1116,628,"clk_cpu",true);
-// ---- atomics ----
-dl("M200,710 L200,772","","arrow");                          lab(206,748,"amo_phase / lr_sc");
-dl("M340,804 L370,804","","arrow");
-dl("M690,804 L730,804","dash","arrow");                      lab(652,762,"lr_sc / lock / sc_fail");
+            <rect x="700" y="334" width="150" height="44" rx="7" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="775" y="353" text-anchor="middle" style="fill:var(--cons-ink)">NPU0</text>
+            <text class="d-sub" x="775" y="368" text-anchor="middle">THINK</text>
 
-/* ================= render (shared engine) ================= */
-const NS="http://www.w3.org/2000/svg";
-const gB=document.getElementById("blocks"),gL=document.getElementById("links");
-function el(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
-L.forEach(l=>{
-  if(l.d){const p=el("path",{d:l.d,class:"link "+(l.c||"")});if(l.m)p.setAttribute("marker-end",`url(#${l.m})`);
-    if(l.c&&l.c.indexOf("sig")>=0)p.classList.add("ctrlnet"); if(l.c&&l.c.indexOf("wide")>=0)p.classList.add("datanet"); gL.appendChild(p);}
-  if(l.label){const t=el("text",{x:l.lx,y:l.ly,class:"linklabel"});t.textContent=l.label;
-    if(l.sig)t.classList.add("ctrlnet"); gL.appendChild(t);}
-});
-// circuit-symbol geometry: returns an SVG node for block b (falls back to a rounded rect)
-function symbol(b){
-  const x=b.x,y=b.y,w=b.w,h=b.h,s=b.shape; let d=null;
-  if(s==="alu")  d=`M${x},${y} L${x+w},${y+h*0.2} L${x+w},${y+h*0.8} L${x},${y+h} `+
-                    `L${x},${y+h*0.62} L${x+w*0.16},${y+h*0.5} L${x},${y+h*0.38} Z`;      // notched ALU
-  else if(s==="mux")  d=`M${x},${y} L${x+w},${y+h*0.24} L${x+w},${y+h*0.76} L${x},${y+h} Z`; // trapezoid, in-left / out-right
-  else if(s==="trap") d=`M${x},${y+h*0.22} L${x+w},${y} L${x+w},${y+h} L${x},${y+h*0.78} Z`; // sign-extend (widens right)
-  else if(s==="and"){ const r=h/2, bx=x+w-r;                                                 // AND-gate clock gate
-                      d=`M${x},${y} L${bx},${y} A${r},${r} 0 0 1 ${bx},${y+h} L${x},${y+h} Z`; }
-  if(d){ const p=el("path",{d,class:"sym"}); return p; }
-  return el("rect",{x,y,width:w,height:h,rx:11});                                            // reg + everything else
-}
-const byId={};
-B.forEach(b=>{
-  const c=CLS[b.cls]; const g=el("g",{class:"blk"}); g.dataset.id=b.id;
-  const node=symbol(b);
-  node.setAttribute("fill",c.fill); node.setAttribute("stroke",c.edge);
-  if(b.container)node.setAttribute("fill-opacity",".4");
-  if(b.dash)node.setAttribute("stroke-dasharray","6 4");
-  g.appendChild(node);
-  // register: clock-input mark (small ">" on the left edge, near the bottom)
-  if(b.shape==="reg"){
-    const tri=el("path",{d:`M${b.x},${b.y+b.h-16} L${b.x+12},${b.y+b.h-9} L${b.x},${b.y+b.h-2} Z`,
-      fill:"none",stroke:c.edge,class:"sym"}); g.appendChild(tri);
-  }
-  const cx=b.x+b.w/2;
-  if(b.container&&b.titleTop){
-    const t=el("text",{x:b.x+14,y:b.y+21,class:"t","text-anchor":"start",fill:c.ink});t.textContent=b.t;g.appendChild(t);
-  } else if(b.lines){
-    const t=el("text",{x:cx,y:b.y+26,class:"t","text-anchor":"middle",fill:c.ink});t.textContent=b.t;g.appendChild(t);
-    let ly=b.y+44;b.lines.forEach(line=>{const t2=el("text",{x:b.x+16,y:ly,class:"ln addr","text-anchor":"start",fill:c.ink,"fill-opacity":".9"});t2.textContent=line.trim()||line;g.appendChild(t2);ly+=20;});
-  } else {
-    const n=1+(b.s?1:0)+(b.a?1:0);            // vertically centre the text stack in the symbol body
-    let yy=b.y+b.h/2-(n-1)*6.5+3;
-    const t=el("text",{x:cx,y:yy,class:"t","text-anchor":"middle",fill:c.ink});t.textContent=b.t;g.appendChild(t);yy+=15;
-    if(b.s){const s=el("text",{x:cx,y:yy,class:"s","text-anchor":"middle",fill:c.ink,"fill-opacity":".85"});s.textContent=b.s;g.appendChild(s);yy+=13;}
-    if(b.a){const a=el("text",{x:cx,y:yy,class:"a addr","text-anchor":"middle",fill:c.ink,"fill-opacity":".9"});a.textContent=b.a;g.appendChild(a);}
-  }
-  g.addEventListener("click",()=>select(b.id));
-  gB.appendChild(g); byId[b.id]=g;
-});
-const info=document.getElementById("info");
-function select(id){const b=B.find(x=>x.id===id);
-  document.querySelectorAll(".blk").forEach(g=>g.classList.remove("hot"));
-  byId[id].classList.add("hot"); info.classList.remove("empty");
-  info.innerHTML=`<h3>${b.t}</h3><span class="k">${CLS[b.cls].name}${b.a?" · "+b.a:""}</span>${b.cap||""}`;}
-let showCtrl=true,showData=true;
-document.getElementById("tCtrl").onclick=(e)=>{showCtrl=!showCtrl;e.target.classList.toggle("on",showCtrl);
-  document.querySelectorAll(".ctrlnet").forEach(t=>t.style.display=showCtrl?"":"none");};
-document.getElementById("tData").onclick=(e)=>{showData=!showData;e.target.classList.toggle("on",showData);
-  document.querySelectorAll(".datanet").forEach(t=>t.style.display=showData?"":"none");};
-/* pan/zoom */
-const svg=document.getElementById("svg"),stage=document.getElementById("stage");
-let vb={x:0,y:0,w:1560,h:900};const VB0={...vb};
-const applyVB=()=>svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-stage.addEventListener("wheel",(e)=>{e.preventDefault();const r=svg.getBoundingClientRect();
-  const mx=vb.x+(e.clientX-r.left)/r.width*vb.w,my=vb.y+(e.clientY-r.top)/r.height*vb.h;
-  const f=e.deltaY<0?0.88:1.135,nw=Math.min(3400,Math.max(520,vb.w*f)),nh=nw*(VB0.h/VB0.w);
-  vb.x=mx-(mx-vb.x)*(nw/vb.w);vb.y=my-(my-vb.y)*(nh/vb.h);vb.w=nw;vb.h=nh;applyVB();},{passive:false});
-let drag=null;
-stage.addEventListener("pointerdown",(e)=>{drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};stage.setPointerCapture(e.pointerId);});
-stage.addEventListener("pointermove",(e)=>{if(!drag)return;const r=svg.getBoundingClientRect();
-  vb.x=drag.vx-(e.clientX-drag.x)/r.width*vb.w;vb.y=drag.vy-(e.clientY-drag.y)/r.height*vb.h;applyVB();});
-stage.addEventListener("pointerup",()=>drag=null);
-document.getElementById("reset").onclick=()=>{vb={...VB0};applyVB();};
-const legend=document.getElementById("legend");
-Object.values(CLS).forEach(c=>{const d=document.createElement("div");d.className="lg";
-  d.innerHTML=`<span class="sw" style="background:${c.fill};border-color:${c.edge}"></span>${c.name}`;legend.appendChild(d);});
-</script>
+            <rect x="700" y="410" width="150" height="44" rx="7" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.5"/>
+            <text class="d-lbl" x="775" y="429" text-anchor="middle" style="fill:var(--cons-ink)">GPIO0</text>
+            <text class="d-sub" x="775" y="444" text-anchor="middle">OUT-SET / OUT-CLR</text>
+          </g>
+          <text class="d-note" x="890" y="472" text-anchor="end">6 consumer blocks &#8594; 10 live tasks (TASKSEL 0&ndash;9)</text>
+        </svg>
+      </div>
+      <figcaption class="figcap"><b>Figure 1 &mdash; hand-drawn.</b> Ten producer blocks feed sixteen
+        live events into the eight-channel crossbar; the crossbar drives ten live tasks across six
+        consumer blocks. Every channel is an independent {EVSEL, TASKSEL, enable} triple; every
+        firing produces exactly one registered task pulse.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= THE TWO TABLES ================= -->
+<section class="ef-section">
+  <div class="ef-wrap">
+    <p class="eyebrow">ABI &mdash; never renumbered</p>
+    <h2>Events and tasks</h2>
+    <p class="lede">These two ID lists are the fabric&rsquo;s instruction set: <span class="vesta-mono">EVSEL</span>
+      and <span class="vesta-mono">TASKSEL</span> values are frozen once shipped, exactly like an
+      opcode map. Mode tags on the event table say how the fabric&rsquo;s front-end treats the wire:
+      <span class="idmode">P</span> a one-mclk pulse passed straight through, <span class="idmode">T</span>
+      a toggle the fabric edge-detects (both directions), <span class="idmode">L</span> a level the
+      fabric catches on the rising edge only.</p>
+
+    <h3>Events (EVSEL 0&ndash;15)</h3>
+    <div class="vesta-table-wrap">
+      <table class="vesta-table idtable">
+        <thead><tr><th>EVSEL</th><th>Source</th><th>Mode</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td><span class="idnum">0</span></td><td>RTC0</td><td><span class="idmode">P</span></td><td>Real-time clock tick</td></tr>
+          <tr><td><span class="idnum">1</span></td><td>RTC0</td><td><span class="idmode">P</span></td><td>Alarm match</td></tr>
+          <tr><td><span class="idnum">2</span></td><td>PWM0</td><td><span class="idmode">P</span></td><td>Period boundary</td></tr>
+          <tr><td><span class="idnum">3</span></td><td>PWM0</td><td><span class="idmode">P</span></td><td>Fault condition</td></tr>
+          <tr><td><span class="idnum">4</span></td><td>TIMER0</td><td><span class="idmode">T</span></td><td>Compare0 match</td></tr>
+          <tr><td><span class="idnum">5</span></td><td>TIMER0</td><td><span class="idmode">T</span></td><td>Overflow</td></tr>
+          <tr><td><span class="idnum">6</span></td><td>TIMER1</td><td><span class="idmode">T</span></td><td>Compare0 match</td></tr>
+          <tr><td><span class="idnum">7</span></td><td>UART0</td><td><span class="idmode">P</span></td><td>Byte received</td></tr>
+          <tr><td><span class="idnum">8</span></td><td>NFC0</td><td><span class="idmode">T</span></td><td>Field detected</td></tr>
+          <tr><td><span class="idnum">9</span></td><td>NFC0</td><td><span class="idmode">T</span></td><td>Frame received</td></tr>
+          <tr><td><span class="idnum">10</span></td><td>DMA0</td><td><span class="idmode">P</span></td><td>Channel 0 done</td></tr>
+          <tr><td><span class="idnum">11</span></td><td>DMA0</td><td><span class="idmode">P</span></td><td>Channel 1 done</td></tr>
+          <tr><td><span class="idnum">12</span></td><td>DMA0</td><td><span class="idmode">P</span></td><td>Error (combined)</td></tr>
+          <tr><td><span class="idnum">13</span></td><td>TRNG0</td><td><span class="idmode">L</span></td><td>Data ready</td></tr>
+          <tr><td><span class="idnum">14</span></td><td>I2CT0</td><td><span class="idmode">P</span></td><td>Address match</td></tr>
+          <tr><td><span class="idnum">15</span></td><td>GPIO0</td><td>special</td><td>Masked pad edge (OR of the 8 pins enabled in <span class="vesta-mono">EVFGPIOMASK</span>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:var(--sp-8)">Tasks (TASKSEL 0&ndash;9)</h3>
+    <div class="vesta-table-wrap">
+      <table class="vesta-table idtable">
+        <thead><tr><th>TASKSEL</th><th>Consumer</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><span class="idnum">0</span></td><td>DMA0</td><td>Channel 0 GO</td></tr>
+          <tr><td><span class="idnum">1</span></td><td>DMA0</td><td>Channel 1 GO</td></tr>
+          <tr><td><span class="idnum">2</span></td><td>TIMER0</td><td>START</td></tr>
+          <tr><td><span class="idnum">3</span></td><td>TIMER0</td><td>STOP</td></tr>
+          <tr><td><span class="idnum">4</span></td><td>PWM0</td><td>Force a fault trip</td></tr>
+          <tr><td><span class="idnum">5</span></td><td>PWRCTRL</td><td>Wake a gated tile</td></tr>
+          <tr><td><span class="idnum">6</span></td><td>NPU0</td><td>Start a THINK (inference)</td></tr>
+          <tr><td><span class="idnum">7</span></td><td>GPIO0</td><td>OUT-SET the pins selected in <span class="vesta-mono">PxTASK</span></td></tr>
+          <tr><td><span class="idnum">8</span></td><td>GPIO0</td><td>OUT-CLR the pins selected in <span class="vesta-mono">PxTASK</span></td></tr>
+          <tr><td><span class="idnum">9</span></td><td>&mdash;</td><td>Reserved</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose" style="margin-top:var(--sp-4)">Every consumer here is deliberately
+      <b>pulse-driven and idempotent per cycle</b> &mdash; nothing on this list counts edges. A held
+      or repeated task pulse can never do something worse than a harmless no-op (a second DMA GO to a
+      busy channel, a second TIMER0 START); that constraint is what lets two colliding channels
+      safely OR-merge into one pulse instead of needing arbitration.</p>
+  </div>
+</section>
+
+<!-- ================= REGISTERS ================= -->
+<section class="ef-section" id="registers">
+  <div class="ef-wrap">
+    <p class="eyebrow">Registers in five minutes</p>
+    <h2>The register file at 0x6B00</h2>
+    <p class="lede">Thirteen live slots, all inside a 64-word window. The authoritative bit-exact
+      map lives in the register browser; this is the tour a driver author actually needs.</p>
+
+    <div class="vesta-table-wrap">
+      <table class="vesta-table">
+        <thead><tr><th>Slot</th><th>Register</th><th>Access</th><th>What it's for</th></tr></thead>
+        <tbody>
+          <tr><td><span class="bit">0</span></td><td><span class="fn">EVFCR</span></td><td>RW</td><td>Global kill switch. <span class="vesta-mono">EN</span> resets to 0 &mdash; nothing fires until firmware sets it, the outermost of two enable gates.</td></tr>
+          <tr><td><span class="bit">1</span></td><td><span class="fn">EVFSR</span></td><td>RO</td><td><span class="vesta-mono">FIREDIF</span> / <span class="vesta-mono">OVRIF</span>: live OR-reductions of FIRED / OVR, so firmware polls one word instead of walking eight channels.</td></tr>
+          <tr><td><span class="bit">3</span></td><td><span class="fn">EVFCAP</span></td><td>RO</td><td>Capability word &mdash; live line counts a driver should size its loops from: <span class="vesta-mono">0x010A1008</span> = VER&#8239;1 / N_TASK&#8239;10 / N_EV&#8239;16 / N_CH&#8239;8.</td></tr>
+          <tr><td><span class="bit">4</span></td><td><span class="fn">EVFCHEN</span></td><td>RW</td><td>Per-channel enable bitmask, the second gate. Resets to 0.</td></tr>
+          <tr><td><span class="bit">5</span></td><td><span class="fn">EVFCHENSET</span></td><td>W1S / R</td><td>Write 1 to <em>set</em> a CHEN bit; reads back CHEN. The multi-hart-safe idiom &mdash; see below.</td></tr>
+          <tr><td><span class="bit">6</span></td><td><span class="fn">EVFCHENCLR</span></td><td>W1C / R</td><td>Write 1 to <em>clear</em> a CHEN bit; reads back CHEN.</td></tr>
+          <tr><td><span class="bit">7</span></td><td><span class="fn">EVFCHTRIG</span></td><td>W1-inject</td><td>Software-inject a fire on channel <em>n</em>, honoring EN and CHEN exactly like a real event &mdash; bring-up without producer hardware.</td></tr>
+          <tr><td><span class="bit">8</span></td><td><span class="fn">EVFFIRED</span></td><td>W1C</td><td>Sticky &ldquo;channel <em>n</em> fired&rdquo;, one bit per channel. Set-wins over a same-cycle clear.</td></tr>
+          <tr><td><span class="bit">9</span></td><td><span class="fn">EVFOVR</span></td><td>W1C</td><td>Sticky &ldquo;channel <em>n</em>&rsquo;s pulse was degraded&rdquo; &mdash; busy consumer or a same-task merge. The pulse still went out.</td></tr>
+          <tr><td><span class="bit">10</span></td><td><span class="fn">EVFEVSTAT</span></td><td>W1C</td><td>Sticky raw-event record, one bit per event &mdash; <b>deliberately ungated by EN/CHEN</b>. See the callout below.</td></tr>
+          <tr><td><span class="bit">11</span></td><td><span class="fn">EVFEVTRIG</span></td><td>W1-inject</td><td>Software-inject a raw event <em>e</em>, upstream of every gate &mdash; drives the whole matrix from firmware with zero producer hardware.</td></tr>
+          <tr><td><span class="bit">15</span></td><td><span class="fn">EVFGPIOMASK</span></td><td>RW</td><td>Per-pin enable for the GPIO0 masked-edge path (event 15). Resets to 0 &mdash; inert out of reset.</td></tr>
+          <tr><td><span class="bit">16+n</span></td><td><span class="fn">EVFCH<em>n</em>CFG</span></td><td>RW / mixed</td><td>Per-channel config, <em>n</em>&#8239;=&#8239;0..7: <span class="vesta-mono">EVSEL[4:0]</span>, <span class="vesta-mono">TASKSEL[11:8]</span>, and a read-only <span class="vesta-mono">ENR</span> mirror of CHEN(n) at bit 31.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>CR.EN &middot; CHnCFG &middot; CHENSET/CHENCLR</h3>
+    <p class="prose">Two independent gates protect every channel: <span class="vesta-mono">CR.EN</span>
+      kills the whole block, <span class="vesta-mono">CHEN(n)</span> kills channel <em>n</em>. Both
+      reset to 0, so a CHnCFG slot that resets to <span class="vesta-mono">EVSEL&#8239;=&#8239;0</span>
+      (RTC0 tick) is harmless &mdash; it is double-gated shut. Configure <span class="vesta-mono">EVSEL</span>/<span class="vesta-mono">TASKSEL</span>
+      only while <span class="vesta-mono">CHEN(n)&#8239;=&#8239;0</span>: the fabric does not interlock
+      a live reconfiguration.</p>
+    <p class="prose">Why <span class="vesta-mono">CHENSET</span>/<span class="vesta-mono">CHENCLR</span>
+      exist at all, instead of a plain read-modify-write of <span class="vesta-mono">CHEN</span>: on a
+      4-hart chip, two harts enabling different channels at the same moment would race on a
+      read-modify-write and one write could silently lose the other&rsquo;s bit. The set/clear alias
+      registers are write-1-to-act, so hart&nbsp;A setting bit&nbsp;2 and hart&nbsp;B setting bit&nbsp;5
+      in the same cycle both land, with no read step to race on.</p>
+
+    <h3>FIRED &middot; OVR &middot; EVSTAT</h3>
+    <p class="prose">All three are sticky, write-1-to-clear, and set-wins (an event arriving on the
+      same cycle as a clear leaves the flag set). <span class="vesta-mono">FIRED</span> and
+      <span class="vesta-mono">OVR</span> are gated the same way the channel is &mdash; a disabled
+      channel never sets either. <span class="vesta-mono">EVSTAT</span> is the debugging gift: it is
+      <b>upstream of every gate</b>, recording that an event happened even with
+      <span class="vesta-mono">CR.EN&#8239;=&#8239;0</span> and every channel disabled. Mask a
+      source&rsquo;s own interrupt-enable bit and the corresponding <span class="vesta-mono">EVSTAT</span>
+      bit still lights &mdash; proof the fabric taps the raw set condition, never a post-mask IRQ line.</p>
+
+    <h3>CHTRIG &middot; EVTRIG</h3>
+    <p class="prose"><span class="vesta-mono">CHTRIG</span> injects at the channel (as if the event
+      had fired); <span class="vesta-mono">EVTRIG</span> injects the raw event itself, upstream of
+      every gate, so it lights <span class="vesta-mono">EVSTAT</span> and reaches every channel
+      watching that event. Both are one-shot per bus access: a held write produces exactly one
+      injection, never a stream of them, because the write is caught by a rising-edge detector on
+      the free-running clock rather than sampled level-wise.</p>
+
+    <p style="margin-top:var(--sp-5)">
+      <a class="vesta-btn vesta-btn-ghost" href="register_browser.html">Open the register browser &#8594;</a>
+    </p>
+  </div>
+</section>
+
+<!-- ================= WATCH IT WORK ================= -->
+<section class="ef-section" id="watch">
+  <div class="ef-wrap">
+    <p class="eyebrow">The flagship chain</p>
+    <h2>Watch it work</h2>
+    <p class="lede">This is <span class="vesta-mono">shevfab</span>, the fabric&rsquo;s flagship
+      regression test, and also its best demo: a timer compare wakes up a DMA transfer, which wakes
+      up a UART transmission, which wakes up the core &mdash; and the core is asleep for the entire
+      middle of that sentence.</p>
+
+    <ol class="steps">
+      <li><span class="st">Configure the channel</span><p>Firmware writes channel 0&rsquo;s
+        <code>EVSEL&#8239;=&#8239;4</code> (TIMER0 compare0) and <code>TASKSEL&#8239;=&#8239;0</code>
+        (DMA0 CH0 GO) while <code>CHEN(0)&#8239;=&#8239;0</code>, per the configure-before-enable
+        rule.</p></li>
+      <li><span class="st">Arm DMA, but don't launch it</span><p>DMA0 channel 0 is set up
+        (<code>DMAEN&#8239;|&#8239;DONEIE</code>, one word, source a shared-RAM word, destination
+        UART0&rsquo;s TX register) with <code>CH0GO</code> left <b>clear</b>. The fabric&rsquo;s task
+        pulse is the only thing that can start this transfer &mdash; nothing else in the test ever
+        writes GO.</p></li>
+      <li><span class="st">Enable and arm the fabric</span><p><code>EVFCHENSET</code> sets channel
+        0&rsquo;s enable bit, then <code>EVFCR.EN&#8239;=&#8239;1</code>. The channel is live.</p></li>
+      <li class="asleep"><span class="st">Start the timer and sleep</span><p>Firmware starts TIMER0
+        and executes <code>extinguish</code> (WFI). <b>From here the CPU runs nothing</b> until the
+        chain below wakes it back up.</p></li>
+      <li class="asleep"><span class="st">Timer compare &#8594; channel fires</span><p>TIMER0&rsquo;s
+        counter reaches its compare value; its EV4 output flips. EVFAB0&rsquo;s front-end catches the
+        toggle, the crossbar&rsquo;s one-hot match on channel 0 hits, and <code>ch_fire(0)</code> goes
+        high.</p></li>
+      <li class="asleep"><span class="st">Task pulse &#8594; DMA0 GO</span><p>One mclk later the
+        registered TASK0 pulse reaches DMA0 and sets channel 0&rsquo;s GO &mdash; indistinguishable to
+        DMA0 from a register write, including same-cycle BUSY behaviour. The fabric never touched the
+        bus; it drove one wire.</p></li>
+      <li class="asleep"><span class="st">DMA0 moves the byte</span><p>DMA0 masters the shared-window
+        arbiter on its own, copies the word into UART0&rsquo;s TX register, and raises
+        <code>DMA0 CH0 DONE</code>.</p></li>
+      <li class="asleep"><span class="st">Interrupt wakes the core</span><p><code>DMA0 CH0 DONE</code>
+        is IRQ vector&nbsp;118. The PLIC-lite router claims it and delivers <code>meip</code>; the
+        dispatcher vectors through IVT slot&nbsp;118 into a plain-ret handler, which sets a WAKE flag
+        and executes <code>ignite</code> before returning.</p></li>
+      <li><span class="st">Hart 0 resumes</span><p>The core wakes from WFI and observes the WAKE
+        flag. Every link between step&nbsp;4 and here fired without a single instruction executing on
+        this hart.</p></li>
+    </ol>
+
+    <figure class="diagram">
+      <div class="svgwrap">
+        <svg viewBox="0 0 900 220" role="img" aria-label="Timeline: TIMER0 compare fires channel 0, which pulses DMA0 CH0 GO, DMA0 moves a word to UART0 TX, DMA0 DONE interrupts and wakes hart 0 — with the CPU asleep across the whole middle span.">
+          <path class="d-wire" d="M40 40 H860"/>
+          <path class="d-wire" d="M860 40 l-9 -5 v10 z" style="fill:var(--wire)"/>
+          <text class="d-sub" x="858" y="30" text-anchor="end">time &#8594;</text>
+
+          <rect x="30" y="60" width="130" height="30" rx="6" style="fill:var(--prod);stroke:var(--prod-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="95" y="80" text-anchor="middle">TIMER0 compare0</text>
+          <path class="d-wire" d="M160 75 H235"/><path class="d-wire" d="M235 75 l-9 -5 v10 z" style="fill:var(--wire)"/>
+
+          <rect x="235" y="60" width="130" height="30" rx="6" style="fill:var(--xbar);stroke:var(--xbar-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="300" y="80" text-anchor="middle">EVFAB CH0</text>
+          <path class="d-wire" d="M365 75 H440"/><path class="d-wire" d="M440 75 l-9 -5 v10 z" style="fill:var(--wire)"/>
+
+          <rect x="440" y="60" width="130" height="30" rx="6" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="505" y="80" text-anchor="middle">DMA0 CH0 GO</text>
+          <path class="d-wire" d="M570 75 H645"/><path class="d-wire" d="M645 75 l-9 -5 v10 z" style="fill:var(--wire)"/>
+
+          <rect x="645" y="60" width="130" height="30" rx="6" style="fill:var(--cons);stroke:var(--cons-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="710" y="80" text-anchor="middle">byte &#8594; UART0 TX</text>
+          <path class="d-wire" d="M775 75 H845 V110"/><path class="d-wire" d="M845 110 l-5 -9 h10 z" style="fill:var(--wire)"/>
+
+          <rect x="685" y="110" width="190" height="30" rx="6" style="fill:var(--cpu);stroke:var(--cpu-edge);stroke-width:1.4"/>
+          <text class="d-sub" x="780" y="130" text-anchor="middle">DMA_DONE (vec 118) &#8594; wake</text>
+          <path class="d-wire" d="M780 140 V150"/><path class="d-wire" d="M780 150 l-5 -9 h10 z" style="fill:var(--wire)"/>
+
+          <rect x="55" y="150" width="770" height="30" rx="6" style="fill:none;stroke:var(--cpu-edge);stroke-width:1.4;stroke-dasharray:5 4"/>
+          <text class="d-lbl" x="440" y="170" text-anchor="middle" style="fill:var(--cpu-ink)">CPU asleep (WFI) &mdash; executes NOTHING across this entire span</text>
+          <text class="d-note" x="55" y="204">Not to scale. Passes as rv32ui-p-shevfab under `make verify` on any config with peripherals.eventFabric + dma enabled.</text>
+        </svg>
+      </div>
+      <figcaption class="figcap"><b>Figure 2 &mdash; hand-drawn.</b> The full <span class="vesta-mono">shevfab</span>
+        chain. A doctored negative control (a no-op <span class="vesta-mono">CHENSET</span> write)
+        fails a bounded readback well before the sleep point &mdash; never a watchdog hang &mdash;
+        proving every link above is load-bearing, and reverting restores a femtosecond-identical
+        pass.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= USING IT ================= -->
+<section class="ef-section">
+  <div class="ef-wrap">
+    <p class="eyebrow">Driver notes</p>
+    <h2>Using it</h2>
+    <ol class="recipe">
+      <li><b>Configure, then enable.</b><p>Write <code>EVFCHnCFG</code> (EVSEL, TASKSEL) while
+        <code>CHEN(n)&#8239;=&#8239;0</code>. Only then set the channel&rsquo;s bit via
+        <code>EVFCHENSET</code> and, once, <code>EVFCR.EN</code>.</p></li>
+      <li><b>Enable and disable through CHENSET/CHENCLR, never a read-modify-write of CHEN.</b>
+        <p>The write-1-to-act idiom is what makes enabling channels safe across four harts with no
+        locking.</p></li>
+      <li><b>Give a write 3 mclk before you trust a readback.</b><p><code>CHTRIG</code>/<code>EVTRIG</code>/W1C
+        writes take effect 3 clock edges after their bus window opens (2 sync + 1 apply). At
+        integration a shared-window access already costs about 5 mclk, so this is invisible in normal
+        firmware &mdash; but a standalone bench or a tight polling loop right after a trigger write
+        needs a few cycles of settle first.</p></li>
+      <li><b>No task consumer counts edges.</b><p>Every TASKSEL target is idempotent per cycle by
+        design &mdash; a repeated or merged pulse degrades to a safe no-op, never a double-fire. Don&rsquo;t
+        design a new consumer that needs to see every individual pulse; that class of task is out of
+        scope for v1.</p></li>
+      <li><b>NPU staging contract.</b><p>If a channel targets the NPU0 THINK task, the existing rule
+        still applies: no hart may touch the NPU staging RAM (<code>0xC000&ndash;0xFFFF</code>) while
+        a THINK triggered by the fabric may be in flight &mdash; the same discipline as polling
+        <code>NPUCR</code> bit&nbsp;16 before a register-launched THINK.</p></li>
+    </ol>
+
+    <h3>Status</h3>
+    <div class="status-grid">
+      <div class="vesta-card">
+        <h3>Vectorless v1, on purpose</h3>
+        <p>EVFAB0 has no interrupt vector of its own in v1 &mdash; <code>EVFSR.FIREDIF</code>/<code>OVRIF</code>
+          are live poll bits instead. Free IRQ vectors were budgeted elsewhere by the time this block
+          was frozen, and going vectorless costs nothing structural: the IE slot is already reserved
+          and reads 0, so spending a vector later is purely additive, no map break.</p>
+        <p>Wound-chip physical integration &mdash; folding EVFAB0 into a combined re-synth of the
+          full SoC &mdash; rides the next re-synth cycle; the fabric itself has closed its own gate
+          run (Error&#8239;=&#8239;0, every timing path met) standalone.</p>
+      </div>
+      <div class="vesta-card">
+        <h3>v2 reserves</h3>
+        <ul>
+          <li>More channels and events as the digital-peripheral library grows.</li>
+          <li>DMA pacing trigger codes (a reserved config field), retiring the older interrupt-gated
+            trigger wart in DMA0.</li>
+          <li>GPIO ports 1&ndash;5 as event producers (only GPIO0 is wired in v1).</li>
+          <li>TIMER capture events (deferred &mdash; async pad clock; toggle-CDC works, just not
+            funded yet).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="vesta-footer">
+  <div class="ef-wrap">
+    <div class="footlinks">
+      <a href="index.html">&#8592; VestaRV home</a>
+      <a href="castalia_soc.html">Castalia SoC diagram</a>
+      <a href="register_browser.html">Register browser</a>
+      <a href="field_power.html">Field-powered NFC mode</a>
+    </div>
+    <p style="margin-top:var(--sp-4)">VestaRV &mdash; a custom RISC-V MCU family on TSMC&nbsp;65&nbsp;nm.
+      EVFAB0 is a tape-out-ready generator option, proven in simulation only; only the single-core
+      Myshkin chip has actually been fabricated.</p>
+  </div>
+</footer>
+
 <script>
 (function(){
   var root=document.documentElement, btn=document.getElementById("themeToggle");

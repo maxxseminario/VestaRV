@@ -149,6 +149,8 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.trngRings': ('int — TRNG0 ring-oscillator ensemble size, {4, 8} ONLY (the NRO generic; the register map is NRO-invariant — ROSEL/RCTC/RUNLEN semantics are unchanged by the knob). Consulted only when peripherals.trng is true. Default 8',
 	                         lambda v: _isInt(v) and v in (4, 8)),
+	'peripherals.eventFabric': ('bool — True instantiates the EVFAB0 event/trigger fabric (PPI-style crossbar) at 0x6B00: page-2 (MUTEX page) sub-slot 11. 8 channels, each a {EVSEL, TASKSEL} pair, route one of 16 hardware EVENTS to one of 10 hardware TASKS with a registered one-MCLK pulse and 1 MCLK of in-fabric latency, so peripheral-to-peripheral chains run with every hart asleep. Producers are pre-mask SET-condition taps on RTC0/PWM0/TIMER0/TIMER1/UART0/NFC0/DMA0/TRNG0/I2CT0 plus a GPIO0 masked-edge path (the fabric owns all CDC: per-input pulse/toggle/level modes via the EV_MODE_TGL/EV_MODE_LVL generic masks); consumers are DMA0 channel GO, TIMER0 START/STOP, PWM0 fault trip, PWRCTRL tile wake, NPU0 THINK and GPIO0 OUT-SET/OUT-CLR (the PxTASK pin-select byte). Every producer/consumer whose block is absent from the configuration is TIED OFF ("0") rather than left open (design-doc D23) — the knob composes with every other peripheral knob. VECTORLESS v1: no IRQ vector is spent (irq_evfab is a constant "0", the IE slot is reserved), so NUM_IRQ_SRCS is untouched and the frozen vector numbering is undisturbed. Zero pins. Free-running MCLK in the always-on shared domain (WFI keeps it alive, DP-S3 field-power only slows it, PWRCTRL never gates it). Default false — the default emission (no page-2 sub-slot 11, no EVF* register block, no tap port maps) is byte-identical',
+	                         _isBool),
 	'package.model':        ('string — package model name defined in generate.py (_PACKAGE_MODELS: "myshkin-qfn44" QFN-44, "castalia-quad-qfn64" QFN-64 quad pinout, "castalia-lqfp100" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] — new pinouts are added as Python models, never as free-form config pin lists)',
 	                         lambda v: isinstance(v, str) and v in _PACKAGE_MODELS),
 	'package.preliminary':  ('bool — True prints the TRM package-section "Preliminary" note (default True while the package is inherited from Myshkin unchanged)',
@@ -222,6 +224,7 @@ _CONFIG_META = {
 	'peripherals.i2ctarget': {'type': 'bool', 'default': False},
 	'peripherals.trng':      {'type': 'bool', 'default': False},
 	'peripherals.trngRings': {'type': 'int', 'default': 8, 'min': 4, 'max': 8, 'step': 4},
+	'peripherals.eventFabric': {'type': 'bool', 'default': False},
 	'package.model':        {'type': 'enum', 'default': 'myshkin-qfn44', 'enum': list(_PACKAGE_MODELS)},
 	'package.preliminary':  {'type': 'bool', 'default': True},
 }
@@ -516,6 +519,27 @@ i2ctargetPresent = _cfg('peripherals.i2ctarget', False)
 # certification, no HW conditioner — firmware MUST DRBG the output and honor ALMF.
 trngPresent = _cfg('peripherals.trng', False)
 trngRings = _cfg('peripherals.trngRings', 8)
+
+# digperiphs (EVFAB, 2026-07-24): the EVFAB0 event/trigger fabric claims page-2 (the
+# MUTEX page) SUB-SLOT 11 @0x6B00, the last one taken by the digital-peripheral
+# library (0x6000 mutex / 0x6100 I3C0 / 0x6200 NFC0 / 0x6300 GPIO4 / 0x6400 GPIO5 /
+# 0x6500 RTC0 / 0x6600 PWM0 / 0x6700 OW0 / 0x6800 DMA0 / 0x6900 TRNG0 / 0x6A00 I2CT0).
+# It is a PPI-style crossbar: 8 channels, each {EVSEL, TASKSEL}, routing one of 16
+# hardware EVENTS to one of 10 hardware TASKS as a registered one-MCLK pulse (1 MCLK
+# of in-fabric latency), so peripheral-to-peripheral chains keep running with every
+# hart in WFI. Zero pins. Free-running MCLK in the always-on shared domain (D1/D2:
+# PWRCTRL never gates it, DP-S3 field-power only slows it); D4-xcollapse-clean like
+# RTC/PWM/OW/DMA/TRNG/I2CT — a plain raw-strobe active-low shim, neither
+# combinationalRead nor CAPTURE_CLOCK. VECTORLESS v1 (design-doc D20 / brief §1): the
+# free vector budget is 124-127 and Phase-0 rule 2 wants >= 2 free at end state, so
+# irq_evfab is a constant '0', the IE register slot is reserved, and SR.FIREDIF/OVRIF
+# are live RO reductions firmware polls — NUM_IRQ_SRCS and _LIBRARY_TAIL_SPEC are
+# therefore UNTOUCHED by this knob (spending a vector later is purely additive).
+# CROSS-KNOB DEGRADE (D23): every producer/consumer whose source block is absent is
+# tied '0' at the MCU level, never left open, so the fabric composes with every other
+# peripherals.* knob. Default FALSE — the default emission (no page-2 sub-slot 11, no
+# EVF* register block, no tap port-map lines on the existing instances) is byte-identical.
+eventFabricPresent = _cfg('peripherals.eventFabric', False)
 
 # ===========================================================================
 # digperiphs A5 — GLOBAL VECTOR RULE (BINDING, applies to every library block).
@@ -1124,6 +1148,20 @@ p.AddRegisterTemplate(r)
 for _pin in range(8):
 	r.AddBitField(BitField(name='PxAFS' + str(_pin), msb=(4 * _pin) + 2, lsb=4 * _pin, accessibility='rw', description='Alternate function select for pin ' + str(_pin) + ' (0 = AF0 ... 7 = AF7)'))
 	r.AddBitField(BitField(msb=(4 * _pin) + 3, lsb=(4 * _pin) + 3, unused=True))
+
+# PxTASK (digperiphs EVFAB: the event-fabric task pin-select byte, GPIO.vhd slot 12).
+# The register exists in EVERY GPIO instance unconditionally (it is plain RTL state,
+# writable and readable whatever the peripherals.eventFabric knob says); only its
+# EFFECT needs the fabric, because task_outset/task_outclr are tied '0' in a cut with
+# no EVFAB0. NOTE: GPIO.vhd also declares a LOCAL `constant RegSlotPxTASK : natural
+# := 12` — it must stay, because the peripheral-test suite compiles GPIO.vhd against
+# the FROZEN hdl/myshkin/MemoryMap.vhd, which will never carry this constant. The
+# local declaration legally hides the (identically valued) package one in the cuts
+# that use the generated package.
+r = RegisterTemplate(nameTemplate='PxTASK', registerMemorySlot=12, description='GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port\'s OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port\'s implemented pins have bits; the rest read 0.', size=32)
+p.AddRegisterTemplate(r)
+
+r.AddBitField(BitField(name='PxTASK', msb=31, lsb=0, accessibility='rw'))
 
 ## PxOCEN
 #r = RegisterTemplate(nameTemplate='PxOCEN', registerMemorySlot=10, description='GPIO open collector register. Each bit corresponds to the GPIO pin of the same number. Only has an effect if the pin is configured in GPIO (primary) mode in PxSEL. Write a 0 to the desired bit to disable the pin open-collector mode; write a 1 to enable the pin open-collector mode.', size=32)
@@ -2362,6 +2400,117 @@ if trngPresent:
 	r.AddBitField(BitField(msb=31, lsb=22, unused=True))
 
 
+# digperiphs (EVFAB, 2026-07-24): EVFAB0 register template (design doc D18 bit maps,
+# 64-word map @0x6B00; 13 named word slots + the 16-address CHnCFG array). Added only
+# when eventFabricPresent CreatePeripheral()s it; with the fabric off it is never
+# instanced (byte-identical default). Single instance, so the register names carry NO
+# instance index (the PWRCTRL/MUTEX/CLINT class): EVFCR, EVFSR, ... EVFCH0CFG.
+# Slots 12-14 stay reserved for the earmarked TKSTAT/FIREDIE/OVRIE (D18) and slots
+# 32-63 read 0. bitFieldPrefix EVF.
+if eventFabricPresent:
+	_EVFAB_N_CH = 8			# EVFAB.vhd N_CH generic (live channels; the array is 16 addresses)
+	_EVFAB_N_EV = 16		# N_EV generic (live event lines; EVSEL encode space is 32)
+	_EVFAB_N_TASK = 10		# N_TASK generic (live task lines; TASKSEL encode space is 16)
+	_EVFAB_VER = 1			# VER generic (CAP.VER)
+	evfab = PeripheralTemplate(nameTemplate='EVFAB', description='Event/trigger fabric: a PPI-style crossbar that lets peripherals command each other with no processor in the loop. Eight independent channels each hold one {EVSEL, TASKSEL} pair; when the selected EVENT fires and the channel is enabled, the fabric emits a registered one-MCLK pulse on the selected TASK line, one MCLK after the event. Sixteen event lines are wired: RTC0 tick and alarm, PWM0 period and fault, TIMER0 compare0 and overflow, TIMER1 compare0, UART0 receive, NFC0 field-detect and rx-frame, DMA0 channel-0/1 done and error, TRNG0 data-ready, I2CT0 address-match, and a masked GPIO0 pad-edge path (event 15) whose eight raw pad edges are selected by EVFGPIOMASK. Ten task lines are wired: DMA0 channel-0/1 GO, TIMER0 START and STOP, PWM0 fault trip, PWRCTRL tile wake, NPU0 THINK, and GPIO0 output SET and CLEAR (acting on the pins selected by that port\'s PxTASK register). Every event tap is taken from its source flag\'s SET condition BEFORE any interrupt mask, so a chain works with every interrupt disabled, and the fabric owns all clock-domain crossing (each input is a pulse, a toggle or a level according to the block\'s domain, converted by a uniform three-flop front end). The whole block rides the free-running MCLK in the always-on domain: WFI keeps it alive, field-power mode only slows it, and PWRCTRL never gates it -- so chains keep firing with every hart asleep, which is the entire point. A channel is completely inert unless both the global enable and its own channel-enable bit are set; enables are changed through the write-1 CHENSET/CHENCLR aliases so two harts never race a read-modify-write. Sticky FIRED, OVR and EVSTAT words record what happened (EVSTAT records raw events even while the fabric is disabled, which makes a mis-taken post-mask event tap directly observable), and CHTRIG/EVTRIG let firmware inject a channel firing or a raw event with no producer hardware at all. The fabric is never a bus master, never stalls, never rate-limits and never backpressures a consumer: OVR only records that a pulse was degraded (the consumer was busy, or two channels merged onto one task in the same cycle). This version spends no interrupt vector -- the interrupt output is a constant 0 and the EVFIE slot is reserved -- so firmware polls EVFSR, whose two flags are live reductions of the FIRED and OVR words.', registerPrefix='EVF', bitFieldPrefix='EVF', latexIntroFileName='EVFAB-intro-castalia-2026-07.tex', latexFeatureSummary='{count} event/trigger fabric (PPI-style crossbar: ' + str(_EVFAB_N_CH) + ' channels, ' + str(_EVFAB_N_EV) + ' event producers, ' + str(_EVFAB_N_TASK) + ' task consumers, one-MCLK registered pulses, peripheral-to-peripheral chains with every hart asleep)')
+	m.AddPeripheralTemplate(evfab)
+
+	# EVFCR (slot 0) -- global enable (D21: resets 0 = nothing can fire)
+	r = RegisterTemplate(nameTemplate='EVFCR', registerMemorySlot=0, description='Event fabric control register. EN is the global kill switch: with EN clear NO channel can fire, no FIRED or OVR flag can set, and no task pulse can be emitted, whatever the channel enables and configuration words say (raw events are still recorded in EVFEVSTAT, which sits upstream of the gate). Resets to 0, so the fabric comes out of reset completely inert; configure the channels first, then set EN. Other bits reserved, read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFEN', msb=0, accessibility='rw', description='Global fabric enable. Gates every channel together with its own EVFCHEN bit (both must be set for a channel to fire).', valueDescriptions=[(0b0, 'Fabric disabled (no pulses, no flags)'), (0b1, 'Fabric enabled')]))
+	r.AddBitField(BitField(msb=31, lsb=1, unused=True))
+
+	# EVFSR (slot 1) -- live RO reductions (D20)
+	r = RegisterTemplate(nameTemplate='EVFSR', registerMemorySlot=1, description='Event fabric status register. Both bits are LIVE read-only reductions of the sticky words, not state of their own: firmware polls this one word to learn whether anything at all has fired or been degraded, then reads EVFFIRED / EVFOVR to find out which channels. There is no interrupt in this version of the fabric (EVFIE is reserved), so this register is the whole notification mechanism. Other bits reserved, read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFFIREDIF', msb=0, accessibility='r', description='Set while ANY bit of EVFFIRED is set (a logical OR of the sticky per-channel fired flags). Clears only when every EVFFIRED bit has been written back to 0.', valueDescriptions=[(0b0, 'No channel has fired since the flags were cleared'), (0b1, 'At least one channel has fired')]))
+	r.AddBitField(BitField(name='EVFOVRIF', msb=1, accessibility='r', description='Set while ANY bit of EVFOVR is set (a logical OR of the sticky per-channel overrun flags).', valueDescriptions=[(0b0, 'No overrun recorded'), (0b1, 'At least one overrun recorded')]))
+	r.AddBitField(BitField(msb=31, lsb=2, unused=True))
+
+	# EVFIE (slot 2) -- RESERVED in the vectorless v1 (D20)
+	r = RegisterTemplate(nameTemplate='EVFIE', registerMemorySlot=2, description='Reserved interrupt-enable register. This version of the event fabric is deliberately VECTORLESS: it spends no interrupt vector, its interrupt output is tied inactive, and this slot reads 0 and ignores writes. The slot is reserved so that a later revision can add per-flag interrupt enables without moving any other register.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
+	# EVFCAP (slot 3) -- RO capability constant (D19)
+	r = RegisterTemplate(nameTemplate='EVFCAP', registerMemorySlot=3, description='Capability register (read-only constant). Reports the LIVE line counts of this build so a driver can size its loops instead of hardcoding them: the number of channels, event lines and task lines actually implemented, plus a version number. At the Castalia configuration it reads 0x010A1008.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFNCH', msb=7, lsb=0, accessibility='r', description='Number of implemented channels (' + str(_EVFAB_N_CH) + '). Channel registers above this count read 0 and ignore writes.'))
+	r.AddBitField(BitField(name='EVFNEV', msb=15, lsb=8, accessibility='r', description='Number of implemented event lines (' + str(_EVFAB_N_EV) + '). EVSEL codes at or above this count select nothing, which makes the channel inert (EVSEL 31 is the documented NONE encoding).'))
+	r.AddBitField(BitField(name='EVFNTASK', msb=23, lsb=16, accessibility='r', description='Number of implemented task lines (' + str(_EVFAB_N_TASK) + '). A TASKSEL at or above this count still sets EVFFIRED but drives no task line and can never set EVFOVR.'))
+	r.AddBitField(BitField(name='EVFVER', msb=31, lsb=24, accessibility='r', description='Fabric version (' + str(_EVFAB_VER) + ').'))
+
+	# EVFCHEN (slot 4) + the w1s/w1c aliases (slots 5/6) -- D18, multi-hart safe
+	r = RegisterTemplate(nameTemplate='EVFCHEN', registerMemorySlot=4, description='Channel enable register. Bit n enables channel n; a channel fires only when this bit AND EVFCR.EN are both set, and a disabled channel is completely inert (no task pulse, no EVFFIRED, no EVFOVR). Resets to 0. Writing this register directly is safe only for a single owner: when several harts share the fabric, use the EVFCHENSET / EVFCHENCLR aliases instead, which set or clear individual bits without a read-modify-write. Bits above the implemented channel count read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFCHEN', msb=_EVFAB_N_CH - 1, lsb=0, accessibility='rw', description='Per-channel enable bits (bit n = channel n).'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_CH, unused=True))
+
+	r = RegisterTemplate(nameTemplate='EVFCHENSET', registerMemorySlot=5, description='Channel enable SET alias. Writing a 1 to bit n sets EVFCHEN bit n; writing 0 leaves that bit alone, so a hart can enable its own channels without disturbing another hart\'s. Reading this address returns the current EVFCHEN value.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFCHENSET', msb=_EVFAB_N_CH - 1, lsb=0, accessibility='rw', description='Write 1 to enable channel n (write 0 = no effect). Reads back EVFCHEN.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_CH, unused=True))
+
+	r = RegisterTemplate(nameTemplate='EVFCHENCLR', registerMemorySlot=6, description='Channel enable CLEAR alias. Writing a 1 to bit n clears EVFCHEN bit n; writing 0 leaves that bit alone. Reading this address returns the current EVFCHEN value. Disable a channel through this register before changing its EVFCHnCFG selectors.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFCHENCLR', msb=_EVFAB_N_CH - 1, lsb=0, accessibility='rw', description='Write 1 to disable channel n (write 0 = no effect). Reads back EVFCHEN.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_CH, unused=True))
+
+	# EVFCHTRIG (slot 7) -- software channel injection (D16)
+	r = RegisterTemplate(nameTemplate='EVFCHTRIG', registerMemorySlot=7, description='Channel trigger injection register. Writing a 1 to bit n makes channel n fire exactly once, as if its selected event had occurred: the task pulse, EVFFIRED and EVFOVR all behave identically to a hardware firing. The injection still honours the enables -- a trigger written to a disabled channel, or with EVFCR.EN clear, does nothing. However long the bus write is held, exactly one firing is injected. Reads 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFCHTRIG', msb=_EVFAB_N_CH - 1, lsb=0, accessibility='w', description='Write 1 to inject one firing on channel n.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_CH, unused=True))
+
+	# EVFFIRED / EVFOVR (slots 8/9) -- sticky per-channel W1C flags (D14/D15)
+	r = RegisterTemplate(nameTemplate='EVFFIRED', registerMemorySlot=8, description='Sticky channel-fired flags. Bit n sets whenever channel n fires (from a hardware event or an EVFCHTRIG injection) and stays set until firmware writes a 1 to it. A firing arriving in the same cycle as the clearing write WINS -- the flag survives -- so no event can be lost between a read and a clear. Bits above the implemented channel count read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFFIRED', msb=_EVFAB_N_CH - 1, lsb=0, accessibility='rw1', description='Channel n has fired. Write 1 to clear.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_CH, unused=True))
+
+	r = RegisterTemplate(nameTemplate='EVFOVR', registerMemorySlot=9, description='Sticky channel-overrun flags. Bit n sets when channel n fires but its task pulse was DEGRADED: either the target consumer was already busy at that moment, or another enabled channel fired onto the SAME task line in the same cycle (the two firings merge into one pulse and BOTH channels record an overrun -- the fabric cannot say which one won). An overrun never suppresses the pulse and never applies backpressure; it is a diagnostic. A channel whose TASKSEL selects a reserved code can never set this flag, since no task line exists to be busy. Set wins over a same-cycle clear. Bits above the implemented channel count read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFOVR', msb=_EVFAB_N_CH - 1, lsb=0, accessibility='rw1', description='Channel n fired while its task was busy, or merged with another channel onto the same task in the same cycle. Write 1 to clear.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_CH, unused=True))
+
+	# EVFEVSTAT (slot 10) -- raw event record, UNGATED (D14) + EVFEVTRIG (slot 11, D17)
+	r = RegisterTemplate(nameTemplate='EVFEVSTAT', registerMemorySlot=10, description='Sticky raw-event record. Bit e sets whenever event line e is seen by the fabric front end, INDEPENDENTLY of EVFCR.EN and of any channel enable or configuration -- it is upstream of every gate. That makes it both a bring-up aid (does this producer actually pulse?) and a direct test of tap discipline: because every event is tapped from its source flag\'s SET condition rather than from a masked interrupt line, clearing a producer\'s interrupt enable must NOT stop its bit appearing here. Set wins over a same-cycle clear. Bits above the implemented event count read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFEVSTAT', msb=_EVFAB_N_EV - 1, lsb=0, accessibility='rw1', description='Event line e has been seen. Write 1 to clear.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_EV, unused=True))
+
+	r = RegisterTemplate(nameTemplate='EVFEVTRIG', registerMemorySlot=11, description='Raw event injection register. Writing a 1 to bit e injects one occurrence of event line e exactly as if the producer had generated it: it is recorded in EVFEVSTAT and offered to every channel selecting that event. However long the bus write is held, exactly one event is injected. With this register the entire crossbar -- every event to every task, including events whose producer block is absent from the configuration -- is testable from firmware with no producer hardware at all. Reads 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFEVTRIG', msb=_EVFAB_N_EV - 1, lsb=0, accessibility='w', description='Write 1 to inject one occurrence of event line e.'))
+	r.AddBitField(BitField(msb=31, lsb=_EVFAB_N_EV, unused=True))
+
+	# EVFGPIOMASK (slot 15) -- the GPIO0 edge-path mask (D10/D18); slots 12-14 stay
+	# reserved for the earmarked TKSTAT/FIREDIE/OVRIE names.
+	r = RegisterTemplate(nameTemplate='EVFGPIOMASK', registerMemorySlot=15, description='GPIO0 edge-path mask. Event line ' + str(_EVFAB_N_EV - 1) + ' is generated inside the fabric from GPIO0\'s eight raw pad edges: each pad is synchronized, edge-detected, ANDed with its bit here, and the eight results are ORed into one event. A bit clear means that pad contributes nothing -- and, because the mask is applied BEFORE the OR, a masked-off pad also absorbs an undriven or unbonded pin instead of poisoning the event. The port\'s own PxIE interrupt enables are never consulted, so a pin can drive the fabric without ever raising an interrupt. Resets to 0, leaving the whole path inert. Other bits reserved, read 0.', size=32)
+	evfab.AddRegisterTemplate(r)
+	r.AddBitField(BitField(name='EVFGPIOMASK', msb=7, lsb=0, accessibility='rw', description='Per-pad enable for the GPIO0 edge path (bit i = GPIO0 pin i).'))
+	r.AddBitField(BitField(msb=31, lsb=8, unused=True))
+
+	# EVFCHnCFG (slots 16+n, n = 0..15) -- the channel array. The map reserves 16
+	# addresses; only the first N_CH are implemented (the rest read 0, D18).
+	for _ch in range(16):
+		_live = _ch < _EVFAB_N_CH
+		_desc = ('Channel ' + str(_ch) + ' configuration. EVSEL picks which event line feeds the channel and TASKSEL picks which task line it drives; ENR is a read-only mirror of this channel\'s EVFCHEN bit, so one read shows a channel\'s whole state. Selector encoding is deliberately forgiving: EVSEL 31 is the documented NONE code, and any EVSEL or TASKSEL value with no line behind it simply makes the channel (or its output) inert rather than aliasing onto a real one. Change EVSEL or TASKSEL only while the channel is disabled -- the fabric does not interlock a live reconfiguration. Resets to 0, which is harmless because a channel is double-gated by EVFCR.EN and EVFCHEN.'
+			if _live else
+			'Reserved channel-' + str(_ch) + ' configuration slot. This build implements ' + str(_EVFAB_N_CH) + ' channels, so this address reads 0 and ignores writes; the map reserves 16 channel addresses so a wider fabric needs no register move.')
+		r = RegisterTemplate(nameTemplate='EVFCH' + str(_ch) + 'CFG', registerMemorySlot=16 + _ch, description=_desc, size=32)
+		evfab.AddRegisterTemplate(r)
+		if _live:
+			r.AddBitField(BitField(name='EVFEVSEL' + str(_ch), msb=4, lsb=0, accessibility='rw', description='Event select for channel ' + str(_ch) + ': the event line whose occurrence fires this channel. 0 = RTC0 tick, 1 = RTC0 alarm, 2 = PWM0 period, 3 = PWM0 fault, 4 = TIMER0 compare0, 5 = TIMER0 overflow, 6 = TIMER1 compare0, 7 = UART0 receive, 8 = NFC0 field-detect, 9 = NFC0 rx-frame, 10 = DMA0 channel-0 done, 11 = DMA0 channel-1 done, 12 = DMA0 error, 13 = TRNG0 data-ready, 14 = I2CT0 address-match, 15 = masked GPIO0 pad edge (see EVFGPIOMASK). 31 = NONE; other codes select nothing. An event whose producer block is absent from this configuration is tied inactive and simply never fires.'))
+			r.AddBitField(BitField(msb=7, lsb=5, unused=True))
+			r.AddBitField(BitField(name='EVFTASKSEL' + str(_ch), msb=11, lsb=8, accessibility='rw', description='Task select for channel ' + str(_ch) + ': the task line this channel pulses. 0 = DMA0 channel-0 GO, 1 = DMA0 channel-1 GO, 2 = TIMER0 START, 3 = TIMER0 STOP, 4 = PWM0 fault trip, 5 = PWRCTRL tile wake, 6 = NPU0 THINK, 7 = GPIO0 output SET, 8 = GPIO0 output CLEAR. Codes 9 and above drive no line (the channel still records EVFFIRED). A task whose consumer block is absent from this configuration is left unconnected.'))
+			r.AddBitField(BitField(msb=30, lsb=12, unused=True))
+			r.AddBitField(BitField(name='EVFENR' + str(_ch), msb=31, accessibility='r', description='Read-only mirror of EVFCHEN bit ' + str(_ch) + ' (this channel\'s enable).', valueDescriptions=[(0b0, 'Channel disabled'), (0b1, 'Channel enabled')]))
+		else:
+			r.AddBitField(BitField(msb=31, lsb=0, unused=True))
+
+
 m.CheckPeripheralTemplates()
 
 
@@ -2535,6 +2684,25 @@ if trngPresent:
 	# geo['trngRings']. Bring-up-grade entropy only (THE ENTROPY CAVEAT, D16): firmware
 	# MUST DRBG the output and honor ALMF.
 	m.CreatePeripheral(nameTemplate='TRNGx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=121, absoluteBaseAddress=0x6900, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 9; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK harvest engine (RO 2-FF sync, decimator, assembler, repetition-count health test); do not poll TRNG0DR blindly -- check TRNG0SR.DRDY first (an empty read returns 0 and does not consume); bring-up-grade entropy only (see THE ENTROPY CAVEAT) -- firmware MUST DRBG the output and honor ALMF')	# TRNG0 (digperiphs TRNG). native page-2 sub-slot 9; mcu_vhd hand-emits the raw-strobe shim + trng0 instance + the sibling u_ro TrngRoEnsemble instance
+if eventFabricPresent:
+	# digperiphs (EVFAB): EVFAB0 at 0x6B00 = MUTEX page (page 2) SUB-SLOT 11 — the last
+	# sub-slot the digital-peripheral library takes. Same page-2 native shape as
+	# I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0 (sharedBus='native' = "outside
+	# the page-0 shim fabric"; the mutex-bank decode is already tightened to sub-slot 0
+	# whenever any page-2 sub-slot device is present). Single instance, so nameIndex=''
+	# and the registers carry NO index (the PWRCTRL/MUTEX/CLINT class): the RTL block is
+	# EVFAB, the instance is evfab0, the registers are EVFCR/EVFSR/...  VECTORLESS:
+	# interruptPriority=None (D20 — irq_evfab is a constant '0'), so this knob adds
+	# NOTHING to _LIBRARY_TAIL_SPEC, NUM_IRQ_SRCS or _mcuMpIrqFirstVector. clockDomain=
+	# 'mclk' names BOTH the bus clock (ClkMem) AND the free-running fabric clock (clk =>
+	# mclk, D1/D2 — front end, crossbar, output register, stickies and the action path
+	# all on the always-on MCLK). NOT combinationalRead and NOT a CAPTURE_CLOCK slave
+	# (D4): a plain raw-strobe active-low en shim (evfab0_sh_en_n <= not
+	# shslv_evfab0_en), no falling_edge(EnMemPeriph) pre-latch. ZERO pins. The sub-slot-11
+	# decode, the raw-strobe shim, the evfab0 instance AND the producer/consumer tap
+	# port-map lines on the existing instances are emitted by mcu_vhd.py under
+	# geo['eventFabric'], with every absent source tied '0' (D23).
+	m.CreatePeripheral(nameTemplate='EVFAB', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6B00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 11; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK fabric in the always-on domain (never gated by PWRCTRL, alive through WFI); vectorless — poll EVFSR, there is no interrupt; a CHTRIG/EVTRIG/W1C write takes effect 3 MCLK after the access opens, so a read issued immediately after one (only possible from a faster master than the shared bus) can see stale state; disable a channel before changing its EVSEL/TASKSEL')	# EVFAB0 (digperiphs EVFAB). native page-2 sub-slot 11; mcu_vhd hand-emits the raw-strobe shim + evfab0 instance + every producer/consumer tap
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000 (M11: window page 3; M19: rows + the fixed-address CLAIM block; Stage E rider: through word 523 = 0x782C = INSVCX)
 
 
@@ -3455,6 +3623,7 @@ m.McuMpGeometry = {
 	'i2ctarget': i2ctargetPresent,  # digperiphs (I2CT): True = I2CT0 hardware-autonomous I2C target in MUTEX-page sub-slot 10 (0x6A00); raw-strobe shim, shares I2C0 SDA0/SCL0 pads (wired-AND DIR merge, emitted separately), vectors 122/123, source list grows to 124 (A5 global vector rule, with 120/121 always-RSVD DP-SG placeholders)
 	'trng': trngPresent,        # digperiphs (TRNG): True = TRNG0 ring-oscillator entropy source + harvest engine in MUTEX-page sub-slot 9 (0x6900); raw-strobe shim, sibling u_ro TrngRoEnsemble instance, vector 121, source list grows to 122 (A5 global vector rule)
 	'trngRings': trngRings,     # digperiphs (TRNG): TRNG0 NRO generic {4,8} (consulted only when trng); the register map is NRO-invariant
+	'eventFabric': eventFabricPresent,  # digperiphs (EVFAB): True = EVFAB0 event/trigger fabric in MUTEX-page sub-slot 11 (0x6B00); raw-strobe shim, VECTORLESS (no vector spend), plus the producer/consumer tap port maps on RTC0/PWM0/TIMER0/TIMER1/UART0/NFC0/DMA0/TRNG0/I2CT0/GPIO0/NPU0/pwr0 (every absent source tied '0', D23)
 }
 
 
@@ -3560,7 +3729,8 @@ _resolvedConfig = [
 		('nfc', nfcPresent), ('rtc', rtcPresent), ('pwm', pwmPresent),
 		('onewire', onewirePresent), ('dma', dmaPresent),
 		('dmaChannels', dmaChannels), ('i2ctarget', i2ctargetPresent),
-		('trng', trngPresent), ('trngRings', trngRings)]),
+		('trng', trngPresent), ('trngRings', trngRings),
+		('eventFabric', eventFabricPresent)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),

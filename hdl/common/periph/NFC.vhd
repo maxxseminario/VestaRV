@@ -80,7 +80,14 @@ entity NFC is
         rf_rx        : in  std_logic;  -- demodulated RX envelope: '1'=field, '0'=pause (D4)
         rf_txmod     : out std_logic;  -- load-modulation drive: fc/16 subcarrier, OOK-gated (D5)
         rf_tx_en     : out std_logic;  -- TX active: frames the tag's load-mod response window
-        afe_en       : out std_logic   -- AFE demod-path enable (listen power gate)
+        afe_en       : out std_logic;  -- AFE demod-path enable (listen power gate)
+
+        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24): TOGGLES
+        -- flipped at the fieldf/rxframef SET sites (pre-IE), clk(=smclk) domain
+        -- -- T-mode producers EV8/EV9; the fabric front-end does the smclk->
+        -- mclk 2-FF + XOR edge. Independent of PWRCTRL's own field_detect copy.
+        evt_field    : out std_logic;  -- EV8: toggles on field-detect rise
+        evt_rxframe  : out std_logic   -- EV9: toggles on rx-frame arrival
     );
 end NFC;
 
@@ -174,6 +181,7 @@ architecture behavioral of NFC is
     -- ---- clk (smclk) domain: B-CDC synchronizers + sticky W1C flags -------
     signal field_s1, field_s2, field_live, field_prev : std_logic;
     signal fieldf_flag, rxframef_flag, txdonef_flag    : std_logic;
+    signal evt_field_tgl, evt_rxf_tgl                  : std_logic;  -- EVFAB toggles
     signal crcerrf_flag, parerrf_flag                  : std_logic;
     -- 2-FF synchronizers of the rf-domain held event levels + edge detectors
     signal rxframe_s1, rxframe_s2, rxframe_prev         : std_logic;
@@ -311,6 +319,10 @@ begin
     -- AFE demod enable: listen while armed (NFCEN & LISTEN). afe_en is the
     -- listen power gate (D2, optional pin).
     afe_en <= nfcen and listen_bit;
+
+    -- EVFAB producer exports: the raw toggles (T-mode; pre-IE by construction).
+    evt_field   <= evt_field_tgl;
+    evt_rxframe <= evt_rxf_tgl;
 
     -- irq_* = (status and enable), combinational, never latched (D20; QSPI form).
     -- CRCERR folds parity + CRC onto one line (vector 97); flags stay separate.
@@ -460,17 +472,25 @@ begin
             parerr_s1  <= '0'; parerr_s2  <= '0'; parerr_prev  <= '0';
             busy_s1 <= '0'; busy_s2 <= '0'; halted_s1 <= '0'; halted_s2 <= '0';
             state_s1 <= (others => '0'); state_s2 <= (others => '0');
+            evt_field_tgl <= '0'; evt_rxf_tgl <= '0';
         elsif rising_edge(clk) then
             -- field_detect double-flop -> FIELD_LIVE + rising-edge FIELDF
             field_s1 <= field_detect;
             field_s2 <= field_s1;
             field_live <= field_s2;
             field_prev <= field_live;
-            if field_live = '1' and field_prev = '0' then fieldf_flag <= '1'; end if;
+            if field_live = '1' and field_prev = '0' then
+                fieldf_flag   <= '1';
+                evt_field_tgl <= not evt_field_tgl;   -- EVFAB EV8 toggle (T-mode:
+                                                      -- fabric does smclk->mclk CDC)
+            end if;
 
             -- rf-domain event levels: 2-FF synchronize, rising-edge -> sticky set
             rxframe_s1 <= rf_rxframe_lvl; rxframe_s2 <= rxframe_s1; rxframe_prev <= rxframe_s2;
-            if rxframe_s2 = '1' and rxframe_prev = '0' then rxframef_flag <= '1'; end if;
+            if rxframe_s2 = '1' and rxframe_prev = '0' then
+                rxframef_flag <= '1';
+                evt_rxf_tgl   <= not evt_rxf_tgl;     -- EVFAB EV9 toggle
+            end if;
             txdone_s1  <= rf_txdone_lvl;  txdone_s2  <= txdone_s1;  txdone_prev  <= txdone_s2;
             if txdone_s2  = '1' and txdone_prev  = '0' then txdonef_flag <= '1'; end if;
             crcerr_s1  <= rf_crcerr_lvl;  crcerr_s2  <= crcerr_s1;  crcerr_prev  <= crcerr_s2;

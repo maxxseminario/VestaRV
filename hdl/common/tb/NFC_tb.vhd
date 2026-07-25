@@ -35,6 +35,14 @@
 -- bench rate, so a full REQA..READ transaction completes well under the
 -- 1-minute rule. Never scale real 13.56 MHz to wall clock.
 --
+-- EVFAB producer taps (event_fabric_spec.md 2026-07-24, EV8/EV9): NFC.vhd
+-- grew two new outputs, evt_field / evt_rxframe -- T-mode TOGGLE producers
+-- in the clk(=smclk) domain, flipped at the fieldf_flag/rxframef_flag SET
+-- sites (pre-IE, never touched by the flags' W1C clears). GROUP G-EV below
+-- follows TIMER_tb.vhd's evt_mon_proc/wait_flips_ge idiom: a continuous
+-- background monitor counts FLIPS as the XOR of consecutive `clk` samples on
+-- the exported ports only (checker independence -- never a DUT internal).
+--
 -- AMBIGUITIES IN THE FROZEN CONTRACT noted while writing this bench (flagged,
 -- not resolved -- see the bench author's report):
 --   * NFCxTIM.FDT reset is documented only as "~1236" (D17) -- GROUP 0 checks
@@ -102,7 +110,12 @@ architecture sim of NFC_tb is
             rf_rx        : in  std_logic;
             rf_txmod     : out std_logic;
             rf_tx_en     : out std_logic;
-            afe_en       : out std_logic
+            afe_en       : out std_logic;
+
+            -- EVFAB taps (event_fabric_spec.md 2026-07-24, EV8/EV9): T-mode
+            -- toggle producers, see the file header.
+            evt_field    : out std_logic;
+            evt_rxframe  : out std_logic
         );
     end component;
 
@@ -125,6 +138,18 @@ architecture sim of NFC_tb is
     signal rf_txmod     : std_logic;
     signal rf_tx_en     : std_logic;
     signal afe_en       : std_logic;
+
+    -- ---- EVFAB taps (event_fabric_spec.md 2026-07-24, EV8/EV9) ------------
+    signal evt_field   : std_logic;
+    signal evt_rxframe : std_logic;
+
+    -- ---- continuous EVFAB flip monitor (checker independence) -------------
+    -- Counts toggle FLIPS (XOR of consecutive `clk` samples) on each producer
+    -- tap since the last evt_mon_clear pulse. NEVER reads a DUT internal --
+    -- only the exported evt_field/evt_rxframe ports (mirrors TIMER_tb.vhd).
+    signal evt_field_flips, evt_rxf_flips : natural := 0;
+    signal evt_field_prev, evt_rxf_prev   : std_logic := '0';
+    signal evt_mon_clear                  : std_logic := '0';
 
     -- reader-model per-transaction config
     signal cfg_field          : std_logic := '0';
@@ -162,6 +187,34 @@ begin
     ClkMem <= clk when pbus.en_mem = '0' else '0';
 
     ----------------------------------------------------------------------------
+    -- Continuous EVFAB flip monitor (see signal-declaration comment above;
+    -- mirrors TIMER_tb.vhd's evt_mon_proc).
+    ----------------------------------------------------------------------------
+    evt_mon_proc : process(clk)
+        variable f_lvl, r_lvl : std_logic;
+    begin
+        if rising_edge(clk) then
+            f_lvl := to_X01(evt_field);
+            r_lvl := to_X01(evt_rxframe);
+            if evt_mon_clear = '1' then
+                evt_field_flips <= 0;
+                evt_rxf_flips   <= 0;
+                evt_field_prev  <= f_lvl;
+                evt_rxf_prev    <= r_lvl;
+            else
+                if f_lvl /= evt_field_prev then
+                    evt_field_flips <= evt_field_flips + 1;
+                end if;
+                if r_lvl /= evt_rxf_prev then
+                    evt_rxf_flips <= evt_rxf_flips + 1;
+                end if;
+                evt_field_prev <= f_lvl;
+                evt_rxf_prev   <= r_lvl;
+            end if;
+        end if;
+    end process;
+
+    ----------------------------------------------------------------------------
     -- DUT
     ----------------------------------------------------------------------------
     dut : component NFC
@@ -183,7 +236,9 @@ begin
             rf_rx        => rf_rx,
             rf_txmod     => rf_txmod,
             rf_tx_en     => rf_tx_en,
-            afe_en       => afe_en
+            afe_en       => afe_en,
+            evt_field    => evt_field,
+            evt_rxframe  => evt_rxframe
         );
 
     ----------------------------------------------------------------------------
@@ -283,6 +338,36 @@ begin
             bus_write(clk, pbus, SlotNFCxIDX, nfc_mk_idx(0, '1', '0'));
             for i in 0 to 15 loop
                 bus_write(clk, pbus, SlotNFCxDATA, x"000000" & payload(i));
+            end loop;
+        end procedure;
+
+        -- Clear the EVFAB flip monitor's accumulators. Call only outside a
+        -- timing-critical window (TIMER_tb.vhd's evt_mon_reset idiom).
+        procedure evt_mon_reset is
+        begin
+            wait until clk = '0';
+            evt_mon_clear <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            evt_mon_clear <= '0';
+        end procedure;
+
+        -- Bounded poll until the given flip-count signal (evt_field_flips or
+        -- evt_rxf_flips) reaches at least `target` (TIMER_tb.vhd's
+        -- wait_flips_ge idiom -- timing-insensitive by construction).
+        procedure wait_flips_ge(signal cnt : in natural; target : natural;
+                                guard_edges : natural; ok : out boolean) is
+            variable g : natural := 0;
+        begin
+            ok := false;
+            loop
+                wait until clk = '1';
+                if cnt >= target then
+                    ok := true;
+                    exit;
+                end if;
+                g := g + 1;
+                exit when g > guard_edges;
             end loop;
         end procedure;
 
@@ -586,6 +671,109 @@ begin
         do_frame(true, 1, false, true, 0, false, false);
         sb.check_bit("GROUP9: LISTEN=0 -> tag deaf (no response)", obs_saw_response, '0');
         prog_cr('1', '1', '1', '1');       -- re-arm
+
+        ----------------------------------------------------------------
+        -- GROUP G-EV: EVFAB producer taps (evt_field/evt_rxframe,
+        -- event_fabric_spec.md 2026-07-24 EV8/EV9) -- T-mode TOGGLE
+        -- producers flipped at the fieldf_flag/rxframef_flag SET sites
+        -- (pre-IE, clk(=smclk) domain), independent of the flags' own W1C
+        -- clears. Checker independence: the continuous background
+        -- evt_mon_proc counts FLIPS as the XOR of consecutive clk samples
+        -- on the exported evt_field/evt_rxframe ports only, never a DUT
+        -- internal (TIMER_tb.vhd's evt_mon_proc/wait_flips_ge idiom).
+        ----------------------------------------------------------------
+        report "=== GROUP G-EV: EVFAB producer taps (evt_field/evt_rxframe) ===" severity note;
+
+        -- G-EVa: field-detect RISE (GROUP2's cfg_field stimulus, reused).
+        -- The field is already live entering this group (raised in GROUP2,
+        -- never dropped since) -- drop it first so the next raise is a real
+        -- edge; the drop itself must produce NO flip (rise-only).
+        evt_mon_reset;
+        cfg_field <= '0';
+        wait for 40 * PERIOD;              -- settle the field-drop synchronizer
+        sb.check_true("G-EVa0: dropping the (already-live) field produces no evt_field flip "
+                     & "(rise-only, setup for the rise below)", evt_field_flips = 0);
+
+        cfg_field <= '1';                  -- provoke the field-detect RISE
+        wait_flips_ge(evt_field_flips, 1, 200, done_ok);
+        sb.check_true("G-EVa1: evt_field reaches 1 flip on field-detect rise (bounded poll)", done_ok);
+        sb.check_true("G-EVa1: evt_field flip count is EXACTLY 1", evt_field_flips = 1);
+        bus_read(clk, pbus, rdata_out, SlotNFCxSR, rdw);
+        sb.check_bit("G-EVa1: FIELDF sets alongside the evt_field flip", rdw(SrBitFIELDF), '1');
+        w1c(x"00000002");                  -- clear FIELDF (W1C never touches the toggle)
+
+        -- Drop and re-raise the field -> exactly one MORE flip; the drop
+        -- itself must not flip (verify zero flips between).
+        cfg_field <= '0';
+        wait for 40 * PERIOD;
+        sb.check_true("G-EVa2: dropping the field produces NO evt_field flip (rise-only; "
+                     & "still 1 total)", evt_field_flips = 1);
+        cfg_field <= '1';
+        wait_flips_ge(evt_field_flips, 2, 200, done_ok);
+        sb.check_true("G-EVa3: re-raising the field reaches 2 total flips (bounded poll)", done_ok);
+        sb.check_true("G-EVa3: evt_field flip count is EXACTLY 2 (one MORE flip)",
+                      evt_field_flips = 2);
+        w1c(x"00000002");
+
+        -- G-EVb: rx frame delivery (REQA -- the existing rf-rx machinery,
+        -- works from IDLE or READY per the D FSM) -> exactly one evt_rxframe
+        -- flip per frame, firing again on a second frame EVEN IF RXFRAMEF is
+        -- still set (deliberately no W1C between -- the toggle is pre-flag,
+        -- independent of the sticky SR bit's own clear).
+        evt_mon_reset;
+        fr := (others => (others => '0'));
+        fr(0) := x"26";                    -- REQA
+        cfg_bytes <= fr;
+        do_frame(short => true, n => 1, appcrc => false, rparity => true,
+                 partial => 0, cpar => false, ccrc => false);
+        sb.check_bit("G-EVb1: tag responded to REQA", obs_saw_response, '1');
+        sb.check_true("G-EVb1: evt_rxframe flips exactly once for one rx frame",
+                      evt_rxf_flips = 1);
+        bus_read(clk, pbus, rdata_out, SlotNFCxSR, rdw);
+        sb.check_bit("G-EVb1: RXFRAMEF set alongside the evt_rxframe flip", rdw(SrBitRXFRAMEF), '1');
+
+        cfg_bytes <= fr;                   -- second frame, RXFRAMEF left set (no W1C)
+        do_frame(short => true, n => 1, appcrc => false, rparity => true,
+                 partial => 0, cpar => false, ccrc => false);
+        sb.check_bit("G-EVb2: tag responded to the second REQA", obs_saw_response, '1');
+        sb.check_true("G-EVb2: evt_rxframe flips again despite RXFRAMEF still set "
+                     & "(no W1C between)", evt_rxf_flips = 2);
+        w1c(x"0000000C");                  -- clear RXFRAMEF|TXDONEF now
+
+        -- G-EVc: discipline -- mask FIELDIE/RXFRAMEIE off; the toggles must
+        -- still flip (pre-IE taps) while irq_field/irq_rxf stay low
+        -- (post-mask IRQs).
+        report "GROUP G-EVc: FIELDIE/RXFRAMEIE masked off" severity note;
+        prog_cr('0', '0', '1', '1');       -- FIELDIE=0, RXFRAMEIE=0
+        evt_mon_reset;
+        cfg_field <= '0';
+        wait for 40 * PERIOD;
+        cfg_field <= '1';
+        wait_flips_ge(evt_field_flips, 1, 200, done_ok);
+        sb.check_true("G-EVc1: evt_field still flips with FIELDIE=0 (bounded poll)", done_ok);
+        sb.check_true("G-EVc1: evt_field flip count is EXACTLY 1", evt_field_flips = 1);
+        sb.check_bit("G-EVc1: irq_field stays low with FIELDIE=0 (masked, unlike evt_field)",
+                     to_X01(irq_field), '0');
+        w1c(x"00000002");
+
+        fr := (others => (others => '0'));
+        fr(0) := x"26";                    -- REQA
+        cfg_bytes <= fr;
+        do_frame(short => true, n => 1, appcrc => false, rparity => true,
+                 partial => 0, cpar => false, ccrc => false);
+        sb.check_true("G-EVc2: evt_rxframe still flips with RXFRAMEIE=0", evt_rxf_flips = 1);
+        sb.check_bit("G-EVc2: irq_rxf stays low with RXFRAMEIE=0 (masked, unlike evt_rxframe)",
+                     to_X01(irq_rxf), '0');
+        w1c(x"0000000C");
+        prog_cr('1', '1', '1', '1');       -- restore FIELDIE/RXFRAMEIE
+
+        -- G-EVd: quiet window -- no field/rx traffic -> zero flips on both.
+        evt_mon_reset;
+        wait for 60 * PERIOD;
+        sb.check_true("G-EVd: zero evt_field flips over a quiet window (no field/rx traffic)",
+                      evt_field_flips = 0);
+        sb.check_true("G-EVd: zero evt_rxframe flips over a quiet window (no field/rx traffic)",
+                      evt_rxf_flips = 0);
 
         ----------------------------------------------------------------
         -- GROUP-NEG: NEGATIVE CONTROL (mandatory, LAST) -- one deliberately

@@ -119,6 +119,7 @@
             NpuSramWEN_out  => npu0_mux_wen,
 
             NpuActive       => npu0_active,
+            --@GEN:evfab-taps:npu0@
             -- DP-SG (2026-07-22): think-done IRQ, irq_router source 120
             -- (registered level in NPU.vhd; W1C via NPUSR.0, IE = NPUCR.19)
             ThinkDoneIrq    => irq_npu0_td

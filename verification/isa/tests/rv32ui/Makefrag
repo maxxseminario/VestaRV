@@ -23,6 +23,7 @@ rv32ui_sc_tests = \
 	shpwr \
 	shafe \
 	shdma \
+	shevfab \
 	wperiph \
 	wqspi wi3c wnfc wgpio \
 	wrtc wpwm wow wdma \

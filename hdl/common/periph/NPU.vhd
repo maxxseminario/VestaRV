@@ -79,7 +79,13 @@ entity NPU is
 		-- NPU Status Signal
 		NpuActive		: out	std_logic;						-- NPU Active Signal for Arbitration
 		-- NPU Interrupt Signal
-		ThinkDoneIrq	: out	std_logic						-- Think-Done IRQ (registered level, irq_router source 120)
+		ThinkDoneIrq	: out	std_logic;						-- Think-Done IRQ (registered level, irq_router source 120)
+
+		-- EVFAB task (event fabric, event_fabric_spec.md 2026-07-24): one-mclk
+		-- fabric pulse starting a THINK on the pre-programmed descriptor
+		-- (T6). The fabric's task_busy tap is the EXISTING NpuActive output
+		-- (NPUTHINK or NpuMuxSel) -- no new busy port.
+		task_think		: in	std_logic := '0'
     );
 end NPU;
 
@@ -885,6 +891,18 @@ begin
 					when others =>
 						null;
 				end case;
+			end if;
+
+			-- EVFAB task (event fabric, event_fabric_spec.md 2026-07-24):
+			-- pulse-only THINK start, OUTSIDE the CEN qualifier (fires with the
+			-- bus idle) and AFTER the register case (task wins a coincident
+			-- NPUCR write's bit 16). The trailing NpuDone/reset clear below
+			-- still wins over BOTH paths -- a task THINK is indistinguishable
+			-- from a register THINK, incl. the D4 run-shadow latch at
+			-- NPU_BEGIN. SOFTWARE CONTRACT (TRM): no hart touches the staging
+			-- RAM 0xC000-0xFFFF while a fabric THINK may fire.
+			if task_think = '1' then
+				NPUTHINK <= '1';
 			end if;
 		end if;
 

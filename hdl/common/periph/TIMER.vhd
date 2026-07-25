@@ -67,7 +67,24 @@ entity TIMER is
         cap1_ren_in  : in  std_logic;                      -- Capture 1 resistor config
         cap1_in      : in  std_logic;                      -- Capture 1 input signal
         cap1_dir     : out std_logic;                      -- Capture 1 direction (always input)
-        cap1_ren     : out std_logic                       -- Capture 1 resistor enable
+        cap1_ren     : out std_logic;                      -- Capture 1 resistor enable
+
+        -- ==========================================
+        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24)
+        -- ==========================================
+        -- Producer TOGGLES (T-mode: flip once per event in the timer_clock
+        -- domain; the fabric's front-end does the 2-FF + XOR edge into mclk).
+        -- Derived from the flags' SET conditions, never the post-mask IRQs;
+        -- kept in their OWN process so the flags' async W1C clears never
+        -- touch them. TIMER0 wires EV4/EV5, TIMER1 wires EV6.
+        evt_compare0 : out std_logic;                      -- flips at timer_value = compare0
+        evt_overflow : out std_logic;                      -- flips at overflow
+        -- Consumer TASKS (one-mclk pulses from the fabric, clk_mem domain =
+        -- free-running mclk at integration). Idempotent OR into CR bit 6,
+        -- placed AFTER the register case: a task wins its bit on a coincident
+        -- CPU write; STOP is evaluated after START (stop wins, safe direction).
+        task_start   : in  std_logic := '0';               -- T2: set CR(6)
+        task_stop    : in  std_logic := '0'                -- T3: clear CR(6)
     );
 end TIMER;
 
@@ -136,6 +153,8 @@ architecture rtl of TIMER is
     -- ==========================================
     signal latch_timer_value   : std_logic;                      -- Latch new timer value
     signal timer_overflowing   : std_logic;                      -- Timer overflow detection
+    signal evt_cmp0_tgl        : std_logic;                      -- EVFAB toggle: compare0 match
+    signal evt_ovf_tgl         : std_logic;                      -- EVFAB toggle: overflow
     signal clear_timer_value   : std_logic;                      -- Clear timer to zero
     signal clear_capture0_flag : std_logic;                      -- Clear capture 0 interrupt flag
     signal clear_capture1_flag : std_logic;                      -- Clear capture 1 interrupt flag
@@ -354,6 +373,30 @@ begin
     end process;
 
     -- ==========================================
+    -- EVFAB producer toggles (timer_clock domain, resetn-only async -- the
+    -- flags' clear_* async terms must never touch these). One flip per event
+    -- occurrence: value=compare0 is true for exactly one timer_clock period
+    -- (counter advances), overflow likewise; a gated-off timer_clock means no
+    -- edges, so a paused timer produces no phantom flips.
+    -- ==========================================
+    evfab_tgl_process: process(resetn, timer_clock)
+    begin
+        if resetn = '0' then
+            evt_cmp0_tgl <= '0';
+            evt_ovf_tgl  <= '0';
+        elsif rising_edge(timer_clock) then
+            if timer_value = compare0_reg then
+                evt_cmp0_tgl <= not evt_cmp0_tgl;
+            end if;
+            if timer_overflowing = '1' then
+                evt_ovf_tgl <= not evt_ovf_tgl;
+            end if;
+        end if;
+    end process;
+    evt_compare0 <= evt_cmp0_tgl;
+    evt_overflow <= evt_ovf_tgl;
+
+    -- ==========================================
     -- Compare Match and PWM Generation
     -- ==========================================
     compare_process: process(resetn, timer_clock, clear_compare0_flag, clear_compare1_flag, 
@@ -510,8 +553,20 @@ begin
                         null;
                 end case;
             end if;
+
+            -- EVFAB consumer tasks (event fabric): idempotent OR terms on
+            -- CR(6), OUTSIDE the en_mem gate (clk_mem free-runs at
+            -- integration) and AFTER the register case -- a task wins its bit
+            -- on a coincident CPU CR write; STOP is evaluated after START so
+            -- a same-cycle start+stop resolves to STOP (safe direction).
+            if task_start = '1' then
+                control_reg(6) <= '1';
+            end if;
+            if task_stop = '1' then
+                control_reg(6) <= '0';
+            end if;
         end if;
-        
+
         -- Clear control signals when not active
         if resetn = '0' or en_mem = '1' then
             clear_compare0_flag <= '0';

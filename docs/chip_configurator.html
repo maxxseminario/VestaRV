@@ -507,6 +507,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
       <a href="castalia_full.html">SoC&#8202;&middot;&#8202;Lens</a>
       <a href="chip_configurator.html" aria-current="page">Configurator</a>
       <a href="register_browser.html">Registers</a>
+      <a href="event_fabric.html">Event Fabric</a>
       <a href="vestarv_roadmap.html">Roadmap</a>
     </nav>
     <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Toggle colour theme" title="Toggle light / dark">
@@ -536,6 +537,8 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
   <span class="step-n">2</span><b>Download <code>config.json</code></b> from the panel on the right.
   <span class="arw">→</span>
   <span class="step-n">3</span>Run <code class="cmdlike">make chip CONFIG=config.json</code> in <code>platform/common/</code> — RTL, headers, linker scripts <b>and the TRM PDF</b> all regenerate; nobody touches a line of RTL.
+  <span class="arw">·</span>
+  Wondering what a configuration costs in milliwatts? <a href="power_explorer.html" style="color:var(--accent)">Power&nbsp;Explorer&nbsp;→</a>
 </div>
 
 <main>
@@ -986,6 +989,11 @@ const VESTA_DATA = {
       "max": 8,
       "step": 4
     },
+    "peripherals.eventFabric": {
+      "description": "bool \u2014 True instantiates the EVFAB0 event/trigger fabric (PPI-style crossbar) at 0x6B00: page-2 (MUTEX page) sub-slot 11. 8 channels, each a {EVSEL, TASKSEL} pair, route one of 16 hardware EVENTS to one of 10 hardware TASKS with a registered one-MCLK pulse and 1 MCLK of in-fabric latency, so peripheral-to-peripheral chains run with every hart asleep. Producers are pre-mask SET-condition taps on RTC0/PWM0/TIMER0/TIMER1/UART0/NFC0/DMA0/TRNG0/I2CT0 plus a GPIO0 masked-edge path (the fabric owns all CDC: per-input pulse/toggle/level modes via the EV_MODE_TGL/EV_MODE_LVL generic masks); consumers are DMA0 channel GO, TIMER0 START/STOP, PWM0 fault trip, PWRCTRL tile wake, NPU0 THINK and GPIO0 OUT-SET/OUT-CLR (the PxTASK pin-select byte). Every producer/consumer whose block is absent from the configuration is TIED OFF (\"0\") rather than left open (design-doc D23) \u2014 the knob composes with every other peripheral knob. VECTORLESS v1: no IRQ vector is spent (irq_evfab is a constant \"0\", the IE slot is reserved), so NUM_IRQ_SRCS is untouched and the frozen vector numbering is undisturbed. Zero pins. Free-running MCLK in the always-on shared domain (WFI keeps it alive, DP-S3 field-power only slows it, PWRCTRL never gates it). Default false \u2014 the default emission (no page-2 sub-slot 11, no EVF* register block, no tap port maps) is byte-identical",
+      "type": "bool",
+      "default": false
+    },
     "package.model": {
       "description": "string \u2014 package model name defined in generate.py (_PACKAGE_MODELS: \"myshkin-qfn44\" QFN-44, \"castalia-quad-qfn64\" QFN-64 quad pinout, \"castalia-lqfp100\" LQFP-100 single-MCU large package [Stage G2, 2026-07-22: all 48 GPIO bonded] \u2014 new pinouts are added as Python models, never as free-form config pin lists)",
       "type": "enum",
@@ -1053,6 +1061,7 @@ const VESTA_DATA = {
     "peripherals.i2ctarget": false,
     "peripherals.trng": false,
     "peripherals.trngRings": 8,
+    "peripherals.eventFabric": false,
     "package.model": "myshkin-qfn44",
     "package.preliminary": true
   },
@@ -4041,6 +4050,7 @@ const SCHEMA_TO_CFG = {
   "peripherals.dma":"dma", "peripherals.dmaChannels":"dmaChannels",
   "peripherals.i2ctarget":"i2ctarget",
   "peripherals.trng":"trng", "peripherals.trngRings":"trngRings",
+  "peripherals.eventFabric":"eventFabric",
   "package.model":"packageModel", "package.preliminary":"packagePreliminary",
 };
 
@@ -4298,7 +4308,8 @@ function render(){
    ["pwm","PWM0","Buffered PWM generator (2 channels, glitch-free double-buffered update, software fault trip, period-event tick) in the MUTEX page, sub-slot 6 @0x6600. Off by default. Zero input pins: the two outputs replace the redundant T0CMP0/T0CMP1 spread copies on P2.2/P2.3 AF2 (no new package pads). The engine runs on the free-running MCLK (no LFXT, no generated clocks), so its count is immune to clock reconfig (a driver must NOT write SYS_CLK_CR=0 for it). On extends the IRQ source list per the global vector rule: vector 115 = PWM0_FAULT (lower id = router priority), 116 = PWM0_EVT; when RTC (vector 114) is off but PWM is on, 114 backfills as reserved so PWM keeps 115/116. NUM_EN_WORDS stays 4 (117 ≤ 128)."],
    ["onewire","OW0","Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive) in the MUTEX page, sub-slot 7 @0x6700. Off by default. One open-drain DQ pad on P6.6 / GPIO46 AF1 (rstREN=1) — unbonded on the QFN-44, reachable on the QFN-64 / respin package; off, P6.6 stays spare GPIO. The engine runs on the free-running MCLK (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized), so its tick base is immune to clock reconfig (a driver must NOT write SYS_CLK_CR=0 for it). On extends the IRQ source list per the global vector rule to 118: vector 117 = OW0's single combined transaction-complete/error source; when RTC (114) or PWM (115/116) are off but OneWire is on, those slots backfill as reserved so OW0 keeps 117. NUM_EN_WORDS stays 4 (118 ≤ 128)."],
    ["fieldPower","Field power","DP-S3 field-powered NFC mode supervision wiring into PWRCTRL: P6.7/GPIO47 becomes the PGOOD supply-supervisor input and P6.6/GPIO46 the harvested-boot strap — both plain-GPIO DIRECT pad taps (always readable, independent of PxSEL/PxAFS, since the boot gate must work before any software runs), with reset pulls enabled pull-down (unconnected reads power-not-good + NORMAL/SPI boot). NFC0's field_detect level is also tapped as an optional PWRCTRL wake/release source (tied 0 when NFC is off). PWRCTRL's PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL in every configuration; this knob only wires or ties the pad-side inputs, so off leaves the whole feature a provable no-op. On by default. CONFLICTS with OW0 (its DQ owns P6.6) — the generator refuses both on. Zero IRQ vectors."],
-   ["i2ctarget","I2CT0","Hardware-autonomous I2C target (slave): 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean: 2-FF SDA/SCL sync, no pad-clocked processes). In the MUTEX page, sub-slot 10 @0x6A00. Off by default. NO new pins: it shares the I2C0 SDA0/SCL0 pads via an open-drain wired-AND DIR merge (target clock stretching + ACK/data driving), complementary to I2C0/I2C1's software-serviced slave registers. Because it clocks off MCLK, the SYS_CLK_CR=0 footgun does NOT bind it. On extends the IRQ source list per the global vector rule to 124: vectors 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vector 120 (NPU0 think-done, DP-SG) rides the NPU knob and 121 (TRNG0, DP-SG) rides the TRNG knob — either backfills as reserved when its block is off so 122/123 hold. NUM_EN_WORDS stays 4 (124 ≤ 128)."]].forEach(([key,name,desc])=>{
+   ["i2ctarget","I2CT0","Hardware-autonomous I2C target (slave): 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean: 2-FF SDA/SCL sync, no pad-clocked processes). In the MUTEX page, sub-slot 10 @0x6A00. Off by default. NO new pins: it shares the I2C0 SDA0/SCL0 pads via an open-drain wired-AND DIR merge (target clock stretching + ACK/data driving), complementary to I2C0/I2C1's software-serviced slave registers. Because it clocks off MCLK, the SYS_CLK_CR=0 footgun does NOT bind it. On extends the IRQ source list per the global vector rule to 124: vectors 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vector 120 (NPU0 think-done, DP-SG) rides the NPU knob and 121 (TRNG0, DP-SG) rides the TRNG knob — either backfills as reserved when its block is off so 122/123 hold. NUM_EN_WORDS stays 4 (124 ≤ 128)."],
+   ["eventFabric","EVFAB0","Event/trigger fabric (PPI-style crossbar) in the MUTEX page, sub-slot 11 @0x6B00. Off by default. Zero pins, and VECTORLESS — it spends no IRQ vector at all (the interrupt output is a constant 0 and the enable register slot is reserved), so the frozen vector numbering is untouched. 8 channels, each a {EVSEL, TASKSEL} pair, route one of 16 hardware EVENTS to one of 10 hardware TASKS as a registered one-MCLK pulse with 1 MCLK of in-fabric latency: RTC0 tick/alarm, PWM0 period/fault, TIMER0 compare0/overflow, TIMER1 compare0, UART0 RX, NFC0 field/rx-frame, DMA0 done×2/error, TRNG0 data-ready, I2CT0 address-match and a masked GPIO0 pad-edge path drive DMA0 channel GO×2, TIMER0 START/STOP, PWM0 fault trip, PWRCTRL tile wake, NPU0 THINK and GPIO0 OUT-SET/OUT-CLR. Every producer or consumer whose block is absent from the configuration is tied inactive, so the fabric composes with every other knob. It runs on the free-running MCLK in the always-on domain (WFI keeps it alive, field-power mode only slows it, PWRCTRL never gates it), which is the point: peripheral-to-peripheral chains keep firing with every hart asleep."]].forEach(([key,name,desc])=>{
     const el = document.createElement("div"); el.className="peri"+(cfg[key]?" on":"");
     el.innerHTML = `<div class="pt"><span class="pn">${name}</span>
       <span class="lockbadge" style="color:var(--ok);border-color:var(--ok)">applied</span></div>
@@ -4726,6 +4737,7 @@ function outPython(){
   L.push(`<span class="k">i2ctargetPresent</span> = ${b(cfg.i2ctarget)}  <span class="c"># _cfg('peripherals.i2ctarget', False) — I2CT0 target @0x6A00, vectors 122/123</span>`);
   L.push(`<span class="k">trngPresent</span> = ${b(cfg.trng)}  <span class="c"># _cfg('peripherals.trng', False) — TRNG0 @0x6900, vector 121</span>`);
   L.push(`<span class="k">trngRings</span> = <span class="v">${cfg.trngRings}</span>  <span class="c"># _cfg('peripherals.trngRings', 8) — NRO generic {4,8}, only when trng</span>`);
+  L.push(`<span class="k">eventFabricPresent</span> = ${b(cfg.eventFabric)}  <span class="c"># _cfg('peripherals.eventFabric', False) — EVFAB0 @0x6B00, vectorless</span>`);
   L.push(`<span class="k">_regsDualPort</span> = ${b(cfg.ENABLE_REGS_DUALPORT)}`);
   L.push(`<span class="k">_romSize</span> = <span class="v">${cfg.romSize}</span>, <span class="k">_tcmSize</span> = <span class="v">${cfg.tcmSize}</span>`);
   L.push(`<span class="k">_sharedRamLen</span> = <span class="v">${hex(cfg.sharedRamSize)}</span>, <span class="k">_npuRamLen</span> = <span class="v">${hex(cfg.npuRamSize)}</span>`);
@@ -4771,7 +4783,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings, eventFabric: cfg.eventFabric },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;

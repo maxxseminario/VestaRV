@@ -82,6 +82,14 @@ CATALOG = [
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
     # Hart-0 directed (tiles parked), so no 'tiles' tag needed.
     T('rv32ui-p-shdma', 'dma', True),
+    # digperiphs (EVFAB) Stage 5: shevfab is THE flagship event-fabric smoke --
+    # TIMER0 compare0 (EV4) -> EVFAB0 CH0 -> DMA0 CH0 GO (T0) -> DMA writes
+    # UART0 TX through the arbiter -> DMA0_DONE (vector 118) -> meip -> wake,
+    # with hart 0 in `extinguish` for the whole chain. Needs BOTH the fabric
+    # and the DMA instantiated, so it is tagged 'eventFabric dma' and appears
+    # ONLY in configs carrying both (config/castalia_evfab.json today); TIMER0
+    # and UART0 are unconditional. Hart-0 directed (tiles parked) -> no 'tiles'.
+    T('rv32ui-p-shevfab', 'eventFabric dma', True),
     # digperiphs Stage E firmware smoke companions (wound-config additions).
     # Each is single-hart directed (hart 0; tiles parked) and hardcodes its
     # peripheral's FROZEN library-tail vectors (A5 GLOBAL VECTOR RULE): RTC0=114,
@@ -251,6 +259,13 @@ def config_tags(cfg):
     # uses TRNG0 (this tag exists solely to drive the cell-list injection).
     if cfg.get('peripherals', {}).get('trng'):
         tags.add('trng')
+    # digperiphs (EVFAB): EVFAB0 is a config-gated ADDED instance (default off),
+    # same shape as DMA0/TRNG0 -- but EVFAB.vhd is UNCONDITIONALLY in the base
+    # cell list (it needs no config-gated MemoryMap constants), so this tag
+    # drives ONLY test selection: shevfab.S touches 0x6B00 and the DMA task
+    # port, so it must never be staged into a fabric-less configuration.
+    if cfg.get('peripherals', {}).get('eventFabric'):
+        tags.add('eventFabric')
     # digperiphs Stage E: firmware smoke companions gated by their peripheral
     # knob (wrtc/wpwm/wow join only the config(s) that instantiate the block).
     for knob in ('rtc', 'pwm', 'onewire', 'i2ctarget'):

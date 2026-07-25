@@ -128,7 +128,16 @@ entity PWM is
         WEn         : in  std_logic_vector(3 downto 0);  -- ACTIVE-LOW per byte lane
         MABPart     : in  std_logic_vector(7 downto 2);  -- word slot in the 256 B window
         wdata       : in  std_logic_vector(31 downto 0);
-        rdata_out   : out std_logic_vector(31 downto 0)
+        rdata_out   : out std_logic_vector(31 downto 0);
+
+        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24). Pre-mask
+        -- SET conditions, NEVER the post-IE irq_* lines. Defaults keep every
+        -- pre-fabric instantiation compiling unchanged.
+        evt_period   : out std_logic;                    -- EV2: period_boundary (P-mode)
+        evt_fault    : out std_logic;                    -- EV3: FLTF set condition (P-mode)
+        task_flttrig : in  std_logic := '0'              -- T4: fabric force-trip, ORed into
+                                                         --     the FLTF SET term (FLTEN gate
+                                                         --     kept -- it defines the event)
     );
 end PWM;
 
@@ -183,6 +192,9 @@ architecture behavioral of PWM is
     signal clr_flt_prev, clr_pev_prev : std_logic;       -- single-clock edge-detect regs
     signal upd_pending  : std_logic;                     -- SR.UPDF
     signal fltf_flag    : std_logic;                     -- SR.FLTF sticky
+    signal flt_set      : std_logic;                     -- comb: THE fault SET condition
+                                                         -- (reg FLTTRIG edge OR fabric task,
+                                                         -- FLTEN-gated) -- EVFAB EV3 tap
     signal pevf_flag    : std_logic;                     -- SR.PEVF sticky
 
 begin
@@ -230,6 +242,15 @@ begin
     -- IRQs (D18): (status and enable), combinational, never latched.
     irq_fault <= fltf_flag and fltie_r;
     irq_evt   <= pevf_flag and pevie_r;
+
+    -- EVFAB producer taps: the SET conditions themselves (pre-IE). flt_set is
+    -- THE one fault set-condition (register FLTTRIG edge OR fabric task, both
+    -- under the FLTEN gate) -- used by the flag process below AND exported, so
+    -- a task-tripped fault fires EV3 exactly like a register-tripped one.
+    flt_set <= '1' when (((flt_req_tgl /= flt_req_prev) or task_flttrig = '1')
+                         and flten_r = '1') else '0';
+    evt_period <= period_boundary;
+    evt_fault  <= flt_set;
 
     -- ------------------------- B1: register write (ClkMem) --------------------
     -- Rising ClkMem, EnMemPeriph='0' qualified, per-byte-lane WEn (D4). Buffered
@@ -468,9 +489,10 @@ begin
                 upd_pending <= '0';
             end if;
 
-            -- SR.FLTF (D12/D14): SET on a FLTTRIG edge gated by flten_r (the FLTEN
-            -- gate lives HERE, in the clk domain, D2.4); CLEAR on the W1C edge.
-            if (flt_req_tgl /= flt_req_prev) and flten_r = '1' then
+            -- SR.FLTF (D12/D14): SET on the flt_set condition (register FLTTRIG
+            -- edge OR the EVFAB task pulse, both FLTEN-gated -- the gate lives
+            -- HERE, in the clk domain, D2.4); CLEAR on the W1C edge.
+            if flt_set = '1' then
                 fltf_flag <= '1';
             elsif clr_flt_tgl /= clr_flt_prev then
                 fltf_flag <= '0';

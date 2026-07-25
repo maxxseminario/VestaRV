@@ -63,6 +63,16 @@
 -- hosts the whole harvest engine; `ClkMem` is the gated bus clock, driven
 -- `clk when pbus.en_mem='0' else '0'` exactly like every other bench in this
 -- library. No second domain (TRNG0 is mclk, D2).
+--
+-- EVFAB producer tap (event_fabric_spec.md 2026-07-24, EV13): TRNG.vhd grew
+-- one new output port, `evt_drdy`, which IS `drdy_level` (TRNG.vhd:281) --
+-- the D9 blind-window-corrected DRDY LEVEL, pre-IE (DRDYIE never touches
+-- it). Unlike the PULSE taps in PWM_tb.vhd/RTC_tb.vhd/UART_tb.vhd (which
+-- need a background start/width counter to prove one-clk-wide edges), this
+-- is an L-mode tap -- the fabric does its own 2-FF + rising-edge detect on
+-- a held level -- so GROUP G-EV below checks it the same way the rest of
+-- this bench already checks SR.DRDY: point observations at the bench's own
+-- bus_read(SR)/read_dr settle points, no new monitor infrastructure.
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -97,7 +107,8 @@ architecture sim of TRNG_tb is
             ro_enable   : out std_logic;
             ro_sel      : out std_logic_vector(3 downto 0);
             ro_sclk     : out std_logic;
-            ro_raw      : in  std_logic
+            ro_raw      : in  std_logic;
+            evt_drdy    : out std_logic
         );
     end component;
 
@@ -125,6 +136,9 @@ architecture sim of TRNG_tb is
 
     -- interrupt
     signal irq_trng : std_logic;
+
+    -- ---- EVFAB tap (event_fabric_spec.md 2026-07-24, EV13, GROUP G-EV) ----
+    signal evt_drdy : std_logic;
 
     -- register bus (BFM record + observed rdata_out)
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
@@ -202,7 +216,8 @@ begin
             ro_enable   => ro_enable_w,
             ro_sel      => ro_sel_w,
             ro_sclk     => ro_sclk_w,
-            ro_raw      => ro_raw_to_dut
+            ro_raw      => ro_raw_to_dut,
+            evt_drdy    => evt_drdy
         );
 
     ----------------------------------------------------------------------------
@@ -384,6 +399,7 @@ begin
     stim_proc : process
         variable rdw, exp_word : std_logic_vector(31 downto 0);
         variable ok            : boolean;
+        variable quiet_ok      : boolean;
 
         -- Write TRNG0CR AND advance the reference model's shadow copies in
         -- lockstep (same cycle alignment as the DUT's own trng_cr commit --
@@ -669,14 +685,93 @@ begin
         sb.check_true("G7: NRO_G is a proven shape (4 or 8)", (NRO_G = 4) or (NRO_G = 8));
 
         ------------------------------------------------------------------
+        -- GROUP G-EV: EVFAB producer tap (evt_drdy, event_fabric_spec.md
+        -- 2026-07-24 EV13) -- evt_drdy IS drdy_level (TRNG.vhd:281), the D9
+        -- blind-window-corrected DRDY LEVEL, pre-IE: DRDYIE has zero effect
+        -- on it (unlike irq_trng, which DRDYIE masks). Checked at the SAME
+        -- point-observations the rest of this bench already uses for
+        -- SR.DRDY (bus_read of SR / the read_dr settle idiom) -- a held
+        -- LEVEL needs no start/width pulse monitor (contrast PWM_tb.vhd/
+        -- RTC_tb.vhd/UART_tb.vhd's P/T-mode taps).
+        ------------------------------------------------------------------
+        report "=== GROUP G-EV: EVFAB producer tap (evt_drdy) ===" severity note;
+        -- Fresh resetn first (same rationale as G5/G6's do_reset: a clean,
+        -- deterministic starting state for an independent sub-phase).
+        do_reset;
+        write_ht(x"00");
+        sb.check_bit("G-EV a0: evt_drdy = 0 out of reset (no word ready)", to_X01(evt_drdy), '0');
+
+        -- G-EV-a: evt_drdy tracks DRDY exactly at this bench's own SR/DR
+        -- observation points -- rises when a word becomes ready, falls once
+        -- consumed.
+        set_cr('1', '1', '0', "0000", "0000");   -- EN=1, DRDYIE=1, ALMIE=0
+        trng_wait_drdy(clk, pbus, rdata_out, ok);
+        sb.check_true("G-EV a1: word assembles (bounded)", ok);
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_SR, rdw);
+        sb.check_bit("G-EV a2: SR.DRDY reads 1", to_X01(rdw(TRNG_SR_DRDY)), '1');
+        sb.check_bit("G-EV a3: evt_drdy = 1 at the same observation point SR.DRDY reads 1",
+                     to_X01(evt_drdy), '1');
+        read_dr(rdw);   -- consuming read (D9)
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_SR, rdw);
+        sb.check_bit("G-EV a4: SR.DRDY = 0 immediately after the consuming DR read (blind window)",
+                     to_X01(rdw(TRNG_SR_DRDY)), '0');
+        sb.check_bit("G-EV a5: evt_drdy = 0 at the same post-consume observation point",
+                     to_X01(evt_drdy), '0');
+
+        -- G-EV-b: DISCIPLINE CHECK -- DRDYIE=0 (and ALMIE=0) has ZERO
+        -- effect on evt_drdy: the level still rises for a fresh word while
+        -- irq_trng stays masked low.
+        set_cr('1', '0', '0', "0000", "0000");   -- DRDYIE=0, ALMIE=0
+        trng_wait_drdy(clk, pbus, rdata_out, ok);
+        sb.check_true("G-EV b1: word assembles under DRDYIE=0 (bounded)", ok);
+        bus_read(clk, pbus, rdata_out, TRNG_SLOT_SR, rdw);
+        sb.check_bit("G-EV b2: SR.DRDY reads 1 even though DRDYIE=0", to_X01(rdw(TRNG_SR_DRDY)), '1');
+        sb.check_bit("G-EV b3: evt_drdy = 1 under DRDYIE=0 (pre-IE tap, undisturbed by the mask)",
+                     to_X01(evt_drdy), '1');
+        sb.check_bit("G-EV b4: irq_trng stays 0 (DRDYIE=0 masks the IRQ, never evt_drdy)",
+                     to_X01(irq_trng), '0');
+
+        -- G-EV-c: quiet window -- consume the pending word, halt generation
+        -- (EN=0), and confirm evt_drdy stays 0 throughout a bounded window
+        -- (no stray toggles once the source is idle and the word is
+        -- drained).
+        read_dr(rdw);
+        set_cr('0', '0', '0', "0000", "0000");   -- EN=0: halt generation
+        quiet_ok := true;
+        for i in 1 to 40 loop
+            wait until rising_edge(clk);
+            if to_X01(evt_drdy) /= '0' then
+                quiet_ok := false;
+            end if;
+        end loop;
+        sb.check_true("G-EV c1: evt_drdy stays 0 over a bounded 40-clk quiet window "
+                     & "(halted, consumed)", quiet_ok);
+
+        ------------------------------------------------------------------
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE
         -- deliberately-wrong expected value: expect a wrong entropy word
         -- after a clean, known harvest (doc's own suggested example).
         ------------------------------------------------------------------
         report "=== GROUP G-NEG: NEGATIVE CONTROL ===" severity note;
-        set_cr('0', '0', '0', "0000", "0000");
+        -- Fresh resetn first (same isolation rationale as G5/G6/G-EV's
+        -- do_reset): a clean, known harvest independent of whatever the
+        -- newly-added G-EV group left the assembler mid-cycle-count at
+        -- (asm_cnt/asm_reg only clear on resetn, D9/D10 -- they do NOT
+        -- reset on an EN 0->1 toggle alone). ROSEL=0001 (not the 0000 used
+        -- everywhere else): the deterministic sel=0000 harvest from a clean
+        -- reset lands bit31=1, which trips periph_tb_pkg.vhd's img() helper
+        -- (integer'image(to_integer(unsigned(...))) overflows VHDL's signed
+        -- 32-bit integer range for values >= 2**31 -- a latent fragility in
+        -- that shared, frozen Myshkin package, unrelated to TRNG.vhd; never
+        -- hit before because an earlier, un-isolated G-NEG happened to ride
+        -- in on stale asm_reg state that produced a bit31=0 word by luck).
+        -- sel=0001's clean-reset word has bit31=0 -- sidesteps the bug
+        -- without touching periph_tb_pkg.vhd or any RTL.
+        do_reset;
+        write_ht(x"00");
+        set_cr('0', '0', '0', "0001", "0000");
         wait for 4 * PERIOD;
-        set_cr('1', '1', '0', "0000", "0000");
+        set_cr('1', '1', '0', "0001", "0000");
         trng_wait_drdy(clk, pbus, rdata_out, ok);
         sb.check_true("G-NEG setup: word assembles (bounded)", ok);
         read_dr(rdw);

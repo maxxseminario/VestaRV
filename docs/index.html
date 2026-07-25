@@ -604,6 +604,7 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
       <a href="castalia_full.html">SoC&#8202;&middot;&#8202;Lens</a>
       <a href="chip_configurator.html">Configurator</a>
       <a href="register_browser.html">Registers</a>
+      <a href="event_fabric.html">Event Fabric</a>
       <a href="vestarv_roadmap.html">Roadmap</a>
     </nav>
     <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Switch colour theme" title="Switch colour theme">
@@ -755,6 +756,11 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
       <p class="section-sub" style="margin-top:var(--sp-5)">
         Deep dive &mdash; <a href="field_power.html">how Castalia&rsquo;s field-powered NFC mode works</a>:
         the PGOOD boot gate, the harvested-boot ROM path, and whether it closes on harvested energy.
+        Deep dive &mdash; <a href="event_fabric.html">how the event fabric lets peripherals run the
+        chip while the CPU sleeps</a>: an 8-channel hardware crossbar that wires events straight to
+        tasks, no interrupt required.
+        And before you configure a chip, the <a href="power_explorer.html">Power Explorer</a> shows
+        what cores, RAM banks and clock cost in milliwatts.
       </p>
     </div>
   </section>
@@ -1015,6 +1021,7 @@ html.nav-overlay-lock, html.nav-overlay-lock body{overflow:hidden}
     lens:         {href:"castalia_full.html",     title:"SoC · Lens"},
     configurator: {href:"chip_configurator.html", title:"Chip configurator"},
     registers:    {href:"register_browser.html",  title:"Register browser"},
+    eventfabric:  {href:"event_fabric.html",      title:"Event fabric"},
     roadmap:      {href:"vestarv_roadmap.html",   title:"Roadmap"}
   };
   var BY_HREF = {};

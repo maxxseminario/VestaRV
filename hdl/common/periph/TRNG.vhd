@@ -197,7 +197,13 @@ entity TRNG is
         ro_sel      : out std_logic_vector(3 downto 0);  -- CR.ROSEL forwarded to the ensemble
         ro_sclk     : out std_logic;                     -- = clk, for the SIM arch's deterministic model
                                                          --   ONLY (the real RO ignores it, D6)
-        ro_raw      : in  std_logic                      -- XOR-ensembled RO jitter bit (async, D6/D7)
+        ro_raw      : in  std_logic;                     -- XOR-ensembled RO jitter bit (async, D6/D7)
+
+        -- EVFAB tap (event fabric, event_fabric_spec.md 2026-07-24): the D9
+        -- blind-window-corrected data-ready LEVEL, pre-IE (drdyie_cr never
+        -- touches it). L-mode producer EV13 -- the fabric's front-end does the
+        -- 2-FF + rising-edge; a level held until consumed fires exactly once.
+        evt_drdy    : out std_logic
     );
 end TRNG;
 
@@ -272,6 +278,7 @@ begin
     run_level  <= en_cr and not alm_halt;             -- RUN = EN and not alarm-halted (D12)
     drdy_level <= word_valid and not dr_consume_pending;   -- D9 blind-window-corrected DRDY
     irq_trng   <= (drdy_level and drdyie_cr) or (almf_flag and almie_cr);   -- D11
+    evt_drdy   <= drdy_level;                           -- EVFAB EV13 tap (pre-IE level)
 
     -- entropy-source fan-out (D6/D12): ro_enable gates the ensemble; ro_sel
     -- forwards CR.ROSEL; ro_sclk = clk for the sim arch only (D6, ignored by

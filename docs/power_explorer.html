@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VestaRV core — microarchitecture block diagram</title>
+<title>Power Explorer &mdash; VestaRV</title>
+<meta name="description" content="Interactive pre-layout power estimator for the VestaRV multi-core MCUs: cores, RAM banks, clock frequency and NPU versus milliwatts, with the harvested-mode operating points.">
 <style>
 /* VESTA_THEME_BEGIN */
 :root{
@@ -263,88 +264,120 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 .vesta-footer a{color:var(--text-muted)}
 .vesta-footer a:hover{color:var(--accent)}
 /* VESTA_THEME_END */
-/* ---- page-specific: map the figure tokens onto the ember theme ---- */
+
+/* ===== Power Explorer page styles (px-*) ===== */
+/* Chart series palette — validated (dataviz six checks) against the ember
+   surfaces: dark #1d1713 all-PASS; light #fffaf3 PASS w/ contrast-relief on
+   s3/s4/s5 (mitigated: direct labels + table view). Slot order IS the
+   stack/donut adjacency order — do not reorder without revalidating. */
 :root{
-  --font:var(--font-sans); --mono:var(--font-mono);
-  --ink:var(--text); --muted:var(--text-muted); --hair:var(--border);
-  --panel:var(--surface); --paneledge:var(--border-strong);
-  /* schematic block palette — DARK (default), a coordinated variant tuned for legibility */
-  --iface:#1a2029; --iface-edge:#5a6675; --iface-ink:#aeb9c6;
-  --fetch:#182a45; --fetch-edge:#4d78c4; --fetch-ink:#bcd4ff;
-  --ctrl:#271a3a; --ctrl-edge:#8a63c0; --ctrl-ink:#d6bcf0;
-  --dpath:#0f2e28; --dpath-edge:#3f9a83; --dpath-ink:#9fe6d3;
-  --mux:#33260f; --mux-edge:#b78832; --mux-ink:#f0c878;
-  --csr:#341a20; --csr-edge:#c05f6d; --csr-ink:#f2b8c0;
-  --irq:#33240f; --irq-edge:#b8802f; --irq-ink:#f0c890;
-  --atom:#331717; --atom-edge:#c05a5a; --atom-ink:#f0b0b0;
-  --clk:#1a2029; --clk-edge:#5a6675; --clk-ink:#aeb9c6;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300;
 }
 :root[data-theme="light"]{
-  --iface:#eef1f4; --iface-edge:#9aa6b4; --iface-ink:#3a4552;
-  --fetch:#dfeaff; --fetch-edge:#5b86d6; --fetch-ink:#1e3f7a;
-  --ctrl:#efe6fb; --ctrl-edge:#9b6cd6; --ctrl-ink:#5a2f8f;
-  --dpath:#dcf3ee; --dpath-edge:#4bb69a; --dpath-ink:#1c6a58;
-  --mux:#fdefd6; --mux-edge:#d9a441; --mux-ink:#8a5a12;
-  --csr:#fce4e6; --csr-edge:#d9727f; --csr-ink:#9a2c3b;
-  --irq:#ffe9d6; --irq-edge:#e0913f; --irq-ink:#8a4e12;
-  --atom:#f6dede; --atom-edge:#cf6060; --atom-ink:#8f2626;
-  --clk:#eef1f4; --clk-edge:#9aa6b4; --clk-ink:#495562;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300;
 }
-@media (prefers-color-scheme:light){:root:not([data-theme]){
-  --iface:#eef1f4; --iface-edge:#9aa6b4; --iface-ink:#3a4552;
-  --fetch:#dfeaff; --fetch-edge:#5b86d6; --fetch-ink:#1e3f7a;
-  --ctrl:#efe6fb; --ctrl-edge:#9b6cd6; --ctrl-ink:#5a2f8f;
-  --dpath:#dcf3ee; --dpath-edge:#4bb69a; --dpath-ink:#1c6a58;
-  --mux:#fdefd6; --mux-edge:#d9a441; --mux-ink:#8a5a12;
-  --csr:#fce4e6; --csr-edge:#d9727f; --csr-ink:#9a2c3b;
-  --irq:#ffe9d6; --irq-edge:#e0913f; --irq-ink:#8a4e12;
-  --atom:#f6dede; --atom-edge:#cf6060; --atom-ink:#8f2626;
-  --clk:#eef1f4; --clk-edge:#9aa6b4; --clk-ink:#495562;
-}}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme]){
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300;
+  }
+}
 
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font)}
-  header:not(.vesta-header){padding:16px 22px 12px;border-bottom:1px solid var(--hair)}
-  .fig{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
-  h1{margin:4px 0 3px;font-size:21px;font-weight:650}
-  .cap{color:var(--muted);font-size:13.5px;max-width:1040px;line-height:1.5}
-  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
-  .btn{background:var(--panel);border:1px solid var(--paneledge);color:var(--ink);
-    padding:6px 12px;border-radius:7px;font-size:12.5px;cursor:pointer;font-family:var(--font)}
-  .btn:hover{border-color:var(--fetch-edge)}
-  .btn.on{background:var(--fetch);border-color:var(--fetch-edge);color:var(--fetch-ink)}
-  .sp{flex:1}
-  .hint{color:var(--muted);font-size:12px}
-  .stage{position:relative;width:100%;height:calc(100vh - 250px);min-height:520px;
-    overflow:hidden;background:radial-gradient(circle at 1px 1px, var(--hair) 1px, transparent 0) 0 0/26px 26px;cursor:grab}
-  .stage:active{cursor:grabbing}
-  /* embed mode (?embed=1): chrome-free, for the Castalia callout iframe */
-  html.embed header,html.embed footer,html.embed .legend{display:none}
-  html.embed .stage{height:100vh;min-height:0}
-  svg{display:block;width:100%;height:100%;touch-action:none}
-  .blk rect,.blk path.sym,.blk polygon{stroke-width:1.5;stroke-linejoin:round}
-  .blk .t{font-weight:640;font-size:13.5px}
-  .blk .s{font-size:10.5px}
-  .blk .a{font-family:var(--mono);font-size:10px}
-  .blk .ln{font-size:10px}
-  .blk{cursor:pointer}
-  .blk.hot rect,.blk.hot path.sym,.blk.hot polygon{stroke-width:2.6}
-  text{-webkit-user-select:none;user-select:none;pointer-events:none}
-  .link{fill:none;stroke:var(--muted);stroke-width:1.5}
-  .link.wide{stroke-width:2.6;stroke:var(--dpath-edge)}
-  .link.sig{stroke-dasharray:5 4;stroke:var(--ctrl-edge)}
-  .link.dash{stroke-dasharray:4 4}
-  .linklabel{font-family:var(--mono);font-size:9.5px;fill:var(--muted)}
-  .info{position:absolute;top:14px;right:14px;width:300px;max-width:44%;
-    background:var(--panel);border:1px solid var(--paneledge);border-radius:11px;
-    padding:14px 16px;box-shadow:0 8px 26px rgba(20,30,50,.14);font-size:13px;line-height:1.55}
-  .info h3{margin:0 0 6px;font-size:14.5px}
-  .info .k{font-family:var(--mono);font-size:11px;color:var(--muted);display:block;margin-bottom:8px}
-  .info.empty{color:var(--muted)}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 22px 16px;border-top:1px solid var(--hair)}
-  .lg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
-  .lg .sw{width:15px;height:11px;border-radius:3px;border:1.4px solid}
-  footer{padding:0 22px 26px;color:var(--muted);font-size:11.5px}
+.px-section{padding:var(--sp-9) 0}
+.px-wrap{max-width:1080px; margin:0 auto; padding:0 var(--sp-6)}
+.px-hero{padding:var(--sp-10) 0 var(--sp-7)}
+.px-hero h1{font-size:var(--fs-3xl); margin:var(--sp-3) 0}
+.px-hero .lede{color:var(--text-muted); font-size:var(--fs-lg); line-height:1.6; max-width:60ch}
+.eyebrow{font-size:var(--fs-xs); font-weight:var(--fw-bold); letter-spacing:.1em;
+  text-transform:uppercase; color:var(--accent); margin:0 0 var(--sp-2)}
+.px-chips{display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-top:var(--sp-4)}
+.px-chip{font-size:var(--fs-xs); border:1px solid var(--border); border-radius:999px;
+  padding:3px 10px; color:var(--text-muted)}
+
+/* Controls */
+.px-controls{background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-lg); padding:var(--sp-5)}
+.px-controls .row{display:flex; gap:var(--sp-5); flex-wrap:wrap; align-items:flex-end}
+.px-ctl{display:flex; flex-direction:column; gap:4px; min-width:120px}
+.px-ctl label{font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.07em;
+  color:var(--text-dim); font-weight:var(--fw-semi)}
+.px-ctl select,.px-ctl input{background:var(--surface-2); color:var(--text);
+  border:1px solid var(--border); border-radius:var(--r-sm); padding:6px 8px;
+  font:inherit; font-size:var(--fs-sm)}
+.px-ctl input[type=number]{width:5.5em}
+.px-presets{display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-top:var(--sp-4)}
+.px-preset{font:inherit; font-size:var(--fs-sm); cursor:pointer; color:var(--text-muted);
+  background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:5px 12px}
+.px-preset:hover{color:var(--text); border-color:var(--border-strong)}
+.px-preset[aria-pressed="true"]{color:var(--accent); border-color:var(--accent);
+  background:var(--accent-soft)}
+
+/* KPI row */
+.px-kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:var(--sp-4); margin-top:var(--sp-5)}
+@media (max-width:900px){.px-kpis{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.px-kpis{grid-template-columns:1fr}}
+.px-kpi{background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:var(--sp-4)}
+.px-kpi .v{font-size:var(--fs-xl); font-weight:var(--fw-bold); color:var(--accent); line-height:1.1}
+.px-kpi .v small{font-size:var(--fs-md); color:var(--text-muted); font-weight:var(--fw-semi)}
+.px-kpi .k{font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em;
+  color:var(--text-dim); margin-top:var(--sp-2)}
+.px-kpi .d{font-size:var(--fs-sm); color:var(--text-muted); margin-top:var(--sp-1); line-height:1.45}
+
+/* Chart cards */
+.px-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-5); margin-top:var(--sp-5)}
+@media (max-width:900px){.px-grid{grid-template-columns:1fr}}
+.px-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+  padding:var(--sp-5); min-width:0}
+.px-card.wide{grid-column:1 / -1}
+.px-card h3{margin:0; font-size:var(--fs-md)}
+.px-card .sub{font-size:var(--fs-sm); color:var(--text-muted); margin:var(--sp-1) 0 var(--sp-4)}
+.px-card svg{display:block; width:100%; height:auto}
+.px-card svg text{font-family:inherit}
+
+/* Donut + its legend list */
+.px-donutrow{display:flex; gap:var(--sp-5); align-items:center; flex-wrap:wrap}
+.px-donutrow .donutbox{flex:0 0 240px; max-width:240px; margin:0 auto}
+.px-leg{flex:1 1 220px; min-width:200px; display:flex; flex-direction:column; gap:6px;
+  font-size:var(--fs-sm)}
+.px-leg .lrow{display:flex; align-items:baseline; gap:8px; padding:2px 4px; border-radius:var(--r-sm)}
+.px-leg .lrow.hot{background:var(--surface-3)}
+.px-leg .sw{flex:none; width:10px; height:10px; border-radius:3px; align-self:center}
+.px-leg .nm{color:var(--text-muted)}
+.px-leg .val{margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums}
+.px-leg .pct{color:var(--text-dim); font-variant-numeric:tabular-nums; width:3.5em; text-align:right}
+
+/* Shared chart legend (stacked bars) */
+.px-chartleg{display:flex; gap:var(--sp-4); flex-wrap:wrap; margin-top:var(--sp-3);
+  font-size:var(--fs-xs); color:var(--text-muted)}
+.px-chartleg span{display:inline-flex; align-items:center; gap:6px}
+.px-chartleg i{width:10px; height:10px; border-radius:3px; display:inline-block}
+
+/* Tooltip */
+.px-tip{position:fixed; z-index:50; pointer-events:none; background:var(--surface-2);
+  border:1px solid var(--border-strong); border-radius:var(--r-sm); padding:6px 10px;
+  font-size:var(--fs-xs); color:var(--text); box-shadow:0 4px 16px rgba(0,0,0,.35);
+  opacity:0; transition:opacity .08s}
+.px-tip b{font-variant-numeric:tabular-nums}
+
+/* Model table */
+.px-table{width:100%; border-collapse:collapse; font-size:var(--fs-sm); margin-top:var(--sp-3)}
+.px-table th{font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--text-dim); text-align:left; padding:6px 8px; border-bottom:1px solid var(--border-strong)}
+.px-table td{padding:6px 8px; border-bottom:1px solid var(--border); color:var(--text-muted)}
+.px-table td.num{text-align:right; color:var(--text); font-variant-numeric:tabular-nums}
+.px-table td .sw{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:7px;
+  vertical-align:baseline}
+.px-table tr.total td{color:var(--text); font-weight:var(--fw-semi); border-bottom:none}
+
+.px-callout{border-left:3px solid var(--accent); background:var(--surface);
+  border-radius:var(--r-md); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-6);
+  font-size:var(--fs-sm); color:var(--text-muted); line-height:1.6}
+.px-callout b{color:var(--text)}
+.px-links{margin-top:var(--sp-5); font-size:var(--fs-sm); color:var(--text-muted)}
+.px-links a{color:var(--accent)}
+.px-footlinks{display:flex; gap:var(--sp-5); flex-wrap:wrap; font-size:var(--fs-sm)}
+.px-footlinks a{color:var(--text-muted)}
+.px-footlinks a:hover{color:var(--accent)}
 </style>
 <script>
 (function(){
@@ -359,6 +392,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 </script>
 </head>
 <body>
+<body>
 <header class="vesta-header">
   <div class="vesta-header-inner">
     <a class="vesta-brand" href="index.html" aria-label="VestaRV home">
@@ -368,7 +402,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
     </a>
     <nav class="vesta-nav" aria-label="Primary">
       <a href="index.html">Home</a>
-      <a href="vestarv_core.html" aria-current="page">Core</a>
+      <a href="vestarv_core.html">Core</a>
       <a href="castalia_soc.html">SoC</a>
       <a href="castalia_full.html">SoC&#8202;&middot;&#8202;Lens</a>
       <a href="chip_configurator.html">Configurator</a>
@@ -383,246 +417,578 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
     </button>
   </div>
 </header>
-
-<header>
-  <div class="fig">Figure 1</div>
-  <h1>VestaRV core — multi-cycle RISC-V microarchitecture</h1>
-  <div class="cap">A multi-cycle (Harris-style FSM) RISC-V core implementing <b>RV32IMAC + Zicsr</b> over a single <b>unified instruction/data bus</b> —
-    the fetched word doubles as the instruction during decode. An 18-state control FSM sequences the datapath through fetch, execute, load/store,
-    multi-cycle divide, atomic read-modify-write (A-extension), and vectored interrupt entry/return. A clock gate freezes the entire datapath
-    (<span style="font-family:var(--mono)">clk_cpu</span>) on back-pressure, sleep, or a stalled shared-memory access, while the interrupt controller runs on the ungated clock.</div>
-  <div class="toolbar">
-    <button class="btn on" id="tCtrl">Control signals</button>
-    <button class="btn on" id="tData">Data paths</button>
-    <button class="btn" id="reset">Reset view</button>
-    <span class="sp"></span>
-    <span class="hint">drag to pan · scroll to zoom · click a block for detail</span>
+<!-- ================= HERO ================= -->
+<section class="px-section px-hero">
+  <div class="px-wrap">
+    <p class="eyebrow">The power story, interactive</p>
+    <h1>Power Explorer</h1>
+    <p class="lede">What a configuration <i>costs</i> in milliwatts &mdash; before you build it.
+      Every number below is computed live from the same per-block figures behind the
+      <a href="field_power.html">field-power analysis</a>: cores, RAM banks, the NPU and the
+      clock all move the total, and the breakdown shows <b>where the milliwatts actually
+      sit</b>.</p>
+    <div class="px-chips">
+      <span class="px-chip">pre-layout synthesis numbers</span>
+      <span class="px-chip">tt &middot; 1.00&nbsp;V &middot; 25&nbsp;&deg;C</span>
+      <span class="px-chip">idle activity measured from a real waveform (VCD)</span>
+      <span class="px-chip">TSMC 65&nbsp;nm</span>
+    </div>
   </div>
-</header>
+</section>
 
-<div class="stage" id="stage">
-  <svg id="svg" viewBox="0 0 1560 900" preserveAspectRatio="xMidYMid meet">
-    <defs>
-      <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="var(--muted)"/></marker>
-      <marker id="arrowd" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="var(--dpath-edge)"/></marker>
-      <marker id="arrows" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L7,3 L0,6 Z" fill="var(--ctrl-edge)"/></marker>
-    </defs>
-    <g id="links"></g>
-    <g id="blocks"></g>
-  </svg>
-  <div class="info empty" id="info">Click any block to read what it does. Toggle the control-signal and data-path overlays above.</div>
-</div>
+<!-- ================= CONTROLS + KPIS + CHARTS ================= -->
+<section class="px-section" id="explorer" style="padding-top:0">
+  <div class="px-wrap">
 
-<div class="legend" id="legend"></div>
-<footer>Hand-drawn schematic, kept in sync by hand against <span style="font-family:var(--mono)">hdl/common/vesta/</span> (vesta.vhd, controller/maindec, datapath, alu+div, regfile, extend, loadext/store_ext, csr_unit, irq_handler, c_dec) and <span style="font-family:var(--mono)">hdl/common/resv_unit.vhd</span> · updated 2026-07-16.</footer>
+    <div class="px-controls" role="group" aria-label="Chip configuration controls">
+      <div class="row">
+        <div class="px-ctl"><label for="cCores">Cores in the chip</label>
+          <input id="cCores" type="number" min="1" max="32" step="1" value="4"></div>
+        <div class="px-ctl"><label for="cAwake">Cores awake</label>
+          <input id="cAwake" type="number" min="1" max="32" step="1" value="4"></div>
+        <div class="px-ctl"><label for="cRam">Shared RAM</label>
+          <select id="cRam">
+            <option value="4" selected>64 KiB &mdash; 4 banks</option>
+            <option value="8">128 KiB &mdash; 8 banks</option>
+          </select></div>
+        <div class="px-ctl"><label for="cBankOn">Banks powered</label>
+          <input id="cBankOn" type="number" min="1" max="8" step="1" value="4"></div>
+        <div class="px-ctl"><label for="cNpu">NPU</label>
+          <select id="cNpu">
+            <option value="on" selected>Present</option>
+            <option value="ramgated">Present, RAM gated</option>
+            <option value="off">Absent</option>
+          </select></div>
+        <div class="px-ctl"><label for="cClk">mclk</label>
+          <select id="cClk">
+            <option value="24000000" selected>24 MHz (&divide;1)</option>
+            <option value="12000000">12 MHz (&divide;2)</option>
+            <option value="6000000">6 MHz (&divide;4)</option>
+            <option value="3000000">3 MHz (&divide;8)</option>
+            <option value="1500000">1.5 MHz (&divide;16)</option>
+            <option value="375000">375 kHz (&divide;64)</option>
+            <option value="93750">93.75 kHz (&divide;256)</option>
+            <option value="32768">32.768 kHz (LFXT)</option>
+          </select></div>
+        <div class="px-ctl"><label for="cAct">Activity</label>
+          <select id="cAct">
+            <option value="busy" selected>Busy (statistical 0.2)</option>
+            <option value="idle">Idle / parked (measured)</option>
+          </select></div>
+      </div>
+      <div class="px-presets" role="group" aria-label="Presets">
+        <button class="px-preset" type="button" data-preset="allon">Castalia, everything on</button>
+        <button class="px-preset" type="button" data-preset="one">One core busy</button>
+        <button class="px-preset" type="button" data-preset="parked">Harvested parked (as-ROM)</button>
+        <button class="px-preset" type="button" data-preset="gated">Harvested, banks gated</button>
+      </div>
+    </div>
+
+    <div class="px-kpis">
+      <div class="px-kpi"><div class="v" id="kTotal">&mdash;</div>
+        <div class="k">Continuous draw</div>
+        <div class="d" id="kTotalD">at the selected configuration</div></div>
+      <div class="px-kpi"><div class="v" id="kLeak">&mdash;</div>
+        <div class="k">Leakage share</div>
+        <div class="d">the part the clock cannot touch</div></div>
+      <div class="px-kpi"><div class="v" id="kDyn">&mdash;</div>
+        <div class="k">Dynamic</div>
+        <div class="d" id="kDynD">scales with mclk</div></div>
+      <div class="px-kpi"><div class="v" id="kCap">&mdash;</div>
+        <div class="k">Supercap, 100 ms window</div>
+        <div class="d">at this draw; LDO &eta;&nbsp;=&nbsp;0.8, &times;2 margin</div></div>
+    </div>
+
+    <div class="px-grid">
+      <div class="px-card">
+        <h3>Where the milliwatts sit</h3>
+        <p class="sub">Composition at the selected configuration</p>
+        <div class="px-donutrow">
+          <div class="donutbox"><svg id="donut" viewBox="0 0 240 240" role="img"
+            aria-label="Donut chart: power composition of the selected configuration"></svg></div>
+          <div class="px-leg" id="donutLeg" aria-hidden="false"></div>
+        </div>
+      </div>
+
+      <div class="px-card">
+        <h3>Four operating points</h3>
+        <p class="sub">The presets, same model, side by side</p>
+        <svg id="presetbars" viewBox="0 0 580 240" role="img"
+          aria-label="Stacked bar chart comparing the four preset operating points"></svg>
+        <div class="px-chartleg" id="presetLeg"></div>
+      </div>
+
+      <div class="px-card wide">
+        <h3>Clock scaling &mdash; and the wall it hits</h3>
+        <p class="sub">Total draw of the selected configuration across the mclk divider range.
+          Dynamic power divides with the clock; leakage does not &mdash; past &divide;8 the curve
+          is already sitting on the floor.</p>
+        <svg id="freqline" viewBox="0 0 980 300" role="img"
+          aria-label="Line chart: total power versus clock frequency with the leakage floor marked"></svg>
+      </div>
+
+      <div class="px-card">
+        <h3>What one 16 KiB SRAM costs</h3>
+        <p class="sub">Leakage of a single <span class="vesta-mono">sram1p16k</span> macro per
+          power mode (tt/25&nbsp;&deg;C, from the macro&rsquo;s own library)</p>
+        <svg id="srambars" viewBox="0 0 460 250" role="img"
+          aria-label="Bar chart: SRAM macro leakage per power mode"></svg>
+      </div>
+
+      <div class="px-card">
+        <h3>The model, line by line</h3>
+        <p class="sub">Live table view of the chart data &mdash; every component at the selected
+          configuration</p>
+        <table class="px-table" id="modelTable" aria-live="polite"></table>
+      </div>
+    </div>
+
+    <div class="px-callout">
+      <b>Read these as pre-layout estimates, not signoff numbers.</b> Per-block leakage comes from
+      the tt/1.00&nbsp;V/25&nbsp;&deg;C synthesis flow with <b>state-dependent macro arcs</b> (a
+      power-gated tile keeps its TCM at the gated arc &mdash; the TCMs sit on the always-on rail);
+      busy dynamic is the statistical-activity synthesis number, and idle dynamic is
+      <b>measured from a VCD</b> of the parked service loop, scaled with the clock. The
+      peripheral set and fabric are held at the Castalia baseline (&asymp;0.42&nbsp;mW with the
+      ROM) &mdash; the shared fabric grows somewhat with core count, so many-core estimates lean
+      optimistic. No clock tree, no measured silicon; body-temperature operation adds
+      &times;1.3&ndash;1.5 leakage. Rail-cut (&asymp;0) RAM is shown for scale only &mdash; no RAM
+      instance has a switchable rail in the current chips.
+    </div>
+
+    <p class="px-links">Pick a configuration for real in the
+      <a href="chip_configurator.html">chip configurator</a> &middot; the harvested-mode numbers
+      and their provenance live on the <a href="field_power.html">field-power page</a>.</p>
+  </div>
+</section>
+
+<div class="px-tip" id="tip" role="status"></div>
 
 <script>
-if(/[?&]embed/.test(location.search)) document.documentElement.classList.add('embed');
-(function(){ // theme from ?theme=, and live theme from a parent postMessage (canonical light-opt-in polarity)
-  function apply(t){ if(t==="light") document.documentElement.setAttribute("data-theme","light"); else document.documentElement.removeAttribute("data-theme"); }
-  var m=location.search.match(/[?&]theme=(dark|light)/);
-  if(m) apply(m[1]);
-  window.addEventListener("message",function(e){
-    if(e&&e.data&&e.data.vestaTheme!==undefined) apply(e.data.vestaTheme);
-  });
-})();
-const CLS={
-  iface:{fill:"var(--iface)",edge:"var(--iface-edge)",ink:"var(--iface-ink)",name:"Memory bus / ports"},
-  fetch:{fill:"var(--fetch)",edge:"var(--fetch-edge)",ink:"var(--fetch-ink)",name:"Fetch / decode"},
-  ctrl: {fill:"var(--ctrl)", edge:"var(--ctrl-edge)", ink:"var(--ctrl-ink)", name:"Control (decoder + FSM)"},
-  dpath:{fill:"var(--dpath)",edge:"var(--dpath-edge)",ink:"var(--dpath-ink)",name:"Datapath"},
-  mux:  {fill:"var(--mux)",  edge:"var(--mux-edge)",  ink:"var(--mux-ink)",  name:"Mux"},
-  csr:  {fill:"var(--csr)",  edge:"var(--csr-edge)",  ink:"var(--csr-ink)",  name:"CSR & counters"},
-  irq:  {fill:"var(--irq)",  edge:"var(--irq-edge)",  ink:"var(--irq-ink)",  name:"Interrupts (IVT)"},
-  atom: {fill:"var(--atom)", edge:"var(--atom-edge)", ink:"var(--atom-ink)", name:"Atomics (A-ext)"},
-  clk:  {fill:"var(--clk)",  edge:"var(--clk-edge)",  ink:"var(--clk-ink)",  name:"Clock & power"},
+(function(){
+"use strict";
+/* ============================ THE MODEL ==================================
+   All values in mW at tt / 1.00 V / 25 C, pre-layout (genus, MCU_DP_hier_s3
+   2026-07-24 + VCD-annotated variant + sram1p16k/rom lib leakage arcs).      */
+var L = {
+  bankOn: 0.596,   /* sram1p16k leakage, ON (RETN=1, PGEN=0)                  */
+  bankPD: 0.292,   /* sram1p16k power-down arc (PGEN=1) — contents lost       */
+  bankRet:0.485,   /* sram1p16k retention arc — wired off on-chip             */
+  romOn:  0.121,   /* rom_hvt_pg, ON                                          */
+  tileLogic: 0.203,/* one hart tile's logic leakage (annotated parked state)  */
+  tcmOn:  0.596,   /* an awake tile's TCM (= bankOn)                          */
+  tcmRes: 0.292,   /* a rail-gated tile's TCM residue (always-on rail, PGEN)  */
+  npuLogic: 0.069, /* NPU datapath leakage                                    */
+  fabric: 0.300    /* top-level logic + peripherals + shared fabric (N=4)     */
 };
-const B=[]; const push=(o)=>{B.push(o);return o;};
+var DYN24 = {      /* dynamic at 24 MHz; scales linearly with f               */
+  hart0Busy: 1.28, /* statistical-activity hart                              */
+  hartBusy:  1.01, /* each further awake hart                                */
+  otherBusy: 2.16, /* fabric + peripherals + NPU + macro internal            */
+  otherBusyNoNpu: 2.01,
+  idleChip:  0.17  /* whole chip parked — measured 0.021 mW at 3 MHz (VCD)   */
+};
+var F0 = 24e6;
 
-/* ---- region panels (containers, drawn behind) ---- */
-push({id:"P_iface",x:40,y:36,w:1480,h:64,cls:"iface",container:true,titleTop:true,t:"Unified instruction + data memory bus",cap:"One bus carries both instructions and data. read_data returns the fetched instruction during decode and the load result during a data access; data_addr / write_data / wen[3:0] drive out; mem_ready back-pressures the core and mask[1:0] gives alignment. Because read_data≡instr, any combinational decode of it must be registered before use (the unified-bus hazard)."});
-push({id:"P_fetch",x:40,y:120,w:400,h:150,cls:"fetch",container:true,titleTop:true,t:"Fetch / decode"});
-push({id:"P_ctrl",x:40,y:286,w:400,h:436,cls:"ctrl",container:true,titleTop:true,t:"Control"});
-push({id:"P_dpath",x:460,y:120,w:690,h:602,cls:"dpath",container:true,titleTop:true,t:"Datapath  ·  clk_cpu domain"});
-push({id:"P_csr",x:1170,y:120,w:350,h:150,cls:"csr",container:true,titleTop:true,t:"CSR & machine counters"});
-push({id:"P_irq",x:1170,y:286,w:350,h:250,cls:"irq",container:true,titleTop:true,t:"Interrupt handling (IVT)"});
-push({id:"P_clk",x:1170,y:552,w:350,h:170,cls:"clk",container:true,titleTop:true,t:"Clock & power"});
-push({id:"P_atom",x:40,y:742,w:1480,h:120,cls:"atom",container:true,titleTop:true,t:"Atomics — A extension (shared-memory LR/SC & AMO)"});
+var state = { cores:4, awake:4, banks:4, bankOn:4, npu:"on", f:24e6, act:"busy" };
+var PRESETS = {
+  allon:  {cores:4, awake:4, banks:4, bankOn:4, npu:"on",       f:24e6, act:"busy"},
+  one:    {cores:4, awake:1, banks:4, bankOn:4, npu:"on",       f:24e6, act:"busy"},
+  parked: {cores:4, awake:1, banks:4, bankOn:4, npu:"on",       f:3e6,  act:"idle"},
+  gated:  {cores:4, awake:1, banks:4, bankOn:1, npu:"ramgated", f:3e6,  act:"idle"}
+};
+var PRESET_NAMES = {allon:"Everything on, busy", one:"One core busy",
+                    parked:"Harvested parked", gated:"Parked, banks gated"};
 
-/* ---- fetch/decode ---- */
-push({id:"cdec",x:60,y:162,w:150,h:64,cls:"fetch",t:"c_dec",s:"RVC → 32-bit",a:"expander",
-  cap:"Combinational compressed-instruction (RVC / C-extension) decompressor: a 16-bit compressed instruction is expanded to its 32-bit equivalent. is_compressed selects between the expanded form and the raw 32-bit word."});
-push({id:"imux",x:238,y:162,w:182,h:64,cls:"mux",shape:"mux",t:"instr_curr mux",s:"expanded / split-fetch / held",
-  cap:"Selects the current instruction from: the RVC-expanded word, a re-assembled split fetch (a 32-bit instruction straddling two 16-bit fetch slots), or the half-cycle-advanced held copy (instr_curr_prev). Its output instr_curr feeds both the decoder and the datapath's instruction fields."});
+/* Component classes — array order IS the validated palette adjacency order. */
+var CLASSES = [
+  {key:"shram", name:"Shared RAM banks", css:"--s1"},
+  {key:"cores", name:"Core logic",       css:"--s2"},
+  {key:"dyn",   name:"Dynamic (activity)",css:"--s3"},
+  {key:"tcm",   name:"Per-core TCMs",    css:"--s4"},
+  {key:"npu",   name:"NPU + staging RAM",css:"--s5"},
+  {key:"other", name:"ROM, peripherals & fabric", css:"--s6"}
+];
 
-/* ---- control ---- */
-push({id:"ctrl",x:60,y:322,w:360,h:70,cls:"ctrl",t:"controller",s:"maindec + branch_valid",a:"combinational decode → control word",
-  cap:"Pure combinational decoder (wraps maindec and branch_valid). From instr_curr it emits the full control word — result_src, ALU_src, imm_src, alu_control, reg_write, mem_access, jump/jalr/pc_src, csr_op, and the operation-class flags amo_op/lr_op/sc_op/fence_op/div_op — plus the branch-taken condition from funct3 and the ALU Zero flag."});
-push({id:"fsm",x:60,y:408,w:360,h:302,cls:"ctrl",t:"Control FSM · 18 states",
-  lines:["EXECUTE (reset & dispatch hub)","MEMORY_WAIT · FENCE_WAIT","DIV_WAIT → DIV_DONE","LR_READ · SC_CHECK","AMO_READ → WRITEBACK → COMPUTE","        → AMO_WRITE → COMPLETE","IRQ_SV → IRQ_JUMP · IRQ_REST","TRAP_STATE · INITIALIZE · SLEEPING"],
-  cap:"The multi-cycle control FSM (reset state = EXECUTE, which is the decode/dispatch hub). It sequences: single-cycle ops in EXECUTE; loads/stores via MEMORY_WAIT; multi-cycle divide via DIV_WAIT→DIV_DONE; the A-extension chain LR_READ / SC_CHECK / AMO_READ→AMO_WRITEBACK→AMO_COMPUTE→AMO_WRITE→AMO_COMPLETE; interrupt entry/return IRQ_SV→IRQ_JUMP / IRQ_REST; FENCE_WAIT; and the power states INITIALIZE/SLEEPING, with TRAP_STATE terminal. It gates the decoded control word into datapath-facing strobes (pc_en, reg_write, wen, div_start, amo_phase, alu_control overrides)."});
-
-/* ---- datapath ---- */
-push({id:"pclogic",x:480,y:158,w:300,h:64,cls:"dpath",t:"PC logic",s:"pc · pc+2 / pc+4 · pc_next mux",a:"pc_target = base + imm",
-  cap:"Program-counter unit. Holds pc (reset = PC_RST_VAL), computes pc+2 / pc+4 (compressed vs aligned link), and the branch/jump target pc_target = (JALR? rs1 : pc) + imm. A final pc_next mux picks the IVT entry (IRQ_JUMP), the return PC (IRQ_REST), a held value (SLEEPING / AMO / LR / SC), or the sequential/target PC. Drives data_addr during fetch."});
-push({id:"rf",x:480,y:246,w:230,h:84,cls:"dpath",shape:"reg",t:"Register file",s:"32×32 · async read · sync write",a:"x0=0 · SP side-port (IRQ push/pop)",
-  cap:"32 general-purpose 32-bit registers with two asynchronous read ports (rs1, rs2) and one synchronous write port (rd, gated on rd≠x0). A dedicated stack-pointer side-port supports the hardware IRQ push/pop. x10 (a0) is exported for the pass/fail test harness. rs1 is also exported phase-independently (rs1_value) for atomic address compares."});
-push({id:"ext",x:480,y:352,w:230,h:54,cls:"dpath",shape:"trap",t:"extend",s:"immediate gen · I / S / B / J / U",
-  cap:"Immediate generator: sign-extends and re-orders the instruction bits into the five RISC-V immediate formats (I, S, B, J, U), selected by imm_src from the decoder."});
-push({id:"srcb",x:748,y:344,w:64,h:72,cls:"mux",shape:"mux",t:"SrcB",
-  cap:"ALU B-operand mux: selects the immediate (ALU_src=1) or rs2. In atomic phases the FSM overrides this to inject constants for the SC success/fail result."});
-push({id:"alu",x:860,y:240,w:270,h:118,cls:"dpath",shape:"alu",t:"ALU  (+ div)",s:"RV32I · M (mul/div) · A min/max",a:"Zba/Zbb/Zbs/Zbc · PASS-A / PASS-B",
-  cap:"Arithmetic/logic unit with a 6-bit control. Base RV32I ops plus M-extension multiply and a multi-cycle restoring divider (div, 34 cycles, handshaked), A-extension AMO min/max, the Zb bit-manipulation groups, and PASS-A / PASS-B modes used to route an operand straight through during AMO addressing and SC result generation. Produces the Zero flag for branches."});
-push({id:"resmux",x:900,y:406,w:200,h:56,cls:"mux",shape:"mux",t:"Result mux",s:"ALU / load / pc+4 / pc_tgt / csr",
-  cap:"Writeback source mux (result_src): ALU result, extended load data, pc+4 (JAL/JALR link), pc_target (AUIPC), or CSR read data. Its output is written back to rd."});
-push({id:"loadext",x:480,y:440,w:230,h:54,cls:"dpath",t:"loadext",s:"LB / LBU / LH / LHU / LW",
-  cap:"Load extender: sign- or zero-extends the byte/half/word returned on read_data, keyed on funct3 and the latched alignment mask."});
-push({id:"storeext",x:480,y:518,w:230,h:54,cls:"dpath",t:"store_ext",s:"SB / SH / SW format",
-  cap:"Store formatter: replicates the store data across the correct byte lanes (SB×4, SH×2, SW passthrough) so the byte-enable write commits the right bytes."});
-
-/* ---- csr ---- */
-push({id:"csr",x:1190,y:162,w:310,h:88,cls:"csr",t:"csr_unit  (Zicsr)",s:"mhartid ← hart_id port",a:"mcycle / minstret 64-bit counters",
-  cap:"Zicsr register file. Implements mhartid (sourced from the hart_id port — one netlist for all four tiles) and the 64-bit machine counters mcycle (every cycle) and minstret (per retired instruction), with their read-only user shadows. CSRRW/RS/RC and immediate variants are decoded from funct3. Trap CSRs (mstatus/mtvec/mepc/mcause) are intentionally not present — interrupts are handled structurally through the IVT: the in-core irq_handler for the three hardwired sources, with external sources arriving as meip from the SoC\u2019s irq_router."});
-
-/* ---- irq ---- */
-push({id:"irqh",x:1190,y:326,w:310,h:96,cls:"irq",t:"irq_handler",s:"3 live sources · ungated clk",a:"meip (ext) · msip · mtip",
-  cap:"Interrupt sequencer on the ungated clock (so it can wake a hart whose clk_cpu is gated off). Post-M19 only three sources are live and hardwire-enabled — the external meip wire from the SoC\u2019s PLIC-lite irq_router plus the CLINT msip/mtip lines. Per-source enables, masking and fixed lowest-ID priority now live in the irq_router, so the core\u2019s NUM_IRQS-wide priority encoder and the recursion path are pruned away. On an assertion it drives the core FSM: irq_save \u2192 IRQ_SV, then IRQ_JUMP to the vector, and IRQ_REST on return."});
-push({id:"ivt",x:1190,y:440,w:310,h:78,cls:"irq",t:"IVT vectoring",s:"ivt_entry = 0x8000 + irq×4",a:"IVT_BASE = 0x8000 · slot 85 = meip",
-  cap:"The interrupt vector table lives at 0x8000, one jump per slot. The handler forms ivt_entry = 0x8000 + latched_irq×4 and hands it to PC logic on IRQ_JUMP. Hardware stacking stays: on IRQ_SV the core pushes only the return PC at sp\u22124 and pops it on IRQ_REST; ISRs save/restore their own registers and clear the source level before returning. The live vectors are the CLINT pair (83/84) and slot 85 (IRQB_EXT_MEIP), whose ISR is the meip dispatcher — it reads the router\u2019s CLAIM to find the source and writes COMPLETE when done."});
-
-/* ---- clock ---- */
-push({id:"clkgate",x:1190,y:588,w:310,h:60,cls:"clk",shape:"and",t:"clock gate · cg_clk_cpu",a:"en: mem_ready > irq > sleep > SLEEPING",
-  cap:"Generates the gated CPU clock clk_cpu that drives the FSM, PC, datapath, register file and ALU/divider. Enable priority: mem_ready=0 forces off (top priority — freezes the core across a stalled shared-memory transaction); else an active interrupt forces on; else sleep / SLEEPING gate off. csr_unit and irq_handler run on the ungated clk."});
-push({id:"clkports",x:1190,y:660,w:310,h:46,cls:"clk",t:"clk · resetn · sleep",a:"free-running clk in · clk_cpu out",
-  cap:"Core clock/reset/power inputs. clk is free-running; resetn is active-low; sleep (from the tile — e.g. an XIP flash stall) gates clk_cpu. clk_cpu is exported so peripherals/memories in the tile share the gated domain."});
-
-/* ---- atomics ---- */
-push({id:"resloc",x:70,y:772,w:270,h:64,cls:"atom",t:"local reservation",s:"reservation_valid / _addr flops",
-  cap:"Per-hart LR/SC reservation registers set on LR_READ and cleared on SC_CHECK / IRQ_SV. Correct for a single hart in isolation; for shared memory the verdict is adjudicated globally by resv_unit in the arbiter's serialization order."});
-push({id:"amoif",x:370,y:772,w:320,h:64,cls:"atom",t:"LR/SC & AMO interface",s:"lr_sc_bus · amo_lock out",a:"sc_fail_ext in",
-  cap:"The core's atomic interface to the shared fabric: lr_sc_bus tags the current access (01=LR read, 10=SC write attempt), amo_lock stays high across the whole AMO read-modify-write so the arbiter pins the grant (cross-hart AMO atomicity), and sc_fail_ext returns the global SC verdict which folds into the SC success/fail result."});
-push({id:"resvext",x:730,y:772,w:340,h:64,cls:"atom",dash:true,t:"resv_unit  (shared fabric)",s:"global LR/SC table @ arbiter",a:"external — see Figure 2",
-  cap:"Not part of the core: the global reservation unit sits between the arbiter and shared RAM. It tracks a reservation per master, kills reservations on any matching committed write, and returns sc_fail to the losing hart. This is what makes LR/SC correct across all four harts. See Figure 2 (Castalia SoC)."});
-
-/* ================= links (orthogonal routing in clear channels) ================= */
-const L=[];
-const dl=(d,c,m)=>L.push({d,c,m});
-const lab=(x,y,t,sig)=>L.push({label:t,lx:x,ly:y,sig:sig});
-// ---- memory bus <-> core ----
-dl("M135,100 L135,162","wide","arrowd");                     lab(141,131,"read_data ≡ instr / load");
-dl("M630,158 L630,100","wide","arrowd");                     lab(636,127,"data_addr (fetch / EA)");
-dl("M480,545 L452,545 L452,100","wide","arrowd");            lab(456,116,"write_data");   // store_ext -> bus (far-left channel)
-dl("M225,100 L225,280 L48,280 L48,559 L60,559","sig","arrows");                      lab(231,140,"mem_ready");    // bus -> FSM (gap channel)
-// ---- fetch / decode ----
-dl("M210,194 L236,194","","arrow");                          // c_dec -> imux
-dl("M329,226 L329,300 L240,300 L240,322","","arrow");        lab(250,258,"instr");        // imux -> FSM/controller
-dl("M420,177 L440,177 L440,150 L1240,150 L1240,162","","arrow");               lab(830,144,"csr_addr");     // imux -> csr (top channel)
-// ---- control ----
-dl("M240,392 L240,408","","arrow");                          // controller -> FSM
-dl("M420,480 L478,480","sig","arrows");                      lab(452,474,"control",true); // FSM -> datapath control word
-// ---- datapath backbone ----
-dl("M710,278 L860,278","wide","arrowd");                     lab(776,272,"rs1");
-dl("M710,310 L730,310 L730,378 L748,378","wide","arrowd");   lab(716,336,"rs2");
-dl("M710,379 L748,379","wide","arrowd");                     lab(719,373,"imm");
-dl("M812,380 L840,380 L840,345 L860,345","wide","arrowd");   // SrcB -> ALU
-dl("M995,358 L995,406","wide","arrowd");                     // ALU -> Result mux
-dl("M710,460 L886,460 L886,446 L900,446","wide","arrowd");   lab(772,455,"load");
-dl("M1000,462 L1000,672 L468,672 L468,300 L480,300","wide","arrowd"); lab(690,666,"rd (writeback)");
-dl("M710,325 L732,325 L732,545 L710,545","wide","arrowd");   lab(736,432,"store data");
-// ---- CSR ----
-dl("M1345,120 L1345,162","","arrow");                        lab(1350,138,"hart_id");
-dl("M1345,250 L1154,250 L1154,440 L1100,440","wide","arrowd"); lab(1200,262,"csr_rdata");
-// ---- interrupts (IVT) ----
-dl("M1520,374 L1500,374","","arrow");                        lab(1372,318,"meip · msip · mtip");
-dl("M1190,410 L1160,410 L1160,728 L400,728 L400,710","sig","arrows"); lab(740,722,"irq_save handshake",true);
-dl("M1190,479 L1166,479 L1166,738 L826,738 L826,190 L780,190","sig","arrows"); lab(834,620,"ivt_entry → PC",true);
-// ---- clock & power ----
-dl("M420,700 L1154,700 L1154,618 L1190,618","sig","arrows"); lab(740,694,"en_clk_cpu",true);
-dl("M1190,632 L1152,632","sig","arrows");                    lab(1116,628,"clk_cpu",true);
-// ---- atomics ----
-dl("M200,710 L200,772","","arrow");                          lab(206,748,"amo_phase / lr_sc");
-dl("M340,804 L370,804","","arrow");
-dl("M690,804 L730,804","dash","arrow");                      lab(652,762,"lr_sc / lock / sc_fail");
-
-/* ================= render (shared engine) ================= */
-const NS="http://www.w3.org/2000/svg";
-const gB=document.getElementById("blocks"),gL=document.getElementById("links");
-function el(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
-L.forEach(l=>{
-  if(l.d){const p=el("path",{d:l.d,class:"link "+(l.c||"")});if(l.m)p.setAttribute("marker-end",`url(#${l.m})`);
-    if(l.c&&l.c.indexOf("sig")>=0)p.classList.add("ctrlnet"); if(l.c&&l.c.indexOf("wide")>=0)p.classList.add("datanet"); gL.appendChild(p);}
-  if(l.label){const t=el("text",{x:l.lx,y:l.ly,class:"linklabel"});t.textContent=l.label;
-    if(l.sig)t.classList.add("ctrlnet"); gL.appendChild(t);}
-});
-// circuit-symbol geometry: returns an SVG node for block b (falls back to a rounded rect)
-function symbol(b){
-  const x=b.x,y=b.y,w=b.w,h=b.h,s=b.shape; let d=null;
-  if(s==="alu")  d=`M${x},${y} L${x+w},${y+h*0.2} L${x+w},${y+h*0.8} L${x},${y+h} `+
-                    `L${x},${y+h*0.62} L${x+w*0.16},${y+h*0.5} L${x},${y+h*0.38} Z`;      // notched ALU
-  else if(s==="mux")  d=`M${x},${y} L${x+w},${y+h*0.24} L${x+w},${y+h*0.76} L${x},${y+h} Z`; // trapezoid, in-left / out-right
-  else if(s==="trap") d=`M${x},${y+h*0.22} L${x+w},${y} L${x+w},${y+h} L${x},${y+h*0.78} Z`; // sign-extend (widens right)
-  else if(s==="and"){ const r=h/2, bx=x+w-r;                                                 // AND-gate clock gate
-                      d=`M${x},${y} L${bx},${y} A${r},${r} 0 0 1 ${bx},${y+h} L${x},${y+h} Z`; }
-  if(d){ const p=el("path",{d,class:"sym"}); return p; }
-  return el("rect",{x,y,width:w,height:h,rx:11});                                            // reg + everything else
-}
-const byId={};
-B.forEach(b=>{
-  const c=CLS[b.cls]; const g=el("g",{class:"blk"}); g.dataset.id=b.id;
-  const node=symbol(b);
-  node.setAttribute("fill",c.fill); node.setAttribute("stroke",c.edge);
-  if(b.container)node.setAttribute("fill-opacity",".4");
-  if(b.dash)node.setAttribute("stroke-dasharray","6 4");
-  g.appendChild(node);
-  // register: clock-input mark (small ">" on the left edge, near the bottom)
-  if(b.shape==="reg"){
-    const tri=el("path",{d:`M${b.x},${b.y+b.h-16} L${b.x+12},${b.y+b.h-9} L${b.x},${b.y+b.h-2} Z`,
-      fill:"none",stroke:c.edge,class:"sym"}); g.appendChild(tri);
-  }
-  const cx=b.x+b.w/2;
-  if(b.container&&b.titleTop){
-    const t=el("text",{x:b.x+14,y:b.y+21,class:"t","text-anchor":"start",fill:c.ink});t.textContent=b.t;g.appendChild(t);
-  } else if(b.lines){
-    const t=el("text",{x:cx,y:b.y+26,class:"t","text-anchor":"middle",fill:c.ink});t.textContent=b.t;g.appendChild(t);
-    let ly=b.y+44;b.lines.forEach(line=>{const t2=el("text",{x:b.x+16,y:ly,class:"ln addr","text-anchor":"start",fill:c.ink,"fill-opacity":".9"});t2.textContent=line.trim()||line;g.appendChild(t2);ly+=20;});
+function compute(s){
+  var gated = s.cores - s.awake;
+  var c = {};
+  c.cores = s.awake * L.tileLogic;                       /* gated tile logic = rail-cut, ~0 */
+  c.tcm   = s.awake * L.tcmOn + gated * L.tcmRes;
+  c.shram = s.bankOn * L.bankOn + (s.banks - s.bankOn) * L.bankPD;
+  c.npu   = s.npu === "off" ? 0 : L.npuLogic + (s.npu === "on" ? L.bankOn : L.bankPD);
+  c.other = L.romOn + L.fabric;
+  var dyn24;
+  if (s.act === "busy"){
+    dyn24 = DYN24.hart0Busy + (s.awake - 1) * DYN24.hartBusy
+          + (s.npu === "off" ? DYN24.otherBusyNoNpu : DYN24.otherBusy);
   } else {
-    const n=1+(b.s?1:0)+(b.a?1:0);            // vertically centre the text stack in the symbol body
-    let yy=b.y+b.h/2-(n-1)*6.5+3;
-    const t=el("text",{x:cx,y:yy,class:"t","text-anchor":"middle",fill:c.ink});t.textContent=b.t;g.appendChild(t);yy+=15;
-    if(b.s){const s=el("text",{x:cx,y:yy,class:"s","text-anchor":"middle",fill:c.ink,"fill-opacity":".85"});s.textContent=b.s;g.appendChild(s);yy+=13;}
-    if(b.a){const a=el("text",{x:cx,y:yy,class:"a addr","text-anchor":"middle",fill:c.ink,"fill-opacity":".9"});a.textContent=b.a;g.appendChild(a);}
+    dyn24 = DYN24.idleChip;
   }
-  g.addEventListener("click",()=>select(b.id));
-  gB.appendChild(g); byId[b.id]=g;
+  c.dyn = dyn24 * (s.f / F0);
+  c.leak = c.cores + c.tcm + c.shram + c.npu + c.other;
+  c.total = c.leak + c.dyn;
+  return c;
+}
+
+/* ============================ HELPERS ==================================== */
+function $(id){ return document.getElementById(id); }
+function el(n, at){ var e = document.createElementNS("http://www.w3.org/2000/svg", n);
+  for (var k in at) e.setAttribute(k, at[k]); return e; }
+function fmt(v){ return v >= 10 ? v.toFixed(1) : v >= 0.01 ? v.toFixed(2) : (v > 0 ? "<0.01" : "0"); }
+function fmtF(f){ return f >= 1e6 ? (f/1e6) + " MHz" : (f/1e3).toFixed(f%1000?3:0).replace(/\.?0+$/,"") + " kHz"; }
+function seriesColor(css){ return getComputedStyle(document.documentElement).getPropertyValue(css).trim(); }
+function surfaceColor(){ return getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); }
+
+var tip = $("tip");
+function tipShow(html, x, y){ tip.innerHTML = html;
+  var pad = 14, w = tip.offsetWidth || 120;
+  tip.style.left = Math.min(x + pad, window.innerWidth - w - 8) + "px";
+  tip.style.top  = (y + pad) + "px"; tip.style.opacity = 1; }
+function tipHide(){ tip.style.opacity = 0; }
+function hoverable(node, html){
+  node.setAttribute("tabindex", "0");
+  node.addEventListener("mousemove", function(e){ tipShow(html, e.clientX, e.clientY); });
+  node.addEventListener("mouseleave", tipHide);
+  node.addEventListener("focus", function(){ var r = node.getBoundingClientRect();
+    tipShow(html, r.left + r.width/2, r.top); });
+  node.addEventListener("blur", tipHide);
+}
+
+/* ============================ DONUT ====================================== */
+function arcPath(cx, cy, r0, r1, a0, a1){
+  function pt(r, a){ return [cx + r*Math.cos(a), cy + r*Math.sin(a)]; }
+  var large = (a1 - a0) > Math.PI ? 1 : 0;
+  var p0 = pt(r1,a0), p1 = pt(r1,a1), p2 = pt(r0,a1), p3 = pt(r0,a0);
+  return "M" + p0 + " A" + r1 + " " + r1 + " 0 " + large + " 1 " + p1 +
+         " L" + p2 + " A" + r0 + " " + r0 + " 0 " + large + " 0 " + p3 + " Z";
+}
+function renderDonut(c){
+  var svg = $("donut"); svg.textContent = "";
+  var slices = CLASSES.map(function(cl){ return {cl:cl, v:c[cl.key]}; })
+                      .filter(function(s){ return s.v > 0.0005; });
+  var total = c.total, a = -Math.PI/2;
+  slices.forEach(function(s){
+    var frac = s.v / total, a1 = a + frac * 2*Math.PI;
+    var p = el("path", { d: arcPath(120,120,62,102,a,Math.min(a1, a+2*Math.PI-1e-4)),
+      "stroke-width": 2 });
+    p.style.fill = "var(" + s.cl.css + ")";
+    p.style.stroke = "var(--surface)";           /* the 2px surface gap */
+    hoverable(p, s.cl.name + ": <b>" + fmt(s.v) + " mW</b> (" + (100*frac).toFixed(1) + "%)");
+    svg.appendChild(p);
+    a = a1;
+  });
+  var t1 = el("text", {x:120, y:114, "text-anchor":"middle",
+    "font-size":"30", "font-weight":"700"});
+  t1.style.fill = "var(--text)"; t1.textContent = fmt(total);
+  var t2 = el("text", {x:120, y:136, "text-anchor":"middle", "font-size":"13"});
+  t2.style.fill = "var(--text-dim)"; t2.textContent = "mW total";
+  svg.appendChild(t1); svg.appendChild(t2);
+
+  var leg = $("donutLeg"); leg.textContent = "";
+  CLASSES.forEach(function(cl){
+    var v = c[cl.key]; if (v <= 0.0005) return;
+    var row = document.createElement("div"); row.className = "lrow";
+    var sw = document.createElement("span"); sw.className = "sw";
+    sw.style.background = "var(" + cl.css + ")";
+    var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = cl.name;
+    var val = document.createElement("span"); val.className = "val"; val.textContent = fmt(v) + " mW";
+    var pct = document.createElement("span"); pct.className = "pct";
+    pct.textContent = (100*v/c.total).toFixed(0) + "%";
+    row.appendChild(sw); row.appendChild(nm); row.appendChild(val); row.appendChild(pct);
+    leg.appendChild(row);
+  });
+}
+
+/* ======================= PRESET STACKED BARS ============================= */
+function renderPresets(){
+  var svg = $("presetbars"); svg.textContent = "";
+  var names = Object.keys(PRESETS);
+  var results = names.map(function(k){ return compute(PRESETS[k]); });
+  var maxT = Math.max.apply(null, results.map(function(r){ return r.total; }));
+  var x0 = 8, x1 = 470, y = 18, bh = 22, gap = 34;
+  names.forEach(function(k, i){
+    var c = results[i], x = x0;
+    var lbl = el("text", {x:x0, y:y + i*(bh+gap) - 6, "font-size":"12"});
+    lbl.style.fill = "var(--text-muted)"; lbl.textContent = PRESET_NAMES[k];
+    svg.appendChild(lbl);
+    CLASSES.forEach(function(cl){
+      var v = c[cl.key]; if (v <= 0.0005) return;
+      var w = (v / maxT) * (x1 - x0);
+      var isLast = false; /* rounded end handled after loop */
+      var r = el("rect", {x:x, y:y + i*(bh+gap), width:Math.max(w,1), height:bh,
+        "stroke-width":2});
+      r.style.fill = "var(" + cl.css + ")";
+      r.style.stroke = "var(--surface)";
+      hoverable(r, PRESET_NAMES[k] + " &middot; " + cl.name + ": <b>" + fmt(v) + " mW</b>");
+      svg.appendChild(r);
+      x += w;
+    });
+    var vt = el("text", {x:x + 8, y:y + i*(bh+gap) + bh - 6, "font-size":"12",
+      "font-weight":"600"});
+    vt.style.fill = "var(--text)"; vt.textContent = fmt(c.total) + " mW";
+    svg.appendChild(vt);
+  });
+  var leg = $("presetLeg"); leg.textContent = "";
+  CLASSES.forEach(function(cl){
+    var s = document.createElement("span"), i = document.createElement("i");
+    i.style.background = "var(" + cl.css + ")";
+    s.appendChild(i); s.appendChild(document.createTextNode(cl.name));
+    leg.appendChild(s);
+  });
+}
+
+/* ========================= FREQUENCY LINE ================================ */
+function renderFreq(c, s){
+  var svg = $("freqline"); svg.textContent = "";
+  var W = 980, H = 300, mL = 46, mR = 130, mT = 16, mB = 40;
+  var fMin = 32768, fMax = 24e6;
+  var dyn24 = c.dyn / (s.f / F0);
+  var yMax = Math.ceil((c.leak + dyn24) * 1.08);
+  function X(f){ return mL + (Math.log(f/fMin) / Math.log(fMax/fMin)) * (W - mL - mR); }
+  function Y(v){ return H - mB - (v / yMax) * (H - mT - mB); }
+  /* grid: y ticks at clean steps */
+  var step = yMax > 8 ? 4 : yMax > 4 ? 2 : 1;
+  for (var g = 0; g <= yMax; g += step){
+    var ln = el("line", {x1:mL, x2:W-mR, y1:Y(g), y2:Y(g), "stroke-width":1});
+    ln.style.stroke = "var(--border)";
+    svg.appendChild(ln);
+    var tt = el("text", {x:mL-8, y:Y(g)+4, "text-anchor":"end", "font-size":"11"});
+    tt.style.fill = "var(--text-dim)"; tt.textContent = g;
+    svg.appendChild(tt);
+  }
+  var yl = el("text", {x:mL-8, y:mT-2, "text-anchor":"end", "font-size":"11"});
+  yl.style.fill = "var(--text-dim)"; yl.textContent = "mW";
+  svg.appendChild(yl);
+  /* x ticks at the divider stops */
+  [32768, 93750, 375000, 1.5e6, 3e6, 6e6, 12e6, 24e6].forEach(function(f){
+    var tt = el("text", {x:X(f), y:H-mB+18, "text-anchor":"middle", "font-size":"11"});
+    tt.style.fill = "var(--text-dim)";
+    tt.textContent = f >= 1e6 ? (f/1e6)+"M" : f === 32768 ? "32.8k" : (f/1e3)+"k";
+    svg.appendChild(tt);
+    var tk = el("line", {x1:X(f), x2:X(f), y1:H-mB, y2:H-mB+4, "stroke-width":1});
+    tk.style.stroke = "var(--border-strong)"; svg.appendChild(tk);
+  });
+  var xl = el("text", {x:(mL+W-mR)/2, y:H-6, "text-anchor":"middle", "font-size":"11"});
+  xl.style.fill = "var(--text-dim)"; xl.textContent = "mclk (log scale)";
+  svg.appendChild(xl);
+  /* leakage floor: solid hairline + label */
+  var fl = el("line", {x1:mL, x2:W-mR, y1:Y(c.leak), y2:Y(c.leak), "stroke-width":1});
+  fl.style.stroke = "var(--border-strong)";
+  svg.appendChild(fl);
+  var flt = el("text", {x:W-mR+8, y:Y(c.leak)+4, "font-size":"12"});
+  flt.style.fill = "var(--text-muted)";
+  flt.textContent = "leakage floor " + fmt(c.leak) + " mW";
+  svg.appendChild(flt);
+  /* the curve + its 10% area wash */
+  var N = 90, pts = [];
+  for (var i = 0; i <= N; i++){
+    var f = fMin * Math.pow(fMax/fMin, i/N);
+    pts.push([X(f), Y(c.leak + dyn24 * f / F0)]);
+  }
+  var d = "M" + pts.map(function(p){ return p[0].toFixed(1)+","+p[1].toFixed(1); }).join(" L");
+  var area = el("path", {d: d + " L" + (W-mR) + "," + Y(0) + " L" + mL + "," + Y(0) + " Z"});
+  area.style.fill = "var(--s2)"; area.style.opacity = 0.1;
+  svg.appendChild(area);
+  var path = el("path", {d:d, fill:"none", "stroke-width":2,
+    "stroke-linecap":"round", "stroke-linejoin":"round"});
+  path.style.stroke = "var(--s2)";
+  svg.appendChild(path);
+  /* end-dot + value at 24 MHz */
+  var endV = c.leak + dyn24;
+  var dot = el("circle", {cx:X(fMax), cy:Y(endV), r:4.5, "stroke-width":2});
+  dot.style.fill = "var(--s2)"; dot.style.stroke = "var(--surface)";
+  svg.appendChild(dot);
+  var dv = el("text", {x:X(fMax)+9, y:Y(endV)-8, "font-size":"12", "font-weight":"600"});
+  dv.style.fill = "var(--text)"; dv.textContent = fmt(endV) + " mW";
+  svg.appendChild(dv);
+  /* current-config marker: ring */
+  var cur = el("circle", {cx:X(s.f), cy:Y(c.total), r:6, fill:"none", "stroke-width":2});
+  cur.style.stroke = "var(--text)";
+  hoverable(cur, "selected: " + fmtF(s.f) + " &rarr; <b>" + fmt(c.total) + " mW</b>");
+  svg.appendChild(cur);
+  /* crosshair hover: nearest sample */
+  var hot = el("rect", {x:mL, y:mT, width:W-mL-mR, height:H-mT-mB, fill:"transparent"});
+  var probe = el("circle", {r:4, "stroke-width":2, visibility:"hidden"});
+  probe.style.fill = "var(--s2)"; probe.style.stroke = "var(--surface)";
+  svg.appendChild(probe);
+  hot.addEventListener("mousemove", function(e){
+    var box = svg.getBoundingClientRect();
+    var mx = (e.clientX - box.left) * (W / box.width);
+    var f = fMin * Math.pow(fMax/fMin, Math.min(1, Math.max(0, (mx-mL)/(W-mL-mR))));
+    var v = c.leak + dyn24 * f / F0;
+    probe.setAttribute("cx", X(f)); probe.setAttribute("cy", Y(v));
+    probe.setAttribute("visibility", "visible");
+    tipShow(fmtF(f) + " &rarr; <b>" + fmt(v) + " mW</b>", e.clientX, e.clientY);
+  });
+  hot.addEventListener("mouseleave", function(){
+    probe.setAttribute("visibility", "hidden"); tipHide();
+  });
+  svg.appendChild(hot);
+}
+
+/* ========================= SRAM MODES BARS =============================== */
+function renderSram(){
+  var svg = $("srambars"); svg.textContent = "";
+  var modes = [
+    {n:"ON",         v:L.bankOn,  d:"RETN=1, PGEN=0"},
+    {n:"Retention",  v:L.bankRet, d:"contents kept — strapped off on-chip"},
+    {n:"Power-down", v:L.bankPD,  d:"PGEN=1, contents lost — what BLOCKPWR uses"},
+    {n:"Rail-cut",   v:0.001,     d:"external switch — not implemented for any RAM"}
+  ];
+  var W = 460, H = 250, mL = 36, mB = 56, mT = 26;
+  var bw = 56, gap = (W - mL - 20 - 4*bw) / 3;
+  var yMax = 0.7;
+  function Y(v){ return H - mB - (v / yMax) * (H - mT - mB); }
+  modes.forEach(function(m, i){
+    var x = mL + 10 + i * (bw + gap);
+    var r = el("rect", {x:x, y:Y(m.v), width:bw, height:(H-mB) - Y(m.v), rx:4});
+    r.style.fill = "var(--s1)";
+    hoverable(r, m.n + ": <b>" + (m.v < 0.01 ? "~0" : m.v.toFixed(3)) + " mW</b><br>" + m.d);
+    svg.appendChild(r);
+    if ((H-mB) - Y(m.v) > 8){  /* square the baseline corners (4px data-end only) */
+      var sq = el("rect", {x:x, y:(H-mB)-5, width:bw, height:5});
+      sq.style.fill = "var(--s1)"; sq.style.pointerEvents = "none";
+      svg.appendChild(sq);
+    }
+    var vt = el("text", {x:x+bw/2, y:Y(m.v)-7, "text-anchor":"middle",
+      "font-size":"12", "font-weight":"600"});
+    vt.style.fill = "var(--text)";
+    vt.textContent = m.v < 0.01 ? "~0" : m.v.toFixed(3);
+    svg.appendChild(vt);
+    var nt = el("text", {x:x+bw/2, y:H-mB+18, "text-anchor":"middle", "font-size":"11.5"});
+    nt.style.fill = "var(--text-muted)"; nt.textContent = m.n;
+    svg.appendChild(nt);
+    var st = el("text", {x:x+bw/2, y:H-mB+34, "text-anchor":"middle", "font-size":"10"});
+    st.style.fill = "var(--text-dim)";
+    st.textContent = i === 1 ? "(strapped off)" : i === 3 ? "(not implemented)" : "";
+    svg.appendChild(st);
+  });
+  var base = el("line", {x1:mL, x2:W-10, y1:H-mB, y2:H-mB, "stroke-width":1});
+  base.style.stroke = "var(--border-strong)"; svg.appendChild(base);
+  var yl = el("text", {x:mL-4, y:mT-8, "text-anchor":"start", "font-size":"11"});
+  yl.style.fill = "var(--text-dim)"; yl.textContent = "mW leakage / macro";
+  svg.appendChild(yl);
+}
+
+/* ========================= MODEL TABLE =================================== */
+function renderTable(c, s){
+  var t = $("modelTable"); t.textContent = "";
+  var head = t.insertRow();
+  ["Component", "mW", "How it's counted"].forEach(function(h, i){
+    var th = document.createElement("th"); th.textContent = h;
+    if (i === 1) th.style.textAlign = "right";
+    head.appendChild(th);
+  });
+  var gated = s.cores - s.awake;
+  var rows = [
+    ["shram", s.bankOn + " × " + fmt(L.bankOn) + " on" +
+      (s.banks - s.bankOn ? " + " + (s.banks - s.bankOn) + " × " + fmt(L.bankPD) + " gated" : "")],
+    ["cores", s.awake + " awake × " + fmt(L.tileLogic) +
+      (gated ? "; " + gated + " rail-gated ≈ 0" : "")],
+    ["dyn", s.act === "busy" ? "statistical @ " + fmtF(s.f) : "measured (VCD) @ " + fmtF(s.f)],
+    ["tcm", s.awake + " × " + fmt(L.tcmOn) + " on" +
+      (gated ? " + " + gated + " × " + fmt(L.tcmRes) + " residue" : "")],
+    ["npu", s.npu === "off" ? "absent" :
+      "logic " + fmt(L.npuLogic) + " + staging RAM " + fmt(s.npu === "on" ? L.bankOn : L.bankPD)],
+    ["other", "ROM " + fmt(L.romOn) + " + fabric & peripherals " + fmt(L.fabric)]
+  ];
+  rows.forEach(function(rw){
+    var cl = null;
+    CLASSES.forEach(function(x){ if (x.key === rw[0]) cl = x; });
+    var v = c[rw[0]];
+    var tr = t.insertRow();
+    var td0 = tr.insertCell();
+    var sw = document.createElement("span"); sw.className = "sw";
+    sw.style.background = "var(" + cl.css + ")";
+    td0.appendChild(sw); td0.appendChild(document.createTextNode(cl.name));
+    var td1 = tr.insertCell(); td1.className = "num"; td1.textContent = fmt(v);
+    tr.insertCell().textContent = rw[1];
+  });
+  var tr = t.insertRow(); tr.className = "total";
+  tr.insertCell().textContent = "Total";
+  var tdt = tr.insertCell(); tdt.className = "num"; tdt.textContent = fmt(c.total);
+  tr.insertCell().textContent = "leakage " + fmt(c.leak) + " + dynamic " + fmt(c.dyn);
+}
+
+/* ========================= WIRING ======================================== */
+function clampInputs(){
+  state.cores = Math.min(32, Math.max(1, state.cores|0));
+  state.awake = Math.min(state.cores, Math.max(1, state.awake|0));
+  state.bankOn = Math.min(state.banks, Math.max(1, state.bankOn|0));
+  $("cCores").value = state.cores; $("cAwake").value = state.awake;
+  $("cAwake").max = state.cores;
+  $("cRam").value = state.banks; $("cBankOn").value = state.bankOn;
+  $("cBankOn").max = state.banks;
+  $("cNpu").value = state.npu; $("cClk").value = String(state.f); $("cAct").value = state.act;
+}
+function matchPreset(){
+  var m = null;
+  Object.keys(PRESETS).forEach(function(k){
+    var p = PRESETS[k], same = true;
+    for (var kk in p) if (p[kk] !== state[kk]) same = false;
+    if (same) m = k;
+  });
+  document.querySelectorAll(".px-preset").forEach(function(b){
+    b.setAttribute("aria-pressed", b.dataset.preset === m ? "true" : "false");
+  });
+}
+function render(){
+  clampInputs();
+  var c = compute(state);
+  $("kTotal").innerHTML = fmt(c.total) + "<small>&nbsp;mW</small>";
+  $("kTotalD").textContent = state.awake + "/" + state.cores + " cores awake, " +
+    state.bankOn + "/" + state.banks + " banks, " + fmtF(state.f);
+  $("kLeak").innerHTML = (100*c.leak/c.total).toFixed(0) + "<small>%</small>";
+  $("kDyn").innerHTML = fmt(c.dyn) + "<small>&nbsp;mW</small>";
+  $("kDynD").textContent = state.act === "busy" ?
+    "statistical activity at " + fmtF(state.f) : "measured parked activity at " + fmtF(state.f);
+  /* supercap: E = P*0.1s/eta; C >= 2E/(V1^2-V2^2), 2.5->1.8 V; x2 margin */
+  var E = c.total * 0.1 / 0.8;                      /* mJ drawn from the cap */
+  var C = 2 * E / (2.5*2.5 - 1.8*1.8) * 2;          /* mF, with margin       */
+  $("kCap").innerHTML = (C >= 1 ? C.toFixed(1) : C.toFixed(2)) + "<small>&nbsp;mF</small>";
+  renderDonut(c);
+  renderPresets();
+  renderFreq(c, state);
+  renderSram();
+  renderTable(c, state);
+  matchPreset();
+}
+[["cCores","cores"],["cAwake","awake"],["cBankOn","bankOn"]].forEach(function(p){
+  $(p[0]).addEventListener("change", function(){ state[p[1]] = +this.value; render(); });
 });
-const info=document.getElementById("info");
-function select(id){const b=B.find(x=>x.id===id);
-  document.querySelectorAll(".blk").forEach(g=>g.classList.remove("hot"));
-  byId[id].classList.add("hot"); info.classList.remove("empty");
-  info.innerHTML=`<h3>${b.t}</h3><span class="k">${CLS[b.cls].name}${b.a?" · "+b.a:""}</span>${b.cap||""}`;}
-let showCtrl=true,showData=true;
-document.getElementById("tCtrl").onclick=(e)=>{showCtrl=!showCtrl;e.target.classList.toggle("on",showCtrl);
-  document.querySelectorAll(".ctrlnet").forEach(t=>t.style.display=showCtrl?"":"none");};
-document.getElementById("tData").onclick=(e)=>{showData=!showData;e.target.classList.toggle("on",showData);
-  document.querySelectorAll(".datanet").forEach(t=>t.style.display=showData?"":"none");};
-/* pan/zoom */
-const svg=document.getElementById("svg"),stage=document.getElementById("stage");
-let vb={x:0,y:0,w:1560,h:900};const VB0={...vb};
-const applyVB=()=>svg.setAttribute("viewBox",`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-stage.addEventListener("wheel",(e)=>{e.preventDefault();const r=svg.getBoundingClientRect();
-  const mx=vb.x+(e.clientX-r.left)/r.width*vb.w,my=vb.y+(e.clientY-r.top)/r.height*vb.h;
-  const f=e.deltaY<0?0.88:1.135,nw=Math.min(3400,Math.max(520,vb.w*f)),nh=nw*(VB0.h/VB0.w);
-  vb.x=mx-(mx-vb.x)*(nw/vb.w);vb.y=my-(my-vb.y)*(nh/vb.h);vb.w=nw;vb.h=nh;applyVB();},{passive:false});
-let drag=null;
-stage.addEventListener("pointerdown",(e)=>{drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};stage.setPointerCapture(e.pointerId);});
-stage.addEventListener("pointermove",(e)=>{if(!drag)return;const r=svg.getBoundingClientRect();
-  vb.x=drag.vx-(e.clientX-drag.x)/r.width*vb.w;vb.y=drag.vy-(e.clientY-drag.y)/r.height*vb.h;applyVB();});
-stage.addEventListener("pointerup",()=>drag=null);
-document.getElementById("reset").onclick=()=>{vb={...VB0};applyVB();};
-const legend=document.getElementById("legend");
-Object.values(CLS).forEach(c=>{const d=document.createElement("div");d.className="lg";
-  d.innerHTML=`<span class="sw" style="background:${c.fill};border-color:${c.edge}"></span>${c.name}`;legend.appendChild(d);});
+$("cRam").addEventListener("change", function(){
+  state.banks = +this.value;
+  if (state.bankOn > state.banks) state.bankOn = state.banks;
+  if (state.bankOn === 4 && state.banks === 8) state.bankOn = 8; /* follow the size bump */
+  render();
+});
+$("cNpu").addEventListener("change", function(){ state.npu = this.value; render(); });
+$("cClk").addEventListener("change", function(){ state.f = +this.value; render(); });
+$("cAct").addEventListener("change", function(){ state.act = this.value; render(); });
+document.querySelectorAll(".px-preset").forEach(function(b){
+  b.addEventListener("click", function(){
+    var p = PRESETS[b.dataset.preset];
+    for (var k in p) state[k] = p[k];
+    render();
+  });
+});
+render();
+})();
 </script>
+<footer class="vesta-footer">
+  <div class="px-wrap">
+    <div class="px-footlinks">
+      <a href="index.html">&#8592; VestaRV home</a>
+      <a href="chip_configurator.html">Chip configurator</a>
+      <a href="field_power.html">Field-powered NFC mode</a>
+      <a href="register_browser.html">Register browser</a>
+    </div>
+    <p style="margin-top:var(--sp-4)">VestaRV &mdash; a custom RISC-V MCU family on TSMC&nbsp;65&nbsp;nm.
+      Every figure on this page is a pre-layout, typical-corner estimate computed from the
+      synthesis flow's per-block numbers; idle activity is measured from a behavioral waveform.</p>
+  </div>
+</footer>
 <script>
 (function(){
   var root=document.documentElement, btn=document.getElementById("themeToggle");

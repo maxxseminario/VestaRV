@@ -100,6 +100,9 @@ architecture sim of PWM_tb is
 
     -- FROZEN DUT entity (design doc D3), declared as a component so the
     -- bench compiles standalone before hdl/common/periph/PWM.vhd exists.
+    -- EVFAB taps (event_fabric_spec.md 2026-07-24) added to the component so
+    -- default binding sees the FULL entity port list -- task_flttrig carries
+    -- the same '0' default as the entity.
     component PWM is
         port (
             clk         : in  std_logic;
@@ -112,7 +115,11 @@ architecture sim of PWM_tb is
             WEn         : in  std_logic_vector(3 downto 0);
             MABPart     : in  std_logic_vector(7 downto 2);
             wdata       : in  std_logic_vector(31 downto 0);
-            rdata_out   : out std_logic_vector(31 downto 0)
+            rdata_out   : out std_logic_vector(31 downto 0);
+
+            evt_period   : out std_logic;
+            evt_fault    : out std_logic;
+            task_flttrig : in  std_logic := '0'
         );
     end component;
 
@@ -130,6 +137,11 @@ architecture sim of PWM_tb is
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata_out : std_logic_vector(31 downto 0);
 
+    -- ---- EVFAB taps (event_fabric_spec.md 2026-07-24, G-EV) ---------------
+    signal evt_period   : std_logic;
+    signal evt_fault    : std_logic;
+    signal task_flttrig : std_logic := '0';   -- tb-driven, default '0'
+
     -- ---- continuous glitch-freedom monitor (checker independence) ---------
     -- Per-channel shortest-completed-run tracker, windowed via mon_reset.
     -- NEVER reads a DUT internal -- pwm_out is the only signal it samples.
@@ -140,6 +152,20 @@ architecture sim of PWM_tb is
     signal mon_run_low  : nat_arr2 := (others => 0);
     signal mon_prev     : std_logic_vector(1 downto 0) := (others => '0');
     signal mon_clear    : std_logic := '0';
+
+    -- ---- EVFAB pulse monitor (checker independence, G-EV) -----------------
+    -- Continuous background tracker of BOTH tap ports (evt_period/evt_fault):
+    -- counts pulse STARTS (rising transitions) and total HIGH samples, both
+    -- at `clk` rising edges, since the last evt_mon_clear pulse -- mirrors
+    -- mon_proc above but for scalar comb taps rather than run-length. A run
+    -- of exactly N one-clk-wide pulses satisfies starts=N AND highs=N
+    -- simultaneously: any wider pulse pushes highs above starts, and any
+    -- missed pulse leaves starts short. NEVER reads a DUT internal -- only
+    -- the exported evt_period/evt_fault ports.
+    signal evt_period_starts, evt_period_highs : natural := 0;
+    signal evt_fault_starts,  evt_fault_highs  : natural := 0;
+    signal evt_period_prev, evt_fault_prev     : std_logic := '0';
+    signal evt_mon_clear : std_logic := '0';
 
     signal tb_done : boolean := false;
 
@@ -196,21 +222,62 @@ begin
     end process;
 
     ----------------------------------------------------------------------------
+    -- EVFAB pulse monitor (see the signal-declaration comment above): samples
+    -- evt_period/evt_fault (to_X01-normalized) on every clk rising edge,
+    -- windowed via evt_mon_clear the same way mon_proc is windowed via
+    -- mon_clear.
+    ----------------------------------------------------------------------------
+    evt_mon_proc : process(clk)
+        variable p_lvl, f_lvl : std_logic;
+    begin
+        if rising_edge(clk) then
+            p_lvl := to_X01(evt_period);
+            f_lvl := to_X01(evt_fault);
+            if evt_mon_clear = '1' then
+                evt_period_starts <= 0;
+                evt_period_highs  <= 0;
+                evt_fault_starts  <= 0;
+                evt_fault_highs   <= 0;
+                evt_period_prev   <= p_lvl;
+                evt_fault_prev    <= f_lvl;
+            else
+                if p_lvl = '1' then
+                    evt_period_highs <= evt_period_highs + 1;
+                    if evt_period_prev /= '1' then
+                        evt_period_starts <= evt_period_starts + 1;
+                    end if;
+                end if;
+                if f_lvl = '1' then
+                    evt_fault_highs <= evt_fault_highs + 1;
+                    if evt_fault_prev /= '1' then
+                        evt_fault_starts <= evt_fault_starts + 1;
+                    end if;
+                end if;
+                evt_period_prev <= p_lvl;
+                evt_fault_prev  <= f_lvl;
+            end if;
+        end if;
+    end process;
+
+    ----------------------------------------------------------------------------
     -- DUT
     ----------------------------------------------------------------------------
     dut : component PWM
         port map (
-            clk         => clk,
-            resetn      => resetn,
-            irq_fault   => irq_fault,
-            irq_evt     => irq_evt,
-            pwm_out     => pwm_out,
-            ClkMem      => ClkMem,
-            EnMemPeriph => pbus.en_mem,
-            WEn         => pbus.wen,
-            MABPart     => pbus.addr_periph,
-            wdata       => pbus.write_data,
-            rdata_out   => rdata_out
+            clk          => clk,
+            resetn       => resetn,
+            irq_fault    => irq_fault,
+            irq_evt      => irq_evt,
+            pwm_out      => pwm_out,
+            ClkMem       => ClkMem,
+            EnMemPeriph  => pbus.en_mem,
+            WEn          => pbus.wen,
+            MABPart      => pbus.addr_periph,
+            wdata        => pbus.write_data,
+            rdata_out    => rdata_out,
+            evt_period   => evt_period,
+            evt_fault    => evt_fault,
+            task_flttrig => task_flttrig
         );
 
     ----------------------------------------------------------------------------
@@ -272,6 +339,65 @@ begin
             wait until clk = '1';
             wait until clk = '0';
             mon_clear <= '0';
+        end procedure;
+
+        -- ---- G-EV helpers (EVFAB taps) -------------------------------------
+
+        -- Clear the evt_period/evt_fault pulse monitor's accumulators (see
+        -- the signal-declaration comment: mirrors mon_reset exactly). Call
+        -- only OUTSIDE a timing-critical window, same discipline as mon_reset.
+        procedure evt_mon_reset is
+        begin
+            wait until clk = '0';
+            evt_mon_clear <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            evt_mon_clear <= '0';
+        end procedure;
+
+        -- Let exactly `n` clk RISING edges pass, then settle to the following
+        -- falling edge before returning -- so a caller reading evt_period_*/
+        -- evt_fault_* (updated by evt_mon_proc, a process concurrent with
+        -- this one) right after the call never races that process's
+        -- same-delta update on the final edge.
+        procedure wait_edges(n : natural) is
+        begin
+            for i in 1 to n loop
+                wait until clk = '1';
+            end loop;
+            wait until clk = '0';
+        end procedure;
+
+        -- Bounded wait for evt_period to sample '1' on a clk rising edge (used
+        -- once, to absorb the D10 degenerate first-enable boundary before
+        -- G-EV-a opens its exact-count window). Never reads a DUT internal --
+        -- only the exported evt_period port, referenced directly like every
+        -- other local procedure in this bench (clk/pwm_out above).
+        procedure wait_for_evt_period_high(guard : natural; ok : out boolean) is
+            variable g : natural := 0;
+        begin
+            ok := false;
+            loop
+                wait until clk = '1';
+                if to_X01(evt_period) = '1' then
+                    ok := true;
+                    exit;
+                end if;
+                g := g + 1;
+                exit when g > guard;   -- bounded (never hangs)
+            end loop;
+        end procedure;
+
+        -- Drive task_flttrig high across EXACTLY one clk rising edge (same
+        -- held-across-one-edge idiom as mon_reset/evt_mon_reset's mon_clear
+        -- pulse), then drop it back to '0'.
+        procedure pulse_task_flttrig is
+        begin
+            wait until clk = '0';
+            task_flttrig <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            task_flttrig <= '0';
         end procedure;
 
         -- Stage PER/DTY0/DTY1 (buffered waveform words, D9). Safe to call any
@@ -836,6 +962,121 @@ begin
         sb.check_bit("G8d: irq_fault = FLTF & FLTIE = 1", to_X01(irq_fault), '1');
         sb.check_bit("G8d: irq_evt masked (PEVIE=0) despite PEVF=1", to_X01(irq_evt), '0');
         w1c(x"00000003");
+
+        ------------------------------------------------------------------
+        -- GROUP G-EV: EVFAB taps (event_fabric_spec.md 2026-07-24 SS2/SS3)
+        -- evt_period = period_boundary (P-mode, only while PWMEN=1);
+        -- evt_fault = THE fault SET condition (register FLTTRIG edge OR the
+        -- task_flttrig pulse, both FLTEN-gated) -- fires identically whether
+        -- the trip came from the register or the fabric task. Pulse counts
+        -- are proven with the continuous evt_mon_proc background monitor
+        -- (checker independence: it only samples the exported evt_period/
+        -- evt_fault ports, never a DUT internal), windowed via evt_mon_reset
+        -- the same way G2's glitch monitor is windowed via mon_reset.
+        ------------------------------------------------------------------
+        report "=== GROUP G-EV: EVFAB taps (evt_period/evt_fault/task_flttrig) ===" severity note;
+
+        -- G-EV-a: evt_period, engine running. PER=15 (period=16 clk), same
+        -- shape as G1a. Enabling PWMEN degenerately self-commits per_active
+        -- at the very first psc_tick (D10 corner, same mechanism G1a relies
+        -- on implicitly) -- absorb that one pulse with a bounded wait before
+        -- opening the exact-count window, so the window only spans the two
+        -- REAL, settled 16-clk periods.
+        reset_pulse;
+        stage_waveform(15, 4, 8);
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '0', '0', "0000"));
+        wait_for_evt_period_high(PWM_POLL_GUARD, ok);
+        sb.check_true("G-EV a0: evt_period pulses at PWMEN-enable (D10 degenerate first boundary, bounded wait)", ok);
+
+        evt_mon_reset;
+        wait_edges(32);   -- exactly 2 full periods (2 * 16 clk)
+        sb.check_true("G-EV a1: evt_period pulses exactly 2 times over 2 full periods", evt_period_starts = 2);
+        sb.check_true("G-EV a2: every evt_period pulse is exactly one clk wide (highs = starts)",
+                      evt_period_highs = evt_period_starts);
+
+        -- PWMEN=0: zero evt_period pulses over a bounded window.
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('0', '1', '1', '0', '0', '0', '0', "0000"));
+        evt_mon_reset;
+        wait_edges(40);
+        sb.check_true("G-EV a3: evt_period never pulses while PWMEN=0 (bounded 40-clk window)",
+                      evt_period_starts = 0 and evt_period_highs = 0);
+
+        -- G-EV-b: evt_fault via the REGISTER FLTTRIG path. FLTEN=1 -> a
+        -- write-1/restore FLTTRIG pair (A2: explicit act) produces exactly
+        -- one evt_fault pulse; FLTEN=0 -> the same write pair produces none.
+        reset_pulse;
+        stage_waveform(15, 4, 8);
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '1', '0', "0000")); -- FLTEN=1
+        evt_mon_reset;
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '1', '1', "0000")); -- FLTTRIG=1
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '1', '0', "0000")); -- restore
+        wait_edges(8);
+        sb.check_true("G-EV b1: evt_fault pulses exactly once for a register FLTTRIG write (FLTEN=1)",
+                      evt_fault_starts = 1);
+        sb.check_true("G-EV b2: that evt_fault pulse is exactly one clk wide", evt_fault_highs = 1);
+        w1c(x"00000001");   -- clear FLTF before the next leg
+
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '0', '0', "0000")); -- FLTEN=0
+        evt_mon_reset;
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '0', '1', "0000")); -- FLTTRIG=1
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '0', '0', "0000")); -- restore
+        wait_edges(8);
+        sb.check_true("G-EV b3: evt_fault never pulses from a register FLTTRIG write while FLTEN=0",
+                      evt_fault_starts = 0 and evt_fault_highs = 0);
+
+        -- G-EV-c: evt_fault via the EVFAB TASK pulse (task_flttrig), FLTEN=1.
+        -- SAFE0=1/SAFE1=0 (differs from POL-derived, same discipline as G5)
+        -- so the safe-force is unambiguous against normal running levels.
+        -- A one-clk task_flttrig pulse must trip FLTF exactly like a
+        -- register FLTTRIG write: one evt_fault pulse, FLTF=1, outputs go
+        -- SAFE, and a W1C resumes normal tracking.
+        reset_pulse;
+        stage_waveform(15, 4, 8);
+        bus_write(clk, pbus, PWM_SLOT_POL, pwm_mk_pol('0', '0', '1', '0'));   -- SAFE0=1, SAFE1=0
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '1', '0', "0000")); -- FLTEN=1
+        measure_cycle(0, hi, lo, ok);
+        sb.check_true("G-EV c0: CH0 baseline running before the task pulse", ok and hi = 4);
+
+        evt_mon_reset;
+        pulse_task_flttrig;   -- exactly one clk high
+        wait_edges(4);
+        sb.check_true("G-EV c1: evt_fault pulses exactly once for a task_flttrig pulse (FLTEN=1)",
+                      evt_fault_starts = 1);
+        sb.check_true("G-EV c2: that evt_fault pulse is exactly one clk wide", evt_fault_highs = 1);
+
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_SR, rdw);
+        sb.check_bit("G-EV c3: FLTF reads 1 after the task_flttrig pulse (trips exactly like a "
+                     & "register FLTTRIG)", to_X01(rdw(PWM_SR_FLTF)), '1');
+        sb.check_bit("G-EV c4: pwm_out(0) forced to SAFE0=1", to_X01(pwm_out(0)), '1');
+        sb.check_bit("G-EV c5: pwm_out(1) forced to SAFE1=0", to_X01(pwm_out(1)), '0');
+
+        w1c(x"00000001");   -- W1C FLTF
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_SR, rdw);
+        sb.check_bit("G-EV c6: FLTF cleared after W1C", to_X01(rdw(PWM_SR_FLTF)), '0');
+        measure_cycle(0, hi, lo, ok);
+        sb.check_true("G-EV c7: CH0 resumes tracking the running comparator after W1C (measured)",
+                      ok and hi = 4);
+
+        -- G-EV-d: task_flttrig is INERT when FLTEN=0 -- no evt_fault, FLTF
+        -- stays 0, outputs unaffected (mirrors G6c's register-path corner).
+        reset_pulse;
+        stage_waveform(15, 4, 8);
+        bus_write(clk, pbus, PWM_SLOT_CR, pwm_mk_cr('1', '1', '1', '0', '0', '0', '0', "0000")); -- FLTEN=0
+        measure_cycle(0, hi, lo, ok);
+        sb.check_true("G-EV d0: CH0 baseline running before the inert task pulse", ok and hi = 4);
+
+        evt_mon_reset;
+        pulse_task_flttrig;
+        wait_edges(4);
+        sb.check_true("G-EV d1: evt_fault never pulses from task_flttrig while FLTEN=0",
+                      evt_fault_starts = 0 and evt_fault_highs = 0);
+
+        bus_read(clk, pbus, rdata_out, PWM_SLOT_SR, rdw);
+        sb.check_bit("G-EV d2: FLTF stays 0 (a task pulse with FLTEN=0 does nothing)",
+                     to_X01(rdw(PWM_SR_FLTF)), '0');
+        measure_cycle(0, hi, lo, ok);
+        sb.check_true("G-EV d3: CH0 output unaffected by the inert task pulse (still running, duty=4)",
+                      ok and hi = 4);
 
         ------------------------------------------------------------------
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE

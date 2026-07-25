@@ -81,7 +81,10 @@ architecture sim of RTC_tb is
     constant CMP_BOUND : natural := 8;
 
     -- FROZEN DUT entity (design doc D3), declared as a component so the bench
-    -- compiles standalone before hdl/common/periph/RTC.vhd exists.
+    -- compiles standalone before hdl/common/periph/RTC.vhd exists. EVFAB taps
+    -- (event_fabric_spec.md 2026-07-24) added to the component so default
+    -- binding sees the FULL entity port list -- evt_alarm/evt_tick are the D10
+    -- synchronized event edges, PRE-IE (mirrors PWM_tb.vhd's G-EV addition).
     component RTC is
         port (
             clk         : in  std_logic;
@@ -93,7 +96,10 @@ architecture sim of RTC_tb is
             WEn         : in  std_logic_vector(3 downto 0);
             MABPart     : in  std_logic_vector(7 downto 2);
             wdata       : in  std_logic_vector(31 downto 0);
-            rdata_out   : out std_logic_vector(31 downto 0)
+            rdata_out   : out std_logic_vector(31 downto 0);
+
+            evt_alarm   : out std_logic;
+            evt_tick    : out std_logic
         );
     end component;
 
@@ -109,6 +115,24 @@ architecture sim of RTC_tb is
     -- register bus
     signal pbus      : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata_out : std_logic_vector(31 downto 0);
+
+    -- ---- EVFAB taps (event_fabric_spec.md 2026-07-24, G-EV) ---------------
+    signal evt_alarm : std_logic;
+    signal evt_tick  : std_logic;
+
+    -- ---- EVFAB pulse monitor (checker independence, G-EV) -----------------
+    -- Continuous background tracker of BOTH tap ports (evt_alarm/evt_tick):
+    -- counts pulse STARTS (rising transitions) and total HIGH samples, both
+    -- at `clk` rising edges, since the last evt_mon_clear pulse -- mirrors
+    -- PWM_tb.vhd's evt_mon_proc exactly. A run of exactly N one-clk-wide
+    -- pulses satisfies starts=N AND highs=N simultaneously: any wider pulse
+    -- pushes highs above starts, and any missed pulse leaves starts short.
+    -- NEVER reads a DUT internal -- only the exported evt_alarm/evt_tick
+    -- ports.
+    signal evt_alarm_starts, evt_alarm_highs : natural := 0;
+    signal evt_tick_starts,  evt_tick_highs  : natural := 0;
+    signal evt_alarm_prev, evt_tick_prev     : std_logic := '0';
+    signal evt_mon_clear : std_logic := '0';
 
     -- ---- TB independent wall-clock reference (checker independence) -------
     -- ref_count counts lfxt_in rising edges while ref_en='1'; ref_load anchors
@@ -149,6 +173,44 @@ begin
     end process;
 
     ----------------------------------------------------------------------------
+    -- EVFAB pulse monitor (see the signal-declaration comment above): samples
+    -- evt_alarm/evt_tick (to_X01-normalized) on every clk rising edge,
+    -- windowed via evt_mon_clear the same way PWM_tb.vhd's evt_mon_proc is
+    -- windowed via its evt_mon_clear.
+    ----------------------------------------------------------------------------
+    evt_mon_proc : process(clk)
+        variable a_lvl, t_lvl : std_logic;
+    begin
+        if rising_edge(clk) then
+            a_lvl := to_X01(evt_alarm);
+            t_lvl := to_X01(evt_tick);
+            if evt_mon_clear = '1' then
+                evt_alarm_starts <= 0;
+                evt_alarm_highs  <= 0;
+                evt_tick_starts  <= 0;
+                evt_tick_highs   <= 0;
+                evt_alarm_prev   <= a_lvl;
+                evt_tick_prev    <= t_lvl;
+            else
+                if a_lvl = '1' then
+                    evt_alarm_highs <= evt_alarm_highs + 1;
+                    if evt_alarm_prev /= '1' then
+                        evt_alarm_starts <= evt_alarm_starts + 1;
+                    end if;
+                end if;
+                if t_lvl = '1' then
+                    evt_tick_highs <= evt_tick_highs + 1;
+                    if evt_tick_prev /= '1' then
+                        evt_tick_starts <= evt_tick_starts + 1;
+                    end if;
+                end if;
+                evt_alarm_prev <= a_lvl;
+                evt_tick_prev  <= t_lvl;
+            end if;
+        end if;
+    end process;
+
+    ----------------------------------------------------------------------------
     -- DUT
     ----------------------------------------------------------------------------
     dut : component RTC
@@ -162,7 +224,9 @@ begin
             WEn         => pbus.wen,
             MABPart     => pbus.addr_periph,
             wdata       => pbus.write_data,
-            rdata_out   => rdata_out
+            rdata_out   => rdata_out,
+            evt_alarm   => evt_alarm,
+            evt_tick    => evt_tick
         );
 
     ----------------------------------------------------------------------------
@@ -208,6 +272,20 @@ begin
         begin
             bus_write(clk, pbus, RTC_SLOT_SR, mask);
             bus_read (clk, pbus, rdata_out, RTC_SLOT_CR, r);
+        end procedure;
+
+        -- ---- G-EV helper (EVFAB taps) ---------------------------------------
+
+        -- Clear the evt_alarm/evt_tick pulse monitor's accumulators (mirrors
+        -- PWM_tb.vhd's evt_mon_reset exactly -- held-across-one-edge idiom).
+        -- Call only OUTSIDE a timing-critical window.
+        procedure evt_mon_reset is
+        begin
+            wait until clk = '0';
+            evt_mon_clear <= '1';
+            wait until clk = '1';
+            wait until clk = '0';
+            evt_mon_clear <= '0';
         end procedure;
 
         -- Read the coherent SEC/SUB snapshot pair and return the TB 47-bit
@@ -637,6 +715,122 @@ begin
                       dut47 > to_unsigned(0, RTC_CNT_BITS));
         sb.check_true("G7b: restarted count tracks reference within bound",
                       rtc_within(dut47, ref_lo, CMP_BOUND) and (dut47 <= ref_hi));
+
+        ------------------------------------------------------------------
+        -- GROUP G-EV: EVFAB taps (event_fabric_spec.md 2026-07-24)
+        -- evt_alarm/evt_tick are the SAME D10 synchronized event edges the
+        -- sticky ALMF/TICKF flags set from, exported PRE-IE -- ALMIE/TICKIE
+        -- must have ZERO effect on them (RTC.vhd header, EVFAB producer taps
+        -- comment). Pulse counts are proven with the continuous evt_mon_proc
+        -- background monitor (checker independence: it only samples the
+        -- exported evt_alarm/evt_tick ports, never a DUT internal), windowed
+        -- via evt_mon_reset the same way PWM_tb.vhd's G-EV group is windowed.
+        -- Mirrors that bench's monitor approach; the alarm/tick provocations
+        -- below reuse this bench's own G4/G5 setups (near-wrap set_time +
+        -- fast PER=4 cadence) so timing stays inside the 1-minute rule.
+        ------------------------------------------------------------------
+        report "=== GROUP G-EV: EVFAB taps (evt_alarm/evt_tick) ===" severity note;
+
+        -- G-EV-a: evt_tick pulse count vs. TICKF, PER=4 (cadence 5 lfxt
+        -- ticks, same fastest-tick setup G5 uses). Catch + clear the first
+        -- ("prime") tick outside the window -- its phase includes the
+        -- enable-cross CDC latency, same as G5 -- then open the evt monitor
+        -- and catch exactly 5 more ticks via the bus-timed SR
+        -- poll/W1C idiom (already proven by G5's cadence measurement) while
+        -- counting evt_tick pulses concurrently and independently.
+        bus_write(clk, pbus, RTC_SLOT_PER, x"00000004");   -- PER = 4
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        sb.check_true("G-EV a0: PER commit SR.SYNC cleared", ok);
+        bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '1', '0', '1')); -- RTCEN|TICKEN|TICKIE
+
+        rtc_wait_flag(clk, pbus, rdata_out, RTC_SR_TICKF, '1', ok);
+        sb.check_true("G-EV a1: first TICKF observed (bounded, priming the cadence)", ok);
+        w1c(x"00000004");
+
+        evt_mon_reset;
+        tickcnt := 0;
+        for i in 0 to 4 loop                           -- 5 more ticks
+            rtc_wait_flag(clk, pbus, rdata_out, RTC_SR_TICKF, '1', ok);
+            sb.check_true("G-EV a2: TICKF recurs (bounded wait)", ok);
+            w1c(x"00000004");
+            tickcnt := tickcnt + 1;
+        end loop;
+        sb.check_true("G-EV a3: evt_tick pulses exactly N times matching N TICKF events",
+                      evt_tick_starts = tickcnt);
+        sb.check_true("G-EV a4: every evt_tick pulse is exactly one clk wide (highs = starts)",
+                      evt_tick_highs = evt_tick_starts);
+
+        -- Hygiene: disable tick engine, clear flags.
+        bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
+        w1c(x"00000006");
+
+        -- G-EV-b: evt_alarm, one alarm match (reuses G4a's exact setup shape:
+        -- near-wrap set-time, ALM = SEC+1, RTCEN|ALMEN|ALMIE) -> exactly one
+        -- evt_alarm pulse, one clk wide.
+        set_time(x"00000700", "111111100000000");      -- SEC=0x700, SUB=0x7F00
+        bus_write(clk, pbus, RTC_SLOT_ALM, x"00000701");   -- ALM = 0x701
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        sb.check_true("G-EV b0: ALM commit SR.SYNC cleared", ok);
+
+        evt_mon_reset;
+        bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '1', '0', '1', '0')); -- RTCEN|ALMEN|ALMIE
+        rtc_wait_flag(clk, pbus, rdata_out, RTC_SR_ALMF, '1', ok);
+        sb.check_true("G-EV b1: ALMF set at the alarm match (bounded wait)", ok);
+        sb.check_true("G-EV b2: evt_alarm pulsed exactly once for the alarm match",
+                      evt_alarm_starts = 1);
+        sb.check_true("G-EV b3: that evt_alarm pulse is exactly one clk wide",
+                      evt_alarm_highs = 1);
+
+        -- Hygiene: disable alarm engine, clear flags.
+        bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
+        w1c(x"00000002");
+
+        -- G-EV-c: THE DISCIPLINE CHECK -- mask BOTH IE (ALMIE=0, TICKIE=0)
+        -- and provoke a fresh tick + alarm (same near-wrap PER=4/ALM=SEC+1
+        -- shape as G6's make_both_pending, but with IE=0 instead of IE=1):
+        -- evt_tick/evt_alarm must STILL pulse (pre-IE taps) and irq_rtc must
+        -- stay LOW throughout, proving ALMIE/TICKIE have zero effect on them.
+        set_time(x"00000800", "111111100000000");      -- SEC=0x800, SUB=0x7F00
+        bus_write(clk, pbus, RTC_SLOT_ALM, x"00000801");   -- ALM = 0x801
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        bus_write(clk, pbus, RTC_SLOT_PER, x"00000004");   -- PER = 4
+        rtc_wait_sync_clear(clk, pbus, rdata_out, ok);
+        w1c(x"00000006");                                  -- clear any stale flags
+
+        evt_mon_reset;
+        bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '1', '1', '0', '0')); -- RTCEN|ALMEN|TICKEN, both IE=0
+        sb.check_bit("G-EV c0: irq_rtc low right after enabling with both IE=0",
+                     to_X01(irq_rtc), '0');
+
+        rtc_wait_flag(clk, pbus, rdata_out, RTC_SR_TICKF, '1', ok);
+        sb.check_true("G-EV c1: TICKF still sets with TICKIE=0 (bounded wait)", ok);
+        sb.check_true("G-EV c2: evt_tick still pulsed (>=1) with TICKIE=0 (pre-IE tap)",
+                      evt_tick_starts >= 1);
+        sb.check_bit("G-EV c3: irq_rtc stays low with TICKF pending but TICKIE=0",
+                     to_X01(irq_rtc), '0');
+        w1c(x"00000004");                                  -- W1C TICKF (TICKEN stays on)
+
+        rtc_wait_flag(clk, pbus, rdata_out, RTC_SR_ALMF, '1', ok);
+        sb.check_true("G-EV c4: ALMF still sets with ALMIE=0 (bounded wait)", ok);
+        sb.check_true("G-EV c5: evt_alarm still pulsed exactly once with ALMIE=0 (pre-IE tap, one-shot)",
+                      evt_alarm_starts = 1);
+        sb.check_true("G-EV c6: that evt_alarm pulse is exactly one clk wide",
+                      evt_alarm_highs = 1);
+        sb.check_bit("G-EV c7: irq_rtc stays low with ALMF pending but ALMIE=0",
+                     to_X01(irq_rtc), '0');
+
+        -- Hygiene: disable engines, clear flags.
+        bus_write(clk, pbus, RTC_SLOT_CR, rtc_mk_cr('1', '0', '0', '0', '0'));
+        w1c(x"00000006");
+
+        -- G-EV-d: quiet window -- both engines disabled, flags clear, nothing
+        -- pending -> both taps stay 0 over a bounded window.
+        evt_mon_reset;
+        wait for 200 * (2 * LFXT_HALF);                    -- ~200 lfxt ticks, idle
+        sb.check_true("G-EV d1: evt_tick stays 0 with nothing pending (bounded window)",
+                      evt_tick_starts = 0 and evt_tick_highs = 0);
+        sb.check_true("G-EV d2: evt_alarm stays 0 with nothing pending (bounded window)",
+                      evt_alarm_starts = 0 and evt_alarm_highs = 0);
 
         ------------------------------------------------------------------
         -- GROUP G-NEG: NEGATIVE CONTROL (mandatory, LAST) -- exactly ONE

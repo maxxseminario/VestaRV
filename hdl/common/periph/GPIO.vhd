@@ -55,8 +55,18 @@ entity GPIO is
         -- mode (PxSEL(i)='1') drives the plane selected by its PxAFS field.
 		alt_func_out_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt funcs' desired output signals
 		alt_func_dir_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt funcs' desired data direction
-		alt_func_ren_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0)	-- The alt funcs' desired resistor enable state
+		alt_func_ren_in		: in	std_logic_vector(GPIO_NUM_AFS * num_pins - 1 downto 0);	-- The alt funcs' desired resistor enable state
 
+        -- EVFAB taps (event fabric, event_fabric_spec.md 2026-07-24).
+        -- evt_edge_raw: the PRE-MASK edge-select comb vector (prt_in xor PxIES)
+        -- -- PxIE is NEVER consulted (GPIO's own IF applies the mask at the
+        -- set, so this raw export is the ONLY discipline-clean tap). The
+        -- fabric does the per-bit 2-FF + rising-edge + EVGPIOMASK selection.
+        -- task_outset/task_outclr: one-clk fabric pulses setting/clearing the
+        -- PxTASK-selected output pins (T7/T8; CLR wins a same-cycle overlap).
+        evt_edge_raw       : out std_logic_vector(num_pins - 1 downto 0);
+        task_outset        : in  std_logic := '0';
+        task_outclr        : in  std_logic := '0'
     );
 end GPIO;
 
@@ -84,6 +94,10 @@ architecture behavioral of GPIO is
     signal PxIF_ltch : std_logic_vector(num_pins - 1 downto 0);	-- Latched version of PxIF
 
     signal clk_if_comb : std_logic_vector(num_pins - 1 downto 0);	-- combinational interrupt flag clock
+    signal PxTASK      : std_logic_vector(num_pins - 1 downto 0);	-- EVFAB task pin-select (which pins task_outset/clr act on)
+    -- EVFAB: TASKPINS slot, LOCAL constant (first free GPIO slot; the generated
+    -- MemoryMap.vhd constant + TRM row land with the chipgen knob, not here)
+    constant RegSlotPxTASK : natural := 12;
     signal clk_if : std_logic_vector(num_pins - 1 downto 0);	-- enabled interrupt flag clock
     signal clr_if : std_logic_vector(num_pins - 1 downto 0);	-- Clear interrupt flag signal, active high
 
@@ -157,6 +171,7 @@ begin
 
     -- Interrupts 
     clk_if_comb <= prt_in xor PxIES; -- Generate clock with selected edge
+    evt_edge_raw <= clk_if_comb;     -- EVFAB EV15 raw export (pre-mask, pre-sync)
     -- irq <= '1' when (or PxIF) = '1' else '0';
     -- irq <= '1' when PxIF /= zero_vector else '0'; -- IRQ is high if any interrupt flag is set
 
@@ -210,6 +225,7 @@ begin
             end loop;
             PxIES <= (others => '0');
             PxIE  <= (others => '0');
+            PxTASK <= (others => '0');   -- EVFAB task pin-select: inert out of reset
         elsif rising_edge(clk_mem) then
             if en = '0' then --system enabled, active low
                 case en_addr_periph is
@@ -293,9 +309,33 @@ begin
                                 PxIE((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8)); 
                             end if;
                         end loop;
+                    when RegSlotPxTASK =>
+                        for i in 0 to (num_pins / 8) - 1 loop
+                            if wen(i) = '0' then
+                                PxTASK((i * 8) + 7 downto (i * 8)) <= write_data((i * 8) + 7 downto (i * 8));
+                            end if;
+                        end loop;
                     when others =>
                         null;
                 end case;
+            end if;
+
+            -- EVFAB consumer tasks (event fabric, event_fabric_spec.md
+            -- 2026-07-24): one-clk fabric pulses acting on the PxTASK-selected
+            -- pins, OUTSIDE the en gate (clk_mem free-runs at integration) and
+            -- AFTER the register case (a task wins its pins on a coincident
+            -- CPU write); CLR is evaluated after SET so a same-cycle set+clr
+            -- on an overlapping pin resolves to CLR (safe direction, the
+            -- TIMER stop-wins rule). TOGGLE is deliberately NOT offered.
+            if task_outset = '1' then
+                for j in 0 to num_pins - 1 loop
+                    if PxTASK(j) = '1' then PxOUT(j) <= '1'; end if;
+                end loop;
+            end if;
+            if task_outclr = '1' then
+                for j in 0 to num_pins - 1 loop
+                    if PxTASK(j) = '1' then PxOUT(j) <= '0'; end if;
+                end loop;
             end if;
         end if;
 
@@ -329,6 +369,7 @@ begin
             PxIES			when RegSlotPxIES,
             PxIE			when RegSlotPxIE,
             PxAFS_nib(num_pins - 1 downto 0)	when RegSlotPxAFS,
+            PxTASK			when RegSlotPxTASK,
             (others => '0') when others;
 
 

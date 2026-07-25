@@ -54,7 +54,8 @@
     "dmaChannels": 4,
     "i2ctarget": false,
     "trng": false,
-    "trngRings": 8
+    "trngRings": 8,
+    "eventFabric": false
   },
   "package": {
     "model": "myshkin-qfn44",

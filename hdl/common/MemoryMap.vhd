@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/24 at 01:25:41 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/24 at 21:10:09 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -88,6 +88,7 @@ package MemoryMap is
 	constant RegSlotPxSEL			: natural := 09;	-- offset = 36 bytes
 	constant RegSlotPxREN			: natural := 10;	-- offset = 40 bytes
 	constant RegSlotPxAFS			: natural := 11;	-- offset = 44 bytes
+	constant RegSlotPxTASK			: natural := 12;	-- offset = 48 bytes
 
 	-- Number of alternate-function planes per GPIO pin (AF0..AF7). PxSEL picks
 	-- GPIO vs alternate mode; the pin's PxAFS field (one nibble per pin, low
@@ -421,6 +422,10 @@ package MemoryMap is
 	constant PxAFS1_LSB				: natural := 04;
 	constant PxAFS0_MSB				: natural := 02;
 	constant PxAFS0_LSB				: natural := 00;
+
+	-- PxTASK
+	constant PxTASK_MSB				: natural := 31;
+	constant PxTASK_LSB				: natural := 00;
 
 
 	------ SPIx

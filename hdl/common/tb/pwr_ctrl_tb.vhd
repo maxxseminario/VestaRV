@@ -24,6 +24,14 @@
 --      PWRSR word above NSRW reads 0.
 --   8. independence: with the boot gate armed-and-released, the tile MTCMOS
 --      sequencer still gates/wakes tile 1 (the two FSMs are independent).
+--   9. EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): W_TASKWKM
+--      (word 7) RW readback (walking-1 over NHARTS-1:1, bit 0 + OOR bits
+--      read 0, reset 0); a task_wake pulse clears gate_req where task_wkm=1
+--      and the FSM sequences rail-up exactly like a register-cleared gate;
+--      mask=0 pulse is a no-op; selectivity across two gated tiles; a
+--      coincident PWRCR write + task_wake pulse in the same cycle merges
+--      (task's masked bit ends 0, other bits take the CPU value); the DP-S3
+--      boot gate (pgood_rstn/rls_latch) is untouched by task_wake pulses.
 --
 -- Run: xcelium/mp_test/run_pwr_ctrl.sh (compiles this against
 -- hdl/common/pwr_ctrl.vhd only — no other DUT dependencies). Small delay
@@ -66,14 +74,19 @@ architecture tb of pwr_ctrl_tb is
     signal field_detect : std_logic := '0';
     signal pgood_rstn   : std_logic;
 
+    -- EVFAB task-wake tap (event_fabric_spec.md 2026-07-24): one-mclk pulse,
+    -- default inert like the DUT port default.
+    signal task_wake : std_logic := '0';
+
     signal done  : boolean := false;
     signal fails : integer := 0;
 
     -- register word offsets (mirror the DUT map)
-    constant PWRCR   : natural := 0;
-    constant PWRSR0  : natural := 1;
-    constant PWRWAKE : natural := 5;
-    constant PWRSTS  : natural := 6;
+    constant PWRCR    : natural := 0;
+    constant PWRSR0   : natural := 1;
+    constant PWRWAKE  : natural := 5;
+    constant PWRSTS   : natural := 6;
+    constant TASKWKM  : natural := 7;
 
     -- PWRWAKE bits
     constant GATE_EN    : std_logic_vector(31 downto 0) := x"00000001";
@@ -121,7 +134,8 @@ begin
             pgood_pad    => pgood_pad,
             strap_pad    => strap_pad,
             field_detect => field_detect,
-            pgood_rstn   => pgood_rstn
+            pgood_rstn   => pgood_rstn,
+            task_wake    => task_wake
         );
 
     stim: process
@@ -159,6 +173,17 @@ begin
             wait until rising_edge(clk);
             en <= '0';
             we <= "0000";
+            wait until rising_edge(clk);
+        end procedure;
+
+        -- one-mclk task_wake pulse (same idiom as bus_write: asserted after
+        -- one clock edge, sampled by the DUT at the next, deasserted after).
+        procedure pulse_task_wake is
+        begin
+            wait until rising_edge(clk);
+            task_wake <= '1';
+            wait until rising_edge(clk);
+            task_wake <= '0';
             wait until rising_edge(clk);
         end procedure;
 
@@ -205,6 +230,9 @@ begin
         variable rd  : std_logic_vector(31 downto 0);
         variable sr  : std_logic_vector(31 downto 0);
         variable ok  : boolean;
+        variable ok2 : boolean;
+        variable wv  : std_logic_vector(31 downto 0);
+        variable exp : std_logic_vector(31 downto 0);
     begin
         -- initial pad ties for case 1 (unused-feature config)
         pgood_pad    <= '1';
@@ -377,6 +405,148 @@ begin
         -- boot gate must be untouched by the tile activity
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "8: tile activity disturbed the boot gate");
+
+        -- === 9. EVFAB task-wake tap ==========================================
+        strap_pad    <= '0';
+        pgood_pad    <= '1';
+        field_detect <= '0';
+        task_wake    <= '0';
+        do_reset;
+
+        -- --- 9a. W_TASKWKM RW readback: reset 0, walking-1, bit0 + OOR RO 0
+        bus_read(TASKWKM, rd);
+        check(rd = x"00000000", "9a: TASKWKM not 0 at reset");
+        for h in 1 to NHARTS-1 loop
+            wv := (others => '0');
+            wv(h) := '1';
+            bus_write(TASKWKM, wv, "1111");
+            bus_read(TASKWKM, rd);
+            check(rd = wv, "9a: TASKWKM walking-1 bit " & integer'image(h) & " readback wrong");
+        end loop;
+        -- bit 0 (hart 0, always-on) has no storage -> RO 0
+        bus_write(TASKWKM, x"00000001", "1111");
+        bus_read(TASKWKM, rd);
+        check(rd = x"00000000", "9a: TASKWKM bit 0 not RO 0");
+        -- out-of-range bit (just above NHARTS-1) has no storage -> RO 0
+        wv := (others => '0');
+        wv(NHARTS) := '1';
+        bus_write(TASKWKM, wv, "1111");
+        bus_read(TASKWKM, rd);
+        check(rd = x"00000000", "9a: TASKWKM out-of-range bit not RO 0");
+        -- all-ones write: only NHARTS-1:1 sticks
+        bus_write(TASKWKM, x"FFFFFFFF", "1111");
+        exp := (others => '0');
+        exp(NHARTS-1 downto 1) := (others => '1');
+        bus_read(TASKWKM, rd);
+        check(rd = exp, "9a: TASKWKM all-ones write did not mask to NHARTS-1:1");
+        bus_write(TASKWKM, x"00000000", "1111");   -- clean up
+
+        -- --- 9b. task wake basics: gate tile 1, mask tile 1, pulse -> wakes
+        bus_write(PWRCR, x"00000002", "1111");      -- gate tile 1
+        poll_nibble(1, N_OFF, ok);
+        check(ok, "9b: tile 1 did not reach OFF before task-wake");
+        wv := (others => '0');
+        wv(1) := '1';
+        bus_write(TASKWKM, wv, "1111");             -- mask selects tile 1
+        pulse_task_wake;
+        bus_read(PWRCR, rd);
+        check(rd(1) = '0', "9b: task_wake did not clear gate_req(1)");
+        poll_nibble(1, N_ON, ok);
+        check(ok, "9b: tile 1 did not sequence rail-up after task_wake");
+        check(pd_iso_en(1) = '0', "9b: pd_iso_en(1) not released after task-wake");
+        check(pd_sleep(1)  = '0', "9b: pd_sleep(1) not released after task-wake");
+        check(pd_rstn(1)   = '1', "9b: pd_rstn(1) not released after task-wake");
+        bus_write(TASKWKM, x"00000000", "1111");    -- clean up
+
+        -- --- 9c. mask=0: pulse changes nothing
+        bus_write(PWRCR, x"00000002", "1111");      -- gate tile 1 again
+        poll_nibble(1, N_OFF, ok);
+        check(ok, "9c: tile 1 did not reach OFF before mask=0 pulse");
+        pulse_task_wake;                            -- task_wkm still all-0
+        tick(4);
+        bus_read(PWRCR, rd);
+        check(rd(1) = '1', "9c: mask=0 task_wake cleared gate_req(1)");
+        bus_read(PWRSR0, sr);
+        check(sr(4*1+3 downto 4*1) = N_OFF, "9c: mask=0 task_wake moved tile 1 out of OFF");
+        -- wake tile 1 back the ordinary way, ready for the next check
+        bus_write(PWRCR, x"00000000", "1111");
+        poll_nibble(1, N_ON, ok);
+        check(ok, "9c: tile 1 did not wake via PWRCR after mask=0 pulse check");
+
+        -- --- 9d. selectivity: two tiles gated, mask selects only tile 1
+        bus_write(PWRCR, x"00000006", "1111");      -- gate tiles 1 and 2
+        poll_nibble(1, N_OFF, ok);
+        poll_nibble(2, N_OFF, ok2);
+        check(ok  and ok2, "9d: tiles 1/2 did not both reach OFF");
+        wv := (others => '0');
+        wv(1) := '1';                                -- mask: tile 1 only
+        bus_write(TASKWKM, wv, "1111");
+        pulse_task_wake;
+        bus_read(PWRCR, rd);
+        check(rd(1) = '0', "9d: masked tile 1 did not clear");
+        check(rd(2) = '1', "9d: unmasked tile 2 was disturbed");
+        poll_nibble(1, N_ON, ok);
+        check(ok, "9d: masked tile 1 did not wake");
+        bus_read(PWRSR0, sr);
+        check(sr(4*2+3 downto 4*2) = N_OFF, "9d: unmasked tile 2 left OFF");
+        check(pd_rstn(2) = '0', "9d: unmasked tile 2 pd_rstn disturbed");
+        bus_write(TASKWKM, x"00000000", "1111");
+        bus_write(PWRCR, x"00000000", "1111");       -- clean up: wake tile 2 too
+        poll_nibble(2, N_ON, ok2);
+        check(ok2, "9d: tile 2 did not wake on cleanup");
+
+        -- --- 9e. merge/precedence: coincident PWRCR write + task_wake pulse.
+        -- Both tiles are ON here. task_wkm still selects tile 1 (set below).
+        -- The CPU write asks to gate BOTH tiles 1 and 2 in the same cycle the
+        -- task_wake pulse fires; the masked bit (tile 1) must end 0 (task
+        -- wins) while the unmasked bit (tile 2) takes the CPU value (1).
+        wv := (others => '0');
+        wv(1) := '1';
+        bus_write(TASKWKM, wv, "1111");
+        wait until rising_edge(clk);
+        en    <= '1';
+        we    <= "1111";
+        addr  <= conv_std_logic_vector(PWRCR, 4);
+        wdata <= x"00000006";                        -- CPU asks: gate 1 and 2
+        task_wake <= '1';                             -- coincident pulse
+        wait until rising_edge(clk);                  -- DUT samples both this edge
+        en        <= '0';
+        we        <= "0000";
+        task_wake <= '0';
+        wait until rising_edge(clk);
+        bus_read(PWRCR, rd);
+        check(rd(1) = '0', "9e: merge did not let task win the masked bit");
+        check(rd(2) = '1', "9e: merge did not preserve the CPU value on the unmasked bit");
+        poll_nibble(2, N_OFF, ok);
+        check(ok, "9e: unmasked tile 2 did not gate per the CPU write");
+        bus_read(PWRSR0, sr);
+        check(sr(4*1+3 downto 4*1) = N_ON, "9e: masked tile 1 was gated despite task_wake clearing its bit");
+        bus_write(TASKWKM, x"00000000", "1111");
+        bus_write(PWRCR, x"00000000", "1111");        -- clean up: wake tile 2
+        poll_nibble(2, N_ON, ok2);
+        check(ok2, "9e: tile 2 did not wake on cleanup");
+
+        -- --- 9f. boot-gate isolation: task_wake pulses during normal-on
+        -- state must not perturb pgood_rstn / PWRSTS (rls_latch/boot_hold).
+        strap_pad    <= '0';
+        pgood_pad    <= '1';
+        field_detect <= '0';
+        do_reset;                                     -- normal-on: gate released
+        bus_read(PWRSTS, rd);
+        check(pgood_rstn      = '1', "9f: pgood_rstn not released before task_wake probing");
+        check(rd(B_BOOT_HOLD) = '0', "9f: BOOT_HOLD set before task_wake probing");
+        wv := (others => '0');
+        wv(NHARTS-1 downto 1) := (others => '1');      -- mask = every tile
+        bus_write(TASKWKM, wv, "1111");
+        pulse_task_wake;
+        pulse_task_wake;
+        pulse_task_wake;
+        tick(4);
+        check(pgood_rstn = '1', "9f: pgood_rstn disturbed by task_wake pulses");
+        bus_read(PWRSTS, rd);
+        check(rd(B_BOOT_HOLD)   = '0', "9f: BOOT_HOLD disturbed by task_wake pulses");
+        check(rd(B_RLS_LATCHED) = '0', "9f: RLS_LATCHED disturbed by task_wake pulses");
+        bus_write(TASKWKM, x"00000000", "1111");       -- clean up
 
         -- === verdict =========================================================
         tick(2);

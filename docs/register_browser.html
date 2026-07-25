@@ -459,6 +459,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
       <a href="castalia_full.html">SoC&#8202;&middot;&#8202;Lens</a>
       <a href="chip_configurator.html">Configurator</a>
       <a href="register_browser.html" aria-current="page">Registers</a>
+      <a href="event_fabric.html">Event Fabric</a>
       <a href="vestarv_roadmap.html">Roadmap</a>
     </nav>
     <button class="vesta-toggle" id="themeToggle" type="button" aria-label="Toggle colour theme" title="Toggle light / dark">
@@ -981,6 +982,27 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						}
 					]
+				},
+				{
+					"RegisterName": "P0TASK",
+					"Address": 16432,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "P0TASK",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
 				}
 			]
 		},
@@ -1391,6 +1413,27 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P1TASK",
+					"Address": 16688,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "P1TASK",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
 							"ValueDescriptions": []
 						}
 					]
@@ -5013,6 +5056,27 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						}
 					]
+				},
+				{
+					"RegisterName": "P2TASK",
+					"Address": 18480,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "P2TASK",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
 				}
 			]
 		},
@@ -6921,6 +6985,27 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P3TASK",
+					"Address": 19760,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "P3TASK",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
 							"ValueDescriptions": []
 						}
 					]
@@ -10687,6 +10772,27 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ValueDescriptions": []
 						}
 					]
+				},
+				{
+					"RegisterName": "P4TASK",
+					"Address": 25392,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "P4TASK",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
+							"ValueDescriptions": []
+						}
+					]
 				}
 			]
 		},
@@ -11097,6 +11203,27 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Alternate function select for pin 0 (0 = AF0 ... 7 = AF7)",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "P5TASK",
+					"Address": 25648,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "GPIO event-fabric task pin-select register. Each bit corresponds to the GPIO pin of the same number and selects whether that pin participates in the EVFAB0 event-fabric output tasks: when the fabric fires the port's OUT-SET task, every pin whose PxTASK bit is 1 has its PxOUT bit set; when it fires the OUT-CLR task, every selected pin has its PxOUT bit cleared. The two task pulses are applied AFTER the CPU register write in the same cycle (a task wins its own pins against a coincident PxOUT write) and CLR is applied after SET (a same-cycle set+clear on an overlapping pin resolves to CLEAR, the safe direction). A toggle task is deliberately not offered. Resets to 0, so no pin is fabric-driven out of reset. In a configuration WITHOUT the event fabric (peripherals.eventFabric false) the register is still readable and writable but has no effect, because both task inputs are tied inactive. Only the port's implemented pins have bits; the rest read 0.",
+					"BitFields": [
+						{
+							"BitFieldName": "P5TASK",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "",
 							"ValueDescriptions": []
 						}
 					]
