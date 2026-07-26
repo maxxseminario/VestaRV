@@ -9,12 +9,25 @@
 # through irq_router (HhENX bit21) -> meip -> MEIP_DISPATCHER -> IVT ->
 # plain-ret handler -> CLAIM/COMPLETE.
 #
-# TB CONTRACT: DQ is driven a STRONG '0' in both the behavioral and gate
-# testbenches (there is NO loopback device). So every reset always samples
-# PRESENCE (DQ low), and any read bit/byte returns 0x00. This test exploits
-# that: reset+presence -> TC IRQ; read-byte -> RX == 0x00 + TC IRQ again.
-# (Because DQ is stuck low, the RTL also sets SR.SHORT and SR.PRES; with
-# ERRIE off, SHORT does not contribute to the irq — only TC does.)
+# TB CONTRACT: DQ reads a STRONG '0' with no loopback device on the line, so
+# every reset always samples PRESENCE (DQ low) and any read bit/byte returns
+# 0x00. This test exploits that: reset+presence -> TC IRQ; read-byte ->
+# RX == 0x00 + TC IRQ again. (Because DQ is stuck low, the RTL also sets
+# SR.SHORT and SR.PRES; with ERRIE off, SHORT does not contribute to the irq
+# — only TC does.)
+#
+# !! TB DEPENDENCY (Stage H re-pin, 2026-07-26) !! Up to Stage E the DQ pad was
+# P6.6 and riscv_tb hard-drove `prt6_in <= (others => '0')` (GPIO4/5 ports have
+# NO pad cells in the tb), which IS where the strong-'0' contract came from.
+# P4.7 is a REAL pad (PDUW16SDGZ_G in riscv_tb's pad_prt4_gen), so the level on
+# prt4(7) now comes from the pad bus: with nothing driving it the vendor model
+# floats (C = x) and only creeps to a weak '1' PullTime = 100 us after each
+# release — unusable as a 1-Wire line. riscv_tb must therefore give prt4(7) a
+# bench level, the way it already does for the open-drain I2C0 pads
+# (`prt4(0) <= 'H'; prt4(1) <= 'H';`): a weak `prt4(7) <= 'L';` reproduces the
+# stuck-low contract above verbatim (and yields to any strong driver), whereas
+# a weak 'H' would turn this into a no-device bus and the expectations below
+# would have to become NOPRES + RX == 0xFF.
 #
 # OW register map (onewire_spec.md / OneWire.vhd AS-BUILT; RegSlotOWx*):
 #   CR 0x6700  CMD 0x6704  TX 0x6708  RX 0x670C  DIV 0x6710  SR 0x6714
@@ -28,14 +41,20 @@
 # NO SYS_CLK_CR write is needed. ODS=1 + DIV=0 keeps the whole reset+presence
 # and read-byte well under a few hundred us of sim time.
 #
-# DQ ROUTING: ow0_dq_in = prt6_in(6) ONLY when P6.6 is AF1 (MCU.vhd:4106),
-# otherwise it idles '1'. RstValP6AFS=0x1 sets only P6.0 to AF1 — P6.6 is AF0
-# out of reset — so this test MUST route P6.6 to AF1 (like wqspi routes P5AFS)
-# for the tb's strong-'0' DQ (prt6_in=(others=>'0'), riscv_tb:292) to reach
-# the engine and yield PRESENCE. (Without it DQ idles high -> NO presence.)
-# PxAFS is 4 BITS PER PIN (a nibble, matching wqspi's P5AFS=0x00111100); P6.6
-# is nibble 6 = bits 27:24, so AF1 = 0x0100_0000 (register bit24, which the
-# GPIO repacks to the 3-bit p6_afs field the mux reads).
+# DQ ROUTING (Stage H re-pin): OW0's DQ is P4.7 / GPIO31 (DTP3) on alt plane
+# AF2 — the pin-mux-v2 replaced-spread-slot mechanism, DQ having taken over the
+# redundant T0CMP1 output-spread copy in that slot. ow0_dq_in = prt4_in(7) ONLY
+# when P4.7 selects AF2, otherwise it idles '1', so this test MUST route the
+# pin (RstValP4AFS = 0 -> every pin is AF0 out of reset). PxAFS is 4 BITS PER
+# PIN (a nibble, like wqspi's P5AFS=0x00111100); P4.7 is nibble 7 = bits 31:28,
+# so AF2 = 0x2000_0000 (the GPIO repacks it into the 3-bit p4_afs field the mux
+# reads). The test also sets PxSEL bit 7 so the pad's out/dir come from the AF2
+# plane (open-drain: out fixed 0, dir pulls low) — the INPUT mux ignores PxSEL,
+# but a real DQ has to be drivable. P4.7's pull is enabled at reset
+# (RstValP4REN = 0x80 when OneWire is configured); PxOUT stays 0.
+# Register file: GPIO3 is at 0x4D00, so PxSEL = 0x4D24 and PxAFS = 0x4D2C
+# (the headers spell these P3SEL/P3AFS — header register numbering is 0-based
+# while the pin/port naming is 1-based).
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -46,8 +65,10 @@
 #define OW_RX       0x670C
 #define OW_DIV      0x6710
 #define OW_SR       0x6714
-#define P6AFS       0x642C            /* GPIO5 base 0x6400 + RegSlotPxAFS(11)*4 */
-#define P6AFS_OW    0x01000001        /* P6.6 nibble (bits27:24)=AF1; keep P6.0 AF1 */
+#define P4SEL       0x4D24            /* GPIO3 base 0x4D00 + RegSlotPxSEL(9)*4  */
+#define P4AFS       0x4D2C            /* GPIO3 base 0x4D00 + RegSlotPxAFS(11)*4 */
+#define P4SEL_OW    0x00000080        /* P4.7 in alternate-function mode        */
+#define P4AFS_OW    0x20000000        /* P4.7 nibble (bits31:28) = 2 -> AF2     */
 #define IRTR_ENX    0x700C
 
 /* CR: OWEN(0) | ODS(1) | TCIE(3) — leave ERRIE off (irq via TC only) */
@@ -79,9 +100,15 @@ RVTEST_CODE_BEGIN
     bnez t0, wow_fail                # SR resets 0 (BUSY/TCIF/PRES/... all 0)
 
     # ================= L1: configure + route ==========================
-    # route P6.6 -> AF1 so the tb's strong-'0' DQ reaches the engine
-    li   a0, P6AFS
-    li   t1, P6AFS_OW
+    # route P4.7 -> AF2 so the bench DQ reaches the engine, and put the pin in
+    # alternate-function mode so the AF2 plane owns the pad's open-drain drive
+    li   a0, P4AFS
+    li   t1, P4AFS_OW
+    sw   t1, 0(a0)
+    lw   t0, 0(a0)
+    bne  t0, t1, wow_fail
+    li   a0, P4SEL
+    li   t1, P4SEL_OW
     sw   t1, 0(a0)
     lw   t0, 0(a0)
     bne  t0, t1, wow_fail
