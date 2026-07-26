@@ -336,6 +336,8 @@
     }
   ],
   "order": [
+    "sch_biasgen_core",
+    "sch_biasgen_startup",
     "tab_BiasGenCascWideSwing_corners",
     "tab_biasgen_dcop",
     "fig_biasgen_rails_vs_temp",
