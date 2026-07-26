@@ -27,6 +27,14 @@
     ]
       \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_slew_iload_00.dat};
       \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_slew_iload_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_slew_iload_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_slew_iload_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_slew_iload_04.dat};
+      \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
   \caption{Current delivered into the \SI{10}{\pico\farad} load during the same step, positive out of the amplifier. The asymmetry is plain: while the output slews up the cascoded PMOS mirror holds a flat \SI{14.1}{\micro\ampere}, and while it slews down the output pulls only \SI{3.5}{\micro\ampere}. The narrow spikes at each edge --- \SI{24.4}{\micro\ampere} and \SI{12.6}{\micro\ampere} --- last well under a microsecond; it is the flat sections that set the slew rate. These are slewing currents with the input pair overdriven past its common-mode range, so read them as the shape of the asymmetry rather than as a drive rating; see the discussion following Table~\ref{tab:ctrlamp-largesignal}.}

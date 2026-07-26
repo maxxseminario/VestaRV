@@ -27,6 +27,14 @@
     ]
       \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_noise_00.dat};
       \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_noise_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_noise_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_noise_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_noise_04.dat};
+      \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
   \caption{Output-referred noise density of the amplifier in unity-gain feedback, including the noise of the local bias generator. Flicker noise dominates below the \SI{34}{\kilo\hertz} corner and reaches \SI{4.77}{\micro\volt\per\sqrt\hertz} at \SI{1}{\hertz}; the broadband floor is \SI{16.0}{\nano\volt\per\sqrt\hertz}, and the fall above about \SI{2}{\mega\hertz} is the closed-loop bandwidth rolling the noise off, not a reduction in the noise generated.}

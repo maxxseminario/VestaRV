@@ -3,17 +3,17 @@
   \centering
   \caption{DC operating point in the unity-gain bench with the input held at mid-supply. The amplifier draws \SI{31.8}{\micro\ampere} of the \SI{55.1}{\micro\ampere} the bench takes; the balance is the local bias generator that supplies the four cascode rails listed below it.}
   \label{tab:ctrlamp-dcop}
-  \begin{tabular}{lrr}
+  \begin{tabular}{lrrrrrrr}
     \toprule
-    Parameter & Unit & tt \\
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
     \midrule
-    Output voltage, unity gain at \SI{1.25}{\volt} & \si{\volt} & 1.2501 \\
-    Amplifier supply current & \si{\micro\ampere} & 31.81 \\
-    Bench supply current (amplifier + bias generator) & \si{\micro\ampere} & 55.12 \\
-    NMOS mirror bias $V_{\mathrm{BNM}}$ & \si{\milli\volt} & 609.4 \\
-    NMOS cascode bias $V_{\mathrm{BNC}}$ & \si{\milli\volt} & 768.7 \\
-    PMOS mirror bias $V_{\mathrm{BPM}}$ & \si{\milli\volt} & 1820.8 \\
-    PMOS cascode bias $V_{\mathrm{BPC}}$ & \si{\milli\volt} & 1599.1 \\
+    Output voltage, unity gain at \SI{1.25}{\volt} & \si{\volt} & 1.2501 & 1.2501 & 1.2501 & 1.2501 & 1.2500 & 0.0001 \\
+    Amplifier supply current & \si{\micro\ampere} & 31.81 & 31.51 & 31.11 & 32.19 & 32.77 & 1.66 \\
+    Bench supply current (amplifier + bias generator) & \si{\micro\ampere} & 55.12 & 54.67 & 54.20 & 55.56 & 56.12 & 1.92 \\
+    NMOS mirror bias $V_{\mathrm{BNM}}$ & \si{\milli\volt} & 609.4 & 547.6 & 581.2 & 640.6 & 674.2 & 126.6 \\
+    NMOS cascode bias $V_{\mathrm{BNC}}$ & \si{\milli\volt} & 768.7 & 698.3 & 738.4 & 800.0 & 840.2 & 141.9 \\
+    PMOS mirror bias $V_{\mathrm{BPM}}$ & \si{\milli\volt} & 1820.8 & 1876.0 & 1807.9 & 1830.3 & 1759.2 & 116.8 \\
+    PMOS cascode bias $V_{\mathrm{BPC}}$ & \si{\milli\volt} & 1599.1 & 1665.9 & 1588.1 & 1610.0 & 1528.3 & 137.6 \\
     \bottomrule
   \end{tabular}
 \end{table}

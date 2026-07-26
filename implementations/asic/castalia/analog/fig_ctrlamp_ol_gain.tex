@@ -29,6 +29,14 @@
     ]
       \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_ol_gain_00.dat};
       \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_ol_gain_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_ol_gain_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_ol_gain_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_ol_gain_04.dat};
+      \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
   \caption{Open-loop gain of the control amplifier against frequency, driven differentially about \SI{1.25}{\volt} into a \SI{10}{\pico\farad} load. The gain is flat at \SI{78.81}{\decibel} (\num{8716}) out to a dominant pole at \SI{230}{\hertz} and falls at \SI{20}{\decibel} per decade to unity gain at \SI{1.71}{\mega\hertz}; the single-pole roll-off across five decades is the signature of the uncompensated single-stage topology loaded only by $C_{\mathrm{L}}$.}

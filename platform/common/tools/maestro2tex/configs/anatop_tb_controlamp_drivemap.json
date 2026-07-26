@@ -3,7 +3,7 @@
   "tex_root": "include/analog/",
   "emit_master": false,
   "emit_corner_table": false,
-  "nominal_corner": "ff1",
+  "nominal_corner": "tt1",
   "supply_var": "VDD25",
   "tests": {
     "drive_map": {
@@ -99,7 +99,47 @@
           "scale": 1000000.0
         }
       ],
-      "caption": "DC drive compliance of the control amplifier, as a map of the unity-gain tracking error over commanded output voltage and load current. Positive $I_{\\mathrm{LOAD}}$ draws current out of the output, so the amplifier \\emph{sources}; negative $I_{\\mathrm{LOAD}}$ injects, so it \\emph{sinks}. The colour scale is clipped at \\(\\pm\\SI{50}{\\milli\\volt}\\), which is the compliance criterion: inside the envelope the error is the smooth $I_{\\mathrm{LOAD}}R_{\\mathrm{OUT,CL}}$ gradient, and outside it the output has hit a rail and the error jumps by more than a volt, so everything beyond the envelope saturates to solid colour. The two black curves are the \\(|V_{\\mathrm{OUT}}-V_{\\mathrm{MAP}}|=\\SI{50}{\\milli\\volt}\\) edges, interpolated on the \\SI{50}{\\nano\\ampere} sweep at each of the 26 commanded voltages; that they land on the boundary of the graded band is a check that the map and the envelope were derived independently. The vertical axis is cropped to \\(\\pm\\SI{8}{\\micro\\ampere}\\); the envelope never exceeds that inside the tracking range. \\textbf{This is the ff corner with typical resistors} --- see Table~\\ref{tab:ctrlamp-drivemap} and the note below it."
+      "caption": "DC drive compliance of the control amplifier at the typical corner, as a map of the unity-gain tracking error over commanded output voltage and load current. Positive $I_{\\mathrm{LOAD}}$ draws current out of the output, so the amplifier \\emph{sources}; negative $I_{\\mathrm{LOAD}}$ injects, so it \\emph{sinks}. The colour scale is clipped at \\(\\pm\\SI{50}{\\milli\\volt}\\), which is the compliance criterion: inside the envelope the error is the smooth $I_{\\mathrm{LOAD}}R_{\\mathrm{OUT,CL}}$ gradient, and outside it the output has hit a rail and the error jumps by more than a volt, so everything beyond the envelope saturates to solid colour. The two black curves are the \\(|V_{\\mathrm{OUT}}-V_{\\mathrm{MAP}}|=\\SI{50}{\\milli\\volt}\\) edges, interpolated on the \\SI{50}{\\nano\\ampere} sweep at each of the 26 commanded voltages; that they land on the boundary of the graded band is a check that the map and the envelope were derived independently. The vertical axis is cropped to \\(\\pm\\SI{8}{\\micro\\ampere}\\). Figure~\\ref{fig:ctrlamp-drivespan} gives the same envelope over all five process corners.",
+      "corner_match": "^tt"
+    },
+    {
+      "id": "ctrlamp_drivespan",
+      "kind": "sweepline",
+      "test": "drive_map",
+      "xvar": "V_map",
+      "corners": "all",
+      "signals": [
+        "i_span"
+      ],
+      "series": [
+        {
+          "match": "^tt",
+          "legend": "tt"
+        },
+        {
+          "match": "^ff",
+          "legend": "ff"
+        },
+        {
+          "match": "^fs",
+          "legend": "fs"
+        },
+        {
+          "match": "^sf",
+          "legend": "sf"
+        },
+        {
+          "match": "^ss",
+          "legend": "ss"
+        }
+      ],
+      "xlabel": "Commanded output voltage $V_{\\mathrm{MAP}}$~[\\si{\\volt}]",
+      "ylabel": "Compliance span~[\\si{\\micro\\ampere}]",
+      "yprec": 1,
+      "width": "0.80\\linewidth",
+      "height": "6.2cm",
+      "caption": "Width of the \\(\\pm\\SI{50}{\\milli\\volt}\\) compliance envelope against commanded output voltage, over all five process corners. The shape is the same in every corner --- pinched at both ends of the output range and widest around \\SI{1.8}{\\volt} --- so the deficit against the \\(\\pm\\SI{33}{\\micro\\ampere}\\) target is structural, not a corner artefact. The vertical scale is clipped at \\SI{16}{\\micro\\ampere}: outside roughly \\SIrange{0.3}{1.9}{\\volt} the buffer no longer tracks its input at zero load, and the apparent span there rises past \\SI{30}{\\micro\\ampere} because it is measuring the current needed to force the output onto the commanded value, not compliance. Note also that the resistor and MIM rows are pinned at typical in all five corners (see the note below), so this is the transistor-corner spread only and understates the true one.",
+      "axis_extra": "ymin=0, ymax=16, enlarge y limits=false, restrict y to domain=0:60"
     }
   ],
   "tables": [
@@ -120,7 +160,11 @@
         "rout",
         "idd_q"
       ],
-      "caption": "Drive compliance against commanded output voltage, ff corner with typical resistors, \\SI{25}{\\celsius}, \\SI{2.5}{\\volt}, \\texttt{BiasAdj}~=~37. The sinking and sourcing edges are the load currents at which the tracking error reaches \\(\\mp\\SI{50}{\\milli\\volt}\\), and the span is the distance between them. The zero-load error column is the test of whether the row is a compliance figure at all: where its magnitude already exceeds \\SI{50}{\\milli\\volt} --- below \\SI{0.3}{\\volt} and above \\SI{2.2}{\\volt} --- the buffer does not track its input at \\emph{any} load, and the two edge columns are then the external current needed to force the output to the commanded value, not a drive rating. $R_{\\mathrm{OUT,CL}}$ is the closed-loop output resistance, taken as the central difference over \\(\\pm\\SI{0.5}{\\micro\\ampere}\\) about zero load."
+      "caption": "Drive compliance against commanded output voltage at the typical corner, \\SI{27}{\\celsius}, \\SI{2.5}{\\volt}, \\texttt{BiasAdj}~=~37. The sinking and sourcing edges are the load currents at which the tracking error reaches \\(\\mp\\SI{50}{\\milli\\volt}\\), and the span is the distance between them. The zero-load error column is the test of whether the row is a compliance figure at all: where its magnitude already exceeds \\SI{50}{\\milli\\volt} the buffer does not track its input at \\emph{any} load, and the two edge columns are then the external current needed to force the output to the commanded value, not a drive rating. $R_{\\mathrm{OUT,CL}}$ is the closed-loop output resistance, taken as the central difference over \\(\\pm\\SI{0.5}{\\micro\\ampere}\\) about zero load.",
+      "corner_match": "^tt"
     }
+  ],
+  "points": [
+    "1-130"
   ]
 }
