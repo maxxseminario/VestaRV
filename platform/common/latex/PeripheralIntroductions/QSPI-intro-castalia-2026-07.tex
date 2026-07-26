@@ -28,7 +28,7 @@ A transaction is fully described by the control, address, and command registers.
 	\item Poll \register{QSPIBUSY} (or wait for the transfer-complete interrupt). For a read, the captured word appears in \register{QSPIxRX} and \register{QSPIRXFULL} is set; reading \register{QSPIxRX} has no side effects.
 \end{enumerate}
 
-The three status flags \register{QSPITXEIF}, \register{QSPIRXFULL}, and \register{QSPITCIF} are write-1-to-clear: write a 1 to a bit to clear it. Because the serial core runs in the SMCLK domain, software must set \register{SYS\_CLK\_CR} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI and UART peripherals. Dual- and quad-lane read commands require at least one dummy cycle (\register{QSPIDUMMY} $\geq 1$) so the device can turn its data lines around.
+The three status flags \register{QSPITXEIF}, \register{QSPIRXFULL}, and \register{QSPITCIF} are write-1-to-clear: write a 1 to a bit to clear it. Because the serial core runs in the SMCLK domain, software must set \register{\register{SYSCLKCR}} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI and UART peripherals. Dual- and quad-lane read commands require at least one dummy cycle (\register{QSPIDUMMY} $\geq 1$) so the device can turn its data lines around.
 
 \subsection{Shared Access on \AsicNameForUserGuide}
 

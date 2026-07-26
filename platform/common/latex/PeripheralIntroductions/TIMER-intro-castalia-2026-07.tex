@@ -34,7 +34,7 @@ The \pin{TxCAP0} pin is an input that waits for a pin state change and then noti
 	\label{fig:timer-clock-diagram}
 \end{figure}
 
-The clock source for the \peripheral{TIMERx} peripheral can be selected using \bitfield{TSSEL} from four options: SMCLK, MCLK, LFXT (low frequency external clock), and HFXT (high frequency external clock). A glitch-free clock multiplexer built into the clock source selector prevents spurious clock transitions on the timer clock, allowing the user to switch clock sources freely even while the timer is enabled. However, switching clocks will cause the timer clock to be inactive for several clock cycles of the clock that is being switched from or to, whichever has a smaller frequency.
+The clock source for the \peripheral{TIMERx} peripheral can be selected using \bitfield{SSEL} from four options: SMCLK, MCLK, LFXT (low frequency external clock), and HFXT (high frequency external clock). A glitch-free clock multiplexer built into the clock source selector prevents spurious clock transitions on the timer clock, allowing the user to switch clock sources freely even while the timer is enabled. However, switching clocks will cause the timer clock to be inactive for several clock cycles of the clock that is being switched from or to, whichever has a smaller frequency.
 
 \textbf{Clock handoff after reset:} the glitch-free multiplexer powers up parked on the SMCLK slice, and releasing a slice takes three clock edges \textit{of the clock being released} before the newly selected source can engage. The practical consequence: the first source selection after reset waits for three SMCLK edges, however slow SMCLK currently is. Since the boot ROM may leave SMCLK sourced from LFXT (32.768~\si{\kilo\hertz}) when it jumps to the application, selecting a timer clock source right after boot can stall the timer for roughly 92~\si{\micro\second} --- even when the selected source is MCLK or HFXT. The safe handoff procedure is:
 \begin{enumerate}
@@ -42,7 +42,7 @@ The clock source for the \peripheral{TIMERx} peripheral can be selected using \b
 	\item After enabling the timer, poll \register{TIMxVAL} until it has visibly incremented, rather than assuming the timer counts immediately. Two back-to-back reads taken right after enabling can both legitimately return the same value while the handoff completes.
 \end{enumerate}
 
-After the clock multiplexer, the timer clock frequency may optionally be reduced with a clock divider controlled by \bitfield{TDIV}. The timer value register \register{TIMxVAL} increments by 1 on every rising edge of the divided timer clock when \peripheral{TIMERx} is enabled with \bitfield{TEN}.
+After the clock multiplexer, the timer clock frequency may optionally be reduced with a clock divider controlled by \bitfield{DIV}. The timer value register \register{TIMxVAL} increments by 1 on every rising edge of the divided timer clock when \peripheral{TIMERx} is enabled with \bitfield{TEN}.
 
 A clock diagram for the \peripheral{TIMERx} peripheral is shown in Figure \ref{fig:timer-clock-diagram}.
 
@@ -60,7 +60,7 @@ The timer value may be read at any time by reading its value from the \register{
 
 \subsection{Overflow and Rollover Behavior}
 
-When the timer is enabled and its 32-bit value reaches its maximum of 4,294,967,295, the value will roll over back to zero on the next rising edge of the timer clock and the timer overflow interrupt flag \bitfield{TOVIF} will be set. The timer will then continue incrementing as normal.
+When the timer is enabled and its 32-bit value reaches its maximum of 4,294,967,295, the value will roll over back to zero on the next rising edge of the timer clock and the timer overflow interrupt flag \bitfield{OVIF} will be set. The timer will then continue incrementing as normal.
 
 Optionally, the user may configure the timer to roll over before the 32-bit limit is reached by setting the new rollover value in the \register{TIMxCMP2} register and setting the \bitfield{CMP2RST} bit to 1. In this mode, when the timer value becomes equivalent to the value of \register{TIMxCMP2}, the timer value will roll over back to zero on the next rising edge of the timer clock and then continue incrementing as normal, as depicted in Figure \ref{fig:timer-rollover-operation}. This mechanism is used for setting the period of the PWM signals for the output compare units. Note: the timer rolls over back to zero when its value is \textit{equal} to that of \register{TIMxCMP2}, but not if its value is greater than \register{TIMxCMP2}. This becomes important if the user manually sets the timer value above \register{TIMxCMP2}, or if the user sets \register{TIMxCMP2} below the current timer value, whereupon the timer will continue counting all the way to the 32-bit maximum value.
 
@@ -112,7 +112,7 @@ The \peripheral{TIMERx} peripheral has two indicator bits and six interrupt flag
 
 The two indicator bits \bitfield{CMP0OUT} and \bitfield{CMP1OUT} show the current value of the output compare pins \pin{TxCMP0} and \pin{TxCMP1} respectively, regardless of if the corresponding GPIO pins are set to primary/GPIO mode or secondary/peripheral mode.
 
-The timer value overflow interrupt flag \bitfield{TOVIF} is set when the 32-bit timer value overflows from $2^{32} - 1$ back to 0. Note that when \bitfield{CMP2RST} is enabled, the timer resets at the \register{TIMxCMP2} value and does not overflow to $2^{32} - 1$, so \bitfield{TOVIF} will not be set in this mode. The overflow interrupt request is generated when both \bitfield{TOVIF} and \bitfield{TOVIE} are set. \bitfield{TOVIF} is cleared by writing a 1 to it in the status register \register{TIMxSR}.
+The timer value overflow interrupt flag \bitfield{OVIF} is set when the 32-bit timer value overflows from $2^{32} - 1$ back to 0. Note that when \bitfield{CMP2RST} is enabled, the timer resets at the \register{TIMxCMP2} value and does not overflow to $2^{32} - 1$, so \bitfield{OVIF} will not be set in this mode. The overflow interrupt request is generated when both \bitfield{OVIF} and \bitfield{OVIE} are set. \bitfield{OVIF} is cleared by writing a 1 to it in the status register \register{TIMxSR}.
 
 The output compare interrupt flags \bitfield{CMP0IF}, \bitfield{CMP1IF}, and \bitfield{CMP2IF} are set when the timer value equals the respective output compare value (\register{TIMxCMP0}, \register{TIMxCMP1}, and \register{TIMxCMP2}). Each compare interrupt request is generated when both the interrupt flag (\bitfield{CMPyIF}) and the corresponding interrupt enable bit (\bitfield{CMP0IE}, \bitfield{CMP1IE}, or \bitfield{CMP2IE}) are set. Each \bitfield{CMPyIF} flag is cleared by writing a 1 to it in the status register \register{TIMxSR}. Note that \bitfield{CMP2IF} is only set when \bitfield{CMP2RST} is enabled and the timer resets at the \register{TIMxCMP2} value.
 

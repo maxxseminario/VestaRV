@@ -88,6 +88,9 @@ generate:
 	@echo "Checking docs/chip_configurator.html against the schema/pad-ring/geometry..."
 	@python3 python/check_configurator_sync.py --strict
 	@echo ""
+	@echo "Checking intro-chapter register names against the generated memory map..."
+	@python3 python/check_intro_names.py
+	@echo ""
 	@echo "✅ Generation complete. Outputs:"
 	@echo "  • out/software/include/MemoryMap.h, periph.S"
 	@echo "  • out/linker-scripts/memory.x, periph.x, *.txt"

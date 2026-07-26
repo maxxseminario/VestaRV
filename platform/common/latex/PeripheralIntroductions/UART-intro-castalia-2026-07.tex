@@ -87,13 +87,13 @@ For example, with SMCLK running at 24 MHz:
 
 A UART frame has an optional parity bit after the last data bit and before the stop bit. The purpose of the parity bit is to verify that the data received is indeed the data that was transmitted. If the received parity bit does not match the expected parity bit, then the receiver knows that the received data has been corrupted.
 
-If the parity bit is enabled with \bitfield{UPEN}, the transmitter calculates the parity of the byte to transmit by taking the exclusive OR of all 8 bits in the transmitted byte, the result of which is then put through a final exclusive OR gate with the parity select bit \bitfield{UPSEL}:
+If the parity bit is enabled with \bitfield{UPEN}, the transmitter calculates the parity of the byte to transmit by taking the exclusive OR of all 8 bits in the transmitted byte, the result of which is then put through a final exclusive OR gate with the parity select bit \bitfield{PSEL}:
 \begin{equation*}
-p = b_7 \oplus b_6 \oplus \cdots \oplus b_1 \oplus b_0 \oplus \bitfield{UPSEL}
+p = b_7 \oplus b_6 \oplus \cdots \oplus b_1 \oplus b_0 \oplus \bitfield{PSEL}
 \end{equation*}
-When \bitfield{UPSEL} is 0, the parity is said to be ``even'', and when it is 1, ``odd''. This operation is functionally counting how many bits are 1s in the transmitted byte. When even parity is selected, the parity bit is 0 when the number of 1s is even and 1 when the number of 1s is odd. That result is inverted when odd parity is selected.
+When \bitfield{PSEL} is 0, the parity is said to be ``even'', and when it is 1, ``odd''. This operation is functionally counting how many bits are 1s in the transmitted byte. When even parity is selected, the parity bit is 0 when the number of 1s is even and 1 when the number of 1s is odd. That result is inverted when odd parity is selected.
 
-On the receiver end, the parity bit is capable of detecting a single bit error in the transmission. That is, if one of the eight data bits (or the parity bit itself) is incorrectly received, then the parity error flag \bitfield{UPEF} will detect a bit error. However, if two bits are incorrectly received, then the parity error flag will not detect the bit error. Note that if the number of bit errors is an odd number, the parity error flag will detect the error, but will not when the number of bit errors is even.
+On the receiver end, the parity bit is capable of detecting a single bit error in the transmission. That is, if one of the eight data bits (or the parity bit itself) is incorrectly received, then the parity error flag \bitfield{PEF} will detect a bit error. However, if two bits are incorrectly received, then the parity error flag will not detect the bit error. Note that if the number of bit errors is an odd number, the parity error flag will detect the error, but will not when the number of bit errors is even.
 
 If a parity bit is enabled on the transmitter side, it must also be enabled on the receiver side with \bitfield{UPEN}.
 
@@ -117,7 +117,7 @@ The UART receiver busy flag \bitfield{RXBF} shows when the \peripheral{UARTx} pe
 
 The UART framing error flag \bitfield{FEF} indicates that a framing error occurred on the last reception when it is a 1. A framing error typically occurs if the UART transmitter settings do not match the receiver settings, such as baud rate, number of bits to transmit, or the presence/absence of a parity bit. Specifically, a framing error is detected if the receiver does not detect a high level at the expected stop bit time. If \bitfield{FEF} is a 1 after a reception, that reception must be treated as unrecoverable, corrupted data. \bitfield{FEF} is cleared when the \register{UARTxRX} register is read.
 
-The UART parity error flag \bitfield{PEF} indicates that a parity error occurred on the last reception when it is a 1. A parity error can only happen if the parity bit is enabled by setting \bitfield{PEN} to 1. A parity error occurs when the parity bit appended to the received data byte does not match the expected value calculated from the received data. If \bitfield{PEF} is a 1 after a reception, that reception must be treated as corrupted data. \bitfield{PEF} is cleared when the \register{UARTxRX} register is read.
+The UART parity error flag \bitfield{PEF} indicates that a parity error occurred on the last reception when it is a 1. A parity error can only happen if the parity bit is enabled by setting \bitfield{UPEN} to 1. A parity error occurs when the parity bit appended to the received data byte does not match the expected value calculated from the received data. If \bitfield{PEF} is a 1 after a reception, that reception must be treated as corrupted data. \bitfield{PEF} is cleared when the \register{UARTxRX} register is read.
 
 The UART receive data overflow flag \bitfield{OVF} indicates that the user did not read the \register{UARTxRX} register in time before another byte of data was received by the \peripheral{UARTx} peripheral when it is a 1. In this case, the previous received data has been lost and must be treated as incomplete. \bitfield{OVF} is cleared when the \register{UARTxRX} register is read.
 
@@ -131,7 +131,7 @@ The UART transmit complete interrupt flag \bitfield{TCIF} is set the moment the 
 
 \subsection{Transmit Procedure}
 
-To transmit a byte of data via the UART, first initialize the \peripheral{UARTx} peripheral by configuring the \register{UARTxCR} register and setting the baud rate with the \register{UARTxBR} register. Of note, the UART enable bit \bitfield{EN} must be a 1 to activate the UART. When \bitfield{EN} is 0, the UART peripheral is held in reset state. The GPIO pin multiplexed with \pin{TXx} must be set to secondary/peripheral mode in the corresponding \register{PxSEL} register.
+To transmit a byte of data via the UART, first initialize the \peripheral{UARTx} peripheral by configuring the \register{UARTxCR} register and setting the baud rate with the \register{UARTxBR} register. Of note, the UART enable bit \bitfield{UEN} must be a 1 to activate the UART. When \bitfield{UEN} is 0, the UART peripheral is held in reset state. The GPIO pin multiplexed with \pin{TXx} must be set to secondary/peripheral mode in the corresponding \register{PxSEL} register.
 
 To transmit a byte of data over the UART, first clear the status register by reading it and discarding its value. Then, wait until the UART is not transmitting (when \bitfield{TXBF} is 0) or the UART TX buffer is empty (when \bitfield{TEIF} is 1). Next, write the byte to transmit to the \register{UARTxTX} register. The byte will be finished transmitting once \bitfield{TXBF} is 0.
 
@@ -156,7 +156,7 @@ void uartx_putc(char tx_data)
 
 \subsection{Receive Procedure}
 
-To receive a byte of data via the UART, first initialize the \peripheral{UARTx} peripheral by configuring the \register{UARTxCR} register and setting the baud rate with the \register{UARTxBR} register. Of note, the UART enable bit \bitfield{EN} must be a 1 to activate the UART. The GPIO pin multiplexed with \pin{RXx} must be set to secondary/peripheral mode in the corresponding \register{PxSEL} register.
+To receive a byte of data via the UART, first initialize the \peripheral{UARTx} peripheral by configuring the \register{UARTxCR} register and setting the baud rate with the \register{UARTxBR} register. Of note, the UART enable bit \bitfield{UEN} must be a 1 to activate the UART. The GPIO pin multiplexed with \pin{RXx} must be set to secondary/peripheral mode in the corresponding \register{PxSEL} register.
 
 Once done setting up the UART, wait for the UART receive complete interrupt flag \bitfield{RCIF} to be 1. Then, read the received byte contained in the \register{UARTxRX} register. Reading \register{UARTxRX} automatically clears the \bitfield{RCIF}, \bitfield{FEF}, \bitfield{PEF}, and \bitfield{OVF} flags.
 
