@@ -117,35 +117,7 @@
       "ylabel": "Open-loop gain $|A_{\\mathrm{v}}|$~[\\si{\\decibel}]",
       "yprec": 0,
       "axis_extra": "xtick={1e-3,1e-1,1e1,1e3,1e5,1e7,1e9}, ytick={-40,-20,0,20,40,60,80}",
-      "caption": "Open-loop gain of the control amplifier against frequency, driven differentially about \\SI{1.25}{\\volt} into a \\SI{10}{\\pico\\farad} load. The gain is flat at \\SI{78.81}{\\decibel} (\\num{8716}) out to a dominant pole at \\SI{230}{\\hertz} and falls at \\SI{20}{\\decibel} per decade to unity gain at \\SI{1.71}{\\mega\\hertz}; the single-pole roll-off across five decades is the signature of the uncompensated single-stage topology loaded only by $C_{\\mathrm{L}}$.",
-      "width": "0.80\\linewidth",
-      "height": "6.0cm"
-    },
-    {
-      "id": "ctrlamp_ol_phase",
-      "test": "ol_ac",
-      "signals": [
-        "av_ph"
-      ],
-      "corners": "all",
-      "xlog": true,
-      "ylabel": "Open-loop phase $\\angle A_{\\mathrm{v}}$~[\\si{\\degree}]",
-      "yprec": 0,
-      "axis_extra": "xtick={1e-3,1e-1,1e1,1e3,1e5,1e7,1e9}",
-      "caption": "Open-loop phase against frequency, same conditions as Figure~\\ref{fig:ctrlamp-ol-gain}. The phase passes through \\SI{-115.7}{\\degree} at the unity-gain frequency, so the non-dominant poles have taken only about \\SI{26}{\\degree} by the time the gain reaches unity. The step at the extreme right is an unwrapping artefact: at ten points per decade the phase moves by more than \\SI{180}{\\degree} between the last two samples and the unwrapper cannot follow it. It is above \\SI{500}{\\mega\\hertz}, three decades past unity gain, and does not affect the margins in Table~\\ref{tab:ctrlamp-stability}.",
-      "width": "0.80\\linewidth",
-      "height": "6.0cm"
-    },
-    {
-      "id": "ctrlamp_ol_idd",
-      "test": "ol_dc",
-      "signals": [
-        "idd"
-      ],
-      "corners": "all",
-      "ylabel": "Supply current $I_{\\mathrm{DD}}$~[\\si{\\micro\\ampere}]",
-      "yprec": 1,
-      "caption": "Bench supply current against differential input, with the amplifier driven open-loop from one saturation limit to the other. The current moves by under \\SI{4}{\\micro\\ampere} across the whole \\(\\pm\\SI{1.25}{\\volt}\\) overdrive range: the tail and folding currents are set by the bias generator and do not collapse when the input pair is fully steered. The trace includes the local bias generator, which accounts for roughly \\SI{23}{\\micro\\ampere} of the total.",
+      "caption": "Open-loop gain of the control amplifier against frequency, driven differentially about \\SI{1.25}{\\volt} into a \\SI{10}{\\pico\\farad} load, over all five process corners. The single-pole roll-off across five decades is the signature of the uncompensated single-stage topology loaded only by $C_{\\mathrm{L}}$; Table~\\ref{tab:ctrlamp-ac} gives the DC gain, dominant pole and unity-gain frequency.",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
     }
@@ -186,24 +158,20 @@
   "points": [
     "136-140"
   ],
-  "intro_tex": "\\subsection{Potentiostat Control Amplifier}\\label{ss:controlamp}\n\nThe control amplifier (schematic cell \\texttt{anatop\\_controlamp}, drawn from\n\\texttt{AFE\\_ECS/folded\\_cascode\\_pmos}) is amplifier A1 of the rev-2 potentiostat.\nIt drives the counter electrode directly from its output, takes its feedback from the\nreference electrode on the inverting input, and takes its set point from the reference\nDAC on the non-inverting input; the cell current is therefore whatever A1 must push\ninto the cell to hold $V_{\\mathrm{RE}}$ at the commanded potential. Unlike the rev-1\nfront end it drives no current mirror, so both polarities of cell current pass through\nit. Figure~\\ref{fig:ctrlamp-core} is the transistor-level core.\n\nThe topology is a single-stage folded cascode with a PMOS input pair. Output and load\ncurrent are summed at a single high-impedance node, so the amplifier has no internal\ncompensation capacitor --- the load capacitance at \\texttt{vout} is what sets the\ndominant pole, and every dynamic figure below is quoted against the\n\\SI{10}{\\pico\\farad} load the benches apply. A PMOS input pair puts the input\ncommon-mode range against \\texttt{vss!} rather than against the supply, which is what a\npotentiostat holding a reference electrode near ground needs. The four cascode gate\nbiases come from an \\texttt{anatop\\_biasgen\\_local} instance\n(Section~\\ref{ss:biasgen-local}) trimmed to \\texttt{BiasAdj}~=~37.\n\nThe characterisation below is from schematic-level simulation (no extracted parasitics)\nof the \\texttt{castalia/anatop\\_tb\\_controlamp} testbench, across the five process\ncorners of Table~\\ref{tab:ControlAmp-corners}: \\texttt{TypOpenLoopWBiasTB} (open-loop\nAC and DC transfer), \\texttt{UnityFeedbackWBiasTB} (loop stability by \\texttt{stb}\nanalysis, unity-gain transfer, noise), \\texttt{SlewOpenLoopWBiasTB} (large-signal step)\nand \\texttt{DriveMapTB} (a load-current sweep at each of 26 commanded output voltages,\nin every corner). Every bench includes the local bias generator, so the noise and\nsupply-current numbers are for the amplifier as biased, not for an idealised cell.\n\nTwo things about the corner set should be read before the numbers. The typical point is\nsimulated at \\SI{27}{\\celsius} and the four process corners at \\SI{25}{\\celsius}, so a\nsmall part of the spread in every table is temperature rather than process. More\nimportantly, the imported corner definitions pin the resistor and MIM rows at typical in\n\\emph{all five} corners --- see the note following\nFigure~\\ref{fig:ctrlamp-drivespan}. This block's bias current is set by a poly\nresistor, so the spread reported here is the transistor-corner spread only and\nunderstates the real one.\n",
-  "corner_table_caption": "Process, temperature and supply points simulated for the control amplifier. The load capacitance is \\SI{10}{\\pico\\farad} and the local bias trim code is \\texttt{BiasAdj}~=~37 throughout. Note the typical point is at \\SI{27}{\\celsius} and the four corners at \\SI{25}{\\celsius}, and that the resistor and MIM model rows are pinned at typical in every one of them.",
+  "intro_tex": "\\subsection{Potentiostat Control Amplifier}\\label{ss:controlamp}\n\nThe control amplifier (schematic cell \\texttt{anatop\\_controlamp}, drawn from\n\\texttt{AFE\\_ECS/folded\\_cascode\\_pmos}) is amplifier A1 of the rev-2 potentiostat.\nIt drives the counter electrode directly from its output, takes its feedback from the\nreference electrode on the inverting input, and takes its set point from the reference\nDAC on the non-inverting input; the cell current is therefore whatever A1 must push\ninto the cell to hold $V_{\\mathrm{RE}}$ at the commanded potential. Unlike the rev-1\nfront end it drives no current mirror, so both polarities of cell current pass through\nit. Figure~\\ref{fig:ctrlamp-core} is the transistor-level core.\n\nThe topology is a single-stage folded cascode with a PMOS input pair. Output and load\ncurrent are summed at a single high-impedance node, so the amplifier has no internal\ncompensation capacitor --- the load capacitance at \\texttt{vout} is what sets the\ndominant pole, and every dynamic figure below is quoted against the\n\\SI{10}{\\pico\\farad} load the benches apply. A PMOS input pair puts the input\ncommon-mode range against \\texttt{vss!} rather than against the supply, which is what a\npotentiostat holding a reference electrode near ground needs. The four cascode gate\nbiases come from an \\texttt{anatop\\_biasgen\\_local} instance\n(Section~\\ref{ss:biasgen-local}) trimmed to \\texttt{BiasAdj}~=~37.\n\nThe characterisation below is from schematic-level simulation (no extracted parasitics)\nof the \\texttt{castalia/anatop\\_tb\\_controlamp} testbench, across the five process\ncorners of Table~\\ref{tab:ControlAmp-corners}: \\texttt{TypOpenLoopWBiasTB} (open-loop\nAC and DC transfer), \\texttt{UnityFeedbackWBiasTB} (loop stability by \\texttt{stb}\nanalysis, unity-gain transfer, noise), \\texttt{SlewOpenLoopWBiasTB} (large-signal step)\nand \\texttt{DriveMapTB} (a load-current sweep at each of 26 commanded output voltages,\nin every corner). Every bench includes the local bias generator, so the noise and\nsupply-current numbers are for the amplifier as biased, not for an idealised cell.\n\nThe typical point is simulated at \\SI{27}{\\celsius} and the four process corners at\n\\SI{25}{\\celsius}. The resistor and MIM model rows are typical in all five corners;\nonly the standard-MOS rows vary.\n",
+  "corner_table_caption": "Process, temperature and supply points simulated for the control amplifier. The load capacitance is \\SI{10}{\\pico\\farad} and the local bias trim code is \\texttt{BiasAdj}~=~37 throughout.",
   "order": [
     "sch_ctrlamp_core",
     "tab_ControlAmp_corners",
     "tab_ctrlamp_dcop",
     "tab_ctrlamp_ac",
     "fig_ctrlamp_ol_gain",
-    "fig_ctrlamp_ol_phase",
     "tab_ctrlamp_stability",
     "tab_ctrlamp_swing",
     "tab_ctrlamp_accuracy",
     "fig_ctrlamp_buffer_error",
-    "fig_ctrlamp_ol_idd",
     "tab_ctrlamp_largesignal",
     "fig_ctrlamp_slew",
-    "fig_ctrlamp_slew_iload",
-    "note_ctrlamp_drive",
     "tab_ctrlamp_drivemap",
     "fig_ctrlamp_drivemap",
     "fig_ctrlamp_drivespan",

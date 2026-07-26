@@ -1,7 +1,7 @@
 %% maestro2tex -- generated table; do not edit by hand.
 \begin{table}[htbp]
   \centering
-  \caption{Large-signal drive, from the step response of \texttt{SlewOpenLoopWBiasTB} into \SI{10}{\pico\farad}. Slew rate is taken between the \SI{1.25}{\volt} and \SI{2.25}{\volt} output levels --- the upper half of the swing, which every corner traverses inside the \SI{20}{\micro\second} window and which excludes the current spike at each edge. The slewing currents are the mean load current over that same interval, i.e.\ the same measurement expressed the other way ($I=C\,\mathrm{d}V/\mathrm{d}t$ at \SI{10}{\pico\farad}), and the peak edge currents are the momentary spikes as the input steps. \emph{None of the four current rows is a DC drive rating.} The bench steps the differential input by \(\pm\SI{1.25}{\volt}\) open-loop, which takes the PMOS input pair outside its common-mode range, so these are large-signal slam currents into a purely capacitive load. For DC drive see Table~\ref{tab:ctrlamp-drivemap}.}
+  \caption{Large-signal step response of \texttt{SlewOpenLoopWBiasTB} into \SI{10}{\pico\farad}. Slew rate is taken between the \SI{1.25}{\volt} and \SI{2.25}{\volt} output levels; the slewing currents are the mean load current over that same interval, i.e.\ the same measurement expressed as $I=C\,\mathrm{d}V/\mathrm{d}t$. DC drive compliance is given in Table~\ref{tab:ctrlamp-drivemap}.}
   \label{tab:ctrlamp-largesignal}
   \begin{tabular}{lrrrrrrr}
     \toprule
@@ -11,8 +11,6 @@
     Slew rate, falling & \si{\volt\per\micro\second} & 0.352 & 0.154 & 0.371 & 0.311 & 0.506 & 0.351 \\
     Slewing current, rising edge & \si{\micro\ampere} & 14.03 & 13.15 & 13.79 & 14.08 & 14.73 & 1.58 \\
     Slewing current, falling edge & \si{\micro\ampere} & 3.52 & 1.54 & 3.71 & 3.11 & 5.06 & 3.51 \\
-    Peak edge current, sourcing & \si{\micro\ampere} & 24.38 & 18.09 & 24.52 & 23.33 & 26.27 & 8.18 \\
-    Peak edge current, sinking & \si{\micro\ampere} & 12.58 & 10.81 & 12.40 & 12.51 & 13.34 & 2.53 \\
     \bottomrule
   \end{tabular}
 \end{table}

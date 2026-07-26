@@ -1,11 +1,11 @@
 %% maestro2tex -- generated table; do not edit by hand.
 \begin{table}[htbp]
   \centering
-  \caption{Drive compliance against commanded output voltage at the typical corner, \SI{27}{\celsius}, \SI{2.5}{\volt}, \texttt{BiasAdj}~=~37. The sinking and sourcing edges are the load currents at which the tracking error reaches \(\mp\SI{50}{\milli\volt}\), and the span is the distance between them. The zero-load error column is the test of whether the row is a compliance figure at all: where its magnitude already exceeds \SI{50}{\milli\volt} the buffer does not track its input at \emph{any} load, and the two edge columns are then the external current needed to force the output to the commanded value, not a drive rating. $R_{\mathrm{OUT,CL}}$ is the closed-loop output resistance, taken as the central difference over \(\pm\SI{0.5}{\micro\ampere}\) about zero load.}
+  \caption{Drive compliance against commanded output voltage at the typical corner, \SI{27}{\celsius}, \SI{2.5}{\volt}, \texttt{BiasAdj}~=~37. Columns: $V_{\mathrm{MAP}}$ commanded output voltage; $I_{\mathrm{SNK}}$ and $I_{\mathrm{SRC}}$ the load currents at which the tracking error reaches \(\mp\SI{50}{\milli\volt}\), positive current being sourced by the amplifier; $\Delta I$ the span between them; $V_{\mathrm{E0}}$ the tracking error at zero load; $R_{\mathrm{O}}$ the closed-loop output resistance, taken as the central difference over \(\pm\SI{0.5}{\micro\ampere}\) about zero load; $I_{\mathrm{DD}}$ the bench supply current. Where $|V_{\mathrm{E0}}|$ exceeds \SI{50}{\milli\volt} the buffer does not track its input at any load, and $I_{\mathrm{SNK}}$/$I_{\mathrm{SRC}}$ are then the external current that forces the output onto the commanded value.}
   \label{tab:ctrlamp-drivemap}
   \begin{tabular}{lrrrrrr}
     \toprule
-    $V_{\mathrm{MAP}}$~[\si{\volt}] & Sinking edge~[\si{\micro\ampere}] & Sourcing edge~[\si{\micro\ampere}] & Span~[\si{\micro\ampere}] & Error at zero load~[\si{\milli\volt}] & $R_{\mathrm{OUT,CL}}$~[\si{\kilo\ohm}] & $I_{\mathrm{DD}}$~[\si{\micro\ampere}] \\
+    $V_{\mathrm{MAP}}$~[\si{\volt}] & $I_{\mathrm{SNK}}$~[\si{\micro\ampere}] & $I_{\mathrm{SRC}}$~[\si{\micro\ampere}] & $\Delta I$~[\si{\micro\ampere}] & $V_{\mathrm{E0}}$~[\si{\milli\volt}] & $R_{\mathrm{O}}$~[\si{\kilo\ohm}] & $I_{\mathrm{DD}}$~[\si{\micro\ampere}] \\
     \midrule
     0.0 & 2.28 & 32.20 & 29.92 & 97.03 & 41.0 & 56.35 \\
     0.1 & $-0.85$ & 13.83 & 14.67 & 18.84 & 14.7 & 56.32 \\
