@@ -58,8 +58,11 @@ document at a different depth, `\def\MaestroRoot{...}` before the `\input` — t
 exactly what `preview_<Block>.tex` does (it sets it empty and compiles from inside
 `outdir`).
 
-Required packages — `pgfplots`, `booktabs`, `siunitx`, `xcolor` — are all already in
-the TRM's `packages-commands.tex`. The figures set `compat=1.18` inside a TeX group so
+Required packages — `pgfplots`, `booktabs`, `siunitx`, `xcolor`, `placeins` — are all
+already in the TRM's `packages-commands.tex`. The master file wraps the block in
+`\FloatBarrier` at both ends: a block is a dozen-odd floats in a row, so without it
+LaTeX's float queue runs pages behind the text and one block's figures surface inside
+the next block's prose. The figures set `compat=1.18` inside a TeX group so
 they cannot disturb the document's other pgfplots pictures, which set no compat level.
 
 Two things to know about the TRM pipeline:

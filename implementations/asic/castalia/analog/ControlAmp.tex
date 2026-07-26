@@ -4,7 +4,7 @@
 %% Usage from the TRM (which builds with cwd = latex/TRM/):
 %     \input{include/analog/ControlAmp.tex}
 %
-%% Needs pgfplots, booktabs and siunitx -- all already in
+%% Needs pgfplots, booktabs, siunitx and placeins -- all already in
 %% packages-commands.tex. \providecolor needs xcolor (also present).
 
 \providecommand{\MaestroRoot}{include/analog/}
@@ -16,6 +16,9 @@
 \providecolor{mtxC}{HTML}{1BAF7A}
 \providecolor{mtxD}{HTML}{EDA100}
 \providecolor{mtxE}{HTML}{E87BA4}
+
+% Keep this block's floats inside this block (see placeins).
+\FloatBarrier
 
 \subsection{Potentiostat Control Amplifier}\label{ss:controlamp}
 
@@ -69,3 +72,4 @@ corner-signed characterisation.
 \input{\MaestroRoot tab_ctrlamp_noise.tex}
 \input{\MaestroRoot fig_ctrlamp_noise.tex}
 
+\FloatBarrier
