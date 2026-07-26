@@ -739,10 +739,16 @@ def emit_master(cfg, outdir, texroot, written, corners):
         f.write('%% Regenerate with tools/maestro2tex; do not edit by hand.\n')
         f.write('%%\n%% Usage from the TRM (which builds with cwd = latex/TRM/):\n')
         f.write('%%     \\input{%s%s.tex}\n%%\n' % (texroot, block))
-        f.write('%% Needs pgfplots, booktabs and siunitx -- all already in\n')
+        f.write('%% Needs pgfplots, booktabs, siunitx and placeins -- all already in\n')
         f.write('%% packages-commands.tex. \\providecolor needs xcolor (also present).\n\n')
         f.write('\\providecommand{\\MaestroRoot}{%s}\n\n' % texroot)
         emit_palette(f)
+        # A block is a dozen-odd floats in a row, so LaTeX's queue runs several
+        # pages behind the text and one block's figures surface inside the next
+        # block's prose. Barriers at both ends keep each block's floats inside
+        # it, whatever order the chapter inputs them in.
+        f.write('% Keep this block\'s floats inside this block (see placeins).\n')
+        f.write('\\FloatBarrier\n\n')
         intro = cfg.get('intro_tex')
         if intro:
             f.write(intro.rstrip() + '\n\n')
@@ -750,7 +756,7 @@ def emit_master(cfg, outdir, texroot, written, corners):
         for n in names:
             if os.path.isfile(os.path.join(outdir, n + '.tex')):
                 f.write('\\input{\\MaestroRoot %s.tex}\n' % n)
-        f.write('\n')
+        f.write('\n\\FloatBarrier\n')
     return path
 
 
@@ -780,7 +786,7 @@ def emit_preview(cfg, outdir):
         f.write('\\documentclass[11pt]{article}\n')
         f.write('\\usepackage[margin=1in]{geometry}\n')
         for p in ('graphicx', 'booktabs', 'caption', 'pgfplots', 'xcolor',
-                  'siunitx', 'amsmath'):
+                  'siunitx', 'amsmath', 'placeins'):
             f.write('\\usepackage{%s}\n' % p)
         f.write('\\def\\MaestroRoot{}\n')
         f.write('\\begin{document}\n')
