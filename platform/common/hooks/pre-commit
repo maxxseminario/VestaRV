@@ -15,9 +15,11 @@ root="$(git rev-parse --show-toplevel)"
 gen="$root/platform/common"
 
 # Trigger only when something that can change the TRM is staged: the generator sources,
-# the LaTeX, the Makefile, or the published PDF itself.
+# the LaTeX, the Makefile, the per-chip analog chapter sources under
+# implementations/asic/<chip>/analog/ (they are \input by the TRM build, so they
+# stale the PDF exactly like latex/ does), or the published PDF itself.
 if ! git diff --cached --name-only | grep -Eq \
-   '^platform/common/(python/|latex/|hdl_templates/|Makefile)|^implementations/asic/castalia/docs/TRM\.pdf$'; then
+   '^platform/common/(python/|latex/|hdl_templates/|Makefile)|^implementations/asic/[^/]+/analog/|^implementations/asic/castalia/docs/TRM\.pdf$'; then
    exit 0
 fi
 
