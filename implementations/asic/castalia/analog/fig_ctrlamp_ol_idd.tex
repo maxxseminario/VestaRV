@@ -1,0 +1,34 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.80\linewidth, height=6.0cm,
+      xlabel={Differential input $V_{\mathrm{ID}}$~[\si{\volt}]}, ylabel={Supply current $I_{\mathrm{DD}}$~[\si{\micro\ampere}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=1}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_ol_idd_00.dat};
+      \addlegendentry{tt}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption{Bench supply current against differential input, with the amplifier driven open-loop from one saturation limit to the other. The current moves by under \SI{4}{\micro\ampere} across the whole \(\pm\SI{1.25}{\volt}\) overdrive range: the tail and folding currents are set by the bias generator and do not collapse when the input pair is fully steered. The trace includes the local bias generator, which accounts for roughly \SI{23}{\micro\ampere} of the total.}
+  \label{fig:ctrlamp-ol-idd}
+\end{figure}

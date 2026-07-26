@@ -26,20 +26,21 @@ Two stages, deliberately separated:
    it with `--no-extract` to iterate on captions, tables and plot styling without
    taking a licence again.
 
-The generated `extract.ocn` and the full OCEAN log are left in `<outdir>/data/` so a
-failed extraction is debuggable.
+The generated `extract_<Block>.ocn` and the full OCEAN log are left in `<outdir>/data/`
+so a failed extraction is debuggable. Everything a block writes is named after that
+block, because all of a chip's blocks render into one `outdir` and share `data/`.
 
 ## Output layout
 
 ```
 <outdir>/
-  <Block>.tex             master — the one file the TRM inputs
-  fig_*.tex               one pgfplots figure each
-  tab_*.tex               one booktabs table each
-  preview.tex/.pdf        standalone proof sheet (pdflatex preview.tex)
-  data/*.dat              plot data, one file per curve
-  data/raw/*.csv          raw OCEAN dumps (input to the render stage)
-  data/extract.ocn/.log   what was run, and what it said
+  <Block>.tex                    master — the one file the TRM inputs
+  fig_*.tex                      one pgfplots figure each
+  tab_*.tex                      one booktabs table each
+  preview_<Block>.tex/.pdf       standalone proof sheet (pdflatex preview_<Block>.tex)
+  data/*.dat                     plot data, one file per curve
+  data/raw/*.csv                 raw OCEAN dumps (input to the render stage)
+  data/extract_<Block>.ocn/.log  what was run, and what it said
 ```
 
 ## Including it in the TRM
@@ -54,7 +55,8 @@ The TRM builds with `cwd = platform/common/latex/TRM/`, so with the default
 Every path inside the generated files goes through `\MaestroRoot`, which defaults to
 the `tex_root` in the config (`../analog/`). To include the same fragments from a
 document at a different depth, `\def\MaestroRoot{...}` before the `\input` — that is
-exactly what `preview.tex` does (it sets it empty and compiles from inside `outdir`).
+exactly what `preview_<Block>.tex` does (it sets it empty and compiles from inside
+`outdir`).
 
 Required packages — `pgfplots`, `booktabs`, `siunitx`, `xcolor` — are all already in
 the TRM's `packages-commands.tex`. The figures set `compat=1.18` inside a TeX group so
@@ -83,8 +85,8 @@ example. Keys:
 | `supply_var` | design variable reported in the corner table |
 | `intro_tex` | prose emitted at the top of the master file |
 | `signals` | logical name → `expr` (any OCEAN expression), `label`, `unit_tex`, `scale`, `digits` |
-| `tests` | per test: `result` (`dc`/`tran`/`dcOp`), `xlabel`, `xunit_tex`, `xscale`, `nominal_x`, and `signals` overrides |
-| `figures` | `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec` |
+| `tests` | per test: `result` (`dc`/`tran`/`dcOp`/`ac`/`stb`/`noise`/…), `dir`, `xlabel`, `xunit_tex`, `xscale`, `nominal_x`, and `signals` overrides |
+| `figures` | `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec`, `xlog`, `ylog`, `axis_extra` |
 | `tables` | `type` `matrix` (signals × corners) or `stats` (signals × statistics) |
 | `order` | explicit order of fragments in the master file |
 
@@ -92,6 +94,26 @@ example. Keys:
 in a different testbench — in the bias generator the supply current is
 `i("/POWER/SRC_VDD25/PLUS")` in the DC benches but `i("/V0/PLUS")` in the startup
 bench.
+
+A config `test` is a *logical* test: one analysis, with its own signals, x-axis and
+figures. One Maestro test directory usually holds several (`ac`, `dc`, `stb`,
+`stb_margin`, `noise`, `dcOp`, `tran` all live in `TypOpenLoopWBiasTB/psf`), so give
+each logical test a name of its own and point it at the directory with `dir`. `dir`
+defaults to the test name, which is what a bench with a single analysis wants:
+
+```json
+"ol_ac":  { "dir": "TypOpenLoopWBiasTB", "result": "ac", ... },
+"ol_dc":  { "dir": "TypOpenLoopWBiasTB", "result": "dc", ... }
+```
+
+A signal expression does not have to be a waveform. Anything OCEAN can reduce to a
+number — `unityGainFreq(...)`, `getData("phaseMargin")`, `ymax(deriv(...))`,
+`sqrt(integ(...))` — is dumped as a scalar and can be a table row, which is how the
+derived figures of merit (margins, slew rate, integrated noise) get into the manual
+without being transcribed.
+
+Set `xlog`/`ylog` on a figure for decade axes; they also drop the fixed-point tick
+format from that axis, which on a log axis would label every tick `0.0`.
 
 Available statistics: `value`, `nominal` (interpolated at `nominal_x`), `min`, `max`,
 `mean`, `spread`, `first`, `last`, `settle` (last exit from a ±1 % band around the
@@ -118,6 +140,11 @@ global min/max, so overshoot is never decimated away.
 - **`t` is a protected SKILL variable** — never use it as a loop variable in a
   generated `.ocn`.
 - **`errset` returns a list**: read the value with `car(errset(...))`, not `cadr`.
+- **`getData(... ?result "x")` leaves the selected result switched to `x`.** Signals are
+  dumped in sorted order, so one expression reaching into a sibling analysis silently
+  broke every *later* bare `getData` in the same test — `phaseMargin` and
+  `phaseMarginFreq` came out `nil` while `gainMargin`, which sorts earlier, was fine. If
+  any expression in a test names `?result`, give them all an explicit `?result`.
 - **`legend pos` only accepts** `south west`, `south east`, `north west`,
   `north east`, `outer north east`. Anything else is a fatal pgfplots error, so the
   renderer validates it and falls back rather than emitting a broken document.

@@ -1,0 +1,18 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption{Large-signal drive, from the step response of \texttt{SlewOpenLoopWBiasTB} into \SI{10}{\pico\farad}. Slew rate is taken between the \SI{0.25}{\volt} and \SI{2.25}{\volt} output levels; the slewing currents are the mean load current over that same interval, i.e.\ the same measurement expressed the other way ($I=C\,\mathrm{d}V/\mathrm{d}t$ at \SI{10}{\pico\farad}), and the peak edge currents are the momentary spikes as the input steps. \emph{None of the four current rows is a DC drive rating.} The bench steps the differential input by \(\pm\SI{1.25}{\volt}\) open-loop, which takes the PMOS input pair outside its common-mode range, so these are large-signal slam currents into a purely capacitive load --- an upper bound on what the output stage can deliver, not what it can hold against a real load. See the discussion below.}
+  \label{tab:ctrlamp-largesignal}
+  \begin{tabular}{lrr}
+    \toprule
+    Parameter & Unit & tt \\
+    \midrule
+    Slew rate, rising & \si{\volt\per\micro\second} & 1.406 \\
+    Slew rate, falling & \si{\volt\per\micro\second} & 0.351 \\
+    Slewing current, rising edge & \si{\micro\ampere} & 14.06 \\
+    Slewing current, falling edge & \si{\micro\ampere} & 3.51 \\
+    Peak edge current, sourcing & \si{\micro\ampere} & 24.38 \\
+    Peak edge current, sinking & \si{\micro\ampere} & 12.58 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

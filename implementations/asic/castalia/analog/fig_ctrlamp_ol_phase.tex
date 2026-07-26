@@ -1,0 +1,36 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.80\linewidth, height=6.0cm,
+      xlabel={Frequency~[\si{\hertz}]}, ylabel={Open-loop phase $\angle A_{\mathrm{v}}$~[\si{\degree}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      xmode=log,
+      scaled y ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      xtick={1e-3,1e-1,1e1,1e3,1e5,1e7,1e9}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_ol_phase_00.dat};
+      \addlegendentry{tt}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption{Open-loop phase against frequency, same conditions as Figure~\ref{fig:ctrlamp-ol-gain}. The phase passes through \SI{-115.7}{\degree} at the unity-gain frequency, so the non-dominant poles have taken only about \SI{26}{\degree} by the time the gain reaches unity. The step at the extreme right is an unwrapping artefact: at ten points per decade the phase moves by more than \SI{180}{\degree} between the last two samples and the unwrapper cannot follow it. It is above \SI{500}{\mega\hertz}, three decades past unity gain, and does not affect the margins in Table~\ref{tab:ctrlamp-stability}.}
+  \label{fig:ctrlamp-ol-phase}
+\end{figure}

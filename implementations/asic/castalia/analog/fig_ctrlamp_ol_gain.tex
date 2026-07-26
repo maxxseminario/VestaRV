@@ -1,0 +1,36 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.80\linewidth, height=6.0cm,
+      xlabel={Frequency~[\si{\hertz}]}, ylabel={Open-loop gain $|A_{\mathrm{v}}|$~[\si{\decibel}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      xmode=log,
+      scaled y ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      xtick={1e-3,1e-1,1e1,1e3,1e5,1e7,1e9}, ytick={-40,-20,0,20,40,60,80}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_ol_gain_00.dat};
+      \addlegendentry{tt}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption{Open-loop gain of the control amplifier against frequency, driven differentially about \SI{1.25}{\volt} into a \SI{10}{\pico\farad} load. The gain is flat at \SI{78.81}{\decibel} (\num{8716}) out to a dominant pole at \SI{230}{\hertz} and falls at \SI{20}{\decibel} per decade to unity gain at \SI{1.71}{\mega\hertz}; the single-pole roll-off across five decades is the signature of the uncompensated single-stage topology loaded only by $C_{\mathrm{L}}$.}
+  \label{fig:ctrlamp-ol-gain}
+\end{figure}

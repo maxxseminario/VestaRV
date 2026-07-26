@@ -80,13 +80,17 @@ def slug(s):
 
 
 def fmt(x, digits):
-    """Fixed-point format that never emits '-0.00'."""
+    """Fixed-point format that never emits '-0.00'.
+
+    Negative values are wrapped in math mode so they typeset with a real minus
+    sign rather than the hyphen a table cell would otherwise give them.
+    """
     if x is None:
         return '--'
     s = '%.*f' % (digits, x)
     if float(s) == 0.0:
         s = '%.*f' % (digits, 0.0)
-    return s
+    return ('$%s$' % s) if s.startswith('-') else s
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +229,7 @@ def build_ocn(results_dir, corners, cfg, rawdir):
     tests = cfg['tests']
     for cdirname, label, _ in corners:
         for tname, tspec in sorted(tests.items()):
-            psf = os.path.join(results_dir, cdirname, tname, 'psf')
+            psf = os.path.join(results_dir, cdirname, test_dir(tname, tspec), 'psf')
             res = tspec.get('result', 'dc')
             L.append(';; ---- corner %s (%s) / test %s' % (cdirname, label, tname))
             L.append('when(isDir("%s")' % psf)
@@ -246,6 +250,17 @@ def build_ocn(results_dir, corners, cfg, rawdir):
     L.append('printf("MTX_EXTRACT_DONE\\n")')
     L.append('exit(0)')
     return '\n'.join(L) + '\n'
+
+
+def test_dir(tname, tspec):
+    """Results subdirectory a config test reads from.
+
+    A single Maestro test often holds several analyses (ac, dc, stb, noise, ...)
+    and each needs its own signal set, x-axis and figures. The config therefore
+    names *logical* tests, and 'dir' says which run directory each one reads;
+    it defaults to the test name, which is what a one-analysis bench wants.
+    """
+    return tspec.get('dir', tname)
 
 
 def _signals_for(cfg, tspec):
@@ -409,10 +424,17 @@ AXIS_STYLE = (
     '      enlarge x limits=0.02, enlarge y limits=0.10,\n'
     '      every axis plot/.append style={line join=round, no marks},\n'
     '      %(legend)s,\n'
-    '      scaled y ticks=false, scaled x ticks=false,\n'
-    '      y tick label style={/pgf/number format/fixed,\n'
-    '                          /pgf/number format/precision=%(yprec)s}'
+    '      %(ticks)s'
 )
+
+# Decade axes label themselves as 10^n and must not be forced into the
+# fixed-point format the linear axes use -- that would print every tick of a
+# five-decade axis as "0.0".
+TICKS_FIXED_Y = ('y tick label style={/pgf/number format/fixed,\n'
+                 '                          /pgf/number format/precision=%(yprec)s}')
+# Both axes linear is by far the common case; keep it on the historical two
+# lines so re-running an existing config produces a byte-identical figure.
+TICKS_LINEAR = 'scaled y ticks=false, scaled x ticks=false,\n      ' + TICKS_FIXED_Y
 
 # Default legend placement: a single un-boxed row above the axis. With five
 # corner curves spanning the full plot width there is no in-axis position that
@@ -485,12 +507,19 @@ def emit_figure(outdir, texroot, figid, spec, series, caption, xlabel, ylabel,
         f.write('  {\\pgfplotsset{compat=1.18}%\n')
         f.write('  \\begin{tikzpicture}\n')
         f.write('    \\begin{axis}[\n      ')
+        xlog, ylog = spec.get('xlog'), spec.get('ylog')
+        if not xlog and not ylog:
+            ticks = [TICKS_LINEAR % {'yprec': yprec}]
+        else:
+            ticks = ['xmode=log' if xlog else 'scaled x ticks=false',
+                     'ymode=log' if ylog else
+                     'scaled y ticks=false,\n      ' + TICKS_FIXED_Y % {'yprec': yprec}]
         f.write(AXIS_STYLE % {
             'w': spec.get('width', '0.82\\linewidth'),
             'h': spec.get('height', '6.2cm'),
             'xlabel': xlabel, 'ylabel': ylabel,
             'legend': legend,
-            'yprec': yprec,
+            'ticks': ',\n      '.join(ticks),
         })
         extra = spec.get('axis_extra')
         if extra:
@@ -733,15 +762,19 @@ def emit_master(cfg, outdir, texroot, written, corners):
 def emit_preview(cfg, outdir):
     """A standalone wrapper so the fragments can be proofed without the TRM.
 
-    Compile with `pdflatex preview.tex` from inside outdir. Redefining
+    Compile with `pdflatex preview_<block>.tex` from inside outdir. Redefining
     \\MaestroRoot to empty is also the live test that the path indirection works
     -- the same hook the TRM uses to reach these files from latex/TRM/.
+
+    The name carries the block because a chip's blocks all render into one
+    outdir; a fixed "preview.tex" meant generating the second block silently
+    replaced the first block's proof sheet.
     """
     block = cfg.get('block', 'block')
-    path = os.path.join(outdir, 'preview.tex')
+    path = os.path.join(outdir, 'preview_%s.tex' % slug(block))
     with open(path, 'w') as f:
         f.write('%% maestro2tex -- standalone proof sheet. Build with:\n')
-        f.write('%%     cd %s && pdflatex preview.tex\n' % outdir)
+        f.write('%%     cd %s && pdflatex %s\n' % (outdir, os.path.basename(path)))
         f.write('%% The TRM does NOT use this file; it inputs %s.tex directly.\n'
                 % block)
         f.write('\\documentclass[11pt]{article}\n')
@@ -796,16 +829,20 @@ def main():
     print('  corners: %s' % ', '.join('%s=%s' % (c[0], c[1]) for c in corners))
     found = discover_tests(results, corners)
     print('  tests in run: %s' % ', '.join(found))
-    unknown = [t for t in cfg['tests'] if t not in found]
+    unknown = sorted(set(test_dir(t, s) for t, s in cfg['tests'].items()
+                         if test_dir(t, s) not in found))
     if unknown:
-        info('config names tests absent from this run: %s' % ', '.join(unknown))
+        info('config names test directories absent from this run: %s'
+             % ', '.join(unknown))
 
     if not args.no_extract:
         ocn = build_ocn(results, corners, cfg, rawdir)
-        ocn_path = os.path.join(outdir, 'data', 'extract.ocn')
+        # Per block, for the same reason preview.tex is: one outdir, many blocks.
+        stem = os.path.join(outdir, 'data', 'extract_%s' % slug(cfg.get('block', 'block')))
+        ocn_path = stem + '.ocn'
         with open(ocn_path, 'w') as f:
             f.write(ocn)
-        log_path = os.path.join(outdir, 'data', 'extract.log')
+        log_path = stem + '.log'
         print('  extracting through OCEAN (%s)' % args.ocean)
         run_ocean(ocn_path, args.ocean, args.setup, log_path)
         n = len([x for x in os.listdir(rawdir) if x.endswith('.csv')])

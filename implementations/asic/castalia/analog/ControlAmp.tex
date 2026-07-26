@@ -1,0 +1,71 @@
+% maestro2tex -- generated master include for ControlAmp.
+%% Regenerate with tools/maestro2tex; do not edit by hand.
+%%
+%% Usage from the TRM (which builds with cwd = latex/TRM/):
+%     \input{include/analog/ControlAmp.tex}
+%
+%% Needs pgfplots, booktabs and siunitx -- all already in
+%% packages-commands.tex. \providecolor needs xcolor (also present).
+
+\providecommand{\MaestroRoot}{include/analog/}
+
+% Categorical palette: slots 1-5 of the validated reference palette,
+% in documented order. Dash patterns are a secondary encoding for print.
+\providecolor{mtxA}{HTML}{2A78D6}
+\providecolor{mtxB}{HTML}{EB6834}
+\providecolor{mtxC}{HTML}{1BAF7A}
+\providecolor{mtxD}{HTML}{EDA100}
+\providecolor{mtxE}{HTML}{E87BA4}
+
+\subsection{Potentiostat Control Amplifier}\label{ss:controlamp}
+
+The control amplifier (schematic cell \texttt{anatop\_controlamp}, drawn from
+\texttt{AFE\_ECS/folded\_cascode\_pmos}) is amplifier A1 of the rev-2 potentiostat.
+It drives the counter electrode directly from its output, takes its feedback from the
+reference electrode on the inverting input, and takes its set point from the reference
+DAC on the non-inverting input; the cell current is therefore whatever A1 must push
+into the cell to hold $V_{\mathrm{RE}}$ at the commanded potential. Unlike the rev-1
+front end it drives no current mirror, so both polarities of cell current pass through
+it.
+
+The topology is a single-stage folded cascode with a PMOS input pair. A PMOS tail
+device feeds the differential pair from \texttt{vdd!}; the pair's drain currents are
+folded into two NMOS current sources biased on \texttt{vbn} and pass up through NMOS
+cascodes on \texttt{vbnc} into a cascoded PMOS mirror on \texttt{vbpm}/\texttt{vbpc}.
+Output and load current are summed at the single high-impedance node where the PMOS and
+NMOS cascodes meet, so the amplifier has no internal compensation capacitor --- the load
+capacitance at \texttt{vout} is what sets the dominant pole, and every dynamic figure
+below is quoted against the \SI{10}{\pico\farad} load the benches apply. A PMOS input
+pair puts the input common-mode range against \texttt{vss!} rather than against the
+supply, which is what a potentiostat holding a reference electrode near ground needs.
+The four cascode gate biases come from an \texttt{anatop\_biasgen\_local} instance
+(Section~\ref{ss:biasgen-local}) trimmed to \texttt{BiasAdj}~=~37.
+
+The characterisation below is from schematic-level simulation (no extracted parasitics)
+of three views of the \texttt{castalia/anatop\_tb\_controlamp} testbench:
+\texttt{TypOpenLoopWBiasTB} (open-loop AC, DC transfer, noise),
+\texttt{UnityFeedbackWBiasTB} (loop stability by \texttt{stb} analysis, unity-gain
+transfer, noise) and \texttt{SlewOpenLoopWBiasTB} (large-signal step response). Both
+noise-driven benches include the local bias generator, so the noise and supply-current
+numbers are for the amplifier as biased, not for an idealised cell. This run covers the
+single process, temperature and supply point of
+Table~\ref{tab:ControlAmp-corners} --- it is a typical-corner design check, not a
+corner-signed characterisation.
+
+\input{\MaestroRoot tab_ControlAmp_corners.tex}
+\input{\MaestroRoot tab_ctrlamp_dcop.tex}
+\input{\MaestroRoot tab_ctrlamp_ac.tex}
+\input{\MaestroRoot fig_ctrlamp_ol_gain.tex}
+\input{\MaestroRoot fig_ctrlamp_ol_phase.tex}
+\input{\MaestroRoot tab_ctrlamp_stability.tex}
+\input{\MaestroRoot tab_ctrlamp_swing.tex}
+\input{\MaestroRoot tab_ctrlamp_accuracy.tex}
+\input{\MaestroRoot fig_ctrlamp_buffer_error.tex}
+\input{\MaestroRoot fig_ctrlamp_ol_idd.tex}
+\input{\MaestroRoot tab_ctrlamp_largesignal.tex}
+\input{\MaestroRoot fig_ctrlamp_slew.tex}
+\input{\MaestroRoot fig_ctrlamp_slew_iload.tex}
+\input{\MaestroRoot note_ctrlamp_drive.tex}
+\input{\MaestroRoot tab_ctrlamp_noise.tex}
+\input{\MaestroRoot fig_ctrlamp_noise.tex}
+
