@@ -27,6 +27,14 @@
     ]
       \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_ol_idd_00.dat};
       \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_ol_idd_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_ol_idd_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_ol_idd_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_ol_idd_04.dat};
+      \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
   \caption{Bench supply current against differential input, with the amplifier driven open-loop from one saturation limit to the other. The current moves by under \SI{4}{\micro\ampere} across the whole \(\pm\SI{1.25}{\volt}\) overdrive range: the tail and folding currents are set by the bias generator and do not collapse when the input pair is fully steered. The trace includes the local bias generator, which accounts for roughly \SI{23}{\micro\ampere} of the total.}

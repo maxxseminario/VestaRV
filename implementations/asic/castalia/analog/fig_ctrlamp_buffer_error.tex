@@ -28,6 +28,14 @@
     ]
       \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_buffer_error_00.dat};
       \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_buffer_error_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_buffer_error_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_buffer_error_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_buffer_error_04.dat};
+      \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
   \caption{Unity-gain tracking error against input voltage. Inside the window \SIrange{0.30}{2.01}{\volt} the error stays under \SI{1}{\milli\volt}, passing through \SI{+61}{\micro\volt} at mid-supply; the curve leaves the frame at both ends, where the PMOS tail runs out of headroom near the supply and the output stage reaches its low limit near \texttt{vss!}. The vertical scale is clipped to \(\pm\SI{1.5}{\milli\volt}\) so the in-range behaviour is visible at all --- the error reaches \SI{+97}{\milli\volt} at \SI{0}{\volt} and \SI{-382}{\milli\volt} at \SI{2.5}{\volt}.}

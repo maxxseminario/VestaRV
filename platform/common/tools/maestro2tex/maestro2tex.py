@@ -100,6 +100,11 @@ def fmt(x, digits):
     """
     if x is None:
         return '--'
+    # Spectre writes nan for a margin that does not exist (a loop whose phase
+    # never reaches -180 has no gain margin). That is a real result, but "nan"
+    # in a manual reads as a broken extraction -- show it as absent.
+    if x != x or x in (float('inf'), float('-inf')):
+        return '--'
     s = '%.*f' % (digits, x)
     if float(s) == 0.0:
         s = '%.*f' % (digits, 0.0)
@@ -111,7 +116,29 @@ def fmt(x, digits):
 # ---------------------------------------------------------------------------
 
 
-def discover_corners(results_dir):
+def expand_points(spec):
+    """['1-130', '136'] -> {'1', '2', ..., '130', '136'}.
+
+    One Maestro run now routinely holds several unrelated sweeps -- a 130-point
+    2-D map followed by two groups of five-corner single-point benches. Scoping
+    a config to its own points keeps the corner labels clean: 136-140 alone are
+    tt/ff/fs/sf/ss, while all 140 together would de-duplicate into tt1, tt131,
+    tt136 and legends would read like directory numbers.
+    """
+    if not spec:
+        return None
+    out = set()
+    for item in spec:
+        item = str(item).strip()
+        if '-' in item:
+            lo, hi = item.split('-', 1)
+            out.update(str(n) for n in range(int(lo), int(hi) + 1))
+        else:
+            out.add(item)
+    return out
+
+
+def discover_corners(results_dir, points=None):
     """Return [(dirname, label, vars)] for each numeric point/corner subdirectory.
 
     Maestro names the per-corner run directories 1, 2, 3 ... The process corner
@@ -122,6 +149,8 @@ def discover_corners(results_dir):
     out = []
     for name in sorted(os.listdir(results_dir), key=lambda s: (len(s), s)):
         if not name.isdigit():
+            continue
+        if points is not None and name not in points:
             continue
         cdir = os.path.join(results_dir, name)
         if not os.path.isdir(cdir):
@@ -697,21 +726,64 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
     def sigspec(test, name):
         return _signals_for(cfg, cfg['tests'][test]).get(name, {})
 
-    def corner_axis(spec, test):
+    def corner_axis(spec, test, match=None):
         """[(xvalue, corner_label)] for the corners a map/by-corner spec spans,
-        ordered by the design variable that distinguishes them."""
+        ordered by the design variable that distinguishes them.
+
+        `match` selects one corner family out of a multi-corner sweep: with five
+        corners the labels are tt1..tt26, ff27..ff52, ... and a map can only show
+        one of them, so '^tt' picks that family and leaves the ordering by the
+        design variable intact.
+        """
         var = spec.get('xvar') or spec.get('sortvar')
         want = spec.get('corners', 'all')
         want = labels if want == 'all' else want
+        rx = re.compile(match) if match else None
         rows = []
         for cdirname, label, dvars in corners:
             if label not in want:
                 continue
             if var not in dvars:
                 continue
+            if rx and not rx.search(label):
+                continue
             rows.append((dvars[var], label))
         rows.sort()
         return rows
+
+    # ---------------- scalar-vs-design-variable line figures ----------------
+    for spec in cfg.get('figures', []):
+        if spec.get('kind') != 'sweepline':
+            continue
+        figid = spec['id']
+        test = spec['test']
+        tspec = cfg['tests'][test]
+        series = []
+        for sname in spec['signals']:
+            ss = sigspec(test, sname)
+            for ser in spec.get('series', [{'match': None, 'legend': None}]):
+                pts = []
+                for xval, label in corner_axis(spec, test, ser.get('match')):
+                    d = load(test, label, sname)
+                    if d and d[0] == 'scalar':
+                        pts.append((xval, d[1] * ss.get('scale', 1.0)))
+                if not pts:
+                    info('sweepline %s: no data for %s / %s'
+                         % (figid, sname, ser.get('legend', ser.get('match'))))
+                    continue
+                if len(spec['signals']) > 1 and ser.get('legend'):
+                    legend = '%s, %s' % (ss.get('label', sname), ser['legend'])
+                else:
+                    legend = ser.get('legend') or ss.get('label', sname)
+                series.append((legend, pts, 1.0, 1.0))
+        if not series:
+            info('skip sweepline %s (no data)' % figid)
+            continue
+        written.append(emit_figure(
+            outdir, texroot, figid, spec, series, spec.get('caption', figid),
+            spec.get('xlabel', 'x'), spec.get('ylabel', 'y'),
+            spec.get('yprec', 1), 0))
+        info('sweepline %-25s %d curve(s)' % (figid, len(series)))
 
     # ---------------- heatmaps ----------------
     for spec in cfg.get('figures', []):
@@ -728,7 +800,7 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
         ystep = max(1, int(spec.get('ystep', 1)))
 
         cols, ny, skipped = [], None, []
-        for xval, label in corner_axis(spec, test):
+        for xval, label in corner_axis(spec, test, spec.get('corner_match')):
             d = load(test, label, signame)
             if not d or d[0] != 'wave':
                 skipped.append(label)
@@ -759,7 +831,7 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
         for ov in spec.get('overlay', []):
             osc = ov.get('scale', 1.0)
             pts = []
-            for xval, label in corner_axis(spec, test):
+            for xval, label in corner_axis(spec, test, spec.get('corner_match')):
                 d = load(test, label, ov['signal'])
                 if d and d[0] == 'scalar':
                     pts.append((xval, d[1] * osc))
@@ -784,7 +856,7 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
 
     # ---------------- figures ----------------
     for spec in cfg.get('figures', []):
-        if spec.get('kind') == 'heatmap':
+        if spec.get('kind') in ('heatmap', 'sweepline'):
             continue
         figid = spec['id']
         test = spec['test']
@@ -869,7 +941,7 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
                     ss.get('label', signame),
                     ('~[%s]' % ss['unit_tex']) if ss.get('unit_tex') else ''))
             rows = []
-            for xval, label in corner_axis(spec, test):
+            for xval, label in corner_axis(spec, test, spec.get('corner_match')):
                 row = [fmt(xval, spec.get('sortvar_digits', 2)),
                        spec.get('sortvar_unit_cell', '')]
                 for signame in spec['signals']:
@@ -1076,7 +1148,7 @@ def main():
         die('results directory not found: %s' % results)
 
     if have_results:
-        corners = discover_corners(results)
+        corners = discover_corners(results, expand_points(cfg.get('points')))
         if not corners:
             die('no corner directories (1, 2, 3, ...) under %s' % results)
         save_corners(rawdir, block, corners)

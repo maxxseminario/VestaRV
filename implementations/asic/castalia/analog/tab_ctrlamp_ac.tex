@@ -3,16 +3,16 @@
   \centering
   \caption{Small-signal open-loop response, from the AC analysis of \texttt{TypOpenLoopWBiasTB} into a \SI{10}{\pico\farad} load. The gain--bandwidth product exceeds the measured unity-gain frequency slightly because the higher-order poles have already begun to bend the response before the gain reaches unity.}
   \label{tab:ctrlamp-ac}
-  \begin{tabular}{lrr}
+  \begin{tabular}{lrrrrrrr}
     \toprule
-    Parameter & Unit & tt \\
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
     \midrule
-    Open-loop DC gain $A_{0}$ & \si{\decibel} & 78.81 \\
-    Open-loop DC gain $A_{0}$ & \si{\volt\per\volt} & 8716 \\
-    Dominant pole $f_{-3\,\mathrm{dB}}$ & \si{\hertz} & 230.3 \\
-    Unity-gain frequency $f_{\mathrm{u}}$ & \si{\mega\hertz} & 1.713 \\
-    Gain--bandwidth product & \si{\mega\hertz} & 2.012 \\
-    Open-loop phase at $f_{\mathrm{u}}$ & \si{\degree} & $-115.7$ \\
+    Open-loop DC gain $A_{0}$ & \si{\decibel} & 83.87 & 72.67 & 83.88 & 82.87 & 82.34 & 11.21 \\
+    Open-loop DC gain $A_{0}$ & \si{\volt\per\volt} & 15618 & 4299 & 15636 & 13914 & 13086 & 11337 \\
+    Dominant pole $f_{-3\,\mathrm{dB}}$ & \si{\hertz} & 128.9 & 20.1 & 138.3 & 117.0 & 204.6 & 184.5 \\
+    Unity-gain frequency $f_{\mathrm{u}}$ & \si{\mega\hertz} & 1.725 & 0.053 & 1.921 & 1.266 & 2.548 & 2.495 \\
+    Gain--bandwidth product & \si{\mega\hertz} & 2.018 & 0.087 & 2.167 & 1.632 & 2.684 & 2.598 \\
+    Open-loop phase at $f_{\mathrm{u}}$ & \si{\degree} & $-115.5$ & $-110.7$ & $-113.1$ & $-118.5$ & $-106.4$ & 12.1 \\
     \bottomrule
   \end{tabular}
 \end{table}

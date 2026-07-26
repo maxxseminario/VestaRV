@@ -3,16 +3,16 @@
   \centering
   \caption{Output-referred noise in unity-gain feedback, amplifier and local bias generator together. The flicker corner is quoted as the frequency at which the density has risen to \(\sqrt{2}\) times the \SI{300}{\kilo\hertz} floor. In unity gain the output-referred and input-referred densities are equal to within a fraction of a percent below \SI{100}{\kilo\hertz}, so these also read as input-referred numbers over the band that matters to the potentiostat loop.}
   \label{tab:ctrlamp-noise}
-  \begin{tabular}{lrr}
+  \begin{tabular}{lrrrrrrr}
     \toprule
-    Parameter & Unit & tt \\
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
     \midrule
-    Output noise at \SI{1}{\hertz} & \si{\nano\volt\per\sqrt\hertz} & 4768 \\
-    Output noise at \SI{1}{\kilo\hertz} & \si{\nano\volt\per\sqrt\hertz} & 112.8 \\
-    Broadband floor at \SI{300}{\kilo\hertz} & \si{\nano\volt\per\sqrt\hertz} & 16.01 \\
-    Flicker corner & \si{\kilo\hertz} & 34.39 \\
-    Integrated noise, \SI{0.1}{\hertz}--\SI{10}{\kilo\hertz} & \si{\micro\volt} & 14.30 \\
-    Integrated noise, \SI{0.1}{\hertz}--\SI{1}{\mega\hertz} & \si{\micro\volt} & 22.29 \\
+    Output noise at \SI{1}{\hertz} & \si{\nano\volt\per\sqrt\hertz} & 4768 & 4526 & 4774 & 4744 & 5036 & 510 \\
+    Output noise at \SI{1}{\kilo\hertz} & \si{\nano\volt\per\sqrt\hertz} & 112.8 & 107.8 & 113.2 & 111.9 & 119.8 & 12.0 \\
+    Broadband floor at \SI{300}{\kilo\hertz} & \si{\nano\volt\per\sqrt\hertz} & 16.01 & 6.85 & 15.93 & 16.51 & 16.25 & 9.66 \\
+    Flicker corner & \si{\kilo\hertz} & 34.39 & 215.45 & 35.44 & 30.17 & 38.56 & 185.28 \\
+    Integrated noise, \SI{0.1}{\hertz}--\SI{10}{\kilo\hertz} & \si{\micro\volt} & 14.30 & 13.70 & 14.34 & 14.22 & 15.14 & 1.44 \\
+    Integrated noise, \SI{0.1}{\hertz}--\SI{1}{\mega\hertz} & \si{\micro\volt} & 22.29 & 19.07 & 21.98 & 23.82 & 22.51 & 4.75 \\
     \bottomrule
   \end{tabular}
 \end{table}

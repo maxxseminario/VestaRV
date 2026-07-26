@@ -29,32 +29,37 @@ reference electrode on the inverting input, and takes its set point from the ref
 DAC on the non-inverting input; the cell current is therefore whatever A1 must push
 into the cell to hold $V_{\mathrm{RE}}$ at the commanded potential. Unlike the rev-1
 front end it drives no current mirror, so both polarities of cell current pass through
-it.
+it. Figure~\ref{fig:ctrlamp-core} is the transistor-level core.
 
-The topology is a single-stage folded cascode with a PMOS input pair. A PMOS tail
-device feeds the differential pair from \texttt{vdd!}; the pair's drain currents are
-folded into two NMOS current sources biased on \texttt{vbn} and pass up through NMOS
-cascodes on \texttt{vbnc} into a cascoded PMOS mirror on \texttt{vbpm}/\texttt{vbpc}.
-Output and load current are summed at the single high-impedance node where the PMOS and
-NMOS cascodes meet, so the amplifier has no internal compensation capacitor --- the load
-capacitance at \texttt{vout} is what sets the dominant pole, and every dynamic figure
-below is quoted against the \SI{10}{\pico\farad} load the benches apply. A PMOS input
-pair puts the input common-mode range against \texttt{vss!} rather than against the
-supply, which is what a potentiostat holding a reference electrode near ground needs.
-The four cascode gate biases come from an \texttt{anatop\_biasgen\_local} instance
+The topology is a single-stage folded cascode with a PMOS input pair. Output and load
+current are summed at a single high-impedance node, so the amplifier has no internal
+compensation capacitor --- the load capacitance at \texttt{vout} is what sets the
+dominant pole, and every dynamic figure below is quoted against the
+\SI{10}{\pico\farad} load the benches apply. A PMOS input pair puts the input
+common-mode range against \texttt{vss!} rather than against the supply, which is what a
+potentiostat holding a reference electrode near ground needs. The four cascode gate
+biases come from an \texttt{anatop\_biasgen\_local} instance
 (Section~\ref{ss:biasgen-local}) trimmed to \texttt{BiasAdj}~=~37.
 
 The characterisation below is from schematic-level simulation (no extracted parasitics)
-of three views of the \texttt{castalia/anatop\_tb\_controlamp} testbench:
-\texttt{TypOpenLoopWBiasTB} (open-loop AC, DC transfer, noise),
-\texttt{UnityFeedbackWBiasTB} (loop stability by \texttt{stb} analysis, unity-gain
-transfer, noise) and \texttt{SlewOpenLoopWBiasTB} (large-signal step response). Both
-noise-driven benches include the local bias generator, so the noise and supply-current
-numbers are for the amplifier as biased, not for an idealised cell. This run covers the
-single process, temperature and supply point of
-Table~\ref{tab:ControlAmp-corners} --- it is a typical-corner design check, not a
-corner-signed characterisation.
+of the \texttt{castalia/anatop\_tb\_controlamp} testbench, across the five process
+corners of Table~\ref{tab:ControlAmp-corners}: \texttt{TypOpenLoopWBiasTB} (open-loop
+AC and DC transfer), \texttt{UnityFeedbackWBiasTB} (loop stability by \texttt{stb}
+analysis, unity-gain transfer, noise), \texttt{SlewOpenLoopWBiasTB} (large-signal step)
+and \texttt{DriveMapTB} (a load-current sweep at each of 26 commanded output voltages,
+in every corner). Every bench includes the local bias generator, so the noise and
+supply-current numbers are for the amplifier as biased, not for an idealised cell.
 
+Two things about the corner set should be read before the numbers. The typical point is
+simulated at \SI{27}{\celsius} and the four process corners at \SI{25}{\celsius}, so a
+small part of the spread in every table is temperature rather than process. More
+importantly, the imported corner definitions pin the resistor and MIM rows at typical in
+\emph{all five} corners --- see the note following
+Figure~\ref{fig:ctrlamp-drivespan}. This block's bias current is set by a poly
+resistor, so the spread reported here is the transistor-corner spread only and
+understates the real one.
+
+\input{\MaestroRoot sch_ctrlamp_core.tex}
 \input{\MaestroRoot tab_ControlAmp_corners.tex}
 \input{\MaestroRoot tab_ctrlamp_dcop.tex}
 \input{\MaestroRoot tab_ctrlamp_ac.tex}
@@ -71,6 +76,7 @@ corner-signed characterisation.
 \input{\MaestroRoot note_ctrlamp_drive.tex}
 \input{\MaestroRoot tab_ctrlamp_drivemap.tex}
 \input{\MaestroRoot fig_ctrlamp_drivemap.tex}
+\input{\MaestroRoot fig_ctrlamp_drivespan.tex}
 \input{\MaestroRoot note_ctrlamp_drivemap.tex}
 \input{\MaestroRoot tab_ctrlamp_noise.tex}
 \input{\MaestroRoot fig_ctrlamp_noise.tex}

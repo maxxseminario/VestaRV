@@ -29,6 +29,14 @@
     ]
       \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_ol_phase_00.dat};
       \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_ol_phase_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_ol_phase_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_ol_phase_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_ol_phase_04.dat};
+      \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
   \caption{Open-loop phase against frequency, same conditions as Figure~\ref{fig:ctrlamp-ol-gain}. The phase passes through \SI{-115.7}{\degree} at the unity-gain frequency, so the non-dominant poles have taken only about \SI{26}{\degree} by the time the gain reaches unity. The step at the extreme right is an unwrapping artefact: at ten points per decade the phase moves by more than \SI{180}{\degree} between the last two samples and the unwrapper cannot follow it. It is above \SI{500}{\mega\hertz}, three decades past unity gain, and does not affect the margins in Table~\ref{tab:ctrlamp-stability}.}

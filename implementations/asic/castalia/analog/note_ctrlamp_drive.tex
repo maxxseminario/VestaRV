@@ -35,9 +35,11 @@ compliance figure. That measurement needs a load-current sweep, and it is the su
 Table~\ref{tab:ctrlamp-drivemap} and Figure~\ref{fig:ctrlamp-drivemap} below.
 
 The two disagree, and instructively. Driven open-loop into a capacitor the amplifier
-sources four times what it sinks; swept with a DC load in unity-gain feedback it sinks
-slightly \emph{more} than it sources at every commanded voltage
-(\SI{-7.04}{\micro\ampere} against \SI{5.36}{\micro\ampere} at its widest). The two
-benches are not measuring the same thing --- one is the output stage slammed to one
-side, the other is the closed loop working about its operating point --- and it is the
-DC sweep that answers the compliance question. Take the drive numbers from there.
+sources four times what it sinks (\SI{14.03}{\micro\ampere} against
+\SI{3.52}{\micro\ampere} at the typical corner); swept with a DC load in unity-gain
+feedback it is close to symmetric through the middle of its output range, the two edges
+staying within about \SI{20}{\percent} of each other from \SI{0.3}{\volt} to
+\SI{1.7}{\volt}. The two benches are not measuring the same thing --- one is the output
+stage slammed to one side with the input pair driven past its common-mode range, the
+other is the closed loop working about its operating point --- and it is the DC sweep
+that answers the compliance question. Take the drive numbers from there.
