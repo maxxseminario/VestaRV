@@ -135,9 +135,9 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.pwm':      ('bool — True instantiates the PWM0 buffered PWM generator (2 channels, glitch-free double-buffered update, software fault trip, period-event tick) at 0x6600: page-2 (MUTEX page) sub-slot 6. Zero input pins; the two outputs pwm_out(0)/(1) REPLACE two redundant timer-compare spread copies (P2.2/P2.3 AF2, the pin-mux-v2 replaced-spread-slot precedent). Free-running MCLK engine (no LFXT, no generated clocks). GROWS the IRQ source list per the GLOBAL VECTOR RULE (A5): vectors 115 = PWM0_FAULT (lower id = router priority), 116 = PWM0_EVT; when a lower library block (RTC vector 114) is off but pwm is on, 114 backfills as IRQB_RSVD114. NUM_EN_WORDS stays 4 (117 <= 128). Default false',
 	                         _isBool),
-	'peripherals.onewire':  ('bool — True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7. One pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1 (unbonded on the QFN-44, reachable on the QFN-64 / respin package). Free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118: vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false',
+	'peripherals.onewire':  ('bool — True instantiates the OW0 Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive; one open-drain DQ pin) at 0x6700: page-2 (MUTEX page) sub-slot 7. One pad: DQ on P4.7 / GPIO31 (DTP3), alt plane AF2, open-drain, rstREN=1 — the pin-mux-v2 REPLACED-SPREAD-SLOT mechanism (it takes over the redundant T0CMP1 output-spread copy in that slot; T0CMP1 keeps its P3.1/GPIO17 AF0 primary, its P2.1/P4.5 AF1 relocations and 26 other spread copies, so the replacement is pure redundancy). Free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized). EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 118: vector 117 = OW0 (single combined transaction-complete/error IRQ); when a lower library block (RTC 114, PWM 115/116) is off but onewire is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (118 <= 128). Default false',
 	                         _isBool),
-	'peripherals.fieldPower': ('bool — True wires the DP-S3 field-powered-mode supervision inputs into PWRCTRL: P6.7/GPIO47 = PGOOD supply-supervisor input, P6.6/GPIO46 = harvested-boot strap. Both are plain-GPIO DIRECT TAPS of the pad-input plane (always readable, independent of PxSEL/PxAFS — PGOOD must gate boot before any software can program a mux), with reset attrs rstDIR=input, rstREN=1, pull-DOWN: unconnected reads power-not-good + NORMAL(SPI) boot. Also taps NFC0\'s field_detect level as an optional PWRCTRL wake/release source (tied 0 when NFC is absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL unconditionally; this knob only controls the pad-side ties, so False leaves the feature a provable NO-OP (gate stuck released). CONFLICTS with peripherals.onewire — OW0\'s DQ owns P6.6. Default true (the Castalia golden master and castalia_dp carry the live wiring)',
+	'peripherals.fieldPower': ('bool — True wires the DP-S3 field-powered-mode supervision inputs into PWRCTRL: P6.7/GPIO47 = PGOOD supply-supervisor input, P6.6/GPIO46 = harvested-boot strap. Both are plain-GPIO DIRECT TAPS of the pad-input plane (always readable, independent of PxSEL/PxAFS — PGOOD must gate boot before any software can program a mux), with reset attrs rstDIR=input, rstREN=1, pull-DOWN: unconnected reads power-not-good + NORMAL(SPI) boot. Also taps NFC0\'s field_detect level as an optional PWRCTRL wake/release source (tied 0 when NFC is absent). The PWRCTRL PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL unconditionally; this knob only controls the pad-side ties, so False leaves the feature a provable NO-OP (gate stuck released). Default true (the Castalia golden master and castalia_dp carry the live wiring)',
 	                         _isBool),
 	'peripherals.dma':      ('bool — True instantiates the DMA0 configurable multi-channel single-shot DMA controller (peripheral-paced or software-GO mem-to-mem transfers, CRC16 ride-along) at 0x6800: page-2 (MUTEX page) sub-slot 8. Zero pins. DMA0 is the FIRST new arbiter MASTER since the four harts (M13): enabling it WIDENS the shared fabric from N=4 to N=5 masters (the DMA is master index numHarts, the last slice) — mp_arbiter N=>5/MW=>3, resv_unit N=>5, mutex_bank/irq_router MW=>3, sh_master 2->3 bits, arb_* buses grow a 5th slice. EXTENDS the IRQ source list per the GLOBAL VECTOR RULE (A5) to 119: vectors 118 = DMA0_DONE (combined channels-done), 119 = DMA0_ERR; when a lower library block (RTC 114, PWM 115/116, OW 117) is off but dma is on, those slots backfill as IRQB_RSVD. NUM_EN_WORDS stays 4 (119 <= 128). Default false',
 	                         _isBool),
@@ -429,9 +429,10 @@ pwmPresent = _cfg('peripherals.pwm', False)
 # presence, write/read bit + byte link-layer primitives off a programmable time base;
 # ROM search + CRC-8 in firmware; standard + overdrive speeds; one open-drain DQ)
 # claims page-2 (the MUTEX page) SUB-SLOT 7 @0x6700, joining the I3C/NFC/GPIO4/GPIO5/
-# RTC0/PWM0 carve. OW0 has ONE pad: DQ on P6.6 / GPIO46, AF1, open-drain, rstREN=1
-# (the exact I3C0 SDA/SCL P5.6/7 AF1 pad mechanism; unbonded on the QFN-44, reachable
-# on the QFN-64 / respin package). The whole engine (OW0DIV time base / slot FSM / DQ
+# RTC0/PWM0 carve. OW0 has ONE pad: DQ on P4.7 / GPIO31 (DTP3), alt plane AF2,
+# open-drain, rstREN=1 — the pin-mux-v2 REPLACED-SPREAD-SLOT mechanism (see the
+# _GPIO_AF_SPREAD gate below), NOT an AF1 plane: the slot's redundant T0CMP1 spread
+# copy steps aside for it. The whole engine (OW0DIV time base / slot FSM / DQ
 # 2-FF synchronizer / sticky W1C flags / BUSY-PRES / IRQ combiner) rides the free-
 # running MCLK (clk => mclk, D1/D2) — no LFXT, no generated/gated clocks, and NO clock
 # on the DQ pad (DQ is 2-FF synchronized, PURE DATA, D10). Like RTC0/PWM0 it needs NO
@@ -441,7 +442,8 @@ pwmPresent = _cfg('peripherals.pwm', False)
 # below): vector 117 = OW0 (single combined transaction-complete/error source), with
 # 114/115/116 backfilling as IRQB_RSVD per their own rtc/pwm knobs. NUM_EN_WORDS stays
 # 4 (ceil(118/32) = 4, 118 <= 128). Default FALSE — the default emission (no page-2
-# sub-slot 7, no MmrAddrOW0, P6.6/GPIO46 stays plain spare GPIO) is byte-identical.
+# sub-slot 7, no MmrAddrOW0, P4.7/GPIO31 AF2 keeps its T0CMP1 spread copy) is
+# byte-identical.
 onewirePresent = _cfg('peripherals.onewire', False)
 
 # DP-S3 (field-powered NFC mode, 2026-07-24): PWRCTRL supervision-input wiring.
@@ -450,12 +452,11 @@ onewirePresent = _cfg('peripherals.onewire', False)
 # defaults chosen so an unfitted board reads power-good-not-asserted + NORMAL
 # boot. The pwr_ctrl.vhd RTL (PWRWAKE/PWRSTS words 5/6, pgood_rstn boot gate)
 # is unconditional; this knob only decides the pad-side ties in the generated
-# pwr0 port map. P6.6 is double-claimed by OW0's DQ — hard conflict below.
+# pwr0 port map. INDEPENDENT of every other knob since the Stage H re-pin
+# (2026-07-26): OW0's DQ moved off P6.6 to P4.7/GPIO31 AF2, so the old
+# fieldPower/onewire hard conflict is GONE — both may be on at once (the wound
+# configuration is the proof).
 fieldPowerPresent = _cfg('peripherals.fieldPower', True)
-if fieldPowerPresent and onewirePresent:
-	raise Exception('Chip-config conflict: peripherals.fieldPower and peripherals.onewire '
-		'both claim P6.6/GPIO46 (harvested-boot strap vs OW0 DQ) — set fieldPower=false '
-		'to enable onewire (or re-pin one of them first).')
 
 # digperiphs #6 (DMA, 2026-07-21): the DMA0 configurable multi-channel single-shot
 # DMA controller (peripheral-paced or software-GO mem-to-mem transfers off the shared
@@ -2626,13 +2627,14 @@ if onewirePresent:
 	# whenever any page-2 sub-slot device is present). This CreatePeripheral exists for
 	# the register map, TRM chapter, address table, and the vector-117 interrupt-table
 	# entry (interruptPriority=117 = OW0's single frozen vector); the RTL (sub-slot 7
-	# decode + the raw-strobe registered-read shim + the OneWire instance + the P6.6/AF1
-	# DQ pad routing) is hand-emitted by mcu_vhd.py under geo['onewire']. clockDomain=
+	# decode + the raw-strobe registered-read shim + the OneWire instance + the DQ input
+	# mux / ren alias) is hand-emitted by mcu_vhd.py under geo['onewire'], while the DQ
+	# OUTPUT/DIR plane comes from the P4.7 AF2 spread slot. clockDomain=
 	# 'mclk' names BOTH the bus clock (ClkMem) AND the free-running engine clock (clk =>
 	# mclk, D1/D2 — time base / slot FSM / DQ synchronizer / flags / IRQ all on MCLK).
 	# NOT combinationalRead and NOT a CAPTURE_CLOCK slave (D4): a plain raw-strobe active-
 	# low en shim (ow0_sh_en_n <= not shslv_ow0_en), no falling_edge(EnMemPeriph) pre-latch.
-	m.CreatePeripheral(nameTemplate='OWx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=117, absoluteBaseAddress=0x6700, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 7; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the 1-Wire); DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1)')	# OW0 (digperiphs #5). native page-2 sub-slot 7; mcu_vhd hand-emits the raw-strobe shim + OneWire instance + P6.6 AF1 DQ routing
+	m.CreatePeripheral(nameTemplate='OWx', nameIndex=0, peripheralMemorySlot=None, interruptPriority=117, absoluteBaseAddress=0x6700, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 7; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK engine (no LFXT, no generated clocks, no clock on the DQ pad); count immune to SYS_CLK_CR (do NOT write SYS_CLK_CR=0 for the 1-Wire); DQ on P4.7/GPIO31 AF2 open-drain (rstREN=1, replaced-spread-slot)')	# OW0 (digperiphs #5). native page-2 sub-slot 7; mcu_vhd hand-emits the raw-strobe shim + OneWire instance + P4.7 AF2 DQ routing
 if i2ctargetPresent:
 	# digperiphs (I2CT): I2CT0 at 0x6A00 = MUTEX page (page 2) SUB-SLOT 10. Same page-2
 	# native shape as I3C0/NFC0/GPIO4/GPIO5/RTC0/PWM0/OW0/DMA0 (sharedBus='native' =
@@ -3070,7 +3072,7 @@ GPIO3.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO27', funcName=('SCL
 GPIO3.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO28', funcName='DTP0', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 0', altFuncs=[(1, 'T0CMP0', 'o', 'TIMER0 Compare 0 (alternate location)')]), packagePinNumber=_gpioPkgPin(3, 4)) # necessary
 GPIO3.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO29', funcName='DTP1', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 1', altFuncs=[(1, 'T0CMP1', 'o', 'TIMER0 Compare 1 (alternate location)')]), packagePinNumber=_gpioPkgPin(3, 5)) # necessary
 GPIO3.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO30', funcName='DTP2', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 2', altFuncs=([(1, 'T1CMP0', 'o', 'TIMER1 Compare 0 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 6)) # necessary; AF1 gated with TIMER1 (G1b)
-GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='Digital test port 3', altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 7)) # necessary; AF1 gated with TIMER1 (G1b)
+GPIO3.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO31', funcName='DTP3', funcIOType='io',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if onewirePresent else 0), description=('Digital test port 3 (AF2 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else 'Digital test port 3'), altFuncs=([(1, 'T1CMP1', 'o', 'TIMER1 Compare 1 (alternate location)')] if timer1Present else [])), packagePinNumber=_gpioPkgPin(3, 7)) # necessary; AF1 gated with TIMER1 (G1b); digperiphs #5 re-pin: AF2 spread slot carries OW0's open-drain DQ when OneWire present (pull enabled at reset)
 
 # GPIO4 (P5.0-P5.7) — digperiphs Mission B. Every pin's PRIMARY (AF0) is plain
 # general-purpose I/O (funcName=''); AF1 carries the QSPI0 (P5.0-5) and I3C0
@@ -3100,7 +3102,7 @@ GPIO5.AddGpio(GpioConfigurator(bitNumber=2, primaryName='GPIO42', funcName='', f
 GPIO5.AddGpio(GpioConfigurator(bitNumber=3, primaryName='GPIO43', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX modulation output when NFC present)', altFuncs=([(1, 'NFC_RF_TXMOD', 'o', 'NFC0 off-die TX load modulation (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 3)) # AF1 gated with NFC0
 GPIO5.AddGpio(GpioConfigurator(bitNumber=4, primaryName='GPIO44', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 TX enable output when NFC present)', altFuncs=([(1, 'NFC_RF_TX_EN', 'o', 'NFC0 off-die TX enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 4)) # AF1 gated with NFC0
 GPIO5.AddGpio(GpioConfigurator(bitNumber=5, primaryName='GPIO45', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, description='General-purpose I/O (AF1 = NFC0 AFE enable output when NFC present)', altFuncs=([(1, 'NFC_AFE_EN', 'o', 'NFC0 off-die AFE enable (alt plane AF1)')] if nfcPresent else [])), packagePinNumber=_gpioPkgPin(5, 5)) # AF1 gated with NFC0
-GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if (onewirePresent or fieldPowerPresent) else 0), description=('General-purpose I/O (AF1 = OW0 1-Wire DQ, open-drain, when OneWire present)' if onewirePresent else ('General-purpose I/O; also the DP-S3 harvested-boot strap (direct PWRCTRL tap, always readable; pull-down at reset = NORMAL/SPI boot when unconnected, strap high = harvested boot)' if fieldPowerPresent else 'General-purpose I/O (spare)')), altFuncs=([(1, 'OW_DQ', 'io', 'OneWire DQ, open-drain (alt plane AF1)')] if onewirePresent else [])), packagePinNumber=_gpioPkgPin(5, 6)) # digperiphs #5: AF1 gated with OneWire (the I3C0 P5.6/7 pad mechanism); DP-S3: harvested-boot strap direct tap when fieldPower (conflict-checked against OneWire), pull-down at reset
+GPIO5.AddGpio(GpioConfigurator(bitNumber=6, primaryName='GPIO46', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if fieldPowerPresent else 0), description=('General-purpose I/O; also the DP-S3 harvested-boot strap (direct PWRCTRL tap, always readable; pull-down at reset = NORMAL/SPI boot when unconnected, strap high = harvested boot)' if fieldPowerPresent else 'General-purpose I/O (spare)'), altFuncs=[]), packagePinNumber=_gpioPkgPin(5, 6)) # DP-S3: harvested-boot strap direct tap when fieldPower, pull-down at reset (OW0's DQ left this pin at the Stage H re-pin -- it is P4.7/GPIO31 AF2 now)
 GPIO5.AddGpio(GpioConfigurator(bitNumber=7, primaryName='GPIO47', funcName='', funcIOType='',	rstOUT=0, rstDIR=0, rstSEL=0, rstREN=(1 if fieldPowerPresent else 0), description=('General-purpose I/O; also the DP-S3 PGOOD supply-supervisor input (direct PWRCTRL tap, always readable; pull-down at reset = power-not-good when unconnected)' if fieldPowerPresent else 'General-purpose I/O (spare)'), altFuncs=[]), packagePinNumber=_gpioPkgPin(5, 7)) # DP-S3: PGOOD direct tap when fieldPower (pull-down at reset), else spare plain GPIO
 
 
@@ -3160,6 +3162,23 @@ _GPIO_AF_SPREAD = {
 if pwmPresent:
 	_GPIO_AF_SPREAD[(2, 2)] = [(2, 'PWM0', 'o', 'PWM0 channel 0 output (replaces the redundant T0CMP0 spread copy; alt plane AF2)')] + _GPIO_AF_SPREAD[(2, 2)][1:]
 	_GPIO_AF_SPREAD[(2, 3)] = [(2, 'PWM1', 'o', 'PWM0 channel 1 output (replaces the redundant T0CMP1 spread copy; alt plane AF2)')] + _GPIO_AF_SPREAD[(2, 3)][1:]
+# digperiphs #5 RE-PIN (Stage H, 2026-07-26): OW0's open-drain DQ REPLACES a
+# REDUNDANT timer-compare spread copy instead of owning an AF1 plane — the same
+# pin-mux-v2 replaced-spread-slot precedent as PWM above (and as P4.5 AF2 RX0-was-TX1
+# / P4.6 AF7 MISO1-was-TX0). Chosen slot: P4.7 AF2 (was the redundant T0CMP1 spread
+# copy) -> OW_DQ. GPIO index 3 = port P4; P4.7 is DTP3, the last of the digital
+# test-port pins, and it sits with the other two v2 io completions on P4.5/P4.6
+# (teaching coherence). REDUNDANCY PROOF: T0CMP1 keeps its AF0 PRIMARY on
+# P3.1/GPIO17, its AF1 relocations on P2.1 and P4.5, and 26 further spread copies
+# across the four ports, so removing THIS one copy leaves TIMER0 compare 1 fully
+# reachable (pure redundancy — the A7 constraint). This slot is an io CLASS entry
+# (bidirectional, like RX0/MISO1): the spread emitter drives the pad's AF2
+# out/dir/ren planes from ow0_dq_out/ow0_dq_dir/ow0_dq_ren (SPREAD_SIG in
+# mcu_vhd.py owns the RTL spellings), and the DQ pad INPUT is tapped by a
+# fixed-priority AFS-keyed mux emitted with the gated OW0 instance. Knob-gated:
+# with OneWire OFF the slot keeps its original T0CMP1 row => byte-identical.
+if onewirePresent:
+	_GPIO_AF_SPREAD[(3, 7)] = [(2, 'OW_DQ', 'io', 'OW0 1-Wire DQ, open-drain (replaces the redundant T0CMP1 spread copy; alt plane AF2)')] + _GPIO_AF_SPREAD[(3, 7)][1:]
 # G1b: a dropped second instance's outputs leave the spread pool BEFORE the
 # map is applied — its plane slots go unassigned everywhere (the RTL emitter
 # reads the surviving FromSpread altFuncs and wires '0' for the gaps).
@@ -3485,7 +3504,7 @@ _mcuMpRstVals = [
 		('RstValP4OUT', 0x00000000, ''),
 		('RstValP4DIR', 0x00000000, ''),
 		('RstValP4SEL', 0x00000000, ''),
-		('RstValP4REN', 0x00000000, ''),
+		('RstValP4REN', (0x00000080 if onewirePresent else 0x00000000), ('P4.7 (OW0 DQ, AF2 replaced-spread-slot) pull enabled when OneWire present' if onewirePresent else '')),
 		('RstValP4AFS', 0x00000000, 'all pins select AF0 (legacy alternate function) at reset'),
 	]),
 	# Mission B: GPIO4 (P5) / GPIO5 (P6). All pins reset to plain-GPIO input mode.
@@ -3503,7 +3522,7 @@ _mcuMpRstVals = [
 		('RstValP6OUT', 0x00000000, 'all pads output low'),
 		('RstValP6DIR', 0x00000000, 'all pins input at reset'),
 		('RstValP6SEL', 0x00000000, 'all pins in GPIO mode at reset'),
-		('RstValP6REN', (0x00000040 if onewirePresent else (0x000000C0 if fieldPowerPresent else 0x00000000)), ('P6.6 (OneWire DQ) pull-up enabled when OneWire present, else none' if onewirePresent or not fieldPowerPresent else 'P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull-DOWN: PxOUT resets 0 -- unconnected reads NORMAL boot + power-not-good)')),
+		('RstValP6REN', (0x000000C0 if fieldPowerPresent else 0x00000000), ('P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull-DOWN: PxOUT resets 0 -- unconnected reads NORMAL boot + power-not-good)' if fieldPowerPresent else 'no pulls enabled at reset')),
 		('RstValP6AFS', (0x00000001 if nfcPresent else 0x00000000), 'P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0'),
 	]),
 ]
@@ -3574,16 +3593,14 @@ _mcuMpPnums = [
 			('pnum_gpio4_af1_qspi_io0', 2), ('pnum_gpio4_af1_qspi_io1', 3),
 			('pnum_gpio4_af1_qspi_io2', 4), ('pnum_gpio4_af1_qspi_io3', 5)] if qspiPresent else [])
 		+ ([('pnum_gpio4_af1_i3c_sda', 6), ('pnum_gpio4_af1_i3c_scl', 7)] if i3cPresent else [])),
-	# digperiphs #5: GPIO5 (P6) AF1 also carries OW0's open-drain DQ on P6.6 (the
-	# I3C0-on-P5.6/7 pad mechanism), gated with onewire; bidirectional cross-check vs
-	# the GPIO46 AddGpio altFuncs above. Absent in the default config.
+	# (OW0's DQ used to add a pnum_gpio5_af1_ow_dq row on P6.6 here; the Stage H re-pin
+	# moved it to the P4.7 AF2 SPREAD slot, and spread slots wire literal pin indices
+	# with no pnum_* reverse constant — the RX0/MISO1 v2 precedent.)
 	('GPIO5 (P6) AF1: '
-		+ ('NFC0 digital-AFE on P6.0-5' if nfcPresent else 'P6.0-5 reserved (NFC0 absent)')
-		+ (' + OW0 open-drain DQ on P6.6' if onewirePresent else ''), 6,
+		+ ('NFC0 digital-AFE on P6.0-5' if nfcPresent else 'P6.0-5 reserved (NFC0 absent)'), 6,
 		([('pnum_gpio5_af1_nfc_rf_clk', 0), ('pnum_gpio5_af1_nfc_rf_rx', 1),
 			('pnum_gpio5_af1_nfc_field_detect', 2), ('pnum_gpio5_af1_nfc_rf_txmod', 3),
-			('pnum_gpio5_af1_nfc_rf_tx_en', 4), ('pnum_gpio5_af1_nfc_afe_en', 5)] if nfcPresent else [])
-		+ ([('pnum_gpio5_af1_ow_dq', 6)] if onewirePresent else [])),
+			('pnum_gpio5_af1_nfc_rf_tx_en', 4), ('pnum_gpio5_af1_nfc_afe_en', 5)] if nfcPresent else [])),
 ]
 
 m.McuMpCompat = {
@@ -3616,7 +3633,7 @@ m.McuMpGeometry = {
 	'qspi': qspiPresent,        # digperiphs #1: True = QSPI0 controller in slot 12 (0x4C00), vectors 55/56 (needs afeStubs=False)
 	'rtc': rtcPresent,          # digperiphs #4: True = RTC0 in MUTEX-page sub-slot 5 (0x6500); raw-strobe shim, vector 114, source list grows to 115
 	'pwm': pwmPresent,          # digperiphs #5: True = PWM0 in MUTEX-page sub-slot 6 (0x6600); raw-strobe shim, vectors 115/116, source list grows to 117 (A5 global vector rule)
-	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P6.6/GPIO46 AF1 open-drain, vector 117, source list grows to 118 (A5 global vector rule)
+	'onewire': onewirePresent,  # digperiphs #5: True = OW0 1-Wire master in MUTEX-page sub-slot 7 (0x6700); raw-strobe shim, DQ on P4.7/GPIO31 AF2 open-drain (replaced-spread-slot), vector 117, source list grows to 118 (A5 global vector rule)
 	'fieldPower': fieldPowerPresent,  # DP-S3: True = pwr0's supervision inputs wired (pgood_pad=prt6_in(7), strap_pad=prt6_in(6), field_detect=NFC tap-or-0); False = all tied inert. The pgood_rstn reset folds are emitted unconditionally (provable no-op when tied).
 	'dma': dmaPresent,          # digperiphs #6: True = DMA0 in MUTEX-page sub-slot 8 (0x6800) + the FIRST new arbiter MASTER; raw-strobe slave shim, vectors 118/119, source list grows to 119, and the arbiter N=4->5 / MW=3 / sh_master 2->3 FABRIC WIDENING (the one shared-RTL touch)
 	'dmaChannels': dmaChannels, # digperiphs #6: DMA0 NCH generic {2,4} (consulted only when dma); the 4-channel register superset is emitted regardless

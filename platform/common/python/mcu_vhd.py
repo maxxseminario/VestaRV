@@ -364,6 +364,13 @@ SPREAD_SIG = {
 	# pwm1 output-alias scalars are emitted in the gated PWM instance region
 	# (emitPwmInstance); harmless keys when PWM is off (nothing references them).
 	'PWM0': 'pwm0', 'PWM1': 'pwm1',
+	# digperiphs #5 RE-PIN (Stage H): OW0's open-drain DQ REPLACES the redundant
+	# T0CMP1 spread copy on P4.7 AF2 (generate.py gates this on peripherals.onewire).
+	# An io slot like RX0/MISO1: the out/dir planes come from the OneWire entity's
+	# OW_DQ_OUT/OW_DQ_DIR, the ren plane from the pad's own PxREN preference
+	# (ow0_dq_ren, aliased in the gated OW0 instance region), and the pad INPUT is a
+	# separate AFS-keyed relocation mux there too.
+	'OW_DQ': 'ow0_dq',
 }
 # Per-port spread-block header comments (transcribed; the flatten lines are
 # emitted by the same region so the whole block is one marker per port)
@@ -818,17 +825,19 @@ class McuVhdEmitter():
 		# digperiphs #5: OW0 (1-Wire master) in MUTEX-page (page 2) sub-slot 7 @0x6700.
 		# Same native-slave shape as RTC0/PWM0 — a PLAIN raw-strobe en shim (NO
 		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). One pad:
-		# DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1), routed through the GPIO5 (port 6)
-		# AF-plane emitter exactly like I3C0's SDA/SCL on GPIO4 P5.6/7. Default false =>
-		# every OneWire region is inert (byte-identical default; P6.6 stays spare GPIO).
+		# DQ on P4.7/GPIO31 AF2 open-drain (rstREN=1) — the pin-mux-v2 REPLACED-SPREAD-
+		# SLOT mechanism: the out/dir/ren planes fall out of the GPIO3 AF spread emitter
+		# (SPREAD_SIG['OW_DQ']), and the pad input mux + the ren alias are emitted with
+		# the gated instance. Default false => every OneWire region is inert
+		# (byte-identical default; the P4.7 AF2 slot keeps its T0CMP1 spread copy).
 		self.onewire = geo.get('onewire', False)
 		# DP-S3 (field-powered NFC mode): True wires pwr0's supervision inputs
 		# (pgood_pad => prt6_in(7), strap_pad => prt6_in(6), field_detect =>
 		# nfc0_field_detect-or-'0'); False ties all three inert ('1'/'0'/'0').
 		# The pgood_rstn/hart0_rstn decls and the reset folds are emitted
 		# UNCONDITIONALLY (a tied gate is stuck released — provable no-op);
-		# only the pwr0 port-map ties vary. Conflict with onewire (both claim
-		# P6.6) is raised in generate.py before geometry is built.
+		# only the pwr0 port-map ties vary. Independent of every other knob
+		# since the Stage H re-pin (OW0's DQ left P6.6 for P4.7 AF2).
 		self.fieldpower = geo.get('fieldPower', True)
 		# digperiphs #6: DMA0 in MUTEX-page (page 2) sub-slot 8 @0x6800. Same
 		# native-slave shape as RTC0/PWM0/OW0 (outside the page-0 shim fabric;
@@ -1815,10 +1824,10 @@ class McuVhdEmitter():
 
 	def emitOwDecls(self):
 		'''digperiphs #5: OW0 (1-Wire master, page-2 sub-slot 7 @0x6700) declarative
-		region. Fabric nets for the hand-emitted RAW-strobe shim + the DQ pad OUTPUT
-		scalars driven into the P6.6/GPIO46 AF1 plane (ow0_dq_in, the pad INPUT, is
-		declared in emitGpio45Decls(6) — the I3C0 SDA/SCL decl split). Nothing when
-		OneWire is absent. Like RTC0/PWM0 there is NO shslv_ow0_en_q register (D4).'''
+		region. Fabric nets for the hand-emitted RAW-strobe shim + the whole DQ pad
+		scalar group (out/dir/ren driven into the P4.7 AF2 spread slot, in tapped from
+		the pad by the relocation mux). Nothing when OneWire is absent. Like RTC0/PWM0
+		there is NO shslv_ow0_en_q register (D4).'''
 		if not self.onewire:
 			return []
 		return [
@@ -1833,22 +1842,29 @@ class McuVhdEmitter():
 			'        -- flags / BUSY-PRES / IRQ combiner all ride the free-running MCLK (clk =>',
 			'        -- mclk, D1/D2) — no LFXT, no generated/gated clocks, and NO clock on the',
 			'        -- DQ pad (DQ is PURE DATA, 2-FF synced, D10). irq_ow -> vector 117. One',
-			'        -- pad: DQ on P6.6/GPIO46 AF1 open-drain (rstREN=1), the pad plane routes',
-			'        -- ow0_dq_in in and drives the pad low from ow0_dq_dir (out fixed 0).',
+			'        -- pad: DQ on P4.7/GPIO31 AF2 open-drain (rstREN=1) — the pin-mux-v2',
+			'        -- replaced-spread-slot mechanism (it takes the redundant T0CMP1 spread',
+			'        -- copy): the AF2 plane drives the pad low from ow0_dq_dir (out fixed 0)',
+			'        -- and the relocation mux below taps ow0_dq_in from the pad.',
 			'        signal shslv_ow0_sel, shslv_ow0_en : std_logic;',
 			"        signal shslv_rd_ow0     : std_logic := '0';",
 			'        signal ow0_sh_rdata     : std_logic_vector(31 downto 0);',
 			'        signal ow0_sh_en_n      : std_logic;',
-			'        -- DQ pad OUTPUT scalars (open-drain, D11): ow0_dq_out is the fixed-0',
-			'        -- open-drain output, ow0_dq_dir drives DQ low ( = 1) or releases Hi-Z.',
-			'        signal ow0_dq_out, ow0_dq_dir : std_logic;',
+			'        -- DQ pad scalars (open-drain, D11): ow0_dq_out is the fixed-0 open-drain',
+			'        -- output, ow0_dq_dir drives DQ low ( = 1) or releases Hi-Z, ow0_dq_ren',
+			'        -- carries the pad register pull preference into the AF2 plane, and',
+			'        -- ow0_dq_in is the 2-FF-synchronized pad input (D10).',
+			'        signal ow0_dq_out, ow0_dq_dir, ow0_dq_ren : std_logic;',
+			'        signal ow0_dq_in        : std_logic;',
 		]
 
 	def emitOwInstance(self):
 		'''digperiphs #5: OW0 instance region (page-2 sub-slot 7 @0x6700). The PLAIN
 		raw-strobe active-low en shim + the OneWire entity; nothing when OneWire is
-		absent. No en_q process (D4). The DQ pad group (OW_DQ_IN/OUT/DIR) crosses to
-		the P6.6/GPIO46 AF1 plane emitted by emitGpio5Instance (the I3C SDA/SCL idiom).'''
+		absent. No en_q process (D4). The DQ pad OUTPUT group (OW_DQ_OUT/DIR + the
+		ow0_dq_ren pull alias) crosses to the P4.7 AF2 SPREAD slot emitted by
+		emitAfSpread(3); the pad INPUT tap (OW_DQ_IN) is the AFS-keyed relocation mux
+		emitted right here — the RX0/MISO1 v2 io-slot idiom.'''
 		if not self.onewire:
 			return []
 		return [
@@ -1864,11 +1880,23 @@ class McuVhdEmitter():
 			'    -- contrast with I3C0 SDA_IN. Registered read (no bridge, no CAPTURE_CLOCK',
 			'    -- pre-latch, D4). Master only; standard + overdrive; ROM search + CRC-8 in',
 			'    -- firmware. irq_ow -> vector 117 (single combined TC/error) through the',
-			'    -- irq_router, ABOVE GPIO5\'s 106-113. One open-drain DQ pad (P6.6/GPIO46 AF1).',
+			'    -- irq_router, ABOVE GPIO5\'s 106-113. One open-drain DQ pad: P4.7/GPIO31',
+			'    -- (DTP3) alt plane AF2, the pin-mux-v2 REPLACED-SPREAD-SLOT mechanism —',
+			'    -- the slot\'s redundant T0CMP1 spread copy steps aside (T0CMP1 keeps its',
+			'    -- P3.1 primary, its P2.1/P4.5 AF1 relocations and 26 other spread copies).',
 			'    -- =========================================================================',
 			'    -- D4: PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom) —',
 			'    -- NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q here.',
 			'    ow0_sh_en_n <= not shslv_ow0_en;',
+			'    -- DQ pad tie-in (P4.7 AF2, io spread slot — literal index, no pnum):',
+			'    -- the AF2 out/dir planes come from the GPIO3 spread block; the ren plane',
+			'    -- follows the pad register\'s own pull preference (PxREN, reset bit 7 = 1),',
+			'    -- and the input mux reads the pad ONLY when P4.7 selects AF2 (idle-high',
+			'    -- otherwise, so an unrouted DQ never fakes a presence pulse).',
+			'    ow0_dq_ren <= p4_ren(7);',
+			'    ow0_dq_in  <= prt4_in(7)',
+			'                  when p4_afs((3 * 7) + 2 downto 3 * 7) = "010"',
+			"                  else '1';",
 			'    ow0: entity work.OneWire',
 			'        port map (',
 			'            clk         => mclk,',
@@ -1880,7 +1908,7 @@ class McuVhdEmitter():
 			'            MABPart     => sh_addr(5 downto 0),',
 			'            wdata       => sh_wdata,',
 			'            rdata_out   => ow0_sh_rdata,',
-			'            OW_DQ_IN    => ow0_dq_in,    -- digperiphs #5: routed from P6.6 AF1 (GPIO5)',
+			'            OW_DQ_IN    => ow0_dq_in,    -- digperiphs #5: routed from P4.7 AF2 (GPIO3)',
 			'            OW_DQ_OUT   => ow0_dq_out,',
 			'            OW_DQ_DIR   => ow0_dq_dir);',
 		]
@@ -2546,9 +2574,6 @@ class McuVhdEmitter():
 		if port == 6 and self.nfc:
 			lines.append('        -- NFC0 off-die AFE inputs, routed by GPIO5 from P6.0-2 (D5).')
 			lines.append('        signal nfc0_rf_clk, nfc0_rf_rx, nfc0_field_detect : std_logic;')
-		if port == 6 and self.onewire:
-			lines.append('        -- digperiphs #5: OW0 DQ pad input, routed by GPIO5 from P6.6 AF1 (D10).')
-			lines.append('        signal ow0_dq_in : std_logic;')
 		return lines
 
 	def emitGpioBusInstance(self, port, af1Lines, muxLines):
@@ -2674,37 +2699,25 @@ class McuVhdEmitter():
 
 	def emitGpio5Instance(self):
 		'''Mission B: GPIO5 (port 6) instance — AF1 = NFC0 digital-AFE (P6.0-5) when
-		present; digperiphs #5 adds OW0's open-drain DQ on P6.6 AF1 when OneWire is
-		present; Hi-Z when neither. P6.0-2 are NFC inputs (rf_clk/rf_rx/field_detect);
-		P6.3-5 are NFC outputs (rf_txmod/rf_tx_en/afe_en); P6.6 = OW0 DQ; P6.7 spare.'''
+		present, Hi-Z otherwise. P6.0-2 are NFC inputs (rf_clk/rf_rx/field_detect);
+		P6.3-5 are NFC outputs (rf_txmod/rf_tx_en/afe_en); P6.6/7 are spare plain GPIO
+		(the DP-S3 PGOOD/strap DIRECT taps when fieldPower is on; OW0's DQ left P6.6
+		for the P4.7 AF2 spread slot at the Stage H re-pin).'''
 		af1 = []
 		mux = []
-		if self.nfc or self.onewire:
-			# digperiphs #5: P6.6 AF1 = OW0 open-drain DQ (out fixed 0, dir drives low)
-			# when OneWire is present, else '0'. NFC0 owns P6.3-5 (outputs) / P6.0-2
-			# (inputs) when present, else '0'. With NFC off + OneWire off the else Hi-Z
-			# branch runs instead — this branch is byte-identical to the NFC-only golden
-			# master when OneWire is absent (bit 6 collapses to '0').
+		if self.nfc:
 			outMap = {
-				7: "'0'", 6: ('ow0_dq_out' if self.onewire else "'0'"),
-				5: ('nfc0_afe_en' if self.nfc else "'0'"),
-				4: ('nfc0_rf_tx_en' if self.nfc else "'0'"),
-				3: ('nfc0_rf_txmod' if self.nfc else "'0'"),
+				7: "'0'", 6: "'0'",
+				5: 'nfc0_afe_en',
+				4: 'nfc0_rf_tx_en',
+				3: 'nfc0_rf_txmod',
 				2: "'0'", 1: "'0'", 0: "'0'",
 			}
-			# P6.0-2 are inputs -> AF dir '0' (input); P6.3-5 outputs -> AF dir '1';
-			# P6.6 dir = ow0_dq_dir (open-drain: 1 drives low, 0 releases Hi-Z).
-			dirMap = {7: "'0'", 6: ('ow0_dq_dir' if self.onewire else "'0'"),
-				5: ("'1'" if self.nfc else "'0'"), 4: ("'1'" if self.nfc else "'0'"),
-				3: ("'1'" if self.nfc else "'0'"), 2: "'0'", 1: "'0'", 0: "'0'"}
-			if self.nfc:
-				af1.append('    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are')
-				af1.append('    -- inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).')
-				if self.onewire:
-					af1.append('    -- digperiphs #5: OW0 open-drain DQ on P6.6 (out fixed 0, dir drives low).')
-			else:
-				af1.append('    -- digperiphs #5: AF1 plane carries the OW0 open-drain DQ on P6.6 (out')
-				af1.append('    -- fixed 0, dir drives low); the other pins stay 0 (unused this configuration).')
+			# P6.0-2 are inputs -> AF dir '0' (input); P6.3-5 outputs -> AF dir '1'.
+			dirMap = {7: "'0'", 6: "'0'", 5: "'1'", 4: "'1'", 3: "'1'",
+				2: "'0'", 1: "'0'", 0: "'0'"}
+			af1.append('    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are')
+			af1.append('    -- inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).')
 			af1.append('    afunc6_af1_out <= (')
 			for b in range(7, -1, -1):
 				af1.append('        %d => %s%s' % (b, outMap[b], '' if b == 0 else ','))
@@ -2714,14 +2727,10 @@ class McuVhdEmitter():
 				af1.append('        %d => %s%s' % (b, dirMap[b], '' if b == 0 else ','))
 			af1.append('    );')
 			af1.append('    afunc6_af1_ren <= p6_ren;')
-			if self.nfc:
-				mux.append('    -- NFC0 off-die AFE input muxes: read the P6.0-2 pads when in AF1 mode')
-				mux.append('    nfc0_rf_clk       <= prt6_in(0) when p6_afs((3 * 0) + 2 downto 3 * 0) = "001" else \'0\';')
-				mux.append('    nfc0_rf_rx        <= prt6_in(1) when p6_afs((3 * 1) + 2 downto 3 * 1) = "001" else \'1\';')
-				mux.append('    nfc0_field_detect <= prt6_in(2) when p6_afs((3 * 2) + 2 downto 3 * 2) = "001" else \'0\';')
-			if self.onewire:
-				mux.append('    -- digperiphs #5: OW0 DQ input mux (P6.6); idle-high when not in AF1 mode')
-				mux.append('    ow0_dq_in <= prt6_in(6) when p6_afs((3 * 6) + 2 downto 3 * 6) = "001" else \'1\';')
+			mux.append('    -- NFC0 off-die AFE input muxes: read the P6.0-2 pads when in AF1 mode')
+			mux.append('    nfc0_rf_clk       <= prt6_in(0) when p6_afs((3 * 0) + 2 downto 3 * 0) = "001" else \'0\';')
+			mux.append('    nfc0_rf_rx        <= prt6_in(1) when p6_afs((3 * 1) + 2 downto 3 * 1) = "001" else \'1\';')
+			mux.append('    nfc0_field_detect <= prt6_in(2) when p6_afs((3 * 2) + 2 downto 3 * 2) = "001" else \'0\';')
 		else:
 			af1.append('    -- AF1 plane unused in this configuration (NFC0 absent): Hi-Z.')
 			af1.append('    afunc6_af1_out <= afunc_none;')

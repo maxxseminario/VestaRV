@@ -574,6 +574,14 @@ end component;
     prt4(0) <= 'H';
     prt4(1) <= 'H';
 
+    -- OW0 DQ bench level (Stage H re-pin, 2026-07-26): OW0's 1-Wire DQ moved
+    -- P6.6 -> P4.7/GPIO31 AF2, and P4.7 is a REAL pad (pad_prt4_gen), so an
+    -- undriven line floats X and only creeps weak-'1' after the vendor model's
+    -- 100 us PullTime. A weak 'L' (never a strong '0' -- it must yield to the
+    -- pad's own driver; never 'H' -- that flips to NOPRES/0xFF) reproduces the
+    -- stuck-low bus wow.S contracts on: presence-always, RX == 0x00.
+    prt4(7) <= 'L';
+
     -- Main test sequence
     test_sequence: process
         variable file_exists : boolean;
