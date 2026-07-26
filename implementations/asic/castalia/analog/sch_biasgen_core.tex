@@ -38,7 +38,7 @@
 \node[gatelab, left] at (MA1.gate){$V_{\mathrm{BPM}}$};
 \node[gatelab, left] at (MA2.gate){$V_{\mathrm{BPC}}$};
 \node[gatelab, left] at (MA3.gate){$V_{\mathrm{BNC}}$};
-\node[gatelab, left] at (MA4.gate){$V_{\mathrm{BNM}}$};
+\draw (\xA,\yrail) -- ++(-1.45,0) |- (MA4.gate);
 
 % ===== Branch B : develops V_BPM =====================================
 \node[pmos](MB1) at (\xB,\yPm){};
@@ -53,7 +53,7 @@
 \draw (MB4.source) -- (\xB,\yvss);
 \node[railnode] at (\xB,\yrail){};
 \node[gatelab, right=1pt, fill=white, inner sep=1.5pt] at (\xB,\yrail){$V_{\mathrm{BPM}}$};
-\node[gatelab, left] at (MB1.gate){$V_{\mathrm{BPM}}$};
+\draw (\xB,\yrail) -- ++(-1.45,0) |- (MB1.gate);
 \node[gatelab, left] at (MB2.gate){$V_{\mathrm{BPC}}$};
 \node[gatelab, left] at (MB3.gate){$V_{\mathrm{BNC}}$};
 \node[gatelab, left] at (MB4.gate){$V_{\mathrm{BNM}}$};
@@ -94,6 +94,6 @@
 
 \end{circuitikz}
   }
-  \caption{Simplified core of the local wide-swing cascode bias generator, drawn from the \texttt{anatop\_biasgen\_local} schematic. Four self-biased branches develop the four rails: the reference branch (left) passes the current set by the trimmable resistor $R_{\mathrm{SET}}$, and the remaining branches mirror it to produce $V_{\mathrm{BPM}}$, $V_{\mathrm{BNC}}$ and $V_{\mathrm{BPC}}$. Gate connections are shown by net name rather than drawn as buses. The enable switches, the decoupling capacitors on each rail and the individual segments of the resistor string are omitted for clarity.}
+  \caption{Simplified core of the local wide-swing cascode bias generator, drawn from the \texttt{anatop\_biasgen\_local} schematic. Four self-biased branches develop the four rails: the reference branch (left) passes the current set by the trimmable resistor $R_{\mathrm{SET}}$, and the remaining branches mirror it to produce $V_{\mathrm{BPM}}$, $V_{\mathrm{BNC}}$ and $V_{\mathrm{BPC}}$. Each branch's own self-bias (diode) connection is drawn, from the rail it generates back to the gate it drives in the same branch; the cross-branch gate connections are identified by net name rather than drawn as buses. The enable switches, the decoupling capacitors on each rail and the individual segments of the resistor string are omitted for clarity.}
   \label{fig:biasgen-core}
 \end{figure}
