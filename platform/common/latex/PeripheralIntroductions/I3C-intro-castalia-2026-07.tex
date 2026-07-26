@@ -1,4 +1,4 @@
-The I3C controller (\peripheral{I3Cx}) is a single-controller MIPI I3C Basic interface for a two-wire (\pin{SDA}, \pin{SCL}) sensor bus. It acts as the active bus controller and interoperates with legacy I2C targets sharing the same wires. Transactions are described by the control and command registers and launched by a single register write; the registered read path returns snapshots with no read side effects. The serial core runs in the SMCLK domain (the \register{SYS\_CLK\_CR} $=$ 0 rule applies), with independent open-drain and push-pull baud dividers. The main features of the I3C controller are listed below:
+The I3C controller (\peripheral{I3Cx}) is a single-controller MIPI I3C Basic interface for a two-wire (\pin{SDA}, \pin{SCL}) sensor bus. It acts as the active bus controller and interoperates with legacy I2C targets sharing the same wires. Transactions are described by the control and command registers and launched by a single register write; the registered read path returns snapshots with no read side effects. The serial core runs in the SMCLK domain (the \register{\register{SYSCLKCR}} $=$ 0 rule applies), with independent open-drain and push-pull baud dividers. The main features of the I3C controller are listed below:
 
 \begin{itemize}
 	\item Single-byte SDR private read and write transfers, with repeated-START chaining (\register{I3CREPSTART}, \register{I3CSTOPEN})
@@ -26,7 +26,7 @@ A transaction is fully described by the control and command registers. The launc
 	\item Poll \register{I3CBUSY} (or wait for the transfer-complete interrupt). For a read, each captured byte appears in \register{I3CxRX} with \register{I3CRXFULL} set; reading \register{I3CxRX} has no side effects.
 \end{enumerate}
 
-The status flags \register{I3CTCIF}, \register{I3CRXFULL}, \register{I3CTXEIF}, \register{I3CANACK}, \register{I3CEODF}, \register{I3CARBLOST}, \register{I3CDAADONE}, \register{I3CDAAFULL}, and \register{I3CIBIP} are write-1-to-clear: write a 1 to a bit to clear it. Because the serial core runs in the SMCLK domain, software must set \register{SYS\_CLK\_CR} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI, UART, and I2C peripherals.
+The status flags \register{I3CTCIF}, \register{I3CRXFULL}, \register{I3CTXEIF}, \register{I3CANACK}, \register{I3CEODF}, \register{I3CARBLOST}, \register{I3CDAADONE}, \register{I3CDAAFULL}, and \register{I3CIBIP} are write-1-to-clear: write a 1 to a bit to clear it. Because the serial core runs in the SMCLK domain, software must set \register{\register{SYSCLKCR}} to 0 (SMCLK from HFXT) before using the controller, exactly as for the SPI, UART, and I2C peripherals.
 
 \subsection{Dynamic Address Assignment and In-Band Interrupts}
 

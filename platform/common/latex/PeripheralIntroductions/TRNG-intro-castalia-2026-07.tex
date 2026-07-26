@@ -34,7 +34,7 @@ The one combined interrupt is $(\register{TRNGDRDY} \wedge \register{TRNGDRDYIE}
 
 \subsection{Clocking}
 
-The whole harvest engine --- the RO synchronizer, the decimator, the assembler, the health test, and the interrupt combiner --- rides the free-running fabric clock (MCLK), so its timing is immune to clock reconfiguration and, unlike the SMCLK-domain serial peripherals, software does \emph{not} need to write \register{SYS\_CLK\_CR} to 0 before using it. The ring oscillators themselves are independent of every chip clock: they self-oscillate from their own inverter delays whenever \register{TRNGEN} is set (which is precisely why they are usable as an entropy source), and MCLK only samples them --- it never drives them.
+The whole harvest engine --- the RO synchronizer, the decimator, the assembler, the health test, and the interrupt combiner --- rides the free-running fabric clock (MCLK), so its timing is immune to clock reconfiguration and, unlike the SMCLK-domain serial peripherals, software does \emph{not} need to write \register{\register{SYSCLKCR}} to 0 before using it. The ring oscillators themselves are independent of every chip clock: they self-oscillate from their own inverter delays whenever \register{TRNGEN} is set (which is precisely why they are usable as an entropy source), and MCLK only samples them --- it never drives them.
 
 \subsection{Firmware Contract}
 
