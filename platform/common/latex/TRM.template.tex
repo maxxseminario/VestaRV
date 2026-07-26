@@ -157,6 +157,18 @@ The address space above is the view from hart 0. Harts 1--\MaxHartIndex{} see th
 \newpage
 \fi
 
+% Per-implementation analog chapter. The digital chapters above are shared by
+% every chip built from this platform; the analog circuitry is not, so each
+% implementation supplies its own chapter in
+% implementations/asic/<chip>/analog/, which LatexUserGuide.CopyAnalogChapter
+% copies to include/analog/ at generation time. A chip that ships no such
+% directory takes the empty branch and its TRM is byte-identical to a build
+% without this feature, so this is safe for every existing configuration.
+\IfFileExists{include/analog/AnalogChapter.tex}{%
+\input{include/analog/AnalogChapter.tex}
+\newpage
+}{}
+
 
 
 % Startup and reset behavior

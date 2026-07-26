@@ -1,0 +1,58 @@
+% maestro2tex -- generated master include for BiasGenCascWideSwing.
+%% Regenerate with tools/maestro2tex; do not edit by hand.
+%%
+%% Usage from the TRM (which builds with cwd = latex/TRM/):
+%     \input{include/analog/BiasGenCascWideSwing.tex}
+%
+%% Needs pgfplots, booktabs and siunitx -- all already in
+%% packages-commands.tex. \providecolor needs xcolor (also present).
+
+\providecommand{\MaestroRoot}{include/analog/}
+
+% Categorical palette: slots 1-5 of the validated reference palette,
+% in documented order. Dash patterns are a secondary encoding for print.
+\providecolor{mtxA}{HTML}{2A78D6}
+\providecolor{mtxB}{HTML}{EB6834}
+\providecolor{mtxC}{HTML}{1BAF7A}
+\providecolor{mtxD}{HTML}{EDA100}
+\providecolor{mtxE}{HTML}{E87BA4}
+
+\subsection{Local Wide-Swing Cascode Bias Generator}\label{ss:biasgen-local}
+
+The local bias generator (schematic cell \texttt{anatop\_biasgen\_local}, drawn from
+\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop
+its own cascode bias rails, as distinct from the single chip-level
+\texttt{BiasGenCascWideSwingGlobal} that drives the global \texttt{bn!}/\texttt{bp!}
+nets. It presents four outputs --- the NMOS mirror and cascode gates
+($V_{\mathrm{BNM}}$, $V_{\mathrm{BNC}}$) and the PMOS mirror and cascode gates
+($V_{\mathrm{BPM}}$, $V_{\mathrm{BPC}}$) --- generated from a resistor-degenerated
+reference core in the wide-swing cascode arrangement, so the cascode gates sit only
+one saturation voltage away from the mirror gates and the mirrors keep their output
+devices in saturation over a wide compliance range. An \texttt{En} input gates the
+cell, and a start-up branch guarantees it leaves the degenerate zero-current state at
+power-up. A 6-bit trim word, \texttt{BiasAdj\textless5:0\textgreater}, moves the
+reference current so the operating point can be corrected after silicon.
+
+The characterisation below is from schematic-level simulation (no extracted
+parasitics) of the \texttt{BiasGenCascWideSwing\allowbreak\_tb} testbench, over the process,
+temperature and supply points of
+Table~\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to
+\texttt{vss!}, and the cell is enabled throughout.
+
+\input{\MaestroRoot tab_BiasGenCascWideSwing_corners.tex}
+\input{\MaestroRoot tab_biasgen_dcop.tex}
+\input{\MaestroRoot fig_biasgen_rails_vs_temp.tex}
+\input{\MaestroRoot tab_biasgen_temp_stats.tex}
+\input{\MaestroRoot tab_biasgen_tempco.tex}
+\input{\MaestroRoot fig_biasgen_vbnm_vs_temp.tex}
+\input{\MaestroRoot fig_biasgen_idd_vs_temp.tex}
+\input{\MaestroRoot tab_biasgen_line.tex}
+\input{\MaestroRoot fig_biasgen_vbnm_vs_vdd.tex}
+\input{\MaestroRoot fig_biasgen_idd_vs_vdd.tex}
+\input{\MaestroRoot tab_biasgen_trim.tex}
+\input{\MaestroRoot fig_biasgen_vbnm_vs_code.tex}
+\input{\MaestroRoot fig_biasgen_idd_vs_code.tex}
+\input{\MaestroRoot tab_biasgen_startup_time.tex}
+\input{\MaestroRoot fig_biasgen_startup.tex}
+\input{\MaestroRoot fig_biasgen_startup_corners.tex}
+
