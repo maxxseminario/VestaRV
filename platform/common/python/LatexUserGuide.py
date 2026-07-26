@@ -65,6 +65,14 @@ class LatexUserGuide():
 		self.GenerateTimerRolloverDiagram()
 		self.GenerateTimerOutputCompareDiagram()
 		self.GenerateArbiterHandshakeDiagram()
+		self.GenerateSpiTimingDiagram()
+		self.GenerateSpiByteOrderingDiagram()
+		self.GenerateSpiBitOrderingDiagram()
+		self.GenerateUartFrameDiagram()
+		self.GenerateI2cTransactionDiagram()
+		self.GenerateIrqClaimCompleteDiagram()
+		self.GenerateMutexClaimDiagram()
+		self.GenerateTimerCaptureDiagram()
 		self.GeneratePackagePinoutDiagram()
 		self.GenerateInterruptsTable()
 		self.GeneratePackagePinsConfigurationTable()
@@ -1072,6 +1080,232 @@ class LatexUserGuide():
 		s += '\\draw[gray!65] (5.5,{\\YBOT-0.12}) -- (5.5,{\\YBOT-0.42}) -- (6.1,{\\YBOT-0.42});\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
+		return
+
+	# House style for the tikztimingtable-based figures (SPI/UART/I2C). These
+	# keep the table form — it gives row labels and grouping for free, and
+	# \vertlines works correctly in \extracode (only ABSOLUTE-y overlays are
+	# unreliable there, see the comment block above). The four SPI/UART figures
+	# were hand-written in the intro .tex files in body-serif at body size;
+	# moving them here put every waveform in the TRM on one style.
+	_TIMING_TABLE_OPTS = ('timing/font=\\sffamily\\scriptsize, '
+	                      'timing/d/text/.append style={font=\\sffamily\\tiny}, '
+	                      'font=\\sffamily\\scriptsize, semithick, '
+	                      'timing/slope=0.2, timing/dslope=0.2, '
+	                      # ABSOLUTE unit: the default is font-relative, so the
+	                      # \scriptsize house label font would otherwise shrink
+	                      # every waveform along with it. Each figure overrides
+	                      # xunit for its own cycle count / cell contents.
+	                      'timing/xunit=6mm')
+
+	def _timingTable(self, rows, extraOpts='', extracode=''):
+		'''rows = list of (label, charstring). Emits a styled tikztimingtable.'''
+		s = '\\begin{tikztimingtable}[' + self._TIMING_TABLE_OPTS
+		if extraOpts:
+			s += ', ' + extraOpts
+		s += ']\n'
+		for label, chars in rows:
+			if label is None:
+				s += '\t\\\\\n'
+				continue
+			s += '\t' + label + ' & ' + chars + ' \\\\\n'
+		if extracode:
+			s += '\\extracode\n' + extracode
+		s += '\\end{tikztimingtable}\n'
+		return s
+
+	def GenerateSpiTimingDiagram(self):
+		'''include/SpiTimingDiagram.tex — all four SPI modes. Waveform content is
+		   the proven hand-written original; only the styling changed. The two
+		   vertical-line families are SEMANTIC (leading vs trailing SCK edge —
+		   which one samples depends on CPHA), so they are kept as two
+		   distinguishable families rather than flattened to one guide style.'''
+		rows = [
+			('CPOL $=0$', 'LL 15{T} LL'),
+			('CPOL $=1$', 'HH 15{T} HH'),
+			('CS',        'H 17L H'),
+			(None, None),
+			('Cycle \\#', 'U     R 8{2Q} 2U'),
+			('MISO',      'D{z}  R 8{2Q} 2D{z}'),
+			('MOSI',      'D{z}  R 8{2Q} 2D{z}'),
+			(None, None),
+			('Cycle \\#', 'UU    R 8{2Q} U'),
+			('MISO',      'D{z}U R 8{2Q} D{z}'),
+			('MOSI',      'D{z}U R 8{2Q} D{z}'),
+		]
+		extra = ''
+		extra += '\t\\begin{pgfonlayer}{background}\n'
+		extra += '\t\t\\begin{scope}[semithick]\n'
+		extra += '\t\t\t\\vertlines[red!55, densely dotted]{2.1,4.1,...,17.1}\n'
+		extra += '\t\t\t\\vertlines[blue!55, densely dashed]{3.1,5.1,...,17.1}\n'
+		extra += '\t\t\\end{scope}\n'
+		extra += '\t\\end{pgfonlayer}\n'
+		extra += '\t\\begin{scope}[shift={(-26mm,-0.5)}, anchor=east, font=\\sffamily\\scriptsize]\n'
+		extra += '\t\t\\node at (  0, 0) {SCK};\n'
+		extra += '\t\t\\node at (1ex,-9) {CPHA $=0$};\n'
+		extra += '\t\t\\node at (1ex,-17) {CPHA $=1$};\n'
+		extra += '\t\\end{scope}\n'
+		s = '% Generated SPI timing diagram (all four SPI modes)\n'
+		s += self._timingTable(rows, extraOpts='timing/xunit=6.5mm, timing/d/background/.style={fill=white}',
+		                       extracode=extra)
+		self._writeInclude('SpiTimingDiagram.tex', s)
+		return
+
+	def GenerateSpiByteOrderingDiagram(self):
+		'''include/SpiByteOrderingDiagram.tex — SPITXSB/SPIRXSB byte swapping.'''
+		rows = [
+			('No byte swap',                '[X] D{byte 0} D{byte 1} D{byte 2} D{byte 3} D{byte 4} D{byte 5} D{byte 6} D{byte 7} D{\\ldots}'),
+			('16-bit transfers, byte swap', '[X] D{byte 1} D{byte 0} D{byte 3} D{byte 2} D{byte 5} D{byte 4} D{byte 7} D{byte 6} D{\\ldots}'),
+			('32-bit transfers, byte swap', '[X] D{byte 3} D{byte 2} D{byte 1} D{byte 0} D{byte 7} D{byte 6} D{byte 5} D{byte 4} D{\\ldots}'),
+		]
+		s = '% Generated SPI byte-ordering diagram\n'
+		s += self._timingTable(rows, extraOpts='timing/xunit=13mm')
+		self._writeInclude('SpiByteOrderingDiagram.tex', s)
+		return
+
+	def GenerateSpiBitOrderingDiagram(self):
+		'''include/SpiBitOrderingDiagram.tex — bit order for a 16-bit transfer,
+		   showing that MSB/LSB-first is applied BEFORE the byte swap.'''
+		def seq(order):
+			return '[X] ' + ' '.join(['D{' + str(b) + '}' for b in order]) + ' D{\\ldots}'
+		lsb = list(range(16))
+		msb = list(range(15, -1, -1))
+		rows = [
+			('No byte swap, LSB-first', seq(lsb)),
+			('Byte swap, LSB-first',    seq(lsb[8:] + lsb[:8])),
+			('No byte swap, MSB-first', seq(msb)),
+			('Byte swap, MSB-first',    seq(msb[8:] + msb[:8])),
+		]
+		s = '% Generated SPI bit-ordering diagram (16-bit transfer)\n'
+		s += self._timingTable(rows, extraOpts='timing/xunit=7.2mm')
+		self._writeInclude('SpiBitOrderingDiagram.tex', s)
+		return
+
+	def GenerateUartFrameDiagram(self):
+		'''include/UartFrameDiagram.tex — one UART frame. The K/J metachars label
+		   a held level in the middle of its cell (idle/start/stop); they are the
+		   hand-written original's, restyled.'''
+		meta = ''
+		meta += 'timing/metachar={{K}[2]{#1H !{++(-.5\\xunit + 0.5*\\slope\\xunit, -.5\\yunit)} N[rectangle,scale=.6]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, +.5\\yunit)}}}, '
+		meta += 'timing/metachar={{J}[2]{#1L !{++(-.5\\xunit + 0.5*\\slope\\xunit, +.5\\yunit)} N[rectangle,scale=.6]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, -.5\\yunit)}}}'
+		rows = [('TX or RX',
+		         'K{IDLE} J{START} D{D0} D{D1} D{D2} D{D3} D{D4} D{D5} D{D6} D{D7} D{\\mbox{[P]}} K{STOP} K{IDLE}')]
+		extra = ''
+		extra += '\t\\begin{scope}[font=\\sffamily\\scriptsize]\n'
+		extra += '\t\t\\draw[<->, >=Stealth] (1,-1.75) -- (2,-1.75);\n'
+		extra += '\t\t\\node[below, inner sep=2pt] at (1.5,-1.79) {one bit period $=1/\\textrm{baud}$};\n'
+		extra += '\t\\end{scope}\n'
+		s = '% Generated UART data-frame diagram\n'
+		s += self._timingTable(rows,
+		                       extraOpts='timing/xunit=10mm, yscale=2, timing/d/background/.style={fill=white}, ' + meta,
+		                       extracode=extra)
+		self._writeInclude('UartFrameDiagram.tex', s)
+		return
+
+	def GenerateI2cTransactionDiagram(self):
+		'''include/I2cTransactionDiagram.tex — one complete I2C byte write. Bus
+		   protocol (START/address+R\\overline{W}/ACK/data/STOP), not chip
+		   registers, so it is configuration-independent.'''
+		# 1 unit = 1 SCL bit period; 18 bits = address(7)+R/W+ACK then data(8)+ACK.
+		# Keep to chars proven elsewhere in this file (H/L/D{}/0.5C) — per-char
+		style_note = None
+		rows = [
+			('\\pin{SCLx}', 'H 36{0.5C} H'),
+			('\\pin{SDAx}', 'H D{A6} D{A5} D{A4} D{A3} D{A2} D{A1} D{A0} D{R/W} D{ACK} '
+			               'D{D7} D{D6} D{D5} D{D4} D{D3} D{D2} D{D1} D{D0} D{ACK} H'),
+		]
+		extra = ''
+		extra += '\t\\begin{scope}[font=\\sffamily\\scriptsize]\n'
+		extra += '\t\t\\node[below, inner sep=2pt] at (0.8,-2.9) {START};\n'
+		extra += '\t\t\\node[below, inner sep=2pt] at (9.5,-2.9) {ACK};\n'
+		extra += '\t\t\\node[below, inner sep=2pt] at (18.5,-2.9) {ACK};\n'
+		extra += '\t\t\\node[below, inner sep=2pt] at (20.9,-2.9) {STOP};\n'
+		extra += '\t\\end{scope}\n'
+		s = '% Generated I2C transaction diagram\n'
+		s += self._timingTable(rows, extraOpts='timing/xunit=7mm', extracode=extra)
+		self._writeInclude('I2cTransactionDiagram.tex', s)
+		return
+
+	def _cycleFigure(self, xunit, rows, ybot, guides, annotations, shade=None):
+		'''Shared shape for the cycle-level contract waveforms (arbiter, IRQ
+		   claim/complete, mutex, capture): \\timing rows on an explicit grid with
+		   dotted cycle boundaries. rows = list of (y, chars, label).'''
+		s = self._timingPreamble(xunit)
+		if shade:
+			s += '\\fill[black!7] (' + shade[0] + ',0.62) rectangle (' + shade[1] + ',' + str(ybot - 0.12) + ');\n'
+		s += '\\foreach \\k in {1,...,' + str(guides) + '} { \\draw[guide] (\\k,0.62) -- (\\k,' + str(ybot - 0.12) + '); }\n'
+		for y, chars, label in rows:
+			s += '\\timing[tim] at (0,' + ('%.2f' % y) + ') {' + chars + '};\n'
+			s += '\\node[lbl] at (-0.2,' + ('%.2f' % (y + 0.25)) + ') {' + label + '};\n'
+		s += annotations
+		s += '\\end{tikzpicture}\n'
+		return s
+
+	def GenerateIrqClaimCompleteDiagram(self):
+		'''include/IrqClaimCompleteDiagram.tex — the M19 IRQROUTER delivery
+		   contract, which the TRM otherwise only states in prose. Behaviour is
+		   from hdl/common/irq_router.vhd: meip(h) = OR over i of (level(i) AND
+		   en[h](i) AND NOT in_service(i)); a CLAIM read sets in_service(id),
+		   masking the source out of EVERY hart until a COMPLETE write clears
+		   it. That masking window is the exactly-once guarantee.'''
+		rows = [
+			(0.00,  'L 7H 3L',                                    '\\textit{level}(i)'),
+			(-0.75, '2L 2H 7L',                                   '\\register{meip}(h)'),
+			(-1.50, '3U D{CLAIM} 4D{handler} 2D{COMPLETE} U',      'hart bus'),
+			(-2.25, '4L 6H L',                                    '\\textit{in\\_service}(i)'),
+		]
+		ann = ''
+		ann += '\\draw[<->, >=Stealth] (4,-2.95) -- (10,-2.95);\n'
+		ann += '\\node[ann, below] at (7,-2.99) {source masked on every hart --- exactly-once delivery};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,-3.55)\n'
+		ann += '\t{The handler clears the level at the peripheral \\emph{before} the dispatcher completes;\\\\[-2pt]\n'
+		ann += '\t if the level is still high at COMPLETE the source simply re-pends.};\n'
+		s = '% Generated IRQROUTER claim/complete diagram\n'
+		s += self._cycleFigure('0.85cm', rows, -2.25, 10, ann, shade=('4', '10'))
+		self._writeInclude('IrqClaimCompleteDiagram.tex', s)
+		return
+
+	def GenerateMutexClaimDiagram(self):
+		'''include/MutexClaimDiagram.tex — the return-old-and-claim read that
+		   makes the MUTEX bank a one-instruction lock (hdl/common/mutex_bank.vhd).
+		   Two harts race for the same mutex; the arbiter serializes the two
+		   reads, so the claim is atomic with no retry loop.'''
+		rows = [
+			(0.00,  'U 2D{\\asminline{lw} MUTEX0} 4U 2D{\\asminline{sw x0}}',  'hart 0 bus'),
+			(-0.75, '3U 2D{\\asminline{lw} MUTEX0} 4U',                          'hart 1 bus'),
+			(-1.50, '3D{free} 5D{owned by hart 0} D{free}',                    '\\textit{owner}[0]'),
+			(-2.25, '3U D{0} 5U',                                              'hart 0 result'),
+			(-3.00, '5U D{1} 3U',                                              'hart 1 result'),
+		]
+		ann = ''
+		ann += '\\node[ann, align=left, anchor=north west] at (0,-3.75)\n'
+		ann += '\t{\\textbf{0} = the mutex was free and is now yours. A non-zero result is the holder\'s\\\\[-2pt]\n'
+		ann += '\t \\register{mhartid}$+1$ --- hart 1 must back off and retry. Release with \\asminline{sw x0}.};\n'
+		s = '% Generated MUTEX claim/release diagram\n'
+		s += self._cycleFigure('0.85cm', rows, -3.00, 8, ann)
+		self._writeInclude('MutexClaimDiagram.tex', s)
+		return
+
+	def GenerateTimerCaptureDiagram(self):
+		'''include/TimerCaptureDiagram.tex — input capture (TIMER chapter had no
+		   figure for it). Bit-field names are the GENERATED ones (CAP0EN/CAP0FE/
+		   CAP0IF) — the chapter prose used to call them TCAP*, which matched
+		   nothing in the register tables.'''
+		rows = [
+			(0.00,  'R 8{Q}',            '\\register{TIMxVAL}'),
+			(-0.75, '3L 5H',             '\\pin{TxCAP0}'),
+			(-1.50, '3U 5D{4}',          '\\register{TIMxCAP0}'),
+			(-2.25, '3L 4H L',           '\\bitfield{CAP0IF}'),
+		]
+		ann = ''
+		ann += '\\draw[gray!65] (3,0.62) -- (3,0.95);\n'
+		ann += '\\node[ann, above] at (3,0.93) {capture edge (\\bitfield{CAP0FE} $=0$: rising)};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,-2.95)\n'
+		ann += '\t{The edge latches \\register{TIMxVAL} into \\register{TIMxCAP0} and sets \\bitfield{CAP0IF}.\\\\[-2pt]\n'
+		ann += '\t Clear the flag by writing 1 to it in \\register{TIMxSR} before the next capture.};\n'
+		s = '% Generated timer input-capture diagram\n'
+		s += self._cycleFigure('0.85cm', rows, -2.25, 7, ann)
+		self._writeInclude('TimerCaptureDiagram.tex', s)
 		return
 
 	def _writeInclude(self, name, contents):
