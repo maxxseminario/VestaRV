@@ -324,19 +324,6 @@
       "caption": "Large-signal step response. The open-loop bench slams the differential input from \\(-\\SI{1.25}{\\volt}\\) to \\(+\\SI{1.25}{\\volt}\\) and back, fully steering the input pair, so the output slews at the rate the output stage can charge and discharge the \\SI{10}{\\pico\\farad} load. The two edges are visibly unequal: the output takes \\SI{1.4}{\\micro\\second} to slew up and \\SI{5.7}{\\micro\\second} to slew back down, a factor of four.",
       "width": "0.80\\linewidth",
       "height": "6.0cm"
-    },
-    {
-      "id": "ctrlamp_slew_iload",
-      "test": "slew",
-      "signals": [
-        "iload"
-      ],
-      "corners": "all",
-      "ylabel": "Load current~[\\si{\\micro\\ampere}]",
-      "yprec": 0,
-      "caption": "Current delivered into the \\SI{10}{\\pico\\farad} load during the same step, positive out of the amplifier. The asymmetry is plain: while the output slews up the cascoded PMOS mirror holds a flat \\SI{14.1}{\\micro\\ampere}, and while it slews down the output pulls only \\SI{3.5}{\\micro\\ampere}. The narrow spikes at each edge --- \\SI{24.4}{\\micro\\ampere} and \\SI{12.6}{\\micro\\ampere} --- last well under a microsecond; it is the flat sections that set the slew rate. These are slewing currents with the input pair overdriven past its common-mode range, so read them as the shape of the asymmetry rather than as a drive rating; see the discussion following Table~\\ref{tab:ctrlamp-largesignal}.",
-      "width": "0.80\\linewidth",
-      "height": "6.0cm"
     }
   ],
   "tables": [
@@ -348,15 +335,11 @@
       "signals": [
         "vout_op",
         "iamp",
-        "itot",
-        "vbnm",
-        "vbnc",
-        "vbpm",
-        "vbpc"
+        "itot"
       ],
       "corners": "all",
       "spread_column": true,
-      "caption": "DC operating point in the unity-gain bench with the input held at mid-supply. The amplifier draws \\SI{31.8}{\\micro\\ampere} of the \\SI{55.1}{\\micro\\ampere} the bench takes; the balance is the local bias generator that supplies the four cascode rails listed below it."
+      "caption": "DC operating point in the unity-gain bench with the input held at mid-supply, over all five process corners."
     },
     {
       "id": "ctrlamp_stability",
@@ -373,7 +356,7 @@
       ],
       "corners": "all",
       "spread_column": true,
-      "caption": "Loop stability from the \\texttt{stb} analysis of \\texttt{UnityFeedbackWBiasTB}, probed in the feedback path around the unity-gain connection --- the worst-case feedback factor. Spectre reports the loop stable with both margins found. Unity gain into \\SI{10}{\\pico\\farad} is the hardest case the amplifier sees here; the potentiostat loop closes through the electrode impedance instead, which is not modelled in this bench."
+      "caption": "Loop stability from the \\texttt{stb} analysis of \\texttt{UnityFeedbackWBiasTB}, probed in the feedback path around the unity-gain connection --- the worst-case feedback factor. A dash in the gain-margin rows means the loop gain phase does not reach \\SI{-180}{\\degree}, so no gain margin is defined."
     },
     {
       "id": "ctrlamp_largesignal",
@@ -384,13 +367,11 @@
         "sr_up",
         "sr_dn",
         "isrc",
-        "isnk",
-        "ipk_src",
-        "ipk_snk"
+        "isnk"
       ],
       "corners": "all",
       "spread_column": true,
-      "caption": "Large-signal drive, from the step response of \\texttt{SlewOpenLoopWBiasTB} into \\SI{10}{\\pico\\farad}. Slew rate is taken between the \\SI{1.25}{\\volt} and \\SI{2.25}{\\volt} output levels --- the upper half of the swing, which every corner traverses inside the \\SI{20}{\\micro\\second} window and which excludes the current spike at each edge. The slewing currents are the mean load current over that same interval, i.e.\\ the same measurement expressed the other way ($I=C\\,\\mathrm{d}V/\\mathrm{d}t$ at \\SI{10}{\\pico\\farad}), and the peak edge currents are the momentary spikes as the input steps. \\emph{None of the four current rows is a DC drive rating.} The bench steps the differential input by \\(\\pm\\SI{1.25}{\\volt}\\) open-loop, which takes the PMOS input pair outside its common-mode range, so these are large-signal slam currents into a purely capacitive load. For DC drive see Table~\\ref{tab:ctrlamp-drivemap}."
+      "caption": "Large-signal step response of \\texttt{SlewOpenLoopWBiasTB} into \\SI{10}{\\pico\\farad}. Slew rate is taken between the \\SI{1.25}{\\volt} and \\SI{2.25}{\\volt} output levels; the slewing currents are the mean load current over that same interval, i.e.\\ the same measurement expressed as $I=C\\,\\mathrm{d}V/\\mathrm{d}t$. DC drive compliance is given in Table~\\ref{tab:ctrlamp-drivemap}."
     },
     {
       "id": "ctrlamp_accuracy",

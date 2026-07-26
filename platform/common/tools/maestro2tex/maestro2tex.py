@@ -937,8 +937,10 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
                       spec.get('sortvar_unit', '')]
             for signame in spec['signals']:
                 ss = sigspec(test, signame)
+                # A by-corner table is as wide as it has signals, so a symbol in
+                # the head and the words in the caption keeps it on the page.
                 header.append('%s%s' % (
-                    ss.get('label', signame),
+                    ss.get('short_label', ss.get('label', signame)),
                     ('~[%s]' % ss['unit_tex']) if ss.get('unit_tex') else ''))
             rows = []
             for xval, label in corner_axis(spec, test, spec.get('corner_match')):

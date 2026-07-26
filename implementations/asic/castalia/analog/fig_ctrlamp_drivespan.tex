@@ -38,6 +38,6 @@
       \addlegendentry{ss}
     \end{axis}
   \end{tikzpicture}}
-  \caption{Width of the \(\pm\SI{50}{\milli\volt}\) compliance envelope against commanded output voltage, over all five process corners. The shape is the same in every corner --- pinched at both ends of the output range and widest around \SI{1.8}{\volt} --- so the deficit against the \(\pm\SI{33}{\micro\ampere}\) target is structural, not a corner artefact. The vertical scale is clipped at \SI{16}{\micro\ampere}: outside roughly \SIrange{0.3}{1.9}{\volt} the buffer no longer tracks its input at zero load, and the apparent span there rises past \SI{30}{\micro\ampere} because it is measuring the current needed to force the output onto the commanded value, not compliance. Note also that the resistor and MIM rows are pinned at typical in all five corners (see the note below), so this is the transistor-corner spread only and understates the true one.}
+  \caption{Width of the \(\pm\SI{50}{\milli\volt}\) compliance envelope against commanded output voltage, over all five process corners. The shape is the same in every corner: pinched at both ends of the output range and widest around \SI{1.8}{\volt}. The vertical scale is clipped at \SI{16}{\micro\ampere}; outside roughly \SIrange{0.3}{1.9}{\volt} the buffer no longer tracks its input at zero load, and the span plotted there is the current that forces the output onto the commanded value.}
   \label{fig:ctrlamp-drivespan}
 \end{figure}

@@ -50,30 +50,21 @@ and \texttt{DriveMapTB} (a load-current sweep at each of 26 commanded output vol
 in every corner). Every bench includes the local bias generator, so the noise and
 supply-current numbers are for the amplifier as biased, not for an idealised cell.
 
-Two things about the corner set should be read before the numbers. The typical point is
-simulated at \SI{27}{\celsius} and the four process corners at \SI{25}{\celsius}, so a
-small part of the spread in every table is temperature rather than process. More
-importantly, the imported corner definitions pin the resistor and MIM rows at typical in
-\emph{all five} corners --- see the note following
-Figure~\ref{fig:ctrlamp-drivespan}. This block's bias current is set by a poly
-resistor, so the spread reported here is the transistor-corner spread only and
-understates the real one.
+The typical point is simulated at \SI{27}{\celsius} and the four process corners at
+\SI{25}{\celsius}. The resistor and MIM model rows are typical in all five corners;
+only the standard-MOS rows vary.
 
 \input{\MaestroRoot sch_ctrlamp_core.tex}
 \input{\MaestroRoot tab_ControlAmp_corners.tex}
 \input{\MaestroRoot tab_ctrlamp_dcop.tex}
 \input{\MaestroRoot tab_ctrlamp_ac.tex}
 \input{\MaestroRoot fig_ctrlamp_ol_gain.tex}
-\input{\MaestroRoot fig_ctrlamp_ol_phase.tex}
 \input{\MaestroRoot tab_ctrlamp_stability.tex}
 \input{\MaestroRoot tab_ctrlamp_swing.tex}
 \input{\MaestroRoot tab_ctrlamp_accuracy.tex}
 \input{\MaestroRoot fig_ctrlamp_buffer_error.tex}
-\input{\MaestroRoot fig_ctrlamp_ol_idd.tex}
 \input{\MaestroRoot tab_ctrlamp_largesignal.tex}
 \input{\MaestroRoot fig_ctrlamp_slew.tex}
-\input{\MaestroRoot fig_ctrlamp_slew_iload.tex}
-\input{\MaestroRoot note_ctrlamp_drive.tex}
 \input{\MaestroRoot tab_ctrlamp_drivemap.tex}
 \input{\MaestroRoot fig_ctrlamp_drivemap.tex}
 \input{\MaestroRoot fig_ctrlamp_drivespan.tex}
