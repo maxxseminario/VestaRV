@@ -1,0 +1,356 @@
+{
+  "block": "BiasGenCascWideSwing",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "intro_tex": "\\subsection{Local Wide-Swing Cascode Bias Generator}\\label{ss:biasgen-local}\n\nThe local bias generator (schematic cell \\texttt{anatop\\_biasgen\\_local}, drawn from\n\\texttt{BiasGenCascWideSwing}) is the cell each analog block instantiates to develop\nits own cascode bias rails, as distinct from the single chip-level\n\\texttt{BiasGenCascWideSwingGlobal} that drives the global \\texttt{bn!}/\\texttt{bp!}\nnets. It presents four outputs --- the NMOS mirror and cascode gates\n($V_{\\mathrm{BNM}}$, $V_{\\mathrm{BNC}}$) and the PMOS mirror and cascode gates\n($V_{\\mathrm{BPM}}$, $V_{\\mathrm{BPC}}$) --- generated from a resistor-degenerated\nreference core in the wide-swing cascode arrangement, so the cascode gates sit only\none saturation voltage away from the mirror gates and the mirrors keep their output\ndevices in saturation over a wide compliance range. An \\texttt{En} input gates the\ncell, and a start-up branch guarantees it leaves the degenerate zero-current state at\npower-up. A 6-bit trim word, \\texttt{BiasAdj\\textless5:0\\textgreater}, moves the\nreference current so the operating point can be corrected after silicon.\n\nThe characterisation below is from schematic-level simulation (no extracted\nparasitics) of the \\texttt{BiasGenCascWideSwing\\allowbreak\\_tb} testbench, over the process,\ntemperature and supply points of\nTable~\\ref{tab:BiasGenCascWideSwing-corners}. All rail voltages are referred to\n\\texttt{vss!}, and the cell is enabled throughout.\n",
+  "corner_table_caption": "Process, temperature and supply points simulated for the local bias generator.",
+  "signals": {
+    "vbnm": {
+      "expr": "v(\"/V_BNM\")",
+      "label": "$V_{\\mathrm{BNM}}$",
+      "unit_tex": "\\si{\\milli\\volt}",
+      "scale": 1000.0,
+      "digits": 1
+    },
+    "vbnc": {
+      "expr": "v(\"/V_BNC\")",
+      "label": "$V_{\\mathrm{BNC}}$",
+      "unit_tex": "\\si{\\milli\\volt}",
+      "scale": 1000.0,
+      "digits": 1
+    },
+    "vbpm": {
+      "expr": "v(\"/V_BPM\")",
+      "label": "$V_{\\mathrm{BPM}}$",
+      "unit_tex": "\\si{\\milli\\volt}",
+      "scale": 1000.0,
+      "digits": 1
+    },
+    "vbpc": {
+      "expr": "v(\"/V_BPC\")",
+      "label": "$V_{\\mathrm{BPC}}$",
+      "unit_tex": "\\si{\\milli\\volt}",
+      "scale": 1000.0,
+      "digits": 1
+    },
+    "idd": {
+      "expr": "abs(i(\"/POWER/SRC_VDD25/PLUS\"))",
+      "label": "$I_{\\mathrm{DD}}$",
+      "unit_tex": "\\si{\\micro\\ampere}",
+      "scale": 1000000.0,
+      "digits": 2
+    },
+    "vsgpm": {
+      "expr": "(v(\"/vdd!\") - v(\"/V_BPM\"))",
+      "label": "$V_{\\mathrm{DD}}-V_{\\mathrm{BPM}}$",
+      "unit_tex": "\\si{\\milli\\volt}",
+      "scale": 1000.0,
+      "digits": 1
+    },
+    "vsgpc": {
+      "expr": "(v(\"/vdd!\") - v(\"/V_BPC\"))",
+      "label": "$V_{\\mathrm{DD}}-V_{\\mathrm{BPC}}$",
+      "unit_tex": "\\si{\\milli\\volt}",
+      "scale": 1000.0,
+      "digits": 1
+    }
+  },
+  "tests": {
+    "DCOpTB": {
+      "result": "dcOp"
+    },
+    "bg_temp": {
+      "result": "dc",
+      "xlabel": "Temperature~[\\si{\\celsius}]",
+      "xunit_tex": "\\si{\\celsius}",
+      "nominal_x": 27.0
+    },
+    "bg_vdd": {
+      "result": "dc",
+      "xlabel": "Supply voltage $V_{\\mathrm{DD}}$~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "nominal_x": 2.5
+    },
+    "bg_adj": {
+      "result": "dc",
+      "xlabel": "Trim code \\texttt{BiasAdj}~[LSB]",
+      "xunit_tex": "LSB",
+      "nominal_x": 33.0
+    },
+    "BiasStartupTB": {
+      "result": "tran",
+      "xlabel": "Time~[\\si{\\micro\\second}]",
+      "xunit_tex": "\\si{\\micro\\second}",
+      "xscale": 1000000.0,
+      "signals": {
+        "idd": {
+          "expr": "abs(i(\"/V0/PLUS\"))",
+          "label": "$I_{\\mathrm{DD}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "vdd": {
+          "expr": "v(\"/vdd!\")",
+          "label": "$V_{\\mathrm{DD}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        },
+        "vsu": {
+          "expr": "v(\"/BIASGEN/V_SU\")",
+          "label": "$V_{\\mathrm{SU}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "biasgen_rails_vs_temp",
+      "test": "bg_temp",
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "ylabel": "Bias rail voltage~[\\si{\\milli\\volt}]",
+      "yprec": 0,
+      "caption": "The four local bias rails against temperature at the typical corner. $V_{\\mathrm{BNM}}$ and $V_{\\mathrm{BNC}}$ are referred to \\texttt{vss!}; $V_{\\mathrm{BPM}}$ and $V_{\\mathrm{BPC}}$ sit near the supply.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_vbnm_vs_temp",
+      "test": "bg_temp",
+      "signals": [
+        "vbnm"
+      ],
+      "corners": "all",
+      "yprec": 0,
+      "caption": "NMOS mirror bias $V_{\\mathrm{BNM}}$ against temperature over all process corners.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_idd_vs_temp",
+      "test": "bg_temp",
+      "signals": [
+        "idd"
+      ],
+      "corners": "all",
+      "yprec": 1,
+      "caption": "Quiescent supply current of the bias generator against temperature over all process corners.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_vbnm_vs_vdd",
+      "test": "bg_vdd",
+      "signals": [
+        "vbnm"
+      ],
+      "corners": "all",
+      "yprec": 0,
+      "caption": "Supply rejection of the NMOS mirror bias: $V_{\\mathrm{BNM}}$ against $V_{\\mathrm{DD}}$ over all process corners.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_idd_vs_vdd",
+      "test": "bg_vdd",
+      "signals": [
+        "idd"
+      ],
+      "corners": "all",
+      "yprec": 1,
+      "caption": "Quiescent supply current against supply voltage over all process corners.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_vbnm_vs_code",
+      "test": "bg_adj",
+      "signals": [
+        "vbnm"
+      ],
+      "corners": "all",
+      "yprec": 0,
+      "caption": "Trim characteristic: $V_{\\mathrm{BNM}}$ against the \\texttt{BiasAdj} word over all process corners. The bench sweeps the trim word as a continuous variable, so only the six codes 0, 12.6, 25.2, 37.8, 50.4 and 63 are sampled --- this is the shape of the trim law, not a per-code characterisation.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_idd_vs_code",
+      "test": "bg_adj",
+      "signals": [
+        "idd"
+      ],
+      "corners": "all",
+      "yprec": 1,
+      "caption": "Trim characteristic: quiescent supply current against the \\texttt{BiasAdj} word over all process corners, at the same six sampled codes. The current is strongly monotonic in the trim word, falling by a factor of about 3.4 from code 0 to code 63.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_startup",
+      "test": "BiasStartupTB",
+      "signals": [
+        "vbnm",
+        "vbpm",
+        "vsu"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "ylabel": "Voltage~[\\si{\\milli\\volt}]",
+      "yprec": 0,
+      "caption": "Power-up transient at the typical corner. The start-up node $V_{\\mathrm{SU}}$ pulls the core out of its zero-current state, after which both mirror rails settle to their steady-state values.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "biasgen_startup_corners",
+      "test": "BiasStartupTB",
+      "signals": [
+        "vbnm"
+      ],
+      "corners": "all",
+      "yprec": 0,
+      "caption": "Power-up settling of $V_{\\mathrm{BNM}}$ over all process corners.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    }
+  ],
+  "tables": [
+    {
+      "id": "biasgen_dcop",
+      "type": "matrix",
+      "test": "DCOpTB",
+      "stat": "value",
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc",
+        "idd"
+      ],
+      "corners": "all",
+      "caption": "DC operating point of the local bias generator at the nominal trim code (\\texttt{BiasAdj}~=~33), by process corner. The last column is the spread across corners."
+    },
+    {
+      "id": "biasgen_tempco",
+      "type": "matrix",
+      "test": "bg_temp",
+      "stat": "ppm_per_x",
+      "unit_tex": "ppm/\\si{\\celsius}",
+      "digits": 0,
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc",
+        "idd"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Temperature coefficient of each bias rail and of the supply current, taken as the total variation over the simulated temperature range normalised to the mean."
+    },
+    {
+      "id": "biasgen_line",
+      "type": "matrix",
+      "test": "bg_vdd",
+      "stat": "sens_pct_per_x",
+      "unit_tex": "\\si{\\percent\\per\\volt}",
+      "digits": 2,
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vsgpm",
+        "vsgpc",
+        "idd"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Line sensitivity: total variation over the simulated supply range, normalised to the mean and to the swept supply span. The PMOS rails are supply-referred --- they track $V_{\\mathrm{DD}}$ by design --- so it is the supply-referred drops $V_{\\mathrm{DD}}-V_{\\mathrm{BPM}}$ and $V_{\\mathrm{DD}}-V_{\\mathrm{BPC}}$ that are quoted here, not the raw rail voltages, whose sensitivity against \\texttt{vss!} would simply restate that tracking."
+    },
+    {
+      "id": "biasgen_trim",
+      "type": "matrix",
+      "test": "bg_adj",
+      "stat": "spread",
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc",
+        "idd"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Trim range: total swing of each quantity between the lowest and highest sampled \\texttt{BiasAdj} code (0 and 63)."
+    },
+    {
+      "id": "biasgen_temp_stats",
+      "type": "stats",
+      "test": "bg_temp",
+      "corner": "tt",
+      "stats": [
+        "min",
+        "mean",
+        "max",
+        "spread"
+      ],
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc",
+        "idd"
+      ],
+      "caption": "Typical-corner extremes over the simulated temperature range."
+    },
+    {
+      "id": "biasgen_startup_time",
+      "type": "matrix",
+      "test": "BiasStartupTB",
+      "stat": "settle",
+      "unit_tex": "\\si{\\micro\\second}",
+      "digits": 2,
+      "signals": [
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Power-up settling time of each bias rail, defined as the last instant at which the rail is still outside a \\SI{1}{\\percent} band around its final value."
+    }
+  ],
+  "order": [
+    "tab_BiasGenCascWideSwing_corners",
+    "tab_biasgen_dcop",
+    "fig_biasgen_rails_vs_temp",
+    "tab_biasgen_temp_stats",
+    "tab_biasgen_tempco",
+    "fig_biasgen_vbnm_vs_temp",
+    "fig_biasgen_idd_vs_temp",
+    "tab_biasgen_line",
+    "fig_biasgen_vbnm_vs_vdd",
+    "fig_biasgen_idd_vs_vdd",
+    "tab_biasgen_trim",
+    "fig_biasgen_vbnm_vs_code",
+    "fig_biasgen_idd_vs_code",
+    "tab_biasgen_startup_time",
+    "fig_biasgen_startup",
+    "fig_biasgen_startup_corners"
+  ]
+}

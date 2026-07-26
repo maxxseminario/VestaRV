@@ -1,0 +1,49 @@
+% =====================================================================
+% Castalia -- analog chapter of the Technical Reference Manual.
+%
+% This file is HAND-WRITTEN and belongs to this implementation, not to the
+% shared platform sources: every chip built from the VestaRV platform gets the
+% same digital chapters, but the analog content is per-silicon. A chip whose
+% analog differs supplies its own implementations/asic/<chip>/analog/ directory
+% and nothing else in the TRM changes.
+%
+% The generator (platform/common/python/LatexUserGuide.py, CopyAnalogChapter)
+% copies this directory to latex/TRM/include/analog/ at `make chip` time, and
+% the master template inputs it if it is present. So:
+%   - paths here are relative to latex/TRM/  (i.e. include/analog/...)
+%   - a chip with no analog/ directory simply gets no analog chapter
+%
+% The per-block characterisation files (fig_*.tex, tab_*.tex, data/*.dat and the
+% BiasGenCascWideSwing.tex master) are GENERATED from Maestro simulation results
+% by platform/common/tools/maestro2tex -- do not hand-edit them, edit the config
+% and regenerate. This chapter file is the hand-written frame around them.
+% =====================================================================
+
+\section{Analog Circuitry} \label{s:analog}
+
+\AsicNameForUserGuide{} carries a mixed-signal front end alongside the digital
+subsystem documented in the preceding chapters. This chapter describes the analog
+blocks themselves and reports their simulated performance; the memory-mapped
+registers through which software reaches them are documented with the peripherals
+in Section~\ref{s:regMemMap}.
+
+Unless stated otherwise, every figure and table in this chapter is taken from
+schematic-level simulation of the block's own testbench --- pre-layout, with no
+extracted parasitics --- and is therefore a design-intent characterisation rather
+than silicon data. Each block section names the testbench it came from and the
+process, temperature and supply points that were simulated, so the coverage behind
+each number is explicit. Numbers are regenerated directly from the simulator's
+results database rather than transcribed by hand.
+
+\subsection*{Blocks documented in this revision}
+
+The analog front end is being brought up incrementally. This revision documents
+the local bias generator; the potentiostat, transimpedance and data-converter
+blocks will be added to this chapter as their benches are closed.
+
+% ---------------------------------------------------------------------
+% Generated block sections. Each is produced by tools/maestro2tex from a
+% Maestro run; see that tool's README for how to regenerate or add one.
+% ---------------------------------------------------------------------
+
+\input{include/analog/BiasGenCascWideSwing.tex}

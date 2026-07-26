@@ -1,5 +1,5 @@
 import datetime, os, pathlib
-from shutil import copyfile
+from shutil import copyfile, rmtree
 
 def copytree(src, dst, dirs_exist_ok=True):
 	# shutil.copytree(dirs_exist_ok=...) needs Python >= 3.8; this works on 3.6
@@ -52,6 +52,7 @@ class LatexUserGuide():
 	
 	def Generate(self):
 		self.CopyTemplateTexFiles()
+		self.CopyAnalogChapter()
 		self.GenerateDefinesFile()
 		self.GenerateSystemConfigurationListFile()
 		self.GenerateFeaturesList()
@@ -131,6 +132,48 @@ class LatexUserGuide():
 		if not os.path.isdir(dst):
 			os.makedirs(dst)
 		copytree(path, dst, dirs_exist_ok=True)
+
+		return
+
+	def CopyAnalogChapter(self):
+		# Per-implementation analog chapter. Every chip built from this platform
+		# shares the digital chapters, but the analog content is per-silicon, so it
+		# lives with the implementation rather than in the shared platform sources:
+		#
+		#     implementations/asic/<chip>/analog/AnalogChapter.tex   (hand-written)
+		#     implementations/asic/<chip>/analog/{fig,tab}_*.tex, data/  (generated
+		#                                          from Maestro by tools/maestro2tex)
+		#
+		# The whole directory is copied to latex/TRM/include/analog/ so that, like
+		# every other TRM input, it is reachable as include/... from the build
+		# directory. The master template guards the \input with \IfFileExists, so a
+		# chip with no analog/ directory produces a TRM byte-identical to a build
+		# without this feature -- the same "inert unless declared" discipline as the
+		# \ifcqanalog chapter.
+		#
+		# The directory is keyed on the lower-cased chip name, which is the existing
+		# implementations/asic/ naming convention (Castalia -> castalia).
+		src = os.path.abspath(self.ThisFileDirectory + '/../../../implementations/asic/'
+		                      + self.Gen.AsicName.lower() + '/analog')
+		dst = self.IncludeDirectory + '/analog'
+
+		# Purge first, ALWAYS. latex/TRM/ is reused across chips (`make chip
+		# CHIP_NAME=...`), so leaving a previous chip's analog directory in place
+		# would silently splice its chapter into this chip's TRM -- exactly what
+		# happened the first time this ran: Castalia's bias-generator chapter
+		# appeared in Argus's manual. Removing it unconditionally is what makes the
+		# "no analog/ directory => no analog chapter" guarantee actually hold.
+		if os.path.isdir(dst):
+			rmtree(dst)
+
+		if not os.path.isdir(src):
+			print('[LatexUserGuide] no analog chapter for ' + self.Gen.AsicName
+			      + ' (looked in ' + src + ') - TRM built without one')
+			return
+		if not os.path.isdir(dst):
+			os.makedirs(dst)
+		copytree(src, dst, dirs_exist_ok=True)
+		print('[LatexUserGuide] analog chapter copied from ' + src)
 
 		return
 
