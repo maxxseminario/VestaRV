@@ -1,0 +1,34 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.80\linewidth, height=6.0cm,
+      xlabel={Time~[\si{\micro\second}]}, ylabel={Load current~[\si{\micro\ampere}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_slew_iload_00.dat};
+      \addlegendentry{tt}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption{Current delivered into the \SI{10}{\pico\farad} load during the same step, positive out of the amplifier. The asymmetry is plain: while the output slews up the cascoded PMOS mirror holds a flat \SI{14.1}{\micro\ampere}, and while it slews down the output pulls only \SI{3.5}{\micro\ampere}. The narrow spikes at each edge --- \SI{24.4}{\micro\ampere} and \SI{12.6}{\micro\ampere} --- last well under a microsecond; it is the flat sections that set the slew rate. These are slewing currents with the input pair overdriven past its common-mode range, so read them as the shape of the asymmetry rather than as a drive rating; see the discussion following Table~\ref{tab:ctrlamp-largesignal}.}
+  \label{fig:ctrlamp-slew-iload}
+\end{figure}

@@ -1,0 +1,634 @@
+{
+  "block": "ControlAmp",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "intro_tex": "\\subsection{Potentiostat Control Amplifier}\\label{ss:controlamp}\n\nThe control amplifier (schematic cell \\texttt{anatop\\_controlamp}, drawn from\n\\texttt{AFE\\_ECS/folded\\_cascode\\_pmos}) is amplifier A1 of the rev-2 potentiostat.\nIt drives the counter electrode directly from its output, takes its feedback from the\nreference electrode on the inverting input, and takes its set point from the reference\nDAC on the non-inverting input; the cell current is therefore whatever A1 must push\ninto the cell to hold $V_{\\mathrm{RE}}$ at the commanded potential. Unlike the rev-1\nfront end it drives no current mirror, so both polarities of cell current pass through\nit.\n\nThe topology is a single-stage folded cascode with a PMOS input pair. A PMOS tail\ndevice feeds the differential pair from \\texttt{vdd!}; the pair's drain currents are\nfolded into two NMOS current sources biased on \\texttt{vbn} and pass up through NMOS\ncascodes on \\texttt{vbnc} into a cascoded PMOS mirror on \\texttt{vbpm}/\\texttt{vbpc}.\nOutput and load current are summed at the single high-impedance node where the PMOS and\nNMOS cascodes meet, so the amplifier has no internal compensation capacitor --- the load\ncapacitance at \\texttt{vout} is what sets the dominant pole, and every dynamic figure\nbelow is quoted against the \\SI{10}{\\pico\\farad} load the benches apply. A PMOS input\npair puts the input common-mode range against \\texttt{vss!} rather than against the\nsupply, which is what a potentiostat holding a reference electrode near ground needs.\nThe four cascode gate biases come from an \\texttt{anatop\\_biasgen\\_local} instance\n(Section~\\ref{ss:biasgen-local}) trimmed to \\texttt{BiasAdj}~=~37.\n\nThe characterisation below is from schematic-level simulation (no extracted parasitics)\nof three views of the \\texttt{castalia/anatop\\_tb\\_controlamp} testbench:\n\\texttt{TypOpenLoopWBiasTB} (open-loop AC, DC transfer, noise),\n\\texttt{UnityFeedbackWBiasTB} (loop stability by \\texttt{stb} analysis, unity-gain\ntransfer, noise) and \\texttt{SlewOpenLoopWBiasTB} (large-signal step response). Both\nnoise-driven benches include the local bias generator, so the noise and supply-current\nnumbers are for the amplifier as biased, not for an idealised cell. This run covers the\nsingle process, temperature and supply point of\nTable~\\ref{tab:ControlAmp-corners} --- it is a typical-corner design check, not a\ncorner-signed characterisation.\n",
+  "corner_table_caption": "Process, temperature and supply point simulated for the control amplifier. The load capacitance is \\SI{10}{\\pico\\farad} and the local bias trim code is \\texttt{BiasAdj}~=~37 throughout.",
+  "signals": {},
+  "tests": {
+    "ol_ac": {
+      "dir": "TypOpenLoopWBiasTB",
+      "result": "ac",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "signals": {
+        "av_db": {
+          "expr": "dB20(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")))",
+          "label": "$|A_{\\mathrm{v}}|$",
+          "unit_tex": "\\si{\\decibel}",
+          "digits": 2
+        },
+        "av_ph": {
+          "expr": "phaseDegUnwrapped(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")))",
+          "label": "$\\angle A_{\\mathrm{v}}$",
+          "unit_tex": "\\si{\\degree}",
+          "digits": 1
+        },
+        "a0_db": {
+          "expr": "dB20(value(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")) 1e-3))",
+          "label": "Open-loop DC gain $A_{0}$",
+          "unit_tex": "\\si{\\decibel}",
+          "digits": 2
+        },
+        "a0_vv": {
+          "expr": "abs(value(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")) 1e-3))",
+          "label": "Open-loop DC gain $A_{0}$",
+          "unit_tex": "\\si{\\volt\\per\\volt}",
+          "digits": 0
+        },
+        "f3db": {
+          "expr": "bandwidth(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")) 3 \"low\")",
+          "label": "Dominant pole $f_{-3\\,\\mathrm{dB}}$",
+          "unit_tex": "\\si{\\hertz}",
+          "digits": 1
+        },
+        "ugf": {
+          "expr": "unityGainFreq(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")))",
+          "label": "Unity-gain frequency $f_{\\mathrm{u}}$",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "gbw": {
+          "expr": "gainBwProd(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\")))",
+          "label": "Gain--bandwidth product",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "ph_ugf": {
+          "expr": "value(phaseDegUnwrapped(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\"))) unityGainFreq(v(\"/V_OutOL\")/(v(\"/V_InP\")-v(\"/V_InM\"))))",
+          "label": "Open-loop phase at $f_{\\mathrm{u}}$",
+          "unit_tex": "\\si{\\degree}",
+          "digits": 1
+        }
+      }
+    },
+    "ol_dc": {
+      "dir": "TypOpenLoopWBiasTB",
+      "result": "dc",
+      "xlabel": "Differential input $V_{\\mathrm{ID}}$~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "nominal_x": 0.0,
+      "signals": {
+        "vout": {
+          "expr": "v(\"/V_OutOL\")",
+          "label": "$V_{\\mathrm{OUT}}$",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        },
+        "idd": {
+          "expr": "abs(i(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "$I_{\\mathrm{DD}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "vol": {
+          "expr": "ymin(v(\"/V_OutOL\"))",
+          "label": "Output low limit $V_{\\mathrm{OL}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        },
+        "voh": {
+          "expr": "ymax(v(\"/V_OutOL\"))",
+          "label": "Output high limit $V_{\\mathrm{OH}}$",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        },
+        "vos_ol": {
+          "expr": "cross(v(\"/V_OutOL\") 1.25 1 \"either\")",
+          "label": "Open-loop input offset",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 0
+        }
+      }
+    },
+    "uf_dc": {
+      "dir": "UnityFeedbackWBiasTB",
+      "result": "dc",
+      "xlabel": "Input voltage $V_{\\mathrm{IN}}$~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "nominal_x": 1.25,
+      "signals": {
+        "vout": {
+          "expr": "v(\"/V_OutOL\")",
+          "label": "$V_{\\mathrm{OUT}}$",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        },
+        "verr": {
+          "expr": "(v(\"/V_OutOL\")-v(\"/V_InP\"))",
+          "label": "$V_{\\mathrm{OUT}}-V_{\\mathrm{IN}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 3
+        },
+        "idd": {
+          "expr": "abs(i(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "$I_{\\mathrm{DD}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "vos": {
+          "expr": "value(v(\"/V_OutOL\")-v(\"/V_InP\") 1.25)",
+          "label": "Buffer error at $V_{\\mathrm{IN}}=\\SI{1.25}{\\volt}$",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "vin_lo": {
+          "expr": "cross(abs(v(\"/V_OutOL\")-v(\"/V_InP\")) 1e-3 1 \"falling\")",
+          "label": "Lower edge of the \\SI{1}{\\milli\\volt} window",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        },
+        "vin_hi": {
+          "expr": "cross(abs(v(\"/V_OutOL\")-v(\"/V_InP\")) 1e-3 1 \"rising\")",
+          "label": "Upper edge of the \\SI{1}{\\milli\\volt} window",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        }
+      }
+    },
+    "uf_margin": {
+      "dir": "UnityFeedbackWBiasTB",
+      "result": "stb_margin",
+      "signals": {
+        "lg0_db": {
+          "expr": "dB20(value(getData(\"loopGain\" ?result \"stb\") 1.0))",
+          "label": "Loop gain at \\SI{1}{\\hertz}",
+          "unit_tex": "\\si{\\decibel}",
+          "digits": 2
+        },
+        "lg_ugf": {
+          "expr": "unityGainFreq(getData(\"loopGain\" ?result \"stb\"))",
+          "label": "Loop unity-gain frequency",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "pm": {
+          "expr": "getData(\"phaseMargin\" ?result \"stb_margin\")",
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "digits": 2
+        },
+        "pmf": {
+          "expr": "getData(\"phaseMarginFreq\" ?result \"stb_margin\")",
+          "label": "Frequency at the phase margin",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "gm": {
+          "expr": "getData(\"gainMargin\" ?result \"stb_margin\")",
+          "label": "Gain margin",
+          "unit_tex": "\\si{\\decibel}",
+          "digits": 2
+        },
+        "gmf": {
+          "expr": "getData(\"gainMarginFreq\" ?result \"stb_margin\")",
+          "label": "Frequency at the gain margin",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 1
+        }
+      }
+    },
+    "uf_noise": {
+      "dir": "UnityFeedbackWBiasTB",
+      "result": "noise",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "signals": {
+        "nout": {
+          "expr": "getData(\"out\")",
+          "label": "Output noise density",
+          "unit_tex": "\\si{\\nano\\volt\\per\\sqrt\\hertz}",
+          "scale": 1000000000.0,
+          "digits": 2
+        },
+        "nout_1": {
+          "expr": "value(getData(\"out\") 1.0)",
+          "label": "Output noise at \\SI{1}{\\hertz}",
+          "unit_tex": "\\si{\\nano\\volt\\per\\sqrt\\hertz}",
+          "scale": 1000000000.0,
+          "digits": 0
+        },
+        "nout_1k": {
+          "expr": "value(getData(\"out\") 1e3)",
+          "label": "Output noise at \\SI{1}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\nano\\volt\\per\\sqrt\\hertz}",
+          "scale": 1000000000.0,
+          "digits": 1
+        },
+        "nfloor": {
+          "expr": "value(getData(\"out\") 3e5)",
+          "label": "Broadband floor at \\SI{300}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\nano\\volt\\per\\sqrt\\hertz}",
+          "scale": 1000000000.0,
+          "digits": 2
+        },
+        "fcorner": {
+          "expr": "cross(getData(\"out\") sqrt(2)*value(getData(\"out\") 3e5) 1 \"either\")",
+          "label": "Flicker corner",
+          "unit_tex": "\\si{\\kilo\\hertz}",
+          "scale": 0.001,
+          "digits": 2
+        },
+        "nint_10k": {
+          "expr": "sqrt(integ(getData(\"out\")**2 0.1 1e4))",
+          "label": "Integrated noise, \\SI{0.1}{\\hertz}--\\SI{10}{\\kilo\\hertz}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "nint_1M": {
+          "expr": "sqrt(integ(getData(\"out\")**2 0.1 1e6))",
+          "label": "Integrated noise, \\SI{0.1}{\\hertz}--\\SI{1}{\\mega\\hertz}",
+          "unit_tex": "\\si{\\micro\\volt}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "uf_op": {
+      "dir": "UnityFeedbackWBiasTB",
+      "result": "dcOp",
+      "signals": {
+        "iamp": {
+          "expr": "abs(i(\"/OPAMP/vdd!\"))",
+          "label": "Amplifier supply current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "itot": {
+          "expr": "abs(i(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "Bench supply current (amplifier + bias generator)",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "vout_op": {
+          "expr": "v(\"/V_OutOL\")",
+          "label": "Output voltage, unity gain at \\SI{1.25}{\\volt}",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 4
+        },
+        "vbnm": {
+          "expr": "v(\"/V_BNM\")",
+          "label": "NMOS mirror bias $V_{\\mathrm{BNM}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        },
+        "vbnc": {
+          "expr": "v(\"/V_BNC\")",
+          "label": "NMOS cascode bias $V_{\\mathrm{BNC}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        },
+        "vbpm": {
+          "expr": "v(\"/V_BPM\")",
+          "label": "PMOS mirror bias $V_{\\mathrm{BPM}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        },
+        "vbpc": {
+          "expr": "v(\"/V_BPC\")",
+          "label": "PMOS cascode bias $V_{\\mathrm{BPC}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        }
+      }
+    },
+    "slew": {
+      "dir": "SlewOpenLoopWBiasTB",
+      "result": "tran",
+      "xlabel": "Time~[\\si{\\micro\\second}]",
+      "xunit_tex": "\\si{\\micro\\second}",
+      "xscale": 1000000.0,
+      "signals": {
+        "vout": {
+          "expr": "v(\"/V_OutOL\")",
+          "label": "$V_{\\mathrm{OUT}}$",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        },
+        "vin": {
+          "expr": "v(\"/V_InP\")",
+          "label": "$V_{\\mathrm{INP}}$",
+          "unit_tex": "\\si{\\volt}",
+          "digits": 3
+        },
+        "iload": {
+          "expr": "i(\"/C_L/PLUS\")",
+          "label": "Load current",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "sr_up": {
+          "expr": "2.0/(cross(v(\"/V_OutOL\") 2.25 1 \"rising\")-cross(v(\"/V_OutOL\") 0.25 1 \"rising\"))",
+          "label": "Slew rate, rising",
+          "unit_tex": "\\si{\\volt\\per\\micro\\second}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "sr_dn": {
+          "expr": "2.0/(cross(v(\"/V_OutOL\") 0.25 1 \"falling\")-cross(v(\"/V_OutOL\") 2.25 1 \"falling\"))",
+          "label": "Slew rate, falling",
+          "unit_tex": "\\si{\\volt\\per\\micro\\second}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "isrc": {
+          "expr": "average(clip(i(\"/C_L/PLUS\") cross(v(\"/V_OutOL\") 0.25 1 \"rising\") cross(v(\"/V_OutOL\") 2.25 1 \"rising\")))",
+          "label": "Slewing current, rising edge",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "isnk": {
+          "expr": "abs(average(clip(i(\"/C_L/PLUS\") cross(v(\"/V_OutOL\") 2.25 1 \"falling\") cross(v(\"/V_OutOL\") 0.25 1 \"falling\"))))",
+          "label": "Slewing current, falling edge",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "ipk_src": {
+          "expr": "ymax(i(\"/C_L/PLUS\"))",
+          "label": "Peak edge current, sourcing",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "ipk_snk": {
+          "expr": "abs(ymin(i(\"/C_L/PLUS\")))",
+          "label": "Peak edge current, sinking",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "ctrlamp_ol_gain",
+      "test": "ol_ac",
+      "signals": [
+        "av_db"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "xlog": true,
+      "ylabel": "Open-loop gain $|A_{\\mathrm{v}}|$~[\\si{\\decibel}]",
+      "yprec": 0,
+      "axis_extra": "xtick={1e-3,1e-1,1e1,1e3,1e5,1e7,1e9}, ytick={-40,-20,0,20,40,60,80}",
+      "caption": "Open-loop gain of the control amplifier against frequency, driven differentially about \\SI{1.25}{\\volt} into a \\SI{10}{\\pico\\farad} load. The gain is flat at \\SI{78.81}{\\decibel} (\\num{8716}) out to a dominant pole at \\SI{230}{\\hertz} and falls at \\SI{20}{\\decibel} per decade to unity gain at \\SI{1.71}{\\mega\\hertz}; the single-pole roll-off across five decades is the signature of the uncompensated single-stage topology loaded only by $C_{\\mathrm{L}}$.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "ctrlamp_ol_phase",
+      "test": "ol_ac",
+      "signals": [
+        "av_ph"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "xlog": true,
+      "ylabel": "Open-loop phase $\\angle A_{\\mathrm{v}}$~[\\si{\\degree}]",
+      "yprec": 0,
+      "axis_extra": "xtick={1e-3,1e-1,1e1,1e3,1e5,1e7,1e9}",
+      "caption": "Open-loop phase against frequency, same conditions as Figure~\\ref{fig:ctrlamp-ol-gain}. The phase passes through \\SI{-115.7}{\\degree} at the unity-gain frequency, so the non-dominant poles have taken only about \\SI{26}{\\degree} by the time the gain reaches unity. The step at the extreme right is an unwrapping artefact: at ten points per decade the phase moves by more than \\SI{180}{\\degree} between the last two samples and the unwrapper cannot follow it. It is above \\SI{500}{\\mega\\hertz}, three decades past unity gain, and does not affect the margins in Table~\\ref{tab:ctrlamp-stability}.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "ctrlamp_buffer_error",
+      "test": "uf_dc",
+      "signals": [
+        "verr"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "ylabel": "$V_{\\mathrm{OUT}}-V_{\\mathrm{IN}}$~[\\si{\\milli\\volt}]",
+      "yprec": 1,
+      "axis_extra": "ymin=-1.5, ymax=1.5, enlarge y limits=false, restrict y to domain=-30:30",
+      "caption": "Unity-gain tracking error against input voltage. Inside the window \\SIrange{0.30}{2.01}{\\volt} the error stays under \\SI{1}{\\milli\\volt}, passing through \\SI{+61}{\\micro\\volt} at mid-supply; the curve leaves the frame at both ends, where the PMOS tail runs out of headroom near the supply and the output stage reaches its low limit near \\texttt{vss!}. The vertical scale is clipped to \\(\\pm\\SI{1.5}{\\milli\\volt}\\) so the in-range behaviour is visible at all --- the error reaches \\SI{+97}{\\milli\\volt} at \\SI{0}{\\volt} and \\SI{-382}{\\milli\\volt} at \\SI{2.5}{\\volt}.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "ctrlamp_ol_idd",
+      "test": "ol_dc",
+      "signals": [
+        "idd"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "ylabel": "Supply current $I_{\\mathrm{DD}}$~[\\si{\\micro\\ampere}]",
+      "yprec": 1,
+      "caption": "Bench supply current against differential input, with the amplifier driven open-loop from one saturation limit to the other. The current moves by under \\SI{4}{\\micro\\ampere} across the whole \\(\\pm\\SI{1.25}{\\volt}\\) overdrive range: the tail and folding currents are set by the bias generator and do not collapse when the input pair is fully steered. The trace includes the local bias generator, which accounts for roughly \\SI{23}{\\micro\\ampere} of the total.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "ctrlamp_noise",
+      "test": "uf_noise",
+      "signals": [
+        "nout"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "xlog": true,
+      "ylog": true,
+      "ylabel": "Output noise density~[\\si{\\nano\\volt\\per\\sqrt\\hertz}]",
+      "axis_extra": "xtick={1e-1,1e1,1e3,1e5,1e7}",
+      "caption": "Output-referred noise density of the amplifier in unity-gain feedback, including the noise of the local bias generator. Flicker noise dominates below the \\SI{34}{\\kilo\\hertz} corner and reaches \\SI{4.77}{\\micro\\volt\\per\\sqrt\\hertz} at \\SI{1}{\\hertz}; the broadband floor is \\SI{16.0}{\\nano\\volt\\per\\sqrt\\hertz}, and the fall above about \\SI{2}{\\mega\\hertz} is the closed-loop bandwidth rolling the noise off, not a reduction in the noise generated.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "ctrlamp_slew",
+      "test": "slew",
+      "signals": [
+        "vin",
+        "vout"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "ylabel": "Voltage~[\\si{\\volt}]",
+      "yprec": 1,
+      "caption": "Large-signal step response. The open-loop bench slams the differential input from \\(-\\SI{1.25}{\\volt}\\) to \\(+\\SI{1.25}{\\volt}\\) and back, fully steering the input pair, so the output slews at the rate the output stage can charge and discharge the \\SI{10}{\\pico\\farad} load. The two edges are visibly unequal: the output takes \\SI{1.4}{\\micro\\second} to slew up and \\SI{5.7}{\\micro\\second} to slew back down, a factor of four.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    },
+    {
+      "id": "ctrlamp_slew_iload",
+      "test": "slew",
+      "signals": [
+        "iload"
+      ],
+      "corners": [
+        "tt"
+      ],
+      "ylabel": "Load current~[\\si{\\micro\\ampere}]",
+      "yprec": 0,
+      "caption": "Current delivered into the \\SI{10}{\\pico\\farad} load during the same step, positive out of the amplifier. The asymmetry is plain: while the output slews up the cascoded PMOS mirror holds a flat \\SI{14.1}{\\micro\\ampere}, and while it slews down the output pulls only \\SI{3.5}{\\micro\\ampere}. The narrow spikes at each edge --- \\SI{24.4}{\\micro\\ampere} and \\SI{12.6}{\\micro\\ampere} --- last well under a microsecond; it is the flat sections that set the slew rate. These are slewing currents with the input pair overdriven past its common-mode range, so read them as the shape of the asymmetry rather than as a drive rating; see the discussion following Table~\\ref{tab:ctrlamp-largesignal}.",
+      "width": "0.80\\linewidth",
+      "height": "6.0cm"
+    }
+  ],
+  "tables": [
+    {
+      "id": "ctrlamp_dcop",
+      "type": "matrix",
+      "test": "uf_op",
+      "stat": "value",
+      "signals": [
+        "vout_op",
+        "iamp",
+        "itot",
+        "vbnm",
+        "vbnc",
+        "vbpm",
+        "vbpc"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "DC operating point in the unity-gain bench with the input held at mid-supply. The amplifier draws \\SI{31.8}{\\micro\\ampere} of the \\SI{55.1}{\\micro\\ampere} the bench takes; the balance is the local bias generator that supplies the four cascode rails listed below it."
+    },
+    {
+      "id": "ctrlamp_ac",
+      "type": "matrix",
+      "test": "ol_ac",
+      "stat": "value",
+      "signals": [
+        "a0_db",
+        "a0_vv",
+        "f3db",
+        "ugf",
+        "gbw",
+        "ph_ugf"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Small-signal open-loop response, from the AC analysis of \\texttt{TypOpenLoopWBiasTB} into a \\SI{10}{\\pico\\farad} load. The gain--bandwidth product exceeds the measured unity-gain frequency slightly because the higher-order poles have already begun to bend the response before the gain reaches unity."
+    },
+    {
+      "id": "ctrlamp_stability",
+      "type": "matrix",
+      "test": "uf_margin",
+      "stat": "value",
+      "signals": [
+        "lg0_db",
+        "lg_ugf",
+        "pm",
+        "pmf",
+        "gm",
+        "gmf"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Loop stability from the \\texttt{stb} analysis of \\texttt{UnityFeedbackWBiasTB}, probed in the feedback path around the unity-gain connection --- the worst-case feedback factor. Spectre reports the loop stable with both margins found. Unity gain into \\SI{10}{\\pico\\farad} is the hardest case the amplifier sees here; the potentiostat loop closes through the electrode impedance instead, which is not modelled in this bench."
+    },
+    {
+      "id": "ctrlamp_largesignal",
+      "type": "matrix",
+      "test": "slew",
+      "stat": "value",
+      "signals": [
+        "sr_up",
+        "sr_dn",
+        "isrc",
+        "isnk",
+        "ipk_src",
+        "ipk_snk"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Large-signal drive, from the step response of \\texttt{SlewOpenLoopWBiasTB} into \\SI{10}{\\pico\\farad}. Slew rate is taken between the \\SI{0.25}{\\volt} and \\SI{2.25}{\\volt} output levels; the slewing currents are the mean load current over that same interval, i.e.\\ the same measurement expressed the other way ($I=C\\,\\mathrm{d}V/\\mathrm{d}t$ at \\SI{10}{\\pico\\farad}), and the peak edge currents are the momentary spikes as the input steps. \\emph{None of the four current rows is a DC drive rating.} The bench steps the differential input by \\(\\pm\\SI{1.25}{\\volt}\\) open-loop, which takes the PMOS input pair outside its common-mode range, so these are large-signal slam currents into a purely capacitive load --- an upper bound on what the output stage can deliver, not what it can hold against a real load. See the discussion below."
+    },
+    {
+      "id": "ctrlamp_swing",
+      "type": "matrix",
+      "test": "ol_dc",
+      "stat": "value",
+      "signals": [
+        "vol",
+        "voh",
+        "vos_ol"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Output swing and input offset from the open-loop DC sweep. The output pulls to within \\SI{52}{\\milli\\volt} of \\texttt{vss!} and all the way to the supply rail. The offset entry is the differential input at which the output crosses mid-supply; the sweep steps the input in \\SI{250}{\\micro\\volt} increments while the whole open-loop transition is only about \\SI{280}{\\micro\\volt} wide, so this number is resolved to no better than about \\(\\pm\\SI{130}{\\micro\\volt}\\) and the closed-loop figure in Table~\\ref{tab:ctrlamp-accuracy} should be preferred."
+    },
+    {
+      "id": "ctrlamp_accuracy",
+      "type": "matrix",
+      "test": "uf_dc",
+      "stat": "value",
+      "signals": [
+        "vos",
+        "vin_lo",
+        "vin_hi"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Unity-gain accuracy and usable input range. The window edges are where the magnitude of the tracking error crosses \\SI{1}{\\milli\\volt}; between them the amplifier follows its input to better than that, and the residual at mid-supply is the systematic input offset."
+    },
+    {
+      "id": "ctrlamp_noise",
+      "type": "matrix",
+      "test": "uf_noise",
+      "stat": "value",
+      "signals": [
+        "nout_1",
+        "nout_1k",
+        "nfloor",
+        "fcorner",
+        "nint_10k",
+        "nint_1M"
+      ],
+      "corners": "all",
+      "spread_column": false,
+      "caption": "Output-referred noise in unity-gain feedback, amplifier and local bias generator together. The flicker corner is quoted as the frequency at which the density has risen to \\(\\sqrt{2}\\) times the \\SI{300}{\\kilo\\hertz} floor. In unity gain the output-referred and input-referred densities are equal to within a fraction of a percent below \\SI{100}{\\kilo\\hertz}, so these also read as input-referred numbers over the band that matters to the potentiostat loop."
+    }
+  ],
+  "order": [
+    "tab_ControlAmp_corners",
+    "tab_ctrlamp_dcop",
+    "tab_ctrlamp_ac",
+    "fig_ctrlamp_ol_gain",
+    "fig_ctrlamp_ol_phase",
+    "tab_ctrlamp_stability",
+    "tab_ctrlamp_swing",
+    "tab_ctrlamp_accuracy",
+    "fig_ctrlamp_buffer_error",
+    "fig_ctrlamp_ol_idd",
+    "tab_ctrlamp_largesignal",
+    "fig_ctrlamp_slew",
+    "fig_ctrlamp_slew_iload",
+    "note_ctrlamp_drive",
+    "tab_ctrlamp_noise",
+    "fig_ctrlamp_noise"
+  ]
+}

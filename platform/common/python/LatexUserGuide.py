@@ -1013,18 +1013,28 @@ class LatexUserGuide():
 	# Waveform row geometry. _ROW_H is the high-to-low height of a signal and
 	# therefore the height of a bus cell — it is what sets how large the text
 	# inside a D{} cell can be. _ROW_PITCH must exceed it or rows collide.
-	_ROW_H = '0.80cm'
-	_ROW_PITCH = 1.20
+	# The two track the D-cell font: _CELL_FONT is \small (10 pt against the
+	# 11 pt body), so the rows are tall enough that a bus label reads at
+	# essentially body size rather than as fine print.
+	_ROW_H = '0.92cm'
+	_ROW_PITCH = 1.38
+
+	# Type sizes for the waveforms. Signal names and the text inside a bus cell
+	# sit just under body size; explanatory notes hanging off the figure stay a
+	# step smaller so the figure still reads as a figure.
+	_CELL_FONT = '\\sffamily\\small'
+	_LABEL_FONT = '\\sffamily\\small'
+	_NOTE_FONT = '\\sffamily\\footnotesize'
 
 	def _timingPreamble(self, xunit, extra=''):
 		'''Shared tikzpicture options for the generated waveform figures.'''
 		s = '\\begin{tikzpicture}[\n'
 		s += '\tx=' + xunit + ', y=1cm,\n'
-		s += '\tlbl/.style={font=\\sffamily\\footnotesize, anchor=east},\n'
+		s += '\tlbl/.style={font=' + self._LABEL_FONT + ', anchor=east},\n'
 		s += '\tguide/.style={densely dotted, gray!65},\n'
-		s += '\tann/.style={font=\\sffamily\\footnotesize, inner sep=1.5pt},\n'
+		s += '\tann/.style={font=' + self._NOTE_FONT + ', inner sep=1.5pt},\n'
 		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=' + self._ROW_H + ', semithick,\n'
-		s += '\t            timing/d/text/.style={font=\\sffamily\\footnotesize}}' + extra + ']\n'
+		s += '\t            timing/d/text/.style={font=' + self._CELL_FONT + '}}' + extra + ']\n'
 		return s
 
 	def GenerateTimerRolloverDiagram(self):
@@ -1043,10 +1053,10 @@ class LatexUserGuide():
 		s += '\\node[lbl] at (0,0) {0};\n'
 		s += '\\node[lbl] at (0,{\\HR*\\CMPTWO}) {\\register{TIMxCMP2}};\n'
 		s += '\\node[lbl] at (0,\\HR) {$2^{32}-1$ (max)};\n'
-		s += '\\node[font=\\sffamily\\scriptsize, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
+		s += '\\node[ann, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
 		s += '\\draw[<->, >=Stealth] (0,-0.45) -- (\\PER,-0.45);\n'
 		s += '\\node[ann, below] at (1.5,-0.47) {rollover period};\n'
-		s += '\\node[font=\\sffamily\\scriptsize, anchor=west] at ({\\NPER*\\PER+0.4}, 0) {Time $\\rightarrow$};\n'
+		s += '\\node[ann, anchor=west] at ({\\NPER*\\PER+0.4}, 0) {Time $\\rightarrow$};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TimerRolloverDiagram.tex', s)
 		return
@@ -1060,8 +1070,12 @@ class LatexUserGuide():
 		   aligned; nothing enforced it).'''
 		s = '% Generated timer output-compare / PWM diagram\n'
 		s += self._timingPreamble('0.62cm')
-		s += '\\def\\NPER{4}\\def\\PER{3}\\def\\HR{2.0}\n'
-		s += '\\def\\CMPTWO{0.75}\\def\\CMPZERO{0.25}\\def\\YONE{-1.50}\\def\\YTWO{-2.80}\n'
+		# \ROWH is the pin rows' height, exported so that every coordinate that
+		# has to sit at a signal LEVEL (the HIGH/LOW labels, the HIGH-time arrow
+		# on the row's top edge) is derived from it. Hardcoding those was what
+		# dropped the HIGH-time arrow onto the waveform when the row grew.
+		s += '\\def\\NPER{4}\\def\\PER{3}\\def\\HR{2.0}\\def\\ROWH{' + self._ROW_H[:-2] + '}\n'
+		s += '\\def\\CMPTWO{0.75}\\def\\CMPZERO{0.25}\\def\\YONE{-1.60}\\def\\YTWO{-3.00}\n'
 		s += '\\foreach \\k in {0,...,3} {\n'
 		s += '\t\\draw[guide] ({\\k*\\PER+1}, {\\HR*\\CMPZERO}) -- ({\\k*\\PER+1}, \\YTWO);\n'
 		s += '\t\\draw[guide] ({\\k*\\PER+\\PER}, {\\HR*\\CMPTWO}) -- ({\\k*\\PER+\\PER}, \\YTWO);\n'
@@ -1076,20 +1090,20 @@ class LatexUserGuide():
 		s += '\\node[lbl] at (0,{\\HR*\\CMPZERO}) {\\register{TIMxCMP0}};\n'
 		s += '\\node[lbl] at (0,{\\HR*\\CMPTWO}) {\\register{TIMxCMP2}};\n'
 		s += '\\node[lbl] at (0,\\HR) {$2^{32}-1$ (max)};\n'
-		s += '\\node[font=\\sffamily\\scriptsize, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
+		s += '\\node[ann, rotate=90, anchor=south] at (-4.3,{\\HR/2}) {Timer Value};\n'
 		# 1 unit LOW/HIGH then 2 units of the opposite level = the CMP0 crossing
 		# at 1/3 of the period, matching the ramp above.
 		s += '\\timing[tim] at (0,\\YONE) {4{1L 2H}};\n'
 		s += '\\timing[tim] at (0,\\YTWO) {4{1H 2L}};\n'
-		s += '\\node[lbl] at (0,\\YONE) {LOW};   \\node[lbl] at (0,{\\YONE+0.55}) {HIGH};\n'
-		s += '\\node[lbl] at (0,\\YTWO) {LOW};   \\node[lbl] at (0,{\\YTWO+0.55}) {HIGH};\n'
-		s += '\\node[lbl, align=right] at (-2.5,{\\YONE+0.275}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=0$};\n'
-		s += '\\node[lbl, align=right] at (-2.5,{\\YTWO+0.275}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=1$};\n'
-		s += '\\draw[<->, >=Stealth, red] (1,-0.70) -- (\\PER,-0.70);\n'
-		s += '\\node[ann, above, text=red] at (2,-0.68) {HIGH time};\n'
-		s += '\\draw[<->, >=Stealth] (0,-3.20) -- (\\PER,-3.20);\n'
-		s += '\\node[ann, below] at (1.5,-3.22) {PWM period};\n'
-		s += '\\node[font=\\sffamily\\scriptsize, anchor=west] at ({\\NPER*\\PER+0.4}, {\\YONE+0.275}) {Time $\\rightarrow$};\n'
+		s += '\\node[lbl] at (0,\\YONE) {LOW};   \\node[lbl] at (0,{\\YONE+\\ROWH}) {HIGH};\n'
+		s += '\\node[lbl] at (0,\\YTWO) {LOW};   \\node[lbl] at (0,{\\YTWO+\\ROWH}) {HIGH};\n'
+		s += '\\node[lbl, align=right] at (-2.5,{\\YONE+0.5*\\ROWH}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=0$};\n'
+		s += '\\node[lbl, align=right] at (-2.5,{\\YTWO+0.5*\\ROWH}) {Pin \\pin{TxCMP0}\\\\\\register{TIMCMP0H} $=1$};\n'
+		s += '\\draw[<->, >=Stealth, red] (1,{\\YONE+\\ROWH}) -- (\\PER,{\\YONE+\\ROWH});\n'
+		s += '\\node[ann, above, text=red] at (2,{\\YONE+\\ROWH+0.02}) {HIGH time};\n'
+		s += '\\draw[<->, >=Stealth] (0,{\\YTWO-0.40}) -- (\\PER,{\\YTWO-0.40});\n'
+		s += '\\node[ann, below] at (1.5,{\\YTWO-0.42}) {PWM period};\n'
+		s += '\\node[ann, anchor=west] at ({\\NPER*\\PER+0.4}, {\\YONE+0.5*\\ROWH}) {Time $\\rightarrow$};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TimerOutputCompareDiagram.tex', s)
 		return
@@ -1121,7 +1135,7 @@ class LatexUserGuide():
 		ann += '\t cycle after \\register{done} --- masked by \\register{need\\_release}};\n'
 		ann += '\\draw[gray!65] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.42}) -- (6.1,{\\YBOT-0.42});\n'
 		s = '% Generated mp_arbiter handshake diagram\n'
-		s += self._cycleFigure('1.15cm', rows, 6, ann, shade=('5', '6'))
+		s += self._cycleFigure('1.30cm', rows, 6, ann, shade=('5', '6'))
 		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
 		return
 
@@ -1131,19 +1145,49 @@ class LatexUserGuide():
 	# unreliable there, see the comment block above). The four SPI/UART figures
 	# were hand-written in the intro .tex files in body-serif at body size;
 	# moving them here put every waveform in the TRM on one style.
-	_TIMING_TABLE_OPTS = ('timing/font=\\sffamily\\footnotesize, '
-	                      'timing/d/text/.style={font=\\sffamily\\footnotesize}, '
-	                      'font=\\sffamily\\footnotesize, semithick, '
+	# Height of one signal in the table figures. tikz-timing's default yunit is
+	# 1.6ex — FONT-RELATIVE, so at a 10 pt label font a bus cell came out ~2.5 mm
+	# and body-size text filled it edge to edge. An ABSOLUTE yunit decouples the
+	# two: the row is tall enough for \small text to sit inside the cell rather
+	# than against its outline. This is safe here (an earlier note in this file
+	# claimed otherwise): the table places its rows at multiples of
+	# rowdist*yunit and its row labels in the same coordinate system, so raising
+	# yunit scales the waveforms, the row pitch and the label positions
+	# together. What does NOT scale with it is an \extracode overlay written in
+	# absolute units (mm/ex) — those are the coordinates to re-check after a
+	# change here, not the rows.
+	_TABLE_YUNIT = '3.8mm'
+
+	# Row pitch, in yunits. The package default of 2 put the rows exactly one
+	# waveform apart, so with the taller rows above, neighbouring bus cells
+	# touched (and the two SCK polarity rows merged into a chain of lozenges).
+	# 2.6 leaves a clear gap without making the figures loose. An \extracode
+	# overlay that hangs BELOW the last row must derive its y from this — see
+	# the I2C figure — because every row's y is a multiple of it.
+	_TABLE_ROWDIST = 2.6
+
+	_TIMING_TABLE_OPTS = ('timing/font=' + _LABEL_FONT + ', '
+	                      'timing/d/text/.style={font=' + _CELL_FONT + '}, '
+	                      'font=' + _LABEL_FONT + ', semithick, '
 	                      'timing/slope=0.2, timing/dslope=0.2, '
-	                      # ABSOLUTE unit: the default is font-relative, so the
-	                      # \scriptsize house label font would otherwise shrink
-	                      # every waveform along with it. Each figure overrides
-	                      # xunit for its own cycle count / cell contents.
-	                      'timing/xunit=6mm')  # NOTE: do NOT set timing/yunit here. In a
-	                      # tikztimingtable the row height is the TABULAR row, which
-	                      # yunit does not touch — raising it makes the waveforms
-	                      # overflow their rows and drift out of line with the row
-	                      # labels. The font size is what grows the rows.
+	                      # ABSOLUTE units, both: the defaults are font-relative,
+	                      # so the house label font would otherwise scale every
+	                      # waveform along with it. Each figure overrides xunit
+	                      # for its own cycle count / cell contents.
+	                      'timing/yunit=' + _TABLE_YUNIT + ', '
+	                      'timing/rowdist=' + str(_TABLE_ROWDIST) + ', '
+	                      'timing/xunit=6mm')
+
+	# WIDTH BUDGET (the figures are \input at the left margin, not centred, so an
+	# over-wide one runs off the page rather than being obviously misplaced).
+	# Total width = the row-label column + xunit * (number of units in the
+	# longest row) + whatever an \extracode overlay sticks out to the left. The
+	# text block is 6.5 in = 165.1 mm; every figure below is tuned to land at or
+	# under _MAX_FIG_WIDTH_MM with a little slack for font-metric drift. Since
+	# yunit is absolute now, xunit is free to shrink for width without making
+	# the waveforms shorter — but a D{} cell does NOT shrink its text to fit, so
+	# the floor on xunit is the widest string a single cell has to hold.
+	_MAX_FIG_WIDTH_MM = 162.0
 
 	def _timingTable(self, rows, extraOpts='', extracode=''):
 		'''rows = list of (label, charstring). Emits a styled tikztimingtable.'''
@@ -1187,13 +1231,26 @@ class LatexUserGuide():
 		extra += '\t\t\t\\vertlines[blue!55, densely dashed]{3.1,5.1,...,17.1}\n'
 		extra += '\t\t\\end{scope}\n'
 		extra += '\t\\end{pgfonlayer}\n'
-		extra += '\t\\begin{scope}[shift={(-26mm,-0.5)}, anchor=east, font=\\sffamily\\scriptsize]\n'
-		extra += '\t\t\\node at (  0, 0) {SCK};\n'
-		extra += '\t\t\\node at (1ex,-9) {CPHA $=0$};\n'
-		extra += '\t\t\\node at (1ex,-17) {CPHA $=1$};\n'
+		# Group labels for the three bands of rows. These are anchored to the
+		# table's OWN row-label nodes (label1..labelN, one per row including the
+		# blank spacer rows) and to `all labels`, NOT to hand-counted y
+		# coordinates: a row's y is rowdist*yunit, so hardcoded coordinates
+		# silently slide onto the wrong band the moment the row geometry or the
+		# label font changes. Band n spans label(3n-2)..label(3n) with a spacer
+		# row between bands.
+		extra += '\t\\path (all labels.west) ++(-2.5mm,0) coordinate (grouplabels);\n'
+		extra += '\t\\begin{scope}[anchor=east, font=' + self._LABEL_FONT + ']\n'
+		for band, (first, last) in enumerate([(1, 3), (5, 7), (9, 11)]):
+			text = 'SCK' if band == 0 else 'CPHA $=' + str(band - 1) + '$'
+			extra += ('\t\t\\coordinate (band%d) at ($(label%d.base)!0.5!(label%d.base)$);\n'
+			          % (band, first, last))
+			extra += '\t\t\\node at (grouplabels |- band%d) {%s};\n' % (band, text)
 		extra += '\t\\end{scope}\n'
+		# 19 units wide, and the CPHA/SCK group labels hang ~26 mm further left
+		# than the row labels, so this is the tightest figure in the manual for
+		# width. Its cells hold one digit, which needs almost none of the unit.
 		s = '% Generated SPI timing diagram (all four SPI modes)\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=8mm, timing/d/background/.style={fill=white}',
+		s += self._timingTable(rows, extraOpts='timing/xunit=6.3mm, timing/d/background/.style={fill=white}',
 		                       extracode=extra)
 		self._writeInclude('SpiTimingDiagram.tex', s)
 		return
@@ -1205,8 +1262,10 @@ class LatexUserGuide():
 			('16-bit transfers, byte swap', '[X] D{byte 1} D{byte 0} D{byte 3} D{byte 2} D{byte 5} D{byte 4} D{byte 7} D{byte 6} D{\\ldots}'),
 			('32-bit transfers, byte swap', '[X] D{byte 3} D{byte 2} D{byte 1} D{byte 0} D{byte 7} D{byte 6} D{byte 5} D{byte 4} D{\\ldots}'),
 		]
+		# 9 units; the long row labels ("32-bit transfers, byte swap") take the
+		# rest. Cells hold "byte 0", so the unit cannot go much below 13 mm.
 		s = '% Generated SPI byte-ordering diagram\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=15mm')
+		s += self._timingTable(rows, extraOpts='timing/xunit=13.1mm')
 		self._writeInclude('SpiByteOrderingDiagram.tex', s)
 		return
 
@@ -1223,8 +1282,9 @@ class LatexUserGuide():
 			('No byte swap, MSB-first', seq(msb)),
 			('Byte swap, MSB-first',    seq(msb[8:] + msb[:8])),
 		]
+		# 17 units; cells hold at most two digits.
 		s = '% Generated SPI bit-ordering diagram (16-bit transfer)\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=8.5mm')
+		s += self._timingTable(rows, extraOpts='timing/xunit=7.1mm')
 		self._writeInclude('SpiBitOrderingDiagram.tex', s)
 		return
 
@@ -1233,18 +1293,23 @@ class LatexUserGuide():
 		   a held level in the middle of its cell (idle/start/stop); they are the
 		   hand-written original's, restyled.'''
 		meta = ''
-		meta += 'timing/metachar={{K}[2]{#1H !{++(-.5\\xunit + 0.5*\\slope\\xunit, -.5\\yunit)} N[rectangle,scale=.6]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, +.5\\yunit)}}}, '
-		meta += 'timing/metachar={{J}[2]{#1L !{++(-.5\\xunit + 0.5*\\slope\\xunit, +.5\\yunit)} N[rectangle,scale=.6]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, -.5\\yunit)}}}'
+		meta += 'timing/metachar={{K}[2]{#1H !{++(-.5\\xunit + 0.5*\\slope\\xunit, -.5\\yunit)} N[rectangle,scale=.8]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, +.5\\yunit)}}}, '
+		meta += 'timing/metachar={{J}[2]{#1L !{++(-.5\\xunit + 0.5*\\slope\\xunit, +.5\\yunit)} N[rectangle,scale=.8]{#2} !{++(.5\\xunit - 0.5*\\slope\\xunit, -.5\\yunit)}}}'
 		rows = [('TX or RX',
 		         'K{IDLE} J{START} D{D0} D{D1} D{D2} D{D3} D{D4} D{D5} D{D6} D{D7} D{\\mbox{[P]}} K{STOP} K{IDLE}')]
+		# Single-row figure, so the span arrow hangs a fixed distance under row 1
+		# and does not depend on the row pitch.
 		extra = ''
-		extra += '\t\\begin{scope}[font=\\sffamily\\scriptsize]\n'
+		extra += '\t\\begin{scope}[font=' + self._NOTE_FONT + ']\n'
 		extra += '\t\t\\draw[<->, >=Stealth] (1,-1.75) -- (2,-1.75);\n'
-		extra += '\t\t\\node[below, inner sep=2pt] at (1.5,-1.79) {one bit period $=1/\\textrm{baud}$};\n'
+		extra += '\t\t\\node[below, inner sep=2pt] at (1.5,-2.00) {one bit period $=1/\\textrm{baud}$};\n'
 		extra += '\t\\end{scope}\n'
 		s = '% Generated UART data-frame diagram\n'
+		# No yscale here any more: the height comes from _TABLE_YUNIT like every
+		# other table figure, and the K/J metachars are written in \yunit so they
+		# follow it. 13 units.
 		s += self._timingTable(rows,
-		                       extraOpts='timing/xunit=11mm, yscale=1.6, timing/d/background/.style={fill=white}, ' + meta,
+		                       extraOpts='timing/xunit=10.8mm, timing/d/background/.style={fill=white}, ' + meta,
 		                       extracode=extra)
 		self._writeInclude('UartFrameDiagram.tex', s)
 		return
@@ -1261,15 +1326,28 @@ class LatexUserGuide():
 			('\\pin{SDAx}', 'H D{A6} D{A5} D{A4} D{A3} D{A2} D{A1} D{A0} D{R/W} D{ACK} '
 			               'D{D7} D{D6} D{D5} D{D4} D{D3} D{D2} D{D1} D{D0} D{ACK} H'),
 		]
+		# The bus-condition strip sits a fixed 0.9 units under the SDAx row, and
+		# the SDAx row is one _TABLE_ROWDIST under the SCLx row — so this y is
+		# DERIVED, not a literal. A hardcoded one slides up onto the waveform the
+		# next time the row pitch moves.
+		annY = '%.2f' % (-(self._TABLE_ROWDIST + 0.9))
 		extra = ''
-		extra += '\t\\begin{scope}[font=\\sffamily\\scriptsize]\n'
-		extra += '\t\t\\node[below, inner sep=2pt] at (0.8,-2.9) {START};\n'
-		extra += '\t\t\\node[below, inner sep=2pt] at (9.5,-2.9) {ACK};\n'
-		extra += '\t\t\\node[below, inner sep=2pt] at (18.5,-2.9) {ACK};\n'
-		extra += '\t\t\\node[below, inner sep=2pt] at (20.9,-2.9) {STOP};\n'
+		extra += '\t\\begin{scope}[font=' + self._NOTE_FONT + ']\n'
+		for x, text in [('0.8', 'START'), ('9.5', 'ACK'), ('18.5', 'ACK'), ('20.9', 'STOP')]:
+			extra += '\t\t\\node[below, inner sep=2pt] at (' + x + ',' + annY + ') {' + text + '};\n'
 		extra += '\t\\end{scope}\n'
+		# THE ONE FIGURE THAT CANNOT CARRY BODY-SIZE CELL TEXT. Every cell here is
+		# one SCL bit period, so they must all be the same width, and there are
+		# 20 of them across a 165 mm text block — about 7 mm each. "ACK" and
+		# "R/W" do not fit in 7 mm at \small (they already crowded their cells at
+		# the old 7.5 mm), so this figure alone steps its cell text down. Do not
+		# "fix" it by widening the ACK cells: unequal cells would misdraw the
+		# protocol, which is the whole point of the figure.
 		s = '% Generated I2C transaction diagram\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=7.5mm', extracode=extra)
+		s += self._timingTable(rows,
+		                       extraOpts='timing/xunit=6.9mm, '
+		                                 'timing/d/text/.style={font=\\sffamily\\footnotesize}',
+		                       extracode=extra)
 		self._writeInclude('I2cTransactionDiagram.tex', s)
 		return
 
@@ -1304,22 +1382,28 @@ class LatexUserGuide():
 		   en[h](i) AND NOT in_service(i)); a CLAIM read sets in_service(id),
 		   masking the source out of EVERY hart until a COMPLETE write clears
 		   it. That masking window is the exactly-once guarantee.'''
+		# CLAIM gets TWO units, like COMPLETE: at body-size cell text a word that
+		# long does not fit one unit, and a D{} cell does not shrink its text to
+		# fit — it just spills over the cell outline. Widening it (rather than
+		# widening the whole figure) keeps the timeline within the page. The
+		# whole sequence therefore runs 12 units, not 11: CLAIM 3-5, handler
+		# 5-9, COMPLETE 9-11. in_service and the masking arrow follow it.
 		rows = [
-			('22{0.5C}',                                  '\\register{mclk}'),
-			('L 7H 3L',                                   '\\textit{level}(i)'),
-			('2L 2H 7L',                                  '\\register{meip}(h)'),
-			('3U D{CLAIM} 4D{handler} 2D{COMPLETE} U',    'hart bus'),
-			('4L 6H L',                                   '\\textit{in\\_service}(i)'),
+			('24{0.5C}',                                   '\\register{mclk}'),
+			('L 8H 3L',                                    '\\textit{level}(i)'),
+			('2L 3H 7L',                                   '\\register{meip}(h)'),
+			('3U 2D{CLAIM} 4D{handler} 2D{COMPLETE} U',    'hart bus'),
+			('5L 6H L',                                    '\\textit{in\\_service}(i)'),
 		]
 		ann = ''
-		ann += '\\draw[<->, >=Stealth] (4,{\\YBOT-0.55}) -- (10,{\\YBOT-0.55});\n'
-		ann += '\\node[ann, below] at (7,{\\YBOT-0.58}) {source masked on every hart --- exactly-once delivery};\n'
+		ann += '\\draw[<->, >=Stealth] (5,{\\YBOT-0.55}) -- (11,{\\YBOT-0.55});\n'
+		ann += '\\node[ann, below] at (8,{\\YBOT-0.58}) {source masked on every hart --- exactly-once delivery};\n'
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-1.15})\n'
 		ann += '\t{The handler clears the level at the peripheral \\emph{before} the dispatcher completes;\\\\[-2pt]\n'
 		ann += '\t if the level is still high at COMPLETE the source simply re-pends.\\\\[-2pt]\n'
 		ann += '\t The \\textsf{handler} cell stands for many \\register{mclk} cycles of software.};\n'
 		s = '% Generated IRQROUTER claim/complete diagram\n'
-		s += self._cycleFigure('1.05cm', rows, 10, ann, shade=('4', '10'))
+		s += self._cycleFigure('1.05cm', rows, 11, ann, shade=('5', '11'))
 		self._writeInclude('IrqClaimCompleteDiagram.tex', s)
 		return
 

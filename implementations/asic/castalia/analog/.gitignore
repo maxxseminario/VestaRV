@@ -1,5 +1,5 @@
-# Standalone proof-sheet build artifacts (preview.tex is tracked, its output is not).
-preview.pdf
-preview.aux
-preview.log
-preview.out
+# Standalone proof-sheet build artifacts (preview_*.tex is tracked, its output is not).
+preview*.pdf
+preview*.aux
+preview*.log
+preview*.out
