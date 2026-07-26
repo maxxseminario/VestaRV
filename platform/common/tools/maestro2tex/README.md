@@ -89,9 +89,10 @@ example. Keys:
 | `intro_tex` | prose emitted at the top of the master file |
 | `signals` | logical name → `expr` (any OCEAN expression), `label`, `unit_tex`, `scale`, `digits` |
 | `tests` | per test: `result` (`dc`/`tran`/`dcOp`/`ac`/`stb`/`noise`/…), `dir`, `xlabel`, `xunit_tex`, `xscale`, `nominal_x`, and `signals` overrides |
-| `figures` | `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec`, `xlog`, `ylog`, `axis_extra` |
-| `tables` | `type` `matrix` (signals × corners) or `stats` (signals × statistics) |
+| `figures` | `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec`, `xlog`, `ylog`, `axis_extra`; or `kind: "heatmap"` (see below) |
+| `tables` | `type` `matrix` (signals × corners), `bycorner` (corners × signals), or `stats` (signals × statistics) |
 | `order` | explicit order of fragments in the master file |
+| `emit_master` | `false` for a companion config that only contributes fragments |
 
 `signals` is per-test overridable because the same quantity is often a different node
 in a different testbench — in the bias generator the supply current is
@@ -118,6 +119,46 @@ without being transcribed.
 Set `xlog`/`ylog` on a figure for decade axes; they also drop the fixed-point tick
 format from that axis, which on a log axis would label every tick `0.0`.
 
+## Two-dimensional sweeps (`kind: "heatmap"`)
+
+When a bench sweeps a design variable *and* an analysis parameter, Maestro writes one
+point directory per design-variable value. `discover_corners` already treats those as
+corners (de-duplicating the repeated process label into `ff1`, `ff2`, …) and already
+parses each point's design variables, so **extraction needs no special case** — the
+per-corner CSVs *are* the grid.
+
+A `heatmap` figure assembles them: `xvar` names the design variable that orders the
+corners onto x, the analysis sweep becomes y, and `signal` becomes colour.
+
+```json
+{ "id": "...", "kind": "heatmap", "test": "drive_map", "signal": "verr",
+  "xvar": "V_map", "corners": "all",
+  "yscale": 1e6, "zscale": 1e3, "ylimit": [-8e-6, 8e-6], "ystep": 2,
+  "zmin": -50, "zmax": 50,
+  "overlay": [ {"signal": "i_sink", "legend": "sinking edge", "scale": 1e6} ] }
+```
+
+- `zmin`/`zmax` clip the colour scale. Clip it to whatever the *criterion* is, so the
+  colour boundary and the engineering boundary are the same line.
+- `overlay` draws scalar-per-corner signals as curves on the map — an envelope plotted
+  on the data it was derived from. Because the scalars come from `cross()` on the full
+  sweep and the raster from the extracted grid, the two agreeing is a real check.
+- `ylimit`/`ystep` crop and decimate the raster. The y-axis is pinned to the raster, so
+  overlay curves that shoot off outside the interesting region are clipped instead of
+  dragging the axis out until the map is a sliver.
+- Colour uses the documented diverging pair (blue↔red, neutral gray midpoint). The red
+  arm is not eyeballed: each step is the blue step of the same OKLab lightness re-hued
+  to the categorical red, so the arms are perceptually symmetric.
+
+`bycorner` is the matching table: corners become rows and signals columns, ordered by
+`sortvar`. A 26-point sweep as a `matrix` table would be 26 columns wide.
+
+**Watch the cell count.** pgfplots builds one TeX path per cell. 26×321 compiled fine as
+a standalone proof sheet and then blew `TeX capacity exceeded, main memory size` inside
+the 200-page TRM; 26×161 builds. The tool warns above 5000 cells — raise `ystep` or
+narrow `ylimit`, and let the overlay curves carry the exact edges, which they do at full
+sweep resolution regardless of how coarse the raster is.
+
 Available statistics: `value`, `nominal` (interpolated at `nominal_x`), `min`, `max`,
 `mean`, `spread`, `first`, `last`, `settle` (last exit from a ±1 % band around the
 final value), `sens_pct_per_x` (%/unit) and `ppm_per_x` (ppm/unit).
@@ -143,6 +184,13 @@ global min/max, so overshoot is never decimated away.
 - **`t` is a protected SKILL variable** — never use it as a loop variable in a
   generated `.ocn`.
 - **`errset` returns a list**: read the value with `car(errset(...))`, not `cadr`.
+- **`let` with no locals is `let(() ...)`**, not `let() ...`. Getting it wrong
+  unbalances the parens, and an unbalanced `.ocn` leaves OCEAN waiting on stdin until
+  it is killed rather than failing.
+- **Maestro rotates its run directories away.** The CSVs under `data/raw/` outlive the
+  run they came from, which is why they are committed; the corner list is cached beside
+  them (`corners_<Block>.json`) at extract time so `--no-extract` still works once the
+  run is gone.
 - **`getData(... ?result "x")` leaves the selected result switched to `x`.** Signals are
   dumped in sorted order, so one expression reaching into a sibling analysis silently
   broke every *later* bare `getData` in the same test — `phaseMargin` and

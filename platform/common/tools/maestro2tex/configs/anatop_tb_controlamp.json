@@ -628,6 +628,9 @@
     "fig_ctrlamp_slew",
     "fig_ctrlamp_slew_iload",
     "note_ctrlamp_drive",
+    "tab_ctrlamp_drivemap",
+    "fig_ctrlamp_drivemap",
+    "note_ctrlamp_drivemap",
     "tab_ctrlamp_noise",
     "fig_ctrlamp_noise"
   ]

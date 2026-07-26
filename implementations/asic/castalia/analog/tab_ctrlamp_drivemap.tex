@@ -1,0 +1,38 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption{Drive compliance against commanded output voltage, ff corner with typical resistors, \SI{25}{\celsius}, \SI{2.5}{\volt}, \texttt{BiasAdj}~=~37. The sinking and sourcing edges are the load currents at which the tracking error reaches \(\mp\SI{50}{\milli\volt}\), and the span is the distance between them. The zero-load error column is the test of whether the row is a compliance figure at all: where its magnitude already exceeds \SI{50}{\milli\volt} --- below \SI{0.3}{\volt} and above \SI{2.2}{\volt} --- the buffer does not track its input at \emph{any} load, and the two edge columns are then the external current needed to force the output to the commanded value, not a drive rating. $R_{\mathrm{OUT,CL}}$ is the closed-loop output resistance, taken as the central difference over \(\pm\SI{0.5}{\micro\ampere}\) about zero load.}
+  \label{tab:ctrlamp-drivemap}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    $V_{\mathrm{MAP}}$~[\si{\volt}] & Sinking edge~[\si{\micro\ampere}] & Sourcing edge~[\si{\micro\ampere}] & Span~[\si{\micro\ampere}] & Error at zero load~[\si{\milli\volt}] & $R_{\mathrm{OUT,CL}}$~[\si{\kilo\ohm}] & $I_{\mathrm{DD}}$~[\si{\micro\ampere}] \\
+    \midrule
+    0.0 & 3.76 & 31.81 & 28.05 & 249.24 & 504.0 & 56.25 \\
+    0.1 & 1.00 & 13.94 & 12.94 & 150.34 & 503.2 & 56.25 \\
+    0.2 & 0.01 & 5.51 & 5.50 & 54.03 & 486.2 & 56.25 \\
+    0.3 & $-0.11$ & 0.28 & 0.38 & 10.30 & 461.5 & 56.19 \\
+    0.4 & $-0.19$ & 0.18 & 0.37 & 6.35 & 453.6 & 56.08 \\
+    0.5 & $-0.30$ & 0.26 & 0.56 & 5.20 & 443.4 & 55.96 \\
+    0.6 & $-0.42$ & 0.37 & 0.79 & 4.21 & 425.6 & 55.84 \\
+    0.7 & $-0.56$ & 0.50 & 1.06 & 3.27 & 56.8 & 55.70 \\
+    0.8 & $-0.71$ & 0.65 & 1.36 & 2.34 & 38.9 & 55.56 \\
+    0.9 & $-0.88$ & 0.80 & 1.68 & 1.40 & 34.7 & 55.39 \\
+    1.0 & $-1.07$ & 0.98 & 2.05 & 0.72 & 31.7 & 55.21 \\
+    1.1 & $-1.28$ & 1.17 & 2.45 & 0.36 & 29.1 & 55.01 \\
+    1.2 & $-1.51$ & 1.40 & 2.91 & 0.19 & 26.6 & 54.79 \\
+    1.3 & $-1.78$ & 1.65 & 3.43 & 0.11 & 24.2 & 54.54 \\
+    1.4 & $-2.09$ & 1.93 & 4.02 & 0.07 & 21.5 & 54.26 \\
+    1.5 & $-2.46$ & 2.26 & 4.72 & 0.05 & 18.4 & 53.94 \\
+    1.6 & $-2.93$ & 2.67 & 5.60 & 0.04 & 14.6 & 53.59 \\
+    1.7 & $-3.97$ & 3.30 & 7.27 & 0.03 & 9.1 & 53.12 \\
+    1.8 & $-7.04$ & 5.36 & 12.40 & 0.02 & 5.7 & 51.94 \\
+    1.9 & $-4.19$ & 6.42 & 10.61 & 0.03 & 9.2 & 50.68 \\
+    2.0 & $-0.91$ & 2.18 & 3.10 & $-0.12$ & 36.6 & 49.94 \\
+    2.1 & $-0.11$ & 0.30 & 0.41 & $-4.12$ & 329.3 & 49.75 \\
+    2.2 & $-0.07$ & 0.01 & 0.07 & $-45.88$ & 336.1 & 49.74 \\
+    2.3 & $-0.30$ & $-0.06$ & 0.25 & $-137.20$ & 336.3 & 49.74 \\
+    2.4 & $-3.40$ & $-0.30$ & 3.09 & $-236.68$ & 336.3 & 49.74 \\
+    2.5 & $-34.65$ & $-3.40$ & 31.25 & $-336.65$ & 336.3 & 49.74 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

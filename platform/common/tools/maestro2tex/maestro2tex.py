@@ -53,6 +53,19 @@ PALETTE = [
     ('mtxE', 'e87ba4', 'densely dashed'),        # magenta
 ]
 
+# Diverging map for signed heatmaps: the documented blue<->red pair with the
+# documented neutral gray midpoint (never a hue at the midpoint, never a
+# rainbow). The red arm is not eyeballed -- each step is the blue step of the
+# same OKLab lightness re-hued to the categorical red's hue angle, so the two
+# arms are perceptually symmetric about the midpoint (residual dL < 0.001).
+#   blue 600/450/200  ->  #184F95 #2A78D6 #9EC5F4   L = .433 .575 .812
+#   red  matched      ->  #911E22 #D2383A #F8AAA3   L = .432 .575 .811
+DIVERGING = ['184F95', '2A78D6', '9EC5F4', 'F0EFEC', 'F8AAA3', 'D2383A', '911E22']
+
+# Cell count above which a heatmap starts to threaten TeX main memory in a
+# full-size document. Measured on this TRM: 26x161 builds, 26x321 does not.
+HEATMAP_CELL_WARN = 5000
+
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
@@ -186,6 +199,32 @@ def _vars_from_file(path):
                 except ValueError:
                     pass
     return dvars
+
+
+def corner_cache_path(rawdir, block):
+    return os.path.join(rawdir, 'corners_%s.json' % slug(block))
+
+
+def save_corners(rawdir, block, corners):
+    """Persist the discovered corners next to the CSVs.
+
+    Maestro rotates its run directories, so the results a block was extracted
+    from will not be there forever -- the CSVs outlive them. Without this the
+    render stage could not run once the run was gone, which would defeat the
+    point of committing the CSVs at all.
+    """
+    with open(corner_cache_path(rawdir, block), 'w') as f:
+        json.dump([{'dir': c[0], 'label': c[1], 'vars': c[2]} for c in corners],
+                  f, indent=2, sort_keys=True)
+
+
+def load_corners(rawdir, block):
+    path = corner_cache_path(rawdir, block)
+    if not os.path.isfile(path):
+        return None
+    with open(path) as f:
+        rows = json.load(f)
+    return [(r['dir'], r['label'], r['vars']) for r in rows]
 
 
 def discover_tests(results_dir, corners):
@@ -536,6 +575,92 @@ def emit_figure(outdir, texroot, figid, spec, series, caption, xlabel, ylabel,
     return path
 
 
+def emit_heatmap(outdir, texroot, figid, spec, cols, overlays, caption):
+    """A 2-D map: one design variable across the corners on x, the analysis
+    sweep on y, a signal as colour.
+
+    `cols` is [(xvalue, [(y, z) ...])] already sorted, scaled and decimated;
+    every column must carry the same y grid. `overlays` is
+    [(legend, [(x, y) ...])] -- scalar-per-corner curves drawn on top, which is
+    how a compliance envelope goes onto the map it was measured from.
+    """
+    nx = len(cols)
+    ny = len(cols[0][1])
+    datrel = 'data/%s.dat' % figid
+    with open(os.path.join(outdir, datrel), 'w') as f:
+        f.write('x y z\n')
+        for xv, pts in cols:                      # column-major: all y, then next x
+            for yv, zv in pts:
+                f.write('%.10g %.10g %.10g\n' % (xv, yv, zv))
+
+    ovrel = []
+    for i, (legend, pts) in enumerate(overlays):
+        rel = 'data/%s_ov%02d.dat' % (figid, i)
+        with open(os.path.join(outdir, rel), 'w') as f:
+            f.write('# x y  (written by maestro2tex)\n')
+            for xv, yv in pts:
+                f.write('%.10g %.10g\n' % (xv, yv))
+        ovrel.append((legend, rel))
+
+    path = os.path.join(outdir, 'fig_%s.tex' % figid)
+    with open(path, 'w') as f:
+        f.write('%% maestro2tex -- generated heatmap; do not edit by hand.\n')
+        f.write('\\providecommand{\\MaestroRoot}{%s}\n' % texroot)
+        f.write('\\begin{figure}[htbp]\n  \\centering\n')
+        f.write('  {\\pgfplotsset{compat=1.18}%\n')
+        f.write('  \\begin{tikzpicture}\n')
+        f.write('    \\begin{axis}[\n')
+        f.write('      width=%s, height=%s,\n' % (spec.get('width', '0.82\\linewidth'),
+                                                  spec.get('height', '7.0cm')))
+        f.write('      xlabel={%s}, ylabel={%s},\n'
+                % (spec.get('xlabel', 'x'), spec.get('ylabel', 'y')))
+        f.write('      axis on top, enlarge x limits=false, enlarge y limits=false,\n')
+        # The raster defines the y range. Overlay curves routinely run far past
+        # it -- an envelope stops being an envelope outside the tracking range
+        # and shoots off -- and without an explicit limit they drag the axis out
+        # until the map itself is a sliver.
+        ylo, yhi = cols[0][1][0][0], cols[0][1][-1][0]
+        f.write('      ymin=%.10g, ymax=%.10g,\n' % (min(ylo, yhi), max(ylo, yhi)))
+        f.write('      axis line style={line width=0.4pt, draw=black!45},\n')
+        f.write('      tick style={line width=0.4pt, draw=black!45},\n')
+        f.write('      tick align=outside,\n')
+        f.write('      label style={font=\\small}, tick label style={font=\\small},\n')
+        f.write('      scaled x ticks=false, scaled y ticks=false,\n')
+        f.write('      colormap={mtxdiv}{%s},\n'
+                % ' '.join('rgb255=(%d,%d,%d)' % (int(h[0:2], 16), int(h[2:4], 16),
+                                                  int(h[4:6], 16)) for h in DIVERGING))
+        f.write('      point meta min=%s, point meta max=%s,\n'
+                % (spec['zmin'], spec['zmax']))
+        f.write('      colorbar,\n')
+        f.write('      colorbar style={ylabel={%s}, ylabel style={font=\\small},\n'
+                % spec.get('zlabel', 'z'))
+        f.write('                      tick label style={font=\\small}, width=0.28cm},\n')
+        if ovrel:
+            f.write('      legend style={font=\\footnotesize, draw=none, fill=none,\n')
+            f.write('                    at={(0.5,1.02)}, anchor=south, legend columns=-1,\n')
+            f.write('                    /tikz/every even column/.append style={column sep=9pt}},\n')
+            f.write('      legend cell align=left,\n')
+        extra = spec.get('axis_extra')
+        if extra:
+            f.write('      %s,\n' % extra)
+        f.write('    ]\n')
+        # forget plot: the raster is described by the colorbar, not the legend --
+        # without it the matrix plot swallows the first overlay's legend entry.
+        f.write('      \\addplot[matrix plot*, point meta=explicit, forget plot,\n')
+        f.write('               mesh/cols=%d, mesh/rows=%d, mesh/ordering=colwise]\n' % (nx, ny))
+        f.write('        table[x=x, y=y, meta=z] {\\MaestroRoot %s};\n' % datrel)
+        for i, (legend, rel) in enumerate(ovrel):
+            name, _, dash = PALETTE[i % len(PALETTE)]
+            f.write('      \\addplot[black, line width=1.1pt, %s, no marks]\n' % dash)
+            f.write('        table {\\MaestroRoot %s};\n' % rel)
+            f.write('      \\addlegendentry{%s}\n' % legend)
+        f.write('    \\end{axis}\n  \\end{tikzpicture}}\n')
+        f.write('  \\caption{%s}\n' % caption)
+        f.write('  \\label{fig:%s}\n' % figid.replace('_', '-'))
+        f.write('\\end{figure}\n')
+    return path
+
+
 def emit_table(outdir, tabid, header, rows, caption, colspec=None):
     path = os.path.join(outdir, 'tab_%s.tex' % tabid)
     ncol = len(header)
@@ -572,8 +697,95 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
     def sigspec(test, name):
         return _signals_for(cfg, cfg['tests'][test]).get(name, {})
 
+    def corner_axis(spec, test):
+        """[(xvalue, corner_label)] for the corners a map/by-corner spec spans,
+        ordered by the design variable that distinguishes them."""
+        var = spec.get('xvar') or spec.get('sortvar')
+        want = spec.get('corners', 'all')
+        want = labels if want == 'all' else want
+        rows = []
+        for cdirname, label, dvars in corners:
+            if label not in want:
+                continue
+            if var not in dvars:
+                continue
+            rows.append((dvars[var], label))
+        rows.sort()
+        return rows
+
+    # ---------------- heatmaps ----------------
+    for spec in cfg.get('figures', []):
+        if spec.get('kind') != 'heatmap':
+            continue
+        figid = spec['id']
+        test = spec['test']
+        tspec = cfg['tests'][test]
+        signame = spec['signal']
+        ss = sigspec(test, signame)
+        yscale = spec.get('yscale', tspec.get('xscale', 1.0))
+        zscale = spec.get('zscale', ss.get('scale', 1.0))
+        ylim = spec.get('ylimit')
+        ystep = max(1, int(spec.get('ystep', 1)))
+
+        cols, ny, skipped = [], None, []
+        for xval, label in corner_axis(spec, test):
+            d = load(test, label, signame)
+            if not d or d[0] != 'wave':
+                skipped.append(label)
+                continue
+            pts = d[1]
+            if ylim:
+                pts = [p for p in pts if ylim[0] <= p[0] <= ylim[1]]
+            pts = pts[::ystep]
+            if not pts:
+                skipped.append(label)
+                continue
+            if ny is None:
+                ny = len(pts)
+            elif len(pts) != ny:
+                # A ragged column would silently shear the whole matrix.
+                info('heatmap %s: corner %s has %d sweep points, expected %d -- dropped'
+                     % (figid, label, len(pts), ny))
+                skipped.append(label)
+                continue
+            cols.append((xval, [(y * yscale, z * zscale) for y, z in pts]))
+        if not cols:
+            info('skip heatmap %s (no usable columns)' % figid)
+            continue
+        if skipped:
+            info('heatmap %s: skipped %s' % (figid, ', '.join(skipped)))
+
+        overlays = []
+        for ov in spec.get('overlay', []):
+            osc = ov.get('scale', 1.0)
+            pts = []
+            for xval, label in corner_axis(spec, test):
+                d = load(test, label, ov['signal'])
+                if d and d[0] == 'scalar':
+                    pts.append((xval, d[1] * osc))
+            if pts:
+                overlays.append((ov.get('legend', ov['signal']), pts))
+            else:
+                info('heatmap %s: overlay %s has no scalar data' % (figid, ov['signal']))
+
+        written.append(emit_heatmap(outdir, texroot, figid, spec, cols, overlays,
+                                    spec.get('caption', figid)))
+        info('heatmap %-26s %d x %d cells, %d overlay(s)'
+             % (figid, len(cols), ny, len(overlays)))
+        # pgfplots builds one TeX path per cell. A standalone proof sheet
+        # swallows far more than a 200-page manual does: 26x321 compiled fine
+        # alone and blew main memory inside the TRM. Warn here rather than let
+        # it surface as "TeX capacity exceeded" halfway through a chip build.
+        if len(cols) * ny > HEATMAP_CELL_WARN:
+            info('  ^ %d cells is above the %d that fits comfortably in a large '
+                 'document -- raise `ystep` or narrow `ylimit` if the TRM build '
+                 'runs out of TeX main memory'
+                 % (len(cols) * ny, HEATMAP_CELL_WARN))
+
     # ---------------- figures ----------------
     for spec in cfg.get('figures', []):
+        if spec.get('kind') == 'heatmap':
+            continue
         figid = spec['id']
         test = spec['test']
         tspec = cfg['tests'][test]
@@ -640,6 +852,37 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
                     row.append(fmt(max(good) - min(good), dig) if len(good) > 1 else '--')
                 rows.append(row)
             if rows:
+                written.append(emit_table(outdir, tabid, header, rows,
+                                          spec.get('caption', tabid)))
+                info('table  %-28s %d row(s)' % (tabid, len(rows)))
+
+        elif ttype == 'bycorner':
+            # Transposed matrix table: corners are rows, signals are columns.
+            # A sweep across a design variable has too many corners to be a
+            # column each -- 26 of them would be an unreadable 26-wide table.
+            var = spec.get('sortvar')
+            header = [spec.get('sortvar_label', var),
+                      spec.get('sortvar_unit', '')]
+            for signame in spec['signals']:
+                ss = sigspec(test, signame)
+                header.append('%s%s' % (
+                    ss.get('label', signame),
+                    ('~[%s]' % ss['unit_tex']) if ss.get('unit_tex') else ''))
+            rows = []
+            for xval, label in corner_axis(spec, test):
+                row = [fmt(xval, spec.get('sortvar_digits', 2)),
+                       spec.get('sortvar_unit_cell', '')]
+                for signame in spec['signals']:
+                    ss = sigspec(test, signame)
+                    d = load(test, label, signame)
+                    row.append(fmt(_stat_value(d, spec.get('stat', 'value'), ss,
+                                               tspec, spec),
+                                   spec.get('digits', ss.get('digits', 2))))
+                rows.append(row)
+            if rows:
+                # The unit column is redundant once every header carries units.
+                header = [header[0]] + header[2:]
+                rows = [[r[0]] + r[2:] for r in rows]
                 written.append(emit_table(outdir, tabid, header, rows,
                                           spec.get('caption', tabid)))
                 info('table  %-28s %d row(s)' % (tabid, len(rows)))
@@ -817,29 +1060,44 @@ def main():
 
     results = os.path.abspath(os.path.expanduser(args.results))
     outdir = os.path.abspath(os.path.expanduser(args.outdir))
-    if not os.path.isdir(results):
-        die('results directory not found: %s' % results)
     with open(os.path.expanduser(args.config)) as f:
         cfg = json.load(f)
     texroot = args.tex_root or cfg.get('tex_root', '../analog/')
+    block = cfg.get('block', 'block')
 
     rawdir = os.path.join(outdir, 'data', 'raw')
     for d in (outdir, os.path.join(outdir, 'data'), rawdir):
         if not os.path.isdir(d):
             os.makedirs(d)
 
-    print('maestro2tex: %s' % cfg.get('block', '?'))
-    corners = discover_corners(results)
-    if not corners:
-        die('no corner directories (1, 2, 3, ...) under %s' % results)
+    print('maestro2tex: %s' % block)
+    have_results = os.path.isdir(results)
+    if not have_results and not args.no_extract:
+        die('results directory not found: %s' % results)
+
+    if have_results:
+        corners = discover_corners(results)
+        if not corners:
+            die('no corner directories (1, 2, 3, ...) under %s' % results)
+        save_corners(rawdir, block, corners)
+    else:
+        # --no-extract with the run gone: render from the CSVs and the corner
+        # list cached beside them.
+        corners = load_corners(rawdir, block)
+        if not corners:
+            die('results directory not found and no cached corner list at %s\n'
+                '       (re-extract once from a live run to write the cache)'
+                % corner_cache_path(rawdir, block))
+        info('results directory is gone; using the corner list cached with the CSVs')
     print('  corners: %s' % ', '.join('%s=%s' % (c[0], c[1]) for c in corners))
-    found = discover_tests(results, corners)
-    print('  tests in run: %s' % ', '.join(found))
-    unknown = sorted(set(test_dir(t, s) for t, s in cfg['tests'].items()
-                         if test_dir(t, s) not in found))
-    if unknown:
-        info('config names test directories absent from this run: %s'
-             % ', '.join(unknown))
+    if have_results:
+        found = discover_tests(results, corners)
+        print('  tests in run: %s' % ', '.join(found))
+        unknown = sorted(set(test_dir(t, s) for t, s in cfg['tests'].items()
+                             if test_dir(t, s) not in found))
+        if unknown:
+            info('config names test directories absent from this run: %s'
+                 % ', '.join(unknown))
 
     if not args.no_extract:
         ocn = build_ocn(results, corners, cfg, rawdir)
@@ -858,12 +1116,21 @@ def main():
 
     print('  rendering LaTeX')
     written = render(cfg, corners, rawdir, outdir, texroot, args.max_points)
-    master = emit_master(cfg, outdir, texroot, written, corners)
-    emit_preview(cfg, outdir)
-    print('  wrote %d fragment(s) + %s + preview.tex'
-          % (len(written), os.path.basename(master)))
-    print('\nInclude in the TRM with:\n    \\input{%s%s.tex}\n'
-          % (texroot, cfg.get('block', 'block')))
+    # A companion config contributes fragments to a block that another config
+    # already owns -- it needs a different --results (a different Maestro run),
+    # but its figures belong in the owner's section. It emits no master of its
+    # own; the owner lists the fragment names in its `order`.
+    if cfg.get('emit_master', True):
+        master = emit_master(cfg, outdir, texroot, written, corners)
+        emit_preview(cfg, outdir)
+        print('  wrote %d fragment(s) + %s + preview_%s.tex'
+              % (len(written), os.path.basename(master), slug(cfg.get('block', 'block'))))
+        print('\nInclude in the TRM with:\n    \\input{%s%s.tex}\n'
+              % (texroot, cfg.get('block', 'block')))
+    else:
+        print('  wrote %d fragment(s); no master (emit_master=false)' % len(written))
+        print('\nAdd these to the owning block\'s `order`:\n    %s\n'
+              % '\n    '.join(sorted(os.path.basename(p)[:-4] for p in written)))
 
 
 if __name__ == '__main__':
