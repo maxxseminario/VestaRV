@@ -1010,15 +1010,21 @@ class LatexUserGuide():
 	# overlay coordinates silently land on the wrong signal.
 	# -------------------------------------------------------------------------
 
+	# Waveform row geometry. _ROW_H is the high-to-low height of a signal and
+	# therefore the height of a bus cell — it is what sets how large the text
+	# inside a D{} cell can be. _ROW_PITCH must exceed it or rows collide.
+	_ROW_H = '0.80cm'
+	_ROW_PITCH = 1.20
+
 	def _timingPreamble(self, xunit, extra=''):
 		'''Shared tikzpicture options for the generated waveform figures.'''
 		s = '\\begin{tikzpicture}[\n'
 		s += '\tx=' + xunit + ', y=1cm,\n'
-		s += '\tlbl/.style={font=\\sffamily\\scriptsize, anchor=east},\n'
+		s += '\tlbl/.style={font=\\sffamily\\footnotesize, anchor=east},\n'
 		s += '\tguide/.style={densely dotted, gray!65},\n'
-		s += '\tann/.style={font=\\sffamily\\scriptsize, inner sep=1.5pt},\n'
-		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=0.50cm, semithick,\n'
-		s += '\t            timing/d/text/.style={font=\\sffamily\\tiny}}' + extra + ']\n'
+		s += '\tann/.style={font=\\sffamily\\footnotesize, inner sep=1.5pt},\n'
+		s += '\ttim/.style={timing/xunit=' + xunit + ', timing/yunit=' + self._ROW_H + ', semithick,\n'
+		s += '\t            timing/d/text/.style={font=\\sffamily\\footnotesize}}' + extra + ']\n'
 		return s
 
 	def GenerateTimerRolloverDiagram(self):
@@ -1096,32 +1102,26 @@ class LatexUserGuide():
 		   observed req to done; the depth-1 registered tile boundary adds one
 		   more each way, which is the ~5 mclk a hart actually sees). If that
 		   FSM changes, this figure must change with it.'''
-		s = '% Generated mp_arbiter handshake diagram\n'
-		s += self._timingPreamble('0.85cm')
-		s += '\\def\\YBOT{-6.0}\n'
-		s += '\\fill[black!7] (5,0.62) rectangle (6,{\\YBOT-0.12});\n'
-		s += '\\foreach \\k in {1,...,6} { \\draw[guide] (\\k,0.62) -- (\\k,{\\YBOT-0.12}); }\n'
 		rows = [
-			('0.00',  '14{0.5C}',                                    '\\register{mclk}'),
-			('-0.75', 'L 5H L',                                      '\\register{req(0)}'),
-			('-1.50', '2L 3H 2L',                                    '\\register{gnt(0)}'),
-			('-2.25', '2D{IDLE} D{LATCH} D{DATA} 3D{IDLE}',          '\\textit{state}'),
-			('-3.00', '2L H 4L',                                     '\\register{s\\_en}'),
-			('-3.75', '2U 5D{\\SharedRamStartAddress}',              '\\register{s\\_addr}'),
-			('-4.50', '3U D{mem} 3U',                                '\\register{s\\_rdata}'),
-			('-5.25', '4L H 2L',                                     '\\register{done(0)}'),
-			('-6.00', '4U 3D{mem}',                                  '\\register{rdata}'),
+			('14{0.5C}',                              '\\register{mclk}'),
+			('L 5H L',                                '\\register{req(0)}'),
+			('2L 3H 2L',                              '\\register{gnt(0)}'),
+			('2D{IDLE} D{LATCH} D{DATA} 3D{IDLE}',    '\\textit{state}'),
+			('2L H 4L',                               '\\register{s\\_en}'),
+			('2U 5D{\\SharedRamStartAddress}',         '\\register{s\\_addr}'),
+			('3U D{mem} 3U',                          '\\register{s\\_rdata}'),
+			('4L H 2L',                               '\\register{done(0)}'),
+			('4U 3D{mem}',                            '\\register{rdata}'),
 		]
-		for y, chars, label in rows:
-			s += '\\timing[tim] at (0,' + y + ') {' + chars + '};\n'
-			s += '\\node[lbl] at (-0.2,{' + y + '+0.25}) {' + label + '};\n'
-		s += '\\draw[<->, >=Stealth] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
-		s += '\\node[ann, below] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}, arbiter pins (uncontended)};\n'
-		s += '\\node[ann, align=left, anchor=north west] at (6.15,{\\YBOT-0.30})\n'
-		s += '\t{\\textit{ghost window:} \\register{req} is stale-high for one\\\\[-2pt]\n'
-		s += '\t cycle after \\register{done} --- masked by \\register{need\\_release}};\n'
-		s += '\\draw[gray!65] (5.5,{\\YBOT-0.12}) -- (5.5,{\\YBOT-0.42}) -- (6.1,{\\YBOT-0.42});\n'
-		s += '\\end{tikzpicture}\n'
+		ann = ''
+		ann += '\\draw[<->, >=Stealth] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
+		ann += '\\node[ann, below] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}, arbiter pins (uncontended)};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (6.15,{\\YBOT-0.30})\n'
+		ann += '\t{\\textit{ghost window:} \\register{req} is stale-high for one\\\\[-2pt]\n'
+		ann += '\t cycle after \\register{done} --- masked by \\register{need\\_release}};\n'
+		ann += '\\draw[gray!65] (5.5,\\YBOT) -- (5.5,{\\YBOT-0.42}) -- (6.1,{\\YBOT-0.42});\n'
+		s = '% Generated mp_arbiter handshake diagram\n'
+		s += self._cycleFigure('1.15cm', rows, 6, ann, shade=('5', '6'))
 		self._writeInclude('ArbiterHandshakeDiagram.tex', s)
 		return
 
@@ -1131,15 +1131,19 @@ class LatexUserGuide():
 	# unreliable there, see the comment block above). The four SPI/UART figures
 	# were hand-written in the intro .tex files in body-serif at body size;
 	# moving them here put every waveform in the TRM on one style.
-	_TIMING_TABLE_OPTS = ('timing/font=\\sffamily\\scriptsize, '
-	                      'timing/d/text/.append style={font=\\sffamily\\tiny}, '
-	                      'font=\\sffamily\\scriptsize, semithick, '
+	_TIMING_TABLE_OPTS = ('timing/font=\\sffamily\\footnotesize, '
+	                      'timing/d/text/.style={font=\\sffamily\\footnotesize}, '
+	                      'font=\\sffamily\\footnotesize, semithick, '
 	                      'timing/slope=0.2, timing/dslope=0.2, '
 	                      # ABSOLUTE unit: the default is font-relative, so the
 	                      # \scriptsize house label font would otherwise shrink
 	                      # every waveform along with it. Each figure overrides
 	                      # xunit for its own cycle count / cell contents.
-	                      'timing/xunit=6mm')
+	                      'timing/xunit=6mm')  # NOTE: do NOT set timing/yunit here. In a
+	                      # tikztimingtable the row height is the TABULAR row, which
+	                      # yunit does not touch — raising it makes the waveforms
+	                      # overflow their rows and drift out of line with the row
+	                      # labels. The font size is what grows the rows.
 
 	def _timingTable(self, rows, extraOpts='', extracode=''):
 		'''rows = list of (label, charstring). Emits a styled tikztimingtable.'''
@@ -1189,7 +1193,7 @@ class LatexUserGuide():
 		extra += '\t\t\\node at (1ex,-17) {CPHA $=1$};\n'
 		extra += '\t\\end{scope}\n'
 		s = '% Generated SPI timing diagram (all four SPI modes)\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=6.5mm, timing/d/background/.style={fill=white}',
+		s += self._timingTable(rows, extraOpts='timing/xunit=8mm, timing/d/background/.style={fill=white}',
 		                       extracode=extra)
 		self._writeInclude('SpiTimingDiagram.tex', s)
 		return
@@ -1202,7 +1206,7 @@ class LatexUserGuide():
 			('32-bit transfers, byte swap', '[X] D{byte 3} D{byte 2} D{byte 1} D{byte 0} D{byte 7} D{byte 6} D{byte 5} D{byte 4} D{\\ldots}'),
 		]
 		s = '% Generated SPI byte-ordering diagram\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=13mm')
+		s += self._timingTable(rows, extraOpts='timing/xunit=15mm')
 		self._writeInclude('SpiByteOrderingDiagram.tex', s)
 		return
 
@@ -1220,7 +1224,7 @@ class LatexUserGuide():
 			('Byte swap, MSB-first',    seq(msb[8:] + msb[:8])),
 		]
 		s = '% Generated SPI bit-ordering diagram (16-bit transfer)\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=7.2mm')
+		s += self._timingTable(rows, extraOpts='timing/xunit=8.5mm')
 		self._writeInclude('SpiBitOrderingDiagram.tex', s)
 		return
 
@@ -1240,7 +1244,7 @@ class LatexUserGuide():
 		extra += '\t\\end{scope}\n'
 		s = '% Generated UART data-frame diagram\n'
 		s += self._timingTable(rows,
-		                       extraOpts='timing/xunit=10mm, yscale=2, timing/d/background/.style={fill=white}, ' + meta,
+		                       extraOpts='timing/xunit=11mm, yscale=1.6, timing/d/background/.style={fill=white}, ' + meta,
 		                       extracode=extra)
 		self._writeInclude('UartFrameDiagram.tex', s)
 		return
@@ -1265,21 +1269,30 @@ class LatexUserGuide():
 		extra += '\t\t\\node[below, inner sep=2pt] at (20.9,-2.9) {STOP};\n'
 		extra += '\t\\end{scope}\n'
 		s = '% Generated I2C transaction diagram\n'
-		s += self._timingTable(rows, extraOpts='timing/xunit=7mm', extracode=extra)
+		s += self._timingTable(rows, extraOpts='timing/xunit=7.5mm', extracode=extra)
 		self._writeInclude('I2cTransactionDiagram.tex', s)
 		return
 
-	def _cycleFigure(self, xunit, rows, ybot, guides, annotations, shade=None):
+	def _cycleFigure(self, xunit, rows, guides, annotations, shade=None):
 		'''Shared shape for the cycle-level contract waveforms (arbiter, IRQ
-		   claim/complete, mutex, capture): \\timing rows on an explicit grid with
-		   dotted cycle boundaries. rows = list of (y, chars, label).'''
+		   claim/complete, mutex, capture). rows = list of (chars, label), TOP
+		   FIRST; the y of each row is COMPUTED from _ROW_PITCH rather than
+		   written per figure, so changing the waveform height does not silently
+		   overlap rows or strand the annotations. The figure exports \\YTOP and
+		   \\YBOT so annotations can hang off the grid instead of hardcoding
+		   coordinates that go stale with the geometry.'''
+		pitch = self._ROW_PITCH
+		ybot = -pitch * (len(rows) - 1)
 		s = self._timingPreamble(xunit)
+		s += '\\def\\YTOP{%.2f}\\def\\YBOT{%.2f}\n' % (float(self._ROW_H[:-2]) + 0.14, ybot - 0.14)
 		if shade:
-			s += '\\fill[black!7] (' + shade[0] + ',0.62) rectangle (' + shade[1] + ',' + str(ybot - 0.12) + ');\n'
-		s += '\\foreach \\k in {1,...,' + str(guides) + '} { \\draw[guide] (\\k,0.62) -- (\\k,' + str(ybot - 0.12) + '); }\n'
-		for y, chars, label in rows:
+			s += '\\fill[black!7] (' + shade[0] + ',\\YTOP) rectangle (' + shade[1] + ',\\YBOT);\n'
+		s += '\\foreach \\k in {1,...,' + str(guides) + '} { \\draw[guide] (\\k,\\YTOP) -- (\\k,\\YBOT); }\n'
+		half = float(self._ROW_H[:-2]) / 2.0
+		for i, (chars, label) in enumerate(rows):
+			y = -pitch * i
 			s += '\\timing[tim] at (0,' + ('%.2f' % y) + ') {' + chars + '};\n'
-			s += '\\node[lbl] at (-0.2,' + ('%.2f' % (y + 0.25)) + ') {' + label + '};\n'
+			s += '\\node[lbl] at (-0.2,' + ('%.2f' % (y + half)) + ') {' + label + '};\n'
 		s += annotations
 		s += '\\end{tikzpicture}\n'
 		return s
@@ -1292,19 +1305,21 @@ class LatexUserGuide():
 		   masking the source out of EVERY hart until a COMPLETE write clears
 		   it. That masking window is the exactly-once guarantee.'''
 		rows = [
-			(0.00,  'L 7H 3L',                                    '\\textit{level}(i)'),
-			(-0.75, '2L 2H 7L',                                   '\\register{meip}(h)'),
-			(-1.50, '3U D{CLAIM} 4D{handler} 2D{COMPLETE} U',      'hart bus'),
-			(-2.25, '4L 6H L',                                    '\\textit{in\\_service}(i)'),
+			('22{0.5C}',                                  '\\register{mclk}'),
+			('L 7H 3L',                                   '\\textit{level}(i)'),
+			('2L 2H 7L',                                  '\\register{meip}(h)'),
+			('3U D{CLAIM} 4D{handler} 2D{COMPLETE} U',    'hart bus'),
+			('4L 6H L',                                   '\\textit{in\\_service}(i)'),
 		]
 		ann = ''
-		ann += '\\draw[<->, >=Stealth] (4,-2.95) -- (10,-2.95);\n'
-		ann += '\\node[ann, below] at (7,-2.99) {source masked on every hart --- exactly-once delivery};\n'
-		ann += '\\node[ann, align=left, anchor=north west] at (0,-3.55)\n'
+		ann += '\\draw[<->, >=Stealth] (4,{\\YBOT-0.55}) -- (10,{\\YBOT-0.55});\n'
+		ann += '\\node[ann, below] at (7,{\\YBOT-0.58}) {source masked on every hart --- exactly-once delivery};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-1.15})\n'
 		ann += '\t{The handler clears the level at the peripheral \\emph{before} the dispatcher completes;\\\\[-2pt]\n'
-		ann += '\t if the level is still high at COMPLETE the source simply re-pends.};\n'
+		ann += '\t if the level is still high at COMPLETE the source simply re-pends.\\\\[-2pt]\n'
+		ann += '\t The \\textsf{handler} cell stands for many \\register{mclk} cycles of software.};\n'
 		s = '% Generated IRQROUTER claim/complete diagram\n'
-		s += self._cycleFigure('0.85cm', rows, -2.25, 10, ann, shade=('4', '10'))
+		s += self._cycleFigure('1.05cm', rows, 10, ann, shade=('4', '10'))
 		self._writeInclude('IrqClaimCompleteDiagram.tex', s)
 		return
 
@@ -1314,18 +1329,19 @@ class LatexUserGuide():
 		   Two harts race for the same mutex; the arbiter serializes the two
 		   reads, so the claim is atomic with no retry loop.'''
 		rows = [
-			(0.00,  'U 2D{\\asminline{lw} MUTEX0} 4U 2D{\\asminline{sw x0}}',  'hart 0 bus'),
-			(-0.75, '3U 2D{\\asminline{lw} MUTEX0} 4U',                          'hart 1 bus'),
-			(-1.50, '3D{free} 5D{owned by hart 0} D{free}',                    '\\textit{owner}[0]'),
-			(-2.25, '3U D{0} 5U',                                              'hart 0 result'),
-			(-3.00, '5U D{1} 3U',                                              'hart 1 result'),
+			('16{0.5C}',                                                 '\\register{mclk}'),
+			('U 2D{\\asminline{lw} MUTEX0} 4U 2D{\\asminline{sw x0}}',   'hart 0 bus'),
+			('3U 2D{\\asminline{lw} MUTEX0} 4U',                         'hart 1 bus'),
+			('3D{free} 5D{owned by hart 0} D{free}',                     '\\textit{owner}[0]'),
+			('3U D{0} 5U',                                               'hart 0 result'),
+			('5U D{1} 3U',                                               'hart 1 result'),
 		]
 		ann = ''
-		ann += '\\node[ann, align=left, anchor=north west] at (0,-3.75)\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{\\textbf{0} = the mutex was free and is now yours. A non-zero result is the holder\'s\\\\[-2pt]\n'
 		ann += '\t \\register{mhartid}$+1$ --- hart 1 must back off and retry. Release with \\asminline{sw x0}.};\n'
 		s = '% Generated MUTEX claim/release diagram\n'
-		s += self._cycleFigure('0.85cm', rows, -3.00, 8, ann)
+		s += self._cycleFigure('1.15cm', rows, 8, ann)
 		self._writeInclude('MutexClaimDiagram.tex', s)
 		return
 
@@ -1335,19 +1351,20 @@ class LatexUserGuide():
 		   CAP0IF) — the chapter prose used to call them TCAP*, which matched
 		   nothing in the register tables.'''
 		rows = [
-			(0.00,  'R 8{Q}',            '\\register{TIMxVAL}'),
-			(-0.75, '3L 5H',             '\\pin{TxCAP0}'),
-			(-1.50, '3U 5D{4}',          '\\register{TIMxCAP0}'),
-			(-2.25, '3L 4H L',           '\\bitfield{CAP0IF}'),
+			('16{0.5C}',        'timer clock'),
+			('R 8{Q}',          '\\register{TIMxVAL}'),
+			('3L 5H',           '\\pin{TxCAP0}'),
+			('3U 5D{4}',        '\\register{TIMxCAP0}'),
+			('3L 4H L',         '\\bitfield{CAP0IF}'),
 		]
 		ann = ''
-		ann += '\\draw[gray!65] (3,0.62) -- (3,0.95);\n'
-		ann += '\\node[ann, above] at (3,0.93) {capture edge (\\bitfield{CAP0FE} $=0$: rising)};\n'
-		ann += '\\node[ann, align=left, anchor=north west] at (0,-2.95)\n'
+		ann += '\\draw[gray!65] (3,\\YTOP) -- (3,{\\YTOP+0.35});\n'
+		ann += '\\node[ann, above] at (3,{\\YTOP+0.33}) {capture edge (\\bitfield{CAP0FE} $=0$: rising)};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{The edge latches \\register{TIMxVAL} into \\register{TIMxCAP0} and sets \\bitfield{CAP0IF}.\\\\[-2pt]\n'
 		ann += '\t Clear the flag by writing 1 to it in \\register{TIMxSR} before the next capture.};\n'
 		s = '% Generated timer input-capture diagram\n'
-		s += self._cycleFigure('0.85cm', rows, -2.25, 7, ann)
+		s += self._cycleFigure('1.20cm', rows, 7, ann)
 		self._writeInclude('TimerCaptureDiagram.tex', s)
 		return
 
