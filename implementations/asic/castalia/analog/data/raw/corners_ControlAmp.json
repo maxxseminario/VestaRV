@@ -1,0 +1,11 @@
+[
+  {
+    "_comment": "Reconstructed by hand: Maestro rotated Interactive.119 away before this cache existed. Values are exactly those recorded in the committed tab_ControlAmp_corners.tex, which was generated from that run. Regenerating reproduces that table byte-for-byte, which is the check that this is faithful. Later blocks get this file written automatically at extract time.",
+    "dir": "1",
+    "label": "tt",
+    "vars": {
+      "VDD25": 2.5,
+      "temp": 27.0
+    }
+  }
+]

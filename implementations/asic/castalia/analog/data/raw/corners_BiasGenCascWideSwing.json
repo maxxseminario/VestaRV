@@ -1,0 +1,57 @@
+[
+  {
+    "dir": "1",
+    "label": "tt",
+    "vars": {
+      "T_nom": 27.0,
+      "VDD25": 2.5,
+      "VDD_RTime": 1e-06,
+      "b6_BiasAdj": 33.0,
+      "temp": 27.0
+    }
+  },
+  {
+    "dir": "2",
+    "label": "ff",
+    "vars": {
+      "T_nom": 27.0,
+      "VDD25": 2.5,
+      "VDD_RTime": 1e-06,
+      "b6_BiasAdj": 33.0,
+      "temp": 25.0
+    }
+  },
+  {
+    "dir": "3",
+    "label": "fs",
+    "vars": {
+      "T_nom": 27.0,
+      "VDD25": 2.5,
+      "VDD_RTime": 1e-06,
+      "b6_BiasAdj": 33.0,
+      "temp": 25.0
+    }
+  },
+  {
+    "dir": "4",
+    "label": "sf",
+    "vars": {
+      "T_nom": 27.0,
+      "VDD25": 2.5,
+      "VDD_RTime": 1e-06,
+      "b6_BiasAdj": 33.0,
+      "temp": 25.0
+    }
+  },
+  {
+    "dir": "5",
+    "label": "ss",
+    "vars": {
+      "T_nom": 27.0,
+      "VDD25": 2.5,
+      "VDD_RTime": 1e-06,
+      "b6_BiasAdj": 33.0,
+      "temp": 25.0
+    }
+  }
+]

@@ -1,0 +1,40 @@
+%% maestro2tex -- generated heatmap; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.80\linewidth, height=7.4cm,
+      xlabel={Commanded output voltage $V_{\mathrm{MAP}}$~[\si{\volt}]}, ylabel={Load current $I_{\mathrm{LOAD}}$~[\si{\micro\ampere}]},
+      axis on top, enlarge x limits=false, enlarge y limits=false,
+      ymin=-8, ymax=8,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      scaled x ticks=false, scaled y ticks=false,
+      colormap={mtxdiv}{rgb255=(24,79,149) rgb255=(42,120,214) rgb255=(158,197,244) rgb255=(240,239,236) rgb255=(248,170,163) rgb255=(210,56,58) rgb255=(145,30,34)},
+      point meta min=-50, point meta max=50,
+      colorbar,
+      colorbar style={ylabel={$V_{\mathrm{OUT}}-V_{\mathrm{MAP}}$~[\si{\milli\volt}]}, ylabel style={font=\small},
+                      tick label style={font=\small}, width=0.28cm},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+    ]
+      \addplot[matrix plot*, point meta=explicit, forget plot,
+               mesh/cols=26, mesh/rows=161, mesh/ordering=colwise]
+        table[x=x, y=y, meta=z] {\MaestroRoot data/ctrlamp_drivemap.dat};
+      \addplot[black, line width=1.1pt, solid, no marks]
+        table {\MaestroRoot data/ctrlamp_drivemap_ov00.dat};
+      \addlegendentry{sinking edge}
+      \addplot[black, line width=1.1pt, dashed, no marks]
+        table {\MaestroRoot data/ctrlamp_drivemap_ov01.dat};
+      \addlegendentry{sourcing edge}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption{DC drive compliance of the control amplifier, as a map of the unity-gain tracking error over commanded output voltage and load current. Positive $I_{\mathrm{LOAD}}$ draws current out of the output, so the amplifier \emph{sources}; negative $I_{\mathrm{LOAD}}$ injects, so it \emph{sinks}. The colour scale is clipped at \(\pm\SI{50}{\milli\volt}\), which is the compliance criterion: inside the envelope the error is the smooth $I_{\mathrm{LOAD}}R_{\mathrm{OUT,CL}}$ gradient, and outside it the output has hit a rail and the error jumps by more than a volt, so everything beyond the envelope saturates to solid colour. The two black curves are the \(|V_{\mathrm{OUT}}-V_{\mathrm{MAP}}|=\SI{50}{\milli\volt}\) edges, interpolated on the \SI{50}{\nano\ampere} sweep at each of the 26 commanded voltages; that they land on the boundary of the graded band is a check that the map and the envelope were derived independently. The vertical axis is cropped to \(\pm\SI{8}{\micro\ampere}\); the envelope never exceeds that inside the tracking range. \textbf{This is the ff corner with typical resistors} --- see Table~\ref{tab:ctrlamp-drivemap} and the note below it.}
+  \label{fig:ctrlamp-drivemap}
+\end{figure}

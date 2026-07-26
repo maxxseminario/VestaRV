@@ -27,13 +27,17 @@ the obstacle: the gain, the bandwidth and the \SI{65}{\degree} phase margin are 
 comfortable, and the amplifier draws only \SI{31.8}{\micro\ampere} doing it. The
 question is entirely the output branch.
 
-What this run does \emph{not} establish is how much current the amplifier can hold at
-DC. All three benches here load the output with \SI{10}{\pico\farad} and nothing else,
-so the currents in Table~\ref{tab:ctrlamp-largesignal} are slewing currents measured
-with the input pair slammed past its common-mode range --- a generous upper bound on the
-output stage, not a compliance figure. DC drive has to be measured by sweeping a load
-current at the output and watching the tracking error, and that bench is not part of
-this run. Until it is, treat the asymmetry above as the shape of the problem and not as
-its magnitude, and do not read the sourcing figure as headroom against the
-\(\pm\SI{33}{\micro\ampere}\) target. Settling this is the item that should gate
-committing this amplifier to the four-channel layout.
+What the slew benches do \emph{not} establish is how much current the amplifier can hold
+at DC. They load the output with \SI{10}{\pico\farad} and nothing else, so the currents
+in Table~\ref{tab:ctrlamp-largesignal} are slewing currents measured with the input pair
+slammed past its common-mode range --- a generous upper bound on the output stage, not a
+compliance figure. That measurement needs a load-current sweep, and it is the subject of
+Table~\ref{tab:ctrlamp-drivemap} and Figure~\ref{fig:ctrlamp-drivemap} below.
+
+The two disagree, and instructively. Driven open-loop into a capacitor the amplifier
+sources four times what it sinks; swept with a DC load in unity-gain feedback it sinks
+slightly \emph{more} than it sources at every commanded voltage
+(\SI{-7.04}{\micro\ampere} against \SI{5.36}{\micro\ampere} at its widest). The two
+benches are not measuring the same thing --- one is the output stage slammed to one
+side, the other is the closed loop working about its operating point --- and it is the
+DC sweep that answers the compliance question. Take the drive numbers from there.
