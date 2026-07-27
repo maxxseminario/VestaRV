@@ -3522,7 +3522,7 @@ _mcuMpRstVals = [
 		('RstValP6OUT', 0x00000000, 'all pads output low'),
 		('RstValP6DIR', 0x00000000, 'all pins input at reset'),
 		('RstValP6SEL', 0x00000000, 'all pins in GPIO mode at reset'),
-		('RstValP6REN', (0x000000C0 if fieldPowerPresent else 0x00000000), ('P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull-DOWN: PxOUT resets 0 -- unconnected reads NORMAL boot + power-not-good)' if fieldPowerPresent else 'no pulls enabled at reset')),
+		('RstValP6REN', (0x000000C0 if fieldPowerPresent else 0x00000000), ('P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull DIRECTION is a pad-cell property: chip-top rings must use PDDW16SDGZ_G pull-DOWN cells on these two pads; PxOUT does NOT set pull direction)' if fieldPowerPresent else 'no pulls enabled at reset')),
 		('RstValP6AFS', (0x00000001 if nfcPresent else 0x00000000), 'P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0'),
 	]),
 ]
