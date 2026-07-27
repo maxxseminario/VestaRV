@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/24 at 21:10:09 with the MemoryMap.py memory map generator
+-- Generated on 2026/07/26 at 17:21:03 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -310,7 +310,7 @@ package MemoryMap is
 	constant RstValP6OUT	: std_logic_vector(31 downto 0) := X"00000000";	-- all pads output low
 	constant RstValP6DIR	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins input at reset
 	constant RstValP6SEL	: std_logic_vector(31 downto 0) := X"00000000";	-- all pins in GPIO mode at reset
-	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"000000C0";	-- P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull-DOWN: PxOUT resets 0 -- unconnected reads NORMAL boot + power-not-good)
+	constant RstValP6REN	: std_logic_vector(31 downto 0) := X"000000C0";	-- P6.6 (harvested-boot strap) + P6.7 (PGOOD) pulls enabled when fieldPower present (pull DIRECTION is a pad-cell property: chip-top rings must use PDDW16SDGZ_G pull-DOWN cells on these two pads; PxOUT does NOT set pull direction)
 	constant RstValP6AFS	: std_logic_vector(31 downto 0) := X"00000000";	-- P6.0 (NFC rf_clk) resets to AF1 for clock routing when NFC present, else all AF0
 
 
