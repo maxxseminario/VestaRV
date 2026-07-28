@@ -544,7 +544,16 @@ harvested_boot:
     li   a1, GPIO5_BASE
     li   a2, 0x3F
     sw   a2, GPIO_PxSEL(a1)
-    li   a2, 0x9249                // pins 0-5 3-bit AFS fields = "001" (AF1)
+    // PxAFS IS NIBBLE-PACKED, NOT 3-BIT-PACKED (bug found by
+    // hdl/common/tb/board_harvest_tb.vhd, 2026-07-28). The REGISTER image is
+    // one NIBBLE per pin, low 3 bits used (GPIO.vhd RegSlotPxAFS write:
+    // PxAFS(3*i+2 downto 3*i) <= write_data(4*i+2 downto 4*i); MemoryMap.vhd
+    // PxAFS<n>_MSB/LSB = 4*n+2 / 4*n). Only PxAFS_out (the internal export
+    // MCU.vhd's AF muxes read) is 3-bit packed. The old 3-bit-packed literal
+    // 0x9249 landed P6.1 on AF4, P6.2 on AF2 and left P6.4/P6.5 on AF0, so
+    // rf_rx / field_detect were never routed in and rf_tx_en / afe_en were
+    // never routed out -- the harvested NFC service path could not work.
+    li   a2, 0x00111111            // pins 0-5 AFS nibble = 1 (AF1)
     sw   a2, GPIO_PxAFS(a1)
 
     // NFC0 tag provisioning (WRITES ONLY — see the alias warning at the
