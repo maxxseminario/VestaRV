@@ -10,6 +10,7 @@
 %% carry no meaning to a reader. The one internal node the analysis needs is the
 %% first-stage output, drawn as V_1; it is netlist node `net5`.
 %%
+%% Device W/L and multiplicity are deliberately NOT shown -- proprietary.
 %% Simplified: R_SET and R_z are each drawn as one trimmable resistor -- in the netlist
 %% each is a segmented poly ladder with an NMOS shunt switch per bit (M13--M18 on
 %% TCBias, M19--M24 on LCBias). Matching dummies (ModgenDummy_*) carry no signal and
@@ -92,7 +93,7 @@
 \node[pmos](M2) at (\xT,\yPm){};
 \draw (M2.source) -- (\xT,\yvdd);
 \node[gatelab, left] at (M2.gate){$V_{\mathrm{BP}}$};
-\node[devlab, right=2pt, align=left] at (M2.east){M2\\\tiny$12/2.4\times2$};
+\node[devlab, right=2pt] at (M2.east){M2};
 \draw (M2.drain) -- (\xT,\ytail);
 \draw (\xM,\ytail) -- (\xP,\ytail);
 \node[railnode] at (\xT,\ytail){};
@@ -103,8 +104,8 @@
 \draw (M4.source) -- (\xP,\ytail);
 \draw (M3.gate) -- ++(-0.7,0) node[gatelab, left]{\texttt{vinm}};
 \draw (M4.gate) -- ++(0.7,0) node[gatelab, right]{\texttt{vinp}};
-\node[devlab, anchor=south east, align=right] at (\xM-0.42,\yIn+0.2){M3\\\tiny$5/0.75\times4$};
-\node[devlab, anchor=south west, align=left] at (\xP+0.42,\yIn+0.2){M4\\\tiny$5/0.75\times4$};
+\node[devlab, anchor=south east] at (\xM-0.42,\yIn+0.2){M3};
+\node[devlab, anchor=south west] at (\xP+0.42,\yIn+0.2){M4};
 
 \node[nmos, xscale=-1](M10) at (\xM,\yNl){};
 \node[nmos](M11) at (\xP,\yNl){};
@@ -126,8 +127,8 @@
 \draw (M5.drain) -- (M12.drain);
 \draw (M12.source) -- (\xO,\yvss);
 \node[gatelab, left] at (M5.gate){$V_{\mathrm{BP}}$};
-\node[devlab, right=2pt, align=left] at (M5.east){M5\\\tiny$12.6/0.75\times2$};
-\node[devlab, right=2pt, align=left] at (M12.east){M12\\\tiny$14/0.75\times8$};
+\node[devlab, right=2pt] at (M5.east){M5};
+\node[devlab, right=2pt] at (M12.east){M12};
 \draw (\xO,\yout) -- (13.9,\yout) node[right]{\texttt{vout}};
 \node[railnode] at (\xO,\yout){};
 
@@ -155,6 +156,6 @@
 
 \end{circuitikz}
   }
-  \caption[{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}.}]{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}, drawn from its netlist. First stage: PMOS pair M3/M4 on tail source M2 with NMOS current-mirror load M10/M11, output at $V_1$. Second stage: common-source driver M12 with PMOS current-source load M5. The Miller branch $R_z$--$C_c$ runs from $V_1$ to \texttt{vout}, and M12's gate is taken from $V_1$ ahead of $R_z$; $C_c$ is a \SI{22.1}{\micro\metre} square MIM, measured at \SI{1.00}{\pico\farad}. Device sizes are $W/L$ in \si{\micro\metre} times multiplicity. The second stage is class~A: it sources the fixed current in M5 and sinks whatever M12 pulls, which is the asymmetry of Table~\ref{tab:tia-drive}. The self-biased reference sets every bias rail from $R_{\mathrm{SET}}$; M25 pulls $V_{\mathrm{BP}}$ to \texttt{vdd} to power the amplifier down. Both resistor strings are drawn as single trimmable resistors: each is a segmented poly ladder with one NMOS shunt switch per trim bit.}
+  \caption[{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}.}]{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}, drawn from its netlist. First stage: PMOS pair M3/M4 on tail source M2 with NMOS current-mirror load M10/M11, output at $V_1$; second stage: common-source driver M12 with PMOS current-source load M5. The Miller branch $R_z$--$C_c$ runs from $V_1$ to \texttt{vout}, with M12's gate taken ahead of $R_z$; $C_c$ measures \SI{1.00}{\pico\farad}. Being class~A, the second stage sources the fixed current in M5 and sinks whatever M12 pulls --- the asymmetry of Table~\ref{tab:tia-drive}. $R_{\mathrm{SET}}$ and $R_z$ are each drawn as one trimmable resistor; both are segmented poly ladders with an NMOS shunt switch per trim bit. Device dimensions are omitted.}
   \label{fig:tia-core}
 \end{figure}
