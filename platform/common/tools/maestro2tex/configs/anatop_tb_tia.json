@@ -5,7 +5,7 @@
   "supply_var": "VDD25",
   "emit_master": true,
   "emit_corner_table": true,
-  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance stage. The typical point is the Monte Carlo process section evaluated with zero statistical offset at the \\SI{37}{\\celsius} on-body operating temperature; the four skew corners are the imported foundry corners, which carry \\SI{25}{\\celsius}. This run is corners only --- no Monte Carlo sampling was performed, so no mismatch or yield figures appear in this section.",
+  "corner_table_caption": "Process, temperature and supply points simulated for the transimpedance stage. The typical point is the Monte Carlo process section at zero statistical offset and the \\SI{37}{\\celsius} on-body temperature; the four skew corners are the foundry corners at \\SI{25}{\\celsius}. This run is corners only --- no Monte Carlo, so no mismatch or yield figures appear in this section.",
   "tests": {
     "tia_ac": {
       "dir": "TiaFbTB",
@@ -491,7 +491,7 @@
       "legendpos": "south west",
       "ylabel": "Transimpedance $|Z_t|$~[\\si{\\kilo\\ohm}]",
       "axis_extra": "ymin=0, ymax=1250",
-      "caption": "Transimpedance $|Z_t| = |V_{\\mathrm{OUT}}/I_{\\mathrm{WE}}|$ of the closed transimpedance stage against frequency, over the five process corners, at the maximum gain setting ($R_f = \\SI{560}{\\kilo\\ohm}$) with \\SI{1}{\\micro\\farad} of double-layer capacitance at the working electrode. The response is flat at \\SI{560}{\\kilo\\ohm} to about \\SI{200}{\\hertz}, then peaks to \\SIrange{1.00}{1.17}{\\mega\\ohm} near \\SI{1}{\\kilo\\hertz} before rolling off. That peak is a marginally stable loop rather than a design intent, and it is caused by the electrode capacitance and not by the amplifier: $C_{\\mathrm{dl}}$ rolls the feedback factor off from \\SI{0.28}{\\hertz}, so the loop closes at roughly \\SI{40}{\\decibel} per decade."
+      "caption": "Transimpedance $|Z_t|$ against frequency over the five corners, at maximum gain ($R_f = \\SI{560}{\\kilo\\ohm}$) with \\SI{1}{\\micro\\farad} of double-layer capacitance at the working electrode. Flat at \\SI{560}{\\kilo\\ohm} to about \\SI{200}{\\hertz}, it peaks to \\SIrange{1.00}{1.17}{\\mega\\ohm} near \\SI{1}{\\kilo\\hertz}. The peak is a marginally stable loop caused by $C_{\\mathrm{dl}}$ rolling the feedback factor off from \\SI{0.28}{\\hertz}, not by the amplifier."
     },
     {
       "id": "tia_dc",
@@ -505,7 +505,7 @@
       "yprec": 1,
       "ylabel": "Output voltage $V_{\\mathrm{OUT}}$~[\\si{\\volt}]",
       "axis_extra": "ymin=0, ymax=2.5",
-      "caption": "Output voltage against the swept test-source current, over the five process corners. Conditions are $R_f = \\SI{560}{\\kilo\\ohm}$ with the working electrode held at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$. The bench source draws its current \\emph{out} of the WE node, so $i_{\\mathrm{we}} = -I_{\\mathrm{WE}}$ against the convention of Equation~(\\ref{eq:tia-transfer}) and the plotted slope is $+R_f$: the amplifier sources this current through $R_f$ and the output rises. The \\SI{\\pm 2.26}{\\micro\\ampere} sweep takes the output to within \\SI{12}{\\milli\\volt} of \\texttt{vdd} and \\SI{1.2}{\\milli\\volt} of \\texttt{vss}. The corners overlay to the line width because the slope is the feedback resistor, an ideal component in this bench."
+      "caption": "Output voltage against the swept test-source current over the five corners, at $R_f = \\SI{560}{\\kilo\\ohm}$ with the electrode held at $v_{\\mathrm{cm}} = \\SI{1.25}{\\volt}$. The bench source draws current \\emph{out} of the WE node, so $i_{\\mathrm{we}} = -I_{\\mathrm{WE}}$ against Equation~(\\ref{eq:tia-transfer}) and the slope is $+R_f$. The corners overlay to the line width because that slope is the feedback resistor, ideal in this bench."
     },
     {
       "id": "tia_weerr",
@@ -518,7 +518,7 @@
       "height": "6.2cm",
       "yprec": 1,
       "ylabel": "$V_{\\mathrm{WE}}-v_{\\mathrm{cm}}$~[\\si{\\milli\\volt}]",
-      "caption": "Error between the working-electrode potential and $v_{\\mathrm{cm}}$ across the same sweep --- the quality of the virtual ground the electrode sees. It stays inside \\SI{\\pm 0.4}{\\milli\\volt} over the full current range in both directions, and its slope is the input impedance of the stage, set by the loop gain available at the summing node. Against a \\SI{1.25}{\\volt} full-scale output this is under \\SI{0.04}{\\percent} of full scale, so the virtual ground is not an accuracy limit at this gain setting."
+      "caption": "Error between the working-electrode potential and $v_{\\mathrm{cm}}$ across the same sweep. It stays inside \\SI{\\pm 0.4}{\\milli\\volt} in both directions; the slope is the stage's input impedance, set by the loop gain at the summing node. That is under \\SI{0.04}{\\percent} of a \\SI{1.25}{\\volt} full scale, so the virtual ground is not an accuracy limit at this gain."
     },
     {
       "id": "tia_loopgain",
@@ -533,7 +533,7 @@
       "yprec": 0,
       "legendpos": "south west",
       "ylabel": "Open-loop gain $|A|$~[\\si{\\decibel}]",
-      "caption": "Open-loop gain of the transimpedance amplifier over the five process corners, by \\texttt{stb} analysis through the feedback probe with the amplifier in unity feedback and a \\SI{5}{\\pico\\farad} load. Miller compensation places the dominant pole near \\SI{200}{\\hertz} and gives a single-pole roll-off to a \\SIrange{6.2}{7.6}{\\mega\\hertz} crossover; the corners overlay to within \\SI{1.7}{\\decibel} of DC gain. This is the amplifier's own response. The loop that closes around the electrode is a different loop, and it is not this well behaved --- see Figure~\\ref{fig:tia-zt}."
+      "caption": "Open-loop gain over the five process corners, by \\texttt{stb} through the feedback probe with the amplifier in unity feedback and a \\SI{5}{\\pico\\farad} load. Miller compensation gives a single-pole roll-off from \\SI{290}{\\hertz} to a \\SIrange{6.2}{7.6}{\\mega\\hertz} crossover. This is the amplifier alone; the loop that closes around the electrode is not this well behaved (Figure~\\ref{fig:tia-zt})."
     },
     {
       "id": "tia_loopphase",
@@ -549,7 +549,7 @@
       "legendpos": "south west",
       "ylabel": "Loop phase $\\ang{180}+\\angle A$~[\\si{\\degree}]",
       "axis_extra": "ymin=0, ymax=200, xmax=1e8",
-      "caption": "Phase of the same loop-gain measurement, over the five process corners. Spectre's \\texttt{stb} analysis reports $\\ang{180}+\\angle A$, so the curve starts at \\ang{180} at DC and its value at the \\SI{6.4}{\\mega\\hertz} crossover \\emph{is} the phase margin. The dominant pole costs \\ang{90} by \\SI{100}{\\kilo\\hertz}; the lift from \\ang{90.3} there back to \\ang{92.3} at \\SI{1}{\\mega\\hertz} is the left-half-plane zero of Equation~(\\ref{eq:tia-zero}) adding lead, which is what holds the margin near \\ang{88} through crossover despite the second pole at \\SI{10.8}{\\mega\\hertz}."
+      "caption": "Phase of the same measurement. Spectre's \\texttt{stb} reports $\\ang{180}+\\angle A$, so the value at crossover is the phase margin. The lift from \\ang{90.3} at \\SI{100}{\\kilo\\hertz} to \\ang{92.3} at \\SI{1}{\\mega\\hertz} is the left-half-plane zero of Equation~(\\ref{eq:tia-zero}) adding lead, which holds the margin near \\ang{88} through crossover despite the second pole at \\SI{10.8}{\\mega\\hertz}."
     },
     {
       "id": "tia_drive",
@@ -564,7 +564,7 @@
       "legendpos": "south west",
       "ylabel": "Output voltage~[\\si{\\volt}]",
       "axis_extra": "ymin=-0.6, ymax=1.6",
-      "caption": "Output voltage of the amplifier in unity feedback as a DC load current is drawn from its output, over the five process corners. Positive current is drawn out of the output node, so the amplifier must source it; the collapse at \\SIrange{13.6}{15.6}{\\micro\\ampere} is the class-A second stage running out of the fixed current in M5. In the sinking direction the output holds within \\SI{0.8}{\\milli\\volt} of $v_{\\mathrm{cm}}$ all the way to the \\SI{-40}{\\micro\\ampere} end of the sweep, so the sinking capability is bounded below by the sweep and not measured."
+      "caption": "Output voltage as a DC load current is drawn from the output, over the five corners. Positive current is drawn out of the node, so the amplifier must source it; the collapse at \\SIrange{13.6}{15.6}{\\micro\\ampere} is the class-A stage running out of the fixed current in M5. Sinking holds within \\SI{0.8}{\\milli\\volt} of $v_{\\mathrm{cm}}$ to the \\SI{-40}{\\micro\\ampere} sweep limit, so that direction is bounded, not measured."
     },
     {
       "id": "tia_slew",
@@ -578,7 +578,7 @@
       "yprec": 1,
       "legendpos": "north east",
       "ylabel": "Output voltage~[\\si{\\volt}]",
-      "caption": "Large-signal response with the amplifier open-loop, driven by a rail-to-rail input pulse into \\SI{5}{\\pico\\farad}, over the five process corners. The falling edge is \\num{1.7} times faster than the rising edge for the same reason the drive is asymmetric: the second stage is class~A, and M12 sinks the load with a device eight times wider than the fixed current source M5 that has to source it."
+      "caption": "Open-loop large-signal response to a rail-to-rail input pulse into \\SI{5}{\\pico\\farad}, over the five corners. The falling edge is \\num{1.7} times faster because the second stage is class~A: M12 is a driven device, M5 a fixed current source."
     },
     {
       "id": "tia_step",
@@ -592,7 +592,7 @@
       "yprec": 1,
       "legendpos": "south east",
       "ylabel": "Output voltage~[\\si{\\volt}]",
-      "caption": "Rising edge of a \\SI{1}{\\volt} step ($v_{\\mathrm{cm}} \\pm \\SI{0.5}{\\volt}$) in unity feedback into \\SI{5}{\\pico\\farad}, over the five process corners. The window is \\SI{3.5}{\\micro\\second} around the edge at \\SI{100}{\\micro\\second}; the falling edge at \\SI{1.1}{\\milli\\second} is outside it. The output slews for about \\SI{0.4}{\\micro\\second}, overshoots once by \\SIrange{5.0}{9.0}{\\percent} of the step and recovers without ringing --- the excursion is slew recovery, not small-signal ringing, which is what the \\SI{88}{\\degree} phase margin of Table~\\ref{tab:tia-amp} predicts.",
+      "caption": "Rising edge of a \\SI{1}{\\volt} step ($v_{\\mathrm{cm}} \\pm \\SI{0.5}{\\volt}$) in unity feedback into \\SI{5}{\\pico\\farad}, over the five corners; the window is \\SI{3.5}{\\micro\\second} around the edge at \\SI{100}{\\micro\\second}, and the falling edge at \\SI{1.1}{\\milli\\second} lies outside it. The output slews for about \\SI{0.4}{\\micro\\second}, overshoots once by \\SIrange{5.0}{9.0}{\\percent} of the step and recovers without ringing --- slew recovery, not small-signal ringing, as the \\ang{88} phase margin predicts.",
       "axis_extra": "xmin=99.5, xmax=103, ymin=0.70, ymax=1.90, restrict x to domain=99:104, unbounded coords=discard"
     }
   ],
@@ -612,7 +612,7 @@
         "f_pk",
         "zin"
       ],
-      "caption": "Closed-loop transimpedance figures by corner, from \\texttt{TiaFbTB} at $R_f = \\SI{560}{\\kilo\\ohm}$ with $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$. Transimpedance at \\SI{1}{\\hertz} is within \\SI{0.02}{\\percent} of $R_f$ at every corner, so DC accuracy is set by the feedback resistor and not by the amplifier. The \\SI{-3}{\\decibel} bandwidth is not a usable signal bandwidth here because the peak lies inside it; the peaking rows are the ones that matter, and the two slow-NMOS corners are the worst at \\SIrange{6.3}{6.4}{\\decibel}."
+      "caption": "Closed-loop transimpedance by corner, from \\texttt{TiaFbTB} at $R_f = \\SI{560}{\\kilo\\ohm}$ with $C_{\\mathrm{dl}} = \\SI{1}{\\micro\\farad}$. Transimpedance at \\SI{1}{\\hertz} is within \\SI{0.02}{\\percent} of $R_f$ at every corner, so DC accuracy is set by the feedback resistor. The \\SI{-3}{\\decibel} bandwidth is not a usable signal bandwidth because the peak lies inside it; the peaking rows are the ones that matter, and the slow-NMOS corners are worst at \\SIrange{6.3}{6.4}{\\decibel}."
     },
     {
       "id": "tia_transfer",
@@ -631,7 +631,7 @@
         "we_err_n2u",
         "idd"
       ],
-      "caption": "DC transfer of the transimpedance stage by corner. The incremental gain falls by \\SI{0.09}{\\percent} between zero current and \\SI{+2}{\\micro\\ampere}; that is the amplifier's finite loop gain, not resistor non-linearity, because $R_f$ is an ideal resistor in this bench. Virtual-ground error stays under \\SI{0.4}{\\milli\\volt} in both directions. The supply current is the amplifier's own --- the feedback resistor, the load and the sources in this bench are ideal, so no electrode or ADC loading is included."
+      "caption": "DC transfer by corner. Incremental gain falls \\SI{0.09}{\\percent} between zero and \\SI{+2}{\\micro\\ampere} --- the amplifier's finite loop gain, not resistor non-linearity, since $R_f$ is ideal here. Supply current is the amplifier's own; no electrode or ADC loading is included."
     },
     {
       "id": "tia_amp",
@@ -647,7 +647,7 @@
         "pm",
         "gm"
       ],
-      "caption": "Measured small-signal figures of the amplifier alone, from \\texttt{UnityFeedbackTB} with a \\SI{5}{\\pico\\farad} load; compare Table~\\ref{tab:tia-ssparams} for the values the model predicts. A phase margin of \\SIrange{87.6}{88.0}{\\degree} with \\SIrange{24}{26}{\\decibel} of gain margin means the amplifier is heavily overcompensated for this load, which is why the step response of Table~\\ref{tab:tia-step} does not ring. Neither number describes the transimpedance loop, whose feedback network includes the electrode capacitance."
+      "caption": "Measured small-signal figures of the amplifier alone, from \\texttt{UnityFeedbackTB} with a \\SI{5}{\\pico\\farad} load; Table~\\ref{tab:tia-ssparams} gives what the model predicts. \\SIrange{87.6}{88.0}{\\degree} of phase margin with \\SIrange{24}{26}{\\decibel} of gain margin is heavily overcompensated for this load, which is why the step response does not ring. Neither number describes the transimpedance loop, whose feedback network includes the electrode capacitance."
     },
     {
       "id": "tia_noise",
@@ -662,7 +662,7 @@
         "vn_1k",
         "vn_int"
       ],
-      "caption": "Input-referred noise of the amplifier, from \\texttt{UnityFeedbackTB}, where the noise gain is unity. The spectrum is flicker-dominated across the whole signal band --- an \\num{11}-fold fall from \\SI{10}{\\hertz} to \\SI{1}{\\kilo\\hertz} --- so the integrated figure is set by the input pair's area rather than by its bias current. \\textbf{This is not the noise of the transimpedance stage:} the electrode capacitance raises the noise gain from unity at DC in proportion to $2\\pi f R_f C_{\\mathrm{dl}}$ above \\SI{0.28}{\\hertz}, so the closed-loop output noise is considerably larger. It was not simulated in this run."
+      "caption": "Input-referred noise from \\texttt{UnityFeedbackTB}, where the noise gain is unity. The spectrum is flicker-dominated across the signal band, so the integrated figure is set by input-pair area rather than bias current. \\textbf{This is not the noise of the transimpedance stage:} $C_{\\mathrm{dl}}$ raises the noise gain in proportion to $2\\pi f R_f C_{\\mathrm{dl}}$ above \\SI{0.28}{\\hertz}, and the closed-loop output noise was not simulated."
     },
     {
       "id": "tia_drive",
@@ -676,7 +676,7 @@
         "vo_src40",
         "vo_snk40"
       ],
-      "caption": "Output drive limits by corner, from \\texttt{DriveTB} with a \\SI{5}{\\pico\\farad} load. The sourcing limit is the current at which the output has drooped \\SI{1}{\\percent} (\\SI{12.5}{\\milli\\volt}) below $v_{\\mathrm{cm}}$. Sinking is not resolved: the output is still within \\SI{0.8}{\\milli\\volt} of $v_{\\mathrm{cm}}$ at the \\SI{-40}{\\micro\\ampere} end of the sweep, so \\SI{40}{\\micro\\ampere} is a lower bound rather than a measurement. The consequence for the minimum-gain setting is discussed above."
+      "caption": "Output drive limits by corner, from \\texttt{DriveTB} with a \\SI{5}{\\pico\\farad} load; the sourcing limit is the current at \\SI{1}{\\percent} (\\SI{12.5}{\\milli\\volt}) droop. Sinking is not resolved --- the output is still within \\SI{0.8}{\\milli\\volt} of $v_{\\mathrm{cm}}$ at \\SI{-40}{\\micro\\ampere} --- so that figure is a lower bound. The consequence at minimum gain is discussed above."
     },
     {
       "id": "tia_tran",
@@ -689,7 +689,7 @@
         "sr_p",
         "sr_n"
       ],
-      "caption": "Slew rate in each direction, taken as the extreme of the numerical derivative of the open-loop rail-to-rail transient of Figure~\\ref{fig:tia-slew}. These are open-loop full-swing values into \\SI{5}{\\pico\\farad} and are not closed-loop settling rates."
+      "caption": "Slew rate in each direction, from the extreme of the numerical derivative of the open-loop transient of Figure~\\ref{fig:tia-slew}. These are open-loop full-swing values into \\SI{5}{\\pico\\farad}, not closed-loop settling rates."
     },
     {
       "id": "tia_step",
@@ -704,7 +704,7 @@
         "err_1us",
         "und"
       ],
-      "caption": "Step response by corner, from \\texttt{StepUnityFeedbackTB}: a \\SI{1}{\\volt} step into \\SI{5}{\\pico\\farad}, with overshoot expressed as a percentage of the step. The single overshoot peaks about \\SI{0.55}{\\micro\\second} after the edge and is gone immediately: the residual error \\SI{1}{\\micro\\second} after the edge is already \\SI{0.02}{\\percent} of the step. The falling edge, driven by the strong NMOS M12 rather than by the current source M5, shows essentially none."
+      "caption": "Step response by corner: a \\SI{1}{\\volt} step into \\SI{5}{\\pico\\farad}, overshoot as a percentage of the step. The overshoot peaks about \\SI{0.55}{\\micro\\second} after the edge and is gone immediately --- residual error at \\SI{1}{\\micro\\second} is \\SI{0.02}{\\percent} of the step. The falling edge, driven by M12 rather than the current source M5, shows essentially none."
     },
     {
       "id": "tia_range",
@@ -718,7 +718,7 @@
         "cm_lo",
         "cm_hi"
       ],
-      "caption": "Input offset, and the input--output range over which the unity-gain follower tracks its input to better than \\SI{2}{\\milli\\volt}. The PMOS input pair puts the lower edge within \\SI{5}{\\milli\\volt} of \\texttt{vss}, which is what a stage holding a working electrode near ground needs; the upper edge is \\SIrange{2.03}{2.07}{\\volt}, about \\SI{0.44}{\\volt} short of the supply. Offset is under \\SI{0.2}{\\milli\\volt} at every corner, but offset is a mismatch quantity and this is a corner run --- it is not characterised until a Monte Carlo run exists."
+      "caption": "Input offset and the range over which the unity-gain follower tracks its input to better than \\SI{2}{\\milli\\volt}. The PMOS input pair puts the lower edge within \\SI{5}{\\milli\\volt} of \\texttt{vss}, as a stage holding an electrode near ground requires; the upper edge falls \\SI{0.44}{\\volt} short of the supply. Offset is a mismatch quantity and this is a corner run, so it is not characterised until a Monte Carlo run exists."
     },
     {
       "id": "tia_ssparams",
@@ -739,7 +739,7 @@
         "fu_pred",
         "fp2_pred"
       ],
-      "caption": "Small-signal parameters of the amplifier, read from the operating point of \\texttt{UnityFeedbackTB} at \\SI{37}{\\celsius}/\\SI{25}{\\celsius} and \\SI{2.5}{\\volt}. The first four rows are device quantities; the last four are the standard two-stage Miller predictions of Equations~(\\ref{eq:tia-a0}) and~(\\ref{eq:tia-poles}) evaluated from them, for comparison with the measured values of Table~\\ref{tab:tia-amp}. Predicted and measured DC gain agree to better than \\SI{0.1}{\\decibel} at every corner and the dominant pole to \\SI{4}{\\percent}; the measured crossover exceeds the predicted GBW because of the left-half-plane zero, as Section~\\ref{sss:tia-model} explains."
+      "caption": "Small-signal parameters read from the operating point of \\texttt{UnityFeedbackTB}. The first six rows are device quantities; the last four are the two-stage Miller predictions of Equations~(\\ref{eq:tia-a0}) and~(\\ref{eq:tia-poles}) evaluated from them, for comparison with Table~\\ref{tab:tia-amp}. Predicted and measured DC gain agree to better than \\SI{0.1}{\\decibel} at every corner; the measured crossover exceeds the predicted GBW because of the left-half-plane zero, as Section~\\ref{sss:tia-model} explains."
     }
   ],
   "order": [

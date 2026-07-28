@@ -1,7 +1,7 @@
 %% maestro2tex -- generated table; do not edit by hand.
 \begin{table}[htbp]
   \centering
-  \caption[{Input-referred noise of the amplifier, from \texttt{UnityFeedbackTB}, where the noise gain is unity.}]{Input-referred noise of the amplifier, from \texttt{UnityFeedbackTB}, where the noise gain is unity. The spectrum is flicker-dominated across the whole signal band --- an \num{11}-fold fall from \SI{10}{\hertz} to \SI{1}{\kilo\hertz} --- so the integrated figure is set by the input pair's area rather than by its bias current. \textbf{This is not the noise of the transimpedance stage:} the electrode capacitance raises the noise gain from unity at DC in proportion to $2\pi f R_f C_{\mathrm{dl}}$ above \SI{0.28}{\hertz}, so the closed-loop output noise is considerably larger. It was not simulated in this run.}
+  \caption[{Input-referred noise from \texttt{UnityFeedbackTB}, where the noise gain is unity.}]{Input-referred noise from \texttt{UnityFeedbackTB}, where the noise gain is unity. The spectrum is flicker-dominated across the signal band, so the integrated figure is set by input-pair area rather than bias current. \textbf{This is not the noise of the transimpedance stage:} $C_{\mathrm{dl}}$ raises the noise gain in proportion to $2\pi f R_f C_{\mathrm{dl}}$ above \SI{0.28}{\hertz}, and the closed-loop output noise was not simulated.}
   \label{tab:tia-noise}
   \begin{tabular}{lrrrrrrr}
     \toprule
