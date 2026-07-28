@@ -1,0 +1,42 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Load current drawn from the output~[\si{\micro\ampere}]}, ylabel={Output voltage~[\si{\volt}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=black!25, fill=white,
+                    fill opacity=0.9, text opacity=1, row sep=1pt},
+      legend cell align=left, legend pos=south west,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=1},
+      ymin=-0.6, ymax=1.6
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/tia_drive_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/tia_drive_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/tia_drive_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/tia_drive_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/tia_drive_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Output voltage of the amplifier in unity feedback as a DC load current is drawn from its output, over the\,\dots}]{Output voltage of the amplifier in unity feedback as a DC load current is drawn from its output, over the five process corners. Positive current is drawn out of the output node, so the amplifier must source it; the collapse at \SIrange{13.6}{15.6}{\micro\ampere} is the class-A second stage running out of the fixed current in M5. In the sinking direction the output holds within \SI{0.8}{\milli\volt} of $v_{\mathrm{cm}}$ all the way to the \SI{-40}{\micro\ampere} end of the sweep, so the sinking capability is bounded below by the sweep and not measured.}
+  \label{fig:tia-drive}
+\end{figure}

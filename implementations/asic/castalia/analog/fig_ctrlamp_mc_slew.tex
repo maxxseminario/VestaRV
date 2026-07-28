@@ -1,0 +1,39 @@
+%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.86\linewidth, height=6.0cm,
+      xlabel={Slew rate~[\si{\volt\per\micro\second}]}, ylabel={Samples},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0},
+      ymin=0, ymax=68.9,
+      enlarge x limits=0.04, enlarge y limits=false,
+      area legend
+    ]
+      \addplot[ybar interval, draw=mtxA, fill=mtxA!25, line width=0.7pt] table {\MaestroRoot data/ctrlamp_mc_slew_00.dat};
+      \addlegendentry{Slew rate, falling}
+      \addplot[ybar interval, draw=mtxB, fill=mtxB!25, line width=0.7pt] table {\MaestroRoot data/ctrlamp_mc_slew_01.dat};
+      \addlegendentry{Slew rate, rising}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Slew rate on both edges of a \SI{1}{\volt} step into \SI{10}{\pico\farad}.}]{Slew rate on both edges of a \SI{1}{\volt} step into \SI{10}{\pico\farad}. Rising and falling averages are \SI{1.74}{\volt\per\micro\second} and \SI{1.65}{\volt\per\micro\second}, a \SI{5}{\percent} imbalance: the tail current is steered into one input device and mirrored to the output, so the slewing current is equal in both directions by construction.}
+  \label{fig:ctrlamp-mc-slew}
+\end{figure}

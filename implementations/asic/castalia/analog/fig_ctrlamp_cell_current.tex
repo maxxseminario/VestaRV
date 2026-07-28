@@ -1,0 +1,42 @@
+%% maestro2tex -- generated figure; do not edit by hand.
+\providecommand{\MaestroRoot}{include/analog/}
+\begin{figure}[htbp]
+  \centering
+  {\pgfplotsset{compat=1.18}%
+  \begin{tikzpicture}
+    \begin{axis}[
+      width=0.82\linewidth, height=6.2cm,
+      xlabel={Commanded electrode potential $v_{\mathrm{ref}}$~[\si{\volt}]}, ylabel={Cell current $I_{\mathrm{cell}}$~[\si{\micro\ampere}]},
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      minor tick num=1,
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      enlarge x limits=0.02, enlarge y limits=0.10,
+      every axis plot/.append style={line join=round, no marks},
+      legend style={font=\footnotesize, draw=none, fill=none,
+                    at={(0.5,1.02)}, anchor=south, legend columns=-1,
+                    /tikz/every even column/.append style={column sep=9pt}},
+      legend cell align=left,
+      scaled y ticks=false, scaled x ticks=false,
+      y tick label style={/pgf/number format/fixed,
+                          /pgf/number format/precision=0}
+    ]
+      \addplot[mtxA, line width=1.1pt, solid] table {\MaestroRoot data/ctrlamp_cell_current_00.dat};
+      \addlegendentry{tt}
+      \addplot[mtxB, line width=1.1pt, dashed] table {\MaestroRoot data/ctrlamp_cell_current_01.dat};
+      \addlegendentry{ff}
+      \addplot[mtxC, line width=1.1pt, dotted] table {\MaestroRoot data/ctrlamp_cell_current_02.dat};
+      \addlegendentry{fs}
+      \addplot[mtxD, line width=1.1pt, dashdotted] table {\MaestroRoot data/ctrlamp_cell_current_03.dat};
+      \addlegendentry{sf}
+      \addplot[mtxE, line width=1.1pt, densely dashed] table {\MaestroRoot data/ctrlamp_cell_current_04.dat};
+      \addlegendentry{ss}
+    \end{axis}
+  \end{tikzpicture}}
+  \caption[{Cell current against commanded electrode potential, over the five process corners.}]{Cell current against commanded electrode potential, over the five process corners. The amplifier drives the counter electrode of a Randles cell (\SI{1}{\kilo\ohm} CE--RE, \SI{1}{\kilo\ohm} RE--WE, \SI{10}{\kilo\ohm} charge transfer, \SI{1}{\micro\farad} double layer) with the working electrode held at \(v_{\mathrm{cm}}\). The flat ends are the output current limit, and it is closely symmetric in both directions.}
+  \label{fig:ctrlamp-cell-current}
+\end{figure}

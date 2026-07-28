@@ -1,0 +1,17 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Small-signal stability driving the \SI{10}{\pico\farad} test load.}]{Small-signal stability driving the \SI{10}{\pico\farad} test load. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{37}{\celsius}, 200 samples, seed 12345, LDS sampling. Percentiles and worst case are quoted rather than \(\pm 3\sigma\) for the margins, which are not normally distributed. Phase margin is the binding specification at \SI{85.5}{\percent} per-channel yield; gain margin and open-circuit gain pass in every sample. Note that open-circuit gain is measured with only a capacitive load and is not the gain available at the electrode --- the cell reduces it to about \SI{8}{\decibel} (Table~\ref{tab:ctrlamp-cell-loop}), which is the figure that governs regulation accuracy.}
+  \label{tab:ctrlamp-mc-stability}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & $p_{1}$ & $p_{99}$ & Worst & Spec & Yield & 4\,ch \\
+    \midrule
+    Phase margin & \si{\degree} & 200 & 60.71 & 0.70 & 59.35 & 62.42 & 59.27 & $\geq 60.00$ & 85.5 & 53.4 \\
+    Gain margin & \si{\decibel} & 200 & 17.99 & 0.23 & 17.48 & 18.48 & 17.35 & $\geq 10.00$ & 100.0 & 100.0 \\
+    Open-circuit gain $A_{\mathrm{OL}}$ & \si{\decibel} & 200 & 76.46 & 0.83 & 74.32 & 77.88 & 74.13 & $\geq 60.00$ & 100.0 & 100.0 \\
+    Unity-gain frequency $f_{\mathrm{u}}$ & \si{\mega\hertz} & 200 & 2.41 & 0.30 & 1.73 & 3.11 & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

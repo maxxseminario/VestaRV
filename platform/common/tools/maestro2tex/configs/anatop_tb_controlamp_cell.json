@@ -1,0 +1,244 @@
+{
+  "block": "ControlAmp",
+  "tex_root": "include/analog/",
+  "nominal_corner": "tt",
+  "supply_var": "VDD25",
+  "emit_master": true,
+  "emit_corner_table": true,
+  "corner_table_caption": "Process, temperature and supply points simulated for the control amplifier. The typical point is the Monte Carlo process section evaluated with zero statistical offset at the \\SI{37}{\\celsius} on-body operating temperature; the four skew corners are the imported foundry corners, which carry \\SI{25}{\\celsius}.",
+  "tests": {
+    "cell_dc": {
+      "dir": "CellDriveTB",
+      "result": "dc",
+      "xlabel": "Commanded electrode potential $v_{\\mathrm{ref}}$~[\\si{\\volt}]",
+      "xunit_tex": "\\si{\\volt}",
+      "nominal_x": 1.25,
+      "signals": {
+        "ce_w": {
+          "expr": "VS(\"/CE\")",
+          "label": "Counter-electrode voltage $V_{\\mathrm{CE}}$",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "icell": {
+          "expr": "IS(\"/SRC_WE/PLUS\")",
+          "label": "Cell current $I_{\\mathrm{cell}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "re_err": {
+          "expr": "(VS(\"/RE\") - xval(VS(\"/RE\")))",
+          "label": "Regulation error $V_{\\mathrm{RE}}-v_{\\mathrm{ref}}$",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "i_src_max": {
+          "expr": "ymax(IS(\"/SRC_WE/PLUS\"))",
+          "label": "Max sourced cell current",
+          "short_label": "$I_{\\mathrm{SRC}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "i_sink_max": {
+          "expr": "abs(ymin(IS(\"/SRC_WE/PLUS\")))",
+          "label": "Max sunk cell current",
+          "short_label": "$I_{\\mathrm{SNK}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "ce_hi": {
+          "expr": "ymax(VS(\"/CE\"))",
+          "label": "$V_{\\mathrm{CE}}$ upper extreme",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "ce_lo": {
+          "expr": "ymin(VS(\"/CE\"))",
+          "label": "$V_{\\mathrm{CE}}$ lower extreme",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "head_hi": {
+          "expr": "(VAR(\"VDD25\") - ymax(VS(\"/CE\")))",
+          "label": "Unused headroom to \\texttt{vdd}",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "head_lo": {
+          "expr": "ymin(VS(\"/CE\"))",
+          "label": "Unused headroom to \\texttt{vss}",
+          "unit_tex": "\\si{\\volt}",
+          "scale": 1.0,
+          "digits": 3
+        },
+        "re_err_0": {
+          "expr": "value((VS(\"/RE\") - xval(VS(\"/RE\"))) VAR(\"V_CM\"))",
+          "label": "Regulation error at zero current",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 2
+        },
+        "re_err_p10": {
+          "expr": "value((VS(\"/RE\") - xval(VS(\"/RE\"))) cross(IS(\"/SRC_WE/PLUS\") 1e-05 1 \"rising\"))",
+          "label": "Regulation error at \\SI{+10}{\\micro\\ampere}",
+          "unit_tex": "\\si{\\milli\\volt}",
+          "scale": 1000.0,
+          "digits": 1
+        },
+        "i_tot": {
+          "expr": "abs(IDC(\"/POWER/SRC_VDD25/PLUS\"))",
+          "label": "Total supply current $I_{\\mathrm{DD}}$",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 2
+        }
+      }
+    },
+    "cell_stb": {
+      "dir": "CellDriveTB",
+      "result": "stb",
+      "xlabel": "Frequency~[\\si{\\hertz}]",
+      "xunit_tex": "\\si{\\hertz}",
+      "signals": {
+        "lg_db": {
+          "expr": "dB20(getData(\"loopGain\" ?result \"stb\"))",
+          "label": "Loop gain $T$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "aol_db": {
+          "expr": "ymax(dB20(getData(\"loopGain\" ?result \"stb\")))",
+          "label": "DC loop gain $T_0$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "ugf": {
+          "expr": "cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\")",
+          "label": "Loop unity-gain frequency",
+          "unit_tex": "\\si{\\hertz}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "pm": {
+          "expr": "value(phase(getData(\"loopGain\" ?result \"stb\")) cross(dB20(getData(\"loopGain\" ?result \"stb\")) 0 1 \"falling\"))",
+          "label": "Phase margin",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 1
+        }
+      }
+    }
+  },
+  "figures": [
+    {
+      "id": "ctrlamp_cell_current",
+      "test": "cell_dc",
+      "signals": [
+        "icell"
+      ],
+      "corners": "all",
+      "width": "0.82\\linewidth",
+      "height": "6.2cm",
+      "yprec": 0,
+      "ylabel": "Cell current $I_{\\mathrm{cell}}$~[\\si{\\micro\\ampere}]",
+      "caption": "Cell current against commanded electrode potential, over the five process corners. The amplifier drives the counter electrode of a Randles cell (\\SI{1}{\\kilo\\ohm} CE--RE, \\SI{1}{\\kilo\\ohm} RE--WE, \\SI{10}{\\kilo\\ohm} charge transfer, \\SI{1}{\\micro\\farad} double layer) with the working electrode held at \\(v_{\\mathrm{cm}}\\). The flat ends are the output current limit, and it is closely symmetric in both directions."
+    },
+    {
+      "id": "ctrlamp_cell_ce",
+      "test": "cell_dc",
+      "signals": [
+        "ce_w"
+      ],
+      "corners": "all",
+      "width": "0.82\\linewidth",
+      "height": "6.2cm",
+      "yprec": 1,
+      "ylabel": "Counter-electrode voltage $V_{\\mathrm{CE}}$~[\\si{\\volt}]",
+      "axis_extra": "ymin=0, ymax=2.5",
+      "caption": "Counter-electrode voltage over the same sweep, against the full supply range. $V_{\\mathrm{CE}}$ stops about \\SI{1}{\\volt} short of each rail because the amplifier reaches its current limit before its voltage limit, so the drive shortfall in Table~\\ref{tab:ctrlamp-cell-corners} is a current-budget problem rather than a compliance one."
+    },
+    {
+      "id": "ctrlamp_cell_reerr",
+      "test": "cell_dc",
+      "signals": [
+        "re_err"
+      ],
+      "corners": "all",
+      "width": "0.82\\linewidth",
+      "height": "6.2cm",
+      "yprec": 0,
+      "ylabel": "Regulation error~[\\si{\\milli\\volt}]",
+      "axis_extra": "ymin=-120, ymax=120, restrict y to domain=-400:400",
+      "caption": "Error between the reference-electrode potential and the commanded value. Within the drive range it grows with cell current, in proportion to the low loop gain available at the electrode (Table~\\ref{tab:ctrlamp-cell-loop}); the steep excursions at each end are the amplifier out of current, where the loop no longer regulates. This error appears directly on the cell potential."
+    }
+  ],
+  "tables": [
+    {
+      "id": "ctrlamp_cell_corners",
+      "type": "matrix",
+      "test": "cell_dc",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "i_src_max",
+        "i_sink_max",
+        "ce_hi",
+        "ce_lo",
+        "head_hi",
+        "head_lo",
+        "re_err_0",
+        "re_err_p10",
+        "i_tot"
+      ],
+      "caption": "Cell-drive performance by process corner, at \\SI{2.5}{\\volt} with \\texttt{BiasAdj}~=~37. $I_{\\mathrm{SRC}}$ and $I_{\\mathrm{SNK}}$ are the largest currents the amplifier delivers into the cell in each direction; their near-equality across every corner is the headline property of this topology. The two headroom rows are the voltage left between $V_{\\mathrm{CE}}$ and each supply rail at that current limit --- both near \\SI{1}{\\volt}, confirming the limit is current, not swing. The regulation-error rows give the electrode-potential error at zero current and at \\SI{10}{\\micro\\ampere} of cell current."
+    },
+    {
+      "id": "ctrlamp_cell_loop",
+      "type": "matrix",
+      "test": "cell_stb",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "aol_db",
+        "ugf",
+        "pm"
+      ],
+      "caption": "Loop stability measured at the reference electrode with the cell in the loop, by \\texttt{stb} analysis through the feedback probe. The loop gain available at the electrode is an order of magnitude smaller than the amplifier's own gain because the cell loads the high-impedance output node; it is this figure, not the open-circuit gain, that sets the regulation error of Table~\\ref{tab:ctrlamp-cell-corners}. The phase margin is correspondingly large --- the loop crosses unity well below any internal pole --- so the control loop is unconditionally stable into this cell but slow, with a unity-gain frequency of a few tens of hertz."
+    }
+  ],
+  "order": [
+    "note_ctrlamp_intro",
+    "sch_ctrlamp_core",
+    "tab_ControlAmp_corners",
+    "fig_ctrlamp_cell_current",
+    "fig_ctrlamp_cell_ce",
+    "tab_ctrlamp_cell_corners",
+    "fig_ctrlamp_cell_reerr",
+    "tab_ctrlamp_cell_loop",
+    "note_ctrlamp_mc",
+    "fig_ctrlamp_mc_celldrive",
+    "tab_ctrlamp_mc_celldrive",
+    "fig_ctrlamp_mc_offset",
+    "fig_ctrlamp_mc_pm",
+    "tab_ctrlamp_mc_stability",
+    "tab_ctrlamp_mc_noise",
+    "fig_ctrlamp_mc_slew",
+    "tab_ctrlamp_mc_step",
+    "tab_ctrlamp_mc_bias"
+  ],
+  "corner_labels": {
+    "pt1": "tt"
+  }
+}

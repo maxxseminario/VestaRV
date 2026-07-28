@@ -66,6 +66,18 @@ DIVERGING = ['184F95', '2A78D6', '9EC5F4', 'F0EFEC', 'F8AAA3', 'D2383A', '911E22
 # full-size document. Measured on this TRM: 26x161 builds, 26x321 does not.
 HEATMAP_CELL_WARN = 5000
 
+# Spectre writes +/-1.11111e+36 into a Monte Carlo scalarfile when a measurement
+# has no answer -- a cross() that never crosses inside the swept range, a
+# phase margin on a loop whose phase never reaches -180. It is NOT a number:
+# averaged in, one such sample drags a microamp mean to 1e34. Every sample at or
+# beyond this magnitude is held out of the statistics and counted separately,
+# because "3 of 200 samples never crossed" is itself a result and must not be
+# silently dropped or silently averaged.
+MC_SENTINEL = 1e35
+
+# Spec limits in an mcparam row are written as +/-1e+36 when unbounded.
+MC_NO_LIMIT = 1e35
+
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
@@ -256,6 +268,26 @@ def load_corners(rawdir, block):
     return [(r['dir'], r['label'], r['vars']) for r in rows]
 
 
+def relabel_corners(corners, mapping):
+    """Rename discovered corner labels from the config.
+
+    A point whose model list carries no `cor_std_mos.scs` -- a typical point
+    selected through a Monte Carlo process section, say -- has no corner name to
+    discover and falls back to `ptN`, which is meaningless in a published table.
+    The mapping is keyed on the discovered label, so it is explicit about what it
+    is renaming rather than silently rewriting whatever lands in a position.
+    """
+    if not mapping:
+        return corners
+    out = []
+    for cdirname, label, dvars in corners:
+        out.append((cdirname, mapping.get(label, label), dvars))
+    unused = sorted(set(mapping) - set(c[1] for c in corners) - set(mapping.values()))
+    if unused:
+        info('corner_labels: no corner named %s in this run' % ', '.join(unused))
+    return out
+
+
 def discover_tests(results_dir, corners):
     tests = []
     for cdirname, _, _ in corners:
@@ -404,6 +436,263 @@ def read_meta(path):
 
 
 # ---------------------------------------------------------------------------
+# Monte Carlo: a second, licence-free extraction path
+# ---------------------------------------------------------------------------
+#
+# An MC run does not fit the corner-point model the rest of this tool is built
+# on, and cannot be made to. Maestro runs Monte Carlo in chunks (numruns=17 here)
+# and writes one point directory per chunk -- 1, 18, 35, ... 188 for 200 samples
+# -- so the point directories are neither one-per-sample nor consecutive, and the
+# per-sample results are not in them at all. Spectre appends every sample's
+# scalars to ONE aggregate pair of files under the non-numeric sibling `psf/`:
+#
+#     <run>/psf/<test>/monteCarlo/mcdata    one tab-separated row per sample
+#     <run>/psf/<test>/monteCarlo/mcparam   one row per output, IN COLUMN ORDER
+#
+# mcparam is self-describing -- `name <lo> <hi> "<ocean expr>"` -- so the column
+# mapping and the spec limits both come from the run itself and neither has to be
+# guessed or restated in the config. And because the data is already reduced to
+# scalars, reading it needs no OCEAN and no Virtuoso licence: this path is a
+# parse and a copy.
+
+
+def read_mcparam(path):
+    """[(name, lo, hi, expr)] in mcdata column order; lo/hi None when unbounded."""
+    out = []
+    if not os.path.isfile(path):
+        return out
+    with open(path) as f:
+        for line in f:
+            line = line.rstrip('\n')
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split('\t')
+            if len(parts) < 3:
+                continue
+            try:
+                lo, hi = float(parts[1]), float(parts[2])
+            except ValueError:
+                continue
+            expr = parts[3].strip('"') if len(parts) > 3 else ''
+            out.append((parts[0],
+                        None if lo <= -MC_NO_LIMIT else lo,
+                        None if hi >= MC_NO_LIMIT else hi,
+                        expr))
+    return out
+
+
+def read_mcdata(path, ncols):
+    """[[float] * ncols] -- one row per sample.
+
+    Every mcdata line ends in a trailing tab, so a naive split yields a final
+    empty field; and a test with no outputs defined yields 200 blank lines, which
+    is a real and silent failure mode worth surfacing rather than crashing on.
+    """
+    rows = []
+    if not os.path.isfile(path):
+        return rows
+    with open(path) as f:
+        for line in f:
+            parts = [p for p in line.rstrip('\n').split('\t') if p != '']
+            if not parts:
+                continue
+            vals = []
+            for p in parts[:ncols]:
+                try:
+                    vals.append(float(p))
+                except ValueError:
+                    vals.append(float('nan'))
+            if len(vals) == ncols:
+                rows.append(vals)
+    return rows
+
+
+def mc_run_info(netlist_path):
+    """Scrape the montecarlo statement and conditions out of a run's input.scs.
+
+    Captured at copy time and written into the CSV, because input.scs goes away
+    with the run and the seed/sample count are exactly what a TRM table has to
+    quote for the characterisation to be reproducible.
+    """
+    info_ = {}
+    if not os.path.isfile(netlist_path):
+        return info_
+    with open(netlist_path) as f:
+        txt = f.read()
+    m = re.search(r'\bmontecarlo\b(.*?)\{', txt, re.S)
+    if m:
+        for key in ('numruns', 'seed', 'variations', 'sampling', 'donominal'):
+            mm = re.search(r'\b%s\s*=\s*(\S+)' % key, m.group(1))
+            if mm:
+                info_[key] = mm.group(1)
+    mm = re.search(r'\btemp\s*=\s*([-\d.]+)', txt)
+    if mm:
+        info_['temp'] = mm.group(1)
+    mm = re.search(r'section\s*=\s*(\w+)', txt)
+    if mm:
+        info_['section'] = mm.group(1)
+    return info_
+
+
+def mc_csv_path(rawdir, test):
+    return os.path.join(rawdir, '%s__mc.csv' % test)
+
+
+def copy_mc(results_dir, cfg, rawdir):
+    """Copy each MC test's per-sample scalars into rawdir, self-describing.
+
+    Same contract as the OCEAN CSVs: what lands in rawdir must outlive the run
+    directory, so the spec limits, the column names and the run conditions are
+    all written into the file rather than re-read at render time.
+    """
+    n_written = 0
+    for tname, tspec in sorted(cfg['tests'].items()):
+        tdir = test_dir(tname, tspec)
+        mcdir = os.path.join(results_dir, 'psf', tdir, 'monteCarlo')
+        cols = read_mcparam(os.path.join(mcdir, 'mcparam'))
+        if not cols:
+            # 200 samples drawn and nothing measured: the test ran, so there is
+            # no error anywhere, and every figure built on it would just be
+            # absent. Say so loudly here -- this is one of the two silent-zero
+            # failure modes.
+            info('MC test %s: mcparam defines NO outputs -- the run drew samples '
+                 'and measured nothing. Add outputs to the test and re-run.' % tname)
+            continue
+        rows = read_mcdata(os.path.join(mcdir, 'mcdata'), len(cols))
+        if not rows:
+            info('MC test %s: mcparam names %d output(s) but mcdata is empty'
+                 % (tname, len(cols)))
+            continue
+        run = mc_run_info(os.path.join(results_dir, 'psf', tdir, 'netlist', 'input.scs'))
+        path = mc_csv_path(rawdir, tname)
+        with open(path, 'w') as f:
+            f.write('# maestro2tex monte carlo -- test=%s samples=%d\n' % (tname, len(rows)))
+            f.write('#@ %s\n' % ' '.join('%s=%s' % (k, run[k]) for k in sorted(run)))
+            for name, lo, hi, expr in cols:
+                f.write('#! %s\t%s\t%s\t%s\n' % (
+                    name,
+                    '' if lo is None else repr(lo),
+                    '' if hi is None else repr(hi), expr))
+            for r in rows:
+                f.write('\t'.join('%.10g' % v for v in r) + '\n')
+        info('MC %-26s %d samples x %d output(s)' % (tname, len(rows), len(cols)))
+        n_written += 1
+    return n_written
+
+
+def read_mc(path):
+    """(run_info, [(name, lo, hi, expr)], [[float]]) or None."""
+    if not os.path.isfile(path):
+        return None
+    run, cols, rows = {}, [], []
+    with open(path) as f:
+        for line in f:
+            line = line.rstrip('\n')
+            if line.startswith('#@'):
+                for tok in line[2:].split():
+                    if '=' in tok:
+                        k, v = tok.split('=', 1)
+                        run[k] = v
+            elif line.startswith('#!'):
+                p = line[2:].lstrip().split('\t')
+                if len(p) >= 3:
+                    cols.append((p[0],
+                                 float(p[1]) if p[1] else None,
+                                 float(p[2]) if p[2] else None,
+                                 p[3] if len(p) > 3 else ''))
+            elif line.startswith('#') or not line.strip():
+                continue
+            else:
+                try:
+                    rows.append([float(x) for x in line.split('\t') if x != ''])
+                except ValueError:
+                    pass
+    if not cols or not rows:
+        return None
+    return (run, cols, rows)
+
+
+def mc_column(mc, name):
+    """The valid samples of one output, plus how many were not measurable."""
+    run, cols, rows = mc
+    idx = None
+    for i, c in enumerate(cols):
+        if c[0] == name:
+            idx = i
+            break
+    if idx is None:
+        return None
+    vals, n_bad = [], 0
+    for r in rows:
+        if idx >= len(r):
+            n_bad += 1
+            continue
+        v = r[idx]
+        if v != v or abs(v) >= MC_SENTINEL:
+            n_bad += 1
+        else:
+            vals.append(v)
+    return (vals, n_bad, cols[idx][1], cols[idx][2])
+
+
+def percentile(sorted_vals, q):
+    """Linear-interpolated percentile, q in [0, 1]."""
+    n = len(sorted_vals)
+    if n == 0:
+        return None
+    if n == 1:
+        return sorted_vals[0]
+    k = q * (n - 1)
+    f = int(k)
+    c = min(f + 1, n - 1)
+    return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
+
+
+def mc_stats(vals, n_bad, lo, hi, nch=1):
+    """Every statistic a Monte Carlo table can print, from one sample vector.
+
+    sigma is the sample standard deviation (n-1). Yield is counted over the
+    samples that produced a number; `n_nomeas` carries the rest so a yield of
+    100 % on 197 of 200 samples can never be read as 100 % of 200.
+    """
+    d = {'n': len(vals), 'n_nomeas': n_bad, 'spec_lo': lo, 'spec_hi': hi}
+    if not vals:
+        return d
+    n = len(vals)
+    mu = sum(vals) / n
+    sd = (sum((x - mu) ** 2 for x in vals) / (n - 1)) ** 0.5 if n > 1 else 0.0
+    sv = sorted(vals)
+    d.update({
+        'mean': mu, 'sigma': sd, 'min': sv[0], 'max': sv[-1],
+        'median': percentile(sv, 0.5),
+        'p1': percentile(sv, 0.01), 'p99': percentile(sv, 0.99),
+        'mean_p3s': mu + 3 * sd, 'mean_m3s': mu - 3 * sd,
+    })
+    if lo is not None or hi is not None:
+        npass = sum(1 for x in vals
+                    if (lo is None or x >= lo) and (hi is None or x <= hi))
+        p = float(npass) / n
+        d['yield'] = 100.0 * p
+        d['yield_chip'] = 100.0 * (p ** nch)
+        # Worst-case distance to the limit that actually binds, in the units of
+        # the quantity -- a margin, not a probability.
+        marg = []
+        if hi is not None:
+            marg.append(hi - sv[-1])
+        if lo is not None:
+            marg.append(sv[0] - lo)
+        d['margin'] = min(marg)
+        if sd > 0:
+            cp = []
+            if hi is not None:
+                cp.append((hi - mu) / (3 * sd))
+            if lo is not None:
+                cp.append((mu - lo) / (3 * sd))
+            d['cpk'] = min(cp)
+    return d
+
+
+# ---------------------------------------------------------------------------
 # Metrics
 # ---------------------------------------------------------------------------
 
@@ -523,6 +812,63 @@ LEGEND_INSIDE = (
 )
 
 
+def short_caption(caption, limit=110):
+    """The one-line form of a caption, for \\listoffigures / \\listoftables.
+
+    LaTeX puts the *whole* caption in those lists unless a short form is given,
+    which turns a page-long index into a second copy of the body text. The first
+    sentence is what a reader scans an index for, so that is what is used; if it
+    is still too long it is cut at a word boundary.
+
+    Splitting on '. ' (period-space) leaves decimals and \\SI{0.1}{...} alone.
+    A candidate whose braces do not balance is discarded rather than emitted --
+    a truncated \\texttt{ would take the rest of the document with it. Math
+    shifts are checked the same way and for the same reason: a cut at a word
+    boundary inside $R_f = \\SI{560}{\\kilo\\ohm}$ balances its braces but leaves
+    one unpaired '$', and the .lof then fails with "Extra }, or forgotten $".
+    """
+    def balanced(s):
+        d, dollars = 0, 0
+        for i, ch in enumerate(s):
+            esc = i > 0 and s[i - 1] == '\\'
+            if ch in '{}' and not esc:
+                d += 1 if ch == '{' else -1
+                if d < 0:
+                    return False
+            elif ch == '$' and not esc:
+                dollars += 1
+        return d == 0 and dollars % 2 == 0
+
+    flat = ' '.join(caption.split())
+    depth, cut = 0, None
+    for i, ch in enumerate(flat):
+        if ch in '{}' and (i == 0 or flat[i - 1] != '\\'):
+            depth += 1 if ch == '{' else -1
+        elif ch == '.' and depth == 0 and flat[i:i + 2] == '. ':
+            cut = i + 1
+            break
+    cand = flat[:cut] if cut else flat
+    if len(cand) > limit:
+        head = cand[:limit].rsplit(' ', 1)[0]
+        if balanced(head):
+            cand = head + '\\,\\dots'
+    if not balanced(cand):
+        return None
+    return cand
+
+
+def _caption_cmd(caption):
+    """`\\caption` with a short form when one is worth having.
+
+    The short form is wrapped in braces so brackets inside it cannot terminate
+    the optional argument.
+    """
+    s = short_caption(caption)
+    if not s or len(s) >= len(' '.join(caption.split())):
+        return '  \\caption{%s}\n' % caption
+    return '  \\caption[{%s}]{%s}\n' % (s, caption)
+
+
 def emit_palette(f):
     f.write('% Categorical palette: slots 1-5 of the validated reference palette,\n')
     f.write('% in documented order. Dash patterns are a secondary encoding for print.\n')
@@ -598,7 +944,7 @@ def emit_figure(outdir, texroot, figid, spec, series, caption, xlabel, ylabel,
                     % (curve_style(i), rel))
             f.write('      \\addlegendentry{%s}\n' % legend)
         f.write('    \\end{axis}\n  \\end{tikzpicture}}\n')
-        f.write('  \\caption{%s}\n' % caption)
+        f.write(_caption_cmd(caption))
         f.write('  \\label{fig:%s}\n' % figid.replace('_', '-'))
         f.write('\\end{figure}\n')
     return path
@@ -684,22 +1030,165 @@ def emit_heatmap(outdir, texroot, figid, spec, cols, overlays, caption):
             f.write('        table {\\MaestroRoot %s};\n' % rel)
             f.write('      \\addlegendentry{%s}\n' % legend)
         f.write('    \\end{axis}\n  \\end{tikzpicture}}\n')
-        f.write('  \\caption{%s}\n' % caption)
+        f.write(_caption_cmd(caption))
         f.write('  \\label{fig:%s}\n' % figid.replace('_', '-'))
         f.write('\\end{figure}\n')
     return path
 
 
-def emit_table(outdir, tabid, header, rows, caption, colspec=None):
+def mc_histogram(vals, nbins, lo=None, hi=None):
+    """[(left_edge, count)] plus the trailing edge, over the sample range.
+
+    Binned in Python rather than by pgfplots' statistics library, which is not
+    among the packages the TRM preamble guarantees. The range is the data's own,
+    widened to include a spec limit only when that limit is close enough to the
+    data to be worth showing on the same axis -- see emit_histogram.
+    """
+    x0, x1 = min(vals), max(vals)
+    if lo is not None:
+        x0 = min(x0, lo)
+    if hi is not None:
+        x1 = max(x1, hi)
+    if x1 <= x0:
+        x1 = x0 + 1.0
+    w = (x1 - x0) / nbins
+    counts = [0] * nbins
+    for v in vals:
+        k = int((v - x0) / w)
+        if k >= nbins:
+            k = nbins - 1
+        if k < 0:
+            k = 0
+        counts[k] += 1
+    return [(x0 + i * w, counts[i]) for i in range(nbins)], x1
+
+
+def emit_histogram(outdir, texroot, figid, spec, dists, caption, xlabel, ylabel):
+    """One or more Monte Carlo distributions on a shared axis, with spec rules.
+
+    `dists` is [(legend, vals, scale, speclines)] where speclines is
+    [(value, label)] already scaled. Two distributions on one axis is the
+    back-to-back case (a sink and a source limit); more than two stops being
+    readable and the caller should split the figure.
+
+    A spec limit that sits far outside the data is the case this has to get
+    right: drawing it would compress the whole distribution into one bar and
+    hide the very tail the figure exists to show, while dropping it would let
+    the axis imply the design passes. So a limit further than `spec_span` times
+    the data width is drawn as an edge annotation with its value, and the axis
+    stays on the data.
+    """
+    nbins = int(spec.get('bins', 24))
+    span = float(spec.get('spec_span', 1.5))
+
+    allv = [v * sc for _, vals, sc, _ in dists for v in vals]
+    dmin, dmax = min(allv), max(allv)
+    dwidth = (dmax - dmin) or 1.0
+
+    # Two distributions sharing one figure usually share one pair of limits
+    # (a back-to-back sink/source spec is one number, not two), so the same
+    # rule must not be stamped once per distribution.
+    onax, offax, seen = [], [], set()
+    for _, _, _, lines in dists:
+        for val, lab in lines:
+            if (val, lab) in seen:
+                continue
+            seen.add((val, lab))
+            if dmin - span * dwidth <= val <= dmax + span * dwidth:
+                onax.append((val, lab))
+            else:
+                offax.append((val, lab))
+
+    lo = min([dmin] + [v for v, _ in onax])
+    hi = max([dmax] + [v for v, _ in onax])
+
+    datrel, ymax = [], 0
+    for i, (legend, vals, sc, _) in enumerate(dists):
+        bins, edge = mc_histogram([v * sc for v in vals], nbins, lo, hi)
+        base = 'data/%s_%02d.dat' % (figid, i)
+        with open(os.path.join(outdir, base), 'w') as f:
+            f.write('# left_edge count  (written by maestro2tex)\n')
+            for x, c in bins:
+                f.write('%.10g %d\n' % (x, c))
+            # ybar interval needs the closing edge; its count is never drawn.
+            f.write('%.10g 0\n' % edge)
+        ymax = max(ymax, max(c for _, c in bins))
+        datrel.append((legend, base))
+
+    path = os.path.join(outdir, 'fig_%s.tex' % figid)
+    with open(path, 'w') as f:
+        f.write('%% maestro2tex -- generated Monte Carlo histogram; do not edit by hand.\n')
+        f.write('\\providecommand{\\MaestroRoot}{%s}\n' % texroot)
+        f.write('\\begin{figure}[htbp]\n  \\centering\n')
+        f.write('  {\\pgfplotsset{compat=1.18}%\n')
+        f.write('  \\begin{tikzpicture}\n')
+        f.write('    \\begin{axis}[\n      ')
+        f.write(AXIS_STYLE % {
+            'w': spec.get('width', '0.80\\linewidth'),
+            'h': spec.get('height', '5.6cm'),
+            'xlabel': xlabel, 'ylabel': ylabel,
+            'legend': LEGEND_ABOVE,
+            'ticks': TICKS_LINEAR % {'yprec': spec.get('yprec', 0)},
+        })
+        f.write(',\n      ymin=0, ymax=%g' % (ymax * 1.30))
+        f.write(',\n      enlarge x limits=0.04, enlarge y limits=false')
+        f.write(',\n      area legend')
+        extra = spec.get('axis_extra')
+        if extra:
+            f.write(',\n      %s' % extra)
+        f.write('\n    ]\n')
+        for i, (legend, rel) in enumerate(datrel):
+            cname = PALETTE[i % len(PALETTE)][0]
+            f.write('      \\addplot[ybar interval, draw=%s, fill=%s!25, '
+                    'line width=0.7pt] table {\\MaestroRoot %s};\n'
+                    % (cname, cname, rel))
+            f.write('      \\addlegendentry{%s}\n' % legend)
+        # Spec rules last so they sit on top of the bars. Drawn to the axis
+        # frame rather than to a y value so they span the plot whatever the
+        # bin counts turn out to be.
+        axspan = (hi - lo) or 1.0
+        for val, lab in onax:
+            # A rule that lands near an axis edge would have its label hang off
+            # the plot and be clipped, which is how a "60 deg target" annotation
+            # renders as "deg target". Lean the label inward instead.
+            rel = (val - lo) / axspan
+            pos = 'above right' if rel < 0.15 else (
+                'above left' if rel > 0.85 else 'above')
+            f.write('      \\draw[black!70, line width=1.0pt, densely dashed] '
+                    '({axis cs:%.10g,0}|-{rel axis cs:0,0}) -- '
+                    '({axis cs:%.10g,0}|-{rel axis cs:0,0.90})\n'
+                    '        node[%s, font=\\footnotesize, inner sep=1pt] {%s};\n'
+                    % (val, val, pos, lab))
+        for val, lab in offax:
+            side = 'right' if val > dmax else 'left'
+            anch = 'east' if val > dmax else 'west'
+            f.write('      \\node[anchor=%s, font=\\footnotesize, align=%s, '
+                    'text=black!70] at (rel axis cs:%s,0.93) {%s};\n'
+                    % (anch, side, '0.98' if val > dmax else '0.02', lab))
+        f.write('    \\end{axis}\n  \\end{tikzpicture}}\n')
+        f.write(_caption_cmd(caption))
+        f.write('  \\label{fig:%s}\n' % figid.replace('_', '-'))
+        f.write('\\end{figure}\n')
+    return path, [lab for _, lab in offax]
+
+
+def emit_table(outdir, tabid, header, rows, caption, colspec=None, fontsize=None):
     path = os.path.join(outdir, 'tab_%s.tex' % tabid)
     ncol = len(header)
     if colspec is None:
         colspec = 'l' + 'r' * (ncol - 1)
+    # A statistics row is much wider than a corner row -- eleven columns of
+    # numbers plus a long parameter name overruns \textwidth and LaTeX prints
+    # it into the margin rather than complaining in a way anyone notices.
+    if fontsize is None and ncol >= 9:
+        fontsize = 'footnotesize' if ncol >= 11 else 'small'
     with open(path, 'w') as f:
         f.write('%% maestro2tex -- generated table; do not edit by hand.\n')
         f.write('\\begin{table}[htbp]\n  \\centering\n')
-        f.write('  \\caption{%s}\n' % caption)
+        f.write(_caption_cmd(caption))
         f.write('  \\label{tab:%s}\n' % tabid.replace('_', '-'))
+        if fontsize:
+            f.write('  \\%s\n' % fontsize)
         f.write('  \\begin{tabular}{%s}\n    \\toprule\n' % colspec)
         f.write('    %s \\\\\n    \\midrule\n' % ' & '.join(header))
         for r in rows:
@@ -722,6 +1211,13 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
 
     def load(test, corner, signame):
         return read_csv(os.path.join(rawdir, '%s__%s__%s.csv' % (test, corner, signame)))
+
+    _mc_cache = {}
+
+    def mcload(test):
+        if test not in _mc_cache:
+            _mc_cache[test] = read_mc(mc_csv_path(rawdir, test))
+        return _mc_cache[test]
 
     def sigspec(test, name):
         return _signals_for(cfg, cfg['tests'][test]).get(name, {})
@@ -854,9 +1350,54 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
                  'runs out of TeX main memory'
                  % (len(cols) * ny, HEATMAP_CELL_WARN))
 
+    # ---------------- Monte Carlo histograms ----------------
+    for spec in cfg.get('figures', []):
+        if spec.get('kind') != 'histogram':
+            continue
+        figid = spec['id']
+        test = spec['test']
+        mc = mcload(test)
+        if not mc:
+            info('skip histogram %s (no Monte Carlo data for test %s)' % (figid, test))
+            continue
+        wanted = spec.get('signals') or [spec['signal']]
+        dists, missing = [], []
+        for sname in wanted:
+            col = mc_column(mc, sname)
+            if not col or not col[0]:
+                missing.append(sname)
+                continue
+            vals, n_bad, lo, hi = col
+            ss = sigspec(test, sname)
+            sc = ss.get('scale', 1.0)
+            lo, hi = _mc_limits(spec, ss, lo, hi)
+            lines = []
+            for lim, txt in ((lo, spec.get('spec_lo_label')),
+                             (hi, spec.get('spec_hi_label'))):
+                if lim is None:
+                    continue
+                lines.append((lim * sc, txt if txt else
+                              ('%g' % (lim * sc))))
+            dists.append((ss.get('label', sname), vals, sc, lines))
+            if n_bad:
+                info('histogram %s: %s has %d sample(s) with no measurable value'
+                     % (figid, sname, n_bad))
+        if not dists:
+            info('skip histogram %s (no usable outputs: %s)' % (figid, ', '.join(missing)))
+            continue
+        ss0 = sigspec(test, wanted[0])
+        path, off = emit_histogram(
+            outdir, texroot, figid, spec, dists, spec.get('caption', figid),
+            spec.get('xlabel', _axis_label(ss0)),
+            spec.get('ylabel', 'Samples'))
+        written.append(path)
+        info('histogram %-24s %d distribution(s), %d sample(s)%s'
+             % (figid, len(dists), len(dists[0][1]),
+                (', spec off scale: %s' % ', '.join(off)) if off else ''))
+
     # ---------------- figures ----------------
     for spec in cfg.get('figures', []):
-        if spec.get('kind') in ('heatmap', 'sweepline'):
+        if spec.get('kind') in ('heatmap', 'sweepline', 'histogram'):
             continue
         figid = spec['id']
         test = spec['test']
@@ -961,6 +1502,46 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
                                           spec.get('caption', tabid)))
                 info('table  %-28s %d row(s)' % (tabid, len(rows)))
 
+        elif ttype == 'mcstats':
+            # The Monte Carlo reporting row. Defaults to the column set the
+            # characterisation note requires: N, seed, sampling, mean, sigma,
+            # min, max, mean+/-3sigma, spec, yield, Cpk. A caller that knows a
+            # distribution is not normal drops mean_3s and asks for p1/p99/worst
+            # instead -- printing a 3-sigma number under a visibly skewed
+            # histogram is the trap the note calls out by name.
+            mc = mcload(test)
+            if not mc:
+                info('skip table %s (no Monte Carlo data for test %s)' % (tabid, test))
+                continue
+            run = mc[0]
+            nch = int(spec.get('channels', 1))
+            cols = spec.get('stats', ['n', 'seed', 'sampling', 'mean', 'sigma',
+                                      'min', 'max', 'mean_3s', 'spec', 'yield', 'cpk'])
+            header = ['Parameter', 'Unit'] + [_mc_header(c, nch) for c in cols]
+            rows = []
+            for signame in spec['signals']:
+                ss = sigspec(test, signame)
+                dig = spec.get('digits', ss.get('digits', 2))
+                col = mc_column(mc, signame)
+                if not col:
+                    info('table %s: %s is not an output of %s' % (tabid, signame, test))
+                    continue
+                vals, n_bad, lo, hi = col
+                lo, hi = _mc_limits(spec, ss, lo, hi)
+                sc = ss.get('scale', 1.0)
+                st = mc_stats([v * sc for v in vals], n_bad,
+                              None if lo is None else lo * sc,
+                              None if hi is None else hi * sc, nch)
+                st['seed'] = run.get('seed', '--')
+                st['sampling'] = run.get('sampling', '--')
+                rows.append([ss.get('label', signame),
+                             spec.get('unit_tex', ss.get('unit_tex', ''))]
+                            + [_mc_cell(c, st, dig) for c in cols])
+            if rows:
+                written.append(emit_table(outdir, tabid, header, rows,
+                                          spec.get('caption', tabid)))
+                info('table  %-28s %d row(s)' % (tabid, len(rows)))
+
         elif ttype == 'stats':
             cols = spec.get('stats', ['min', 'mean', 'max', 'spread'])
             header = ['Parameter', 'Unit'] + [_stat_header(c, tspec) for c in cols]
@@ -981,7 +1562,7 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
                 info('table  %-28s %d row(s)' % (tabid, len(rows)))
 
     # ---------------- corner legend table ----------------
-    if cfg.get('emit_corner_table', True):
+    if cfg.get('emit_corner_table', True) and corners:
         header = ['Point', 'Process', 'Temperature', 'Supply']
         rows = []
         for cdirname, label, dvars in corners:
@@ -1014,6 +1595,93 @@ def _stat_header(c, tspec):
         'sens_pct_per_x': 'Sens.\\ [\\%%/%s]' % xu if xu else 'Sens.',
         'ppm_per_x': 'Coeff.\\ [ppm/%s]' % xu if xu else 'Coeff.',
     }.get(c, c)
+
+
+def _mc_limits(spec, ss, lo, hi):
+    """Spec limits for one output, most specific source winning.
+
+    mcparam carries whatever limit was typed into Assembler, which is the run's
+    own record and the right default. But the design specification and the entry
+    on the test are not always the same number -- the phase-margin row was
+    entered as 40 degrees against a documented 60 -- so a config can override
+    per signal, and a figure or table can override for all of its rows.
+    """
+    if 'spec_lo' in ss:
+        lo = ss['spec_lo']
+    if 'spec_hi' in ss:
+        hi = ss['spec_hi']
+    if 'spec_lo' in spec:
+        lo = spec['spec_lo']
+    if 'spec_hi' in spec:
+        hi = spec['spec_hi']
+    return lo, hi
+
+
+def _mc_header(c, nch=1):
+    return {
+        'n': '$N$', 'n_nomeas': 'No meas.', 'seed': 'Seed', 'sampling': 'Sampling',
+        'mean': 'Mean', 'sigma': '$\\sigma$', 'min': 'Min', 'max': 'Max',
+        # Headers stay terse: a statistics table is already at the width limit,
+        # and a spelled-out column head is what pushes the last column into the
+        # margin. The caption carries the units and the definitions.
+        'median': 'Median', 'p1': '$p_{1}$', 'p99': '$p_{99}$',
+        'mean_3s': 'Mean $\\pm\\,3\\sigma$', 'spec': 'Spec',
+        'yield': 'Yield', 'yield_chip': '%d\\,ch' % nch,
+        'margin': 'Margin', 'cpk': '$C_{\\mathrm{pk}}$',
+        'worst': 'Worst',
+    }.get(c, c)
+
+
+def _mc_cell(c, st, dig):
+    """One cell of a Monte Carlo row."""
+    if c in ('seed', 'sampling'):
+        return texesc(str(st.get(c, '--')))
+    if c == 'n':
+        # A held-out sample is a fact about the measurement, not a rounding
+        # detail: 197 of 200 must never be able to read as 200.
+        n, bad = st.get('n', 0), st.get('n_nomeas', 0)
+        return '%d' % n if not bad else '%d\\,/\\,%d' % (n, n + bad)
+    if c == 'n_nomeas':
+        return '%d' % st.get('n_nomeas', 0)
+    if c == 'spec':
+        lo, hi = st.get('spec_lo'), st.get('spec_hi')
+        if lo is None and hi is None:
+            return '--'
+        # One math group per cell. Splicing fmt()'s own $...$ next to a relation
+        # symbol drops the number out of math mode, where a negative limit
+        # typesets with a hyphen instead of a minus sign.
+        def num(v):
+            return fmt(v, dig).strip('$')
+        if lo is not None and hi is not None:
+            if abs(lo + hi) < 1e-12 * max(abs(lo), abs(hi), 1.0):
+                return '$\\pm%s$' % num(hi)
+            return '$%s$ to $%s$' % (num(lo), num(hi))
+        return ('$\\geq %s$' % num(lo)) if hi is None else ('$\\leq %s$' % num(hi))
+    if c == 'mean_3s':
+        if 'mean' not in st:
+            return '--'
+        return '%s\\,$\\pm$\\,%s' % (fmt(st['mean'], dig),
+                                     fmt(3 * st['sigma'], dig).strip('$'))
+    if c == 'worst':
+        lo, hi = st.get('spec_lo'), st.get('spec_hi')
+        if 'min' not in st:
+            return '--'
+        # "Worst" is only defined relative to a limit: without one there is no
+        # telling which end of the distribution is the bad end, and guessing
+        # would print a best case under a column headed worst.
+        if lo is None and hi is None:
+            return '--'
+        if lo is not None and hi is None:
+            return fmt(st['min'], dig)
+        if hi is not None and lo is None:
+            return fmt(st['max'], dig)
+        return fmt(max(abs(st['min']), abs(st['max'])), dig)
+    if c in ('yield', 'yield_chip'):
+        v = st.get(c)
+        return '--' if v is None else fmt(v, 1)
+    if c == 'cpk':
+        return fmt(st.get('cpk'), 2)
+    return fmt(st.get(c), dig)
 
 
 def _stat_value(d, stat, ss, tspec, spec):
@@ -1102,8 +1770,12 @@ def emit_preview(cfg, outdir):
                 % block)
         f.write('\\documentclass[11pt]{article}\n')
         f.write('\\usepackage[margin=1in]{geometry}\n')
+        # circuitikz is here because a block's `order` may place hand-written
+        # schematic fragments among the generated ones; without it the proof
+        # sheet dies on the first \begin{circuitikz} and the visual check the
+        # procedure asks for cannot be done at all.
         for p in ('graphicx', 'booktabs', 'caption', 'pgfplots', 'xcolor',
-                  'siunitx', 'amsmath', 'placeins'):
+                  'siunitx', 'amsmath', 'placeins', 'circuitikz'):
             f.write('\\usepackage{%s}\n' % p)
         f.write('\\def\\MaestroRoot{}\n')
         f.write('\\begin{document}\n')
@@ -1149,10 +1821,27 @@ def main():
     if not have_results and not args.no_extract:
         die('results directory not found: %s' % results)
 
-    if have_results:
+    # A Monte Carlo config reads the aggregate per-sample files under <run>/psf
+    # and has no corners at all: the numeric point directories are MC chunks
+    # (1, 18, 35, ... for numruns=17), not corners, and none of them holds the
+    # per-sample scalars. Discovery would return a dozen meaningless 'ptN'
+    # pseudo-corners, so skip it rather than teach it a second meaning.
+    is_mc = bool(cfg.get('monte_carlo'))
+
+    if is_mc:
+        corners = []
+        if have_results:
+            n = copy_mc(results, cfg, rawdir)
+            if not n and not args.no_extract:
+                die('no Monte Carlo data found under %s/psf -- expected '
+                    '<test>/monteCarlo/mcparam + mcdata' % results)
+        else:
+            info('results directory is gone; rendering from the MC CSVs in %s' % rawdir)
+    elif have_results:
         corners = discover_corners(results, expand_points(cfg.get('points')))
         if not corners:
             die('no corner directories (1, 2, 3, ...) under %s' % results)
+        corners = relabel_corners(corners, cfg.get('corner_labels'))
         save_corners(rawdir, block, corners)
     else:
         # --no-extract with the run gone: render from the CSVs and the corner
@@ -1163,8 +1852,9 @@ def main():
                 '       (re-extract once from a live run to write the cache)'
                 % corner_cache_path(rawdir, block))
         info('results directory is gone; using the corner list cached with the CSVs')
-    print('  corners: %s' % ', '.join('%s=%s' % (c[0], c[1]) for c in corners))
-    if have_results:
+    if corners:
+        print('  corners: %s' % ', '.join('%s=%s' % (c[0], c[1]) for c in corners))
+    if have_results and not is_mc:
         found = discover_tests(results, corners)
         print('  tests in run: %s' % ', '.join(found))
         unknown = sorted(set(test_dir(t, s) for t, s in cfg['tests'].items()
@@ -1173,7 +1863,11 @@ def main():
             info('config names test directories absent from this run: %s'
                  % ', '.join(unknown))
 
-    if not args.no_extract:
+    if is_mc:
+        # The MC scalars are already reduced; reading them is a parse, not a
+        # simulation-database query, so this path never takes a licence.
+        print('  Monte Carlo: read per-sample scalars directly (no OCEAN, no licence)')
+    elif not args.no_extract:
         ocn = build_ocn(results, corners, cfg, rawdir)
         # Per block, for the same reason preview.tex is: one outdir, many blocks.
         stem = os.path.join(outdir, 'data', 'extract_%s' % slug(cfg.get('block', 'block')))

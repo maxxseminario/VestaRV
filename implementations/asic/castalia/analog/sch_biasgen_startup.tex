@@ -45,6 +45,6 @@
 \node[gatelab, left] at (N2.gate){$V_{\mathrm{SU}}$};
 \end{circuitikz}
   }
-  \caption{Start-up branch. A gate-grounded, permanently-on weak PMOS pulls $V_{\mathrm{SU}}$ up at power-on; while $V_{\mathrm{SU}}$ is high it drags $V_{\mathrm{BPM}}$ and $V_{\mathrm{BPC}}$ down, forcing current into the core and breaking the degenerate zero-current state. Once the core is running, the rising $V_{\mathrm{BNC}}$ turns on the left NMOS and collapses $V_{\mathrm{SU}}$, so the branch draws no static current in normal operation --- the behaviour visible in the power-up transient of Figure~\ref{fig:biasgen-startup}. A second device holds $V_{\mathrm{SU}}$ low whenever the cell is disabled.}
+  \caption[{Start-up branch of the local bias generator.}]{Start-up branch. A gate-grounded, permanently-on weak PMOS pulls $V_{\mathrm{SU}}$ up at power-on; while $V_{\mathrm{SU}}$ is high it drags $V_{\mathrm{BPM}}$ and $V_{\mathrm{BPC}}$ down, forcing current into the core and breaking the degenerate zero-current state. Once the core is running, the rising $V_{\mathrm{BNC}}$ turns on the left NMOS and collapses $V_{\mathrm{SU}}$, so the branch draws no static current in normal operation --- the behaviour visible in the power-up transient of Figure~\ref{fig:biasgen-startup}. A second device holds $V_{\mathrm{SU}}$ low whenever the cell is disabled.}
   \label{fig:biasgen-startup-sch}
 \end{figure}

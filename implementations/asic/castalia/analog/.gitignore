@@ -3,3 +3,7 @@ preview*.pdf
 preview*.aux
 preview*.log
 preview*.out
+
+# Scratch page renders from visual checking (pdftoppm -png).
+pv-*.png
+pvx-*.png

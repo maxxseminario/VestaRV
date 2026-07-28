@@ -1,0 +1,20 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Local bias generator operating point, shared by all four channels.}]{Local bias generator operating point, shared by all four channels. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{37}{\celsius}, 200 samples, seed 12345, LDS sampling. The four rails hold their wide-swing relationship in every sample: $V_{\mathrm{BNC}} = V_{\mathrm{BNM}} + V_{\mathrm{ov,n}}$ and $V_{\mathrm{BPM}} = V_{\mathrm{BPC}} + V_{\mathrm{ov,p}}$. Supply-current spread of \SI{12.5}{\percent} propagates to the drive and slew distributions above. Because the block is shared, this term is common-mode across the four channels: it does not average out between them, and it cancels in channel-to-channel differences.}
+  \label{tab:ctrlamp-mc-bias}
+  \small
+  \begin{tabular}{lrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & Max & $p_{1}$ & $p_{99}$ \\
+    \midrule
+    Supply current $I_{\mathrm{DD}}$ & \si{\micro\ampere} & 200 & 23.915 & 2.993 & 17.748 & 33.105 & 18.238 & 32.107 \\
+    NMOS mirror bias $V_{\mathrm{BNM}}$ & \si{\volt} & 200 & 0.601 & 0.022 & 0.539 & 0.667 & 0.560 & 0.654 \\
+    NMOS cascode bias $V_{\mathrm{BNC}}$ & \si{\volt} & 200 & 0.767 & 0.029 & 0.697 & 0.848 & 0.702 & 0.840 \\
+    PMOS mirror bias $V_{\mathrm{BPM}}$ & \si{\volt} & 200 & 1.829 & 0.020 & 1.785 & 1.880 & 1.786 & 1.872 \\
+    PMOS cascode bias $V_{\mathrm{BPC}}$ & \si{\volt} & 200 & 1.599 & 0.033 & 1.513 & 1.678 & 1.529 & 1.668 \\
+    NMOS overdrive $V_{\mathrm{ov,n}}$ & \si{\milli\volt} & 200 & 165.381 & 11.778 & 137.465 & 202.084 & 141.530 & 189.683 \\
+    PMOS overdrive $V_{\mathrm{ov,p}}$ & \si{\milli\volt} & 200 & 230.571 & 17.036 & 194.223 & 281.135 & 199.124 & 272.612 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
