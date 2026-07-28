@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Field-Powered NFC Mode &mdash; Castalia (DP-S3) &middot; VestaRV</title>
-<meta name="description" content="How Castalia boots, serves an NFC reader, and sleeps on harvested RF energy: the PWRCTRL PGOOD boot gate and the harvested-boot ROM path.">
+<title>Off-the-Shelf NFC &amp; Wireless Power &mdash; Castalia component survey &middot; VestaRV</title>
+<meta name="description" content="A desk study of commercial off-the-shelf NFC front ends, dynamic tag ICs, wireless-charging listeners and harvesting PMICs for the 4-core Castalia RISC-V MCU.">
 <style>
 /* VESTA_THEME_BEGIN */
 :root{
@@ -490,16 +490,17 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 <!-- ================= HERO ================= -->
 <section class="fp-hero">
   <div class="fp-wrap">
-    <p class="eyebrow">Castalia &middot; DP-S3</p>
-    <h1>Field-Powered NFC Mode</h1>
-    <p class="lede">How a Castalia chip boots, serves an NFC reader, and goes back to sleep
-      on nothing but the energy a reader&rsquo;s RF field delivers &mdash; and why the whole trick
-      lives in <b>digital logic</b>, not in a new analog block.</p>
+    <p class="eyebrow">Castalia &middot; component survey</p>
+    <h1>Off-the-Shelf NFC &amp; Wireless Power</h1>
+    <p class="lede">Which <b>commercial off-the-shelf</b> parts can give a 4-core Castalia chip
+      wireless readout &mdash; and how far up the ladder you can climb toward real
+      <b>wireless power transfer</b>. Three architectures, ten candidate parts, and one
+      number that decides between them.</p>
     <div class="badge-row">
-      <span class="vesta-badge vesta-badge-accent">PGOOD boot gate</span>
-      <span class="vesta-badge vesta-badge-accent">Harvested-boot ROM path</span>
-      <span class="vesta-badge vesta-badge-amber">Tape-out ready</span>
-      <span class="vesta-badge">TSMC&nbsp;65&nbsp;nm</span>
+      <span class="vesta-badge vesta-badge-accent">Desk study</span>
+      <span class="vesta-badge vesta-badge-accent">Vendor datasheets</span>
+      <span class="vesta-badge vesta-badge-amber">No hardware validated</span>
+      <span class="vesta-badge">Castalia &middot; LQFP-100</span>
     </div>
   </div>
 </section>
@@ -508,495 +509,556 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 <section class="fp-section">
   <div class="fp-wrap">
     <div class="prose">
-    <p>Energy harvesting on Castalia is deliberately <b>ordinary board-level engineering</b>.
-      The chip keeps its normal rails; everything that turns a reader&rsquo;s field into a
-      usable supply is commodity off-die analog: a rectifier, a supercapacitor (or a small
-      buffer), an LDO, and a <b>supply supervisor</b> that says &ldquo;the rail is good enough to
-      run.&rdquo; An NTAG-5-class front end can stand in purely as the harvester. Nothing about
-      that is novel &mdash; and nothing about it needed a new silicon block.
-      (Which parts, specifically? See the
-      <a href="nfc_cots.html">off-the-shelf NFC &amp; wireless-power survey</a>.)</p>
-    <p>The novelty is entirely digital, and it lives in two places: the
-      <b>PWRCTRL boot gate</b> (registers at <span class="vesta-mono">0x4B00</span>) and a
-      <b>harvested branch in the shared boot ROM</b>. Between them they solve the awkward
-      problem of a chip that must stay perfectly still until its harvested supply can carry a
-      whole transaction, then wake, answer the reader, and re-hold when the field collapses.
-      The NFC peripheral itself stays purely a <b>communications</b> block &mdash; it never
-      touches power policy.</p>
+    <p>Castalia already carries the two halves of an NFC story in silicon: an on-chip
+      <b>NFC tag controller</b> (NFC0, protocol core only &mdash; the analog front end is
+      deliberately off-die) and the <b>DP-S3 field-power gate</b> in PWRCTRL, which holds
+      every hart in reset until an external supply supervisor says the harvested rail can
+      carry a transaction. What neither of those settles is <i>which parts you actually
+      buy</i>. That is what this page is for.</p>
+    <p>There are three genuinely different ways to attach a reader-facing radio to this chip,
+      and they are not variations on a theme &mdash; they put the protocol in different places,
+      cost different amounts of board area, and reach different power ceilings.</p>
     </div>
-    <div class="callout ok">
-      <b>Status &amp; provenance.</b> Castalia is a tape-out-ready design that has been through
-      the full synthesis and place-and-route flow &mdash; only the single-core Myshkin chip has
-      actually been fabricated. Every number and timing figure on this page is a
-      <b>pre-layout, typical-corner estimate</b> from the design flow, never a measurement of
-      silicon. The diagrams are hand-drawn schematics, kept in sync with the RTL by hand.
-    </div>
-  </div>
-</section>
-
-<!-- ================= THE TWO PINS ================= -->
-<section class="fp-section">
-  <div class="fp-wrap">
-    <p class="eyebrow">The interface</p>
-    <h2>Two pins, and a promise about the unconnected board</h2>
-    <p class="lede">The whole feature reaches the outside world through two spare package pins.
-      Both are direct taps of the pad-input plane &mdash; readable independently of the pin-mux,
-      because PGOOD has to gate boot <em>before</em> any software could program a mux.</p>
-    <div class="pin-grid">
-      <div class="vesta-card pin-card">
-        <div class="pinno">P6.7 &middot; LQFP-100 pin 69</div>
-        <h3>PGOOD &mdash; supply-good input</h3>
-        <p>Driven by the external supply supervisor. When it reads high, the harvested rail is
-          strong enough to carry a transaction and the boot gate is allowed to release.</p>
-        <div class="reset">reset: input &middot; pull-down &middot; unconnected &rarr; &ldquo;power not good&rdquo;</div>
-      </div>
-      <div class="vesta-card pin-card">
-        <div class="pinno">P6.6 &middot; LQFP-100 pin 68</div>
-        <h3>STRAP &mdash; harvested-boot select</h3>
-        <p>A board-level strap. High selects the harvested-boot ROM path and sets the hardware
-          defaults that let a board self-arm the gate with zero firmware.</p>
-        <div class="reset">reset: input &middot; pull-down &middot; unconnected &rarr; &ldquo;normal (SPI) boot&rdquo;</div>
-      </div>
-    </div>
-    <div class="callout">
-      Because both pads reset to inputs with pull-downs enabled, an <b>unconnected pin reads
-      inactive</b>: a board that does not use the feature behaves exactly like earlier
-      revisions, and with the inputs tied inactive the entire mechanism is a
-      <b>provable no-op</b> &mdash; the gate is stuck released and the PWRCTRL power-gating
-      registers are bit-identical to the plain multi-core chip.
-    </div>
-    <p class="figcap" style="max-width:74ch">
-      <b>Naming note.</b> &ldquo;P6.x&rdquo; is the one-based register-domain
-      (<span class="vesta-mono">PxDIR/PxSEL</span>) numbering; the padring and pinout use the
-      zero-based aliases <span class="vesta-mono">P5.7 = GPIO47</span> (pin&nbsp;69) and
-      <span class="vesta-mono">P5.6 = GPIO46</span> (pin&nbsp;68). Same physical pins.
-    </p>
-  </div>
-</section>
-
-<!-- ================= HOW THE BOOT GATE WORKS ================= -->
-<section class="fp-section">
-  <div class="fp-wrap">
-    <p class="eyebrow">Mechanism</p>
-    <h2>The boot gate is a hold-in-reset</h2>
-    <div class="prose">
-      <p>There is no clever standby state and no retention. An internal release signal,
-        <span class="vesta-mono">pgood_rstn</span>, is simply <b>ANDed into every hart&rsquo;s outer
-        reset</b> &mdash; hart&nbsp;0 included, which gains a reset fold it does not otherwise
-        have. A held hart fetches nothing and issues no shared-bus request, so the rest of the
-        chip cannot tell it apart from a hart still in power-on reset. When the release
-        conditions are met the harts leave reset together and run the ordinary boot ROM, with
-        no software-visible partial state.</p>
-      <p>This reuses the existing guarantee that a reset-held hart is <b>bus-silent</b>: its
-        outbound registers sit at their reset values, which is exactly what the round-robin
-        arbiter already treats as &ldquo;no request.&rdquo; The gate needs no new arbiter contract.</p>
-    </div>
-
-    <figure class="diagram">
-      <div class="svgwrap">
-        <svg viewBox="0 0 900 372" role="img" aria-label="Block diagram: three synchronized inputs feed PWRCTRL policy logic, whose registered pgood_rstn output folds into every hart's outer reset.">
-          <!-- inputs -->
-          <g>
-            <rect x="16" y="34"  width="164" height="40" rx="7" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="98" y="52" text-anchor="middle">PGOOD</text>
-            <text class="d-sub" x="98" y="66" text-anchor="middle">P6.7 &#183; pin 69</text>
-
-            <rect x="16" y="104" width="164" height="40" rx="7" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="98" y="122" text-anchor="middle">STRAP</text>
-            <text class="d-sub" x="98" y="136" text-anchor="middle">P6.6 &#183; pin 68</text>
-
-            <rect x="16" y="174" width="164" height="40" rx="7" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="98" y="192" text-anchor="middle">field_detect</text>
-            <text class="d-sub" x="98" y="206" text-anchor="middle">NFC &#183; reader RF</text>
-          </g>
-          <!-- wires to sync -->
-          <path class="d-wire" d="M180 54 H236"/>
-          <path class="d-wire" d="M180 124 H236"/>
-          <path class="d-wire" d="M180 194 H236"/>
-          <!-- sync -->
-          <rect x="236" y="34" width="96" height="180" rx="8" style="fill:var(--sync);stroke:var(--sync-edge);stroke-width:1.5"/>
-          <text class="d-lbl" x="284" y="118" text-anchor="middle">2-FF</text>
-          <text class="d-lbl" x="284" y="136" text-anchor="middle">sync</text>
-          <text class="d-sub" x="284" y="156" text-anchor="middle">mclk</text>
-          <!-- sync to policy -->
-          <path class="d-wire" d="M332 124 H384"/>
-          <!-- policy -->
-          <rect x="384" y="58" width="196" height="132" rx="9" style="fill:var(--gate);stroke:var(--gate-edge);stroke-width:1.7"/>
-          <text class="d-lbl" x="482" y="86" text-anchor="middle">PWRCTRL policy</text>
-          <text class="d-sub" x="482" y="108" text-anchor="middle">arm &#183; release</text>
-          <text class="d-sub" x="482" y="123" text-anchor="middle">rehold &#183; strap-arm</text>
-          <text class="d-sub" x="482" y="146" text-anchor="middle">strap sampled once</text>
-          <text class="d-sub" x="482" y="168" text-anchor="middle">registered output</text>
-          <!-- pgood_rstn wire -->
-          <path class="d-wire" d="M580 124 H636"/>
-          <text class="d-sub" x="608" y="116" text-anchor="middle">pgood_rstn</text>
-          <!-- fan bus -->
-          <path class="d-wire" d="M636 124 V52 M636 124 V124 M636 124 V196 M636 124 V268"/>
-          <circle cx="636" cy="124" r="3.4" style="fill:var(--wire)"/>
-          <path class="d-wire" d="M636 52 H700 M636 124 H700 M636 196 H700 M636 268 H700"/>
-          <!-- harts -->
-          <g>
-            <rect x="700" y="30"  width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="792" y="49" text-anchor="middle">hart 0</text>
-            <text class="d-sub" x="792" y="64" text-anchor="middle">reset &#8743; pgood_rstn *</text>
-
-            <rect x="700" y="102" width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="792" y="121" text-anchor="middle">hart 1</text>
-            <text class="d-sub" x="792" y="136" text-anchor="middle">pd_rstn &#8743; pgood_rstn</text>
-
-            <rect x="700" y="174" width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="792" y="193" text-anchor="middle">hart 2</text>
-            <text class="d-sub" x="792" y="208" text-anchor="middle">pd_rstn &#8743; pgood_rstn</text>
-
-            <rect x="700" y="246" width="184" height="44" rx="7" style="fill:var(--hart);stroke:var(--hart-edge);stroke-width:1.5"/>
-            <text class="d-lbl" x="792" y="265" text-anchor="middle">hart 3</text>
-            <text class="d-sub" x="792" y="280" text-anchor="middle">pd_rstn &#8743; pgood_rstn</text>
-          </g>
-          <!-- bottom note -->
-          <text class="d-note" x="16" y="326">* hart 0 (management hart) gains a reset fold it never had &#8212; the gate holds it too.</text>
-          <text class="d-note" x="16" y="348">A held hart drives no <tspan style="font-family:var(--font-mono)">sh_req</tspan>: the arbiter sees bus silence, identical to power-on reset.</text>
-        </svg>
-      </div>
-      <figcaption class="figcap"><b>Figure 1 &mdash; hand-drawn.</b> The three asynchronous
-        inputs are double-flop synchronized on the always-on <span class="vesta-mono">mclk</span>
-        domain, evaluated by the policy logic once per cycle, and the single registered
-        <span class="vesta-mono">pgood_rstn</span> folds into every hart&rsquo;s outer reset.</figcaption>
-    </figure>
-
-    <h3>The policy, as logic</h3>
-    <p class="prose">The strap sets the <b>hardware defaults</b>; the <span class="vesta-mono">PWRWAKE</span>
-      register bits OR in software overrides on top. That split is what lets a harvested board
-      self-arm the gate that holds the very cores that would otherwise program it.</p>
-    <div class="codeblock"><span class="cm"># evaluated every mclk cycle on the always-on domain</span>
-strap_harvest <span class="kw">=</span> PWSTRAPVLD <span class="kw">and</span> PWSTRAP
-arm           <span class="kw">=</span> PWGATEEN    <span class="kw">or</span>  strap_harvest
-p_rls         <span class="kw">=</span> PWRLSPGOOD  <span class="kw">or</span>  strap_harvest
-f_rls         <span class="kw">=</span> PWRLSFIELD
-rehold        <span class="kw">=</span> PWREHOLD    <span class="kw">or</span>  strap_harvest
-
-release       <span class="kw">=</span> PWSWRLS <span class="kw">or</span> (p_rls <span class="kw">and</span> PGOOD_live) <span class="kw">or</span> (f_rls <span class="kw">and</span> FIELD_live)
-hold          <span class="kw">=</span> arm <span class="kw">and not</span> (rehold ? release : release_latched)
-<span class="rg">pgood_rstn</span>    <span class="kw">=</span> <span class="kw">not</span> hold          <span class="cm"># registered; reset value = released</span></div>
-    <p class="prose"><span class="vesta-mono">PGOOD_live</span> and <span class="vesta-mono">FIELD_live</span>
-      are the synchronized pad and field levels (two cycles of latency);
-      <span class="vesta-mono">release_latched</span> is a sticky OR of every past release, which
-      gives the <b>one-shot</b> behaviour when <span class="vesta-mono">PWREHOLD = 0</span>. An armed
-      gate with no release source holds indefinitely until <span class="vesta-mono">PWSWRLS</span> &mdash;
-      that is intentional, and is exactly how the production test proves the gate is load-bearing.</p>
-
-    <h3>Sampling &amp; timing</h3>
-    <p class="prose">The strap is sampled <b>exactly once</b>. A counter starts at reset release,
-      and after an eight-cycle settle (comfortably past the two-cycle synchronizer) it latches the
-      strap level and sets <span class="vesta-mono">PWSTRAPVLD</span> &mdash; roughly cycle eleven.
-      The gate is deliberately <em>released</em> during that window so a normal board is never
-      delayed, which means a harvested board&rsquo;s harts may take their first boot-ROM fetch and
-      then be re-held. That is harmless by construction: the hold is the same outer reset that
-      cleared them at power-on, so the eventual release simply runs a clean cold boot.</p>
-
-    <figure class="diagram">
-      <div class="svgwrap">
-        <svg viewBox="0 0 900 320" role="img" aria-label="Timeline: reset release, two-cycle sync, eight-cycle settle, strap sample near cycle ten, self-arm near cycle eleven, wait for PGOOD, release into a clean cold boot; and a brownout re-hold loop below.">
-          <!-- axis -->
-          <path class="d-wire" d="M70 96 H840"/>
-          <path class="d-wire" d="M840 96 l-9 -5 v10 z" style="fill:var(--wire)"/>
-          <text class="d-sub" x="838" y="118" text-anchor="end">mclk cycles &#8594;</text>
-          <!-- reset release marker -->
-          <path class="d-wire" d="M70 66 V126"/>
-          <text class="d-lbl" x="70" y="56" text-anchor="middle">reset release</text>
-          <text class="d-tick" x="70" y="142" text-anchor="middle">0</text>
-          <!-- sync band -->
-          <rect x="70" y="80" width="70" height="32" rx="5" style="fill:var(--sync);stroke:var(--sync-edge);stroke-width:1.4"/>
-          <text class="d-sub" x="105" y="100" text-anchor="middle">2-cyc sync</text>
-          <!-- settle band -->
-          <rect x="140" y="80" width="200" height="32" rx="5" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.4"/>
-          <text class="d-sub" x="240" y="100" text-anchor="middle">8-cycle settle</text>
-          <!-- sample marker -->
-          <path class="d-wire" d="M340 60 V128"/>
-          <circle cx="340" cy="96" r="4" style="fill:var(--gate-edge)"/>
-          <text class="d-lbl" x="340" y="50" text-anchor="middle">sample &#183; ~cyc 10</text>
-          <text class="d-sub" x="340" y="150" text-anchor="middle">latch PWSTRAP</text>
-          <text class="d-sub" x="340" y="164" text-anchor="middle">set PWSTRAPVLD</text>
-          <!-- self arm -->
-          <path class="d-wire" d="M406 72 V120"/>
-          <text class="d-sub" x="406" y="188" text-anchor="middle">self-arm ~cyc 11</text>
-          <!-- wait for pgood (dashed) -->
-          <path class="d-wire dash" d="M372 96 H620"/>
-          <text class="d-sub" x="496" y="88" text-anchor="middle">&#8230; held: wait for PGOOD &#8230;</text>
-          <!-- release marker -->
-          <path class="d-wire" d="M620 60 V128"/>
-          <circle cx="620" cy="96" r="4" style="fill:var(--field-edge)"/>
-          <text class="d-lbl" x="620" y="50" text-anchor="middle">PGOOD &#10003; &#8594; release</text>
-          <!-- cold boot band -->
-          <rect x="620" y="80" width="200" height="32" rx="5" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.4"/>
-          <text class="d-sub" x="720" y="100" text-anchor="middle">clean cold boot</text>
-
-          <!-- brownout loop -->
-          <text class="d-note" x="70" y="248" style="font-weight:600;fill:var(--text-muted)">Brownout, with PWREHOLD = 1:</text>
-          <g transform="translate(70,262)">
-            <rect x="0" y="0" width="150" height="34" rx="6" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.4"/>
-            <text class="d-sub" x="75" y="21" text-anchor="middle">running &#183; PGOOD &#10003;</text>
-            <path class="d-wire" d="M150 17 H186"/><path class="d-wire" d="M186 17 l-9 -5 v10 z" style="fill:var(--wire)"/>
-            <rect x="186" y="0" width="150" height="34" rx="6" style="fill:var(--gate);stroke:var(--gate-edge);stroke-width:1.4"/>
-            <text class="d-sub" x="261" y="21" text-anchor="middle">PGOOD &#10007; &#8594; re-hold</text>
-            <path class="d-wire" d="M336 17 H372"/><path class="d-wire" d="M372 17 l-9 -5 v10 z" style="fill:var(--wire)"/>
-            <rect x="372" y="0" width="150" height="34" rx="6" style="fill:var(--pin);stroke:var(--pin-edge);stroke-width:1.4"/>
-            <text class="d-sub" x="447" y="21" text-anchor="middle">harts in reset</text>
-            <path class="d-wire" d="M522 17 H558"/><path class="d-wire" d="M558 17 l-9 -5 v10 z" style="fill:var(--wire)"/>
-            <rect x="558" y="0" width="200" height="34" rx="6" style="fill:var(--field);stroke:var(--field-edge);stroke-width:1.4"/>
-            <text class="d-sub" x="658" y="21" text-anchor="middle">PGOOD &#10003; &#8594; clean cold boot</text>
-          </g>
-          <text class="d-note" x="70" y="316">With PWREHOLD = 0 the first release is final until the next chip reset &#8212; supervising software owns brownout.</text>
-        </svg>
-      </div>
-      <figcaption class="figcap"><b>Figure 2 &mdash; hand-drawn.</b> The self-arm completes about
-        eleven cycles after reset release; the gate then waits for PGOOD before running a clean
-        cold boot. With re-hold enabled, a lost rail simply re-enters reset and the rail&rsquo;s
-        return runs a fresh boot &mdash; the honest model of losing and regaining harvested power,
-        since the chip keeps no retention.</figcaption>
-    </figure>
-  </div>
-</section>
-
-<!-- ================= REGISTERS ================= -->
-<section class="fp-section" id="registers">
-  <div class="fp-wrap">
-    <p class="eyebrow">Registers at a glance</p>
-    <h2>PWRWAKE and PWRSTS</h2>
-    <p class="lede">Two words sit at fixed offsets above the power-gating registers, so this part
-      of the map does not depend on the hart count. These summaries are intentionally minimal &mdash;
-      the authoritative bit tables live in the register browser.</p>
-    <div class="reg-grid">
-      <div>
-        <p class="reg-title">PWRWAKE <span class="off">&#183; RW &#183; +0x14 &#183; reset 0</span></p>
-        <div class="vesta-table-wrap">
-          <table class="vesta-table">
-            <thead><tr><th>Bit</th><th>Field</th><th>Arms / selects</th></tr></thead>
-            <tbody>
-              <tr><td><span class="bit">0</span></td><td><span class="fn">PWGATEEN</span></td><td>Software-arm the boot gate</td></tr>
-              <tr><td><span class="bit">1</span></td><td><span class="fn">PWRLSPGOOD</span></td><td>PGOOD is a release condition</td></tr>
-              <tr><td><span class="bit">2</span></td><td><span class="fn">PWRLSFIELD</span></td><td>NFC field is a release condition</td></tr>
-              <tr><td><span class="bit">3</span></td><td><span class="fn">PWSWRLS</span></td><td>Software-forced release</td></tr>
-              <tr><td><span class="bit">4</span></td><td><span class="fn">PWREHOLD</span></td><td>Re-hold on brownout (0 = one-shot)</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div>
-        <p class="reg-title">PWRSTS <span class="off">&#183; RO &#183; +0x18</span></p>
-        <div class="vesta-table-wrap">
-          <table class="vesta-table">
-            <thead><tr><th>Bit</th><th>Field</th><th>Reports</th></tr></thead>
-            <tbody>
-              <tr><td><span class="bit">0</span></td><td><span class="fn">PWPGOODLIV</span></td><td>Synchronized PGOOD level</td></tr>
-              <tr><td><span class="bit">1</span></td><td><span class="fn">PWFIELDLIV</span></td><td>Synchronized field level</td></tr>
-              <tr><td><span class="bit">2</span></td><td><span class="fn">PWSTRAP</span></td><td>Latched strap (the ROM branch bit)</td></tr>
-              <tr><td><span class="bit">3</span></td><td><span class="fn">PWSTRAPVLD</span></td><td>Strap sample complete</td></tr>
-              <tr><td><span class="bit">4</span></td><td><span class="fn">PWBOOTHOLD</span></td><td>Gate is currently holding</td></tr>
-              <tr><td><span class="bit">5</span></td><td><span class="fn">PWRRLSLATCH</span></td><td>One-shot release has latched</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <p style="margin-top:var(--sp-5)">
-      <a class="vesta-btn vesta-btn-ghost" href="register_browser.html">Open the register browser &#8594;</a>
-    </p>
-  </div>
-</section>
-
-<!-- ================= HARVESTED BOOT PATH ================= -->
-<section class="fp-section">
-  <div class="fp-wrap">
-    <p class="eyebrow">Zero-firmware serving</p>
-    <h2>The harvested boot path</h2>
-    <p class="lede">When the strap selects harvested boot, hart&nbsp;0 branches to a ROM-resident
-      service path <em>before</em> any SPI or flash activity &mdash; the multi-kilobyte flash copy is
-      the single most power-hungry cold-start step, so it is skipped entirely. The nine steps below
-      run in exactly this order.</p>
-    <ol class="steps">
-      <li><span class="st">Common entry</span><p>Interrupts off, all memory blocks powered, stack
-        pointer set, and the shared-RAM mailbox region <code>0x10000&ndash;0x107FC</code> zeroed &mdash;
-        the write-before-read contract. At 24&nbsp;MHz this zeroing (512 word writes through the
-        arbiter) dominates the cold start: about <b>625&nbsp;&micro;s</b> of the roughly
-        <b>690&nbsp;&micro;s</b> from gate release to sleep.</p></li>
-      <li><span class="st">Strap branch</span><p>Poll <code>PWRSTS</code> until <code>PWSTRAPVLD</code>,
-        then branch on <code>PWSTRAP</code>. The sample completed a handful of cycles after reset
-        release, long before this code runs &mdash; the poll is cheap insurance.</p></li>
-      <li><span class="st">Clock story, explicitly</span><p>Write <code>CLKCR = 0</code> so both MCLK
-        and SMCLK stay on HFXT. The SPI path&rsquo;s mid-boot SMCLK&#8594;LFXT switch never runs here, so
-        the choice is written rather than inherited.</p></li>
-      <li><span class="st">Gate the tiles</span><p>Write all-ones to <code>PWRCR</code>; the register
-        masks the write to the tile bits that exist, so the same ROM gates every tile hart at any
-        hart count. The tiles are already parked in their boot-ROM WFI, the sanctioned quiesced
-        state.</p></li>
-      <li><span class="st">Pin mux</span><p>Select the alternate-function planes for the six off-die
-        NFC AFE wires on port&nbsp;6 pins&nbsp;0&ndash;5. Pins&nbsp;6 and&nbsp;7 &mdash; the strap and
-        PGOOD &mdash; are untouched and stay plain inputs.</p></li>
-      <li><span class="st">Provision the tag</span><p>Write the ROM-default identity
-        (UID <code>0xC0FFEE01</code>, ATQA <code>0x0044</code>, SAK <code>0x00</code>), point the
-        payload index at byte&nbsp;0 with auto-increment, and write a three-byte status payload:
-        <code>'H'</code>, <code>'V'</code>, then a live <code>PWRSTS</code> snapshot &mdash; the honest
-        &ldquo;sensor record&rdquo; of the base chip.</p></li>
-      <li><span class="st">Arm LISTEN</span><p>A <b>byte</b> store of <code>NFCEN | LISTEN</code> to the
-        NFC control register&rsquo;s low lane. A full-word store would also clear the auto-read enable,
-        whose reset default is set &mdash; auto-read is what lets the hardware answer Type-2
-        <code>READ</code>s with the processor asleep.</p></li>
-      <li><span class="st">Stray-interrupt guard</span><p>Arm interrupt-vector slot&nbsp;83 in
-        hart&nbsp;0&rsquo;s own TCM with a return stub, so an unexpected <code>msip</code> is cleared and
-        returns the hart to sleep instead of vectoring into uninitialized memory.</p></li>
-      <li><span class="st">Slow down and sleep</span><p>Divide MCLK by eight
-        (<code>CLKDIVCR</code>), then sleep. From here the NFC hardware serves readers autonomously;
-        a field arrival can be taken as an interrupt only if firmware later opts in.</p></li>
-    </ol>
     <div class="callout amber">
-      <b>NFC-less configurations are safe.</b> On a build without the NFC block, the NFC register
-      writes land in an unused alias of the mutex page and are harmless. The path is written to
-      never <em>read</em> an NFC register &mdash; a read of that alias would claim a mutex.
+      <b>What this page is, and is not.</b> Every figure below is read from a vendor datasheet
+      or application note, or from Castalia&rsquo;s own pre-layout synthesis reports. <b>Nothing
+      here has been validated on hardware</b> &mdash; no part has been bought, bench-tested,
+      or brought up against a Castalia board. Treat it as a shortlist to evaluate, not a
+      bill of materials. Castalia itself is a tape-out-ready design; only the single-core
+      Myshkin chip has been fabricated.
     </div>
   </div>
 </section>
 
-<!-- ================= POWER STORY ================= -->
-<section class="fp-section" id="power">
+<!-- ================= THE DECIDING NUMBER ================= -->
+<section class="fp-section" id="budget">
   <div class="fp-wrap">
-    <p class="eyebrow">The power story</p>
-    <h2>Does it close on harvested energy?</h2>
-    <p class="lede">A cheap statistical go/no-go came first; a <b>VCD-annotated</b> run then
-      replaced the activity assumption &mdash; a real 2&nbsp;ms waveform of the parked service loop
-      annotated onto a fresh synthesis. The mode is <b>leakage-dominated</b>: with the &#247;8 clock
-      the measured dynamic power collapses ~57&times;, and what remains is almost pure leakage.</p>
-
-    <div class="pbar">
-      <div class="track" aria-hidden="true">
-        <div class="seg leak" style="width:45.9%">leak 5.49</div>
-        <div class="seg int"  style="width:44.4%">internal 5.30</div>
-        <div class="seg sw"   style="width:9.7%">sw 1.15</div>
-      </div>
-      <div class="legend">
-        <span>All tiles on, 24&nbsp;MHz, statistical activity: <b>11.95&nbsp;mW</b></span>
-      </div>
-      <div class="track" aria-hidden="true" style="width:48.1%; margin-top:6px">
-        <div class="seg leak" style="width:99.6%">leakage 5.73</div>
-        <div class="seg sw"   style="width:0.4%"></div>
-      </div>
-      <div class="legend">
-        <span><span class="sw-dot" style="background:var(--accent)"></span>Leakage</span>
-        <span><span class="sw-dot" style="background:var(--amber)"></span>Internal</span>
-        <span><span class="sw-dot" style="background:var(--field-edge)"></span>Switching</span>
-        <span>&#8212; parked service loop, VCD-annotated: <b>5.75&nbsp;mW</b> (dynamic 0.02)</span>
-      </div>
-    </div>
+    <p class="eyebrow">The constraint</p>
+    <h2>What Castalia costs to run, and what a field delivers</h2>
+    <p class="lede">Almost every architectural choice below collapses to one comparison:
+      the chip&rsquo;s floor against the harvester&rsquo;s ceiling.</p>
 
     <div class="stat-grid">
       <div class="stat">
-        <div class="num">&#8722;0.61<small>&nbsp;mW</small></div>
-        <div class="k">Rail-gate harts 1&ndash;3</div>
-        <div class="d">Only the tile logic leaves &mdash; each tile&rsquo;s TCM sits on the
-          always-on rail and keeps 0.29&nbsp;mW at its gated arc.</div>
+        <div class="num">&#8776;12.3<small>&nbsp;mW</small></div>
+        <div class="k">All four harts awake</div>
+        <div class="d">Wound configuration at 24&nbsp;MHz, statistical activity. The full
+          working chip.</div>
       </div>
       <div class="stat">
-        <div class="num">&#8776;5.1<small>&nbsp;mW</small></div>
-        <div class="k">Service loop, parked (VCD)</div>
-        <div class="d">As-ROM continuous draw at mclk&nbsp;&#247;8 &mdash; 99.6&nbsp;% leakage,
-          dominated by the memory macros.</div>
+        <div class="num">&#8776;5.45<small>&nbsp;mW</small></div>
+        <div class="k">Parked service loop</div>
+        <div class="d">Tiles rail-gated, MCLK&nbsp;&#247;8, VCD-annotated. Overwhelmingly
+          leakage &mdash; the memory macros dominate.</div>
       </div>
       <div class="stat">
-        <div class="num">&#8776;3.9<small>&nbsp;mW</small></div>
+        <div class="num">&#8776;4.23<small>&nbsp;mW</small></div>
         <div class="k">+ shared-bank gating</div>
-        <div class="d">Gate the NPU RAM + 3 unused banks via BLOCKPWR (contents lost).</div>
+        <div class="d">BLOCKPWR gates the NPU RAM and three unused banks (contents lost).
+          The lowest state that is still a running chip.</div>
+      </div>
+      <div class="stat">
+        <div class="num">1&ndash;10<small>&nbsp;mW</small></div>
+        <div class="k">Tag-IC harvest yield</div>
+        <div class="d">1&ndash;5&nbsp;mW at loose coupling, 5&ndash;10&nbsp;mW close.
+          An NTAG-5-class part tops out near 30&nbsp;mW only in a strong field.</div>
+      </div>
+      <div class="stat">
+        <div class="num">1000<small>&nbsp;mW</small></div>
+        <div class="k">NFC WLC listener</div>
+        <div class="d">The NFC Forum wireless-charging classes go to 1&nbsp;W &mdash; two
+          orders of magnitude past the parked floor.</div>
       </div>
       <div class="stat">
         <div class="num">&#8776;1<small>&nbsp;mF</small></div>
-        <div class="k">Supercap per transaction</div>
-        <div class="d">0.75&nbsp;mJ per 100&nbsp;ms serving window at LDO
-          &eta;&nbsp;=&nbsp;0.8 &mdash; <b>&times;1.5 margin</b>, corrected from
-          &times;2 (note below).</div>
+        <div class="k">Supercap for one transaction</div>
+        <div class="d">0.75&nbsp;mJ per 100&nbsp;ms window at LDO&nbsp;&eta;=0.8.
+          C<sub>min</sub>&nbsp;=&nbsp;667&nbsp;&micro;F over a realistic
+          2.5&nbsp;&rarr;&nbsp;2.0&nbsp;V window, so 1&nbsp;mF buys &times;1.5.</div>
       </div>
     </div>
 
     <div class="callout">
-      <b>Read these as pre-layout numbers.</b> Typical corner
-      (<span class="vesta-mono">tt, 1.00&nbsp;V, 25&nbsp;&deg;C</span>), synthesis netlist, activity
-      annotated from a behavioral waveform of the real parked state (a wrong-scope negative
-      control reverts the result to statistical &mdash; the annotation is load-bearing). Still no
-      clock tree and no measured silicon; body-temperature operation adds &times;1.3&ndash;1.5
-      leakage without changing the conclusion.
+      <b>Read it this way.</b> A dynamic-tag IC&rsquo;s harvest output and Castalia&rsquo;s
+      parked floor are <i>the same order of magnitude</i>. That is why continuous batteryless
+      operation closes only at close coupling, and why <b>supercapacitor duty-cycling</b>
+      &mdash; charge while the reader sits there, spend it in one 100&nbsp;ms burst &mdash;
+      is the robust scheme. A WLC listener is the only option where the margin is comfortable
+      rather than marginal.
     </div>
 
     <div class="callout amber">
-      <b>Correction (2026-07-28): the storage margin is &times;1.5, not &times;2.</b> The
-      0.75&nbsp;mJ energy figure is right, and ~1&nbsp;mF is still the correct component
-      class &mdash; but the original sizing assumed the buffer could be drained from
-      2.5&nbsp;V down to 1.8&nbsp;V, giving C<sub>min</sub>&nbsp;=&nbsp;498&nbsp;&micro;F.
-      A real harvesting PMIC cannot reach that floor. On a BQ25570 the internal
-      V<sub>BAT_UV</sub> load-shed sits at 1.95&nbsp;V (typ; 2.00&nbsp;V max) and is not
-      programmable, and its buck drops out at V<sub>STOR</sub>&nbsp;&minus;&nbsp;0.2&nbsp;V,
-      so a 1.8&nbsp;V rail already dies at 2.0&nbsp;V. Against the honest
-      2.5&nbsp;&rarr;&nbsp;2.0&nbsp;V window,
-      C<sub>min</sub>&nbsp;=&nbsp;2E&nbsp;/&nbsp;(V<sub>0</sub><sup>2</sup>&minus;V<sub>1</sub><sup>2</sup>)
-      &nbsp;=&nbsp;<b>667&nbsp;&micro;F</b>, so 1&nbsp;mF buys &times;1.5. Keep ~1&nbsp;mF and
-      spend the margin knowingly, or fit ~1.4&nbsp;mF to genuinely have &times;2.
-      Found by simulating the supply chain rather than by re-reading the page; see the
-      <a href="nfc_cots.html">component survey</a>.
+      <b>Two rails, and no harvester supplies both.</b> Castalia needs <b>1.0&nbsp;V</b> for the
+      core (pins 3/35/60) and <b>3.3&nbsp;V</b> for the I/O ring (pins 13/45/70). Every option
+      below therefore needs a conversion stage. At a ~5&nbsp;mA core draw, do not LDO a
+      3&nbsp;V harvest rail down to 1.0&nbsp;V &mdash; you would throw away two-thirds of the
+      budget. Use a nanopower buck.
+      <br><br>
+      <b>Concretely, for the BQ25570:</b> its buck is programmable only over
+      <b>1.3&nbsp;V to 3.3&nbsp;V</b>, and never above V<sub>STOR</sub>&nbsp;&minus;&nbsp;0.2&nbsp;V.
+      So from a 2.5&nbsp;V supercap it can produce a 1.8&nbsp;V rail and <i>nothing else</i>:
+      not the 1.0&nbsp;V core (below its floor) and not 3.3&nbsp;V (above its headroom unless
+      storage is programmed to 3.5&nbsp;V or more). A harvested Castalia board therefore
+      needs <b>two regulators</b>, not one. This corrects an earlier version of this page
+      that recommended a single BQ25570 for both rails.
     </div>
-
-    <p class="prose" style="margin-top:var(--sp-4)"><a href="power_explorer.html">Explore these
-      numbers interactively &mdash; cores, RAM banks and clock versus milliwatts &rarr;</a></p>
-
-    <p class="prose" style="margin-top:var(--sp-6)">Against ISO-14443 harvest budgets &mdash; roughly
-      <b>1&ndash;5&nbsp;mW</b> at loose coupling and <b>5&ndash;10&nbsp;mW</b> at close coupling or
-      NTAG-5-class harvesting &mdash; the measured draw settles the verdict: pure batteryless
-      operation closes <b>at close coupling</b> (the ~4&ndash;5&nbsp;mW floor sits above
-      loose-coupling budgets even with the banks gated), and the robust production answer is a
-      supercap that buffers the same draw across a duty cycle &mdash; a
-      <b>~1&nbsp;mF</b> buffer carries a full 100&nbsp;ms transaction.</p>
   </div>
 </section>
 
-<!-- ================= TWO SCHEMES ================= -->
-<section class="fp-section">
+<!-- ================= THE THREE ARCHITECTURES ================= -->
+<section class="fp-section" id="architectures">
   <div class="fp-wrap">
-    <p class="eyebrow">Both schemes, one silicon</p>
-    <h2>The same RTL serves two power strategies</h2>
+    <p class="eyebrow">The choice</p>
+    <h2>Three ways to attach a radio</h2>
+
     <div class="scheme-grid">
-      <div class="vesta-card scheme">
-        <span class="tag" style="color:var(--accent)">Batteryless</span>
-        <h3>The gate is the mechanism</h3>
-        <p>The chip holds in reset until PGOOD, cold-boots the harvested-boot ROM path, serves the
-          reader from the auto-read payload, and re-holds when the field collapses. Closes at
-          close coupling / NTAG-5-class harvesting; looser fields belong to the supercap scheme.</p>
+      <div class="scheme">
+        <h3>A &mdash; On-chip NFC0 + off-die AFE</h3>
+        <p class="prose">Castalia&rsquo;s own NFC0 block runs the whole protocol (timing, codec,
+          framing, CRC); the external part is reduced to analog plumbing. This is the
+          architecture NFC0 was designed for, and the selected part is an
+          <b>ST25R3916 driven in transparent mode</b> &mdash; a reader IC repurposed as a front
+          end, whose pins map essentially one-for-one onto the <span class="vesta-mono">rf_*</span>
+          port group.</p>
+        <p class="prose"><b>Gets you:</b> readout, with the protocol under your control and
+          visible in RTL &mdash; the interesting option for a teaching or research chip.
+          <b>Costs you:</b> no harvesting whatsoever (the AFE is itself a power consumer), and
+          transparent mode is an unusual operating point that needs bench validation.</p>
       </div>
-      <div class="vesta-card scheme">
-        <span class="tag" style="color:var(--field-edge)">Supercap duty-cycled</span>
-        <h3>The robust scheme</h3>
-        <p>An external buffer stays charged and the gate is left disarmed after the first boot. The
-          service loop sleeps between transactions and is resumed by the ordinary field-detect
-          interrupt (vector&nbsp;94) &mdash; with all state intact, never re-entering reset.</p>
+
+      <div class="scheme">
+        <h3>B &mdash; Dynamic tag IC on I&sup2;C</h3>
+        <p class="prose">A dual-interface tag IC does the radio; Castalia talks to it as an
+          ordinary I&sup2;C peripheral and never sees a carrier. The tag&rsquo;s memory is the
+          mailbox: the reader writes it, an event pin nudges Castalia, Castalia reads it over
+          I&sup2;C. Most of these parts <b>also expose a harvest output</b>, which is what turns
+          this from a comms option into a power option.</p>
+        <p class="prose"><b>Gets you:</b> readout from any NFC phone, off-the-shelf and
+          NFC-Forum-certified, for about a dollar &mdash; plus a harvest rail good enough to
+          duty-cycle from. <b>Costs you:</b> the protocol is a black box, and the harvest
+          budget is tight against Castalia&rsquo;s floor.</p>
       </div>
+
+      <div class="scheme">
+        <h3>C &mdash; NFC WLC listener</h3>
+        <p class="prose">A wireless-charging listener treats the field as a power source first
+          and a data link second. It rectifies up to <b>1&nbsp;W</b>, regulates an MCU rail
+          itself, optionally charges a cell, and carries data over a transparent channel
+          alongside. Castalia is again just an I&sup2;C master with an interrupt line.</p>
+        <p class="prose"><b>Gets you:</b> genuine wireless power &mdash; enough to run all four
+          harts continuously with room to spare, and readout on top. <b>Costs you:</b> a
+          <b>WLC-capable poller</b>. This does not work from an arbitrary phone the way a plain
+          tag does.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PART TABLE: COMMS ================= -->
+<section class="fp-section" id="parts-comms">
+  <div class="fp-wrap">
+    <p class="eyebrow">Candidates</p>
+    <h2>NFC front ends</h2>
+    <p class="lede">Five parts worth evaluating, sorted by which architecture they serve.</p>
+
+    <div class="vesta-table-wrap">
+    <table class="vesta-table">
+      <thead><tr>
+        <th>Part</th><th>Arch</th><th>Role</th><th>Host link</th>
+        <th>Data store</th><th>Energy harvest</th><th>Package</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="fn">ST25R3916</span><br><small>ST</small></td>
+          <td><b>A</b></td>
+          <td>Reader IC used as an AFE in transparent mode</td>
+          <td>the <span class="vesta-mono">rf_*</span> pins &mdash; NFC0 runs the protocol</td>
+          <td>n/a</td>
+          <td><b>none</b> &mdash; it consumes power</td>
+          <td>QFN32</td>
+        </tr>
+        <tr>
+          <td><span class="fn">NTP5332</span><br><small>NXP NTAG&nbsp;5 link</small></td>
+          <td><b>B</b></td>
+          <td>ISO 15693 / Type&nbsp;5 dynamic tag, passive load modulation</td>
+          <td>I&sup2;C slave + event-detect pin</td>
+          <td>2&nbsp;KB EEPROM + 256&nbsp;B SRAM pass-through</td>
+          <td><b>yes</b> &mdash; 1.8/2.4/3.0&nbsp;V, 0.4&ndash;12.5&nbsp;mA selectable</td>
+          <td>XQFN16 / TSSOP16 / SO8</td>
+        </tr>
+        <tr>
+          <td><span class="fn">NTA5332</span><br><small>NXP NTAG&nbsp;5 boost</small></td>
+          <td><b>B</b></td>
+          <td>Same, but <i>active</i> load modulation &mdash; tiny antenna</td>
+          <td>I&sup2;C slave (+ transparent I&sup2;C master channel)</td>
+          <td>2&nbsp;KB EEPROM + 256&nbsp;B SRAM</td>
+          <td><b>yes</b> &mdash; same settings; ALM needs its own VCC</td>
+          <td>XQFN16 / TSSOP16</td>
+        </tr>
+        <tr>
+          <td><span class="fn">ST25DV64KC</span><br><small>ST</small></td>
+          <td><b>B</b></td>
+          <td>ISO 15693 / Type&nbsp;5 dynamic tag</td>
+          <td>I&sup2;C slave + GPO interrupt</td>
+          <td>8&nbsp;KB EEPROM + fast-transfer mailbox</td>
+          <td><b>yes</b> &mdash; V<sub>EH</sub>, unregulated, ~20&nbsp;mW at best</td>
+          <td>TSSOP8 / SO8</td>
+        </tr>
+        <tr>
+          <td><span class="fn">PTX30W</span><br><small>Renesas</small></td>
+          <td><b>C</b></td>
+          <td>NFC Forum WLC listener + Type&nbsp;2 tag</td>
+          <td>I&sup2;C slave + dedicated IRQ pin</td>
+          <td>two 64&nbsp;B transparent-channel buffers</td>
+          <td><b>up to 1&nbsp;W</b>; MCU LDO 1.8/3.3&nbsp;V @ 50&nbsp;mA; Li-ion charger 6&ndash;251&nbsp;mA</td>
+          <td>WLCSP16</td>
+        </tr>
+      </tbody>
+    </table>
     </div>
 
-    <p class="eyebrow" style="margin-top:var(--sp-8)">Programming sequences</p>
-    <div class="seq">
-      <h3>Harvested board &mdash; zero firmware</h3>
-      <p class="prose">Strap P6.6 high, wire the supervisor&rsquo;s power-good output to P6.7. Nothing
-        else: the hardware defaults arm the gate, wait on PGOOD, and re-hold on brownout. The first
-        instruction any hart executes happens after the supply is declared good.</p>
+    <div class="callout">
+      <b>Ruled out already.</b> <b>TI TRF7970A</b> was evaluated as an Architecture-A front end
+      and rejected: its direct mode is not supported for ISO card emulation, which is exactly
+      the mode NFC0 needs. A fully discrete AFE &mdash; coil, envelope detector, comparator,
+      load-modulation FET, clock slicer &mdash; remains the production fallback for
+      Architecture A.
     </div>
-    <div class="seq">
-      <h3>Software-armed gate &mdash; test or supervised systems</h3>
-      <div class="code"><span class="kw">PWRWAKE</span> = PWGATEEN | PWRLSPGOOD   <span style="color:var(--text-dim)">// optionally | PWREHOLD</span>
-<span style="color:var(--text-dim)">// | PWRLSFIELD adds the RF field as a release source</span>
-<span style="color:var(--text-dim)">// | PWSWRLS forces a release regardless of pins</span>
-poll <span class="kw">PWRSTS</span>.PWBOOTHOLD to observe the gate</div>
+  </div>
+</section>
+
+<!-- ================= PART TABLE: POWER ================= -->
+<section class="fp-section" id="parts-power">
+  <div class="fp-wrap">
+    <p class="eyebrow">Candidates</p>
+    <h2>Harvest storage &amp; conversion</h2>
+    <p class="lede">A tag IC&rsquo;s harvest pin is a raw, intermittent source. Between it and
+      Castalia&rsquo;s two rails you need storage, conversion, and a supervisor to drive PGOOD.</p>
+
+    <div class="vesta-table-wrap">
+    <table class="vesta-table">
+      <thead><tr><th>Part</th><th>What it does</th><th>Key numbers</th><th>Why it fits</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="fn">BQ25570</span><br><small>TI</small></td>
+          <td>Nanopower boost charger + buck converter for harvested sources</td>
+          <td>cold-starts at V<sub>IN</sub>&nbsp;=&nbsp;600&nbsp;mV, then harvests down to
+            100&nbsp;mV; programmable MPPT; integrated nanopower buck,
+            <b>output range 1.3&ndash;3.3&nbsp;V</b> and never above
+            V<sub>STOR</sub>&nbsp;&minus;&nbsp;0.2&nbsp;V</td>
+          <td>Covers storage and <b>one</b> regulated rail. <b>It cannot make
+            Castalia&rsquo;s 1.0&nbsp;V core rail</b> &mdash; 1.3&nbsp;V is the floor, so a
+            companion regulator is mandatory. See the rail note below.</td>
+        </tr>
+        <tr>
+          <td><span class="fn">AEM30940</span><br><small>e-peas</small></td>
+          <td>RF-native energy-harvesting PMIC</td>
+          <td>RF input &minus;18.5&nbsp;dBm to +10&nbsp;dBm; HVOUT 80&nbsp;mA @ 1.8&ndash;4.2&nbsp;V;
+            LVOUT 20&nbsp;mA @ 1.2/1.8&nbsp;V; supercap balancing</td>
+          <td><b>Two regulated outputs from one chip</b> &mdash; the closest single-part match
+            to Castalia&rsquo;s dual-rail requirement.</td>
+        </tr>
+        <tr>
+          <td><span class="fn">Supply supervisor</span><br><small>any</small></td>
+          <td>Asserts power-good when the storage rail can carry a transaction</td>
+          <td>threshold chosen above the brownout point of the burst you intend to run</td>
+          <td><b>This is the part that drives DP-S3&rsquo;s PGOOD pin.</b> Without it the boot
+            gate has nothing to wait on.</td>
+        </tr>
+      </tbody>
+    </table>
     </div>
-    <div class="seq">
-      <h3>Supercap duty-cycled service loop &mdash; gate disarmed</h3>
-      <p class="prose">Boot normally, then: gate the unused tile harts through <code>PWRCR</code>;
-        route the NFC field-detect interrupt to the serving hart&rsquo;s router row; provision and arm
-        the NFC block in LISTEN with auto-read; optionally divide MCLK down; sleep with WFI. A reader
-        arriving raises field-detect, the router delivers the external interrupt, and the hart resumes
-        &mdash; the boot gate plays no part. For the deepest floor, additionally gate unused shared
-        banks and memories via <code>BLOCKPWR</code> and divide the clock.</p>
+
+    <p class="eyebrow" style="margin-top:var(--sp-7)">The topology</p>
+    <h3>One storage node, two regulators</h3>
+    <p class="prose">Because no single harvesting PMIC covers both of Castalia&rsquo;s rails,
+      the supply is not a chain &mdash; it forks. Everything hangs off <b>one</b> capacitor,
+      and both rails draw from it:</p>
+
+    <div class="codeblock">harvester (NTAG 5 V<sub>OUT</sub> / ST25DV V<sub>EH</sub> / PTX30W)
+        |
+        v
+  [ boost + cold start ]            BQ25570 cold-starts at 600 mV,
+        |                           then harvests down to 100 mV
+        v
+     V<sub>STOR</sub>  ~1 mF supercap   <b>&larr; the whole chip's draw lands here</b>
+        |
+        +---&gt; buck 1.8 V ................ rail A   (BQ25570's own buck,
+        |                                           range 1.3 V .. V<sub>STOR</sub>&minus;0.2)
+        +---&gt; companion reg 1.0 V ....... rail B   <b>&larr; a SECOND part. Required.</b>
+        |                                           BQ25570 cannot reach 1.0 V.
+        +---&gt; 3.3 V I/O ................. also needs its own regulator
+        |                                 (above V<sub>STOR</sub>&minus;0.2 from a 2.5 V cap)
+        |
+        +---&gt; VBAT_OK ---&gt; supervisor ---&gt; <b>PGOOD &rarr; pin 69</b>
+                           (hysteresis     strap &rarr; pin 68
+                            &ge; 100 mV)</div>
+
+    <div class="callout amber">
+      <b>The mistake this diagram exists to prevent.</b> A BQ25570 looks like a
+      one-chip solution and is not. Its buck is programmable only over
+      <b>1.3&nbsp;V to 3.3&nbsp;V</b> and never above
+      V<sub>STOR</sub>&nbsp;&minus;&nbsp;0.2&nbsp;V, so from a 2.5&nbsp;V supercap it
+      produces 1.8&nbsp;V and <i>neither</i> of Castalia&rsquo;s actual rails. That does
+      not make it the wrong part &mdash; it is still a good harvester, charger and
+      power-good source. It is just <b>not the whole supply</b>. Budget a second
+      regulator from the start.
+    </div>
+
+    <div class="callout ok">
+      <b>Why the supervisor needs hysteresis.</b> Simulating this chain showed a
+      hysteresis-free comparator producing <b>~130 PGOOD edges</b> as a slowly rising
+      harvested rail crossed its threshold, versus <b>1 edge</b> with 100&nbsp;mV of
+      hysteresis. On Castalia each of those edges is a hold-and-release of all four
+      harts, because <span class="vesta-mono">pwr_ctrl</span> has only a two-flop
+      synchroniser on the PGOOD pad and the harvested strap arms re-hold automatically.
+      Drive pin 69 from the PMIC&rsquo;s own VBAT_OK with programmed hysteresis, and check
+      that pin 69&rsquo;s pull-down is not fighting VBAT_OK&rsquo;s ~20&nbsp;k&Omega; internal
+      series resistance. (The edge <i>count</i> depends on an assumed noise figure and is
+      illustrative; the chatter itself is structural.)
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHERE IT LANDS ================= -->
+<section class="fp-section" id="pins">
+  <div class="fp-wrap">
+    <p class="eyebrow">The landing</p>
+    <h2>Where each option lands on the package</h2>
+    <p class="lede">Pins are not the constraint. Castalia bonds all 48 GPIO on the LQFP-100,
+      and every one of them has its own interrupt vector.</p>
+
+    <div class="vesta-table-wrap">
+    <table class="vesta-table">
+      <thead><tr><th>Signal</th><th>Castalia pins</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Architecture A &mdash; AFE link</td>
+          <td>P6.0&ndash;P6.5 &middot; <b>pins 62&ndash;67</b></td>
+          <td>rf_clk, rf_rx, field_detect, rf_txmod, rf_tx_en, afe_en. P6.0 comes out of reset
+            already in AF1, so the carrier-derived clock arrives with no mux write.
+            Vectors 94&ndash;97.</td>
+        </tr>
+        <tr>
+          <td>Architecture B/C &mdash; I&sup2;C</td>
+          <td>I2C0 <b>pins 37/38</b>, I2C1 <b>pins 39/40</b></td>
+          <td>Castalia is master. Both controllers also have slave modes, and a separate
+            hardware target block (I2CT0) shares the I2C0 pads if the front end ever needs
+            to be the master.</td>
+        </tr>
+        <tr>
+          <td>Front-end interrupt / field-detect</td>
+          <td>any GPIO; <b>pin 64</b> preferred</td>
+          <td>Landing it on P6.2 feeds NFC0&rsquo;s field-detect path (vector 94) <i>and</i>
+            event fabric line 8.</td>
+        </tr>
+        <tr>
+          <td>DP-S3 PGOOD</td>
+          <td>P6.7 &middot; <b>pin 69</b></td>
+          <td>From the supply supervisor. Pull-down at reset, so an unconnected pin reads
+            &ldquo;not good&rdquo; and the gate stays held.</td>
+        </tr>
+        <tr>
+          <td>DP-S3 harvested-boot strap</td>
+          <td>P6.6 &middot; <b>pin 68</b></td>
+          <td>Tie high for harvested boot. Pull-down at reset, so an unconnected pin means
+            normal SPI-flash boot.</td>
+        </tr>
+        <tr>
+          <td>SPI alternative</td>
+          <td>SPI1 &middot; <b>pins 15&ndash;18</b></td>
+          <td>The only SPI with a slave mode, and only at CPHA=1. SPI0 is master-only and
+            belongs to the boot flash.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout ok">
+      <b>The wake path worth knowing about.</b> With the event fabric enabled, NFC0&rsquo;s
+      <b>field-detect is event line 8</b> and <b>PWRCTRL tile wake is task line 5</b>. Wire one
+      channel between them and a reader arriving wakes a parked hart <i>with every interrupt
+      disabled and no processor in the loop</i> &mdash; the fabric rides the free-running MCLK
+      in the always-on domain, so PWRCTRL never gates it and WFI never stops it. A COTS tag
+      IC&rsquo;s event-detect output landed on pin 64 drives that same path.
+    </div>
+  </div>
+</section>
+
+<!-- ================= SIMULATION MODELS ================= -->
+<section class="fp-section" id="models">
+  <div class="fp-wrap">
+    <p class="eyebrow">You can try before you buy</p>
+    <h2>Every part on this page has a simulation model</h2>
+    <p class="lede">Each candidate now has a behavioral VHDL model and a self-checking
+      testbench in the VestaRV tree, so firmware and the DP-S3 boot gate can be exercised
+      against a plausible, datasheet-grounded device before any board exists.</p>
+
+    <div class="vesta-table-wrap">
+    <table class="vesta-table">
+      <thead><tr><th>Part</th><th>Model</th><th>Checks</th><th>What it lets you exercise</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="fn">NTAG 5</span></td>
+          <td><span class="vesta-mono">ntag5_model</span></td>
+          <td>109</td>
+          <td>I&sup2;C driver bring-up against the real block/register frame split, and the
+            harvest settings decoded onto ports you can wire to the supply model</td>
+        </tr>
+        <tr>
+          <td><span class="fn">ST25DV64KC</span></td>
+          <td><span class="vesta-mono">st25dv_model</span></td>
+          <td>119</td>
+          <td>Both device addresses, EEPROM write-cycle NACK polling, mailbox handshake</td>
+        </tr>
+        <tr>
+          <td><span class="fn">PTX30W</span></td>
+          <td><span class="vesta-mono">ptx30w_model</span></td>
+          <td>121</td>
+          <td>The framed host protocol, IRQ handling, and a data transfer larger than the
+            64-byte buffer so the chunking path is real</td>
+        </tr>
+        <tr>
+          <td><span class="fn">ST25R3916</span></td>
+          <td><span class="vesta-mono">st25r3916_model</span></td>
+          <td>88</td>
+          <td>Configuring the AFE over SPI and proving the RF path is gated correctly &mdash;
+            including that a stray SPI frame drops it</td>
+        </tr>
+        <tr>
+          <td><span class="fn">Harvester + supervisor</span></td>
+          <td><span class="vesta-mono">harvest_supply_model</span></td>
+          <td>49</td>
+          <td>Cold start, brownout, supercap sizing, and PGOOD behaviour into
+            <span class="vesta-mono">pwr_ctrl</span>&rsquo;s boot gate</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout">
+      <b>What the models are for, and what they are not.</b> They are behavioral and
+      engineering-unit &mdash; no analog, no timing sign-off, no RF air interface (each
+      model&rsquo;s RF side is an explicitly-labelled bench abstraction). They exist so
+      driver code and the boot gate meet a device that ramps, stalls, NACKs and browns out
+      instead of a hand-forced signal. Every model header lists exactly which behaviours
+      came from which datasheet section and which are assumptions. <b>None of them has
+      been validated against real silicon.</b>
+    </div>
+
+    <div class="callout ok">
+      <b>Simulating them changed the recommendation.</b> Three of the corrections on this
+      page &mdash; the BQ25570 cold-start voltage, the fact that it cannot supply either
+      Castalia rail, and the storage margin being &times;1.5 rather than &times;2 &mdash;
+      came out of building the models and reading the datasheets closely enough to write
+      them, not out of re-reading the survey. The supervisor hysteresis answer came out of
+      running them.
+    </div>
+  </div>
+</section>
+
+<!-- ================= RECOMMENDATION ================= -->
+<section class="fp-section" id="recommendation">
+  <div class="fp-wrap">
+    <p class="eyebrow">The shortlist</p>
+    <h2>What to evaluate first</h2>
+
+    <div class="steps">
+      <div class="seq">
+        <h3>If the goal is readout, and Castalia has its own supply</h3>
+        <p class="prose">An <b>NTP5332</b> or <b>ST25DV64KC</b> on I2C0, event pin to a GPIO.
+          About a dollar, works from any NFC phone, and the firmware is ordinary I&sup2;C.
+          Nothing about the chip&rsquo;s power design has to change.</p>
+      </div>
+      <div class="seq">
+        <h3>If the goal is batteryless, phone-compatible operation</h3>
+        <p class="prose"><b>NTP5332 &rarr; BQ25570 &rarr; ~1&nbsp;mF supercap &rarr; BQ25570 buck
+          to 1.8&nbsp;V, plus a companion regulator for the 1.0&nbsp;V core</b>, with the
+          supervisor&rsquo;s power-good on pin 69 and
+          the strap on pin 68 tied high. This exercises the DP-S3 path exactly as it was
+          designed, and it degrades gracefully: in a weak field you are still a readable tag,
+          you simply do not boot the harts. <b>This is the recommended first board.</b></p>
+      </div>
+      <div class="seq">
+        <h3>If the goal is genuine wireless power and a dedicated reader is acceptable</h3>
+        <p class="prose"><b>PTX30W.</b> Its MCU LDO feeds the 3.3&nbsp;V I/O rail directly and
+          the raw system-supply pin feeds your own 1.0&nbsp;V buck; the transparent data channel
+          carries the readout. At 1&nbsp;W in, Castalia&rsquo;s 12&nbsp;mW all-hearts-awake
+          budget stops being a design constraint at all.</p>
+      </div>
+      <div class="seq">
+        <h3>If both phone readout and real power are required</h3>
+        <p class="prose">Put a <b>PTX30W and an NTP5332 on the same I&sup2;C bus</b> at different
+          addresses. The listener handles power and bulk transfer from a dedicated poller; the
+          tag keeps the chip readable by any phone that walks past.</p>
+      </div>
+      <div class="seq">
+        <h3>If the point is to exercise the on-chip NFC block</h3>
+        <p class="prose"><b>ST25R3916 in transparent mode</b>, on pins 62&ndash;67. This is the
+          only option that puts Castalia&rsquo;s own protocol core on the air. It is also the
+          only one whose operating mode should be proven on a vendor evaluation board before it
+          is committed to a Castalia PCB.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= OPEN QUESTIONS ================= -->
+<section class="fp-section" id="open">
+  <div class="fp-wrap">
+    <p class="eyebrow">Before any of this becomes a board</p>
+    <h2>Open questions</h2>
+    <div class="prose">
+      <ul>
+        <li><b>Antenna coupling is the whole ballgame for Architecture B.</b> The
+          1&ndash;10&nbsp;mW spread is the difference between continuous operation and
+          duty-cycling. It cannot be settled from datasheets &mdash; it needs a coil, a reader,
+          and a measurement.</li>
+        <li><b>Smartphone fields are weak harvesters.</b> The vendor guidance for the ST part is
+          explicit that meaningful harvesting wants a dedicated reader, not a handset. If the
+          use case says &ldquo;tap with a phone and it runs,&rdquo; that assumption needs
+          testing early.</li>
+        <li><b>PGOOD ramp hysteresis is still open</b> from the DP-S3 work &mdash; a slowly
+          rising harvested rail crossing the supervisor threshold needs a defined behaviour, and
+          the supervisor part choice is what sets it.</li>
+        <li><b>ST25R3916 transparent mode is an unusual operating point.</b> The pin mapping
+          onto NFC0 was derived from the datasheet and vendor forum threads, not from a bench.</li>
+        <li><b>WLC poller availability</b> decides whether Architecture C is viable for the
+          intended deployment. Phone support for wireless charging over NFC is not universal.</li>
+        <li><b>The 3.3&nbsp;V I/O rail must be live for the pad ring to behave</b> even when the
+          chip is doing nothing. Its standby cost is small but it is not zero, and it is not
+          included in the core-power figures quoted above.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SOURCES ================= -->
+<section class="fp-section" id="sources">
+  <div class="fp-wrap">
+    <p class="eyebrow">Provenance</p>
+    <h2>Datasheets and notes</h2>
+    <p class="lede">Every number on this page traces to one of these, or to Castalia&rsquo;s own
+      synthesis and place-and-route reports.</p>
+    <div class="prose">
+      <ul>
+        <li>NXP &mdash; <a href="https://www.nxp.com/docs/en/data-sheet/NTP53x2.pdf">NTP53x2
+          (NTAG 5 link) data sheet</a> and <a href="https://www.nxp.com/docs/en/data-sheet/NTA5332.pdf">NTA5332
+          (NTAG 5 boost) data sheet</a> &mdash; the harvest voltage/current selection tables.</li>
+        <li>NXP &mdash; <a href="https://www.nxp.com/docs/en/application-note/AN12365.pdf">AN12365,
+          NTAG 5: how to use energy harvesting</a>.</li>
+        <li>ST &mdash; <a href="https://www.st.com/en/nfc/st25dv64kc.html">ST25DV64KC</a> and
+          <a href="https://www.st.com/resource/en/application_note/an5233-energy-harvesting-with-st25dvi2c-series-dynamic-nfc-tags-stmicroelectronics.pdf">AN5233,
+          energy harvesting with ST25DV-I2C series tags</a>.</li>
+        <li>ST &mdash; <a href="https://www.st.com/en/nfc/st25r3916.html">ST25R3916</a>, the
+          Architecture-A front end, used in transparent mode.</li>
+        <li>Renesas &mdash; <a href="https://www.renesas.com/en/products/ptx30w">PTX30W NFC
+          wireless-charging listener</a>.</li>
+        <li>NFC Forum &mdash; <a href="https://nfc-forum.org/build/specifications/wireless-charging/">Wireless
+          Charging specification</a>, which defines the 250/500/750/1000&nbsp;mW classes.</li>
+        <li>TI &mdash; <a href="https://www.ti.com/product/BQ25570">BQ25570</a>; e-peas &mdash;
+          <a href="https://e-peas.com/product/aem30940/">AEM30940</a>.</li>
+      </ul>
     </div>
   </div>
 </section>
@@ -1006,14 +1068,14 @@ poll <span class="kw">PWRSTS</span>.PWBOOTHOLD to observe the gate</div>
   <div class="fp-wrap">
     <div class="footlinks">
       <a href="index.html">&#8592; VestaRV home</a>
-      <a href="nfc_cots.html">Off-the-shelf NFC &amp; WPT parts</a>
+      <a href="field_power.html">Field-powered NFC mode</a>
       <a href="castalia_soc.html">Castalia SoC diagram</a>
       <a href="register_browser.html">Register browser</a>
-      <a href="chip_configurator.html">Chip configurator</a>
     </div>
     <p style="margin-top:var(--sp-4)">VestaRV &mdash; a custom RISC-V MCU family on TSMC&nbsp;65&nbsp;nm.
-      Castalia is a tape-out-ready design; figures on this page are hand-drawn schematics and the
-      power numbers are pre-layout, typical-corner estimates.</p>
+      Castalia is a tape-out-ready design. This page is a desk study of third-party components:
+      the part figures are read from vendor datasheets and the Castalia figures are pre-layout,
+      typical-corner estimates. No component listed here has been validated on hardware.</p>
   </div>
 </footer>
 

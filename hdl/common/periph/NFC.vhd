@@ -37,7 +37,9 @@ use work.constants.all;
 -- PCB, never on-die). Best-match COTS part: ST ST25R3916 in TRANSPARENT MODE --
 -- MOSI=modulation in (rf_txmod), MISO/IRQ=demodulated RX (rf_rx), MCU_CLK=
 -- extracted carrier clock (rf_clk; set CR.RFDIV/NFCxTIM to its division),
--- EXT_LM=field detector (field_detect), SCLK=receiver enable (afe_en role):
+-- EXT_LM=field detector (field_detect), SCLK=receiver enable (afe_en role);
+-- rf_tx_en is a NO-CONNECT on the ST25R3916 (five AFE pins, six rf_* ports) --
+-- rf_txmod is already OOK-gated per D5, so the AFE needs no separate window:
 --   https://www.st.com/en/nfc/st25r3916.html
 --   https://community.st.com/t5/st25-nfc-rfid-tags-and-readers/st25r3916-transparent-mode-details/td-p/134598
 --   https://community.st.com/t5/st25-nfc-rfid-tags-and-readers/questions-about-configurations-of-st25r3916-for-transparent-mode/td-p/314074
