@@ -1,0 +1,15 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption[{Output drive limits by corner, from \texttt{DriveTB} with a \SI{5}{\pico\farad} load.}]{Output drive limits by corner, from \texttt{DriveTB} with a \SI{5}{\pico\farad} load. The sourcing limit is the current at which the output has drooped \SI{1}{\percent} (\SI{12.5}{\milli\volt}) below $v_{\mathrm{cm}}$. Sinking is not resolved: the output is still within \SI{0.8}{\milli\volt} of $v_{\mathrm{cm}}$ at the \SI{-40}{\micro\ampere} end of the sweep, so \SI{40}{\micro\ampere} is a lower bound rather than a measurement. The consequence for the minimum-gain setting is discussed above.}
+  \label{tab:tia-drive}
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Parameter & Unit & tt & ff & fs & sf & ss & Spread \\
+    \midrule
+    Sourcing limit at \SI{1}{\percent} droop & \si{\micro\ampere} & 14.45 & 15.56 & 13.60 & 15.45 & 13.91 & 1.96 \\
+    Output while sourcing \SI{40}{\micro\ampere} & \si{\volt} & $-0.425$ & $-0.394$ & $-0.414$ & $-0.454$ & $-0.472$ & 0.078 \\
+    Output while sinking \SI{40}{\micro\ampere} & \si{\volt} & 1.2507 & 1.2508 & 1.2507 & 1.2506 & 1.2506 & 0.0002 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -1,0 +1,15 @@
+%% maestro2tex -- generated table; do not edit by hand.
+\begin{table}[htbp]
+  \centering
+  \caption{Offset statistics. \textbf{Mismatch only} (\texttt{castalia\_mm\_25}), \SI{37}{\celsius}, \SI{2.5}{\volt}, \texttt{BiasAdj}~=~37, 200 samples, seed 12345, LDS sampling. Spec and yield are the \(\pm\SI{1}{\milli\volt}\) limits entered on the test, i.e. the fraction of uncalibrated channels within \(\pm\SI{1}{\milli\volt}\); the \(\sigma \leq \SI{2}{\milli\volt}\) design budget is a separate criterion and is also missed. $C_{\mathrm{pk}}$ is taken against the binding limit. Tail-current spread is \SI{7.8}{\percent} here against \SI{14}{\percent} in the process runs, since a mismatch-only run holds the bias resistor fixed; that difference is the standing check that process variation is active.}
+  \label{tab:ctrlamp-mc-offset}
+  \footnotesize
+  \begin{tabular}{lrrrrrrrrrr}
+    \toprule
+    Parameter & Unit & $N$ & Mean & $\sigma$ & Min & Max & Mean $\pm\,3\sigma$ & Spec & Yield & $C_{\mathrm{pk}}$ \\
+    \midrule
+    Input-referred offset $V_{\mathrm{OS}}$ & \si{\milli\volt} & 200 & $-0.08$ & 3.07 & $-9.15$ & 7.72 & $-0.08$\,$\pm$\,9.22 & $\pm1.00$ & 24.5 & 0.10 \\
+    Tail current $I_{\mathrm{TAIL}}$ & \si{\micro\ampere} & 200 & 31.85 & 2.48 & 25.21 & 37.89 & 31.85\,$\pm$\,7.43 & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

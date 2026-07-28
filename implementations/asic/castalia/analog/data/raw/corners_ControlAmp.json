@@ -1,9 +1,9 @@
 [
   {
-    "dir": "136",
+    "dir": "1",
     "label": "tt",
     "vars": {
-      "C_L": 1e-11,
+      "C_L": 5e-12,
       "DPAR_1": 4e-06,
       "DPAR_10": 1e-06,
       "DPAR_11": 1.0,
@@ -34,19 +34,16 @@
       "N": 1.0,
       "VDD25": 2.5,
       "V_CM": 1.25,
-      "V_InACMag": 1.0,
-      "V_InDCOffset": 0.0,
-      "V_InTAmp": 0.001,
-      "V_InTFreq": 1000.0,
       "b6_BiasAdj": 37.0,
-      "temp": 27.0
+      "temp": 37.0,
+      "v_ref": 1.25
     }
   },
   {
-    "dir": "137",
+    "dir": "2",
     "label": "ff",
     "vars": {
-      "C_L": 1e-11,
+      "C_L": 5e-12,
       "DPAR_1": 4e-06,
       "DPAR_10": 1e-06,
       "DPAR_11": 1.0,
@@ -77,19 +74,16 @@
       "N": 1.0,
       "VDD25": 2.5,
       "V_CM": 1.25,
-      "V_InACMag": 1.0,
-      "V_InDCOffset": 0.0,
-      "V_InTAmp": 0.001,
-      "V_InTFreq": 1000.0,
       "b6_BiasAdj": 37.0,
-      "temp": 25.0
+      "temp": 25.0,
+      "v_ref": 1.25
     }
   },
   {
-    "dir": "138",
+    "dir": "3",
     "label": "fs",
     "vars": {
-      "C_L": 1e-11,
+      "C_L": 5e-12,
       "DPAR_1": 4e-06,
       "DPAR_10": 1e-06,
       "DPAR_11": 1.0,
@@ -120,19 +114,16 @@
       "N": 1.0,
       "VDD25": 2.5,
       "V_CM": 1.25,
-      "V_InACMag": 1.0,
-      "V_InDCOffset": 0.0,
-      "V_InTAmp": 0.001,
-      "V_InTFreq": 1000.0,
       "b6_BiasAdj": 37.0,
-      "temp": 25.0
+      "temp": 25.0,
+      "v_ref": 1.25
     }
   },
   {
-    "dir": "139",
+    "dir": "4",
     "label": "sf",
     "vars": {
-      "C_L": 1e-11,
+      "C_L": 5e-12,
       "DPAR_1": 4e-06,
       "DPAR_10": 1e-06,
       "DPAR_11": 1.0,
@@ -163,19 +154,16 @@
       "N": 1.0,
       "VDD25": 2.5,
       "V_CM": 1.25,
-      "V_InACMag": 1.0,
-      "V_InDCOffset": 0.0,
-      "V_InTAmp": 0.001,
-      "V_InTFreq": 1000.0,
       "b6_BiasAdj": 37.0,
-      "temp": 25.0
+      "temp": 25.0,
+      "v_ref": 1.25
     }
   },
   {
-    "dir": "140",
+    "dir": "5",
     "label": "ss",
     "vars": {
-      "C_L": 1e-11,
+      "C_L": 5e-12,
       "DPAR_1": 4e-06,
       "DPAR_10": 1e-06,
       "DPAR_11": 1.0,
@@ -206,12 +194,9 @@
       "N": 1.0,
       "VDD25": 2.5,
       "V_CM": 1.25,
-      "V_InACMag": 1.0,
-      "V_InDCOffset": 0.0,
-      "V_InTAmp": 0.001,
-      "V_InTFreq": 1000.0,
       "b6_BiasAdj": 37.0,
-      "temp": 25.0
+      "temp": 25.0,
+      "v_ref": 1.25
     }
   }
 ]

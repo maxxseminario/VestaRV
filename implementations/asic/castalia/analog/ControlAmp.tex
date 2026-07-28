@@ -20,56 +20,23 @@
 % Keep this block's floats inside this block (see placeins).
 \FloatBarrier
 
-\subsection{Potentiostat Control Amplifier}\label{ss:controlamp}
-
-The control amplifier (schematic cell \texttt{anatop\_controlamp}, drawn from
-\texttt{AFE\_ECS/folded\_cascode\_pmos}) is amplifier A1 of the rev-2 potentiostat.
-It drives the counter electrode directly from its output, takes its feedback from the
-reference electrode on the inverting input, and takes its set point from the reference
-DAC on the non-inverting input; the cell current is therefore whatever A1 must push
-into the cell to hold $V_{\mathrm{RE}}$ at the commanded potential. Unlike the rev-1
-front end it drives no current mirror, so both polarities of cell current pass through
-it. Figure~\ref{fig:ctrlamp-core} is the transistor-level core.
-
-The topology is a single-stage folded cascode with a PMOS input pair. Output and load
-current are summed at a single high-impedance node, so the amplifier has no internal
-compensation capacitor --- the load capacitance at \texttt{vout} is what sets the
-dominant pole, and every dynamic figure below is quoted against the
-\SI{10}{\pico\farad} load the benches apply. A PMOS input pair puts the input
-common-mode range against \texttt{vss!} rather than against the supply, which is what a
-potentiostat holding a reference electrode near ground needs. The four cascode gate
-biases come from an \texttt{anatop\_biasgen\_local} instance
-(Section~\ref{ss:biasgen-local}) trimmed to \texttt{BiasAdj}~=~37.
-
-The characterisation below is from schematic-level simulation (no extracted parasitics)
-of the \texttt{castalia/anatop\_tb\_controlamp} testbench, across the five process
-corners of Table~\ref{tab:ControlAmp-corners}: \texttt{TypOpenLoopWBiasTB} (open-loop
-AC and DC transfer), \texttt{UnityFeedbackWBiasTB} (loop stability by \texttt{stb}
-analysis, unity-gain transfer, noise), \texttt{SlewOpenLoopWBiasTB} (large-signal step)
-and \texttt{DriveMapTB} (a load-current sweep at each of 26 commanded output voltages,
-in every corner). Every bench includes the local bias generator, so the noise and
-supply-current numbers are for the amplifier as biased, not for an idealised cell.
-
-The typical point is simulated at \SI{27}{\celsius} and the four process corners at
-\SI{25}{\celsius}. The resistor and MIM model rows are typical in all five corners;
-only the standard-MOS rows vary.
-
+\input{\MaestroRoot note_ctrlamp_intro.tex}
 \input{\MaestroRoot sch_ctrlamp_core.tex}
 \input{\MaestroRoot tab_ControlAmp_corners.tex}
-\input{\MaestroRoot tab_ctrlamp_dcop.tex}
-\input{\MaestroRoot tab_ctrlamp_ac.tex}
-\input{\MaestroRoot fig_ctrlamp_ol_gain.tex}
-\input{\MaestroRoot tab_ctrlamp_stability.tex}
-\input{\MaestroRoot tab_ctrlamp_swing.tex}
-\input{\MaestroRoot tab_ctrlamp_accuracy.tex}
-\input{\MaestroRoot fig_ctrlamp_buffer_error.tex}
-\input{\MaestroRoot tab_ctrlamp_largesignal.tex}
-\input{\MaestroRoot fig_ctrlamp_slew.tex}
-\input{\MaestroRoot tab_ctrlamp_drivemap.tex}
-\input{\MaestroRoot fig_ctrlamp_drivemap.tex}
-\input{\MaestroRoot fig_ctrlamp_drivespan.tex}
-\input{\MaestroRoot note_ctrlamp_drivemap.tex}
-\input{\MaestroRoot tab_ctrlamp_noise.tex}
-\input{\MaestroRoot fig_ctrlamp_noise.tex}
+\input{\MaestroRoot fig_ctrlamp_cell_current.tex}
+\input{\MaestroRoot fig_ctrlamp_cell_ce.tex}
+\input{\MaestroRoot tab_ctrlamp_cell_corners.tex}
+\input{\MaestroRoot fig_ctrlamp_cell_reerr.tex}
+\input{\MaestroRoot tab_ctrlamp_cell_loop.tex}
+\input{\MaestroRoot note_ctrlamp_mc.tex}
+\input{\MaestroRoot fig_ctrlamp_mc_celldrive.tex}
+\input{\MaestroRoot tab_ctrlamp_mc_celldrive.tex}
+\input{\MaestroRoot fig_ctrlamp_mc_offset.tex}
+\input{\MaestroRoot fig_ctrlamp_mc_pm.tex}
+\input{\MaestroRoot tab_ctrlamp_mc_stability.tex}
+\input{\MaestroRoot tab_ctrlamp_mc_noise.tex}
+\input{\MaestroRoot fig_ctrlamp_mc_slew.tex}
+\input{\MaestroRoot tab_ctrlamp_mc_step.tex}
+\input{\MaestroRoot tab_ctrlamp_mc_bias.tex}
 
 \FloatBarrier

@@ -89,10 +89,16 @@ example. Keys:
 | `intro_tex` | prose emitted at the top of the master file |
 | `signals` | logical name → `expr` (any OCEAN expression), `label`, `unit_tex`, `scale`, `digits` |
 | `tests` | per test: `result` (`dc`/`tran`/`dcOp`/`ac`/`stb`/`noise`/…), `dir`, `xlabel`, `xunit_tex`, `xscale`, `nominal_x`, and `signals` overrides |
-| `figures` | `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec`, `xlog`, `ylog`, `axis_extra`; or `kind: "heatmap"` (see below) |
-| `tables` | `type` `matrix` (signals × corners), `bycorner` (corners × signals), or `stats` (signals × statistics) |
+| `figures` | `id`, `test`, `signals`, `corners` (list or `"all"`), `caption`, `legendpos`, `yprec`, `xlog`, `ylog`, `axis_extra`, `width`, `height`; or `kind: "heatmap"` / `"sweepline"` / `"histogram"` (see below) |
+| `tables` | `id`, `type` `matrix` (signals × corners), `bycorner` (corners × signals), `stats` (signals × statistics), or `mcstats` (Monte Carlo, see below) |
 | `order` | explicit order of fragments in the master file |
 | `emit_master` | `false` for a companion config that only contributes fragments |
+| `emit_corner_table` | `false` to suppress the point/process/temp/supply legend table |
+| `points` | `["1-130", "136"]` — which numeric point directories this config claims |
+| `monte_carlo` | `true` to read a Monte Carlo run instead of corner points (see below) |
+
+`id` is mandatory on every figure and table: it names the fragment (`fig_<id>.tex`,
+`tab_<id>.tex`), the `\label`, and the entry you list in `order`.
 
 `signals` is per-test overridable because the same quantity is often a different node
 in a different testbench — in the bias generator the supply current is
@@ -162,6 +168,53 @@ sweep resolution regardless of how coarse the raster is.
 Available statistics: `value`, `nominal` (interpolated at `nominal_x`), `min`, `max`,
 `mean`, `spread`, `first`, `last`, `settle` (last exit from a ±1 % band around the
 final value), `sens_pct_per_x` (%/unit) and `ppm_per_x` (ppm/unit).
+
+## Monte Carlo (`"monte_carlo": true`)
+
+A Monte Carlo run does **not** fit the corner-point model and is read by a separate
+path. Maestro runs MC in chunks, so the numeric directories are chunks rather than
+corners (`numruns=17`, 200 samples → `1, 18, 35, … 188`) and none of them holds the
+per-sample results. Spectre appends every sample's scalars to one aggregate pair of
+files under the *non-numeric* sibling `psf/`:
+
+```
+<run>/psf/<test>/monteCarlo/mcdata    one tab-separated row per sample, no header
+<run>/psf/<test>/monteCarlo/mcparam   one row per output, in mcdata column order:
+                                      name <TAB> spec_lo <TAB> spec_hi <TAB> "expr"
+```
+
+`mcparam` is self-describing, so the column mapping *and* the spec limits come from the
+run itself. `±1e+36` means unbounded. Because the data is already reduced to scalars,
+**this path needs no OCEAN and no Virtuoso licence** — it is a parse and a copy. It
+still writes `data/raw/<test>__mc.csv` carrying the seed, sample count, sampling mode
+and limits, so the fragments regenerate after the run is rotated away.
+
+`kind: "histogram"` takes `signals` (one, or two for a back-to-back sink/source pair),
+`bins`, `spec_lo`/`spec_hi` with optional `spec_lo_label`/`spec_hi_label`, and
+`spec_span`. A limit further than `spec_span` times the data width is annotated at the
+axis edge instead of drawn, so a spec that is nowhere near the data cannot squash the
+distribution into a single bar and hide the tail it exists to show.
+
+`type: "mcstats"` is the matching table. `stats` picks the columns from `n`, `seed`,
+`sampling`, `mean`, `sigma`, `min`, `max`, `median`, `p1`, `p99`, `mean_3s`, `spec`,
+`yield`, `yield_chip`, `margin`, `cpk`, `worst`; `channels` sets the exponent for
+`yield_chip`. Per-signal `spec_lo`/`spec_hi` override whatever was typed into Assembler,
+which is what you want when the entered limit and the documented specification differ.
+
+Three things this path gets right that a naive reader would not:
+
+- **`-1.11111e+36` is a "could not evaluate" sentinel, not a number.** A `cross()` that
+  never crossed writes it. It is held out of every statistic and surfaced in the `N`
+  column as `197 / 200`, because "3 of 200 samples had no value" is itself a result.
+  Averaged in, it turns a microamp mean into 1e34.
+- **`worst` is only printed when a limit exists** — without one there is no telling
+  which end of the distribution is the bad end.
+- Tables of nine or more columns are set `\small`, eleven or more `\footnotesize`; a
+  statistics row is much wider than a corner row and otherwise runs into the margin.
+
+Do not quote `mean_3s` for a distribution that is not normal, and state the variation
+type (mismatch-only vs process+mismatch) on every table — two runs with different model
+sections produce σ values that are not comparable.
 
 ## Plot styling
 
