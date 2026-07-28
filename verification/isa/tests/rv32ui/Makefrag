@@ -19,6 +19,7 @@ rv32ui_sc_tests = \
 	shnpu \
 	shmutex \
 	shexec \
+	shexecc \
 	shfault \
 	shpwr \
 	shafe \
