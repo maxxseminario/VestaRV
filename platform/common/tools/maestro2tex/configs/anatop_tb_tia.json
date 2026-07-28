@@ -191,6 +191,20 @@
           "unit_tex": "\\si{\\decibel}",
           "scale": 1.0,
           "digits": 1
+        },
+        "fp1_meas": {
+          "expr": "bandwidth(getData(\"loopGain\" ?result \"stb\") 3 \"low\")",
+          "label": "Measured dominant pole $f_{p1}$",
+          "unit_tex": "\\si{\\hertz}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "lg_ph": {
+          "expr": "phase(getData(\"loopGain\" ?result \"stb\"))",
+          "label": "Loop phase $\\ang{180}+\\angle A$",
+          "unit_tex": "\\si{\\degree}",
+          "scale": 1.0,
+          "digits": 1
         }
       }
     },
@@ -383,6 +397,83 @@
           "digits": 3
         }
       }
+    },
+    "amp_op": {
+      "dir": "UnityFeedbackTB",
+      "result": "dcOpInfo",
+      "xlabel": "",
+      "signals": {
+        "gm1": {
+          "expr": "OP(\"/OPAMP/M4\" \"gm\")",
+          "label": "First-stage transconductance $g_{m1}$ (M4)",
+          "unit_tex": "\\si{\\micro\\siemens}",
+          "scale": 1000000.0,
+          "digits": 2
+        },
+        "gm2": {
+          "expr": "OP(\"/OPAMP/M12\" \"gm\")",
+          "label": "Second-stage transconductance $g_{m2}$ (M12)",
+          "unit_tex": "\\si{\\micro\\siemens}",
+          "scale": 1000000.0,
+          "digits": 1
+        },
+        "r1": {
+          "expr": "1.0/(OP(\"/OPAMP/M4\" \"gds\")+OP(\"/OPAMP/M11\" \"gds\"))",
+          "label": "First-stage output resistance $R_1$",
+          "unit_tex": "\\si{\\mega\\ohm}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "r2": {
+          "expr": "1.0/(OP(\"/OPAMP/M12\" \"gds\")+OP(\"/OPAMP/M5\" \"gds\"))",
+          "label": "Second-stage output resistance $R_2$",
+          "unit_tex": "\\si{\\kilo\\ohm}",
+          "scale": 0.001,
+          "digits": 1
+        },
+        "cc": {
+          "expr": "OP(\"/OPAMP/C0\" \"cap\")",
+          "label": "Miller capacitance $C_c$",
+          "unit_tex": "\\si{\\pico\\farad}",
+          "scale": 1000000000000.0,
+          "digits": 3
+        },
+        "itail": {
+          "expr": "abs(OP(\"/OPAMP/M2\" \"id\"))",
+          "label": "Tail current $I_{\\mathrm{tail}}$ (M2)",
+          "unit_tex": "\\si{\\micro\\ampere}",
+          "scale": 1000000.0,
+          "digits": 3
+        },
+        "a0_pred": {
+          "expr": "dB20((OP(\"/OPAMP/M4\" \"gm\")/(OP(\"/OPAMP/M4\" \"gds\")+OP(\"/OPAMP/M11\" \"gds\")))*(OP(\"/OPAMP/M12\" \"gm\")/(OP(\"/OPAMP/M12\" \"gds\")+OP(\"/OPAMP/M5\" \"gds\"))))",
+          "label": "Predicted DC gain $g_{m1}R_1 g_{m2}R_2$",
+          "unit_tex": "\\si{\\decibel}",
+          "scale": 1.0,
+          "digits": 2
+        },
+        "fu_pred": {
+          "expr": "OP(\"/OPAMP/M4\" \"gm\")/(2*3.14159265358979*OP(\"/OPAMP/C0\" \"cap\"))",
+          "label": "Predicted GBW $g_{m1}/2\\pi C_c$",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 3
+        },
+        "fp1_pred": {
+          "expr": "1.0/(2*3.14159265358979*(1.0/(OP(\"/OPAMP/M4\" \"gds\")+OP(\"/OPAMP/M11\" \"gds\")))*(OP(\"/OPAMP/M12\" \"gm\")/(OP(\"/OPAMP/M12\" \"gds\")+OP(\"/OPAMP/M5\" \"gds\")))*OP(\"/OPAMP/C0\" \"cap\"))",
+          "label": "Predicted dominant pole $f_{p1}$",
+          "unit_tex": "\\si{\\hertz}",
+          "scale": 1.0,
+          "digits": 1
+        },
+        "fp2_pred": {
+          "expr": "OP(\"/OPAMP/M12\" \"gm\")/(2*3.14159265358979*VAR(\"C_L\"))",
+          "label": "Predicted second pole $g_{m2}/2\\pi C_L$",
+          "unit_tex": "\\si{\\mega\\hertz}",
+          "scale": 1e-06,
+          "digits": 2
+        }
+      }
     }
   },
   "figures": [
@@ -443,6 +534,22 @@
       "legendpos": "south west",
       "ylabel": "Open-loop gain $|A|$~[\\si{\\decibel}]",
       "caption": "Open-loop gain of the transimpedance amplifier over the five process corners, by \\texttt{stb} analysis through the feedback probe with the amplifier in unity feedback and a \\SI{5}{\\pico\\farad} load. Miller compensation places the dominant pole near \\SI{200}{\\hertz} and gives a single-pole roll-off to a \\SIrange{6.2}{7.6}{\\mega\\hertz} crossover; the corners overlay to within \\SI{1.7}{\\decibel} of DC gain. This is the amplifier's own response. The loop that closes around the electrode is a different loop, and it is not this well behaved --- see Figure~\\ref{fig:tia-zt}."
+    },
+    {
+      "id": "tia_loopphase",
+      "test": "amp_stb",
+      "signals": [
+        "lg_ph"
+      ],
+      "corners": "all",
+      "width": "0.82\\linewidth",
+      "height": "6.2cm",
+      "xlog": true,
+      "yprec": 0,
+      "legendpos": "south west",
+      "ylabel": "Loop phase $\\ang{180}+\\angle A$~[\\si{\\degree}]",
+      "axis_extra": "ymin=0, ymax=200, xmax=1e8",
+      "caption": "Phase of the same loop-gain measurement, over the five process corners. Spectre's \\texttt{stb} analysis reports $\\ang{180}+\\angle A$, so the curve starts at \\ang{180} at DC and its value at the \\SI{6.4}{\\mega\\hertz} crossover \\emph{is} the phase margin. The dominant pole costs \\ang{90} by \\SI{100}{\\kilo\\hertz}; the lift from \\ang{90.3} there back to \\ang{92.3} at \\SI{1}{\\mega\\hertz} is the left-half-plane zero of Equation~(\\ref{eq:tia-zero}) adding lead, which is what holds the margin near \\ang{88} through crossover despite the second pole at \\SI{10.8}{\\mega\\hertz}."
     },
     {
       "id": "tia_drive",
@@ -535,11 +642,12 @@
       "spread_column": true,
       "signals": [
         "a0",
+        "fp1_meas",
         "ugf",
         "pm",
         "gm"
       ],
-      "caption": "Small-signal figures of the amplifier alone, from \\texttt{UnityFeedbackTB} with a \\SI{5}{\\pico\\farad} load. A phase margin of \\SIrange{87.6}{88.0}{\\degree} with \\SIrange{24}{26}{\\decibel} of gain margin means the amplifier is heavily overcompensated for this load, which is why the step response of Table~\\ref{tab:tia-step} does not ring. Neither number describes the transimpedance loop, whose feedback network includes the electrode capacitance; that loop is characterised in Table~\\ref{tab:tia-closedloop}."
+      "caption": "Measured small-signal figures of the amplifier alone, from \\texttt{UnityFeedbackTB} with a \\SI{5}{\\pico\\farad} load; compare Table~\\ref{tab:tia-ssparams} for the values the model predicts. A phase margin of \\SIrange{87.6}{88.0}{\\degree} with \\SIrange{24}{26}{\\decibel} of gain margin means the amplifier is heavily overcompensated for this load, which is why the step response of Table~\\ref{tab:tia-step} does not ring. Neither number describes the transimpedance loop, whose feedback network includes the electrode capacitance."
     },
     {
       "id": "tia_noise",
@@ -611,6 +719,27 @@
         "cm_hi"
       ],
       "caption": "Input offset, and the input--output range over which the unity-gain follower tracks its input to better than \\SI{2}{\\milli\\volt}. The PMOS input pair puts the lower edge within \\SI{5}{\\milli\\volt} of \\texttt{vss}, which is what a stage holding a working electrode near ground needs; the upper edge is \\SIrange{2.03}{2.07}{\\volt}, about \\SI{0.44}{\\volt} short of the supply. Offset is under \\SI{0.2}{\\milli\\volt} at every corner, but offset is a mismatch quantity and this is a corner run --- it is not characterised until a Monte Carlo run exists."
+    },
+    {
+      "id": "tia_ssparams",
+      "type": "matrix",
+      "test": "amp_op",
+      "stat": "value",
+      "corners": "all",
+      "spread_column": true,
+      "signals": [
+        "itail",
+        "gm1",
+        "r1",
+        "gm2",
+        "r2",
+        "cc",
+        "a0_pred",
+        "fp1_pred",
+        "fu_pred",
+        "fp2_pred"
+      ],
+      "caption": "Small-signal parameters of the amplifier, read from the operating point of \\texttt{UnityFeedbackTB} at \\SI{37}{\\celsius}/\\SI{25}{\\celsius} and \\SI{2.5}{\\volt}. The first four rows are device quantities; the last four are the standard two-stage Miller predictions of Equations~(\\ref{eq:tia-a0}) and~(\\ref{eq:tia-poles}) evaluated from them, for comparison with the measured values of Table~\\ref{tab:tia-amp}. Predicted and measured DC gain agree to better than \\SI{0.1}{\\decibel} at every corner and the dominant pole to \\SI{4}{\\percent}; the measured crossover exceeds the predicted GBW because of the left-half-plane zero, as Section~\\ref{sss:tia-model} explains."
     }
   ],
   "order": [
@@ -618,8 +747,11 @@
     "sch_tia_core",
     "tab_TiaAmp_corners",
     "note_tia_amp",
+    "note_tia_analysis",
     "fig_tia_loopgain",
+    "fig_tia_loopphase",
     "tab_tia_amp",
+    "tab_tia_ssparams",
     "tab_tia_range",
     "tab_tia_noise",
     "fig_tia_drive",
