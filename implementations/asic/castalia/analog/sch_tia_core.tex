@@ -4,14 +4,16 @@
 %%
 %% Topology transcribed from subckt anatop_tiaamp in
 %%   simarchive/anatop_tb_tia/tia_2026-07-28/Interactive.9/1/TiaFbTB/netlist/input.scs
-%% (Spectre order M(drain gate source bulk)). Netlist net names are kept where the
-%% figure refers to them (net5, net12) so the two can be cross-read.
+%% (Spectre order M(drain gate source bulk)).
 %%
-%% Simplified: the R_SET and R_z resistor strings are drawn as single trimmable
-%% resistors -- in the netlist each is a segmented poly ladder with an NMOS shunt
-%% switch per bit (M13--M18 on TCBias, M19--M24 on LCBias). Matching dummies
-%% (ModgenDummy_*) carry no signal and are not drawn. Cross-branch gate connections
-%% are identified by net name rather than drawn as buses.
+%% Node naming: the netlist's internal names (net5, net12, ...) are not shown -- they
+%% carry no meaning to a reader. The one internal node the analysis needs is the
+%% first-stage output, drawn as V_1; it is netlist node `net5`.
+%%
+%% Simplified: R_SET and R_z are each drawn as one trimmable resistor -- in the netlist
+%% each is a segmented poly ladder with an NMOS shunt switch per bit (M13--M18 on
+%% TCBias, M19--M24 on LCBias). Matching dummies (ModgenDummy_*) carry no signal and
+%% are not drawn. Cross-branch gate connections are identified by net name, not buses.
 \begin{figure}[htbp]
   \centering
   \resizebox{\linewidth}{!}{%
@@ -32,12 +34,10 @@
 \def\xEn{-2.6}                             % power-down device
 \def\yvdd{11.6} \def\yvss{0.4}
 \def\yPm{10.0}  \def\yIn{8.2} \def\yNc{6.4} \def\yNl{5.0} \def\yNm{3.6}
-\def\ytail{9.25}                           % tail node, net1
-\def\yout{7.6}                             % vout
-\def\ycomp{9.0}                            % R_z / C_c corridor
-\def\yg{6.6}                               % net5 -> M12 gate corridor
-\def\ytap{7.15}                            % net5 -> compensation tap
-\def\xc{10.2}                              % compensation riser
+\def\ytail{9.25}                           % tail node
+\def\ycomp{6.9}                            % V1 -> vout compensation line (horizontal)
+\def\yout{8.2}                             % vout take-off
+\def\xtap{9.6}                             % where the M12 gate feed leaves V1
 
 % ---- supply rails ---------------------------------------------------
 \draw[thick] (\xEn-1.0,\yvdd) -- (14.2,\yvdd) node[right]{\texttt{vdd!}};
@@ -60,7 +60,6 @@
 \draw (M8.source) -- (\xA,2.9);
 \draw (\xA,2.9) to[vR, l_=$R_{\mathrm{SET}}$] (\xA,\yvss);
 \node[ilab, right=3pt, align=left] at (\xA+0.15,1.55){6-bit \texttt{TCBias}\\shorts segments};
-% M1 diode connection -> V_BP
 \draw (M1.gate) -- ++(-0.4,0) |- (\xA,8.4);
 \node[railnode] at (\xA,8.4){};
 \node[gatelab, right=1pt, fill=white, inner sep=1.5pt] at (\xA+0.05,8.4){$V_{\mathrm{BP}}$};
@@ -79,7 +78,6 @@
 \draw (M7.source) -- (M9.drain);
 \draw (M9.source) -- (\xB,\yvss);
 \node[gatelab, left] at (M0.gate){$V_{\mathrm{BP}}$};
-% M7 diode -> V_BNC ; M9 diode -> V_BN
 \draw (M7.gate) -- ++(-0.35,0) |- (\xB,7.6);
 \node[railnode] at (\xB,7.6){};
 \node[gatelab, right=1pt, fill=white, inner sep=1.5pt] at (\xB+0.05,7.6){$V_{\mathrm{BNC}}$};
@@ -116,13 +114,10 @@
 \draw (M11.source) -- (\xP,\yvss);
 \node[devlab, anchor=east] at (\xM-0.42,\yNl){M10};
 \node[devlab, anchor=west] at (\xP+0.42,\yNl){M11};
-% mirror: M10 diode-connected at net12, gate shared with M11
+% M10 diode-connected, gate shared with M11
 \draw (M10.gate) -- (M11.gate);
 \draw (\xM,6.1) node[railnode]{} -- (\xM+0.55,6.1) -- (\xM+0.55,\yNl);
-\node[gatelab, anchor=south west, inner sep=2pt] at (\xM+0.06,6.13){\texttt{net12}};
 \node[railnode] at (\xM+0.55,\yNl){};
-\node[railnode] at (\xP,\ytap){};
-\node[gatelab, anchor=south west, inner sep=2pt] at (\xP+0.06,\ytap){\texttt{net5}};
 
 % ===== second stage : common-source driver + current-source load =====
 \node[pmos](M5) at (\xO,\yPm){};
@@ -133,18 +128,22 @@
 \node[gatelab, left] at (M5.gate){$V_{\mathrm{BP}}$};
 \node[devlab, right=2pt, align=left] at (M5.east){M5\\\tiny$12.6/0.75\times2$};
 \node[devlab, right=2pt, align=left] at (M12.east){M12\\\tiny$14/0.75\times8$};
-\node[railnode] at (\xO,\yout){};
 \draw (\xO,\yout) -- (13.9,\yout) node[right]{\texttt{vout}};
-% M12 gate driven from net5
-\draw (M12.gate) -- ++(-0.55,0) |- (\xP,\yg);
-\node[railnode] at (\xP,\yg){};
+\node[railnode] at (\xO,\yout){};
 
-% ===== Miller compensation ===========================================
-\draw (\xP,\ytap) -- (\xc,\ytap) -- (\xc,\ycomp);
-\draw (\xc,\ycomp) to[vR, l=$R_z$] (11.4,\ycomp);
-\draw (11.4,\ycomp) to[C, l=$C_c$] (\xO,\ycomp);
+% ===== Miller compensation: one straight line from V1 to vout ========
+\draw (\xP,\ycomp) -- (10.2,\ycomp);
+\draw (10.2,\ycomp) to[vR, l=$R_z$] (11.1,\ycomp);
+\draw (11.1,\ycomp) -- (11.3,\ycomp);
+\draw (11.3,\ycomp) to[C, l=$C_c$] (\xO,\ycomp);
+\node[railnode] at (\xP,\ycomp){};
 \node[railnode] at (\xO,\ycomp){};
-\node[ilab, anchor=north west] at (10.5,\ycomp-0.28){6-bit \texttt{LCBias}};
+\node[gatelab, anchor=south west, inner sep=3pt] at (\xP,\ycomp){$V_1$};
+\node[ilab, anchor=north] at (10.65,\ycomp-0.3){6-bit \texttt{LCBias}};
+
+% M12 gate taken from V1, ahead of R_z
+\draw (\xtap,\ycomp) -- (\xtap,\yNl) -- (M12.gate);
+\node[railnode] at (\xtap,\ycomp){};
 
 % ===== group outlines ================================================
 \node[ilab, anchor=north] at (1.6,\yvss-0.45) {self-biased reference};
@@ -156,6 +155,6 @@
 
 \end{circuitikz}
   }
-  \caption[{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}.}]{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}, drawn from its netlist. It is a two-stage Miller-compensated operational amplifier: a PMOS input pair M3/M4 on tail source M2 with NMOS current-mirror load M10/M11, followed by common-source driver M12 with PMOS current-source load M5, compensated by $C_c$ (a \SI{22.1}{\micro\metre} square MIM) in series with the nulling resistor $R_z$ from the first-stage output \texttt{net5} to \texttt{vout}. Device sizes are given as $W/L$ in \si{\micro\metre} times the multiplicity. The second stage is class~A, so its sourcing capability is the fixed current in M5 while its sinking capability is whatever M12 can pull --- the asymmetry reported in Table~\ref{tab:tia-drive}. The self-biased reference on the left sets every bias rail from $R_{\mathrm{SET}}$; M25 pulls $V_{\mathrm{BP}}$ to \texttt{vdd} to power the amplifier down. Both resistor strings are drawn as single trimmable resistors: each is a segmented poly ladder with one NMOS shunt switch per trim bit.}
+  \caption[{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}.}]{Simplified core of the transimpedance amplifier \texttt{anatop\_tiaamp}, drawn from its netlist. First stage: PMOS pair M3/M4 on tail source M2 with NMOS current-mirror load M10/M11, output at $V_1$. Second stage: common-source driver M12 with PMOS current-source load M5. The Miller branch $R_z$--$C_c$ runs from $V_1$ to \texttt{vout}, and M12's gate is taken from $V_1$ ahead of $R_z$; $C_c$ is a \SI{22.1}{\micro\metre} square MIM, measured at \SI{1.00}{\pico\farad}. Device sizes are $W/L$ in \si{\micro\metre} times multiplicity. The second stage is class~A: it sources the fixed current in M5 and sinks whatever M12 pulls, which is the asymmetry of Table~\ref{tab:tia-drive}. The self-biased reference sets every bias rail from $R_{\mathrm{SET}}$; M25 pulls $V_{\mathrm{BP}}$ to \texttt{vdd} to power the amplifier down. Both resistor strings are drawn as single trimmable resistors: each is a segmented poly ladder with one NMOS shunt switch per trim bit.}
   \label{fig:tia-core}
 \end{figure}
