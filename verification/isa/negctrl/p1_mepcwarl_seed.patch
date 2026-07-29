@@ -1,0 +1,38 @@
+diff --git a/hdl/common/vesta/csr_unit.vhd b/hdl/common/vesta/csr_unit.vhd
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -182,7 +182,7 @@
+     signal mie_mtie        : std_logic;                      -- mie.MTIE      (7)
+     signal mie_meie        : std_logic;                      -- mie.MEIE      (11)
+     signal mscratch        : std_logic_vector(XLEN-1 downto 0);
+-    signal mepc_r          : std_logic_vector(31 downto 1);  -- mepc, bit0 hardwired '0'
++    signal mepc_r          : std_logic_vector(31 downto 0);  -- P1_MEPCWARL_NEGCTRL_SEED: bit0 STORED (BUG; spec = hardwired '0')
+     signal mcause_int      : std_logic;                      -- mcause.Interrupt (31)
+     signal mcause_code     : std_logic_vector(3 downto 0);   -- mcause.ExceptionCode (3:0)
+     signal mtval_r         : std_logic_vector(XLEN-1 downto 0);
+@@ -311,7 +311,7 @@
+                 end if;
+             when CSR_MSCRATCH  => csr_read_val <= mscratch;
+             -- mepc: bit0 hardwired 0 (bit1 too on a no-C build — see the write).
+-            when CSR_MEPC      => csr_read_val <= mepc_r & '0';
++            when CSR_MEPC      => csr_read_val <= mepc_r;  -- P1_MEPCWARL_NEGCTRL_SEED
+             -- mcause: Interrupt(31) + ExceptionCode(3:0); bits 30:4 read 0.
+             when CSR_MCAUSE    => csr_read_val <= mcause_int & MCAUSE_RSVD27 & mcause_code;
+             when CSR_MTVAL     => csr_read_val <= mtval_r;
+@@ -518,6 +518,7 @@
+                         -- 2-byte-aligned PC, so bit1 is WARL 0 there).
+                         if ENABLE_TRAPCSR then
+                             mepc_r(31 downto 2) <= csr_new_val(31 downto 2);
++                            mepc_r(0) <= csr_new_val(0);  -- P1_MEPCWARL_NEGCTRL_SEED: WARL mask dropped
+                             if ENABLE_COMPRESSED then
+                                 mepc_r(1) <= csr_new_val(1);
+                             else
+@@ -611,7 +612,7 @@
+     -- vesta's delivery muxes constant-fold to the legacy IVT path.
+     -- ----------------------------------------------------------------------
+     mtvec_value <= mtvec_base & "00";   -- MODE is WARL "00" (direct)
+-    mepc_value  <= mepc_r & '0';        -- bit0 always '0'
++    mepc_value  <= mepc_r(31 downto 1) & '0';  -- P1_MEPCWARL_NEGCTRL_SEED (export still masked)
+     mstatus_mie <= mst_mie;
+     mie_bits    <= mie_meie & mie_mtie & mie_msie;  -- {MEIE, MTIE, MSIE}
+     legacy_mode <= mtrapctl_legacy;

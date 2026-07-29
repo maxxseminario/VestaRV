@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/24 at 01:25:41 with the generate.py chip generator
+-- Generated on 2026/07/28 at 15:55:00 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -2563,7 +2563,12 @@ begin
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
-            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- P0 privileged-architecture scaffolding (P1/P2/P3)
+            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
+            ENABLE_UMODE      => CORE_ENABLE_UMODE,
+            ENABLE_PMP        => CORE_ENABLE_PMP,
+            PMP_ENTRIES       => CORE_PMP_ENTRIES
         )
         port map (
             clk       => mclk,
@@ -3240,7 +3245,12 @@ begin
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
-            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- P0 privileged-architecture scaffolding (P1/P2/P3)
+            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
+            ENABLE_UMODE      => CORE_ENABLE_UMODE,
+            ENABLE_PMP        => CORE_ENABLE_PMP,
+            PMP_ENTRIES       => CORE_PMP_ENTRIES
         )
         port map (
             clk       => mclk,
@@ -3307,7 +3317,12 @@ begin
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
-            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- P0 privileged-architecture scaffolding (P1/P2/P3)
+            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
+            ENABLE_UMODE      => CORE_ENABLE_UMODE,
+            ENABLE_PMP        => CORE_ENABLE_PMP,
+            PMP_ENTRIES       => CORE_PMP_ENTRIES
         )
         port map (
             clk       => mclk,
@@ -3371,7 +3386,12 @@ begin
             ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
             ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
             ENABLE_ZKN        => CORE_ENABLE_ZKN,
-            ENABLE_ZFINX      => CORE_ENABLE_ZFINX
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- P0 privileged-architecture scaffolding (P1/P2/P3)
+            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
+            ENABLE_UMODE      => CORE_ENABLE_UMODE,
+            ENABLE_PMP        => CORE_ENABLE_PMP,
+            PMP_ENTRIES       => CORE_PMP_ENTRIES
         )
         port map (
             clk       => mclk,

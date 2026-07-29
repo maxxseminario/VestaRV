@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1443,7 +1443,7 @@
+     --           so pc still holds it).
+     --   mtval = the faulting 32-bit encoding for an illegal instruction (mtval
+     --           TIER-1), the misaligned PC for cause 0, else 0.
+-    trap_pc_val    <= pc_next_reg when mtrap_cause_int = '1' else pc;
++    trap_pc_val    <= pc_next_reg;  -- SEEDED BUG (p1_mepcskid): resume pc for EXCEPTIONS too
+     trap_cause_val <= mtrap_cause_int & MTRAP_RSVD27 & mtrap_cause_code;
+     trap_value_val <= instr_curr_prev when (mtrap_cause_int = '0' and mtrap_cause_code = x"2") else
+                       pc              when (mtrap_cause_int = '0' and mtrap_cause_code = x"0") else

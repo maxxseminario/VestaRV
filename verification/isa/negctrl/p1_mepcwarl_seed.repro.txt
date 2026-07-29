@@ -1,0 +1,63 @@
+P1 trap-CSR file negative control — seeded-bug repro (Agent A, 2026-07-28)
+==========================================================================
+
+Seed: p1_mepcwarl_seed.patch DROPS the mepc bit-0 WARL mask in
+hdl/common/vesta/csr_unit.vhd — mepc_r widens to (31 downto 0), the CSR write
+arm stores csr_new_val(0), and the read arm returns the stored bit instead of a
+hardwired '0'. Spec (~/vesta_docs/priv_arch/p0_specs.md §2.1) requires mepc bit0
+to be ALWAYS 0 (bit1 writable iff ENABLE_COMPRESSED). This is the kickoff §3b
+class-4 bug (readback incompleteness): a field that stores more than the spec
+allows.
+
+privcsr CHECK 19 writes 0xDEADBEEF to mepc and requires the readback 0xDEADBEEE;
+CHECK 20 writes 0x00008001 and requires 0x00008000. With the seed both read the
+written value back verbatim, so the bounded `bne`/RVTEST_FAIL fires (a0 =
+0xDEADBEEF, t4 = 19) — a compare-and-branch FAIL, never a hang.
+
+Proven result (ON build, CORE_ENABLE_TRAPCSR = true):
+  clean RTL  -> TEST PASSED - ../rcf/xxrv32ua-p-privcsr.rcf   (14787270596737 FS)
+  seeded RTL -> TEST FAILED - ../rcf/xxrv32ua-p-privcsr.rcf   (14783270596801 FS,
+                                                               6 s wall, bounded)
+  reverted   -> TEST PASSED - ../rcf/xxrv32ua-p-privcsr.rcf
+
+Exact repro (from the repo root; privcsr is an ON-ONLY test).
+
+The ON hardware is a `make chip` product, not a hand edit: generate with a
+priv.trapCsr config and stage the emitted MemoryMap.vhd. The test arm is
+selected by the phase-standard EXPLICIT-APPEND dispatch (-DCORE_ENABLE_TRAPCSR
+appended to RISCV_GCC_OPTS, never auto-derived from a header).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_TRAPCSR"
+
+  # 0. Keep a copy of the committed default MemoryMap.vhd to restore later
+  cp hdl/common/MemoryMap.vhd /tmp/MemoryMap.vhd.default
+
+  # 1. Stage the ON hardware (generated, single-constant delta vs the default)
+  echo '{"priv": {"trapCsr": true}}' > /tmp/trapcsr_cfg.json
+  cd platform/common && make generate CONFIG=/tmp/trapcsr_cfg.json
+  cp out/hdl/MemoryMap.vhd ../../hdl/common/MemoryMap.vhd
+  cd ../..
+  grep -n CORE_ENABLE_TRAPCSR hdl/common/MemoryMap.vhd     # must read := true
+
+  # 2. Build the ON-arm images (base groups first — build_mp_images.sh/plain make
+  #    DROP any earlier -D; xcelium/riscv_test/rcf must stay a SYMLINK to
+  #    verification/isa/rcf) and run: clean RTL must PASS
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh xxrv32ua-p-privcsr                 # expect: TEST PASSED
+  # (never pipe xrun_batch through `head` — SIGPIPE leaves a STALE xrun.log)
+
+  # 3. Apply the seed and re-run — no image rebuild needed (RTL-only seed)
+  cd ../../../ ; git apply verification/isa/negctrl/p1_mepcwarl_seed.patch
+  cd xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh xxrv32ua-p-privcsr                 # expect: TEST FAILED
+
+  # 4. Revert the seed; re-run — must PASS again
+  cd ../../../ ; git apply -R verification/isa/negctrl/p1_mepcwarl_seed.patch
+  cd xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh xxrv32ua-p-privcsr                 # expect: TEST PASSED
+
+  # 5. Restore the OFF tree: default MemoryMap.vhd + default (OFF) rv32ua images
+  cd ../../../ ; cp /tmp/MemoryMap.vhd.default hdl/common/MemoryMap.vhd
+  cd platform/common && make generate && cd ../..
+  cd verification/isa && rm -rf build/ && make rv32ua-flash

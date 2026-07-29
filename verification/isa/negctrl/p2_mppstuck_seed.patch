@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -683,7 +683,7 @@
+                         else
+                             priv_m <= '0';
+                         end if;
+-                        mst_mpp <= MPP_U;
++                        -- SEEDED BUG (p2_mppstuck): MRET leaves MPP unchanged
+                     end if;
+                 end if;
+             end if;

@@ -23,7 +23,12 @@ entity controller is
         ENABLE_ZBKC     : boolean := false;
         ENABLE_ZBKX     : boolean := false;
         ENABLE_ZKN      : boolean := false;
-        ENABLE_ZFINX    : boolean := false
+        ENABLE_ZFINX    : boolean := false;
+        -- P0 privileged-architecture scaffolding: passed straight through to
+        -- maindec (default false; no decode consumes them yet)
+        ENABLE_TRAPCSR  : boolean := false;  -- P1 (trap CSRs + MRET/ECALL/EBREAK/WFI)
+        ENABLE_UMODE    : boolean := false;  -- P2 (U-mode privileged-access gating)
+        ENABLE_PMP      : boolean := false   -- P3 (PMP/Smpmp)
     );
     port(
         -- ==========================================
@@ -68,6 +73,19 @@ entity controller is
         wrs_op           : out std_logic;                      -- X1 Zawrs: wrs.nto/wrs.sto
         wrs_sto          : out std_logic;                      -- X1 Zawrs: timeout variant
         isr_ret          : out std_logic;                      -- ISR return instruction
+
+        -- P1 standard SYSTEM/PRIV decode (all statically '0' unless ENABLE_TRAPCSR)
+        ecall_op         : out std_logic;                      -- ECALL  (SYSTEM f3=000 funct12=0x000)
+        ebreak_op        : out std_logic;                      -- EBREAK (SYSTEM f3=000 funct12=0x001)
+        mret_op          : out std_logic;                      -- MRET   (SYSTEM f3=000 funct12=0x302)
+        wfi_op           : out std_logic;                      -- P2 WFI (SYSTEM f3=000 funct12=0x105)
+
+        -- P2 U-mode decode inputs, straight through to maindec (inert defaults:
+        -- M-mode / TW=0 / no counter enables — an ENABLE_UMODE=false build and
+        -- any instantiation that leaves them unconnected see today's behaviour)
+        priv_m           : in  std_logic := '1';                        -- '1'=M, '0'=U
+        status_tw        : in  std_logic := '0';                        -- mstatus.TW
+        mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000"; -- {HPM4,HPM3,IR,TM,CY}
 
         -- ==========================================
         -- Atomic Memory Operation Outputs
@@ -128,7 +146,11 @@ architecture struct of controller is
             ENABLE_ZBKC     : boolean := false;
             ENABLE_ZBKX     : boolean := false;
             ENABLE_ZKN      : boolean := false;
-            ENABLE_ZFINX    : boolean := false
+            ENABLE_ZFINX    : boolean := false;
+            -- P0 privileged-architecture scaffolding (default false)
+            ENABLE_TRAPCSR  : boolean := false;
+            ENABLE_UMODE    : boolean := false;
+            ENABLE_PMP      : boolean := false
         );
         port(
             resetn           : in  std_logic;
@@ -155,6 +177,15 @@ architecture struct of controller is
             isr_ret          : out std_logic;
             sleep_rq         : out std_logic;
             wake_rq          : out std_logic;
+            -- P1 standard SYSTEM/PRIV decode ('0' unless ENABLE_TRAPCSR)
+            ecall_op         : out std_logic;
+            ebreak_op        : out std_logic;
+            mret_op          : out std_logic;
+            -- P2 WFI decode + the U-mode decode inputs
+            wfi_op           : out std_logic;
+            priv_m           : in  std_logic := '1';
+            status_tw        : in  std_logic := '0';
+            mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
@@ -223,7 +254,10 @@ begin
             ENABLE_ZBKC     => ENABLE_ZBKC,
             ENABLE_ZBKX     => ENABLE_ZBKX,
             ENABLE_ZKN      => ENABLE_ZKN,
-            ENABLE_ZFINX    => ENABLE_ZFINX
+            ENABLE_ZFINX    => ENABLE_ZFINX,
+            ENABLE_TRAPCSR  => ENABLE_TRAPCSR,
+            ENABLE_UMODE    => ENABLE_UMODE,
+            ENABLE_PMP      => ENABLE_PMP
         )
         port map(
             resetn           => resetn,
@@ -250,6 +284,13 @@ begin
             isr_ret          => isr_ret,
             sleep_rq         => sleep_rq,
             wake_rq          => wake_rq,
+            ecall_op         => ecall_op,
+            ebreak_op        => ebreak_op,
+            mret_op          => mret_op,
+            wfi_op           => wfi_op,
+            priv_m           => priv_m,
+            status_tw        => status_tw,
+            mcounteren_bits  => mcounteren_bits,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
                    

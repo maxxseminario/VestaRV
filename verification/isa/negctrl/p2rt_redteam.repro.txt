@@ -1,0 +1,237 @@
+P2 RED TEAM — seeded-bug negative controls (red-team agent, 2026-07-28)
+========================================================================
+
+FIVE committed seeds, two new ON-only attack tests.  All five are RTL-ONLY (no
+image rebuild between clean/seeded/reverted) and all five are caught by a
+BOUNDED compare-and-branch into RVTEST_FAIL at a NAMED CHECK id — never a
+watchdog hang.  The failing check id is left in t4 (x29) and a0 = 0xDEADBEEF.
+
+  seed patch                        caught by   CHECK  what it breaks
+  --------------------------------  ----------  -----  ---------------------------
+  p2rt_sleepentry_seed.patch        privrt1       90   vesta trap_entry_seq guard
+                                                       on the sleep_cpu flop
+  p2rt_csrentry_seed.patch          privrt1       31   vesta csr_valid_eff gate
+                                                       (the NON-maindec half)
+  p2rt_mppush_seed.patch            privrt2       22   csr_unit trap-entry
+                                                       privilege PUSH (MPP<=priv)
+  p2rt_ucnttm_seed.patch            privrt2       71   maindec mcounteren.TM term
+  p2rt_wfiudeny_seed.patch          privrt2       78   maindec WFI TW qualifier,
+                                                       PERMISSIVE direction
+
+New tests (both ON-ONLY, both wired into verification/isa/tests/rv32ua/Makefrag,
+NEITHER in the default behavioral_mp runner array):
+  verification/isa/tests/rv32ua/privrt1.S  -> ../rcf/xxrv32ua-p-privrt1.rcf
+  verification/isa/tests/rv32ua/privrt2.S  -> ../rcf/xxrv32ua-p-privrt2.rcf
+
+----------------------------------------------------------------------------
+(1) p2rt_sleepentry_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+The `sleep_cpu` flop loses its `if trap_entry_seq = '0'` guard.  A U-mode
+`extinguish` then TRAPS (maindec's u_gate clears sleep_rq in EXECUTE) and STILL
+SETS sleep_cpu one cycle later: the faulting encoding is still on read_data
+through MTRAP_SV/MTRAP_JUMP, and `priv` has already flipped to M inside
+MTRAP_SV, so u_gate has dropped and sleep_rq re-asserts into a flop that runs
+on the FREE-RUNNING clk.
+
+THE VEHICLE (this is the part that took work).  sleep_cpu has EXACTLY ONE
+architectural observation point in the whole core — the legacy IRQ_REST arm
+`elsif sleep_cpu = '1' then next_state <= SLEEPING` (vesta.vhd:~2750).  So the
+witness is an `iret` executed in STANDARD mode (P1 accepted deviation (b)):
+isr_ret still routes EXECUTE -> IRQ_REST, which pops a return PC from mem[sp]
+and resumes.  privrt1 sets sp = 0xBF00 and stores the resume label there.
+
+BOUNDEDNESS.  Before every `iret` privrt1 arms mtimecmp[0] = mtime + 0x8000
+(~1.4 ms at mclk = 24 MHz) with mie.MTIE and mstatus.MIE = 1, so mtip is NOT
+pending at the IRQ_REST check point but WILL pend shortly after.  The correct
+path resumes at mem[sp] and disarms the timer within a handful of
+instructions; the buggy path parks in SLEEPING and is dragged out by that
+timer into the handler, which FAILs at CHECK 90 on the phase marker s10.
+PHASE 1 runs the identical vehicle BEFORE any U-mode work, while sleep_cpu is
+provably '0' — the control that makes the PHASE 3 result mean something.
+
+ORDER IS LOAD-BEARING (and this bit the first draft): `ignite` clears the same
+flop that `extinguish` sets.  With extinguish FIRST and ignite second the
+seeded escape sets sleep_cpu and then immediately clears it again — privrt1
+PASSED with the seed applied.  extinguish must be the LAST custom-opcode
+poison before the witness.  The X3 `jvtmask` lesson, re-learned.
+
+----------------------------------------------------------------------------
+(2) p2rt_csrentry_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+`csr_valid_eff <= csr_valid and not trap_entry_seq` is reverted to a bare
+`csr_valid`, leaving maindec's u_csr_denied gate INTACT.  This is the exact
+complement of the P2 agent's p2_csrcommit seed (which reverts the maindec half
+and leaves the vesta half intact): together the pair proves that BOTH halves
+of the fix are independently load-bearing, which is the whole lesson of the
+two-layer escape.
+
+privrt1's U-mode poison is `csrs mie, 0x888` — a write to LIVE INTERRUPT
+DELIVERY STATE, not to inert storage.  CHECK 31 reads mie back in M and
+requires 0.  Seeded, mie reads 0x888.  (CHECK 32 does the same for
+`csrw mcounteren, -1`, which would let U unlock its own counter access.)
+Deliberately NOT mtvec/mepc/mtrapctl: a committed write to any of those would
+derail the trap path itself into an unbounded hang instead of a bounded
+miscompare.
+
+----------------------------------------------------------------------------
+(3) p2rt_mppush_seed.patch — hdl/common/vesta/csr_unit.vhd
+----------------------------------------------------------------------------
+The trap-entry privilege PUSH `mst_mpp <= priv_m & priv_m` becomes
+`mst_mpp <= MPP_M`, i.e. a trap always records M as the interrupted privilege.
+A U-mode trap then MRETs back to M and the hart silently escalates out of
+U-mode permanently.
+
+privrt2 CHECK 22 is the direct witness: after the handler MRETs out of a
+U-MODE interrupt, the U code executes a machine-CSR read (`csrr mstatus`) that
+MUST still trap.  Seeded, the read succeeds (we are in M), the trap count does
+not advance, and the bounded `bne s3, t3` fires.
+
+----------------------------------------------------------------------------
+(4) p2rt_ucnttm_seed.patch — hdl/common/vesta/maindec.vhd
+----------------------------------------------------------------------------
+The mcounteren.TM term is dropped from `ucnt_denied`, so U-mode reads of
+time/timeh are permitted unconditionally.  privrt2 PHASE D2 runs U with
+mcounteren = 0x04 (IR only) after a phase where TM WAS set, so `time` must
+flip from readable to trapping.  Seeded, it stays readable and CHECK 71 fires.
+
+----------------------------------------------------------------------------
+(5) p2rt_wfiudeny_seed.patch — hdl/common/vesta/maindec.vhd
+----------------------------------------------------------------------------
+The SYSTEM PRIV WFI arm's `u_gate = '1' and status_tw = '1'` becomes
+`u_gate = '1'`: WFI is denied in U-mode even with mstatus.TW = 0.  This is the
+PERMISSIVE direction of the TW rule — the P2 agent's p2_twignore seed only
+covers the DENIED direction (TW = 1 must trap), so before this control a core
+that simply outlawed WFI in U would have passed every test.
+
+privrt2 PHASE E is the catcher: U with TW = 0, mie.MSIE armed and CLINT
+msip[0] ALREADY raised, mstatus.MIE = 0.  The WFI must be legal, enter
+SLEEPING, wake immediately on the pending source (std_wfi_wake) and resume at
+WFI+4 with NOTHING delivered.  Seeded, it traps instead, the handler skips it,
+s3 advances and CHECK 78's bounded `bne s3, s7` fires.  It can never hang: the
+wake source is pending before the WFI issues.
+
+----------------------------------------------------------------------------
+Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
+----------------------------------------------------------------------------
+  clean RTL                     -> TEST PASSED - ../rcf/xxrv32ua-p-privrt1.rcf
+  clean RTL                     -> TEST PASSED - ../rcf/xxrv32ua-p-privrt2.rcf
+  clean RTL                     -> TEST PASSED - ../rcf/rv32ua-p-privumode.rcf
+  clean RTL                     -> TEST PASSED - ../rcf/xrv32ua-p-privucsr.rcf
+
+  + p2rt_sleepentry_seed.patch  -> TEST FAILED - ../rcf/xxrv32ua-p-privrt1.rcf
+                                   (t4 = 90, a0 = 0xDEADBEEF)
+  reverted                      -> TEST PASSED
+  + p2rt_csrentry_seed.patch    -> TEST FAILED - ../rcf/xxrv32ua-p-privrt1.rcf
+                                   (t4 = 31, a0 = 0xDEADBEEF)
+  reverted                      -> TEST PASSED
+  + p2rt_mppush_seed.patch      -> TEST FAILED - ../rcf/xxrv32ua-p-privrt2.rcf
+                                   (t4 = 22, a0 = 0xDEADBEEF)
+  reverted                      -> TEST PASSED
+  + p2rt_ucnttm_seed.patch      -> TEST FAILED - ../rcf/xxrv32ua-p-privrt2.rcf
+                                   (t4 = 71, a0 = 0xDEADBEEF)
+  reverted                      -> TEST PASSED
+  + p2rt_wfiudeny_seed.patch    -> TEST FAILED - ../rcf/xxrv32ua-p-privrt2.rcf
+                                   (t4 = 78, a0 = 0xDEADBEEF)
+  reverted                      -> TEST PASSED
+
+----------------------------------------------------------------------------
+Exact repro (from the repo root; privrt1/privrt2 are ON-ONLY tests)
+----------------------------------------------------------------------------
+Identical staging to p2_umode_seeds.repro.txt — the ON hardware is a
+`make chip` product, and the test arms are selected by the phase-standard
+EXPLICIT-APPEND dispatch (both -D flags appended to RISCV_GCC_OPTS).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles \
+           -DNHARTS=4 -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE"
+
+  # 0. Keep a copy of the committed default MemoryMap.vhd to restore later
+  cp hdl/common/MemoryMap.vhd /tmp/MemoryMap.vhd.default
+
+  # 1. Stage the ON hardware
+  echo '{"priv": {"trapCsr": true, "umode": true}}' > /tmp/p2_on.json
+  cd platform/common/python && CHIP_CONFIG=/tmp/p2_on.json python3 generate.py
+  cp ../out/hdl/MemoryMap.vhd ../../../hdl/common/MemoryMap.vhd
+  cd ../../..
+  grep -n "CORE_ENABLE_UMODE" hdl/common/MemoryMap.vhd     # must read := true
+
+  # 2. Build the ON-arm images
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh xxrv32ua-p-privrt1                 # expect: TEST PASSED
+  ./xrun_batch.sh xxrv32ua-p-privrt2                 # expect: TEST PASSED
+  # (never pipe xrun_batch through `head` — SIGPIPE leaves a STALE xrun.log)
+
+  # 3. For EACH seed: apply, re-run (RTL-only seed, no image rebuild), revert,
+  #    re-run.  privrt1 catches sleepentry/csrentry; privrt2 the other three.
+  for s in p2rt_sleepentry p2rt_csrentry; do
+    cd ~/vestarv && git apply verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh xxrv32ua-p-privrt1
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST FAILED
+    cd ~/vestarv && git apply -R verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh xxrv32ua-p-privrt1
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST PASSED
+    cd ~/vestarv
+  done
+  # ... and the same loop over p2rt_mppush / p2rt_ucnttm / p2rt_wfiudeny
+  #     against xxrv32ua-p-privrt2.
+
+  # To read the failing CHECK id (t4/x29) and a0 straight out of the sim:
+  #   cd xcelium/riscv_test/behavioral_mp
+  #   cat > /tmp/p2_probe.tcl <<'EOF'
+  #   source ../../disable_x_warnings.tcl
+  #   run 40ms
+  #   puts "t4 = [value :dut:hart0:core:datapath_inst:rf:registers(29)]"
+  #   puts "a0 = [value :dut:hart0:core:datapath_inst:rf:registers(10)]"
+  #   EOF
+  #   XRUN_MODE=batch XRUN_EXTRA_INPUT=/tmp/p2_probe.tcl ./xrun.sh xxrv32ua-p-privrt2
+
+  # 4. Restore the OFF tree: default MemoryMap.vhd + default (OFF) images
+  cd ~/vestarv && cp /tmp/MemoryMap.vhd.default hdl/common/MemoryMap.vhd
+  cd platform/common/python && python3 generate.py && cd ../../..
+  cd verification/isa && rm -rf build/ && make rv32ua-flash
+
+WARNING: verification/isa/rcf is the ONE real image directory and OTHER
+SESSIONS BUILD THROUGH IT.  Check `ps -ef | grep [b]uild_mp_images` and
+`cat verification/isa/rcf/.nharts` (= 4) before trusting ANY suite result.
+
+============================================================================
+APPENDIX — amorsv.S: a REAL, pre-existing side-effect leak found by the same
+hunt, OUTSIDE the U-mode scope (legacy delivery only)
+============================================================================
+verification/isa/tests/rv32ua/amorsv.S  -> ../rcf/xxxrv32ua-p-amorsv.rcf
+
+A WORD-width AMO with a RESERVED funct5 (0x3005A02F, funct5 = 00110) takes the
+illegal-instruction trap AND COMMITS A MEMORY WRITE:
+
+  maindec.vhd:~496  amo_op is decoded with NO funct5 whitelist (every code
+                    except LR/SC), while the AMO valid_funct arm DOES apply the
+                    whitelist -> trap = '1' and amo_op = '1' together.
+  maindec.vhd:~988  WEN <= "0000" when (op = AMO_OPCODE and (sc_op or amo_op))
+                    -- all four ACTIVE-LOW lanes asserted.
+  vesta.vhd         the LEGACY trap dispatch sets only pc_en <= '0' before
+                    next_state <= TRAP_STATE; it does NOT force wen, and
+                    TRAP_STATE itself forces only pc_en / reg_write_dp /
+                    trap_flag.  data_addr falls through to pc_next.
+  hart_tile.vhd:713 sh_we_lanes <= (not wen_re) when sh_sel = '1' -- the write
+                    enable has no FSM-state qualifier at all.
+
+CONFIRMED IN SIMULATION on the DEFAULT (P2-OFF) build:
+  RES STATE=TRAP_STATE  RES PC=000082BC  RES ADDR=000082C0
+  RES RDATA=00000000    (the image has 0x12345678 at 0x82C0 -- objdump)
+i.e. the word after the poison was overwritten with zero by an instruction
+that trapped.  Self-limiting only by accident: TRAP_STATE does not hold
+instr_curr, so the decoder re-decodes the zero it just wrote, and 0x00000000
+is not a store.
+
+NOT a P2 regression and NOT a U-mode escape: the STANDARD-mode trap arm forces
+`wen <= (others => '1')` (and mem_access_instr '0', reg_write_dp '0') before
+routing to MTRAP_SV, and MTRAP_SV/MTRAP_JUMP do the same -- so every U-mode
+path is immune.  It matters for P3: D5 requires that a denied access issue NO
+transaction, and this is the same class already broken on the legacy path.
+Two-line fix: give the legacy TRAP_STATE dispatch and the TRAP_STATE arm the
+same wen/mem_access_instr forcing the standard arm already has.
+
+amorsv is BUILT (rv32ua Makefrag) and deliberately NOT in the default
+behavioral_mp runner array -- it is a terminal-TRAP_STATE poison and must be
+run under a bounded tcl or the behavioral_mp_stripped trap harness.  The probe
+recipe is in the file header.

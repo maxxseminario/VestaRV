@@ -1,0 +1,156 @@
+P2 U-mode negative controls — seeded-bug repro (P2 agent, 2026-07-28)
+=====================================================================
+
+FOUR committed seeds, one repro. All four are RTL-ONLY (no image rebuild
+between clean/seeded/reverted), and all four are caught by a bounded
+compare-and-branch into RVTEST_FAIL at a NAMED CHECK id — never a watchdog
+hang. The failing check id is left in t4 (x29) and a0 = 0xDEADBEEF.
+
+  seed patch                      caught by    CHECK  bug class
+  ------------------------------  -----------  -----  ------------------------
+  p2_mppstuck_seed.patch          privumode      8    (a) p0_specs.md §3 negctrl
+  p2_privgate_seed.patch          privucsr      10    (b) p0_specs.md §3 negctrl
+  p2_twignore_seed.patch          privucsr      33    (c) p0_specs.md §3 negctrl
+  p2_csrcommit_seed.patch         privucsr      27    EXTRA — see below
+
+----------------------------------------------------------------------------
+(a) p2_mppstuck_seed.patch — hdl/common/vesta/csr_unit.vhd
+----------------------------------------------------------------------------
+The MRET arm drops `mst_mpp <= MPP_U;`, i.e. the privilege POP restores
+priv <- MPP but never forces MPP <- 00 (p0_specs.md §3: "MRET: priv<-MPP,
+MPP<-00" — the half that stops a second MRET re-escalating).
+
+privumode CHECK 8 is built for exactly this: mstatus is loaded 0x1800
+(MPP=11, MPIE=0, MIE=0) and an MRET is taken from M. The MRET returns to M
+(priv<-MPP=11) and must leave mstatus reading 0x0080 (MPIE<-1, MPP cleared).
+Seeded it reads 0x1880 and the bounded bne fires.
+(NOTE: a naive "check MPP after entering U" does NOT catch this seed — the
+U-entry MRET is taken with MPP already 00, so cleared-vs-unchanged are
+indistinguishable there. CHECK 8's M->M MRET with MPP=11 is the discriminator.)
+
+----------------------------------------------------------------------------
+(b) p2_privgate_seed.patch — hdl/common/vesta/maindec.vhd
+----------------------------------------------------------------------------
+`u_csr_denied` loses the `imm12(9 downto 8) /= "00"` term, i.e. the ONE
+comparator that makes every machine (0x3xx/0xBxx/0xFxx) and custom (0x7C0)
+CSR illegal in U-mode. (The mcounteren term is left, so poisons 8/9 still
+trap — the seed is a partial, not a total, gate removal.)
+
+privucsr POISON 1 is a U-mode `csrr mstatus`. It no longer traps, so the U
+code falls through to its own bounded witness `bne s3, s11` (the U code
+carries its expected trap count) and FAILs at CHECK 10.
+
+----------------------------------------------------------------------------
+(c) p2_twignore_seed.patch — hdl/common/vesta/maindec.vhd
+----------------------------------------------------------------------------
+Both mstatus.TW consumers are neutered (`if false then` in the SYSTEM PRIV
+WFI arm, and `not false` in the wfi_op output qualifier), i.e. WFI is legal
+in U-mode regardless of TW.
+
+BOUNDEDNESS BY CONSTRUCTION: privucsr arms mie.MSIE and raises CLINT msip[0]
+before the TW phase, so (mip and mie) /= 0 already holds. Seeded, the U-mode
+WFI is legal, enters SLEEPING, and wakes IMMEDIATELY on that pending source
+(mstatus.MIE stays 0, so nothing is delivered) — it resumes at WFI+4, lands
+on `bne s3, s11`, and FAILs at CHECK 33. It can never hang.
+
+----------------------------------------------------------------------------
+(d) p2_csrcommit_seed.patch — hdl/common/vesta/maindec.vhd   [EXTRA]
+----------------------------------------------------------------------------
+Not in the p0_specs.md §3 list — added because it guards a REAL ESCAPE found
+while building this phase. `csr_valid` (which IS csr_unit's write enable:
+`csr_write_en <= csr_valid when ...`) is reverted to a bare `is_csr_instr`,
+so a U-mode-denied CSR access takes the illegal-instruction trap AND STILL
+COMMITS ITS WRITE — user code could rewrite mtvec, mepc, mscratch or set
+mtrapctl.LEGACY.
+
+privucsr CHECK 5 loads mscratch with the sentinel 0x5A5A5A5A; POISON 3 is a
+U-mode `csrw mscratch, x0`; CHECK 27 (back in M) requires the sentinel
+intact. Seeded, mscratch reads 0 and the bounded bne fires at CHECK 27.
+
+The SAME check also caught the second half of the hole, which the maindec
+gate alone does NOT close: the faulting instruction is still presented to the
+decoder through MTRAP_SV/MTRAP_JUMP, and privilege has ALREADY flipped to M
+by then, so csr_valid went high again and the write landed one cycle later.
+Closed by the trap-entry side-effect block in vesta.vhd (`trap_entry_seq`,
+which also gates isr_ret and the sleep_cpu flop). Evidence that block is
+load-bearing: with the maindec fix in place but before the vesta block
+existed, privucsr FAILED at CHECK 27 (t4 = 27, a0 = 0xDEADBEEF).
+
+----------------------------------------------------------------------------
+Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
+----------------------------------------------------------------------------
+  clean RTL                   -> TEST PASSED - ../rcf/rv32ua-p-privumode.rcf
+  + p2_mppstuck_seed.patch    -> TEST FAILED - ../rcf/rv32ua-p-privumode.rcf
+                                 (t4 = 8,  a0 = 0xDEADBEEF)
+  reverted                    -> TEST PASSED
+
+  clean RTL                   -> TEST PASSED - ../rcf/xrv32ua-p-privucsr.rcf
+  + p2_privgate_seed.patch    -> TEST FAILED (t4 = 10, a0 = 0xDEADBEEF)
+  reverted                    -> TEST PASSED
+  + p2_twignore_seed.patch    -> TEST FAILED (t4 = 33, a0 = 0xDEADBEEF)
+  reverted                    -> TEST PASSED
+  + p2_csrcommit_seed.patch   -> TEST FAILED (t4 = 27, a0 = 0xDEADBEEF)
+  reverted                    -> TEST PASSED
+
+----------------------------------------------------------------------------
+Exact repro (from the repo root; privumode/privucsr are ON-ONLY tests)
+----------------------------------------------------------------------------
+The ON hardware is a `make chip` product, not a hand edit. The test arms are
+selected by the phase-standard EXPLICIT-APPEND dispatch (both -D flags
+appended to RISCV_GCC_OPTS, never auto-derived from a header).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles \
+           -DNHARTS=4 -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE"
+
+  # 0. Keep a copy of the committed default MemoryMap.vhd to restore later
+  cp hdl/common/MemoryMap.vhd /tmp/MemoryMap.vhd.default
+
+  # 1. Stage the ON hardware (generated, two-constant delta vs the default)
+  echo '{"priv": {"trapCsr": true, "umode": true}}' > /tmp/p2_on.json
+  cd platform/common/python && CHIP_CONFIG=/tmp/p2_on.json python3 generate.py
+  cp ../out/hdl/MemoryMap.vhd ../../../hdl/common/MemoryMap.vhd
+  cd ../../..
+  grep -n "CORE_ENABLE_UMODE" hdl/common/MemoryMap.vhd     # must read := true
+
+  # 2. Build the ON-arm images (only the rv32ua group carries the -D;
+  #    xcelium/riscv_test/rcf must stay a SYMLINK to verification/isa/rcf)
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh rv32ua-p-privumode                 # expect: TEST PASSED
+  ./xrun_batch.sh xrv32ua-p-privucsr                 # expect: TEST PASSED
+  # (never pipe xrun_batch through `head` — SIGPIPE leaves a STALE xrun.log)
+
+  # 3. For EACH seed: apply, re-run (RTL-only seed, no image rebuild), revert,
+  #    re-run.  privumode catches p2_mppstuck; privucsr catches the other three.
+  for s in p2_privgate p2_twignore p2_csrcommit; do
+    cd ~/vestarv && git apply verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh xrv32ua-p-privucsr
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST FAILED
+    cd ~/vestarv && git apply -R verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh xrv32ua-p-privucsr
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST PASSED
+    cd ~/vestarv
+  done
+  # ... and the same loop for p2_mppstuck with rv32ua-p-privumode.
+
+  # To read the failing CHECK id (t4/x29) and a0 straight out of the sim:
+  #   cd xcelium/riscv_test/behavioral_mp
+  #   cat > /tmp/p2_probe.tcl <<'EOF'
+  #   source ../../disable_x_warnings.tcl
+  #   run 40ms
+  #   puts "t4 = [value :dut:hart0:core:datapath_inst:rf:registers(29)]"
+  #   puts "a0 = [value :dut:hart0:core:datapath_inst:rf:registers(10)]"
+  #   exit
+  #   EOF
+  #   XRUN_MODE=batch XRUN_EXTRA_INPUT=/tmp/p2_probe.tcl ./xrun.sh xrv32ua-p-privucsr
+
+  # 4. Restore the OFF tree: default MemoryMap.vhd + default (OFF) rv32ua images
+  cd ~/vestarv && cp /tmp/MemoryMap.vhd.default hdl/common/MemoryMap.vhd
+  cd platform/common/python && python3 generate.py && cd ../../..
+  cd verification/isa && rm -rf build/ && make rv32ua-flash
+
+WARNING (cost a full suite run on 2026-07-28): verification/isa/rcf is the ONE
+real image directory and OTHER SESSIONS BUILD THROUGH IT (an Argus
+`build_mp_images.sh 18 …` transits the same dir). Check
+`ps -ef | grep build_mp_images` and the rcf mtimes before trusting ANY suite
+result — a mid-run image swap looks exactly like a mass RTL regression.

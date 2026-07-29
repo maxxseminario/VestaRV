@@ -1,0 +1,120 @@
+P1 trap DELIVERY negative controls — seeded-bug repro (Agent B, 2026-07-28)
+==========================================================================
+
+Three committed seeds, one repro. All three are RTL-ONLY (no image rebuild
+between clean/seeded/reverted), and all three are caught by ONE test,
+`privecall` (verification/isa/tests/rv32ua/privecall.S), at a named CHECK id —
+a compare-and-branch into RVTEST_FAIL, NEVER a watchdog hang. The failing check
+id is left in t4 (x29) and a0 = 0xDEADBEEF.
+
+  seed patch                        bug class (kickoff §3b / p0_specs §2.5)
+  --------------------------------  --------------------------------------
+  p1_mpierestore_seed.patch         (a) MRET drops the MPIE restore
+  p1_mepcskid_seed.patch            (b) mepc captures the resume pc, not the
+                                        faulting pc
+  p1_causeswap_seed.patch           (c) mcause code swap 11 <-> 3
+
+----------------------------------------------------------------------------
+(a) p1_mpierestore_seed.patch — hdl/common/vesta/csr_unit.vhd
+----------------------------------------------------------------------------
+The MRET arm of the trap-CSR writeback becomes `mst_mie <= '0'` instead of
+`mst_mie <= mst_mpie`, i.e. the mstatus stack POP forgets to restore MIE from
+MPIE (p0_specs.md §2.1/§2.3: MRET must do MIE<=MPIE, MPIE<='1').
+
+privecall CHECK 10 reads mstatus immediately after the FIRST ECALL round trip
+and requires 0x1888 (MPP=11 | MPIE=1 | MIE=1). With the seed it reads 0x1880
+(MIE stuck 0) and the bounded `bne` fires. The bug is ALSO what would break the
+SECOND round trip (CHECK 14 would then see MPIE pushed as 0, i.e. mstatus
+0x1800 inside the trap) — CHECK 10 simply catches it one round trip earlier.
+
+----------------------------------------------------------------------------
+(b) p1_mepcskid_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+`trap_pc_val` loses its interrupt/exception discriminator and becomes
+`pc_next_reg` unconditionally, so an EXCEPTION captures the RESUME pc
+(instruction+4) instead of its own faulting pc (p0_specs.md §2.2 mepc column:
+ECALL's mepc is ECALL's OWN pc).
+
+privecall CHECK 6 compares the handler-captured mepc against `la s0,
+pecl_ecall1` and the bounded `bne` fires. (The seed is also self-amplifying:
+the handler adds 4 to mepc before MRET, so the resume witness `li s1,0xA5`
+would be skipped too — CHECK 9 is the backstop.)
+
+----------------------------------------------------------------------------
+(c) p1_causeswap_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+The dispatch-cycle cause classifier `mtrap_disp_code` swaps the ECALL and
+EBREAK codes (11 <-> 3), i.e. the p0_specs.md §2.2 cause table is mis-wired.
+
+privecall CHECK 5 requires mcause = 11 after an ECALL from M and the bounded
+`bne` fires (with the seed it reads 3).
+
+----------------------------------------------------------------------------
+Proven results (ON build, CORE_ENABLE_TRAPCSR = true)
+----------------------------------------------------------------------------
+  clean RTL                    -> TEST PASSED - ../rcf/rv32ua-p-privecall.rcf
+                                  (t4 = 27, a0 = 0xCAFEBABE)
+  + p1_mpierestore_seed.patch  -> TEST FAILED - ../rcf/rv32ua-p-privecall.rcf
+                                  (t4 = 10, a0 = 0xDEADBEEF, 12.764895 ms —
+                                   bounded, ~1/8 of the 100 ms tb watchdog)
+  reverted                     -> TEST PASSED
+  + p1_mepcskid_seed.patch     -> TEST FAILED (t4 = 6,  12.764270 ms)
+  reverted                     -> TEST PASSED
+  + p1_causeswap_seed.patch    -> TEST FAILED (t4 = 5,  12.764228 ms)
+  reverted                     -> TEST PASSED
+
+----------------------------------------------------------------------------
+Exact repro (from the repo root; privecall is an ON-ONLY test)
+----------------------------------------------------------------------------
+The ON hardware is a `make chip` product, not a hand edit: generate with a
+priv.trapCsr config and stage the emitted MemoryMap.vhd. The test arm is
+selected by the phase-standard EXPLICIT-APPEND dispatch (-DCORE_ENABLE_TRAPCSR
+appended to RISCV_GCC_OPTS, never auto-derived from a header).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_TRAPCSR"
+
+  # 0. Keep a copy of the committed default MemoryMap.vhd to restore later
+  cp hdl/common/MemoryMap.vhd /tmp/MemoryMap.vhd.default
+
+  # 1. Stage the ON hardware (generated, single-constant delta vs the default)
+  echo '{"priv": {"trapCsr": true}}' > /tmp/trapcsr_cfg.json
+  cd platform/common && make generate CONFIG=/tmp/trapcsr_cfg.json
+  cp out/hdl/MemoryMap.vhd ../../hdl/common/MemoryMap.vhd
+  cd ../..
+  grep -n CORE_ENABLE_TRAPCSR hdl/common/MemoryMap.vhd     # must read := true
+
+  # 2. Build the ON-arm images (base groups keep their default build — only the
+  #    rv32ua group carries the -D; xcelium/riscv_test/rcf must stay a SYMLINK
+  #    to verification/isa/rcf) and run: clean RTL must PASS
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh rv32ua-p-privecall                 # expect: TEST PASSED
+  # (never pipe xrun_batch through `head` — SIGPIPE leaves a STALE xrun.log)
+
+  # 3. For EACH seed: apply, re-run (RTL-only seed, no image rebuild), revert,
+  #    re-run.
+  for s in p1_mpierestore p1_mepcskid p1_causeswap; do
+    cd ~/vestarv && git apply verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh rv32ua-p-privecall
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST FAILED
+    cd ~/vestarv && git apply -R verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh rv32ua-p-privecall
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST PASSED
+    cd ~/vestarv
+  done
+
+  # To read the failing CHECK id (t4/x29) and a0 straight out of the sim:
+  #   cd xcelium/riscv_test/behavioral_mp
+  #   cat > pecl_probe.tcl <<'EOF'
+  #   source ../../disable_x_warnings.tcl
+  #   run 40ms
+  #   puts "t4 = [value :dut:hart0:core:datapath_inst:rf:registers(29)]"
+  #   puts "a0 = [value :dut:hart0:core:datapath_inst:rf:registers(10)]"
+  #   exit
+  #   EOF
+  #   XRUN_MODE=batch XRUN_EXTRA_INPUT=pecl_probe.tcl ./xrun.sh rv32ua-p-privecall
+
+  # 4. Restore the OFF tree: default MemoryMap.vhd + default (OFF) rv32ua images
+  cd ~/vestarv && cp /tmp/MemoryMap.vhd.default hdl/common/MemoryMap.vhd
+  cd platform/common && make generate && cd ../..
+  cd verification/isa && rm -rf build/ && make rv32ua-flash

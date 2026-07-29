@@ -33,6 +33,7 @@ rv32ua_sc_tests = \
 	extzbkx \
 	extzbkrsv \
 	casill \
+	amorsv \
 	cbozill \
 	extprobe \
 	extzimop \
@@ -62,6 +63,27 @@ rv32ua_sc_tests = \
 	zffflags \
 	zffrm \
 	zffcsr \
+	privmst \
+	privmsth \
+	privmtvc \
+	privmie \
+	privmip \
+	privmscr \
+	privmepc \
+	privmcau \
+	privmtvl \
+	privmtrc \
+	privmret \
+	privecal \
+	privebrk \
+	privwfi \
+	privcsr \
+	privecall \
+	privirq \
+	privumode \
+	privucsr \
+	privrt1 \
+	privrt2 \
 
 rv32ua_p_tests = $(addprefix rv32ua-p-, $(rv32ua_sc_tests))
 rv32ua_v_tests = $(addprefix rv32ua-v-, $(rv32ua_sc_tests))
