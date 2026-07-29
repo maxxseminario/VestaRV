@@ -68,7 +68,7 @@
     "preliminary": true
   },
   "derived": {
-    "isaString": "rv32imac_zba_zbb_zbs",
+    "isaString": "rv32imac_zba_zbb_zbs_zbc",
     "sharedWindowAddrWidth": 15,
     "sharedRamBanks": 4,
     "flashBaseAddress": "0x20000",

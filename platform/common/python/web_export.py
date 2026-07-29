@@ -59,7 +59,7 @@ def _isaString(isa):
 	if isa.get('compressed'):
 		s += 'c'
 	if isa.get('bitmanip'):
-		s += '_zba_zbb_zbs'
+		s += '_zba_zbb_zbs_zbc'
 	if isa.get('counters'):
 		s += '_zicntr'
 	# X1 extensions (2026-07-17). Keep IDENTICAL to generate.py._isaString().
@@ -69,10 +69,6 @@ def _isaString(isa):
 		s += '_zicond'
 	if isa.get('zicboz'):
 		s += '_zicboz'
-	if isa.get('zcmp'):
-		s += '_zcmp'
-	if isa.get('zcmt'):
-		s += '_zcmt'
 	if isa.get('zihint'):
 		s += '_zihintpause_zihintntl'
 	if isa.get('zimop'):
@@ -87,6 +83,10 @@ def _isaString(isa):
 		s += '_zabha'
 	if isa.get('zacas'):
 		s += '_zacas'
+	if isa.get('zcmp'):
+		s += '_zcmp'
+	if isa.get('zcmt'):
+		s += '_zcmt'
 	# X3 Stage B scalar-crypto bit-manip (keep IDENTICAL to generate.py._isaString).
 	if isa.get('zbkb'):
 		s += '_zbkb'
