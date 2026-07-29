@@ -27,7 +27,7 @@ Hart $h$'s \texttt{meip} wire is asserted while some vector $v$ is pending (degl
 \begin{figure}[htpb]
 	\centering
 	\input{include/IrqClaimCompleteDiagram.tex}
-	\caption{Claim/complete delivery of one peripheral interrupt. The router raises \texttt{meip} while the source is pending and enabled; the \register{CLAIM} read marks it under service, which hides it from \emph{every} hart until the completing write. That masking window is what makes delivery exactly-once even when several harts enable the same source.}
+	\caption[{Claim/complete delivery of one peripheral interrupt.}]{Claim/complete delivery of one peripheral interrupt. The router raises \texttt{meip} while the source is pending and enabled; the \register{CLAIM} read marks it under service, which hides it from \emph{every} hart until the completing write. That masking window is what makes delivery exactly-once even when several harts enable the same source.}
 	\label{fig:irq-claim-complete}
 \end{figure}
 

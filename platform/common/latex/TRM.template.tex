@@ -50,6 +50,18 @@
 \tableofcontents
 \newpage
 
+% Figure and table indexes. Both are listed in the table of contents itself
+% (\listof* does not add its own entry in the article class).
+\phantomsection
+\addcontentsline{toc}{section}{List of Figures}
+\listoffigures
+\newpage
+
+\phantomsection
+\addcontentsline{toc}{section}{List of Tables}
+\listoftables
+\newpage
+
 
 
 % System configuration
@@ -60,7 +72,7 @@ The microcontroller (MCU) described in this document is a \NumHartsWord-hart (\N
 \begin{figure}[h]
 	\centering
 	\resizebox{\linewidth}{!}{\input{include/SystemBlockDiagram.tex}}
-	\caption{\AsicNameForUserGuide{} top-level block diagram (generated from this configuration: \NumHarts{} harts, \SharedRamSizeKiB\,KiB shared RAM). Every hart tile couples an unmodified VestaRV core with its private TCM; everything else is reached through the serializing round-robin arbiter.}
+	\caption[{\AsicNameForUserGuide{} top-level block diagram}]{\AsicNameForUserGuide{} top-level block diagram (generated from this configuration: \NumHarts{} harts, \SharedRamSizeKiB\,KiB shared RAM). Every hart tile couples an unmodified VestaRV core with its private TCM; everything else is reached through the serializing round-robin arbiter.}
 	\label{fig:system-block-diagram}
 \end{figure}
 
@@ -103,7 +115,7 @@ This document, the memory-map headers, the linker scripts, and the drop-in RTL a
 \begin{figure}[h]
 	\centering
 	\resizebox{0.98\linewidth}{!}{\input{include/PackagePinoutDiagram.tex}}
-	\caption{{\PackageTypeName}-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch). Each pin is labeled with its pad name and, for GPIO pins, its AF0 (reset-selected) alternate function; power-rail pins are shaded and bold. The full per-pin alternate-function matrix is in Table \ref{t:gpio-afs}.}
+	\caption[{{\PackageTypeName}-{\PackagePinCount} pinout, top view}]{{\PackageTypeName}-{\PackagePinCount} pinout, top view ($\PackageSize \times \PackageSize$ {\PackageUnits}, {\PackagePinPitch} {\PackageUnits} pitch). Each pin is labeled with its pad name and, for GPIO pins, its AF0 (reset-selected) alternate function; power-rail pins are shaded and bold. The full per-pin alternate-function matrix is in Table \ref{t:gpio-afs}.}
 	\label{fig:package}
 \end{figure}
 
