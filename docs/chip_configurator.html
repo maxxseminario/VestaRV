@@ -873,7 +873,7 @@ const VESTA_DATA = {
       "default": false
     },
     "priv.pmp": {
-      "description": "bool \u2014 P3: physical memory protection (Smpmp: pmpcfg0-3, pmpaddr0-15, OFF/TOR/NA4/NAPOT, lock bit, pre-issue fetch/load/store checks with access-fault causes). Requires priv.umode. SCAFFOLDED (P0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 P3: physical memory protection (Smpmp), IMPLEMENTED (P3, 2026-07-29): the pmpcfg0-3 / pmpaddr0-15 CSR bank (packed 4x8-bit cfg, R/W/X/A(4:3)/L with bits 6:5 WARL 0, W pinned 0 when R=0, pmpaddr bits 31:30 WARL 0), the full lock semantics (a locked entry's cfg AND address are immutable until reset, a TOR-locked entry also write-locks its predecessor address, per-byte lock filtering inside a pmpcfg word), and the combinational match unit (OFF/TOR/NA4/NAPOT at G=0, lowest-numbered match decides alone, locked entries enforce on M-mode, no-match grants M and faults U). The pre-issue fetch/load/store CHECK INTEGRATION with its access-fault causes 1/5/7 lands with the vesta diff of the same phase. Requires priv.umode. Default false: all twenty addresses stay illegal CSRs and the match unit is not instantiated \u2014 bit-identical to a P2 chip",
       "type": "bool",
       "default": false
     },

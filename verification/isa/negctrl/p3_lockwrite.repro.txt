@@ -1,0 +1,124 @@
+P3 PMP CSR-bank negative control — seeded-bug repro (Agent A, 2026-07-29)
+=========================================================================
+
+ONE committed seed for the P3 CSR-bank half (pmpcfg/pmpaddr storage, WARL and
+LOCK semantics in csr_unit.vhd). It is RTL-ONLY (no image rebuild between
+clean/seeded/reverted) and is caught by a bounded compare-and-branch into
+RVTEST_FAIL at a NAMED CHECK id — never a watchdog hang. The failing check id
+is left in t4 (x29) and a0 = 0xDEADBEEF.
+
+  seed patch                    caught by     CHECK  bug class
+  ----------------------------  ------------  -----  ------------------------
+  p3_lockwrite_seed.patch       privpmpcs       38   p0_specs.md 4 negctrl (d)
+                                                     "L ignored" (cfg half)
+
+The other three p0_specs.md 4 negative controls — (a) priority inverted,
+(b) post-issue check, (c) NAPOT size decode off-by-one — bite the MATCH unit
+and the vesta CHECK INTEGRATION, i.e. pmp_unit.vhd + the Agent-B diff. They are
+NOT in this file; (a) and (c) are provable today against
+xcelium/mp_test/run_pmp_unit.sh (the bench's P4a/P4b priority pair and its
+P3 NAPOT 8 B / 16 B / 4 KB / all-ones size sweep are built for exactly them),
+and (b) needs the check integration to exist at all.
+
+----------------------------------------------------------------------------
+p3_lockwrite_seed.patch — hdl/common/vesta/csr_unit.vhd
+----------------------------------------------------------------------------
+Makes `pmp_locked()` return false unconditionally. That function's ONLY
+consumers are the sixteen per-byte lock filters in the four CSR_PMPCFG write
+arms, so the seed drops EXACTLY the "a locked entry's cfg byte is
+write-ignored until reset" rule (p0_specs.md 4.1) and nothing else: pmpaddr
+locking goes through `pmp_addr_writable()`, which reads own_cfg(7) directly
+and is untouched. The failure is therefore isolated to cfg immutability, and
+privpmpcs CHECKs 41/42/43 (pmpaddr12 immutable, pmpaddr13 TOR-locked by entry
+14, pmpaddr14 immutable) still pass under the seed — which is what makes this
+a control for the cfg half specifically.
+
+privpmpcs CHECK 37 arms the locks in one pmpcfg3 write
+(e12 = 0x9B L|NAPOT|W|R, e13 = 0x0B TOR|W|R, e14 = 0x89 L|TOR|R, e15 = 0x00)
+and CHECK 38 then writes ALL-ZEROS to pmpcfg3. Fixed, only the UNLOCKED bytes
+clear and it reads back 0x0089009B (this single check pins BOTH the
+locked-byte immutability AND the per-byte filtering: a whole-word lock would
+read 0x00890B9B, a missing lock 0x00000000). Seeded it reads 0x00000000 and
+the bounded `bne` fires at t4 = 38.
+
+----------------------------------------------------------------------------
+Proven results (ON build, CORE_ENABLE_TRAPCSR = UMODE = PMP = true, 16 entries)
+----------------------------------------------------------------------------
+  clean RTL                    -> TEST PASSED - ../rcf/rv32ua-p-privpmpcs.rcf
+  + p3_lockwrite_seed.patch    -> TEST FAILED - ../rcf/rv32ua-p-privpmpcs.rcf
+                                  (t4 = 38, a0 = 0xDEADBEEF)
+  reverted                     -> TEST PASSED - ../rcf/rv32ua-p-privpmpcs.rcf
+
+----------------------------------------------------------------------------
+Exact repro (from the repo root; privpmpcs is an ON-ONLY test)
+----------------------------------------------------------------------------
+The ON hardware is a `make chip` product, not a hand edit. The test arms are
+selected by the phase-standard EXPLICIT-APPEND dispatch (all three -D flags
+appended to RISCV_GCC_OPTS, never auto-derived from a header).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles \
+           -DNHARTS=4 -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE -DCORE_ENABLE_PMP"
+
+  # 0. Keep a copy of the committed default MemoryMap.vhd to restore later
+  cp hdl/common/MemoryMap.vhd /tmp/MemoryMap.vhd.default
+
+  # 1. Stage the ON hardware (generated, four-constant delta vs the default)
+  echo '{"priv": {"trapCsr": true, "umode": true, "pmp": true}}' > /tmp/p3_on.json
+  cd platform/common/python && CHIP_CONFIG=/tmp/p3_on.json python3 generate.py
+  cp ../out/hdl/MemoryMap.vhd ../../../hdl/common/MemoryMap.vhd
+  cd ../../..
+  grep -n "CORE_ENABLE_PMP" hdl/common/MemoryMap.vhd     # must read := true
+
+  # 2. Build the ON-arm images (only the rv32ua group carries the -D flags;
+  #    xcelium/riscv_test/rcf must stay a SYMLINK to verification/isa/rcf)
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh rv32ua-p-privpmpcs                 # expect: TEST PASSED
+  # (never pipe xrun_batch through `head` — SIGPIPE leaves a STALE xrun.log;
+  #  always confirm the "Starting test:" line names your test)
+
+  # 3. Apply, re-run (RTL-only seed, no image rebuild), revert, re-run
+  cd ~/vestarv && git apply verification/isa/negctrl/p3_lockwrite_seed.patch
+  cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh rv32ua-p-privpmpcs
+  grep -E "TEST PASSED|TEST FAILED" xrun.log          # expect: TEST FAILED
+  cd ~/vestarv && git apply -R verification/isa/negctrl/p3_lockwrite_seed.patch
+  cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh rv32ua-p-privpmpcs
+  grep -E "TEST PASSED|TEST FAILED" xrun.log          # expect: TEST PASSED
+
+  # To read the failing CHECK id (t4/x29) and a0 straight out of the sim:
+  #   cd xcelium/riscv_test/behavioral_mp
+  #   cat > /tmp/p3_probe.tcl <<'EOF'
+  #   source ../../disable_x_warnings.tcl
+  #   run 40ms
+  #   puts "t4 = [value :dut:hart0:core:datapath_inst:rf:registers(29)]"
+  #   puts "a0 = [value :dut:hart0:core:datapath_inst:rf:registers(10)]"
+  #   exit
+  #   EOF
+  #   XRUN_MODE=batch XRUN_EXTRA_INPUT=/tmp/p3_probe.tcl ./xrun.sh rv32ua-p-privpmpcs
+  # (t4 prints as a 32-bit binary string: 0b100110 = 38)
+
+  # 4. Restore the OFF tree: default MemoryMap.vhd + default (OFF) rv32ua images
+  cd ~/vestarv && cp /tmp/MemoryMap.vhd.default hdl/common/MemoryMap.vhd
+  cd platform/common/python && python3 generate.py && cd ../../..
+  cd verification/isa && rm -rf build/ && make rv32ua-flash
+
+----------------------------------------------------------------------------
+Companion unit proof (no image, no Cadence test build — seconds to run)
+----------------------------------------------------------------------------
+  ./xcelium/mp_test/run_pmp_unit.sh        # expect: ALL CHECKS PASSED
+
+  87 checks over THREE DUT shapes in one bench (ENABLE_PMP=true/16 entries,
+  true/8 entries, false), covering TOR (incl. the entry-0 lower bound and an
+  OFF-predecessor TOR base), NA4, NAPOT size decode at 8 B/16 B/4 KB and the
+  all-ones full span, lowest-match priority in BOTH directions
+  (deny-under-grant and grant-under-deny), M-mode default grant, a locked
+  entry denying M, U no-match denial, R/W/X selectivity incl. the LR/SC/AMO
+  R&W shape, the PMP_ENTRIES=8 dead-upper-half shape, and both grants stuck
+  '1' with ENABLE_PMP false.
+
+WARNING (cost a full suite run on 2026-07-28): verification/isa/rcf is the ONE
+real image directory and OTHER SESSIONS BUILD THROUGH IT (an Argus
+`build_mp_images.sh 18 ...` transits the same dir). Check
+`ps -ef | grep build_mp_images` and `cat verification/isa/rcf/.nharts` (= 4)
+before trusting ANY suite result — a mid-run image swap looks exactly like a
+mass RTL regression.

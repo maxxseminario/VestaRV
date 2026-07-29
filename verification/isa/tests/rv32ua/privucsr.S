@@ -114,6 +114,25 @@ RVTEST_CODE_BEGIN
                                     #   hole would let U rewrite mtvec/mtrapctl).
                                     #   CHECK 27 reads the sentinel back.
 
+#ifdef CORE_ENABLE_PMP
+    # =====================================================================
+    # P3 PMP PROLOGUE (2026-07-29). With PMP implemented, a U-mode access
+    # matching NO entry FAULTS (spec + frozen §4 no-match rule) — on a pmp
+    # build the very first U-mode instruction fetch below would take an
+    # instruction access fault (cause 1) into the handler and derail every
+    # check. Grant U R|W|X over 0x0-0xFFFF (TOR entry 1, base = pmpaddr0 = 0;
+    # entries 2-15 left free, nothing locked) BEFORE entering U. On the
+    # trapCsr+umode polarity this block is not assembled and the file
+    # behaves exactly as it did at P2.
+    # =====================================================================
+    csrw 0x3B0, x0                  # pmpaddr0 = 0 : entry 1's TOR base
+    li   t0, 0x00010000
+    srli t0, t0, 2                  # word address of the TOR top
+    csrw 0x3B1, t0                  # pmpaddr1 = 0x10000 >> 2
+    li   t0, 0x00000F00             # cfg1 = TOR|X|W|R, cfg0 = OFF
+    csrw 0x3A0, t0
+#endif
+
     # =====================================================================
     # PHASE 1 — enter U with TW=0 and mcounteren all-zero, and run the nine
     # poisons. CHECK ids 10..18 are set IN U, one per poison.

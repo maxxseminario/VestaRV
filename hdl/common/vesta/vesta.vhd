@@ -379,7 +379,43 @@ architecture struct of vesta is
             -- P2 U-mode interface (p0_specs.md 3.1 FREEZE)
             priv_mode      : out std_logic;
             status_tw      : out std_logic;
-            mcounteren_bits : out std_logic_vector(4 downto 0)
+            mcounteren_bits : out std_logic_vector(4 downto 0);
+
+            -- P3-entry interface (p3_kickoff.md 3): CSR write-form qualifier
+            -- in, effective data-access privilege (mstatus.MPRV redirect) out
+            csr_rs1_zero   : in  std_logic := '0';
+            data_priv_m    : out std_logic;
+            -- P3 red-team F1: the MRET return privilege (MPP mapped)
+            mret_priv_m    : out std_logic;
+
+            -- P3 PMP bank exports (p0_specs.md §4.1); all-zero when ENABLE_PMP
+            -- is false.
+            pmp_cfg_flat   : out std_logic_vector(127 downto 0);
+            pmp_addr_flat  : out std_logic_vector(479 downto 0)
+        );
+    end component;
+
+    -- P3 (PMP/Smpmp): the pure-combinational match / priority / permission
+    -- decoder. Ports and semantics are FROZEN by p0_specs.md §4.1; the bank
+    -- STORAGE lives in csr_unit and every CHECK POINT lives in this file.
+    -- Instantiated ONLY inside `gen_pmp: if ENABLE_PMP generate`, so an OFF
+    -- build's hand-maintained cell lists and netlist are untouched.
+    component pmp_unit
+        generic (
+            ENABLE_PMP  : boolean := false;
+            PMP_ENTRIES : integer := 16
+        );
+        port (
+            pmp_cfg_flat  : in  std_logic_vector(127 downto 0);
+            pmp_addr_flat : in  std_logic_vector(479 downto 0);
+            f_addr        : in  std_logic_vector(31 downto 0);
+            f_priv_m      : in  std_logic;
+            f_grant       : out std_logic;
+            d_addr        : in  std_logic_vector(31 downto 0);
+            d_priv_m      : in  std_logic;
+            d_read        : in  std_logic;
+            d_write       : in  std_logic;
+            d_grant       : out std_logic
         );
     end component;
 
@@ -665,6 +701,20 @@ architecture struct of vesta is
     signal csr_wdata              : std_logic_vector(XLEN-1 downto 0);
     signal csr_op                 : std_logic_vector(2 downto 0);
     signal csr_valid              : std_logic;
+    -- P3-entry: the CSR instruction's rs1/uimm FIELD is zero (csr_unit
+    -- write-form rule -- CSRRS/C[I] with rs1/uimm = 0 must not write).
+    signal csr_rs1_zero           : std_logic;
+    -- P3-entry: effective DATA-access privilege from csr_unit (mstatus.MPRV
+    -- redirection). CONSUMER = the P3 PMP data-side check (Agent B); carried
+    -- unconsumed until then.
+    signal eff_data_priv_m        : std_logic;
+    -- P3 red-team F1: the MRET return privilege (MPP mapped) from csr_unit --
+    -- the privilege the MRET-target FETCH is checked at during MTRAP_RET.
+    signal mret_priv_m            : std_logic;
+    -- P3 red-team F1: the effective FETCH-check privilege -- trap_priv_mode
+    -- normally, but mret_priv_m during MTRAP_RET (the one privilege-LOWERING
+    -- state whose issued fetch is consumed at the new, lower privilege).
+    signal pmp_f_priv             : std_logic;
     -- P2 TRAP-ENTRY SIDE-EFFECT BLOCK (see the assignment near the trap glue).
     signal trap_entry_seq         : std_logic;
     signal csr_valid_eff          : std_logic;
@@ -774,6 +824,70 @@ architecture struct of vesta is
     signal std_wfi_pend           : std_logic;
     -- The wake itself: only ever asserted for a WFI-entered sleep.
     signal std_wfi_wake           : std_logic;
+
+    -- ------------------------------------------------------------------
+    -- P3 PMP CHECK INTEGRATION (ENABLE_PMP) -- the D5 strict-pre-issue diff
+    -- ------------------------------------------------------------------
+    -- EVERY signal below is statically '0'/'1'/zero when ENABLE_PMP is false
+    -- (the gen_pmp_off generate ties the unit outputs and the two flops), so
+    -- the OFF netlist and the LEGACY delivery path are bit-identical.
+    --
+    -- THE SUPPRESSION MECHANISM (why "no transaction" is structural here):
+    -- hart_tile derives the arbiter request from the ADDRESS ALONE --
+    --   sh_sel <= <window decode of data_addr>;  sh_req <= sh_sel and not ack
+    -- -- so "a denied access issues NO transaction" is EXACTLY "the denied
+    -- address never reaches `data_addr`". Both check points are shaped to
+    -- that single invariant:
+    --   DATA  : the EXECUTE-cycle data address only reaches data_addr through
+    --           `mem_access_instr` (loads/stores/LR/AMO) or through a
+    --           sequencer STATE term (CBOZ_WRITE / ZCM_*). A denial forces
+    --           mem_access_instr '0' + wen all-ones AND gates the sequencer
+    --           terms, so data_addr stays on the fetch fall-through; SC's only
+    --           transaction lives in SC_CHECK, which a denial never enters.
+    --   FETCH : the fall-through `pc_next` arm of the data_addr mux is the ONE
+    --           place this core issues an instruction fetch. A denial parks
+    --           data_addr on PC_RST_VAL (the reset vector -- fetchable and
+    --           side-effect-free by construction in every instantiation).
+    signal pmp_cfg_flat_sig       : std_logic_vector(127 downto 0);
+    signal pmp_addr_flat_sig      : std_logic_vector(479 downto 0);
+    -- Fetch port. f_addr is pc_next: the address the CURRENT cycle would put
+    -- on the bus as an instruction fetch.
+    signal pmp_f_grant            : std_logic;
+    signal pmp_f_deny             : std_logic;
+    -- ...and its 1-deep clk_cpu pipeline. INVARIANT: in any EXECUTE cycle,
+    -- pmp_f_deny_r/pmp_f_addr_r describe the fetch the IMMEDIATELY PRECEDING
+    -- core cycle issued -- which is always the word this EXECUTE decodes (or,
+    -- on a repeat_if completion, the UPPER half of the straddling 32-bit
+    -- instruction). That is why ONE fetch port covers both halves.
+    signal pmp_f_deny_r           : std_logic;
+    signal pmp_f_addr_r           : std_logic_vector(XLEN-1 downto 0);
+    -- '1' in the EXECUTE cycle that would consume a fetch which never issued:
+    -- the decoder is looking at the PARK word, so this cycle must commit
+    -- NOTHING (the trap_entry_seq lesson, applied one cycle earlier).
+    signal pmp_if_squash          : std_logic;
+    -- trap_entry_seq OR pmp_if_squash: the decode-bypassing side effects
+    -- (csr_valid, isr_ret, sleep_cpu) are killed by either.
+    signal dec_squash             : std_logic;
+    -- data_addr park select (see the mechanism note above).
+    signal pmp_if_park            : std_logic;
+    -- Data port.
+    signal pmp_d_grant            : std_logic;
+    signal pmp_d_addr             : std_logic_vector(XLEN-1 downto 0);
+    signal pmp_d_rd               : std_logic;
+    signal pmp_d_wr               : std_logic;
+    signal pmp_d_active           : std_logic;
+    -- '1' when the denied access is of the STORE class (store / SC / AMO /
+    -- cbo.zero / cm.push) => cause 7; '0' for the LOAD class (load / LR /
+    -- cm.pop / Zcmt table fetch) => cause 5. NOTE this is the ACCESS CLASS,
+    -- not the permission need: LR/SC/AMO all check R AND W (frozen §4), but a
+    -- denied LR reports cause 5, per the §2.2 row it belongs to.
+    signal pmp_d_st_class         : std_logic;
+    signal pmp_d_deny             : std_logic;
+    -- The faulting address for mtval (causes 1/5/7): combinational at the
+    -- dispatch cycle, LATCHED at the MTRAP_SV dispatch edge because neither
+    -- source is stable during MTRAP_SV.
+    signal mtrap_disp_val         : std_logic_vector(XLEN-1 downto 0);
+    signal mtrap_val_r            : std_logic_vector(XLEN-1 downto 0);
 
     -- X3 Zcmp/Zcmt helper functions (pure combinational, spec tables).
     function zcm_reg_at(p : integer) return std_logic_vector is
@@ -1087,8 +1201,11 @@ architecture struct of vesta is
     -- inherit the EXECUTE sub-arm structure that protects the FSM dispatch arms, so
     -- it must qualify its own EXECUTE term — exactly as amo_lock does (vesta:~1207,
     -- qualifying its EXECUTE term to the real dispatch: amo_op and mem_access_instr).
+    -- P3: pmp_if_squash excludes the EXECUTE cycle that decodes the park word
+    -- of a PMP-denied fetch (statically '0' when ENABLE_PMP is false).
     fp_flags_we <= '1' when (current_state = FPU_DONE) else
                    '1' when (current_state = EXECUTE and is_fp_singlecycle = '1' and trap = '0'
+                             and pmp_if_squash = '0'
                              and (ENABLE_COMPRESSED or pc(1) = '0')
                              and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')) else
                    '0';
@@ -1320,9 +1437,20 @@ architecture struct of vesta is
     -- steer data_addr to the stale ALU_Result during CBOZ_WRITE).
     cboz_zero_addr <= std_logic_vector(unsigned(cboz_base) + to_unsigned(cboz_idx * 4, 32));
 
-    data_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE) else
-                 zcm_mem_addr when (current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD) else
-                 zcm_jt_addr  when (current_state = ZCM_JT_LD) else
+    -- P3 (PMP, D5 strict pre-issue): the three SEQUENCER address terms are
+    -- selected by STATE, not by mem_access_instr, so suppressing the FSM's
+    -- request alone would still leave the denied word on data_addr for one
+    -- cycle (and hart_tile's sh_req is a pure decode of data_addr). Gate them
+    -- with pmp_d_deny -- statically '0' when ENABLE_PMP is false, so this
+    -- folds bit-for-bit. The EXECUTE-dispatch terms need no such gate: they
+    -- are already qualified by mem_access_instr, which the denial forces '0'.
+    -- The PC_RST_VAL arm is the FETCH suppression point: it replaces the
+    -- single `pc_next` fall-through through which every instruction fetch of
+    -- this core issues.
+    data_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE and pmp_d_deny = '0') else
+                 zcm_mem_addr when ((current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD)
+                                    and pmp_d_deny = '0') else
+                 zcm_jt_addr  when (current_state = ZCM_JT_LD and pmp_d_deny = '0') else
                  rs1_value  when (current_state = SC_CHECK) else
                  rs1_value  when (current_state = EXECUTE and amo_op = '1'
                                   and mem_access_instr = '1') else
@@ -1331,6 +1459,7 @@ architecture struct of vesta is
                                   current_state = LR_READ) else
                  std_logic_vector(unsigned(stack_pointer) - 4) when (current_state = IRQ_SV) else
                  stack_pointer when next_state = IRQ_REST else
+                 PC_RST_VAL when pmp_if_park = '1' else
                  pc_next;
 
     -- ==========================================
@@ -1406,7 +1535,12 @@ architecture struct of vesta is
     -- only issues a harmless read for SC after the M4b wen fix). "10" requires
     -- the LOCAL check to pass — a locally failed SC issues no write and must
     -- not be adjudicated as an SC.
-    lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' else
+    -- P3: a PMP-DENIED LR issues no read transaction at all (mem_access_instr
+    -- is forced '0', so data_addr stays on the fetch fall-through). Without
+    -- this qualifier the "01" tag would ride that FETCH transaction into the
+    -- arbiter and arm a global reservation on the fetch address. pmp_d_deny is
+    -- statically '0' when ENABLE_PMP is false => the OFF tag is unchanged.
+    lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' and pmp_d_deny = '0' else
                  "10" when current_state = SC_CHECK and reservation_valid = '1'
                            and reservation_addr = rs1_value else
                  "00";
@@ -1455,13 +1589,31 @@ architecture struct of vesta is
     -- holds the PREVIOUS instruction, kickoff 3b class 5) can never sample these.
     -- Priority mirrors the FSM arm order exactly: misaligned-PC, illegal, ECALL,
     -- EBREAK; anything else that reaches MTRAP_SV is an interrupt.
+    -- P3 adds three EXCEPTION classes to this mux. Priority is EXACTLY the FSM
+    -- arm order (a cause mux that disagrees with the arm order silently
+    -- mislabels traps):
+    --   1. instruction access fault -- FIRST in EXECUTE, because the word
+    --      being decoded is the PARK word: `trap` / ecall_op / ebreak_op are
+    --      all meaningless on it.
+    --   2. the existing misaligned-PC / illegal / ECALL / EBREAK classes.
+    --   3. load/store access fault -- the FSM arm sits after mret_op, and it
+    --      also fires from the SEQUENCER states (CBOZ_WRITE/ZCM_*), which is
+    --      why it is not qualified by `current_state = EXECUTE`.
+    --   4. anything else => interrupt.
+    -- The three original arms gain an explicit `current_state = EXECUTE`
+    -- qualifier that the old leading `/= EXECUTE` term supplied implicitly --
+    -- with the PMP terms tied off the result is bit-identical.
     mtrap_disp_int <=
+        '0' when (ENABLE_PMP and current_state = EXECUTE and pmp_f_deny_r = '1') else         -- 1 instr access fault
+        '0' when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else   -- instruction-address-misaligned
+        '0' when (current_state = EXECUTE and
+                  (trap = '1' or ecall_op = '1' or ebreak_op = '1')) else                     -- illegal / ECALL / EBREAK
+        '0' when (pmp_d_deny = '1') else                                                      -- 5/7 load-store access fault
         '1' when (current_state /= EXECUTE) else                                 -- MEMORY_WAIT/DIV_DONE/AMO_*/SLEEPING/... => interrupt
-        '0' when ((not ENABLE_COMPRESSED) and pc(1) = '1') else                  -- instruction-address-misaligned
-        '0' when (trap = '1' or ecall_op = '1' or ebreak_op = '1') else          -- illegal / ECALL / EBREAK
         '1';                                                                     -- EXECUTE + none of the above => interrupt
 
     mtrap_disp_code <=
+        x"1" when (ENABLE_PMP and current_state = EXECUTE and pmp_f_deny_r = '1') else        -- 1  instruction access fault
         x"0" when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else  -- 0  instr addr misaligned
         x"2" when (current_state = EXECUTE and trap = '1') else                               -- 2  illegal instruction
         -- P2: the ECALL cause is the CURRENT privilege (p0_specs.md 2.2 rows
@@ -1470,6 +1622,11 @@ architecture struct of vesta is
         x"8" when (current_state = EXECUTE and ecall_op = '1' and trap_priv_mode = '0') else  -- 8  ecall from U
         x"B" when (current_state = EXECUTE and ecall_op = '1') else                           -- 11 ecall from M
         x"3" when (current_state = EXECUTE and ebreak_op = '1') else                          -- 3  breakpoint
+        -- P3 data-side access faults. The class (not the permission need) picks
+        -- the code: store / SC / AMO / cbo.zero / cm.push => 7, load / LR /
+        -- cm.pop / Zcmt table fetch => 5.
+        x"7" when (pmp_d_deny = '1' and pmp_d_st_class = '1') else                            -- 7  store/AMO access fault
+        x"5" when (pmp_d_deny = '1') else                                                     -- 5  load access fault
         -- interrupt codes, spec priority MEI > MSI > MTI
         x"B" when (trap_irq_meip = '1' and trap_mie_bits(2) = '1') else                       -- 0x8000000B
         x"3" when (trap_irq_msip = '1' and trap_mie_bits(0) = '1') else                       -- 0x80000003
@@ -1501,8 +1658,15 @@ architecture struct of vesta is
     --           TIER-1), the misaligned PC for cause 0, else 0.
     trap_pc_val    <= pc_next_reg when mtrap_cause_int = '1' else pc;
     trap_cause_val <= mtrap_cause_int & MTRAP_RSVD27 & mtrap_cause_code;
+    --   P3: for the three ACCESS-FAULT causes mtval is the FAULTING ADDRESS,
+    --           taken from the dispatch-edge latch (mtrap_val_r) because
+    --           neither pmp_d_addr nor pmp_f_addr_r is stable during MTRAP_SV.
+    --           mtrap_val_r is all-zero on an ENABLE_PMP=false build.
     trap_value_val <= instr_curr_prev when (mtrap_cause_int = '0' and mtrap_cause_code = x"2") else
                       pc              when (mtrap_cause_int = '0' and mtrap_cause_code = x"0") else
+                      mtrap_val_r     when (ENABLE_PMP and mtrap_cause_int = '0' and
+                                            (mtrap_cause_code = x"1" or mtrap_cause_code = x"5" or
+                                             mtrap_cause_code = x"7")) else
                       (others => '0');
 
     -- One-shot generation on the csr_unit clock domain (see the declaration
@@ -1587,14 +1751,205 @@ architecture struct of vesta is
     trap_entry_seq <= '1' when (ENABLE_TRAPCSR and
                                 (current_state = MTRAP_SV or current_state = MTRAP_JUMP))
                       else '0';
-    csr_valid_eff  <= csr_valid and not trap_entry_seq;
-    isr_ret_eff    <= isr_ret   and not trap_entry_seq;
+    -- P3 extends the SAME rule one cycle EARLIER. A PMP-denied instruction
+    -- FETCH never issued, so the EXECUTE cycle that would have consumed it is
+    -- decoding the PARK word (PC_RST_VAL's contents) instead of a real
+    -- instruction. reg_write_dp / mem_access_instr / wen / pc_en are all
+    -- forced by the FSM arm, but the same four decode outputs that bypass the
+    -- FSM (csr_valid -> csr_unit's WRITE ENABLE, isr_ret, sleep_rq/wake_rq)
+    -- would otherwise commit a side effect for an instruction the hart is not
+    -- allowed to execute -- the identical escape shape privucsr CHECK 27
+    -- found in P2. pmp_if_squash is statically '0' when ENABLE_PMP is false,
+    -- so dec_squash degenerates to trap_entry_seq and the OFF build is
+    -- bit-identical.
+    dec_squash     <= trap_entry_seq or pmp_if_squash;
+    csr_valid_eff  <= csr_valid and not dec_squash;
+    isr_ret_eff    <= isr_ret   and not dec_squash;
 
     -- The entry-reason flop. Set at the WFI dispatch edge, cleared at EVERY
     -- SLEEPING exit (whichever arm takes it). wfi_enter is driven ONLY from the
     -- real-dispatch decode arms of EXECUTE, so it can never be set on a
     -- compressed half-fetch cycle (kickoff 3b class 5), and it cannot coincide
     -- with the clear (that needs current_state = SLEEPING).
+    -- ==========================================
+    -- P3 PMP CHECK POINTS (ENABLE_PMP) -- p0_specs.md §4.1 "vesta integration"
+    -- ==========================================
+    -- THE DATA ADDRESS UNDER TEST. Deliberately NOT `data_addr`: data_addr is
+    -- a function of mem_access_instr, which the denial has to drive -- reading
+    -- it back here would be a combinational loop. Every term below is either a
+    -- STATE-selected registered sequencer address or a regfile/ALU export that
+    -- the data_addr mux would have chosen in the same cycle:
+    --   EXECUTE + AMO/SC : rs1_value  (the M4b/M8 phase-independent address --
+    --                      ALU_Result holds rs1<op>rs2 in those cycles)
+    --   EXECUTE + load/store/LR : ALU_Result (rs1+imm, exactly data_addr's term)
+    --   CBOZ_WRITE / ZCM_PUSH_ST / ZCM_POP_LD / ZCM_JT_LD : the sequencer's own
+    --                      generated address for THIS step (§4 "each generated
+    --                      address is checked pre-issue at its own dispatch").
+    -- In every other cycle the value is don't-care because pmp_d_active is '0'.
+    pmp_d_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE) else
+                  zcm_mem_addr   when (current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD) else
+                  zcm_jt_addr    when (current_state = ZCM_JT_LD) else
+                  rs1_value      when (current_state = EXECUTE and (amo_op = '1' or sc_op = '1')) else
+                  ALU_Result;
+
+    -- Permission NEEDS (frozen §4: LR/SC/AMO drive BOTH R and W). A plain
+    -- access is a store iff its byte-lane enables are not all inactive --
+    -- wen_controller is "1111" for every load and for LR (maindec:~1029).
+    --
+    -- P3 red-team F2/F3 FIX: the `isr_ret` (iret) decode ALSO raises
+    -- read_data_flag => mem_access_controller (maindec:~1074), so without a
+    -- guard iret looks like a load here and PMP-checks a PHANTOM read at its
+    -- ALU_Result (= 0 for the canonical encoding). A locked/no-perm entry over
+    -- that address then faults EVERY M-mode iret (an M-mode DoS -- F2). iret is
+    -- u-gated (M-mode only) and its real transaction is the return-PC pop off
+    -- the PRIVATE stack (TCM 0x8000-0xBFFF by the sp-validity contract), never
+    -- a shared-window side-effecting address -- so legacy interrupt entry/
+    -- return stack traffic is deliberately OUT of PMP scope (documented,
+    -- p0_specs.md §4.1). `and isr_ret = '0'` removes iret from the data check
+    -- entirely (the IRQ_SV push / IRQ_REST pop states already carry no PMP
+    -- term -- F3, the same exemption).
+    pmp_d_rd <= '1' when (current_state = EXECUTE and
+                          (lr_op = '1' or sc_op = '1' or amo_op = '1')) else
+                '1' when (current_state = EXECUTE and mem_access_controller = '1'
+                          and wen_controller = "1111" and isr_ret = '0') else
+                '1' when (current_state = ZCM_POP_LD or current_state = ZCM_JT_LD) else
+                '0';
+    pmp_d_wr <= '1' when (current_state = EXECUTE and
+                          (lr_op = '1' or sc_op = '1' or amo_op = '1')) else
+                '1' when (current_state = EXECUTE and mem_access_controller = '1'
+                          and wen_controller /= "1111") else
+                '1' when (current_state = CBOZ_WRITE or current_state = ZCM_PUSH_ST) else
+                '0';
+
+    -- ACCESS CLASS for the cause code (see the signal declaration): LR is a
+    -- READ that checks R&W, so it is deliberately absent from this term.
+    pmp_d_st_class <= '1' when (current_state = EXECUTE and (sc_op = '1' or amo_op = '1')) else
+                      '1' when (current_state = EXECUTE and mem_access_controller = '1'
+                                and wen_controller /= "1111") else
+                      '1' when (current_state = CBOZ_WRITE or current_state = ZCM_PUSH_ST) else
+                      '0';
+
+    -- "a data transaction would issue this cycle". NOTE this is '1' on a
+    -- compressed HALF-FETCH cycle too (instr_curr still holds the PREVIOUS,
+    -- already-retired instruction there -- kickoff §3b class 5). That is
+    -- harmless BY CONSTRUCTION: the half-fetch branch of the EXECUTE decode
+    -- tree has no PMP arm (it is a separate else-branch with an unconditional
+    -- next_state <= EXECUTE), so pmp_d_deny can never dispatch a trap from it,
+    -- and nothing else consumes it in EXECUTE. The qualifier is the FSM arm
+    -- placement, exactly as amo_lock qualifies its EXECUTE term.
+    pmp_d_active <= pmp_d_rd or pmp_d_wr;
+    pmp_d_deny   <= '1' when (ENABLE_PMP and pmp_d_active = '1' and pmp_d_grant = '0') else '0';
+
+    -- FETCH side. pc_next IS the fetch address: the data_addr mux falls
+    -- through to it in every cycle that issues an instruction fetch.
+    --
+    -- P3 red-team F1 FIX: the fetch is X-checked at pmp_f_priv, which is the
+    -- current privilege (trap_priv_mode) EXCEPT during MTRAP_RET. MTRAP_RET is
+    -- the one state that both issues a fetch (pc_next = mepc, pc_en='1') AND
+    -- lowers privilege on the SAME edge that latches the verdict -- so the
+    -- fetch it issues is CONSUMED at the post-MRET privilege (MPP), and
+    -- checking it at the still-current M would let the first instruction after
+    -- an MRET into U run with X denied (the F1 escape). mret_priv_m is MPP
+    -- mapped, read combinationally before the pop, i.e. the return privilege.
+    -- Every other privilege change RAISES privilege (trap entry -> M), so its
+    -- issued fetch is checked at the stricter old privilege -- the safe
+    -- direction; only the LOWERING MRET case needs this override.
+    pmp_f_priv <= mret_priv_m when current_state = MTRAP_RET else trap_priv_mode;
+
+    pmp_f_deny <= '1' when (ENABLE_PMP and pmp_f_grant = '0') else '0';
+
+    pmp_if_squash <= '1' when (ENABLE_PMP and current_state = EXECUTE and pmp_f_deny_r = '1')
+                     else '0';
+
+    -- PARK SELECT. Three cases, all ENABLE_PMP-gated:
+    --   (a) pmp_f_deny      -- the address this cycle would fetch is X-denied.
+    --   (b) pmp_if_squash   -- the EXECUTE cycle that consumes a denied fetch:
+    --       its pc_next is derived from the PARK word's decode, i.e. from an
+    --       instruction the hart never legitimately executed. Parking keeps
+    --       that arbitrary address off the bus.
+    --   (c) MTRAP_SV of an instruction-access-fault entry -- the trap-entry
+    --       RE-PRESENTATION window (p0_specs.md §4.1 / kickoff §6b): pc_next
+    --       there is pc_next_reg, registered from (b)'s cycle, and privilege
+    --       has already flipped to M so the fetch check would now GRANT it.
+    --       MTRAP_JUMP is deliberately NOT parked -- it issues the mtvec fetch.
+    -- All three park on the SAME address, so hart_tile's ack latch
+    -- (sh_acked_addr/sh_acked_we) absorbs them into ONE benign ROM read.
+    pmp_if_park <= '1' when (ENABLE_PMP and
+                             (pmp_f_deny = '1' or pmp_if_squash = '1' or
+                              (current_state = MTRAP_SV and mtrap_cause_int = '0'
+                               and mtrap_cause_code = x"1")))
+                   else '0';
+
+    -- mtval source at the dispatch cycle (latched below).
+    mtrap_disp_val <= pmp_f_addr_r when (current_state = EXECUTE and pmp_f_deny_r = '1')
+                      else pmp_d_addr;
+
+    gen_pmp: if ENABLE_PMP generate
+        pmp_inst: pmp_unit
+            generic map (
+                ENABLE_PMP  => ENABLE_PMP,
+                PMP_ENTRIES => PMP_ENTRIES
+            )
+            port map (
+                pmp_cfg_flat  => pmp_cfg_flat_sig,
+                pmp_addr_flat => pmp_addr_flat_sig,
+                -- FETCH: X at the effective fetch privilege (current priv,
+                -- or the return privilege during MTRAP_RET -- F1). Never
+                -- MPRV-redirected (MPRV governs data accesses only).
+                f_addr        => pc_next,
+                f_priv_m      => pmp_f_priv,
+                f_grant       => pmp_f_grant,
+                -- DATA: R/W at the EFFECTIVE data privilege (mstatus.MPRV).
+                d_addr        => pmp_d_addr,
+                d_priv_m      => eff_data_priv_m,
+                d_read        => pmp_d_rd,
+                d_write       => pmp_d_wr,
+                d_grant       => pmp_d_grant
+            );
+
+        -- The fetch-check pipeline. Sampled on EVERY clk_cpu edge, which is
+        -- what makes the "previous core cycle's fetch" invariant hold without
+        -- enumerating states: whenever the FSM redirects the PC (MTRAP_JUMP ->
+        -- mtvec, MTRAP_RET -> mepc, IRQ_JUMP -> ivt_entry, ZCM_RET/ZCM_JT_WB,
+        -- SLEEPING/WRS_WAIT resume) the redirected address is on pc_next in
+        -- that very cycle and is therefore the value this flop carries into
+        -- the EXECUTE that consumes it.
+        pmp_ifetch_proc: process(clk_cpu, resetn)
+        begin
+            if resetn = '0' then
+                pmp_f_deny_r <= '0';
+                pmp_f_addr_r <= (others => '0');
+            elsif rising_edge(clk_cpu) then
+                pmp_f_deny_r <= pmp_f_deny;
+                pmp_f_addr_r <= pc_next;
+            end if;
+        end process;
+
+        -- mtval latch, on the SAME edge and the SAME condition as
+        -- mtrap_cause_proc (kept a separate process so the 32 flops are inside
+        -- the generate and an OFF build carries none of them).
+        pmp_mtval_proc: process(clk_cpu, resetn)
+        begin
+            if resetn = '0' then
+                mtrap_val_r <= (others => '0');
+            elsif rising_edge(clk_cpu) then
+                if next_state = MTRAP_SV and current_state /= MTRAP_SV then
+                    mtrap_val_r <= mtrap_disp_val;
+                end if;
+            end if;
+        end process;
+    end generate;
+
+    gen_pmp_off: if not ENABLE_PMP generate
+        -- Grant everything, no flops, no unit: the OFF netlist folds to today's
+        -- and the OFF cell lists need no pmp_unit entry.
+        pmp_f_grant  <= '1';
+        pmp_d_grant  <= '1';
+        pmp_f_deny_r <= '0';
+        pmp_f_addr_r <= (others => '0');
+        mtrap_val_r  <= (others => '0');
+    end generate;
+
     wfi_slept_proc: process(clk_cpu, resetn)
     begin
         if resetn = '0' then
@@ -1626,7 +1981,8 @@ architecture struct of vesta is
                              zcm_is_popretz, zcm_is_popret, zcm_jt_link, zcm_final_sp,
                              is_fp_multicycle, is_fp_fma, fpu_done_sig,
                              std_mode, std_irq_take, ecall_op, ebreak_op, mret_op,
-                             wfi_op, std_wfi_wake)
+                             wfi_op, std_wfi_wake,
+                             pmp_f_deny_r, pmp_d_deny)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -1676,13 +2032,50 @@ architecture struct of vesta is
                 -- EXECUTE State - Main instruction execution
                 -- ==========================================
                 when EXECUTE =>
+                    -- P3 PMP INSTRUCTION ACCESS FAULT (cause 1) -- FIRST, above
+                    -- every other decode arm, because the fetch that would have
+                    -- delivered this word NEVER ISSUED: the decoder is looking at
+                    -- the PARK word, so `trap`, ecall_op, ebreak_op, the quadrant
+                    -- bits and the whole compressed/half-fetch sub-tree below are
+                    -- all decoded from a word this hart is not allowed to execute.
+                    -- Hoisting the arm to the top of the state (rather than into
+                    -- the four dispatch sub-trees) is what keeps a park word whose
+                    -- bits 17:16 happen to read "11" out of the half-fetch branch.
+                    --   mepc  = pc (pc_en '0'): the faulting instruction's own PC,
+                    --           which for a STRADDLING 32-bit instruction is the
+                    --           LOWER half's address even when the UPPER half is
+                    --           the denied one -- exactly the frozen rule.
+                    --   mtval = pmp_f_addr_r, the denied half's address.
+                    -- Legacy mode keeps the terminal TRAP_STATE, like any other
+                    -- P3 fault (p0_specs.md §4).
+                    if ENABLE_PMP and pmp_f_deny_r = '1' then
+                        pc_en            <= '0';
+                        reg_write_dp     <= '0';
+                        mem_access_instr <= '0';
+                        wen              <= (others => '1');
+                        -- P3 red-team F4 FIX: clear a pending repeat_if. When
+                        -- the DENIED fetch is the UPPER half of a straddling
+                        -- 32-bit instruction, the lower-half cycle already set
+                        -- repeat_if_req='1'. This arm is hoisted ABOVE the
+                        -- repeat_if branch that normally clears it, so without
+                        -- this line the stale flag survives the trap and
+                        -- hijacks the first compressed instruction the handler
+                        -- fetches (instr <= decomp(instr_assembled), pc+=4).
+                        -- Harmless when repeat_if was already 0 (the clear is a
+                        -- no-op via the repeat_if_req-precedence in its flop).
+                        clr_repeat_if    <= '1';
+                        if std_mode = '1' then
+                            next_state <= MTRAP_SV;
+                        else
+                            next_state <= TRAP_STATE;
+                        end if;
                     -- With the C extension disabled a halfword-aligned PC is an
                     -- instruction-address-misaligned condition (only reachable
                     -- via a jump/branch to a non-word boundary) — trap instead
                     -- of decoding garbage instruction halves. The condition is
                     -- static-false when ENABLE_COMPRESSED, so the default
                     -- build's FSM is untouched.
-                    if (not ENABLE_COMPRESSED) and pc(1) = '1' then
+                    elsif (not ENABLE_COMPRESSED) and pc(1) = '1' then
                         -- P1: instruction-address-misaligned. Standard mode takes
                         -- it as a RECOVERABLE exception (cause 0, mtval = the
                         -- misaligned PC); legacy mode keeps today's terminal
@@ -1745,6 +2138,33 @@ architecture struct of vesta is
                                     wen <= (others => '1');
                                     if std_mode = '1' then
                                         next_state <= MTRAP_RET;
+                                    else
+                                        next_state <= TRAP_STATE;
+                                    end if;
+                                elsif ENABLE_PMP and pmp_d_deny = '1' then
+                                    -- P3 PMP LOAD/STORE ACCESS FAULT -- THE D5 ARM
+                                    -- (cause 5 load/LR, 7 store/SC/AMO; mtval = the
+                                    -- byte-precise data address; mepc = pc).
+                                    -- It sits HERE, after trap/ECALL/EBREAK/MRET and
+                                    -- before every memory dispatch arm, so an illegal
+                                    -- encoding still reports cause 2 and a memory
+                                    -- instruction can never reach its own arm.
+                                    -- THE PRE-ISSUE GUARANTEE: mem_access_instr stays
+                                    -- '0', so data_addr keeps the fetch fall-through
+                                    -- and the denied address is never decoded by
+                                    -- hart_tile's sh_sel => sh_req never rises for it
+                                    -- (no request is yanked, so the arbiter's
+                                    -- WAIT-FOR-RELEASE contract is untouched). wen
+                                    -- all-ones kills the private-RAM lane strobes; an
+                                    -- SC/AMO never enters SC_CHECK/AMO_READ at all,
+                                    -- and amo_lock -- qualified by mem_access_instr --
+                                    -- never pins the grant.
+                                    pc_en            <= '0';
+                                    reg_write_dp     <= '0';
+                                    mem_access_instr <= '0';
+                                    wen              <= (others => '1');
+                                    if std_mode = '1' then
+                                        next_state <= MTRAP_SV;
                                     else
                                         next_state <= TRAP_STATE;
                                     end if;
@@ -1927,6 +2347,22 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
+                            elsif ENABLE_PMP and pmp_d_deny = '1' then
+                                -- P3 PMP load/store access fault -- the D5 arm; see
+                                -- the split-fetch arm above for the full rationale.
+                                -- (A compressed c.lw/c.sw reaches it through
+                                -- mem_access_controller exactly like a 32-bit one;
+                                -- cm.* sequencer steps are checked in their OWN
+                                -- states, so pmp_d_active is '0' at a zcm dispatch.)
+                                pc_en            <= '0';
+                                reg_write_dp     <= '0';
+                                mem_access_instr <= '0';
+                                wen              <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_SV;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
                             elsif zcm_op = '1' then
                                 mem_access_instr <= '0';
                                 reg_write_dp <= '0';
@@ -2013,6 +2449,18 @@ architecture struct of vesta is
                                 wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_RET;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif ENABLE_PMP and pmp_d_deny = '1' then
+                                -- P3 PMP load/store access fault -- the D5 arm; see
+                                -- the split-fetch arm above for the full rationale.
+                                pc_en            <= '0';
+                                reg_write_dp     <= '0';
+                                mem_access_instr <= '0';
+                                wen              <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
@@ -2157,6 +2605,22 @@ architecture struct of vesta is
                                 wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_RET;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif ENABLE_PMP and pmp_d_deny = '1' then
+                                -- P3 PMP load/store access fault -- the D5 arm; see
+                                -- the split-fetch arm above for the full rationale.
+                                -- (A compressed c.lw/c.sw reaches it through
+                                -- mem_access_controller exactly like a 32-bit one;
+                                -- cm.* sequencer steps are checked in their OWN
+                                -- states, so pmp_d_active is '0' at a zcm dispatch.)
+                                pc_en            <= '0';
+                                reg_write_dp     <= '0';
+                                mem_access_instr <= '0';
+                                wen              <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
@@ -2359,12 +2823,33 @@ architecture struct of vesta is
                 -- core is idempotent and fault-free (no PMP / no bus fault on the
                 -- RAM window), so there is no mid-sequence trap and no re-execution
                 -- machinery is needed.
+                -- P3 (§4 "sequencer steps check each generated address pre-issue
+                -- and abort with NO sp/rd commit; mepc = the cm/cbo instruction"):
+                -- the per-word check rides THIS state, because the burst address
+                -- (cboz_base + 4*cboz_idx) only exists here. Denied => no lane
+                -- strobe, no request, and the data_addr mux term for CBOZ_WRITE is
+                -- gated by the same pmp_d_deny, so the denied word is never on the
+                -- bus. cboz.zero writes no register, and pc_en has been '0' since
+                -- dispatch, so pc still holds the cbo.zero itself => mepc is right.
+                -- Zicboz is OFF in the Castalia/Argus configs: this arm is
+                -- structural (it folds away with ENABLE_ZICBOZ) and sim-untested
+                -- in P3 -- flagged for the red team.
                 when CBOZ_WRITE =>
                     pc_en            <= '0';
                     reg_write_dp     <= '0';
-                    mem_access_instr <= '1';
-                    wen              <= "0000";
-                    next_state       <= CBOZ_GAP;
+                    if ENABLE_PMP and pmp_d_deny = '1' then
+                        mem_access_instr <= '0';
+                        wen              <= (others => '1');
+                        if std_mode = '1' then
+                            next_state <= MTRAP_SV;
+                        else
+                            next_state <= TRAP_STATE;
+                        end if;
+                    else
+                        mem_access_instr <= '1';
+                        wen              <= "0000";
+                        next_state       <= CBOZ_GAP;
+                    end if;
 
                 -- ==========================================
                 -- CBOZ_GAP State - req-low settle between block-zero stores
@@ -2391,12 +2876,27 @@ architecture struct of vesta is
                 -- X3 Zcmp/Zcmt sequencer states. All UNINTERRUPTIBLE (no irq_save);
                 -- sp committed once, last (ZCM_SP_COMMIT); indices/addresses all
                 -- from registered state.
+                -- P3: per-slot pre-issue check, same contract as CBOZ_WRITE. sp is
+                -- committed ONCE and LAST (ZCM_SP_COMMIT), which a fault here never
+                -- reaches -- so the "no sp/rd commit" half of §4 is structural, and
+                -- pc (frozen since dispatch) is the cm.push itself. Zcmp/Zcmt are
+                -- OFF in the Castalia/Argus configs => structural, sim-untested.
                 when ZCM_PUSH_ST =>
                     pc_en            <= '0';
                     reg_write_dp     <= '0';
-                    mem_access_instr <= '1';
-                    wen              <= "0000";
-                    next_state       <= ZCM_PUSH_GAP;
+                    if ENABLE_PMP and pmp_d_deny = '1' then
+                        mem_access_instr <= '0';
+                        wen              <= (others => '1');
+                        if std_mode = '1' then
+                            next_state <= MTRAP_SV;
+                        else
+                            next_state <= TRAP_STATE;
+                        end if;
+                    else
+                        mem_access_instr <= '1';
+                        wen              <= "0000";
+                        next_state       <= ZCM_PUSH_GAP;
+                    end if;
 
                 when ZCM_PUSH_GAP =>
                     pc_en            <= '0';
@@ -2409,12 +2909,24 @@ architecture struct of vesta is
                         next_state <= ZCM_PUSH_ST;
                     end if;
 
+                -- P3: per-slot pre-issue check (cause 5 -- a pop slot is a LOAD).
+                -- The register writeback happens in ZCM_POP_WB, which a fault never
+                -- reaches => no rd commit. Structural, sim-untested (Zcmp OFF).
                 when ZCM_POP_LD =>
                     pc_en            <= '0';
                     reg_write_dp     <= '0';
-                    mem_access_instr <= '1';
                     wen              <= (others => '1');
-                    next_state       <= ZCM_POP_WB;
+                    if ENABLE_PMP and pmp_d_deny = '1' then
+                        mem_access_instr <= '0';
+                        if std_mode = '1' then
+                            next_state <= MTRAP_SV;
+                        else
+                            next_state <= TRAP_STATE;
+                        end if;
+                    else
+                        mem_access_instr <= '1';
+                        next_state       <= ZCM_POP_WB;
+                    end if;
 
                 when ZCM_POP_WB =>
                     pc_en            <= '0';
@@ -2472,12 +2984,26 @@ architecture struct of vesta is
                     wen              <= (others => '1');
                     next_state       <= MEMORY_WAIT;
 
+                -- P3: the Zcmt jump-TABLE fetch is a DATA read of jvt+4*index
+                -- (it rides data_addr, not the fetch path), so it is checked on the
+                -- data port and reports cause 5. The target capture and the ra link
+                -- both live in ZCM_JT_WB, which a fault never reaches. Structural,
+                -- sim-untested (Zcmt OFF).
                 when ZCM_JT_LD =>
                     pc_en            <= '0';
                     reg_write_dp     <= '0';
-                    mem_access_instr <= '1';
                     wen              <= (others => '1');
-                    next_state       <= ZCM_JT_WB;
+                    if ENABLE_PMP and pmp_d_deny = '1' then
+                        mem_access_instr <= '0';
+                        if std_mode = '1' then
+                            next_state <= MTRAP_SV;
+                        else
+                            next_state <= TRAP_STATE;
+                        end if;
+                    else
+                        mem_access_instr <= '1';
+                        next_state       <= ZCM_JT_WB;
+                    end if;
 
                 when ZCM_JT_WB =>
                     pc_en            <= '1';
@@ -2862,7 +3388,9 @@ architecture struct of vesta is
             -- P2: no sleep-state update while a trap is being entered (see
             -- the trap_entry_seq block) -- a U-mode extinguish/ignite traps
             -- illegal and must not touch this flop.
-            if trap_entry_seq = '0' then
+            -- P3: nor while a PMP-squashed EXECUTE cycle is decoding the park
+            -- word (dec_squash = trap_entry_seq when ENABLE_PMP is false).
+            if dec_squash = '0' then
                 if wake_rq = '1' then
                     sleep_cpu <= '0';
                 elsif sleep_rq = '1' then
@@ -3136,6 +3664,11 @@ architecture struct of vesta is
 
  
     csr_addr <= instr_curr(31 downto 20);
+    -- P3-entry: the rs1/uimm FIELD of the CSR instruction (same instruction
+    -- source as csr_addr; for the immediate forms instr(19:15) IS uimm).
+    -- Feeds csr_unit's write-form rule: CSRRS/CSRRC with rs1=x0 and
+    -- CSRRSI/CSRRCI with uimm=0 must not assert the write enable.
+    csr_rs1_zero <= '1' when instr_curr(19 downto 15) = "00000" else '0';
 
     -- X1 Zihpm event levels (see signal declarations). mem_ready is the arbiter
     -- back-pressure: '0' = pending shared request not yet granted/completed.
@@ -3221,7 +3754,21 @@ architecture struct of vesta is
             -- restriction out of the OFF and trapCsr-only netlists.
             priv_mode      => trap_priv_mode,
             status_tw      => trap_status_tw,
-            mcounteren_bits => trap_mcounteren
+            mcounteren_bits => trap_mcounteren,
+
+            -- P3-entry (p3_kickoff.md 3): write-form qualifier in; effective
+            -- data-access privilege out (PMP data-side check consumer -- P3
+            -- Agent B wires it into the check; unconsumed until then).
+            csr_rs1_zero   => csr_rs1_zero,
+            data_priv_m    => eff_data_priv_m,
+            mret_priv_m    => mret_priv_m,   -- P3 red-team F1
+
+            -- P3 (p0_specs.md §4.1): the pmpcfg0-3 / pmpaddr0-15 bank,
+            -- flattened. Both are all-zero when ENABLE_PMP is false (nothing
+            -- ever writes the flops), which is the second half of the OFF fold
+            -- -- the first being that gen_pmp does not instantiate pmp_unit.
+            pmp_cfg_flat   => pmp_cfg_flat_sig,
+            pmp_addr_flat  => pmp_addr_flat_sig
         );
 
 end architecture;

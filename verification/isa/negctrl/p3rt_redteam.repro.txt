@@ -1,0 +1,75 @@
+P3 RED-TEAM fix negative controls — seeded-bug repro (Fable, 2026-07-29)
+========================================================================
+
+The P3 PMP red team found FOUR real defects (F1-F4) + a test-gap (F5). F1/F2/F4
+are shared-RTL fixes by Fable; each fix is guarded by a seed that REVERTS it, and
+the red team's own reproducer catches the revert. F3 was RULED intentional
+(documented exemption, not a fix) and is pinned by pmprt3. F5 is a test fix
+(the U-entry PMP prologue), not an RTL change.
+
+  seed patch                      reverts   caught by   check   class
+  ------------------------------  --------  ----------  ------  ------------------
+  p3rt_f1_mretpriv_seed.patch     F1 fix    pmprt1        10    ESCAPE (U runs an
+                                                                X-denied instr)
+  p3rt_f2_iret_seed.patch         F2 fix    pmprt2       103    DoS on M (every
+                                                                iret faults)
+  p3rt_f4_repeatif_seed.patch     F4 fix    pmprt6        13    mis-execution
+                                                                (straddle hijack)
+
+All three are RTL-only (no image rebuild between clean/seeded/reverted); each
+reproducer is a compare-and-branch into RVTEST_FAIL at a named check id, bounded,
+never a watchdog hang.
+
+----------------------------------------------------------------------------
+(F1) p3rt_f1_mretpriv_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+Reverts `pmp_f_priv <= mret_priv_m when current_state = MTRAP_RET else
+trap_priv_mode` to the plain `pmp_f_priv <= trap_priv_mode`, so the MRET-target
+fetch is again X-checked at the still-current M instead of the return privilege
+(MPP). pmprt1: entry 0 = NA4 on one code word, R=1 W=0 X=0; the attack sets
+mepc=that word, mstatus MPP=U, mret — seeded, the X-denied word EXECUTES IN U
+(the escape witness fires, t4=10); fixed, it faults cause 1 on the first U fetch.
+
+----------------------------------------------------------------------------
+(F2) p3rt_f2_iret_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+Removes `and isr_ret = '0'` from the pmp_d_rd load arm, so `iret` (which raises
+read_data_flag) is PMP-checked as a phantom load at ALU_Result = 0. pmprt2 locks
+a no-perm entry over address 0 and executes iret in M: seeded, every iret faults
+(t4=103, both the MPRV and the locked-entry arms); fixed, iret retires normally.
+
+----------------------------------------------------------------------------
+(F4) p3rt_f4_repeatif_seed.patch — hdl/common/vesta/vesta.vhd
+----------------------------------------------------------------------------
+Removes `clr_repeat_if <= '1'` from the P3 instruction-access-fault arm, so a
+denied UPPER half of a straddling 32-bit instruction leaves repeat_if set and
+the flag hijacks the next compressed instruction. pmprt6 straddles
+`addi s10,s10,1` across 0x83B6-0x83B9 with the upper word fenced NA4: seeded,
+`mv s10, sp` executes and the PC desyncs (t4=13); fixed, the fault is clean and
+mepc/mtval carry the straddle rule (lower-half PC / denied-half address).
+
+----------------------------------------------------------------------------
+(F3) IRQ_REST pop exemption — RULED, pinned by pmprt3 (no seed)
+----------------------------------------------------------------------------
+The legacy interrupt stack path (IRQ_SV push / IRQ_REST pop) and iret's implicit
+stack access are OUT of PMP scope BY DESIGN — private-TCM traffic, M-only iret,
+legacy-delivery-only states, standard-mode iret a defined-bounded software error
+(p0_specs.md §1/§4.1, TRM §5.7). pmprt3 PART 2 PINS the exemption: the fenced-stack
+iret returns normally while the plain U-view load positive control still faults; a
+future change that PMP-checked the pop would land at rt3_p2_flt and FAIL (t4=24).
+
+----------------------------------------------------------------------------
+Proven results (ON build, CORE_ENABLE_TRAPCSR = UMODE = PMP = true)
+----------------------------------------------------------------------------
+  clean RTL                     -> pmprt1..pmprt6 6/6 PASS (+ privrt1/2 + 9 priv)
+  + p3rt_f1_mretpriv_seed.patch -> pmprt1  TEST FAILED (t4=10)   -> reverted PASS
+  + p3rt_f2_iret_seed.patch     -> pmprt2  TEST FAILED (t4=103)  -> reverted PASS
+  + p3rt_f4_repeatif_seed.patch -> pmprt6  TEST FAILED (t4=13)   -> reverted PASS
+
+Staging + probe recipe: identical to p2_umode_seeds.repro.txt (same ON_OPTS,
+same generate.py staging, xrun_batch per test, the t4/a0 probe tcl). RTL-only
+seeds — do NOT rebuild images between clean/seeded/reverted.
+GATEKEEPER HAZARD (recorded): do NOT edit vesta.vhd/csr_unit.vhd while a
+background xrun_parallel is running — each test elaborates from source, so an
+in-flight seed apply/revert corrupts whichever tests compile mid-edit (it
+produced a bogus 63/136 before this file's results were taken on a quiescent tree).

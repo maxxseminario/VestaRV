@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1811,7 +1811,7 @@
+     pmp_d_rd <= '1' when (current_state = EXECUTE and
+                           (lr_op = '1' or sc_op = '1' or amo_op = '1')) else
+                 '1' when (current_state = EXECUTE and mem_access_controller = '1'
+-                          and wen_controller = "1111" and isr_ret = '0') else
++                          and wen_controller = "1111") else
+                 '1' when (current_state = ZCM_POP_LD or current_state = ZCM_JT_LD) else
+                 '0';
+     pmp_d_wr <= '1' when (current_state = EXECUTE and

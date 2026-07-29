@@ -1,0 +1,12 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -928,8 +928,7 @@
+     -- U. (Today it is redundant: every vesta FSM arm checks `trap` before
+     -- mret_op, which is why A17 was HARDENING, not a defect.)
+     mret_op   <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
+-                           funct3 = PRIV_FN3 and imm12 = MRET_IMM12 and
+-                           u_gate = '0')                               else '0';
++                           funct3 = PRIV_FN3 and imm12 = MRET_IMM12)   else '0';
+ 
+     -- P2 standard WFI. Carries its OWN legality qualifier (M-mode, or TW=0) so
+     -- the dispatch signal can never be high for an encoding valid_funct just

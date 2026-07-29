@@ -108,14 +108,14 @@ _CONFIG_SCHEMA = {
 	'isa.zfinx':            ('bool — Zfinx single-precision FP in x-regs (shared FMA-based backend, exactly one rounding, all 5 rounding modes, full subnormals; radix-2 iterative div/sqrt; fcvt family). Implemented X4 — the largest single extension (0.034 mm² of tile area).', _isBool),
 	# P-series PRIVILEGED ARCHITECTURE. The generics ride the full chain
 	# (generate.py -> ChipGenerator -> mcu_vhd -> MemoryMap CORE_* ->
-	# hart_tile -> vesta -> maindec/csr_unit). 'trapCsr' GRADUATED at P1
-	# (2026-07-28): the CSR file is real hardware now. 'umode' and 'pmp' are
-	# still SCAFFOLDED ONLY -- _SCAFFOLDED_PRIV below HARD-ERRORS if either is
-	# set true. A name leaves that tuple when its phase (P2 umode, P3 pmp)
-	# lands the real hardware.
+	# hart_tile -> vesta -> maindec/csr_unit). ALL THREE HAVE GRADUATED:
+	# 'trapCsr' at P1 and 'umode' at P2 (2026-07-28), 'pmp' at P3
+	# (2026-07-29) -- _SCAFFOLDED_PRIV below is now EMPTY, so none of them
+	# hard-errors any more. The dependency validations (umode => trapCsr,
+	# pmp => umode) stay LIVE and are the only gate left.
 	'priv.trapCsr':         ('bool — P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. Default false: all ten addresses and the three encodings stay illegal, bit-identical to a pre-P1 chip', _isBool),
 	'priv.umode':           ('bool — P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate — every machine/custom CSR (csr_addr(9:8)/="00"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero — bit-identical to a P1 chip', _isBool),
-	'priv.pmp':             ('bool — P3: physical memory protection (Smpmp: pmpcfg0-3, pmpaddr0-15, OFF/TOR/NA4/NAPOT, lock bit, pre-issue fetch/load/store checks with access-fault causes). Requires priv.umode. SCAFFOLDED (P0), NOT IMPLEMENTED — must be false', _isBool),
+	'priv.pmp':             ('bool — P3: physical memory protection (Smpmp), IMPLEMENTED (P3, 2026-07-29): the pmpcfg0-3 / pmpaddr0-15 CSR bank (packed 4x8-bit cfg, R/W/X/A(4:3)/L with bits 6:5 WARL 0, W pinned 0 when R=0, pmpaddr bits 31:30 WARL 0), the full lock semantics (a locked entry\'s cfg AND address are immutable until reset, a TOR-locked entry also write-locks its predecessor address, per-byte lock filtering inside a pmpcfg word), and the combinational match unit (OFF/TOR/NA4/NAPOT at G=0, lowest-numbered match decides alone, locked entries enforce on M-mode, no-match grants M and faults U). The pre-issue fetch/load/store CHECK INTEGRATION with its access-fault causes 1/5/7 lands with the vesta diff of the same phase. Requires priv.umode. Default false: all twenty addresses stay illegal CSRs and the match unit is not instantiated — bit-identical to a P2 chip', _isBool),
 	'priv.pmpEntries':      ('int — PMP entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is true; the CSR map is the 16-entry superset regardless (entries above the count are WARL all-zero). Default 16',
 	                         lambda v: _isInt(v) and v in (8, 16)),
 	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)',
@@ -689,9 +689,12 @@ _priv = {
 # core_features.h defines the priv* tests dispatch on, the TRM) can lie about
 # it. Remove a name from this tuple when its phase lands the real logic:
 # P1 -> 'trapCsr' (GRADUATED 2026-07-28), P2 -> 'umode' (GRADUATED 2026-07-28),
-# P3 -> 'pmp'. Keep it a TUPLE — a bare ('pmp') without a trailing comma is a
-# STRING and iterates char-by-char (KeyError), the trap the X0 comment records.
-_SCAFFOLDED_PRIV = ('pmp',)
+# P3 -> 'pmp' (GRADUATED 2026-07-29). The P-series scaffold is now EMPTY — the
+# tuple stays as the mechanism for any future phase, and the loop below is a
+# provable no-op over it. Keep it a TUPLE — a bare ('pmp') without a trailing
+# comma is a STRING and iterates char-by-char (KeyError), the trap the X0
+# comment records; `()` is the correct empty form (`(,)` is a syntax error).
+_SCAFFOLDED_PRIV = ()
 for _sp in _SCAFFOLDED_PRIV:
 	if _priv[_sp]:
 		raise Exception('priv.' + _sp + ': scaffolded (P0) but not implemented yet')
@@ -965,7 +968,12 @@ m.ExtraMemorySections.append(
 	('SHARED_RAM (rwx)', ': ORIGIN = 0x10000, LENGTH = ' + _hexLen(_sharedRamLen), '/* arbitrated shared RAM (mailbox region 0x10000-0x107FF zeroed by the bootrom; loader rows at 0x10400) */'))
 
 # Extra hand-written TRM chapters input by the master template (copied into latex/TRM/include/)
-m.ExtraLatexIntroFiles = ['MULTICORE-intro-castalia-2026-07.tex']
+m.ExtraLatexIntroFiles = ['MULTICORE-intro-castalia-2026-07.tex',
+	# P-series privileged architecture. The chapter always renders (the legacy
+	# vectored trap mechanism it documents is the shipping default); its
+	# standard-mode/U-mode/PMP sections are gated by \ifprivtrapcsr /
+	# \ifprivumode / \ifprivpmp, emitted from priv.* by LatexUserGuide.py.
+	'PRIVARCH-intro-castalia-2026-07.tex']
 
 # Shared window regions drawn in the TRM address space diagram (M11 map)
 m.SharedWindowSections = [

@@ -388,6 +388,56 @@ package constants is
     constant CSR_MTVAL     : std_logic_vector(11 downto 0) := x"343"; -- trap value (32-bit R/W; hardware-written on entry)
     constant CSR_MTRAPCTL  : std_logic_vector(11 downto 0) := x"7C0"; -- custom: bit0 LEGACY (reset 1); bits 31:1 WARL 0
 
+    -- ==========================================================================
+    -- P3 privileged architecture: PMP (Smpmp) CSR bank (ENABLE_PMP)
+    -- ==========================================================================
+    -- LEGAL only when ENABLE_PMP (maindec csr_addr_valid admits 0x3A0-0x3A3 and
+    -- 0x3B0-0x3BF as one gated range pair); otherwise every one of these twenty
+    -- addresses is an unknown CSR -> illegal instruction, the OFF polarity.
+    -- Field/WARL/lock behaviour is frozen in
+    -- ~/vesta_docs/priv_arch/p0_specs.md 4/4.1 and implemented in csr_unit.vhd:
+    --   pmpcfg<n> packs FOUR entry cfg bytes (entry 4n+j = bits 8j+7 downto 8j);
+    --   cfg byte = R(0) W(1) X(2) A(4:3) L(7), bits 6:5 WARL 0, W pinned 0 when
+    --   R=0, A in {OFF=00, TOR=01, NA4=10, NAPOT=11} (G=0, all four legal).
+    --   pmpaddr<i> stores bits 29:0 only (= physical address 31:2); bits 31:30
+    --   are WARL 0 (they would name phys bits 33:32, beyond this 32-bit fabric).
+    --   L=1 makes that entry's cfg byte AND pmpaddr<i> write-ignored until
+    --   reset; an entry i locked with A=TOR also write-locks pmpaddr<i-1>.
+    -- With PMP_ENTRIES = 8 the upper half (pmpcfg2/3, pmpaddr8-15) stays LEGAL
+    -- but has no storage: WARL all-zero, write-ignore.
+    -- The ADDRESSES ARE CONTIGUOUS BY CONSTRUCTION (0x3A0+n, 0x3B0+i) -- the
+    -- csr_addr_valid map uses unsigned range compares over these endpoints,
+    -- while the csr_unit WRITE arms are EXACTLY decoded, one arm per constant
+    -- (p0_specs.md 4.1: the csr_valid AND csr_addr_valid gate is
+    -- defense-in-depth, never license for a wide write-arm decode).
+    constant CSR_PMPCFG0   : std_logic_vector(11 downto 0) := x"3A0"; -- entries 0-3   cfg bytes
+    constant CSR_PMPCFG1   : std_logic_vector(11 downto 0) := x"3A1"; -- entries 4-7   cfg bytes
+    constant CSR_PMPCFG2   : std_logic_vector(11 downto 0) := x"3A2"; -- entries 8-11  cfg bytes
+    constant CSR_PMPCFG3   : std_logic_vector(11 downto 0) := x"3A3"; -- entries 12-15 cfg bytes
+    constant CSR_PMPADDR0  : std_logic_vector(11 downto 0) := x"3B0"; -- entry 0  address (bits 29:0 = phys 31:2)
+    constant CSR_PMPADDR1  : std_logic_vector(11 downto 0) := x"3B1";
+    constant CSR_PMPADDR2  : std_logic_vector(11 downto 0) := x"3B2";
+    constant CSR_PMPADDR3  : std_logic_vector(11 downto 0) := x"3B3";
+    constant CSR_PMPADDR4  : std_logic_vector(11 downto 0) := x"3B4";
+    constant CSR_PMPADDR5  : std_logic_vector(11 downto 0) := x"3B5";
+    constant CSR_PMPADDR6  : std_logic_vector(11 downto 0) := x"3B6";
+    constant CSR_PMPADDR7  : std_logic_vector(11 downto 0) := x"3B7";
+    constant CSR_PMPADDR8  : std_logic_vector(11 downto 0) := x"3B8";
+    constant CSR_PMPADDR9  : std_logic_vector(11 downto 0) := x"3B9";
+    constant CSR_PMPADDR10 : std_logic_vector(11 downto 0) := x"3BA";
+    constant CSR_PMPADDR11 : std_logic_vector(11 downto 0) := x"3BB";
+    constant CSR_PMPADDR12 : std_logic_vector(11 downto 0) := x"3BC";
+    constant CSR_PMPADDR13 : std_logic_vector(11 downto 0) := x"3BD";
+    constant CSR_PMPADDR14 : std_logic_vector(11 downto 0) := x"3BE";
+    constant CSR_PMPADDR15 : std_logic_vector(11 downto 0) := x"3BF"; -- entry 15 address
+
+    -- PMP cfg-byte field encodings (shared by csr_unit's WARL masking and
+    -- pmp_unit's match decode -- one source of truth for the A field).
+    constant PMP_A_OFF     : std_logic_vector(1 downto 0) := "00";  -- null region (never matches)
+    constant PMP_A_TOR     : std_logic_vector(1 downto 0) := "01";  -- top of range: pmpaddr[i-1] <= a < pmpaddr[i]
+    constant PMP_A_NA4     : std_logic_vector(1 downto 0) := "10";  -- naturally aligned 4-byte
+    constant PMP_A_NAPOT   : std_logic_vector(1 downto 0) := "11";  -- naturally aligned power-of-two >= 8
+
     -- P1/P2 SYSTEM/PRIV encodings (funct3 = 000; the funct12 selects the op).
     -- LEGAL only when ENABLE_TRAPCSR (maindec's SYSTEM valid_funct arm); with the
     -- generic off all four stay illegal instructions -- the OFF polarity pinned by

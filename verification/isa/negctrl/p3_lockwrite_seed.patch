@@ -1,0 +1,16 @@
+--- a/hdl/common/vesta/csr_unit.vhd	2026-07-29 03:41:53.822280523 -0500
++++ b/hdl/common/vesta/csr_unit.vhd	2026-07-29 03:41:53.842280857 -0500
+@@ -315,7 +315,12 @@
+     -- storage and read zero, so they can never lock anything.
+     function pmp_locked(cfgv : std_logic_vector(7 downto 0)) return boolean is
+     begin
+-        return cfgv(7) = '1';
++        -- NEGATIVE CONTROL SEED (p3_lockwrite): the entry L bit no longer
++        -- write-protects its own cfg byte, so a locked pmpcfg entry can be
++        -- reprogrammed. Its ONLY consumer is the per-byte lock filter in the
++        -- four CSR_PMPCFG write arms, so pmpaddr locking is untouched and the
++        -- failure is isolated to the cfg-immutability check.
++        return false;
+     end function;
+ 
+     -- May pmpaddr<i> be written? TWO lock sources (p0_specs.md 4/4.1):

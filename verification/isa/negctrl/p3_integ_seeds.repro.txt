@@ -1,0 +1,175 @@
+P3 PMP CHECK-INTEGRATION negative controls — seeded-bug repro (P3 Agent B, 2026-07-29)
+=====================================================================================
+
+FOUR committed seeds, one repro. All four are RTL-ONLY (no image rebuild
+between clean/seeded/reverted), and all four are caught by a bounded
+compare-and-branch into RVTEST_FAIL at a NAMED CHECK id — never a watchdog
+hang. The failing check id is left in t4 (x29) and a0 = 0xDEADBEEF.
+
+  seed patch                      file            caught by    CHECK  §4 negctrl
+  ------------------------------  --------------  -----------  -----  ----------
+  p3_postissue_seed.patch         vesta.vhd       privpmpmx      40   (b) THE D5
+  p3_priorder_seed.patch          pmp_unit.vhd    privpmp        40   (a)
+  p3_napotoff_seed.patch          pmp_unit.vhd    privpmp        56   (c)
+  p3_lockmdeny_seed.patch         pmp_unit.vhd    privpmp        83   (d)
+
+Three of the four seed `hdl/common/vesta/pmp_unit.vhd`, which is Agent A's
+file and is NOT edited in the tree — the patches are applied transiently and
+reverted, exactly as the p2 seeds do for maindec/csr_unit.
+
+----------------------------------------------------------------------------
+(b) p3_postissue_seed.patch — hdl/common/vesta/vesta.vhd   [THE D5 CONTROL]
+----------------------------------------------------------------------------
+The word-aligned-32-bit EXECUTE arm's PMP data-fault branch keeps its check,
+keeps its trap, and keeps the correct cause/mtval/mepc — but sets
+`mem_access_instr <= '1'` instead of '0'. That single bit is the whole
+pre-issue guarantee: with it high the EXECUTE-cycle data_addr mux selects the
+DENIED ADDRESS, hart_tile's `sh_sel` (a pure decode of data_addr) goes high,
+and `sh_req <= sh_sel and not sh_ack_ok` puts the access on the arbiter. This
+is the faithful model of "the check landed after the arbiter grant".
+
+WHY IT IS THE MOST IMPORTANT CONTROL OF THE PHASE: privpmp — the test that
+checks every cause, every mtval and every mepc — STILL PASSES with this seed
+applied (proven below). The leak is invisible to any single-hart test,
+because the mutex-bank `lw` returns its old value into a register the trap
+then discards. Only a SECOND hart can see that the lock was taken.
+
+privpmpmx CHECK 40 is built for exactly this: hart 0's denied load targets
+MUTEX 15 (0x603C), and hart 1 is then launched through the bootrom loader and
+performs the same claim-read. Clean, hart 1 reads 0 ("was free"). Seeded,
+hart 0's leaked read claimed the mutex and never released it, so hart 1 reads
+hart 0's marker (hartid + 1 = 1) and the bounded `bne t1, x0` fires.
+
+----------------------------------------------------------------------------
+(a) p3_priorder_seed.patch — hdl/common/vesta/pmp_unit.vhd
+----------------------------------------------------------------------------
+`pmp_check`'s entry walk loses its `and not hit` term, so the LAST (highest-
+numbered) matching entry overwrites the verdict — highest-wins instead of the
+frozen lowest-wins priority.
+
+privpmp's map is built so that EVERY fenced address is ALSO inside the
+permissive TOR entry 4 (R=W=X=1 over 0x0-0xFFFF); the deny only survives
+because entries 0-2 are numbered lower. Seeded, entry 4 wins and the U-mode
+load from the fenced word does not fault at all — the U body's own bounded
+witness `bne s3, s11` (a trap must have been delivered) fires, records 40 in
+s1, and M FAILs with t4 = 40.
+
+----------------------------------------------------------------------------
+(c) p3_napotoff_seed.patch — hdl/common/vesta/pmp_unit.vhd
+----------------------------------------------------------------------------
+`napot_dontcare` returns `shift_right(p xor (p+1), 1)`: the don't-care mask is
+shifted one place, so every NAPOT region decodes ONE POWER OF TWO TOO SMALL
+(privpmp's 16-byte region shrinks to its low 8 bytes).
+
+privpmp probes BOTH sides of the boundary: CHECK 56 requires the LAST word
+INSIDE the region (base+12) to be denied, and CHECK 60 requires the FIRST word
+AFTER it (base+16) to be granted. A region that is too small releases base+12
+(CHECK 56 fires, t4 = 56); a region that is too large captures base+16
+(CHECK 60 fires). The two-sided probe is deliberate — a one-sided one is
+blind to half the off-by-one directions.
+
+----------------------------------------------------------------------------
+(d) p3_lockmdeny_seed.patch — hdl/common/vesta/pmp_unit.vhd
+----------------------------------------------------------------------------
+The matched-entry rule loses its L qualifier (`priv_m = '1' and hit_cfg(7) =
+'0'` becomes `priv_m = '1'`), i.e. a LOCKED entry no longer enforces on
+M-mode — the exact escape the lock bit exists to prevent.
+
+privpmp's lock phase runs LAST (a lock releases only at RESET). It locks entry
+12 as NA4 over 0x00010200 with R=W=X=0, an address outside every other
+entry's range, then loads from it in M. Clean, that load faults (cause 5,
+mtval = 0x00010200). Seeded, it succeeds, no trap is delivered, and the
+bounded `bne s3, t3` fires at t4 = 83.
+
+----------------------------------------------------------------------------
+Proven results  (ON build: CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE =
+                 CORE_ENABLE_PMP = true, CORE_PMP_ENTRIES = 16)
+----------------------------------------------------------------------------
+  clean RTL                    -> TEST PASSED - ../rcf/xxrv32ua-p-privpmp.rcf
+  clean RTL                    -> TEST PASSED - ../rcf/rv32ua-p-privpmpmx.rcf
+
+  + p3_postissue_seed.patch    -> TEST FAILED - ../rcf/rv32ua-p-privpmpmx.rcf
+                                  (t4 = 40, a0 = 0xDEADBEEF)
+    ...and on the SAME seeded RTL:
+                                  TEST PASSED - ../rcf/xxrv32ua-p-privpmp.rcf
+                                  (the leak is invisible to cause/mtval tests)
+  reverted                     -> TEST PASSED - ../rcf/rv32ua-p-privpmpmx.rcf
+
+  + p3_priorder_seed.patch     -> TEST FAILED (t4 = 40)   xxrv32ua-p-privpmp
+  reverted                     -> TEST PASSED
+  + p3_napotoff_seed.patch     -> TEST FAILED (t4 = 56)   xxrv32ua-p-privpmp
+  reverted                     -> TEST PASSED
+  + p3_lockmdeny_seed.patch    -> TEST FAILED (t4 = 83)   xxrv32ua-p-privpmp
+  reverted                     -> TEST PASSED
+
+----------------------------------------------------------------------------
+Exact repro (from the repo root; privpmp/privpmpmx are ON-ONLY tests)
+----------------------------------------------------------------------------
+The ON hardware is a `make chip` product, not a hand edit. The test arms are
+selected by the phase-standard EXPLICIT-APPEND dispatch (all three -D flags
+appended to RISCV_GCC_OPTS, never auto-derived from a header).
+
+  ON_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles \
+           -DNHARTS=4 -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE -DCORE_ENABLE_PMP"
+
+  # 0. Keep a copy of the committed default MemoryMap.vhd to restore later
+  cp hdl/common/MemoryMap.vhd /tmp/MemoryMap.vhd.default
+
+  # 1. Stage the ON hardware (generated; three-constant delta vs the default)
+  echo '{"priv": {"trapCsr": true, "umode": true, "pmp": true}}' > /tmp/p3_on.json
+  cd platform/common/python && CHIP_CONFIG=/tmp/p3_on.json python3 generate.py
+  cp ../out/hdl/MemoryMap.vhd ../../../hdl/common/MemoryMap.vhd
+  cd ../../..
+  grep -n "CORE_ENABLE_PMP" hdl/common/MemoryMap.vhd        # must read := true
+
+  # 2. Build the ON-arm images (only the rv32ua group carries the -D flags;
+  #    xcelium/riscv_test/rcf must stay a SYMLINK to verification/isa/rcf)
+  cd verification/isa && rm -rf build/ && make rv32ua-flash RISCV_GCC_OPTS="$ON_OPTS"
+  cd ../../xcelium/riscv_test/behavioral_mp
+  ./xrun_batch.sh xxrv32ua-p-privpmp                 # expect: TEST PASSED
+  ./xrun_batch.sh rv32ua-p-privpmpmx                 # expect: TEST PASSED
+  # (never pipe xrun_batch through `head` — SIGPIPE leaves a STALE xrun.log;
+  #  always confirm the "Starting test:" line names your test)
+
+  # 3. For EACH seed: apply, re-run (RTL-only seed, no image rebuild), revert,
+  #    re-run.  privpmpmx catches p3_postissue; privpmp catches the other three.
+  for s in p3_priorder p3_napotoff p3_lockmdeny; do
+    cd ~/vestarv && git apply verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh xxrv32ua-p-privpmp
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST FAILED
+    cd ~/vestarv && git apply -R verification/isa/negctrl/${s}_seed.patch
+    cd xcelium/riscv_test/behavioral_mp && ./xrun_batch.sh xxrv32ua-p-privpmp
+    grep -E "TEST PASSED|TEST FAILED" xrun.log        # expect: TEST PASSED
+    cd ~/vestarv
+  done
+  # ...and the same loop for p3_postissue with rv32ua-p-privpmpmx. Run
+  # xxrv32ua-p-privpmp on the seeded RTL too: it must still PASS — that
+  # contrast IS the D5 argument.
+
+  # To read the failing CHECK id (t4/x29) and a0 straight out of the sim:
+  #   cd xcelium/riscv_test/behavioral_mp
+  #   cat > /tmp/p3_probe.tcl <<'EOF'
+  #   source ../../disable_x_warnings.tcl
+  #   run 60ms
+  #   puts "PROBE t4 = [value :dut:hart0:core:datapath_inst:rf:registers(29)]"
+  #   puts "PROBE a0 = [value :dut:hart0:core:datapath_inst:rf:registers(10)]"
+  #   exit
+  #   EOF
+  #   XRUN_MODE=batch XRUN_EXTRA_INPUT=/tmp/p3_probe.tcl ./xrun.sh xxrv32ua-p-privpmp
+
+  # 4. Restore the OFF tree: default MemoryMap.vhd + default (OFF) rv32ua images
+  cd ~/vestarv && cp /tmp/MemoryMap.vhd.default hdl/common/MemoryMap.vhd
+  cd platform/common/python && python3 generate.py && cd ../../..
+  cd verification/isa && rm -rf build/ && make rv32ua-flash
+
+WARNING (cost a full suite run on 2026-07-28): verification/isa/rcf is the ONE
+real image directory and OTHER SESSIONS BUILD THROUGH IT (an Argus
+`build_mp_images.sh 18 …` transits the same dir). Check
+`ps -ef | grep build_mp_images` and `cat verification/isa/rcf/.nharts` (= 4)
+before trusting ANY suite result.
+
+GATE-SELECTION NOTE (cost one run here): amorsv, extjvt, extzicboz, extzcmp
+and extzcmt are TERMINAL-TRAP_STATE POISON tests. They are deliberately absent
+from the behavioral_mp default runner array and hang its a0 watch by design
+(100 ms watchdog) — their own headers say so. Never put them in an
+a0-watch test list; they run under a bounded tcl / trap_watch only.

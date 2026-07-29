@@ -110,7 +110,49 @@ entity csr_unit is
         priv_mode        : out std_logic;                     -- '1'=M, '0'=U; reset '1'.
                                                               --   MUST read '1' when ENABLE_UMODE is false.
         status_tw        : out std_logic;                     -- mstatus.TW (21); '0' when UMODE off
-        mcounteren_bits  : out std_logic_vector(4 downto 0)   -- {HPM4,HPM3,IR,TM,CY}; "00000" when off
+        mcounteren_bits  : out std_logic_vector(4 downto 0);  -- {HPM4,HPM3,IR,TM,CY}; "00000" when off
+
+        -- ------------------------------------------------------------------
+        -- P3-entry interface (p3_kickoff.md 3, 2026-07-29) -- two additions
+        -- landed AHEAD of the PMP phase:
+        --  * csr_rs1_zero: '1' when the CSR instruction's rs1/uimm FIELD
+        --    (instr(19:15)) is zero. Spec rule: CSRRS/CSRRC (rs1=x0) and
+        --    CSRRSI/CSRRCI (uimm=0) must NOT write; CSRRW/CSRRWI always
+        --    write. Feeds the csr_write_en form qualifier below. Default '0'
+        --    ("field nonzero" = always-write) so an instantiation that does
+        --    not drive it keeps the historic behavior.
+        --  * data_priv_m: the EFFECTIVE DATA-ACCESS privilege ('1' = M).
+        --    mstatus.MPRV redirection (priv spec): when MPRV=1, loads and
+        --    stores are checked at privilege MPP; instruction fetches always
+        --    check at priv_mode. Consumer = the P3 PMP data-side check
+        --    (unconsumed until Agent B wires it). Constant '1' when
+        --    ENABLE_UMODE is off (MPRV is read-only 0 without U-mode).
+        -- ------------------------------------------------------------------
+        csr_rs1_zero     : in  std_logic := '0';
+        data_priv_m      : out std_logic;
+        -- P3 red-team F1 fix (2026-07-29): the privilege an MRET would RETURN
+        -- to (= mstatus.MPP mapped: '1'=M, '0'=U). vesta checks the MRET-target
+        -- FETCH at THIS privilege during MTRAP_RET, not at the still-current M
+        -- -- otherwise the return instruction is X-checked one cycle too early,
+        -- at the higher privilege, and the first instruction after an MRET into
+        -- U escapes its X-permission (the F1 escape). Constant '1' when
+        -- ENABLE_UMODE is off (MPP pinned M).
+        mret_priv_m      : out std_logic;
+
+        -- ------------------------------------------------------------------
+        -- P3 PMP interface (inert when ENABLE_PMP = false).
+        -- FROZEN by ~/vesta_docs/priv_arch/p0_specs.md 4.1. csr_unit owns the
+        -- pmpcfg0-3 / pmpaddr0-15 STORAGE, WARL and LOCK semantics; the
+        -- match/priority/permission decode is pmp_unit.vhd, and the check-point
+        -- integration is vesta's. These two flat exports are the ONLY coupling.
+        --   entry i cfg byte  = pmp_cfg_flat(8*i+7  downto 8*i)
+        --   entry i pmpaddr   = pmp_addr_flat(30*i+29 downto 30*i)  (= phys 31:2)
+        -- Both are ALL-ZERO when ENABLE_PMP is false (the flops are written only
+        -- under `if ENABLE_PMP`, so they hold their all-zero reset forever) and
+        -- the upper half is all-zero whenever PMP_ENTRIES < 16.
+        -- ------------------------------------------------------------------
+        pmp_cfg_flat     : out std_logic_vector(127 downto 0);
+        pmp_addr_flat    : out std_logic_vector(479 downto 0)
     );
 end csr_unit;
 
@@ -227,6 +269,83 @@ architecture behave of csr_unit is
     signal priv_m          : std_logic;                      -- privilege: '1'=M, '0'=U (reset M)
     signal mst_tw          : std_logic;                      -- mstatus.TW (21), WARL {0,1} iff UMODE
     signal mcounteren_r    : std_logic_vector(4 downto 0);   -- mcounteren {HPM4,HPM3,IR,TM,CY}
+    -- P3-entry: mstatus.MPRV (17), WARL {0,1} iff UMODE (priv spec: MPRV is
+    -- read-only 0 when U-mode is not supported). Written ONLY under
+    -- `if ENABLE_UMODE`, so it holds reset ('0') forever otherwise. MRET to a
+    -- privilege below M CLEARS it (spec requirement -- see the mret_we arm).
+    signal mst_mprv        : std_logic;                      -- mstatus.MPRV (17)
+
+    -- ----------------------------------------------------------------------
+    -- P3 PMP CSR bank (p0_specs.md 4/4.1). Sixteen cfg bytes + sixteen 30-bit
+    -- addresses, ALL reset to zero (spec-required: A=OFF, L=0). Every flop is
+    -- written ONLY under `if ENABLE_PMP` (the ENABLE_TRAPCSR/ENABLE_ZFINX
+    -- idiom), so with the generic off the whole bank stays at reset forever,
+    -- both exports read all-zero, and the twenty addresses are illegal CSRs
+    -- anyway (maindec csr_addr_valid).
+    --
+    -- PMP_ENTRIES < 16: entries at or above the count are never written either
+    -- (the `i < PMP_ENTRIES` guard below is GENERIC-STATIC, so synthesis prunes
+    -- their flops entirely) -- their CSR ADDRESSES stay legal and read WARL
+    -- zero, exactly as the freeze requires.
+    --
+    -- The ARRAY is a plain 0-to-15 array, NOT sized by PMP_ENTRIES: the CSR
+    -- address map and both flat exports are the 16-entry superset regardless,
+    -- so indexing stays uniform and no bound can go negative at PMP_ENTRIES=0.
+    -- ----------------------------------------------------------------------
+    constant PMP_MAX_ENTRIES : integer := 16;
+    type pmp_cfg_array_t  is array (0 to PMP_MAX_ENTRIES-1) of std_logic_vector(7 downto 0);
+    type pmp_addr_array_t is array (0 to PMP_MAX_ENTRIES-1) of std_logic_vector(29 downto 0);
+
+    signal pmp_cfg  : pmp_cfg_array_t;    -- entry cfg byte: R(0) W(1) X(2) A(4:3) L(7)
+    signal pmp_addr : pmp_addr_array_t;   -- entry address bits 29:0 (= phys addr 31:2)
+
+    -- WARL mask for a cfg byte write (p0_specs.md 4/4.1):
+    --   bit 7 L   stored as written (writing L=1 to an UNLOCKED entry takes
+    --             effect, including L=1 with A=OFF -- a locked hole, spec-legal)
+    --   bits 6:5  reserved, pinned 0 (no storage)
+    --   bits 4:3  A, all four encodings legal (G = 0)
+    --   bit 2 X   stored as written
+    --   bit 1 W   PINNED 0 WHEN R = 0 (the reserved R=0/W=1 combo WARL rule)
+    --   bit 0 R   stored as written
+    function pmp_cfg_warl(v : std_logic_vector(7 downto 0)) return std_logic_vector is
+        variable r : std_logic_vector(7 downto 0);
+    begin
+        r(7)          := v(7);
+        r(6 downto 5) := "00";
+        r(4 downto 3) := v(4 downto 3);
+        r(2)          := v(2);
+        r(1)          := v(1) and v(0);   -- W pinned 0 when R = 0
+        r(0)          := v(0);
+        return r;
+    end function;
+
+    -- Is entry i's own lock bit set? Entries at/above PMP_ENTRIES have no
+    -- storage and read zero, so they can never lock anything.
+    function pmp_locked(cfgv : std_logic_vector(7 downto 0)) return boolean is
+    begin
+        return cfgv(7) = '1';
+    end function;
+
+    -- May pmpaddr<i> be written? TWO lock sources (p0_specs.md 4/4.1):
+    --   (a) entry i's OWN L bit -- a locked entry's cfg byte AND address are
+    --       immutable until reset;
+    --   (b) entry i+1 locked with A=TOR -- that entry's region is
+    --       pmpaddr[i] <= a < pmpaddr[i+1], so pmpaddr[i] is its BASE and must
+    --       be locked down with it.
+    -- `own_cfg`/`next_cfg` are the CURRENT (pre-write) register values -- the
+    -- lock decision must never consult the value being written (a write that
+    -- clears L on a locked entry would otherwise unlock itself in the same
+    -- cycle). Entry 15 has no successor: callers pass all-zeros, which is
+    -- "unlocked, A=OFF" and contributes nothing. Entries at/above PMP_ENTRIES
+    -- read all-zero for the same reason.
+    function pmp_addr_writable(own_cfg  : std_logic_vector(7 downto 0);
+                               next_cfg : std_logic_vector(7 downto 0)) return boolean is
+    begin
+        return (own_cfg(7) = '0') and
+               not (next_cfg(7) = '1' and next_cfg(4 downto 3) = PMP_A_TOR);
+    end function;
+
+    constant PMP_NO_NEXT : std_logic_vector(7 downto 0) := (others => '0');
 
     -- mcause bits 30:4 read 0 (WLRL: only bit31 + code(3:0) are stored).
     constant MCAUSE_RSVD27 : std_logic_vector(26 downto 0) := (others => '0');
@@ -264,9 +383,20 @@ architecture behave of csr_unit is
 
 begin
 
-    -- CSR write enable (don't write on read-only operations when rs1/uimm = 0)
-    csr_write_en <= csr_valid when (csr_op(1) = '1' or csr_op(0) = '1'
-                                or (csr_write_data /= CSR_ZERO_X))
+    -- CSR write enable -- the spec's INSTRUCTION-FORM rule (P3-entry fix,
+    -- p3_kickoff.md 3 item 3): CSRRW/CSRRWI (funct3(1:0) = "01") ALWAYS
+    -- write; the set/clear forms write only when the rs1/uimm FIELD is
+    -- nonzero (the register NUMBER, not its value -- csr_rs1_zero is decoded
+    -- from instr(19:15) in vesta, which for the immediate forms IS uimm).
+    -- The old guard (`csr_op(1)='1' or csr_op(0)='1' or write_data /= 0`)
+    -- was satisfied by ALL SIX CSR funct3 values, so a plain `csrr` also
+    -- asserted the write enable -- spec-wrong, benign only because every
+    -- write arm was idempotent under read-modify-write (its one observable
+    -- was freezing mcycle/minstret for the instruction's duration via the
+    -- write-precedence rule -- privcsr CHECK 34 pins the fixed behavior).
+    -- The P3 pmpcfg/pmpaddr bank is why this lands now: locked entries must
+    -- never see probing writes from read-only instruction forms.
+    csr_write_en <= csr_valid when (csr_op(1 downto 0) = "01" or csr_rs1_zero = '0')
                                 else '0';
 
     -- CSR read process
@@ -275,7 +405,8 @@ begin
             mst_mie, mst_mpie, mst_mpp, mtvec_base, mie_msie, mie_mtie, mie_meie,
             mscratch, mepc_r, mcause_int, mcause_code, mtval_r, mtrapctl_legacy,
             irq_msip, irq_mtip, irq_meip,
-            mst_tw, mcounteren_r)
+            mst_tw, mcounteren_r, mst_mprv,
+            pmp_cfg, pmp_addr)
     begin
         case csr_addr is
             -- Machine Information Registers (Read-only)
@@ -334,11 +465,11 @@ begin
             -- CLASS-4 (readback completeness) NOTE: every reserved/WPRI bit is
             -- driven to its spec value here, not left to the `others` arm.
             -- ==============================================================
-            -- mstatus: MIE(3), MPIE(7), MPP(12:11) and -- from P2 -- TW(21).
-            -- Everything else still reads 0 (MPRV stays 0: U-mode memory access
-            -- is unrestricted until P3). mst_tw is stuck '0' with ENABLE_UMODE
-            -- off, so the OFF/trapCsr-only read value is unchanged.
-            when CSR_MSTATUS   => csr_read_val <= (21 => mst_tw,
+            -- mstatus: MIE(3), MPIE(7), MPP(12:11), TW(21) from P2, and --
+            -- P3-entry -- MPRV(17). Everything else still reads 0. mst_tw and
+            -- mst_mprv are both stuck '0' with ENABLE_UMODE off, so the
+            -- OFF/trapCsr-only read value is unchanged.
+            when CSR_MSTATUS   => csr_read_val <= (21 => mst_tw, 17 => mst_mprv,
                                                   12 => mst_mpp(1), 11 => mst_mpp(0),
                                                    7 => mst_mpie, 3 => mst_mie,
                                                    others => '0');
@@ -368,6 +499,41 @@ begin
             when CSR_MTVAL     => csr_read_val <= mtval_r;
             -- mtrapctl (custom 0x7C0): bit0 LEGACY, bits 31:1 WARL 0.
             when CSR_MTRAPCTL  => csr_read_val <= x"0000000" & "000" & mtrapctl_legacy;
+
+            -- ==============================================================
+            -- P3 PMP bank (p0_specs.md 4.1). Read arms are UNCONDITIONAL (the
+            -- jvt/fcsr/P1 precedent): the bank is held at reset when ENABLE_PMP
+            -- is off and all twenty addresses are illegal CSRs there, so
+            -- nothing can observe them. CLASS-4 (readback completeness): the
+            -- reserved bits are driven to their spec value HERE, never left to
+            -- the `others` arm --
+            --   pmpcfg<n>  = the four WARL-masked cfg bytes as stored (bits 6:5
+            --                of every byte are zero because the WRITE masks
+            --                them, so the readback is complete by construction);
+            --   pmpaddr<i> = "00" & the 30 stored bits (bits 31:30 read 0).
+            -- Entries at/above PMP_ENTRIES have no storage and read zero.
+            -- ==============================================================
+            when CSR_PMPCFG0   => csr_read_val <= pmp_cfg(3)  & pmp_cfg(2)  & pmp_cfg(1)  & pmp_cfg(0);
+            when CSR_PMPCFG1   => csr_read_val <= pmp_cfg(7)  & pmp_cfg(6)  & pmp_cfg(5)  & pmp_cfg(4);
+            when CSR_PMPCFG2   => csr_read_val <= pmp_cfg(11) & pmp_cfg(10) & pmp_cfg(9)  & pmp_cfg(8);
+            when CSR_PMPCFG3   => csr_read_val <= pmp_cfg(15) & pmp_cfg(14) & pmp_cfg(13) & pmp_cfg(12);
+
+            when CSR_PMPADDR0  => csr_read_val <= "00" & pmp_addr(0);
+            when CSR_PMPADDR1  => csr_read_val <= "00" & pmp_addr(1);
+            when CSR_PMPADDR2  => csr_read_val <= "00" & pmp_addr(2);
+            when CSR_PMPADDR3  => csr_read_val <= "00" & pmp_addr(3);
+            when CSR_PMPADDR4  => csr_read_val <= "00" & pmp_addr(4);
+            when CSR_PMPADDR5  => csr_read_val <= "00" & pmp_addr(5);
+            when CSR_PMPADDR6  => csr_read_val <= "00" & pmp_addr(6);
+            when CSR_PMPADDR7  => csr_read_val <= "00" & pmp_addr(7);
+            when CSR_PMPADDR8  => csr_read_val <= "00" & pmp_addr(8);
+            when CSR_PMPADDR9  => csr_read_val <= "00" & pmp_addr(9);
+            when CSR_PMPADDR10 => csr_read_val <= "00" & pmp_addr(10);
+            when CSR_PMPADDR11 => csr_read_val <= "00" & pmp_addr(11);
+            when CSR_PMPADDR12 => csr_read_val <= "00" & pmp_addr(12);
+            when CSR_PMPADDR13 => csr_read_val <= "00" & pmp_addr(13);
+            when CSR_PMPADDR14 => csr_read_val <= "00" & pmp_addr(14);
+            when CSR_PMPADDR15 => csr_read_val <= "00" & pmp_addr(15);
 
             when others        => csr_read_val <= CSR_ZERO_X;
         end case;
@@ -429,6 +595,13 @@ begin
             priv_m          <= '1';
             mst_tw          <= '0';
             mcounteren_r    <= (others => '0');
+            mst_mprv        <= '0';
+
+            -- P3 PMP bank: ALL ZERO (spec-required A=OFF / L=0 at reset).
+            -- A lock is released ONLY by reset -- that is the whole point of
+            -- the L bit, and it is why the write arms below never clear it.
+            pmp_cfg         <= (others => (others => '0'));
+            pmp_addr        <= (others => (others => '0'));
 
         elsif rising_edge(clk) then
             -- X4 Zfinx: sticky-OR the completing FP op's flags into fflags. Driven
@@ -552,6 +725,9 @@ begin
                                 -- TW (21) is WARL {0,1} from P2 (M-only build:
                                 -- hardwired 0, the else arm below).
                                 mst_tw <= csr_new_val(21);
+                                -- P3-entry: MPRV (17), WARL {0,1} iff UMODE
+                                -- (read-only 0 without U-mode, per spec).
+                                mst_mprv <= csr_new_val(17);
                             else
                                 -- MPP is WARL {11} without U-mode: a write of
                                 -- ANY value stores 11 (the only supported mode).
@@ -625,6 +801,173 @@ begin
                             mtrapctl_legacy <= csr_new_val(0);
                         end if;
 
+                    -- ======================================================
+                    -- P3 PMP bank writes (p0_specs.md 4/4.1).
+                    -- EXACTLY DECODED, one `when` arm per implemented CSR --
+                    -- NEVER a range or wildcard decode. The upstream
+                    -- csr_valid AND csr_addr_valid gate is defense-in-depth,
+                    -- not license (p3e_entry_seeds.repro.txt item 3): a write
+                    -- arm decoded wider than its own address would be
+                    -- reachable from a TRAPPING encoding.
+                    --
+                    -- Three orthogonal guards on every byte/word:
+                    --   ENABLE_PMP        -- the whole bank folds away when off
+                    --   i < PMP_ENTRIES   -- generic-static; the upper half has
+                    --                        no flops and reads WARL zero
+                    --   the LOCK filter   -- PER BYTE inside a pmpcfg word, so
+                    --                        an unlocked byte in the same word
+                    --                        still writes. Lock checks read the
+                    --                        CURRENT (pre-write) cfg values.
+                    -- The WARL mask (pmp_cfg_warl) pins bits 6:5 to 0 and W to
+                    -- 0 when R=0; pmpaddr stores bits 29:0 only (31:30 WARL 0).
+                    -- ======================================================
+                    when CSR_PMPCFG0 =>
+                        if ENABLE_PMP then
+                            if 0 < PMP_ENTRIES and not pmp_locked(pmp_cfg(0)) then
+                                pmp_cfg(0) <= pmp_cfg_warl(csr_new_val(7 downto 0));
+                            end if;
+                            if 1 < PMP_ENTRIES and not pmp_locked(pmp_cfg(1)) then
+                                pmp_cfg(1) <= pmp_cfg_warl(csr_new_val(15 downto 8));
+                            end if;
+                            if 2 < PMP_ENTRIES and not pmp_locked(pmp_cfg(2)) then
+                                pmp_cfg(2) <= pmp_cfg_warl(csr_new_val(23 downto 16));
+                            end if;
+                            if 3 < PMP_ENTRIES and not pmp_locked(pmp_cfg(3)) then
+                                pmp_cfg(3) <= pmp_cfg_warl(csr_new_val(31 downto 24));
+                            end if;
+                        end if;
+
+                    when CSR_PMPCFG1 =>
+                        if ENABLE_PMP then
+                            if 4 < PMP_ENTRIES and not pmp_locked(pmp_cfg(4)) then
+                                pmp_cfg(4) <= pmp_cfg_warl(csr_new_val(7 downto 0));
+                            end if;
+                            if 5 < PMP_ENTRIES and not pmp_locked(pmp_cfg(5)) then
+                                pmp_cfg(5) <= pmp_cfg_warl(csr_new_val(15 downto 8));
+                            end if;
+                            if 6 < PMP_ENTRIES and not pmp_locked(pmp_cfg(6)) then
+                                pmp_cfg(6) <= pmp_cfg_warl(csr_new_val(23 downto 16));
+                            end if;
+                            if 7 < PMP_ENTRIES and not pmp_locked(pmp_cfg(7)) then
+                                pmp_cfg(7) <= pmp_cfg_warl(csr_new_val(31 downto 24));
+                            end if;
+                        end if;
+
+                    when CSR_PMPCFG2 =>
+                        if ENABLE_PMP then
+                            if 8 < PMP_ENTRIES and not pmp_locked(pmp_cfg(8)) then
+                                pmp_cfg(8) <= pmp_cfg_warl(csr_new_val(7 downto 0));
+                            end if;
+                            if 9 < PMP_ENTRIES and not pmp_locked(pmp_cfg(9)) then
+                                pmp_cfg(9) <= pmp_cfg_warl(csr_new_val(15 downto 8));
+                            end if;
+                            if 10 < PMP_ENTRIES and not pmp_locked(pmp_cfg(10)) then
+                                pmp_cfg(10) <= pmp_cfg_warl(csr_new_val(23 downto 16));
+                            end if;
+                            if 11 < PMP_ENTRIES and not pmp_locked(pmp_cfg(11)) then
+                                pmp_cfg(11) <= pmp_cfg_warl(csr_new_val(31 downto 24));
+                            end if;
+                        end if;
+
+                    when CSR_PMPCFG3 =>
+                        if ENABLE_PMP then
+                            if 12 < PMP_ENTRIES and not pmp_locked(pmp_cfg(12)) then
+                                pmp_cfg(12) <= pmp_cfg_warl(csr_new_val(7 downto 0));
+                            end if;
+                            if 13 < PMP_ENTRIES and not pmp_locked(pmp_cfg(13)) then
+                                pmp_cfg(13) <= pmp_cfg_warl(csr_new_val(15 downto 8));
+                            end if;
+                            if 14 < PMP_ENTRIES and not pmp_locked(pmp_cfg(14)) then
+                                pmp_cfg(14) <= pmp_cfg_warl(csr_new_val(23 downto 16));
+                            end if;
+                            if 15 < PMP_ENTRIES and not pmp_locked(pmp_cfg(15)) then
+                                pmp_cfg(15) <= pmp_cfg_warl(csr_new_val(31 downto 24));
+                            end if;
+                        end if;
+
+                    when CSR_PMPADDR0 =>
+                        if ENABLE_PMP and 0 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(0), pmp_cfg(1)) then
+                            pmp_addr(0) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR1 =>
+                        if ENABLE_PMP and 1 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(1), pmp_cfg(2)) then
+                            pmp_addr(1) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR2 =>
+                        if ENABLE_PMP and 2 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(2), pmp_cfg(3)) then
+                            pmp_addr(2) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR3 =>
+                        if ENABLE_PMP and 3 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(3), pmp_cfg(4)) then
+                            pmp_addr(3) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR4 =>
+                        if ENABLE_PMP and 4 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(4), pmp_cfg(5)) then
+                            pmp_addr(4) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR5 =>
+                        if ENABLE_PMP and 5 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(5), pmp_cfg(6)) then
+                            pmp_addr(5) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR6 =>
+                        if ENABLE_PMP and 6 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(6), pmp_cfg(7)) then
+                            pmp_addr(6) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR7 =>
+                        if ENABLE_PMP and 7 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(7), pmp_cfg(8)) then
+                            pmp_addr(7) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR8 =>
+                        if ENABLE_PMP and 8 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(8), pmp_cfg(9)) then
+                            pmp_addr(8) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR9 =>
+                        if ENABLE_PMP and 9 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(9), pmp_cfg(10)) then
+                            pmp_addr(9) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR10 =>
+                        if ENABLE_PMP and 10 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(10), pmp_cfg(11)) then
+                            pmp_addr(10) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR11 =>
+                        if ENABLE_PMP and 11 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(11), pmp_cfg(12)) then
+                            pmp_addr(11) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR12 =>
+                        if ENABLE_PMP and 12 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(12), pmp_cfg(13)) then
+                            pmp_addr(12) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR13 =>
+                        if ENABLE_PMP and 13 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(13), pmp_cfg(14)) then
+                            pmp_addr(13) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR14 =>
+                        if ENABLE_PMP and 14 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(14), pmp_cfg(15)) then
+                            pmp_addr(14) <= csr_new_val(29 downto 0);
+                        end if;
+                    when CSR_PMPADDR15 =>
+                        -- Entry 15 has NO successor, so only its own L bit can
+                        -- lock it (PMP_NO_NEXT = "unlocked, A=OFF").
+                        if ENABLE_PMP and 15 < PMP_ENTRIES and
+                           pmp_addr_writable(pmp_cfg(15), PMP_NO_NEXT) then
+                            pmp_addr(15) <= csr_new_val(29 downto 0);
+                        end if;
+
                     when others =>
                         null;  -- Read-only CSRs, user-view aliases, or hardwired-zero hpm indices
                 end case;
@@ -682,6 +1025,13 @@ begin
                             priv_m <= '1';
                         else
                             priv_m <= '0';
+                            -- P3-entry: an MRET that returns to a privilege
+                            -- BELOW M also clears MPRV (priv-spec required.
+                            -- Without it, M-privileged data-access semantics
+                            -- would ride into U -- an escape vector the
+                            -- moment PMP consumes data_priv_m. Negative
+                            -- control: p3e_mprvmret drops exactly this line).
+                            mst_mprv <= '0';
                         end if;
                         mst_mpp <= MPP_U;
                     end if;
@@ -730,5 +1080,41 @@ begin
     priv_mode       <= priv_m;
     status_tw       <= mst_tw;
     mcounteren_bits <= mcounteren_r;
+
+    -- ----------------------------------------------------------------------
+    -- P3-entry: effective DATA-access privilege (p3_kickoff.md 3 item 1).
+    -- When mstatus.MPRV = 1, loads and stores are checked at privilege MPP;
+    -- instruction fetches keep priv_mode. MPRV can only be 1 in M-mode (an
+    -- MRET below M clears it, and U cannot write mstatus), so in practice
+    -- this lets M-mode software perform data accesses with U-mode privilege
+    -- -- exactly the input the P3 PMP data-side check needs. Constant '1'
+    -- when ENABLE_UMODE is off (mst_mprv stuck '0', priv_m stuck '1').
+    -- ----------------------------------------------------------------------
+    data_priv_m <= priv_m when mst_mprv = '0' else
+                   '1'    when mst_mpp = MPP_M else
+                   '0';
+
+    -- P3 red-team F1: the return privilege (mstatus.MPP mapped). Read
+    -- COMBINATIONALLY, so during MTRAP_RET -- before the mret_we edge pops
+    -- priv/MPP -- it is the privilege the returned-to instruction will run at.
+    -- Same expression the MRET pop uses to reload priv_m. '1' (M) when UMODE
+    -- off, since MPP is then pinned to MPP_M.
+    mret_priv_m <= '1' when mst_mpp = MPP_M else '0';
+
+    -- ----------------------------------------------------------------------
+    -- P3 PMP exports (p0_specs.md 4.1). Pure flattening of the bank -- csr_unit
+    -- exports STORAGE, never match/priority policy (that is pmp_unit's) and
+    -- never a check point (that is vesta's).
+    --   entry i cfg byte = pmp_cfg_flat(8*i+7  downto 8*i)
+    --   entry i pmpaddr  = pmp_addr_flat(30*i+29 downto 30*i)   (= phys 31:2)
+    -- All-zero with ENABLE_PMP false (nothing ever writes the bank), and the
+    -- entries at/above PMP_ENTRIES are all-zero for the same reason -- so an
+    -- OFF build's pmp_unit folds to "grant everything" and a PMP_ENTRIES=8
+    -- build's upper half folds to A=OFF (never matches).
+    -- ----------------------------------------------------------------------
+    gen_pmp_flat: for i in 0 to PMP_MAX_ENTRIES-1 generate
+        pmp_cfg_flat(8*i+7 downto 8*i)     <= pmp_cfg(i);
+        pmp_addr_flat(30*i+29 downto 30*i) <= pmp_addr(i);
+    end generate;
 
 end behave;

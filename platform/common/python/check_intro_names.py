@@ -131,6 +131,23 @@ def main():
         # generic field shorthands used mid-sentence ("seizes the DIR/OUT/REN
         # controls"), where the per-port spelling would be noise
         'DIR', 'OUT', 'REN', 'LEN', 'EN',
+        # P-series privileged architecture (PRIVARCH chapter). These are CORE
+        # CSRs and CSR FIELDS, not memory-mapped registers: they live in the
+        # CPU's control/status register file, so the generator's memory map
+        # cannot know them and never will. Listed literally because the
+        # checker matches literally (no wildcard, and the x/y/n/h placeholder
+        # model only substitutes digits).
+        'mstatus', 'mstatush', 'mtvec', 'mie', 'mip', 'mscratch', 'mepc',
+        'mcause', 'mtval', 'mtrapctl', 'mcounteren', 'misa',
+        'pmpcfg', 'pmpcfg0', 'pmpcfg1', 'pmpcfg2', 'pmpcfg3',
+        'pmpaddr', 'pmpaddr0', 'pmpaddr1', 'pmpaddr2', 'pmpaddr3',
+        'pmpaddr4', 'pmpaddr5', 'pmpaddr6', 'pmpaddr7', 'pmpaddr8',
+        'pmpaddr9', 'pmpaddr10', 'pmpaddr11', 'pmpaddr12', 'pmpaddr13',
+        'pmpaddr14', 'pmpaddr15',
+        # ...and the fields inside those CSRs, same reason
+        'MIE', 'MPIE', 'MPP', 'MPRV', 'TW', 'MSIE', 'MTIE', 'MEIE',
+        'MSIP', 'MTIP', 'MEIP', 'BASE', 'MODE', 'LEGACY',
+        'CY', 'TM', 'IR', 'HPM3', 'HPM4',
     }
 
     skipped = []
@@ -142,7 +159,11 @@ def main():
         # intro filename stem -> peripheral name in the memory map, where the
         # chapter is named for the protocol but the block for its registers
         stem = {'ONEWIRE': 'OW', 'I2CT': 'I2CT', 'IRQROUTER': 'IRQROUTER'}.get(stem, stem)
-        if stem not in ('MULTICORE',) and stem not in present:
+        # MULTICORE and PRIVARCH are concept chapters, not peripheral chapters:
+        # no peripheral of that name exists, so the "is this block in the
+        # configuration?" skip would silently retire their gate. Judge them
+        # always (their non-memory-mapped names are covered by EXEMPT above).
+        if stem not in ('MULTICORE', 'PRIVARCH') and stem not in present:
             skipped.append(fn.split('-')[0])
             continue
         with open(os.path.join(introDir, fn)) as f:

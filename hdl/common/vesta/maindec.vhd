@@ -400,6 +400,17 @@ begin
                              imm12 = CSR_MIP      or imm12 = CSR_MSCRATCH or
                              imm12 = CSR_MEPC     or imm12 = CSR_MCAUSE   or
                              imm12 = CSR_MTVAL    or imm12 = CSR_MTRAPCTL)) or
+        -- P3 PMP bank: pmpcfg0-3 (0x3A0-0x3A3) + pmpaddr0-15 (0x3B0-0x3BF) are
+        -- KNOWN CSRs only when ENABLE_PMP (else all twenty are unknown CSRs ->
+        -- illegal instruction, the both-polarity gate). RANGE compares are
+        -- correct HERE -- this is the ADDRESS-LEGALITY map, not a write arm; the
+        -- csr_unit write arms stay EXACTLY decoded, one per CSR (p0_specs.md
+        -- 4.1). The whole ADDRESS range is admitted regardless of PMP_ENTRIES:
+        -- with 8 entries the upper half is still legal and reads WARL zero.
+        (ENABLE_PMP and ((unsigned(imm12) >= unsigned(CSR_PMPCFG0)  and
+                          unsigned(imm12) <= unsigned(CSR_PMPCFG3)) or
+                         (unsigned(imm12) >= unsigned(CSR_PMPADDR0) and
+                          unsigned(imm12) <= unsigned(CSR_PMPADDR15)))) or
         (unsigned(imm12) >= unsigned(CSR_MHPMCOUNTER3)  and unsigned(imm12) <= x"B1F") or -- mhpmcounter3-31
         (unsigned(imm12) >= unsigned(CSR_MHPMCOUNTER3H) and unsigned(imm12) <= x"B9F") or -- mhpmcounter3h-31h
         (unsigned(imm12) >= unsigned(CSR_MHPMEVENT3)    and unsigned(imm12) <= x"33F") or -- mhpmevent3-31
@@ -479,7 +490,15 @@ begin
     -- P2: csr_valid IS csr_unit's write enable, so a U-mode-DENIED access must
     -- clear it or the trapping instruction still commits its write (see the
     -- u_csr_denied comment above). Identity when ENABLE_UMODE is off.
-    csr_valid <= is_csr_instr and (not u_csr_denied);
+    -- P3-entry (p3_kickoff.md 3 item 2): ALSO qualified by csr_addr_valid --
+    -- an UNKNOWN CSR address traps (valid_funct already handles that), and the
+    -- write enable must go down with it, for the same trapped-instruction-
+    -- commits-nothing rule. Benign today (no csr_unit write arm matches an
+    -- unknown address) but a live landmine for the P3 pmpcfg/pmpaddr bank:
+    -- 16+4 new write arms, where any arm decoded wider than the exact address
+    -- set would otherwise be reachable from a trapping encoding. privcsr
+    -- CHECK 35 pins the trap-and-commit-nothing behavior.
+    csr_valid <= is_csr_instr and csr_addr_valid and (not u_csr_denied);
 
     -- ==========================================
     -- RV32A Atomic Operation Signals
@@ -914,8 +933,14 @@ begin
                            funct3 = PRIV_FN3 and imm12 = ECALL_IMM12)  else '0';
     ebreak_op <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
                            funct3 = PRIV_FN3 and imm12 = EBREAK_IMM12) else '0';
+    -- P3-entry (p3_kickoff.md 3 item 4 / P2 red-team A17): mret_op carries the
+    -- U-mode qualifier like wfi_op below -- structural consistency, so no new
+    -- consumer can ever see a dispatch strobe for an encoding that trapped in
+    -- U. (Today it is redundant: every vesta FSM arm checks `trap` before
+    -- mret_op, which is why A17 was HARDENING, not a defect.)
     mret_op   <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
-                           funct3 = PRIV_FN3 and imm12 = MRET_IMM12)   else '0';
+                           funct3 = PRIV_FN3 and imm12 = MRET_IMM12 and
+                           u_gate = '0')                               else '0';
 
     -- P2 standard WFI. Carries its OWN legality qualifier (M-mode, or TW=0) so
     -- the dispatch signal can never be high for an encoding valid_funct just
