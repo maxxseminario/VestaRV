@@ -98,7 +98,7 @@ The \peripheral{TIMERx} peripheral contains two input capture units which allow 
 \begin{figure}[htpb]
 	\centering
 	\input{include/TimerCaptureDiagram.tex}
-	\caption{Input capture. The selected edge on \pin{TxCAP0} latches the live \register{TIMxVAL} into \register{TIMxCAP0} and sets \bitfield{CAP0IF}; the flag must be cleared by writing 1 to it in \register{TIMxSR} before the next capture event.}
+	\caption[{Input capture.}]{Input capture. The selected edge on \pin{TxCAP0} latches the live \register{TIMxVAL} into \register{TIMxCAP0} and sets \bitfield{CAP0IF}; the flag must be cleared by writing 1 to it in \register{TIMxSR} before the next capture event.}
 	\label{fig:timer-capture}
 \end{figure}
 

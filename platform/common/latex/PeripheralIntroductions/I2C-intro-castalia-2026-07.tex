@@ -19,7 +19,7 @@ A transfer is framed by two conditions that are deliberately illegal during data
 \begin{figure}[htpb]
 	\centering
 	\input{include/I2cTransactionDiagram.tex}
-	\caption{One I2C byte write on the wire: START, the 7-bit address and direction bit, the addressed device's ACK, one data byte, its ACK, then STOP. START and STOP are the two transitions of \pin{SDAx} that occur while \pin{SCLx} is high; every data bit is stable across the \pin{SCLx} high period.}
+	\caption[{One I2C byte write on the wire: START, the 7-bit address and direction bit, the addressed device's ACK, one\,\dots}]{One I2C byte write on the wire: START, the 7-bit address and direction bit, the addressed device's ACK, one data byte, its ACK, then STOP. START and STOP are the two transitions of \pin{SDAx} that occur while \pin{SCLx} is high; every data bit is stable across the \pin{SCLx} high period.}
 	\label{fig:i2c-transaction}
 \end{figure}
 
