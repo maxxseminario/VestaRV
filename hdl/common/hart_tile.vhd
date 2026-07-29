@@ -123,7 +123,15 @@ entity hart_tile is
         ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc)
         ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx)
         ENABLE_ZKN        : boolean := false;  -- X3 (Zkn = Zknd+Zkne+Zknh)
-        ENABLE_ZFINX      : boolean := false   -- X4 (Zfinx)
+        ENABLE_ZFINX      : boolean := false;  -- X4 (Zfinx)
+        -- P0 privileged-architecture scaffolding: all default false / 16
+        -- entries, routed straight to the vesta core. No trap-CSR / U-mode /
+        -- PMP logic consumes them yet (generate.py hard-errors if a config
+        -- sets one true); each is consumed from its phase on.
+        ENABLE_TRAPCSR    : boolean := false;  -- P1 (standard M-mode trap CSRs + MRET)
+        ENABLE_UMODE      : boolean := false;  -- P2 (U-mode; requires TRAPCSR)
+        ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp; requires UMODE)
+        PMP_ENTRIES       : integer := 16      -- P3 (PMP entry count {8,16})
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
@@ -249,7 +257,12 @@ architecture behav of hart_tile is
             ENABLE_ZBKC       : boolean := false;
             ENABLE_ZBKX       : boolean := false;
             ENABLE_ZKN        : boolean := false;
-            ENABLE_ZFINX      : boolean := false
+            ENABLE_ZFINX      : boolean := false;
+            -- P0 privileged-architecture scaffolding (all default false / 16)
+            ENABLE_TRAPCSR    : boolean := false;
+            ENABLE_UMODE      : boolean := false;
+            ENABLE_PMP        : boolean := false;
+            PMP_ENTRIES       : integer := 16
         );
         port (
             clk              : in  std_logic;
@@ -548,7 +561,11 @@ begin
             ENABLE_ZBKC       => ENABLE_ZBKC,
             ENABLE_ZBKX       => ENABLE_ZBKX,
             ENABLE_ZKN        => ENABLE_ZKN,
-            ENABLE_ZFINX      => ENABLE_ZFINX
+            ENABLE_ZFINX      => ENABLE_ZFINX,
+            ENABLE_TRAPCSR    => ENABLE_TRAPCSR,
+            ENABLE_UMODE      => ENABLE_UMODE,
+            ENABLE_PMP        => ENABLE_PMP,
+            PMP_ENTRIES       => PMP_ENTRIES
         )
         port map (
             clk         => clk,

@@ -1,0 +1,16 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1587,7 +1587,12 @@
+     trap_entry_seq <= '1' when (ENABLE_TRAPCSR and
+                                 (current_state = MTRAP_SV or current_state = MTRAP_JUMP))
+                       else '0';
+-    csr_valid_eff  <= csr_valid and not trap_entry_seq;
++    -- SEEDED BUG (p2rt_csrentry): the VESTA half of the U-mode CSR-commit fix
++    -- is dropped while maindec's u_gate stays intact.  The decode-side gate
++    -- alone is NOT enough: privilege flips to M inside MTRAP_SV, so the
++    -- faulting encoding -- still on read_data through MTRAP_SV/MTRAP_JUMP --
++    -- re-asserts csr_valid and the trapped write commits one cycle later, in M.
++    csr_valid_eff  <= csr_valid;
+     isr_ret_eff    <= isr_ret   and not trap_entry_seq;
+ 
+     -- The entry-reason flop. Set at the WFI dispatch edge, cleared at EVERY

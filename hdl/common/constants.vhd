@@ -369,6 +369,41 @@ package constants is
     constant CSR_JVT           : std_logic_vector(11 downto 0) := x"017"; -- Zcmt jump-vector-table base (URW)
 
     -- ==========================================================================
+    -- P1 privileged architecture: standard M-mode trap CSRs (ENABLE_TRAPCSR)
+    -- ==========================================================================
+    -- LEGAL only when ENABLE_TRAPCSR (maindec csr_addr_valid gates all ten);
+    -- otherwise every one of these addresses is an unknown CSR -> illegal
+    -- instruction, the OFF polarity the P0 privprobe poisons pin. Field/WARL
+    -- behaviour is frozen in ~/vesta_docs/priv_arch/p0_specs.md 2.1 and
+    -- implemented in csr_unit.vhd. mtrapctl is the custom M-mode R/W CSR that
+    -- selects legacy (irq_handler/IVT) vs standard (mtvec) trap delivery.
+    constant CSR_MSTATUS   : std_logic_vector(11 downto 0) := x"300"; -- MIE(3)/MPIE(7)/MPP(12:11) WARL {11}; other bits read 0
+    constant CSR_MSTATUSH  : std_logic_vector(11 downto 0) := x"310"; -- RV32 high half: legal, read-zero / write-ignore
+    constant CSR_MTVEC     : std_logic_vector(11 downto 0) := x"305"; -- BASE(31:2) R/W; MODE(1:0) WARL {00} (direct only)
+    constant CSR_MIE       : std_logic_vector(11 downto 0) := x"304"; -- MSIE(3)/MTIE(7)/MEIE(11) R/W; others 0; resets 0
+    constant CSR_MIP       : std_logic_vector(11 downto 0) := x"344"; -- read-only mirror of the msip/mtip/meip level wires
+    constant CSR_MSCRATCH  : std_logic_vector(11 downto 0) := x"340"; -- full 32-bit R/W scratch
+    constant CSR_MEPC      : std_logic_vector(11 downto 0) := x"341"; -- bit0 always 0; bit1 writable iff ENABLE_COMPRESSED
+    constant CSR_MCAUSE    : std_logic_vector(11 downto 0) := x"342"; -- Interrupt(31) + code(3:0); bits 30:4 read 0
+    constant CSR_MTVAL     : std_logic_vector(11 downto 0) := x"343"; -- trap value (32-bit R/W; hardware-written on entry)
+    constant CSR_MTRAPCTL  : std_logic_vector(11 downto 0) := x"7C0"; -- custom: bit0 LEGACY (reset 1); bits 31:1 WARL 0
+
+    -- P1/P2 SYSTEM/PRIV encodings (funct3 = 000; the funct12 selects the op).
+    -- LEGAL only when ENABLE_TRAPCSR (maindec's SYSTEM valid_funct arm); with the
+    -- generic off all four stay illegal instructions -- the OFF polarity pinned by
+    -- the P0 privecal/privebrk/privmret/privwfi poisons.
+    -- P2 (2026-07-28): WFI (0x105) JOINS the legal set when ENABLE_TRAPCSR (spec
+    -- 3: "WFI decodes from P2 iff ENABLE_TRAPCSR"). It is legal in M-mode always
+    -- and in U-mode iff mstatus.TW = 0 -- the TW denial is a DECODE illegal
+    -- (cause 2). privwfi's #ifdef CORE_ENABLE_TRAPCSR arm is the positive proof;
+    -- its #else poison still pins the OFF polarity on the stripped build.
+    constant PRIV_FN3      : std_logic_vector(2 downto 0)  := "000";  -- SYSTEM privileged/system funct3
+    constant ECALL_IMM12   : std_logic_vector(11 downto 0) := x"000"; -- ECALL  (0x00000073)
+    constant EBREAK_IMM12  : std_logic_vector(11 downto 0) := x"001"; -- EBREAK (0x00100073)
+    constant MRET_IMM12    : std_logic_vector(11 downto 0) := x"302"; -- MRET   (0x30200073)
+    constant WFI_IMM12     : std_logic_vector(11 downto 0) := x"105"; -- WFI    (0x10500073)
+
+    -- ==========================================================================
     -- X4 Zfinx (single-precision FP in x-registers) constants
     -- ==========================================================================
     -- FP status CSRs. LEGAL only when ENABLE_ZFINX (csr_addr_valid gates them);

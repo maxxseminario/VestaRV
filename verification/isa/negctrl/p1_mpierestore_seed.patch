@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -580,7 +580,7 @@
+                 elsif mret_we = '1' then
+                     -- mstatus stack POP: MIE <= MPIE, MPIE <= 1.
+                     -- (P2 adds priv <= MPP, then MPP <= "00".)
+-                    mst_mie  <= mst_mpie;
++                    mst_mie  <= '0';  -- SEEDED BUG (p1_mpierestore): MPIE not restored
+                     mst_mpie <= '1';
+                 end if;
+             end if;

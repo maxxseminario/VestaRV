@@ -87,9 +87,9 @@ class ChipGenerator():
 	ENABLE_DIV = None			# Enables/disables the hardware divider and remainder calculator
 	ENABLE_ATOMICS = None		# Enables/disables the RV32A atomic extension (LR/SC + AMOs) in the vesta core
 	ENABLE_BITMANIP = None		# Enables/disables the Zba/Zbb/Zbs/Zbc bit-manipulation extensions in the vesta core
-	# X0 ISA-extension scaffolding (2026-07-16): 13 generics plumbed to the vesta
-	# core, all default false. Decode/logic NOT implemented yet — the phase agents
-	# (X1-X4) add it. Drive CORE_ENABLE_Z* in MemoryMap.vhd + the C-header #defines.
+	# X-series ISA-extension generics (scaffolded X0 2026-07-16, all default false).
+	# Decode/logic landed X1-X4 — every one is implemented since X4 (Zfinx,
+	# 2026-07-18). Drive CORE_ENABLE_Z* in MemoryMap.vhd + the C-header #defines.
 	ENABLE_ZICOND = None		# X1: Zicond czero.eqz/nez
 	ENABLE_ZCB = None			# X1: Zcb extra compressed instructions
 	ENABLE_ZIMOP = None			# X1: Zimop+Zcmop may-be-operations
@@ -106,6 +106,14 @@ class ChipGenerator():
 	ENABLE_ZBKX = None			# X3: Zbkx crossbar permute
 	ENABLE_ZKN = None			# X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
 	ENABLE_ZFINX = None			# X4: Zfinx single-precision FP in x-registers
+	# P-series privileged-architecture generics (scaffolded P0 2026-07-28, all
+	# default false / 16 entries). NOT IMPLEMENTED yet — generate.py hard-errors
+	# on a true. Drive CORE_ENABLE_TRAPCSR/UMODE/PMP + CORE_PMP_ENTRIES in
+	# MemoryMap.vhd and the C-header/core_features.h defines.
+	ENABLE_TRAPCSR = None		# P1: standard M-mode trap architecture (mstatus/mtvec/mepc/...)
+	ENABLE_UMODE = None			# P2: user mode (privilege register + MPP/MPIE stack)
+	ENABLE_PMP = None			# P3: physical memory protection (Smpmp)
+	PMP_ENTRIES = None			# P3: PMP entry count {8, 16} (consulted only when ENABLE_PMP)
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
 	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
 	MASKED_IRQ = None			# Any '1' bit corresponds to a permenantely disabled IRQ
@@ -175,7 +183,14 @@ class ChipGenerator():
 		ENABLE_ZBKC:bool=False,
 		ENABLE_ZBKX:bool=False,
 		ENABLE_ZKN:bool=False,
-		ENABLE_ZFINX:bool=False):
+		ENABLE_ZFINX:bool=False,
+		# P0 scaffolded privileged architecture — default False / 16 so every
+		# existing caller (and testbench) keeps today's M-mode-only core with
+		# the legacy IVT trap path and no PMP.
+		ENABLE_TRAPCSR:bool=False,
+		ENABLE_UMODE:bool=False,
+		ENABLE_PMP:bool=False,
+		PMP_ENTRIES:int=16):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -439,6 +454,13 @@ class ChipGenerator():
 		self.ENABLE_ZBKX = ENABLE_ZBKX
 		self.ENABLE_ZKN = ENABLE_ZKN
 		self.ENABLE_ZFINX = ENABLE_ZFINX
+		# P0 scaffolded privileged architecture (default false / 16 entries)
+		self.ENABLE_TRAPCSR = ENABLE_TRAPCSR
+		self.ENABLE_UMODE = ENABLE_UMODE
+		self.ENABLE_PMP = ENABLE_PMP
+		if PMP_ENTRIES not in (8, 16):
+			raise Exception('PMP_ENTRIES must be 8 or 16, got ' + str(PMP_ENTRIES))
+		self.PMP_ENTRIES = PMP_ENTRIES
 		self.ENABLE_IRQ_FAST_CONTEXT_SWITCHING = ENABLE_IRQ_FAST_CONTEXT_SWITCHING
 		self.ENABLE_IRQ_QREGS = ENABLE_IRQ_QREGS
 		self.ENABLE_IRQ_TIMER = ENABLE_IRQ_TIMER
@@ -1108,6 +1130,15 @@ class ChipGenerator():
 			t.AddRow(['#define CORE_ENABLE_ZKN'])
 		if self.ENABLE_ZFINX:
 			t.AddRow(['#define CORE_ENABLE_ZFINX'])
+		# P0 scaffolded privileged architecture (the priv* tests dispatch on
+		# these; absent = today's legacy-IVT-only, no-U-mode, no-PMP core).
+		if self.ENABLE_TRAPCSR:
+			t.AddRow(['#define CORE_ENABLE_TRAPCSR'])
+		if self.ENABLE_UMODE:
+			t.AddRow(['#define CORE_ENABLE_UMODE'])
+		if self.ENABLE_PMP:
+			t.AddRow(['#define CORE_ENABLE_PMP'])
+			t.AddRow(['#define CORE_PMP_ENTRIES', str(self.PMP_ENTRIES)])
 
 		t.AddBlankLines(3)
 		
@@ -1550,9 +1581,14 @@ class ChipGenerator():
 			('ZCMP', self.ENABLE_ZCMP), ('ZCMT', self.ENABLE_ZCMT),
 			('ZBKB', self.ENABLE_ZBKB),
 			('ZBKC', self.ENABLE_ZBKC), ('ZBKX', self.ENABLE_ZBKX),
-			('ZKN', self.ENABLE_ZKN), ('ZFINX', self.ENABLE_ZFINX)]:
+			('ZKN', self.ENABLE_ZKN), ('ZFINX', self.ENABLE_ZFINX),
+			# P0 privileged-architecture scaffolding (P1/P2/P3)
+			('TRAPCSR', self.ENABLE_TRAPCSR), ('UMODE', self.ENABLE_UMODE),
+			('PMP', self.ENABLE_PMP)]:
 			if _flag:
 				cf += '#define CORE_ENABLE_' + _name + '\n'
+		if self.ENABLE_PMP:
+			cf += '#define CORE_PMP_ENTRIES ' + str(self.PMP_ENTRIES) + '\n'
 		cfPath = os.path.dirname(outPath) + '/core_features.h'
 		cff = open(cfPath, 'w', newline='\n')
 		cff.write(cf)
@@ -2333,6 +2369,12 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_ENABLE_ZBKX', ': boolean := ' + str(bool(self.ENABLE_ZBKX)).lower() + ';', '-- X3: Zbkx crossbar permute'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZKN', ': boolean := ' + str(bool(self.ENABLE_ZKN)).lower() + ';', '-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_ZFINX', ': boolean := ' + str(bool(self.ENABLE_ZFINX)).lower() + ';', '-- X4: Zfinx single-prec FP in x-regs'], prefixTabs=1)
+		# P0 privileged-architecture scaffolding (P1/P2/P3; no logic consumes
+		# these yet — generate.py hard-errors if any boolean is configured true)
+		t.AddRow(['constant CORE_ENABLE_TRAPCSR', ': boolean := ' + str(bool(self.ENABLE_TRAPCSR)).lower() + ';', '-- P1: standard M-mode trap CSRs + MRET'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_UMODE', ': boolean := ' + str(bool(self.ENABLE_UMODE)).lower() + ';', '-- P2: U-mode (needs TRAPCSR)'], prefixTabs=1)
+		t.AddRow(['constant CORE_ENABLE_PMP', ': boolean := ' + str(bool(self.ENABLE_PMP)).lower() + ';', '-- P3: PMP / Smpmp (needs UMODE)'], prefixTabs=1)
+		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- P3: PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names
@@ -2691,6 +2733,11 @@ class ChipGenerator():
 		chip['ENABLE_ZBKX'] = self.ENABLE_ZBKX
 		chip['ENABLE_ZKN'] = self.ENABLE_ZKN
 		chip['ENABLE_ZFINX'] = self.ENABLE_ZFINX
+		# P0 scaffolded privileged architecture
+		chip['ENABLE_TRAPCSR'] = self.ENABLE_TRAPCSR
+		chip['ENABLE_UMODE'] = self.ENABLE_UMODE
+		chip['ENABLE_PMP'] = self.ENABLE_PMP
+		chip['PMP_ENTRIES'] = self.PMP_ENTRIES
 		chip['ENABLE_IRQ_QREGS'] = self.ENABLE_IRQ_QREGS
 		chip['MASKED_IRQ'] = self.MASKED_IRQ
 		chip['PROGADDR_IRQ'] = self.PROGADDR_IRQ

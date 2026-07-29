@@ -1,0 +1,13 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1412,8 +1412,8 @@
+     mtrap_disp_code <=
+         x"0" when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else  -- 0  instr addr misaligned
+         x"2" when (current_state = EXECUTE and trap = '1') else                               -- 2  illegal instruction
+-        x"B" when (current_state = EXECUTE and ecall_op = '1') else                           -- 11 ecall from M
+-        x"3" when (current_state = EXECUTE and ebreak_op = '1') else                          -- 3  breakpoint
++        x"3" when (current_state = EXECUTE and ecall_op = '1') else    -- SEEDED BUG (p1_causeswap): 11 <-> 3
++        x"B" when (current_state = EXECUTE and ebreak_op = '1') else   -- SEEDED BUG (p1_causeswap): 3 <-> 11
+         -- interrupt codes, spec priority MEI > MSI > MTI
+         x"B" when (trap_irq_meip = '1' and trap_mie_bits(2) = '1') else                       -- 0x8000000B
+         x"3" when (trap_irq_msip = '1' and trap_mie_bits(0) = '1') else                       -- 0x80000003

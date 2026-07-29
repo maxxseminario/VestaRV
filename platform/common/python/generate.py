@@ -86,9 +86,10 @@ _CONFIG_SCHEMA = {
 	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters)', _isBool),
 	# ISA extensions. X1 (2026-07-17) implemented the six Tier-1 knobs below
 	# (zicond zcb zimop zihint zihpm zawrs) — default false, decode + tests +
-	# both-polarity gates landed. The remaining 7 (zabha..zfinx) are still X0
-	# SCAFFOLDING: plumbed end-to-end but NOT implemented; setting one true
-	# HARD-ERRORS below — a config must never advertise hardware it lacks.
+	# both-polarity gates landed. X2 (zabha zacas), X3 (zicboz zcmp zcmt zbkb
+	# zbkc zbkx zkn) and X4 (zfinx, 2026-07-18) implemented the rest: every
+	# isa.* knob below is real hardware and the X0 scaffolding hard-error
+	# list (_SCAFFOLDED_ISA) is empty — no knob advertises hardware it lacks.
 	'isa.zicond':           ('bool — Zicond conditional-zero ops (czero.eqz/czero.nez)', _isBool),
 	'isa.zcb':              ('bool — Zcb extra compressed insns (c.lbu/lhu/lh/sb/sh, zext/sext, c.not, c.mul; needs isa.compressed)', _isBool),
 	'isa.zimop':            ('bool — Zimop+Zcmop may-be-ops (mop.r/mop.rr rd<-0, c.mop.n nops)', _isBool),
@@ -103,8 +104,20 @@ _CONFIG_SCHEMA = {
 	'isa.zbkb':             ('bool — Zbkb crypto bit-manip (pack/packh/brev8/zip/unzip + Zbb-shared subset). Implemented X3.', _isBool),
 	'isa.zbkc':             ('bool — Zbkc carryless multiply (clmul/clmulh; reuses the Zbc datapath). Implemented X3.', _isBool),
 	'isa.zbkx':             ('bool — Zbkx crossbar permute (xperm8/xperm4). Implemented X3.', _isBool),
-	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh). Implemented X3', _isBool),
-	'isa.zfinx':            ('bool — Zfinx single-precision FP in x-regs. SCAFFOLDED (X0), NOT IMPLEMENTED — must be false', _isBool),
+	'isa.zkn':              ('bool — Zkn AES+SHA (Zknd+Zkne+Zknh). Implemented X3.', _isBool),
+	'isa.zfinx':            ('bool — Zfinx single-precision FP in x-regs (shared FMA-based backend, exactly one rounding, all 5 rounding modes, full subnormals; radix-2 iterative div/sqrt; fcvt family). Implemented X4 — the largest single extension (0.034 mm² of tile area).', _isBool),
+	# P-series PRIVILEGED ARCHITECTURE. The generics ride the full chain
+	# (generate.py -> ChipGenerator -> mcu_vhd -> MemoryMap CORE_* ->
+	# hart_tile -> vesta -> maindec/csr_unit). 'trapCsr' GRADUATED at P1
+	# (2026-07-28): the CSR file is real hardware now. 'umode' and 'pmp' are
+	# still SCAFFOLDED ONLY -- _SCAFFOLDED_PRIV below HARD-ERRORS if either is
+	# set true. A name leaves that tuple when its phase (P2 umode, P3 pmp)
+	# lands the real hardware.
+	'priv.trapCsr':         ('bool — P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. Default false: all ten addresses and the three encodings stay illegal, bit-identical to a pre-P1 chip', _isBool),
+	'priv.umode':           ('bool — P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate — every machine/custom CSR (csr_addr(9:8)/="00"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero — bit-identical to a P1 chip', _isBool),
+	'priv.pmp':             ('bool — P3: physical memory protection (Smpmp: pmpcfg0-3, pmpaddr0-15, OFF/TOR/NA4/NAPOT, lock bit, pre-issue fetch/load/store checks with access-fault causes). Requires priv.umode. SCAFFOLDED (P0), NOT IMPLEMENTED — must be false', _isBool),
+	'priv.pmpEntries':      ('int — PMP entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is true; the CSR map is the 16-entry superset regardless (entries above the count are WARL all-zero). Default 16',
+	                         lambda v: _isInt(v) and v in (8, 16)),
 	'memory.romSize':            ('int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)',
 	                              lambda v: _isMemSize(v, 0x4000)),
 	'memory.tcmSizePerHart':     ('int bytes, 1 KiB multiple <= 0x4000 (region 0x8000-0xBFFF)',
@@ -143,7 +156,7 @@ _CONFIG_SCHEMA = {
 	                         _isBool),
 	'peripherals.dmaChannels': ('int — DMA0 channel count, {2, 4} ONLY (the NCH generic; the register map is the 4-channel superset regardless, absent channels read 0). Consulted only when peripherals.dma is true. Default 4',
 	                         lambda v: _isInt(v) and v in (2, 4)),
-	'peripherals.i2ctarget': ('bool — True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 are always-False DP-SG placeholders (npu-thinkdone / TRNG, not yet landed — irq_budget_phase0.md) that backfill as IRQB_RSVD120/121, so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false',
+	'peripherals.i2ctarget': ('bool — True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 belong to the DP-SG blocks (120 = NPU0 think-done, 121 = TRNG0 — landed 2026-07-22; each backfills as IRQB_RSVD when its block is absent), so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false',
 	                         _isBool),
 	'peripherals.trng':      ('bool — True instantiates the TRNG0 ring-oscillator entropy source + harvest engine at 0x6900: page-2 (MUTEX page) sub-slot 9. Free-running RO ensemble (NRO rings, {4,8} via peripherals.trngRings) 2-FF synchronized into MCLK, decimated/packed into 32-bit words with a read-CONSUMES data register (exactly-once consume + DRDY same-cycle blind-window fix), and an SP 800-90B-lite repetition-count health test whose alarm auto-halts harvesting — all in the free-running MCLK domain (D4-clean, plain raw-strobe active-low shim, neither combinationalRead nor CAPTURE_CLOCK). ONE combined IRQ (data-ready | health-alarm) delivered per the GLOBAL VECTOR RULE (A5): vector 121 = TRNG0; vector 120 (npu-thinkdone) is gated by the EXISTING peripherals.npu knob. NUM_EN_WORDS stays 4 (ceil(122/32) = 4, 122 <= 128 when TRNG is the highest enabled tail block). Zero pins — the RO ensemble is internal combinational fabric behind a SIM/REAL architecture split (TrngRoEnsemble_sim.vhd behavioral-only, TrngRoEnsemble.vhd genus/gate-only; the two must never co-list). ENTROPY CAVEAT (bring-up-grade, not certified — see the TRM chapter): firmware MUST DRBG the raw words and honor ALMF. Default false — the default emission (no page-2 sub-slot 9, no MmrAddrTRNG0, no vector 121) is byte-identical',
 	                         _isBool),
@@ -185,7 +198,7 @@ _CONFIG_META = {
 	'isa.bitmanip':         {'type': 'bool', 'default': True},
 	'isa.counters':         {'type': 'bool', 'default': False},
 	'isa.counters64':       {'type': 'bool', 'default': False},
-	# X0 scaffolded ISA extensions (default false; hard-error if set true)
+	# X-series ISA extensions (X1-X4, all implemented; default false)
 	'isa.zicond':           {'type': 'bool', 'default': False},
 	'isa.zcb':              {'type': 'bool', 'default': False},
 	'isa.zimop':            {'type': 'bool', 'default': False},
@@ -202,6 +215,11 @@ _CONFIG_META = {
 	'isa.zbkx':             {'type': 'bool', 'default': False},
 	'isa.zkn':              {'type': 'bool', 'default': False},
 	'isa.zfinx':            {'type': 'bool', 'default': False},
+	# P-series privileged architecture (P0 scaffolding; all inert by default)
+	'priv.trapCsr':         {'type': 'bool', 'default': False},
+	'priv.umode':           {'type': 'bool', 'default': False},
+	'priv.pmp':             {'type': 'bool', 'default': False},
+	'priv.pmpEntries':      {'type': 'int', 'default': 16, 'min': 8, 'max': 16, 'step': 8},
 	'memory.romSize':            {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.tcmSizePerHart':     {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0x10000, 'min': 0x4000, 'step': 0x4000},
@@ -491,10 +509,10 @@ dmaChannels = _cfg('peripherals.dmaChannels', 4)
 # an open-drain wired-AND DIR merge (the one shared-RTL edit, done separately). Enabling
 # I2CT0 extends the IRQ source list per the GLOBAL VECTOR RULE (A5, the library-tail
 # machinery below): vectors 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/
-# rx-full). Vectors 120/121 are ALWAYS-FALSE placeholder rows (npu-thinkdone / TRNG)
-# reserving those slots for the not-yet-landed DP-SG blocks (irq_budget_phase0.md), so
-# 122/123 hold under the frozen-numbering rule and backfill as IRQB_RSVD120/121 when
-# I2CT0 is the highest enabled block. NUM_EN_WORDS stays 4 (124 <= 128). Default FALSE —
+# rx-full). Vectors 120/121 belong to the DP-SG blocks (npu-thinkdone / TRNG0, landed
+# 2026-07-22 — gated on npuPresent/trngPresent in _LIBRARY_TAIL_SPEC), so 122/123 hold
+# under the frozen-numbering rule; an absent block's row backfills as IRQB_RSVD120/121
+# when I2CT0 is the highest enabled block. NUM_EN_WORDS stays 4 (124 <= 128). Default FALSE —
 # the default emission (no page-2 sub-slot 10, no MmrAddrI2CT0, no vectors 122/123, merged
 # planes at their golden-master text) is byte-identical.
 i2ctargetPresent = _cfg('peripherals.i2ctarget', False)
@@ -617,11 +635,11 @@ _isa = {
 	'zfinx':      _cfg('isa.zfinx', False),
 }
 
-# X0 scaffolding gate: the 13 ISA-extension generics are plumbed end-to-end but
-# their decode/logic is NOT implemented yet. A config may name them (false is a
-# no-op), but setting one true would advertise hardware that does not exist —
-# HARD-ERROR so nothing downstream (misa/ISA-string/tests) can lie about it.
-# Remove a name from this tuple as its phase (X1-X4) lands its real logic.
+# X0 scaffolding gate: during the X-series bring-up the ISA-extension generics
+# were plumbed end-to-end AHEAD of their decode/logic; a scaffolded name set
+# true would advertise hardware that does not exist — HARD-ERROR so nothing
+# downstream (misa/ISA-string/tests) can lie about it. Names were removed as
+# their phase (X1-X4) landed the real logic; all knobs are implemented now.
 _SCAFFOLDED_ISA = ()   # X4 landed Zfinx (the last scaffolded name); this is now a
 	                   # VALID EMPTY TUPLE. Keep it `()` -- never a bare string like
 	                   # ('zfinx') without a trailing comma (iterated char-by-char ->
@@ -653,6 +671,44 @@ if _isa['zcmp'] and not _isa['compressed']:
 # X3 (Zcmt): compressed table jump is a C-quadrant encoding + the jvt CSR.
 if _isa['zcmt'] and not _isa['compressed']:
 	raise Exception('isa.zcmt requires isa.compressed (cm.jt/cm.jalt live in the C2 quadrant)')
+
+# P-series privileged architecture (P0 scaffolding, 2026-07-28). Hoisted like
+# _isa so the ChipGenerator(...) call and the resolved-config record at the
+# bottom share ONE value per knob.
+_priv = {
+	'trapCsr':    _cfg('priv.trapCsr', False),
+	'umode':      _cfg('priv.umode', False),
+	'pmp':        _cfg('priv.pmp', False),
+	'pmpEntries': _cfg('priv.pmpEntries', 16),
+}
+
+# P0 scaffolding gate (the X0 _SCAFFOLDED_ISA idiom, verbatim): the
+# privileged-architecture generics are plumbed end-to-end AHEAD of their
+# CSR/decode/PMP logic. A scaffolded name set true would advertise hardware that
+# does not exist — HARD-ERROR so nothing downstream (MemoryMap constants, the
+# core_features.h defines the priv* tests dispatch on, the TRM) can lie about
+# it. Remove a name from this tuple when its phase lands the real logic:
+# P1 -> 'trapCsr' (GRADUATED 2026-07-28), P2 -> 'umode' (GRADUATED 2026-07-28),
+# P3 -> 'pmp'. Keep it a TUPLE — a bare ('pmp') without a trailing comma is a
+# STRING and iterates char-by-char (KeyError), the trap the X0 comment records.
+_SCAFFOLDED_PRIV = ('pmp',)
+for _sp in _SCAFFOLDED_PRIV:
+	if _priv[_sp]:
+		raise Exception('priv.' + _sp + ': scaffolded (P0) but not implemented yet')
+
+# P2 (U-mode) requires P1 (trap CSRs): U-mode has nowhere to store privilege
+# state (mstatus.MPP/MPIE) and a U-mode trap has nowhere to land (mepc/mcause/
+# mtvec) without the standard trap architecture. Written at P0, INERT while the
+# scaffold gate above fires first, ACTIVE the moment umode graduates.
+if _priv['umode'] and not _priv['trapCsr']:
+	raise Exception('priv.umode requires priv.trapCsr (U-mode needs mstatus/mepc/mcause/mtvec to trap into)')
+
+# P3 (PMP) requires P2 (U-mode): PMP's protection story is M-vs-U, and a PMP
+# access fault is an EXCEPTION — only the standard trap architecture can take
+# one (in legacy mode it would land in the terminal TRAP_STATE). Same timing:
+# written at P0, active when pmp graduates.
+if _priv['pmp'] and not _priv['umode']:
+	raise Exception('priv.pmp requires priv.umode (PMP protects U-mode; its access faults are standard-mode exceptions)')
 
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
@@ -851,6 +907,14 @@ m = ChipGenerator(
 	ENABLE_ZBKX=_isa['zbkx'],
 	ENABLE_ZKN=_isa['zkn'],
 	ENABLE_ZFINX=_isa['zfinx'],
+	# Privileged-architecture generics (default false / 16 entries; drive the
+	# vesta ENABLE_TRAPCSR/ENABLE_UMODE/ENABLE_PMP + PMP_ENTRIES generics through
+	# MemoryMap.vhd's CORE_* constants). trapCsr (P1) and umode (P2) are REAL
+	# hardware; pmp is still scaffolded — see the _SCAFFOLDED_PRIV gate above.
+	ENABLE_TRAPCSR=_priv['trapCsr'],
+	ENABLE_UMODE=_priv['umode'],
+	ENABLE_PMP=_priv['pmp'],
+	PMP_ENTRIES=_priv['pmpEntries'],
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,
@@ -3734,6 +3798,7 @@ _resolvedConfig = [
 	('numMutexes', numMutexes),
 	('registerFileDualPort', _regsDualPort),
 	('isa', _isa),
+	('priv', _priv),
 	('memory', [
 		('romSize', _romSize),
 		('tcmSizePerHart', _tcmSize),
@@ -3902,7 +3967,7 @@ print('[generate] wrote config/PadRing.json (derived pad ring)')
 # G4: Innovus pad-placement template for the connected chip_top flow (roadmap
 # C0 "pad ring Flavor B") — ONE derived pad ring feeding the docs (PadRing.json
 # + the TRM pinout) AND PnR. Emits ordered per-side pad lists in the format
-# innovus/common/tcl/chip_top.innovus.tcl's place_side proc consumes (Flavor A
+# the innovus chip-top flows' place_side proc (chip_top_quad.innovus.tcl lineage) consumes (Flavor A
 # hand-codes these lists today). Lists are in placeInstance GEOMETRIC order
 # (+x for bottom/top rows, +y for left/right rows); QFN pin 1 sits at the TOP
 # of the left edge (top view, counter-clockwise numbering), so the W and N

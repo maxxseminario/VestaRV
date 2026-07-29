@@ -1,0 +1,13 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -429,7 +429,9 @@
+     -- by the csr_addr(9:8) /= "00" comparator in the SYSTEM arm below.
+     ucnt_denied <= '1' when (
+         ((imm12 = CSR_CYCLE       or imm12 = CSR_CYCLEH)       and mcounteren_bits(0) = '0') or
+-        ((imm12 = CSR_TIME        or imm12 = CSR_TIMEH)        and mcounteren_bits(1) = '0') or
++        -- SEEDED BUG (p2rt_ucnttm): the mcounteren.TM term is dropped, so the
++        -- user-view time/timeh CSRs are readable from U-mode unconditionally.
++        ((imm12 = CSR_TIME        or imm12 = CSR_TIMEH)        and false) or
+         ((imm12 = CSR_INSTRET     or imm12 = CSR_INSTRETH)     and mcounteren_bits(2) = '0') or
+         ((imm12 = CSR_HPMCOUNTER3 or imm12 = CSR_HPMCOUNTER3H) and mcounteren_bits(3) = '0') or
+         ((imm12 = CSR_HPMCOUNTER4 or imm12 = CSR_HPMCOUNTER4H) and mcounteren_bits(4) = '0') or

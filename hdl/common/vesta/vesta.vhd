@@ -1,6 +1,12 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
 use work.constants.all;
+-- P1: the standard mip CSR mirrors the three interrupt LEVEL wires, which reach
+-- this core as irq_vector bits at the MemoryMap slot indices IRQB_CLINT_MSIP /
+-- IRQB_CLINT_MTIP / IRQB_EXT_MEIP. MemoryMap is compiled before vesta in every
+-- cell list / genus read_hdl order (hart_tile already depends on it) and shares
+-- no declaration name with work.constants, so this adds no ambiguity.
+use work.MemoryMap.all;
 use IEEE.NUMERIC_STD.all;
 
 entity vesta is
@@ -38,7 +44,17 @@ entity vesta is
         ENABLE_ZBKC       : boolean := false;  -- X3 (Zbkc): consumed from phase X3 on; scaffolded X0
         ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx): consumed from phase X3 on; scaffolded X0
         ENABLE_ZKN        : boolean := false;  -- X3 (Zkn): consumed from phase X3 on; scaffolded X0
-        ENABLE_ZFINX      : boolean := false   -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
+        ENABLE_ZFINX      : boolean := false;  -- X4 (Zfinx): consumed from phase X4 on; scaffolded X0
+        -- P0 privileged-architecture scaffolding: all default false / 16 entries,
+        -- zero behavioral change. Fanned out to the sub-blocks that will consume
+        -- them (maindec via controller for the MRET/ECALL/EBREAK/WFI decode and
+        -- the csr_addr_valid map; csr_unit for the CSR file itself). The trap
+        -- entry/MRET FSM arms and the PMP check points land at THIS level from
+        -- their phase on. -- consumed from phase P<n> on; scaffolded P0
+        ENABLE_TRAPCSR    : boolean := false;  -- P1 (trap CSRs + MRET): consumed from phase P1 on; scaffolded P0
+        ENABLE_UMODE      : boolean := false;  -- P2 (U-mode, requires TRAPCSR): consumed from phase P2 on; scaffolded P0
+        ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp, requires UMODE): consumed from phase P3 on; scaffolded P0
+        PMP_ENTRIES       : integer := 16      -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
     );
     port (
         clk        : in  std_logic;
@@ -127,7 +143,11 @@ architecture struct of vesta is
             ENABLE_ZBKC     : boolean := false;
             ENABLE_ZBKX     : boolean := false;
             ENABLE_ZKN      : boolean := false;
-            ENABLE_ZFINX    : boolean := false
+            ENABLE_ZFINX    : boolean := false;
+            -- P0 scaffolding: the subset maindec will consume (default false)
+            ENABLE_TRAPCSR  : boolean := false;
+            ENABLE_UMODE    : boolean := false;
+            ENABLE_PMP      : boolean := false
         );
         port (
             resetn           : in  std_logic;
@@ -152,6 +172,15 @@ architecture struct of vesta is
             isr_ret          : out std_logic;
             sleep_rq         : out std_logic;
             wake_rq          : out std_logic;
+            -- P1 standard SYSTEM/PRIV decode ('0' unless ENABLE_TRAPCSR)
+            ecall_op         : out std_logic;
+            ebreak_op        : out std_logic;
+            mret_op          : out std_logic;
+            -- P2 WFI decode + the U-mode decode inputs (inert defaults)
+            wfi_op           : out std_logic;
+            priv_m           : in  std_logic := '1';
+            status_tw        : in  std_logic := '0';
+            mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
@@ -294,7 +323,14 @@ architecture struct of vesta is
             -- X0 scaffolding: hpm counters + Zfinx fcsr, default false
             ENABLE_ZIHPM      : boolean := false;
             ENABLE_ZCMT       : boolean := false;  -- X3 Zcmt: jvt CSR
-            ENABLE_ZFINX      : boolean := false
+            ENABLE_ZFINX      : boolean := false;
+            -- P0 scaffolding: the trap-CSR file, the U-mode privilege state and
+            -- the PMP config/address CSR bank all live in csr_unit from their
+            -- phase on (default false / 16 entries)
+            ENABLE_TRAPCSR    : boolean := false;
+            ENABLE_UMODE      : boolean := false;
+            ENABLE_PMP        : boolean := false;
+            PMP_ENTRIES       : integer := 16
         );
         port (
             clk            : in  std_logic;
@@ -323,7 +359,27 @@ architecture struct of vesta is
             -- X1 Zihpm event inputs (internal vesta signals, not tile ports)
             ev_bus_stall   : in  std_logic := '0';
             ev_sleep       : in  std_logic := '0';
-            ev_trap_entry  : in  std_logic := '0'
+            ev_trap_entry  : in  std_logic := '0';
+
+            -- P1 trap-CSR interface (p0_specs.md 2.4 FREEZE; inert defaults)
+            irq_msip       : in  std_logic := '0';
+            irq_mtip       : in  std_logic := '0';
+            irq_meip       : in  std_logic := '0';
+            trap_entry_we  : in  std_logic := '0';
+            trap_pc        : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
+            trap_cause     : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
+            trap_value     : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
+            mret_we        : in  std_logic := '0';
+            mtvec_value    : out std_logic_vector(XLEN-1 downto 0);
+            mepc_value     : out std_logic_vector(XLEN-1 downto 0);
+            mstatus_mie    : out std_logic;
+            mie_bits       : out std_logic_vector(2 downto 0);
+            legacy_mode    : out std_logic;
+
+            -- P2 U-mode interface (p0_specs.md 3.1 FREEZE)
+            priv_mode      : out std_logic;
+            status_tw      : out std_logic;
+            mcounteren_bits : out std_logic_vector(4 downto 0)
         );
     end component;
 
@@ -350,6 +406,16 @@ architecture struct of vesta is
         IRQ_REST,     -- Restore context from IRQ
         IRQ_JUMP,     -- Jump to interrupt vector
         TRAP_STATE,   -- Trap state for illegal instructions
+        -- P1 standard M-mode trap delivery (ENABLE_TRAPCSR + mtrapctl.LEGACY=0).
+        -- Shaped on IRQ_SV/IRQ_JUMP but with ZERO memory transactions: no push,
+        -- no sp_write_en, wen all-ones, reg_write_dp='0' in every one of them
+        -- (kickoff 3b class 1), and no irq_handler handshake (no irq_save_ack).
+        -- All three are UNREACHABLE when ENABLE_TRAPCSR is false: every
+        -- transition into them is qualified by `std_mode`, which is statically
+        -- '0' there -- so the OFF build's state encoding is bit-identical.
+        MTRAP_SV,     -- standard trap entry: write mepc/mcause/mtval + mstatus push
+        MTRAP_JUMP,   -- standard trap entry: PC <- mtvec.BASE
+        MTRAP_RET,    -- MRET: PC <- mepc, mstatus pop (MIE<=MPIE, MPIE<='1')
         -- RV32A atomic states
         AMO_READ,     -- Read phase of atomic operation
         AMO_WRITEBACK,-- Writeback value to rd 
@@ -599,6 +665,10 @@ architecture struct of vesta is
     signal csr_wdata              : std_logic_vector(XLEN-1 downto 0);
     signal csr_op                 : std_logic_vector(2 downto 0);
     signal csr_valid              : std_logic;
+    -- P2 TRAP-ENTRY SIDE-EFFECT BLOCK (see the assignment near the trap glue).
+    signal trap_entry_seq         : std_logic;
+    signal csr_valid_eff          : std_logic;
+    signal isr_ret_eff            : std_logic;
     signal en_cg_insret           : std_logic;
     signal inst_retired          : std_logic;
 
@@ -611,6 +681,99 @@ architecture struct of vesta is
     signal hpm_ev_stall           : std_logic;
     signal hpm_ev_sleep           : std_logic;
     signal hpm_ev_trap            : std_logic;
+
+    -- ==========================================
+    -- P1 standard M-mode trap CSR file hookup (ENABLE_TRAPCSR)
+    -- ==========================================
+    -- The three interrupt LEVELS the standard `mip` mirrors. These are the SAME
+    -- wires the legacy irq_handler consumes -- irq_vector bits at the MemoryMap
+    -- slot indices -- tapped, never latched (mip has no storage by spec).
+    signal trap_irq_msip          : std_logic;
+    signal trap_irq_mtip          : std_logic;
+    signal trap_irq_meip          : std_logic;
+    -- csr_unit's trap-CSR exports. NO CONSUMERS YET: the MTRAP_SV/MTRAP_JUMP
+    -- states, the MRET arm and the LEGACY delivery mux are the P1 Agent-B diff.
+    -- Declared here so the frozen csr_unit port map is complete today.
+    signal trap_mtvec_value       : std_logic_vector(XLEN-1 downto 0);
+    signal trap_mepc_value        : std_logic_vector(XLEN-1 downto 0);
+    signal trap_mstatus_mie       : std_logic;
+    signal trap_mie_bits          : std_logic_vector(2 downto 0);
+    signal trap_legacy_mode       : std_logic;
+
+    -- ------------------------------------------------------------------
+    -- P1 standard trap DELIVERY (this is the Agent-B half of the P1 diff).
+    -- ------------------------------------------------------------------
+    -- SYSTEM/PRIV decode from maindec (statically '0' when ENABLE_TRAPCSR off).
+    signal ecall_op               : std_logic;
+    signal ebreak_op              : std_logic;
+    signal mret_op                : std_logic;
+    -- '1' == standard delivery (ENABLE_TRAPCSR and mtrapctl.LEGACY = 0). This is
+    -- THE coexistence mux select: statically '0' on an OFF build (so every new
+    -- FSM arm constant-folds away) and '0' at reset on an ON build (LEGACY
+    -- resets '1'), which is what makes the full legacy suite run untouched on ON
+    -- hardware.
+    signal std_mode               : std_logic;
+    -- Standard-mode interrupt take: mstatus.MIE and (mip and mie) /= 0.
+    signal std_irq_take           : std_logic;
+    -- Dispatch-cycle trap classification (combinational; sampled ONLY at the
+    -- edge that enters MTRAP_SV, so it can never be read on a compressed
+    -- half-fetch cycle -- the half-fetch class is closed by construction here,
+    -- see the mtrap_cause_proc comment).
+    signal mtrap_disp_int         : std_logic;
+    signal mtrap_disp_code        : std_logic_vector(3 downto 0);
+    -- ...latched at the dispatch edge (5 flops: Interrupt bit + 4-bit code).
+    signal mtrap_cause_int        : std_logic;
+    signal mtrap_cause_code       : std_logic_vector(3 downto 0);
+    -- csr_unit writeback drive (values are combinational from HELD state).
+    signal trap_pc_val            : std_logic_vector(XLEN-1 downto 0);
+    signal trap_cause_val         : std_logic_vector(XLEN-1 downto 0);
+    signal trap_value_val         : std_logic_vector(XLEN-1 downto 0);
+    -- One-shot strobes into csr_unit. csr_unit runs on the FREE-RUNNING clk while
+    -- the FSM runs on the GATED clk_cpu, so a plain state-level strobe would be
+    -- applied on EVERY clk edge the FSM spends in the state -- and the mstatus
+    -- stack push (MPIE<=MIE, MIE<='0') is NOT idempotent: a second application
+    -- would destroy MPIE. These are clk-domain rising-edge one-shots of the state
+    -- level, so the writeback lands EXACTLY ONCE however long clk_cpu is gated.
+    signal mtrap_sv_lvl           : std_logic;
+    signal mtrap_sv_d             : std_logic;
+    signal mtrap_ret_lvl          : std_logic;
+    signal mtrap_ret_d            : std_logic;
+    signal trap_entry_we_sig      : std_logic;
+    signal mret_we_sig            : std_logic;
+    -- irq_handler enable mask after the standard-mode neutralization gate.
+    signal irq_en_eff             : std_logic_vector(NUM_IRQS-1 downto 0);
+    -- mcause bits 30:4 are hardwired 0 (csr_unit stores only bit31 + code(3:0)).
+    constant MTRAP_RSVD27         : std_logic_vector(26 downto 0) := (others => '0');
+
+    -- ------------------------------------------------------------------
+    -- P2 U-mode + standard WFI (ENABLE_UMODE / ENABLE_TRAPCSR)
+    -- ------------------------------------------------------------------
+    -- csr_unit's P2 exports (p0_specs.md 3.1). trap_priv_mode reads '1' (M) for
+    -- all time on an ENABLE_UMODE=false build, so maindec's U-mode gate folds.
+    signal trap_priv_mode         : std_logic;
+    signal trap_status_tw         : std_logic;
+    signal trap_mcounteren        : std_logic_vector(4 downto 0);
+    -- maindec's standard-WFI decode ('0' unless ENABLE_TRAPCSR).
+    signal wfi_op                 : std_logic;
+    -- WFI ENTRY-REASON MARKER. SLEEPING is entered by TWO different
+    -- instructions with DIFFERENT wake rules:
+    --   extinguish (legacy custom insn): wakes only on a TAKEN interrupt
+    --                                    (irq_save / std_irq_take) -- unchanged.
+    --   WFI        (standard, P2)      : wakes on (mip and mie) /= 0 REGARDLESS
+    --                                    of mstatus.MIE; if the interrupt is
+    --                                    takeable it vectors (MTRAP_SV), else it
+    --                                    RESUMES at the instruction after WFI.
+    -- One flop distinguishes them. Set at the WFI dispatch edge (wfi_enter,
+    -- driven only from the real-dispatch decode arms -> the compressed
+    -- half-fetch class 5 cannot set it), cleared on EVERY exit from SLEEPING.
+    signal wfi_slept              : std_logic;
+    signal wfi_enter              : std_logic;
+    -- (mip and mie) /= 0 -- the ENABLE-agnostic-of-MIE pending term the standard
+    -- WFI wake rule uses. Same three sources / same mie packing as std_irq_take,
+    -- MINUS the mstatus.MIE qualifier.
+    signal std_wfi_pend           : std_logic;
+    -- The wake itself: only ever asserted for a WFI-entered sleep.
+    signal std_wfi_wake           : std_logic;
 
     -- X3 Zcmp/Zcmt helper functions (pure combinational, spec tables).
     function zcm_reg_at(p : integer) return std_logic_vector is
@@ -685,8 +848,23 @@ architecture struct of vesta is
     -- - IRQ is active (always process interrupts)
     -- - Not in external sleep mode
     -- - Not in SLEEPING state
+    -- P1: in STANDARD delivery mode the irq_handler is held in IDLE, so
+    -- irq_active can never rise and the legacy "IRQ is active" ungate above is
+    -- dead -- a hart that extinguished into SLEEPING would never get a clk_cpu
+    -- edge again and could never reach MTRAP_SV. std_irq_take restores exactly
+    -- that ungate for the standard path, at the same precedence. Statically '0'
+    -- on an OFF build (std_mode folds to '0'), so en_clk_cpu is bit-identical.
+    -- P2: the standard WFI wake needs its OWN ungate, at the same precedence and
+    -- for the same reason. std_irq_take carries the mstatus.MIE qualifier, but a
+    -- WFI must resume on a pending+enabled interrupt even with MIE=0 -- with no
+    -- term here that hart would sleep forever with clk_cpu gated off, never
+    -- evaluating the SLEEPING arm. std_wfi_wake is qualified by wfi_slept, so an
+    -- extinguish-entered sleep is untouched, and it is statically '0' when
+    -- ENABLE_TRAPCSR is off, so the OFF build's en_clk_cpu is bit-identical.
     en_clk_cpu <= '0' when mem_ready = '0' else
                   '1' when irq_active = '1' else
+                  '1' when std_irq_take = '1' else
+                  '1' when std_wfi_wake = '1' else
                   '0' when sleep = '1' else
                   '0' when current_state = SLEEPING else
                   '1';
@@ -746,7 +924,11 @@ architecture struct of vesta is
                 reservation_valid <= '1';
                 reservation_addr <= rs1_value;  -- M4b: rs1 IS the LR address (phase-independent)
             -- Clear reservation on SC, interrupt, or context switch
-            elsif current_state = SC_CHECK or current_state = IRQ_SV then
+            elsif current_state = SC_CHECK or current_state = IRQ_SV
+                  or current_state = MTRAP_SV then
+                -- P1: a standard trap entry is a context switch exactly like the
+                -- legacy IRQ_SV, so it kills the local reservation the same way.
+                -- MTRAP_SV is unreachable on an OFF/legacy build => no change.
                 reservation_valid <= '0';
             end if;
             
@@ -1040,6 +1222,15 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = FPU_WAIT) else
                   instr_curr_prev when (current_state = FPU_DONE) else
                   instr_curr_prev when (current_state = IRQ_SV) else
+                  -- P1: HOLD the faulting/trapping instruction across the standard
+                  -- trap-entry pair. Two reasons: (a) mtval for an illegal
+                  -- instruction is taken from instr_curr_prev, which stays stable
+                  -- only if instr_curr feeds itself here; (b) no decode of a live
+                  -- memory word may leak into these cycles (reg_write_dp is forced
+                  -- '0' anyway, but this keeps the decoder quiescent).
+                  instr_curr_prev when (current_state = MTRAP_SV) else
+                  instr_curr_prev when (current_state = MTRAP_JUMP) else
+                  instr_curr_prev when (current_state = MTRAP_RET) else
                   instr_curr_prev when (current_state = IRQ_REST) else
                   instr_curr_prev when (current_state = SLEEPING) else
                   instr_curr_prev when (current_state = AMO_READ) else  -- Keep instruction during AMO
@@ -1084,7 +1275,16 @@ architecture struct of vesta is
     -- ==========================================
     -- PC Next Final Selection
     -- ==========================================
+    -- P1 standard delivery: MTRAP_JUMP loads mtvec.BASE&"00" and MTRAP_RET loads
+    -- mepc -- the IRQ_JUMP/ivt_entry idiom exactly (pc_en='1' in those states, and
+    -- data_addr falls through to pc_next so the SAME cycle also issues the fetch
+    -- from the new PC). MTRAP_SV holds pc_next_reg like IRQ_SV, which is what
+    -- makes pc_next_reg the interrupt RESUME PC (identical to the word the legacy
+    -- IRQ_SV pushes at sp-4) for the whole entry pair.
     pc_next <= ivt_entry   when (current_state = IRQ_JUMP) else
+               trap_mtvec_value when (current_state = MTRAP_JUMP) else
+               trap_mepc_value  when (current_state = MTRAP_RET) else
+               pc_next_reg when (current_state = MTRAP_SV) else
                pc_next_ret when (current_state = IRQ_REST) else
                pc_next_reg when (current_state = SLEEPING) else
                pc_next_reg when (current_state = IRQ_SV) else
@@ -1227,9 +1427,190 @@ architecture struct of vesta is
                       or current_state = AMO_WRITE
                 else '0';
 
+    -- ==========================================
+    -- P1 standard M-mode trap delivery glue (ENABLE_TRAPCSR)
+    -- ==========================================
+    -- THE coexistence select. Statically '0' when the generic is off, so every
+    -- MTRAP_* transition below constant-folds and the OFF netlist is unchanged;
+    -- '0' at reset when the generic is ON (mtrapctl.LEGACY resets '1'), which is
+    -- why the full legacy suite runs untouched on ON hardware.
+    std_mode <= '1' when (ENABLE_TRAPCSR and trap_legacy_mode = '0') else '0';
+
+    -- Standard-mode interrupt take (p0_specs.md 2.3 / 2.4 rule (b)): csr_unit
+    -- exports STATE only; the pending decision is made HERE.
+    --   take = mstatus.MIE and ((meip and MEIE) or (msip and MSIE) or (mtip and MTIE))
+    -- mie_bits is the frozen {MEIE(2), MTIE(1), MSIE(0)} packing.
+    std_irq_take <= '1' when (std_mode = '1' and trap_mstatus_mie = '1' and
+                              ((trap_irq_meip = '1' and trap_mie_bits(2) = '1') or
+                               (trap_irq_msip = '1' and trap_mie_bits(0) = '1') or
+                               (trap_irq_mtip = '1' and trap_mie_bits(1) = '1')))
+                    else '0';
+
+    -- Dispatch-cycle trap classification. Read ONLY at the clk_cpu edge that
+    -- enters MTRAP_SV (mtrap_cause_proc), and the FSM arms that make that
+    -- transition all live INSIDE the real-dispatch branches of the EXECUTE decode
+    -- tree -- the compressed half-fetch branch ("Need to fetch upper half") is a
+    -- separate else-branch with next_state <= EXECUTE unconditionally and NO trap
+    -- / ecall / ebreak / irq check. So a half-fetch cycle (where instr_curr still
+    -- holds the PREVIOUS instruction, kickoff 3b class 5) can never sample these.
+    -- Priority mirrors the FSM arm order exactly: misaligned-PC, illegal, ECALL,
+    -- EBREAK; anything else that reaches MTRAP_SV is an interrupt.
+    mtrap_disp_int <=
+        '1' when (current_state /= EXECUTE) else                                 -- MEMORY_WAIT/DIV_DONE/AMO_*/SLEEPING/... => interrupt
+        '0' when ((not ENABLE_COMPRESSED) and pc(1) = '1') else                  -- instruction-address-misaligned
+        '0' when (trap = '1' or ecall_op = '1' or ebreak_op = '1') else          -- illegal / ECALL / EBREAK
+        '1';                                                                     -- EXECUTE + none of the above => interrupt
+
+    mtrap_disp_code <=
+        x"0" when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else  -- 0  instr addr misaligned
+        x"2" when (current_state = EXECUTE and trap = '1') else                               -- 2  illegal instruction
+        -- P2: the ECALL cause is the CURRENT privilege (p0_specs.md 2.2 rows
+        -- "ECALL from M" / "ECALL from U"). trap_priv_mode is stuck '1' (M) on
+        -- any ENABLE_UMODE=false build, so this collapses to the P1 constant 11.
+        x"8" when (current_state = EXECUTE and ecall_op = '1' and trap_priv_mode = '0') else  -- 8  ecall from U
+        x"B" when (current_state = EXECUTE and ecall_op = '1') else                           -- 11 ecall from M
+        x"3" when (current_state = EXECUTE and ebreak_op = '1') else                          -- 3  breakpoint
+        -- interrupt codes, spec priority MEI > MSI > MTI
+        x"B" when (trap_irq_meip = '1' and trap_mie_bits(2) = '1') else                       -- 0x8000000B
+        x"3" when (trap_irq_msip = '1' and trap_mie_bits(0) = '1') else                       -- 0x80000003
+        x"7";                                                                                 -- 0x80000007
+
+    -- Latch the classification at the dispatch edge. 5 flops total: the 32-bit
+    -- mepc/mtval values are NOT registered -- they are re-derived in MTRAP_SV
+    -- from state that is provably held there (pc / pc_next_reg / instr_curr_prev).
+    mtrap_cause_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            mtrap_cause_int  <= '0';
+            mtrap_cause_code <= (others => '0');
+        elsif rising_edge(clk_cpu) then
+            if next_state = MTRAP_SV and current_state /= MTRAP_SV then
+                mtrap_cause_int  <= mtrap_disp_int;
+                mtrap_cause_code <= mtrap_disp_code;
+            end if;
+        end if;
+    end process;
+
+    -- csr_unit writeback values, valid throughout MTRAP_SV:
+    --   mepc  = pc_next_reg for an interrupt (the RESUME PC -- provably the same
+    --           word the legacy IRQ_SV pushes at sp-4, since IRQ_SV's write_data
+    --           is pc_next and pc_next = pc_next_reg there), else `pc` (the
+    --           faulting / ECALL's-own PC; pc_en is '0' from the dispatch edge on,
+    --           so pc still holds it).
+    --   mtval = the faulting 32-bit encoding for an illegal instruction (mtval
+    --           TIER-1), the misaligned PC for cause 0, else 0.
+    trap_pc_val    <= pc_next_reg when mtrap_cause_int = '1' else pc;
+    trap_cause_val <= mtrap_cause_int & MTRAP_RSVD27 & mtrap_cause_code;
+    trap_value_val <= instr_curr_prev when (mtrap_cause_int = '0' and mtrap_cause_code = x"2") else
+                      pc              when (mtrap_cause_int = '0' and mtrap_cause_code = x"0") else
+                      (others => '0');
+
+    -- One-shot generation on the csr_unit clock domain (see the declaration
+    -- comment: csr_unit is on the free-running clk, the FSM on the gated
+    -- clk_cpu). The whole block is generate-gated so an OFF build carries no
+    -- extra flops at all and both strobes are hard-tied '0'.
+    mtrap_sv_lvl  <= '1' when current_state = MTRAP_SV  else '0';
+    mtrap_ret_lvl <= '1' when current_state = MTRAP_RET else '0';
+
+    gen_trapcsr_wb: if ENABLE_TRAPCSR generate
+        mtrap_we_proc: process(clk, resetn)
+        begin
+            if resetn = '0' then
+                mtrap_sv_d  <= '0';
+                mtrap_ret_d <= '0';
+            elsif rising_edge(clk) then
+                mtrap_sv_d  <= mtrap_sv_lvl;
+                mtrap_ret_d <= mtrap_ret_lvl;
+            end if;
+        end process;
+        trap_entry_we_sig <= mtrap_sv_lvl  and not mtrap_sv_d;
+        mret_we_sig       <= mtrap_ret_lvl and not mtrap_ret_d;
+    end generate;
+
+    gen_trapcsr_wb_off: if not ENABLE_TRAPCSR generate
+        mtrap_sv_d        <= '0';
+        mtrap_ret_d       <= '0';
+        trap_entry_we_sig <= '0';
+        mret_we_sig       <= '0';
+    end generate;
+
+    -- irq_handler NEUTRALIZATION in standard mode (p0_specs.md 1/2.3): mask every
+    -- enable so pending_irqs_comb is all-zero, irq_found never rises and the
+    -- handler FSM is pinned in IDLE -- irq_save can therefore never fire, which is
+    -- what lets the new std_irq_take arms sit BESIDE the existing irq_save arms
+    -- without a priority fight. Statically the identity function when
+    -- ENABLE_TRAPCSR is off.
+    irq_en_eff <= irq_en when std_mode = '0' else (others => '0');
 
     -- ==========================================
-    -- FSM Next State Logic 
+    -- P2 standard WFI wake rule (ENABLE_TRAPCSR)
+    -- ==========================================
+    -- p0_specs.md 3: WFI wakes when `(mip and mie) /= 0` REGARDLESS of
+    -- mstatus.MIE. This is std_irq_take MINUS the MIE qualifier -- the two are
+    -- deliberately separate signals: std_irq_take decides whether a trap is
+    -- DELIVERED, std_wfi_pend only whether the hart RESUMES.
+    std_wfi_pend <= '1' when ((trap_irq_meip = '1' and trap_mie_bits(2) = '1') or
+                              (trap_irq_msip = '1' and trap_mie_bits(0) = '1') or
+                              (trap_irq_mtip = '1' and trap_mie_bits(1) = '1'))
+                    else '0';
+
+    -- Qualified by wfi_slept, so an EXTINGUISH-entered sleep keeps its exact
+    -- legacy/P1 behaviour (it wakes only on a taken interrupt) even on an ON
+    -- build with mie armed. Gated on ENABLE_TRAPCSR (NOT ENABLE_UMODE): WFI is
+    -- legal on a trapCsr-only build -- only the TW/U legality gating is P2.
+    -- Statically '0' when ENABLE_TRAPCSR is off, so the OFF FSM/clock-gate are
+    -- bit-identical.
+    std_wfi_wake <= '1' when (ENABLE_TRAPCSR and wfi_slept = '1' and std_wfi_pend = '1')
+                    else '0';
+
+    -- ==========================================
+    -- P2 TRAP-ENTRY SIDE-EFFECT BLOCK (ENABLE_TRAPCSR)
+    -- ==========================================
+    -- MTRAP_SV/MTRAP_JUMP already suppress every side effect the FSM OWNS
+    -- (reg_write_dp, wen, mem_access_instr, sp_write_en -- p0_specs.md 2.3).
+    -- Four decode outputs BYPASS the FSM and were still live through those two
+    -- cycles, because `read_data` (= the instruction during decode) still holds
+    -- the FAULTING encoding until the mtvec fetch lands in the next EXECUTE:
+    --   csr_valid -> csr_unit's WRITE ENABLE
+    --   isr_ret   -> the legacy irq_handler EOI
+    --   sleep_rq / wake_rq -> the free-running `sleep_cpu` flop
+    -- That is benign in P1 (an illegal CSR ADDRESS matches no write arm), but
+    -- it BREAKS the P2 U-mode gate: maindec's u_gate is keyed on the LIVE
+    -- privilege, and privilege flips to M inside MTRAP_SV -- so a U-mode
+    -- `csrw mtvec/mepc/mtrapctl/mscratch` trapped correctly and THEN COMMITTED
+    -- one cycle later, in M, a full escape. (Found by privucsr CHECK 27: the
+    -- decode-side suppression alone was NOT enough.) The rule is the one
+    -- p0_specs.md 2.3 already states for the FSM-owned effects, extended to
+    -- the four that bypass it: DURING TRAP ENTRY THE FAULTING INSTRUCTION
+    -- COMMITS NOTHING. Statically '0' when ENABLE_TRAPCSR is off (the states
+    -- are unreachable there), so the OFF and legacy paths are bit-identical.
+    trap_entry_seq <= '1' when (ENABLE_TRAPCSR and
+                                (current_state = MTRAP_SV or current_state = MTRAP_JUMP))
+                      else '0';
+    csr_valid_eff  <= csr_valid and not trap_entry_seq;
+    isr_ret_eff    <= isr_ret   and not trap_entry_seq;
+
+    -- The entry-reason flop. Set at the WFI dispatch edge, cleared at EVERY
+    -- SLEEPING exit (whichever arm takes it). wfi_enter is driven ONLY from the
+    -- real-dispatch decode arms of EXECUTE, so it can never be set on a
+    -- compressed half-fetch cycle (kickoff 3b class 5), and it cannot coincide
+    -- with the clear (that needs current_state = SLEEPING).
+    wfi_slept_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            wfi_slept <= '0';
+        elsif rising_edge(clk_cpu) then
+            if wfi_enter = '1' then
+                wfi_slept <= '1';
+            elsif current_state = SLEEPING and next_state /= SLEEPING then
+                wfi_slept <= '0';
+            end if;
+        end if;
+    end process;
+
+
+    -- ==========================================
+    -- FSM Next State Logic
     -- ==========================================
     next_state_logic: process(resetn, current_state, pc, instr, quadrant_upper, quadrant_lower, 
                              repeat_if, instr_upper_half, instr_lower_half, instr_decomp, 
@@ -1243,7 +1624,9 @@ architecture struct of vesta is
                              cboz_op, cboz_idx,
                              zcm_op, instr_curr, zcm_idx, zcm_nregs_val,
                              zcm_is_popretz, zcm_is_popret, zcm_jt_link, zcm_final_sp,
-                             is_fp_multicycle, is_fp_fma, fpu_done_sig)
+                             is_fp_multicycle, is_fp_fma, fpu_done_sig,
+                             std_mode, std_irq_take, ecall_op, ebreak_op, mret_op,
+                             wfi_op, std_wfi_wake)
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -1260,7 +1643,8 @@ architecture struct of vesta is
             irq_save_ack <= '0';
             is_compressed <= '0';
             trap_flag <= '0';
-            
+            wfi_enter <= '0';   -- P2 standard-WFI entry marker
+
         else
             -- Default signal values
             pc_en <= '1';
@@ -1274,6 +1658,7 @@ architecture struct of vesta is
             sp_write_en <= '0';
             irq_save_ack <= '0';
             trap_flag <= '0';
+            wfi_enter <= '0';   -- P2: only the WFI dispatch arms raise this
 
             case current_state is
                 -- ==========================================
@@ -1298,7 +1683,16 @@ architecture struct of vesta is
                     -- static-false when ENABLE_COMPRESSED, so the default
                     -- build's FSM is untouched.
                     if (not ENABLE_COMPRESSED) and pc(1) = '1' then
-                        next_state <= TRAP_STATE;
+                        -- P1: instruction-address-misaligned. Standard mode takes
+                        -- it as a RECOVERABLE exception (cause 0, mtval = the
+                        -- misaligned PC); legacy mode keeps today's terminal
+                        -- TRAP_STATE. Statically dead in the Castalia/Argus
+                        -- configs (C is on) -- implemented for contract parity.
+                        if std_mode = '1' then
+                            next_state <= MTRAP_SV;
+                        else
+                            next_state <= TRAP_STATE;
+                        end if;
                         pc_en <= '0';
                     elsif pc(1) = '1' then
                         -- Current instruction on half-word boundary
@@ -1312,11 +1706,64 @@ architecture struct of vesta is
                                 
                                 -- Determine next state based on instruction type
                                 if trap = '1' then
-                                    next_state <= TRAP_STATE;
                                     pc_en <= '0';
+                                    if std_mode = '1' then
+                                        -- P1: RECOVERABLE illegal-instruction
+                                        -- exception (cause 2, mtval = the faulting
+                                        -- encoding). Zero memory transactions.
+                                        next_state <= MTRAP_SV;
+                                        reg_write_dp <= '0';
+                                        mem_access_instr <= '0';
+                                        wen <= (others => '1');
+                                    else
+                                        next_state <= TRAP_STATE;
+                                    end if;
+                                elsif ecall_op = '1' or ebreak_op = '1' then
+                                    -- P1 ECALL (cause 11) / EBREAK (cause 3), both
+                                    -- with mtval = 0 and mepc = the instruction's
+                                    -- OWN PC. In legacy mode they are legal decodes
+                                    -- with no legacy semantics, so they land in the
+                                    -- terminal TRAP_STATE -- exactly where the OFF
+                                    -- build's illegal-instruction path puts them.
+                                    pc_en <= '0';
+                                    reg_write_dp <= '0';
+                                    mem_access_instr <= '0';
+                                    wen <= (others => '1');
+                                    if std_mode = '1' then
+                                        next_state <= MTRAP_SV;
+                                    else
+                                        next_state <= TRAP_STATE;
+                                    end if;
+                                elsif mret_op = '1' then
+                                    -- P1 MRET: PC <- mepc + the mstatus pop, in the
+                                    -- dedicated MTRAP_RET state (JALR shape, no
+                                    -- memory access, no writeback). Legacy mode:
+                                    -- terminal TRAP_STATE, as above.
+                                    pc_en <= '0';
+                                    reg_write_dp <= '0';
+                                    mem_access_instr <= '0';
+                                    wen <= (others => '1');
+                                    if std_mode = '1' then
+                                        next_state <= MTRAP_RET;
+                                    else
+                                        next_state <= TRAP_STATE;
+                                    end if;
                                 elsif sleep_rq = '1' then
                                     next_state <= SLEEPING;
                                     pc_en <= '0';
+                                elsif wfi_op = '1' then
+                                    -- P2 standard WFI: enter SLEEPING and RAISE
+                                    -- the entry-reason marker, so the SLEEPING
+                                    -- arm applies the STANDARD wake rule instead
+                                    -- of extinguish's. pc frozen exactly as for
+                                    -- extinguish -- pc_next_reg therefore holds
+                                    -- WFI+4, which is BOTH the resume PC and
+                                    -- (if we vector) the mepc. No memory access,
+                                    -- no writeback: reg_write/WEN for a SYSTEM
+                                    -- PRIV encoding are already '0'/"1111".
+                                    next_state <= SLEEPING;
+                                    pc_en      <= '0';
+                                    wfi_enter  <= '1';
                                 elsif wrs_op = '1' then
                                     -- X1 Zawrs: stall only if a global reservation
                                     -- is live; else the hint retires immediately.
@@ -1416,6 +1863,16 @@ architecture struct of vesta is
                                 elsif irq_save = '1' then
                                     next_state <= IRQ_SV;
                                     pc_en <= '0';
+                                elsif std_irq_take = '1' then
+                                    -- P1 standard delivery: the SAME check point, no new one. In
+                                    -- standard mode irq_save can never fire (irq_en_eff is masked
+                                    -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                                    -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                                    -- exclusive by construction. The X3 uninterruptible sequencers
+                                    -- stay uninterruptible: they have no irq_save site, so they get
+                                    -- no std_irq_take site either.
+                                    next_state <= MTRAP_SV;
+                                    pc_en <= '0';
                                 elsif isr_ret = '1' then
                                     next_state <= IRQ_REST;
                                 else
@@ -1435,8 +1892,41 @@ architecture struct of vesta is
                             -- Compressed instruction on half-word boundary
                             is_compressed <= '1';
                             if trap = '1' then
-                                next_state <= TRAP_STATE;
                                 pc_en <= '0';
+                                if std_mode = '1' then
+                                    -- P1: recoverable illegal-instruction exception
+                                    next_state <= MTRAP_SV;
+                                    reg_write_dp <= '0';
+                                    mem_access_instr <= '0';
+                                    wen <= (others => '1');
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif ecall_op = '1' or ebreak_op = '1' then
+                                -- P1: c.ebreak DECOMPRESSES to EBREAK (c_dec:~676),
+                                -- so this compressed arm really can see ebreak_op.
+                                -- Same routing as the 32-bit arm. (ECALL/MRET have
+                                -- no compressed form; the term costs nothing and
+                                -- keeps the four decode arms uniform.)
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                mem_access_instr <= '0';
+                                wen <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_SV;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif mret_op = '1' then
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                mem_access_instr <= '0';
+                                wen <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_RET;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
                             elsif zcm_op = '1' then
                                 mem_access_instr <= '0';
                                 reg_write_dp <= '0';
@@ -1469,6 +1959,16 @@ architecture struct of vesta is
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
+                            elsif std_irq_take = '1' then
+                                -- P1 standard delivery: the SAME check point, no new one. In
+                                -- standard mode irq_save can never fire (irq_en_eff is masked
+                                -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                                -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                                -- exclusive by construction. The X3 uninterruptible sequencers
+                                -- stay uninterruptible: they have no irq_save site, so they get
+                                -- no std_irq_take site either.
+                                next_state <= MTRAP_SV;
+                                pc_en <= '0';
                             elsif isr_ret = '1' then
                                 next_state <= IRQ_REST;
                             else
@@ -1482,11 +1982,53 @@ architecture struct of vesta is
                             is_compressed <= '0';
                             
                             if trap = '1' then
-                                next_state <= TRAP_STATE;
                                 pc_en <= '0';
+                                if std_mode = '1' then
+                                    -- P1: recoverable illegal-instruction exception
+                                    -- (cause 2, mtval = the faulting encoding).
+                                    next_state <= MTRAP_SV;
+                                    reg_write_dp <= '0';
+                                    mem_access_instr <= '0';
+                                    wen <= (others => '1');
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif ecall_op = '1' or ebreak_op = '1' then
+                                -- P1 ECALL (11) / EBREAK (3); see the split-fetch
+                                -- arm above for the full rationale.
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                mem_access_instr <= '0';
+                                wen <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_SV;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif mret_op = '1' then
+                                -- P1 MRET; see the split-fetch arm above.
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                mem_access_instr <= '0';
+                                wen <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_RET;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
                             elsif sleep_rq = '1' then
                                 next_state <= SLEEPING;
                                 pc_en <= '0';
+                            elsif wfi_op = '1' then
+                                -- P2 standard WFI (see the split-fetch arm above
+                                -- for the full rationale). WFI is a 32-bit
+                                -- SYSTEM encoding with no compressed form, so
+                                -- these two word-dispatch arms are the ONLY
+                                -- places it can appear -- exactly like
+                                -- extinguish/sleep_rq, whose arms it sits beside.
+                                next_state <= SLEEPING;
+                                pc_en      <= '0';
+                                wfi_enter  <= '1';
                             elsif wrs_op = '1' then
                                 -- X1 Zawrs: stall only if a global reservation is
                                 -- live; else the hint retires immediately.
@@ -1568,6 +2110,16 @@ architecture struct of vesta is
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
+                            elsif std_irq_take = '1' then
+                                -- P1 standard delivery: the SAME check point, no new one. In
+                                -- standard mode irq_save can never fire (irq_en_eff is masked
+                                -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                                -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                                -- exclusive by construction. The X3 uninterruptible sequencers
+                                -- stay uninterruptible: they have no irq_save site, so they get
+                                -- no std_irq_take site either.
+                                next_state <= MTRAP_SV;
+                                pc_en <= '0';
                             elsif isr_ret = '1' then
                                 next_state <= IRQ_REST;
                             else
@@ -1577,8 +2129,37 @@ architecture struct of vesta is
                             -- Compressed instruction
                             is_compressed <= '1';
                             if trap = '1' then
-                                next_state <= TRAP_STATE;
                                 pc_en <= '0';
+                                if std_mode = '1' then
+                                    -- P1: recoverable illegal-instruction exception
+                                    next_state <= MTRAP_SV;
+                                    reg_write_dp <= '0';
+                                    mem_access_instr <= '0';
+                                    wen <= (others => '1');
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif ecall_op = '1' or ebreak_op = '1' then
+                                -- P1: c.ebreak decompresses to EBREAK (c_dec:~676).
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                mem_access_instr <= '0';
+                                wen <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_SV;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
+                            elsif mret_op = '1' then
+                                pc_en <= '0';
+                                reg_write_dp <= '0';
+                                mem_access_instr <= '0';
+                                wen <= (others => '1');
+                                if std_mode = '1' then
+                                    next_state <= MTRAP_RET;
+                                else
+                                    next_state <= TRAP_STATE;
+                                end if;
                             elsif zcm_op = '1' then
                                 mem_access_instr <= '0';
                                 reg_write_dp <= '0';
@@ -1610,6 +2191,16 @@ architecture struct of vesta is
                                 reg_write_dp <= '0';
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
+                                pc_en <= '0';
+                            elsif std_irq_take = '1' then
+                                -- P1 standard delivery: the SAME check point, no new one. In
+                                -- standard mode irq_save can never fire (irq_en_eff is masked
+                                -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                                -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                                -- exclusive by construction. The X3 uninterruptible sequencers
+                                -- stay uninterruptible: they have no irq_save site, so they get
+                                -- no std_irq_take site either.
+                                next_state <= MTRAP_SV;
                                 pc_en <= '0';
                             else
                                 next_state <= EXECUTE;
@@ -1658,6 +2249,16 @@ architecture struct of vesta is
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
+                        pc_en <= '0';
                     else
                         -- Need to fetch next instruction from memory
                         next_state <= AMO_COMPLETE; 
@@ -1674,6 +2275,16 @@ architecture struct of vesta is
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
+                        pc_en <= '0';
                     else
                         next_state <= EXECUTE;
                     end if;
@@ -1689,6 +2300,16 @@ architecture struct of vesta is
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
+                        pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
                         pc_en <= '0';
                     else
                         next_state <= AMO_COMPLETE;
@@ -1711,6 +2332,16 @@ architecture struct of vesta is
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
+                        pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
                         pc_en <= '0';
                     else
                         next_state <= AMO_COMPLETE;
@@ -1902,6 +2533,16 @@ architecture struct of vesta is
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
+                        pc_en <= '0';
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
                         pc_en <= '0';
@@ -1933,6 +2574,16 @@ architecture struct of vesta is
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
+                        pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
                         pc_en <= '0';
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
@@ -1981,6 +2632,16 @@ architecture struct of vesta is
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
+                        pc_en <= '0';
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
                     else
@@ -2018,12 +2679,73 @@ architecture struct of vesta is
                     next_state <= EXECUTE;
 
                 -- ==========================================
+                -- MTRAP_SV State - P1 standard trap entry (CSR writeback)
+                -- ==========================================
+                -- Shaped on IRQ_SV, MINUS every memory effect (p0_specs.md 2.3):
+                --   * NO push: wen all-ones, mem_access_instr '0', and
+                --     sp_write_en left at its '0' default -- sp is NEVER touched
+                --     (a U-mode sp is untrusted; software uses mscratch).
+                --   * NO writeback: reg_write_dp '0' here AND in MTRAP_JUMP, the
+                --     kickoff 3b class-1 phantom-regfile-write guard (instr_curr
+                --     still shows the already-retired instruction in these
+                --     cycles).
+                --   * NO irq_handler handshake: irq_save_ack stays '0' (its
+                --     default), because the handler is pinned in IDLE.
+                -- The csr_unit writeback itself rides trap_entry_we, a clk-domain
+                -- ONE-SHOT of this state (see the gen_trapcsr_wb block) with
+                -- trap_pc/trap_cause/trap_value derived from held state.
+                -- trap_flag is NOT raised: a standard trap is RECOVERABLE, unlike
+                -- the terminal TRAP_STATE.
+                when MTRAP_SV =>
+                    pc_en            <= '0';
+                    wen              <= (others => '1');
+                    mem_access_instr <= '0';
+                    reg_write_dp     <= '0';
+                    next_state       <= MTRAP_JUMP;
+
+                -- ==========================================
+                -- MTRAP_JUMP State - P1 standard trap entry (vector)
+                -- ==========================================
+                -- PC <- mtvec.BASE&"00" via the pc_next mux arm; the same cycle
+                -- issues the fetch from there (data_addr falls through to
+                -- pc_next), exactly like IRQ_JUMP loading ivt_entry.
+                when MTRAP_JUMP =>
+                    pc_en            <= '1';
+                    wen              <= (others => '1');
+                    mem_access_instr <= '0';
+                    reg_write_dp     <= '0';
+                    next_state       <= EXECUTE;
+
+                -- ==========================================
+                -- MTRAP_RET State - P1 MRET
+                -- ==========================================
+                -- PC <- mepc (pc_next mux arm) plus the mstatus POP in csr_unit
+                -- (MIE<=MPIE, MPIE<='1') via the mret_we one-shot. No memory
+                -- access, no writeback, no sp touch -- the JALR shape.
+                when MTRAP_RET =>
+                    pc_en            <= '1';
+                    wen              <= (others => '1');
+                    mem_access_instr <= '0';
+                    reg_write_dp     <= '0';
+                    next_state       <= EXECUTE;
+
+                -- ==========================================
                 -- IRQ_REST State - Restore context from interrupt
                 -- ==========================================
                 when IRQ_REST =>
                     if irq_save = '1' then
                         -- Nested interrupt
                         next_state <= IRQ_SV;
+                        pc_en <= '0';
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
                         pc_en <= '0';
                     elsif sleep_cpu = '1' then
                         -- Return to sleep after interrupt
@@ -2044,11 +2766,44 @@ architecture struct of vesta is
                 -- ==========================================
                 -- SLEEPING State
                 -- ==========================================
+                -- P2 adds a THIRD exit (std_wfi_wake) that is taken ONLY by a
+                -- WFI-entered sleep. Priority is deliberate:
+                --   1. irq_save     -- legacy delivery (masked off in std mode)
+                --   2. std_irq_take -- standard delivery: MIE and (mip and mie);
+                --                      vector to MTRAP_SV with mepc = the resume
+                --                      PC (pc_next_reg = WFI+4). This arm ALSO
+                --                      serves a WFI sleep, which is why it comes
+                --                      first: "if takeable, deliver".
+                --   3. std_wfi_wake -- (mip and mie) /= 0 but NOT takeable
+                --                      (mstatus.MIE = 0): the spec's resumption
+                --                      rule -- resume at the instruction AFTER
+                --                      WFI without entering a handler.
+                -- The resume is a plain pc_en='1' load of pc_next = pc_next_reg
+                -- (the SLEEPING pc_next mux arm), the same shape as WRS_WAIT's
+                -- retire; the fetch of that word has been issued from data_addr
+                -- every SLEEPING cycle already (data_addr falls through to
+                -- pc_next), so EXECUTE consumes the right instruction. wfi_slept
+                -- is cleared by wfi_slept_proc on whichever exit is taken.
                 when SLEEPING =>
                     pc_en <= '0';
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
+                    elsif std_irq_take = '1' then
+                        -- P1 standard delivery: the SAME check point, no new one. In
+                        -- standard mode irq_save can never fire (irq_en_eff is masked
+                        -- all-zero, so the irq_handler FSM is pinned in IDLE), and in
+                        -- legacy mode std_irq_take is '0' -- the two arms are mutually
+                        -- exclusive by construction. The X3 uninterruptible sequencers
+                        -- stay uninterruptible: they have no irq_save site, so they get
+                        -- no std_irq_take site either.
+                        next_state <= MTRAP_SV;
+                    elsif std_wfi_wake = '1' then
+                        -- P2: WFI resumption. Statically unreachable when
+                        -- ENABLE_TRAPCSR is off, and unreachable for an
+                        -- extinguish-entered sleep on ANY build (wfi_slept='0').
+                        next_state <= EXECUTE;
+                        pc_en      <= '1';
                     else
                         next_state <= SLEEPING;
                     end if;
@@ -2104,10 +2859,15 @@ architecture struct of vesta is
         if resetn = '0' then
             sleep_cpu <= '0';
         elsif rising_edge(clk) then
-            if wake_rq = '1' then
-                sleep_cpu <= '0';
-            elsif sleep_rq = '1' then
-                sleep_cpu <= '1';
+            -- P2: no sleep-state update while a trap is being entered (see
+            -- the trap_entry_seq block) -- a U-mode extinguish/ignite traps
+            -- illegal and must not touch this flop.
+            if trap_entry_seq = '0' then
+                if wake_rq = '1' then
+                    sleep_cpu <= '0';
+                elsif sleep_rq = '1' then
+                    sleep_cpu <= '1';
+                end if;
             end if;
         end if;
     end process;
@@ -2181,7 +2941,10 @@ architecture struct of vesta is
             ENABLE_ZBKC     => ENABLE_ZBKC,
             ENABLE_ZBKX     => ENABLE_ZBKX,
             ENABLE_ZKN      => ENABLE_ZKN,
-            ENABLE_ZFINX    => ENABLE_ZFINX
+            ENABLE_ZFINX    => ENABLE_ZFINX,
+            ENABLE_TRAPCSR  => ENABLE_TRAPCSR,
+            ENABLE_UMODE    => ENABLE_UMODE,
+            ENABLE_PMP      => ENABLE_PMP
         )
         port map (
             resetn           => resetn,
@@ -2204,6 +2967,15 @@ architecture struct of vesta is
             isr_ret          => isr_ret,
             sleep_rq         => sleep_rq,
             wake_rq          => wake_rq,
+            ecall_op         => ecall_op,
+            ebreak_op        => ebreak_op,
+            mret_op          => mret_op,
+            -- P2: the standard WFI decode out, and the three U-mode decode
+            -- inputs straight from csr_unit's frozen 3.1 exports.
+            wfi_op           => wfi_op,
+            priv_m           => trap_priv_mode,
+            status_tw        => trap_status_tw,
+            mcounteren_bits  => trap_mcounteren,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
             mem_access_instr => mem_access_controller,
@@ -2317,11 +3089,17 @@ architecture struct of vesta is
             clk             => clk,
             resetn          => resetn,
             irq             => irq_vector,
-            irq_en          => irq_en,
+            -- P1: irq_en_eff == irq_en in legacy mode and on any OFF build; it is
+            -- forced ALL-ZERO in standard mode so this FSM never leaves IDLE
+            -- (p0_specs.md 1). Consequence for `iret` executed in standard mode:
+            -- isr_ret is only ever acted on from WAIT_EOI (irq_handler:~355 and
+            -- the WAIT_EOI next-state arm), so it is silently IGNORED here --
+            -- the "unspecified-but-bounded, must not wedge" contract.
+            irq_en          => irq_en_eff,
             irq_pri         => irq_priority,
             irq_recursion_en => irq_recursion_en,
             irq_active      => irq_active,
-            isr_ret         => isr_ret,
+            isr_ret         => isr_ret_eff,   -- P2: gated by trap_entry_seq
             irq_save        => irq_save,
             irq_save_ack    => irq_save_ack,
             irq_restore     => irq_restore,
@@ -2363,7 +3141,28 @@ architecture struct of vesta is
     -- back-pressure: '0' = pending shared request not yet granted/completed.
     hpm_ev_stall <= not mem_ready;
     hpm_ev_sleep <= '1' when (current_state = SLEEPING or sleep = '1') else '0';
-    hpm_ev_trap  <= '1' when (current_state = IRQ_SV or current_state = TRAP_STATE) else '0';
+    -- P1: MTRAP_SV joins the Zihpm "trap entries taken" event -- the event counts
+    -- TRAP ENTRIES, and a standard-mode entry is one. (MTRAP_JUMP/MTRAP_RET do
+    -- NOT, mirroring IRQ_JUMP/IRQ_REST, so one entry still counts as one cycle.)
+    -- Unreachable on an OFF build => the counter is bit-identical there.
+    hpm_ev_trap  <= '1' when (current_state = IRQ_SV or current_state = TRAP_STATE
+                              or current_state = MTRAP_SV) else '0';
+
+    -- P1: tap the three standard interrupt levels for the `mip` mirror. The
+    -- indices are MemoryMap slot numbers (83/84/85 today), so guard the slice
+    -- for any instantiation built with a NUM_IRQS smaller than the meip slot
+    -- (vesta's own generic default is 16) -- an out-of-range slice would be an
+    -- elaboration error, not a warning.
+    gen_mip_taps: if NUM_IRQS > IRQB_EXT_MEIP generate
+        trap_irq_msip <= irq_vector(IRQB_CLINT_MSIP);
+        trap_irq_mtip <= irq_vector(IRQB_CLINT_MTIP);
+        trap_irq_meip <= irq_vector(IRQB_EXT_MEIP);
+    end generate;
+    gen_mip_taps_none: if NUM_IRQS <= IRQB_EXT_MEIP generate
+        trap_irq_msip <= '0';
+        trap_irq_mtip <= '0';
+        trap_irq_meip <= '0';
+    end generate;
 
     csr_unit_inst : csr_unit
         generic map (
@@ -2374,7 +3173,11 @@ architecture struct of vesta is
             ENABLE_BITMANIP   => ENABLE_BITMANIP,
             ENABLE_ZIHPM      => ENABLE_ZIHPM,
             ENABLE_ZCMT       => ENABLE_ZCMT,
-            ENABLE_ZFINX      => ENABLE_ZFINX
+            ENABLE_ZFINX      => ENABLE_ZFINX,
+            ENABLE_TRAPCSR    => ENABLE_TRAPCSR,
+            ENABLE_UMODE      => ENABLE_UMODE,
+            ENABLE_PMP        => ENABLE_PMP,
+            PMP_ENTRIES       => PMP_ENTRIES
         )
         port map (
             clk            => clk,
@@ -2388,12 +3191,37 @@ architecture struct of vesta is
             csr_addr       => csr_addr,
             csr_write_data => csr_wdata, 
             csr_op         => csr_op,
-            csr_valid      => csr_valid,
+            csr_valid      => csr_valid_eff,   -- P2: gated by trap_entry_seq
             csr_read_data  => csr_rdata,
             inst_retired   => inst_retired,
             ev_bus_stall   => hpm_ev_stall,
             ev_sleep       => hpm_ev_sleep,
-            ev_trap_entry  => hpm_ev_trap
+            ev_trap_entry  => hpm_ev_trap,
+
+            -- P1 trap-CSR interface (p0_specs.md 2.4), now DRIVEN by the
+            -- MTRAP_SV / MTRAP_RET FSM states. trap_entry_we and mret_we are
+            -- clk-domain ONE-SHOTS (csr_unit is on the free-running clk, the FSM
+            -- on the gated clk_cpu) -- see gen_trapcsr_wb.
+            irq_msip       => trap_irq_msip,
+            irq_mtip       => trap_irq_mtip,
+            irq_meip       => trap_irq_meip,
+            trap_entry_we  => trap_entry_we_sig,
+            trap_pc        => trap_pc_val,
+            trap_cause     => trap_cause_val,
+            trap_value     => trap_value_val,
+            mret_we        => mret_we_sig,
+            mtvec_value    => trap_mtvec_value,
+            mepc_value     => trap_mepc_value,
+            mstatus_mie    => trap_mstatus_mie,
+            mie_bits       => trap_mie_bits,
+            legacy_mode    => trap_legacy_mode,
+
+            -- P2 U-mode exports (p0_specs.md 3.1). trap_priv_mode is stuck '1'
+            -- (M) unless ENABLE_UMODE, which is what folds every U-mode decode
+            -- restriction out of the OFF and trapCsr-only netlists.
+            priv_mode      => trap_priv_mode,
+            status_tw      => trap_status_tw,
+            mcounteren_bits => trap_mcounteren
         );
 
 end architecture;

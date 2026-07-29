@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -479,7 +479,7 @@
+     -- P2: csr_valid IS csr_unit's write enable, so a U-mode-DENIED access must
+     -- clear it or the trapping instruction still commits its write (see the
+     -- u_csr_denied comment above). Identity when ENABLE_UMODE is off.
+-    csr_valid <= is_csr_instr and (not u_csr_denied);
++    csr_valid <= is_csr_instr;  -- SEEDED BUG (p2_csrcommit): U-mode-denied CSR write still commits
+ 
+     -- ==========================================
+     -- RV32A Atomic Operation Signals

@@ -1,0 +1,20 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -785,7 +785,7 @@
+                             -- P2: WFI is legal in M always, and in U iff
+                             -- mstatus.TW = 0. The TW denial is a DECODE illegal
+                             -- (cause 2) -- p0_specs.md 3.1.
+-                            if u_gate = '1' and status_tw = '1' then
++                            if false then  -- SEEDED BUG (p2_twignore): mstatus.TW ignored
+                                 valid_funct <= '0';
+                             else
+                                 valid_funct <= '1';
+@@ -909,7 +909,7 @@
+     -- decode arm, so a TW-denied WFI takes the illegal path regardless.
+     wfi_op    <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
+                            funct3 = PRIV_FN3 and imm12 = WFI_IMM12 and
+-                           not (u_gate = '1' and status_tw = '1')) else '0';
++                           not false) else '0';  -- SEEDED BUG (p2_twignore): mstatus.TW ignored
+ 
+     -- X1 Zawrs decode outputs (both '0' unless the extension is enabled).
+     wrs_op  <= is_wrs_instr;

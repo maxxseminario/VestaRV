@@ -1,0 +1,15 @@
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -665,7 +665,11 @@
+                     -- Without ENABLE_UMODE, MPP is already pinned to M and priv
+                     -- never leaves '1', so this block is pure P2 cost.
+                     if ENABLE_UMODE then
+-                        mst_mpp <= priv_m & priv_m;   -- '1'->"11" (M), '0'->"00" (U)
++                        -- SEEDED BUG (p2rt_mppush): the trap-entry privilege
++                        -- PUSH stops tracking the live privilege and always
++                        -- records M.  A U-mode trap then MRETs back to M and
++                        -- the hart silently escalates out of U for good.
++                        mst_mpp <= MPP_M;
+                         priv_m  <= '1';
+                     end if;
+                 elsif mret_we = '1' then

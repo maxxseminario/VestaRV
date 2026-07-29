@@ -1,0 +1,14 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -2862,7 +2862,10 @@
+             -- P2: no sleep-state update while a trap is being entered (see
+             -- the trap_entry_seq block) -- a U-mode extinguish/ignite traps
+             -- illegal and must not touch this flop.
+-            if trap_entry_seq = '0' then
++            -- SEEDED BUG (p2rt_sleepentry): the trap-entry guard is dropped, so
++            -- the faulting encoding still on read_data through MTRAP_SV/JUMP --
++            -- decoded with priv ALREADY flipped to M -- moves this flop.
++            if true then
+                 if wake_rq = '1' then
+                     sleep_cpu <= '0';
+                 elsif sleep_rq = '1' then

@@ -1,0 +1,14 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -785,7 +785,10 @@
+                             -- P2: WFI is legal in M always, and in U iff
+                             -- mstatus.TW = 0. The TW denial is a DECODE illegal
+                             -- (cause 2) -- p0_specs.md 3.1.
+-                            if u_gate = '1' and status_tw = '1' then
++                            -- SEEDED BUG (p2rt_wfiudeny): the TW qualifier is
++                            -- dropped in the PERMISSIVE direction -- WFI is
++                            -- denied in U-mode even with mstatus.TW = 0.
++                            if u_gate = '1' then
+                                 valid_funct <= '0';
+                             else
+                                 valid_funct <= '1';

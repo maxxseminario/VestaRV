@@ -853,14 +853,37 @@ const VESTA_DATA = {
       "default": false
     },
     "isa.zkn": {
-      "description": "bool \u2014 Zkn AES+SHA (Zknd+Zkne+Zknh). Implemented X3",
+      "description": "bool \u2014 Zkn AES+SHA (Zknd+Zkne+Zknh). Implemented X3.",
       "type": "bool",
       "default": false
     },
     "isa.zfinx": {
-      "description": "bool \u2014 Zfinx single-precision FP in x-regs. SCAFFOLDED (X0), NOT IMPLEMENTED \u2014 must be false",
+      "description": "bool \u2014 Zfinx single-precision FP in x-regs (shared FMA-based backend, exactly one rounding, all 5 rounding modes, full subnormals; radix-2 iterative div/sqrt; fcvt family). Implemented X4 \u2014 the largest single extension (0.034 mm\u00b2 of tile area).",
       "type": "bool",
       "default": false
+    },
+    "priv.trapCsr": {
+      "description": "bool \u2014 P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery \u2014 MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. Default false: all ten addresses and the three encodings stay illegal, bit-identical to a pre-P1 chip",
+      "type": "bool",
+      "default": false
+    },
+    "priv.umode": {
+      "description": "bool \u2014 P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate \u2014 every machine/custom CSR (csr_addr(9:8)/=\"00\"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero \u2014 bit-identical to a P1 chip",
+      "type": "bool",
+      "default": false
+    },
+    "priv.pmp": {
+      "description": "bool \u2014 P3: physical memory protection (Smpmp: pmpcfg0-3, pmpaddr0-15, OFF/TOR/NA4/NAPOT, lock bit, pre-issue fetch/load/store checks with access-fault causes). Requires priv.umode. SCAFFOLDED (P0), NOT IMPLEMENTED \u2014 must be false",
+      "type": "bool",
+      "default": false
+    },
+    "priv.pmpEntries": {
+      "description": "int \u2014 PMP entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is true; the CSR map is the 16-entry superset regardless (entries above the count are WARL all-zero). Default 16",
+      "type": "int",
+      "default": 16,
+      "min": 8,
+      "max": 16,
+      "step": 8
     },
     "memory.romSize": {
       "description": "int bytes, 1 KiB multiple <= 0x4000 (region 0x0-0x3FFF)",
@@ -972,7 +995,7 @@ const VESTA_DATA = {
       "step": 2
     },
     "peripherals.i2ctarget": {
-      "description": "bool \u2014 True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog \u2014 all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 are always-False DP-SG placeholders (npu-thinkdone / TRNG, not yet landed \u2014 irq_budget_phase0.md) that backfill as IRQB_RSVD120/121, so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false",
+      "description": "bool \u2014 True instantiates the I2CT0 hardware-autonomous I2C TARGET (slave) at 0x6A00: page-2 (MUTEX page) sub-slot 10. 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog \u2014 all in the free-running MCLK domain (D4-clean, 2-FF SDA/SCL sync, no pad-clocked processes). Two combined IRQs delivered per the GLOBAL VECTOR RULE (A5): vector 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vectors 120/121 belong to the DP-SG blocks (120 = NPU0 think-done, 121 = TRNG0 \u2014 landed 2026-07-22; each backfills as IRQB_RSVD when its block is absent), so 122/123 hold under the frozen-numbering rule. NUM_EN_WORDS stays 4 (124 <= 128). NO new pins: I2CT0 SHARES the I2C0 SDA0/SCL0 pad planes via an open-drain wired-AND DIR merge (a separate shared-RTL edit). mclk-domain, so the SYS_CLK_CR=0 footgun does NOT bind I2CT0 (unlike the smclk I2C0). Default false",
       "type": "bool",
       "default": false
     },
@@ -1039,6 +1062,10 @@ const VESTA_DATA = {
     "isa.zbkx": false,
     "isa.zkn": false,
     "isa.zfinx": false,
+    "priv.trapCsr": false,
+    "priv.umode": false,
+    "priv.pmp": false,
+    "priv.pmpEntries": 16,
     "memory.romSize": 16384,
     "memory.tcmSizePerHart": 16384,
     "memory.sharedBulkRamSize": 65536,
@@ -4031,8 +4058,9 @@ const SCHEMA_TO_CFG = {
   "isa.atomics":"ENABLE_ATOMICS", "isa.compressed":"COMPRESSED_ISA",
   "isa.bitmanip":"ENABLE_BITMANIP", "isa.counters":"ENABLE_COUNTERS",
   "isa.counters64":"ENABLE_COUNTERS64",
-  // X0 scaffolded ISA extensions (no UI toggle; DEFAULTS pulls their false
-  // seed from VESTA_DATA.defaults so configObject() always exports false).
+  // X-series ISA extensions — ALL implemented in the RTL since X4 (Zfinx,
+  // 2026-07-18). Still no UI toggle: DEFAULTS seeds them false from
+  // VESTA_DATA.defaults; Import can set them true.
   "isa.zicond":"ENABLE_ZICOND", "isa.zcb":"ENABLE_ZCB", "isa.zimop":"ENABLE_ZIMOP",
   "isa.zihint":"ENABLE_ZIHINT", "isa.zihpm":"ENABLE_ZIHPM", "isa.zawrs":"ENABLE_ZAWRS",
   "isa.zabha":"ENABLE_ZABHA", "isa.zacas":"ENABLE_ZACAS", "isa.zicboz":"ENABLE_ZICBOZ",
@@ -4040,6 +4068,12 @@ const SCHEMA_TO_CFG = {
   "isa.zbkb":"ENABLE_ZBKB",
   "isa.zbkc":"ENABLE_ZBKC", "isa.zbkx":"ENABLE_ZBKX", "isa.zkn":"ENABLE_ZKN",
   "isa.zfinx":"ENABLE_ZFINX",
+  // P-series privileged architecture — SCAFFOLDED (P0, 2026-07-28), not yet
+  // implemented: generate.py hard-errors if any of the three booleans is true.
+  // No UI toggle; DEFAULTS seeds them false/16 from VESTA_DATA.defaults so
+  // configObject() always exports a legal config.
+  "priv.trapCsr":"ENABLE_TRAPCSR", "priv.umode":"ENABLE_UMODE",
+  "priv.pmp":"ENABLE_PMP", "priv.pmpEntries":"PMP_ENTRIES",
   "memory.romSize":"romSize", "memory.tcmSizePerHart":"tcmSize",
   "memory.sharedBulkRamSize":"sharedRamSize", "memory.npuStagingRamSize":"npuRamSize",
   "peripherals.npu":"npu", "peripherals.i2c1":"i2c1",
@@ -4768,9 +4802,10 @@ function configObject(){
       mul: cfg.ENABLE_MUL, fastMul: cfg.ENABLE_FAST_MUL, div: cfg.ENABLE_DIV,
       atomics: cfg.ENABLE_ATOMICS, compressed: cfg.COMPRESSED_ISA, bitmanip: cfg.ENABLE_BITMANIP,
       counters: cfg.ENABLE_COUNTERS, counters64: cfg.ENABLE_COUNTERS64,
-      // X0 scaffolded ISA extensions: plumbed but NOT implemented (generate.py
-      // hard-errors if any is true). No interactive toggle — always exported
-      // false so a config can never advertise an unimplemented extension.
+      // X-series ISA extensions (X1-X4) — all implemented in the RTL since
+      // X4 (Zfinx, 2026-07-18); generate.py's scaffolding hard-error list is
+      // empty. No interactive toggle yet — exported at their cfg values
+      // (default false; Import can enable them).
       zicond: cfg.ENABLE_ZICOND, zcb: cfg.ENABLE_ZCB, zimop: cfg.ENABLE_ZIMOP,
       zihint: cfg.ENABLE_ZIHINT, zihpm: cfg.ENABLE_ZIHPM, zawrs: cfg.ENABLE_ZAWRS,
       zabha: cfg.ENABLE_ZABHA, zacas: cfg.ENABLE_ZACAS, zicboz: cfg.ENABLE_ZICBOZ,
@@ -4778,6 +4813,15 @@ function configObject(){
       zbkb: cfg.ENABLE_ZBKB,
       zbkc: cfg.ENABLE_ZBKC, zbkx: cfg.ENABLE_ZBKX, zkn: cfg.ENABLE_ZKN,
       zfinx: cfg.ENABLE_ZFINX,
+    },
+    priv: {
+      // P-series privileged architecture: SCAFFOLDED (P0) only — the generics
+      // are plumbed end-to-end but no trap-CSR/U-mode/PMP logic exists yet, so
+      // generate.py hard-errors on a true. No interactive toggle — always
+      // exported false (pmpEntries at its 16 default) so a config can never
+      // advertise unimplemented hardware.
+      trapCsr: cfg.ENABLE_TRAPCSR, umode: cfg.ENABLE_UMODE,
+      pmp: cfg.ENABLE_PMP, pmpEntries: cfg.PMP_ENTRIES,
     },
     memory: {
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
