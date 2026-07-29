@@ -43,6 +43,48 @@ the local bias generator, the potentiostat control amplifier it biases, and the
 transimpedance stage that reads the working electrode; the reference DAC and the
 data converters will be added to this chapter as their benches are closed.
 
+\subsection*{Verification status}
+
+The three blocks are characterised to different depths, and the difference matters when
+reading their numbers: a corner run bounds process spread but says nothing about
+matching, so any figure whose budget is a mismatch quantity --- offset above all --- is
+simply not yet characterised for the two blocks without Monte Carlo.
+
+\begin{center}
+\begin{tabular}{llccl}
+\toprule
+Block & Section & Benches & Monte Carlo & Principal open item \\
+\midrule
+Bias generator        & \ref{ss:biasgen-local} & 2 & ---      & no mismatch data \\
+Control amplifier     & \ref{ss:controlamp}    & 4 & \checkmark & drive \SI{30}{\percent} short; offset over budget \\
+Transimpedance stage  & \ref{ss:tiaamp}        & 5 & ---      & loop peaking; sourcing limit at low gain \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Every block was simulated over the same five process, temperature and supply
+points, listed once per section. Load conditions, however, are \emph{not} common: the
+control amplifier's small-signal and step figures are taken into \SI{10}{\pico\farad}
+and the transimpedance amplifier's into \SI{5}{\pico\farad}, so bandwidth, slew and
+settling numbers are not directly comparable between Sections~\ref{ss:controlamp}
+and~\ref{ss:tiaamp}. The open items in full:
+
+\begin{itemize}
+\item \textbf{Bias generator} --- corners only. Trim spread and startup margin are
+characterised against process but not against mismatch.
+\item \textbf{Control amplifier} --- drive averages \SIrange{23.0}{24.4}{\micro\ampere}
+against a \SI{33}{\micro\ampere} target, and offset is \(\sigma =
+\SI{4.82}{\milli\volt}\) from mismatch alone against a \SI{2}{\milli\volt} budget. Both
+are quantified in Section~\ref{ss:controlamp} with the routes to closing them.
+\item \textbf{Transimpedance stage} --- four items, all in Section~\ref{ss:tiaamp}: the
+closed loop peaks \SIrange{5.0}{6.4}{\decibel} and the feedback capacitor that would
+flatten it is impractically large; the class-A output cannot source the full-scale
+current at the minimum gain setting; only the maximum gain setting was simulated, with
+an ideal feedback resistor rather than the 16-tap string; and no Monte Carlo exists.
+Its closed-loop bench also loads the electrode with a bare capacitance rather than the
+cell model of Section~\ref{ss:analog-models}, so its peaking is an upper bound.
+\end{itemize}
+
 % ---------------------------------------------------------------------
 % Generated block sections. Each is produced by tools/maestro2tex from a
 % Maestro run; see that tool's README for how to regenerate or add one.

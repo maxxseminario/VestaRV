@@ -127,7 +127,32 @@ pdf:
 			{ echo "❌ pdflatex failed (pass $$pass) — last lines of latex/TRM/build.log:"; tail -25 build.log; exit 1; }; \
 		done
 	@grep -E "Output written|^!" latex/TRM/build.log | head -3
+	@$(MAKE) --no-print-directory trm-lint
 	@echo "✅ latex/TRM/TRM.pdf (reproducible; SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH))"
+
+# Read the rendered text back and look for LaTeX that leaked through as literal
+# characters. pdflatex exits 0 on these: a mangled command such as `\\texttt{X}`
+# (line break followed by the letters "texttt") compiles cleanly and ships wrong
+# text, and an unresolved \ref renders as "??". The log cannot catch either, so
+# the built PDF is the only place to check. Skipped, not failed, where pdftotext
+# is unavailable.
+trm-lint:
+	@if ! command -v pdftotext >/dev/null 2>&1; then \
+		echo "⚠️  pdftotext not found — skipping TRM text lint."; exit 0; fi
+	@pdftotext -layout latex/TRM/TRM.pdf /tmp/trm-lint-$$$$.txt 2>/dev/null; \
+	bad=0; \
+	for pat in 'texttt' 'SI{' 'ref{' 'begin{' 'end{' 'mathrm{' 'emph{' '??'; do \
+		if grep -q -F -- "$$pat" /tmp/trm-lint-$$$$.txt 2>/dev/null; then \
+			echo "❌ TRM text lint: literal '$$pat' rendered in the PDF —"; \
+			grep -n -F -- "$$pat" /tmp/trm-lint-$$$$.txt | head -3 | sed 's/^/     /'; \
+			bad=1; \
+		fi; \
+	done; \
+	rm -f /tmp/trm-lint-$$$$.txt; \
+	if [ $$bad -ne 0 ]; then \
+		echo "   A LaTeX command leaked through as text, or a cross-reference is unresolved."; \
+		exit 1; fi; \
+	echo "✅ TRM text lint clean (no leaked LaTeX, no unresolved references)"
 
 # ---------------------------------------------------------------------------
 # Web data export (S2): out/web/chip_data.js is emitted by generate.py itself
