@@ -74,16 +74,16 @@ _CONFIG_SCHEMA = {
 	                         lambda v: _isInt(v) and 1 <= v <= 32),
 	'numMutexes':           ('int 1..1024 — HW mutex bank size (16 = Castalia, 32 = Argus)',
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
-	'registerFileDualPort': ('bool — dual-port register file (ASIC) vs single-port (Spartan-6 FPGA)',
+	'registerFileDualPort': ('bool — docs-only on vesta (regfile is dual-port in the RTL regardless; only the legacy picorv32_* MemoryMap constant changes)',
 	                         _isBool),
 	'isa.mul':              ('bool — M multiply', _isBool),
 	'isa.fastMul':          ('bool — docs-only on vesta (multiplier is already single-cycle)', _isBool),
 	'isa.div':              ('bool — M divide', _isBool),
 	'isa.atomics':          ('bool — A extension (LR/SC + AMO)', _isBool),
 	'isa.compressed':       ('bool — C extension', _isBool),
-	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs', _isBool),
-	'isa.counters':         ('bool — Zicntr mcycle/minstret', _isBool),
-	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters)', _isBool),
+	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs/Zbc', _isBool),
+	'isa.counters':         ('bool — Zicntr mcycle/minstret; docs/march-only on vesta (the counters are always present — this gates only the _zicntr march suffix and the legacy constants)', _isBool),
+	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters); docs-only on vesta (the high halves are always present)', _isBool),
 	# ISA extensions. X1 (2026-07-17) implemented the six Tier-1 knobs below
 	# (zicond zcb zimop zihint zihpm zawrs) — default false, decode + tests +
 	# both-polarity gates landed. X2 (zabha zacas), X3 (zicboz zcmp zcmt zbkb
@@ -725,7 +725,7 @@ def _isaString():
 	if _isa['compressed']:
 		s += 'c'
 	if _isa['bitmanip']:
-		s += '_zba_zbb_zbs'
+		s += '_zba_zbb_zbs_zbc'
 	if _isa['counters']:
 		s += '_zicntr'
 	# X1 extensions (2026-07-17). Simplified march order, matching web_export.py.

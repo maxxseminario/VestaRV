@@ -293,6 +293,11 @@ class LatexUserGuide():
 			defines['NumMutexesWord'] = mtxWords.get(nMtx, str(nMtx))
 			defines['MutexBaseAddress'] = fmthex(mutexP.BaseAddress)
 
+		# P-series privileged architecture: the PMP entry count the
+		# Privileged Architecture chapter quotes (only meaningful when
+		# priv.pmp is set, but always defined so the macro never dangles).
+		defines['PmpEntries'] = str(getattr(self.Gen, 'PMP_ENTRIES', 16))
+
 		s = ''
 		for item in defines:
 			s += '\\newcommand{\\' + item + '}{' + defines[item] + '}\n'
@@ -312,6 +317,18 @@ class LatexUserGuide():
 		s += '\\newif\\ifcqanalog\n'
 		s += ('\\cqanalogtrue' if getattr(self.Gen, 'DocSubSlotBlocks', None)
 			else '\\cqanalogfalse') + '\n'
+		# P-series privileged architecture (priv.trapCsr / priv.umode /
+		# priv.pmp). The Privileged Architecture chapter itself always renders
+		# — the legacy vectored trap mechanism it opens with is the shipping
+		# default of every build — and these three conditionals wrap its
+		# standard-mode, U-mode and PMP sections, so a build documents only the
+		# privileged hardware it actually contains. All three are false at the
+		# defaults, which is what keeps the default TRM honest.
+		for _flag, _attr in (('privtrapcsr', 'ENABLE_TRAPCSR'),
+				('privumode', 'ENABLE_UMODE'),
+				('privpmp', 'ENABLE_PMP')):
+			s += '\\newif\\if' + _flag + '\n'
+			s += ('\\' + _flag + ('true' if getattr(self.Gen, _attr, False) else 'false')) + '\n'
 
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -766,11 +783,27 @@ class LatexUserGuide():
 				return '\\texttt{' + str(v) + '} (' + str(v // 1024) + '\\,KiB)'
 			return '\\texttt{' + fmttex(str(v)) + '}'
 
+		# Full schema coverage (2026-07-29 honesty fix: this list had been frozen
+		# at the pre-X-series key set, so X-series ISA, priv, newer-peripheral and
+		# package knobs never appeared in the TRM config table). Keep in sync with
+		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
 		keyOrder = ['chipName', 'numHarts', 'numMutexes', 'registerFileDualPort',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
 			'isa.bitmanip', 'isa.counters', 'isa.counters64',
+			'isa.zicond', 'isa.zcb', 'isa.zimop', 'isa.zihint', 'isa.zihpm',
+			'isa.zawrs', 'isa.zabha', 'isa.zacas', 'isa.zicboz', 'isa.zcmp',
+			'isa.zcmt', 'isa.zbkb', 'isa.zbkc', 'isa.zbkx', 'isa.zkn', 'isa.zfinx',
+			'priv.trapCsr', 'priv.umode', 'priv.pmp', 'priv.pmpEntries',
 			'memory.romSize', 'memory.tcmSizePerHart', 'memory.sharedBulkRamSize',
-			'memory.npuStagingRamSize', 'peripherals.npu']
+			'memory.npuStagingRamSize',
+			'peripherals.npu', 'peripherals.i2c1', 'peripherals.uart1',
+			'peripherals.spi1', 'peripherals.timer1', 'peripherals.cqAfeStubs',
+			'peripherals.qspi', 'peripherals.i3c', 'peripherals.nfc',
+			'peripherals.rtc', 'peripherals.pwm', 'peripherals.onewire',
+			'peripherals.fieldPower', 'peripherals.dma', 'peripherals.dmaChannels',
+			'peripherals.i2ctarget', 'peripherals.trng', 'peripherals.trngRings',
+			'peripherals.eventFabric',
+			'package.model', 'package.preliminary']
 
 		s = '% Generated: the make chip CONFIG= schema + the values of THIS build\n'
 		s += '\\begin{longtable}[c]{ l l p{7.2cm} }\n'

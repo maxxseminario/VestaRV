@@ -738,7 +738,7 @@ const VESTA_DATA = {
       "max": 1024
     },
     "registerFileDualPort": {
-      "description": "bool \u2014 dual-port register file (ASIC) vs single-port (Spartan-6 FPGA)",
+      "description": "bool \u2014 docs-only on vesta (regfile is dual-port in the RTL regardless; only the legacy picorv32_* MemoryMap constant changes)",
       "type": "bool",
       "default": true
     },
@@ -768,17 +768,17 @@ const VESTA_DATA = {
       "default": true
     },
     "isa.bitmanip": {
-      "description": "bool \u2014 Zba/Zbb/Zbs",
+      "description": "bool \u2014 Zba/Zbb/Zbs/Zbc",
       "type": "bool",
       "default": true
     },
     "isa.counters": {
-      "description": "bool \u2014 Zicntr mcycle/minstret",
+      "description": "bool \u2014 Zicntr mcycle/minstret; docs/march-only on vesta (the counters are always present \u2014 this gates only the _zicntr march suffix and the legacy constants)",
       "type": "bool",
       "default": false
     },
     "isa.counters64": {
-      "description": "bool \u2014 64-bit counter high halves (needs isa.counters)",
+      "description": "bool \u2014 64-bit counter high halves (needs isa.counters); docs-only on vesta (the high halves are always present)",
       "type": "bool",
       "default": false
     },
@@ -3908,7 +3908,7 @@ const VESTA_DATA = {
   },
   "derivedPresets": {
     "castalia": {
-      "isaString": "rv32imac_zba_zbb_zbs",
+      "isaString": "rv32imac_zba_zbb_zbs_zbc",
       "sharedWindowAddrWidth": 15,
       "sharedRamBanks": 4,
       "flashBaseAddress": "0x20000",
@@ -3925,7 +3925,7 @@ const VESTA_DATA = {
       "stackPointerInit": "0xC000"
     },
     "argus": {
-      "isaString": "rv32imac_zba_zbb_zbs",
+      "isaString": "rv32imac_zba_zbb_zbs_zbc",
       "sharedWindowAddrWidth": 16,
       "sharedRamBanks": 8,
       "flashBaseAddress": "0x40000",
@@ -3942,7 +3942,7 @@ const VESTA_DATA = {
       "stackPointerInit": "0xC000"
     },
     "cq": {
-      "isaString": "rv32imac_zba_zbb_zbs",
+      "isaString": "rv32imac_zba_zbb_zbs_zbc",
       "sharedWindowAddrWidth": 15,
       "sharedRamBanks": 4,
       "flashBaseAddress": "0x20000",
@@ -4109,7 +4109,7 @@ const ISA_EXTS = [
   {key:"ENABLE_DIV",     letter:"M", name:"Integer divide",     hint:"DIV/REM — shares the M letter with multiply"},
   {key:"ENABLE_ATOMICS", letter:"A", name:"Atomics (A)",        hint:"LR/SC + AMO — the multi-hart lock infrastructure needs this"},
   {key:"COMPRESSED_ISA", letter:"C", name:"Compressed (C)",     hint:"16-bit RVC encodings"},
-  {key:"ENABLE_BITMANIP",letter:"B", name:"Bit-manip (B)",      hint:"Zba/Zbb/Zbs arms; advertised as the B letter in misa"},
+  {key:"ENABLE_BITMANIP",letter:"B", name:"Bit-manip (B)",      hint:"Zba/Zbb/Zbs/Zbc arms; Zba/Zbb/Zbs advertised as the B letter in misa"},
   {key:"ENABLE_COUNTERS",letter:"",  name:"Cycle/instret counters", hint:"Zicntr — mcycle/minstret CSRs"},
   {key:"ENABLE_COUNTERS64",letter:"",name:"64-bit counters",    hint:"High halves of the counters (needs counters on)"},
   {key:"ENABLE_FAST_MUL",letter:"",  name:"Fast multiplier",    hint:"Docs-only on vesta (multiplier is already single-cycle)"},
@@ -4210,7 +4210,7 @@ function derived(){
 function isaString(){
   const mOn = cfg.ENABLE_MUL || cfg.ENABLE_DIV;
   let s = "rv32i" + (mOn?"m":"") + (cfg.ENABLE_ATOMICS?"a":"") + (cfg.COMPRESSED_ISA?"c":"");
-  if(cfg.ENABLE_BITMANIP) s += "_zba_zbb_zbs";
+  if(cfg.ENABLE_BITMANIP) s += "_zba_zbb_zbs_zbc";
   if(cfg.ENABLE_COUNTERS) s += "_zicntr";
   return s;
 }
@@ -4279,7 +4279,7 @@ function render(){
     + `<span class="ext ${mOn?"":"off"}">m</span>`
     + `<span class="ext ${cfg.ENABLE_ATOMICS?"":"off"}">a</span>`
     + `<span class="ext ${cfg.COMPRESSED_ISA?"":"off"}">c</span>`
-    + (cfg.ENABLE_BITMANIP?`<span class="ext">_zba_zbb_zbs</span>`:``)
+    + (cfg.ENABLE_BITMANIP?`<span class="ext">_zba_zbb_zbs_zbc</span>`:``)
     + (cfg.ENABLE_COUNTERS?`<span class="ext">_zicntr</span>`:``);
 
   /* ISA toggles */
