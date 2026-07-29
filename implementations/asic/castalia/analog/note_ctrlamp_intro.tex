@@ -49,10 +49,9 @@ The characterisation below is schematic-level, with no extracted parasitics. Two
 testbenches are used and the distinction between them matters when reading the numbers:
 
 \begin{itemize}
-\item \texttt{CellDriveTB} loads the amplifier with a Randles cell model
-(\SI{1}{\kilo\ohm} CE--RE, \SI{1}{\kilo\ohm} RE--WE, \SI{10}{\kilo\ohm} charge transfer,
-\SI{1}{\micro\farad} double layer) and closes the loop from RE, which is how the
-amplifier is actually used. Every drive, compliance and accuracy number comes from here.
+\item \texttt{CellDriveTB} loads the amplifier with the \texttt{randles\_cell} model of
+Section~\ref{ss:analog-models} and closes the loop from RE, which is how the amplifier
+is actually used. Every drive, compliance and accuracy number comes from here.
 \item \texttt{UnityFeedbackWBiasTB} and \texttt{StepUnityFeedbackWBiasTB} load it with
 \SI{10}{\pico\farad} only. These give the small-signal and large-signal figures of the
 amplifier itself. \textbf{Their gain figures are not the gain available at the

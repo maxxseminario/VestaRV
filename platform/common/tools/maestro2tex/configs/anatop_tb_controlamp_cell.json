@@ -151,7 +151,7 @@
       "height": "6.2cm",
       "yprec": 0,
       "ylabel": "Cell current $I_{\\mathrm{cell}}$~[\\si{\\micro\\ampere}]",
-      "caption": "Cell current against commanded electrode potential, over the five process corners. The amplifier drives the counter electrode of a Randles cell (\\SI{1}{\\kilo\\ohm} CE--RE, \\SI{1}{\\kilo\\ohm} RE--WE, \\SI{10}{\\kilo\\ohm} charge transfer, \\SI{1}{\\micro\\farad} double layer) with the working electrode held at \\(v_{\\mathrm{cm}}\\). The flat ends are the output current limit, and it is closely symmetric in both directions."
+      "caption": "Cell current against commanded electrode potential, over the five process corners. The amplifier drives the counter electrode of a Randles cell of Section~\\ref{ss:analog-models} with the working electrode held at \\(v_{\\mathrm{cm}}\\). The flat ends are the output current limit, and it is closely symmetric in both directions."
     },
     {
       "id": "ctrlamp_cell_ce",
