@@ -37,7 +37,8 @@ results database rather than transcribed by hand.
 
 \subsection*{Blocks documented in this revision}
 
-The analog front end is being brought up incrementally. This revision documents
+The analog front end is being brought up incrementally. The electrochemical models
+the benches use are defined once in Section~\ref{ss:analog-models}. This revision documents
 the local bias generator, the potentiostat control amplifier it biases, and the
 transimpedance stage that reads the working electrode; the reference DAC and the
 data converters will be added to this chapter as their benches are closed.
@@ -49,6 +50,9 @@ data converters will be added to this chapter as their benches are closed.
 % point quotes the bias rails that the bias generator section defines, and
 % refers to that section by \ref.
 % ---------------------------------------------------------------------
+
+\input{include/analog/note_models.tex}
+\input{include/analog/sch_models_randles.tex}
 
 \input{include/analog/BiasGenCascWideSwing.tex}
 \input{include/analog/ControlAmp.tex}

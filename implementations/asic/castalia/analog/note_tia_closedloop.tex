@@ -2,12 +2,12 @@
 % configs/anatop_tb_tia.json. Numbers come from tab_tia_closedloop, tab_tia_transfer,
 % tab_tia_amp and tab_tia_ssparams.
 
-\subsubsection{The transimpedance loop}
+\subsubsection{The transimpedance loop}\label{sss:tia-loop}
 
 Closing the loop around the electrode changes the stability picture completely. The
 amplifier has \SI{88}{\degree} of phase margin; the transimpedance loop built from it
 peaks by \SIrange{5.0}{6.4}{\decibel} at about \SI{1}{\kilo\hertz}
-(Figure~\ref{fig:tia-zt}). Nothing about the amplifier causes this. Writing
+(Figure~\ref{fig:tia-zt}). Nothing about the amplifier causes this. Note also what the bench loads the electrode with: a bare \SI{1}{\micro\farad} capacitor, not the Randles cell of Section~\ref{ss:analog-models}. A real cell holds the summing-node impedance finite, so the peaking below is an upper bound on what the electrode would actually produce. Writing
 $C_{\mathrm{dl}}$ for the double-layer capacitance at the summing node,
 
 \begin{equation}\label{eq:tia-beta}
