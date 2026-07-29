@@ -89,6 +89,19 @@ RVTEST_CODE_BEGIN
     li   s3, 0
     li   s11, 0
     li   s8, 0x00005000             # CLINT msip[hart 0]
+
+#ifdef CORE_ENABLE_PMP
+    # P3 PMP PROLOGUE (2026-07-29): with PMP implemented, a U-mode access
+    # matching NO entry FAULTS. This test enters U with an empty bank; grant U
+    # R|W|X over 0x0-0xFFFF (TOR entry 1, base 0) before any MRET into U. Not
+    # assembled on the trapCsr+umode polarity. Uses t3 as scratch (s8 is live).
+    csrw 0x3B0, x0                  # pmpaddr0 = 0 : entry 1's TOR base
+    li   t3, 0x00010000
+    srli t3, t3, 2
+    csrw 0x3B1, t3                  # pmpaddr1 = 0x10000 >> 2
+    li   t3, 0x00000F00             # cfg1 = TOR|X|W|R, cfg0 = OFF
+    csrw 0x3A0, t3
+#endif
     li   a1, 0
     li   a2, 0
 

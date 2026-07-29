@@ -1,0 +1,10 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -2063,7 +2063,6 @@
+                         -- fetches (instr <= decomp(instr_assembled), pc+=4).
+                         -- Harmless when repeat_if was already 0 (the clear is a
+                         -- no-op via the repeat_if_req-precedence in its flop).
+-                        clr_repeat_if    <= '1';
+                         if std_mode = '1' then
+                             next_state <= MTRAP_SV;
+                         else

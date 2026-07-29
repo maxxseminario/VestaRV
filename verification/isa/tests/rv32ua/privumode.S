@@ -144,6 +144,23 @@ pvum_mret1_ret:
     li   t3, 0x00000080             # MPIE only: MPP MUST have been cleared
     bne  t2, t3, pvum_fail
 
+#ifdef CORE_ENABLE_PMP
+    # =====================================================================
+    # P3 PMP PROLOGUE (2026-07-29). With PMP implemented, a U-mode access
+    # matching NO entry FAULTS (spec + frozen §4 no-match rule) — on a pmp
+    # build the first U-mode fetch of ROUND TRIP 1 would take cause 1 and
+    # derail the ECALL protocol. Grant U R|W|X over 0x0-0xFFFF (TOR entry 1,
+    # base = pmpaddr0 = 0; entries 2-15 free, nothing locked) BEFORE the
+    # first U entry. Not assembled on the trapCsr+umode polarity.
+    # =====================================================================
+    csrw 0x3B0, x0                  # pmpaddr0 = 0 : entry 1's TOR base
+    li   t0, 0x00010000
+    srli t0, t0, 2                  # word address of the TOR top
+    csrw 0x3B1, t0                  # pmpaddr1 = 0x10000 >> 2
+    li   t0, 0x00000F00             # cfg1 = TOR|X|W|R, cfg0 = OFF
+    csrw 0x3A0, t0
+#endif
+
     # =====================================================================
     # U-MODE ROUND TRIP 1 — CHECK 9..15.
     # MPP=00 + MRET enters U; the U code's ECALL comes back to M with cause 8.
@@ -226,10 +243,52 @@ pvum_m2:
     bne  s6, x0, pvum_fail
 
     # =====================================================================
+    # U-MODE ROUND TRIP 3 — CHECK 22..25 (P3-entry, kickoff §3 item 1):
+    # an MRET that returns BELOW M must CLEAR mstatus.MPRV (priv-spec rule;
+    # without it M-privileged data-access semantics ride into U — an escape
+    # vector the moment PMP consumes data_priv_m). Negative control
+    # p3e_mprvmret drops exactly that clear; CHECK 25 is its catcher.
+    # =====================================================================
+    li   t4, 22
+    li   t1, 0x00020000             # MPRV=1, MPP=00 (U)
+    csrw 0x300, t1
+    csrr t2, 0x300                  # pre-condition: MPRV really stored
+    li   t3, 0x00020000
+    bne  t2, t3, pvum_fail
+
+    li   t4, 23
+    li   s1, 0
+    la   s0, pvum_uecall3
+    la   s9, pvum_m3
+    la   t0, pvum_uentry3
+    csrw 0x341, t0
+    mret                            # ---- U-MODE; this MRET must clear MPRV ----
+
+pvum_uentry3:
+    li   s1, 0x000000C3
+pvum_uecall3:
+    ecall
+    j    pvum_fail
+
+pvum_m3:
+    li   t4, 24                     # trap 3 delivered: from U, cause 8, right pc
+    li   t3, 3
+    bne  s3, t3, pvum_fail
+    li   t3, 8
+    bne  s4, t3, pvum_fail
+    bne  s5, s0, pvum_fail
+
+    li   t4, 25                     # THE POINT: MPRV reads 0 back in M — the
+    csrr t2, 0x300                  # entry MRET cleared it and nothing set it
+    li   t3, 0x00020000             # since (trap entry does not touch MPRV).
+    and  t2, t2, t3
+    bne  t2, x0, pvum_fail
+
+    # =====================================================================
     # RESTORE — back to LEGACY delivery and a quiet mstatus/mie, so an ON
     # build running the rest of the suite is provably unaffected.
     # =====================================================================
-    li   t4, 22
+    li   t4, 26
     li   t1, 0x00000001
     csrw 0x7C0, t1
     csrw 0x300, x0

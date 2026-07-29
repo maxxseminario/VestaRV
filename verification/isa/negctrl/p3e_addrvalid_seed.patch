@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/maindec.vhd
++++ b/hdl/common/vesta/maindec.vhd
+@@ -487,7 +487,7 @@
+     -- 16+4 new write arms, where any arm decoded wider than the exact address
+     -- set would otherwise be reachable from a trapping encoding. privcsr
+     -- CHECK 35 pins the trap-and-commit-nothing behavior.
+-    csr_valid <= is_csr_instr and csr_addr_valid and (not u_csr_denied);
++    csr_valid <= is_csr_instr and (not u_csr_denied);
+ 
+     -- ==========================================
+     -- RV32A Atomic Operation Signals

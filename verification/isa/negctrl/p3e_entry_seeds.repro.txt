@@ -1,0 +1,117 @@
+P3-ENTRY negative controls — seeded-bug repro (Fable-direct, 2026-07-29)
+========================================================================
+
+The four p3_kickoff.md §3 entry fixes (shared RTL, done by the architect
+BEFORE any P3 agent spawned), each with a committed seed. TWO of the four
+seeds bite today; the other TWO are DEFENSE-IN-DEPTH guards whose
+redundancy is structural — both were still DEMONSTRATED (seeded run =
+still-PASS, with the RTL reasoning recorded below), per the X3 jvtmask
+rule that a control's behavior must be observed, not assumed.
+
+  seed patch                   caught by     CHECK  bites today?
+  ---------------------------  ------------  -----  --------------------------
+  p3e_mprvmret_seed.patch      privumode      25    YES (t4=25, a0=DEADBEEF)
+  p3e_csrform_seed.patch       privcsr        34    YES (t4=34, a0=DEADBEEF)
+  p3e_addrvalid_seed.patch     privcsr        35    NO — see (3); re-armed at P3
+  p3e_mretugate_seed.patch     (privucsr)      —    NO — see (4); structural
+
+----------------------------------------------------------------------------
+(1) p3e_mprvmret_seed.patch — hdl/common/vesta/csr_unit.vhd
+----------------------------------------------------------------------------
+Drops the `mst_mprv <= '0'` in the MRET arm — i.e. an MRET that returns
+BELOW M no longer clears mstatus.MPRV (priv-spec: "An MRET or SRET
+instruction that changes the privilege mode to a mode less privileged than
+M also sets MPRV=0"). Without the clear, M-privileged data-access
+semantics ride into U — an escape vector the moment PMP consumes
+data_priv_m.
+
+privumode ROUND TRIP 3 (CHECK 22..25) sets MPRV=1 + MPP=00, MRETs into U,
+ECALLs back, and CHECK 25 requires mstatus.MPRV == 0. Seeded it reads 1
+and the bounded bne fires (t4 = 25).
+
+----------------------------------------------------------------------------
+(2) p3e_csrform_seed.patch — hdl/common/vesta/csr_unit.vhd
+----------------------------------------------------------------------------
+Reverts csr_write_en to the old guard (`csr_op(1)='1' or csr_op(0)='1' or
+write_data /= 0`) — satisfied by ALL SIX CSR funct3 values, so a plain
+`csrr` (CSRRS rd, csr, x0) asserts the write enable again, spec-wrong.
+
+privcsr CHECK 34 is the self-calibrating A/B: two 9-read mcycle windows,
+instruction-identical except the rs1 FIELD of the 7 middle reads (window A
+= csrrs with x5 holding 0, a real write-back form under both rules; window
+B = csrr). The write-precedence rule makes a (wrongly) writing read FREEZE
+mcycle, so seeded deltaB == deltaA exactly and `bgeu deltaA, deltaB` fires
+(t4 = 34); fixed, window B keeps counting and deltaB > deltaA.
+
+----------------------------------------------------------------------------
+(3) p3e_addrvalid_seed.patch — hdl/common/vesta/maindec.vhd  [CANNOT BITE TODAY]
+----------------------------------------------------------------------------
+Reverts `csr_valid <= is_csr_instr and csr_addr_valid and (not
+u_csr_denied)` to the P2 form without the csr_addr_valid term, so an
+UNKNOWN-CSR instruction (which traps via valid_funct) strobes
+csr_write_en again.
+
+DEMONSTRATED 2026-07-29: seeded, privcsr (incl. CHECK 35's unknown-0x345
+write-with-sentinel) still PASSES. That is STRUCTURAL, not a test gap:
+on today's RTL every csr_unit write arm is (a) an exactly-decoded legal
+address that csr_addr_valid also admits, or (b) generic-gated by the same
+generic that admits its address — so an unknown address can strobe
+csr_write_en and still match no arm. The fix is defense-in-depth for the
+P3 pmpcfg/pmpaddr bank (16+4 write arms, where any arm decoded wider than
+its exact address set would otherwise be reachable from a trapping
+encoding).
+
+RE-ARMED AT P3 — DEMONSTRATED 2026-07-29 (the bank now exists). The pin
+is privpmpcs CHECK 49 (a `csrw 0x3A4` — unknown on RV32, adjacent to the
+live bank — with a pmpcfg0 sentinel, standard-mode skip handler); the
+widened-arm slip is modeled by the committed p3e_widearm_demo.patch
+(`when CSR_PMPCFG0 | x"3A4" =>`). Four-way result, all on the
+trapCsr+umode+pmp build:
+
+  clean                          -> privpmpcs TEST PASSED
+  + widearm alone                -> privpmpcs TEST PASSED
+       (THE GUARD HOLDS: csr_valid ANDs csr_addr_valid, so the trapping
+        0x3A4 write never strobes csr_write_en even though the arm decode
+        would accept it)
+  + widearm + p3e_addrvalid      -> privpmpcs TEST FAILED (t4=49,
+        a0=DEADBEEF — the write LANDS in entry 0: WARL(0xE5)=0x85 != the
+        0x19 sentinel, and it would also have LOCKED entry 0)
+  both reverted                  -> privpmpcs TEST PASSED
+
+The addrvalid gate is therefore PROVEN load-bearing against the wide-arm
+slip class, which is precisely what "defense-in-depth" claimed.
+
+----------------------------------------------------------------------------
+(4) p3e_mretugate_seed.patch — hdl/common/vesta/maindec.vhd  [STRUCTURAL]
+----------------------------------------------------------------------------
+Reverts the `u_gate = '0'` qualifier on mret_op (P2 red-team A17: the one
+privileged decode output not carrying the U-gate). DEMONSTRATED
+2026-07-29: seeded, privucsr (whose POISON set includes a U-mode MRET)
+still PASSES — because every vesta FSM dispatch arm checks `trap` BEFORE
+mret_op (verified at all four sites), a U-mode MRET always takes the
+illegal path first. The qualifier is structural consistency (wfi_op
+carries its own), protecting FUTURE consumers of mret_op that might not
+repeat the trap-first discipline.
+
+----------------------------------------------------------------------------
+Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
+----------------------------------------------------------------------------
+  clean RTL                    -> privcsr / privumode / privucsr /
+                                  privecall / privirq / privwfi  6/6 PASS
+  + p3e_csrform_seed.patch     -> privcsr  TEST FAILED (t4=34, a0=DEADBEEF)
+  reverted                     -> privcsr  TEST PASSED
+  + p3e_mprvmret_seed.patch    -> privumode TEST FAILED (t4=25, a0=DEADBEEF)
+  reverted                     -> privumode TEST PASSED
+  + p3e_addrvalid_seed.patch   -> privcsr  TEST PASSED  [expected — see (3)]
+  reverted                     -> (tree diff-verified seed-free)
+  + p3e_mretugate_seed.patch   -> privucsr TEST PASSED  [expected — see (4)]
+  reverted                     -> (tree diff-verified seed-free)
+
+----------------------------------------------------------------------------
+Exact repro
+----------------------------------------------------------------------------
+Identical staging to p2_umode_seeds.repro.txt (same ON_OPTS, same
+generate.py staging, same xrun_batch runs, same probe tcl for t4/a0) —
+follow that file's recipe with these seeds/tests. The mcycle A/B check
+(CHECK 34) is RTL-only like the rest: no image rebuild between
+clean/seeded/reverted runs.

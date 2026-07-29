@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -1854,7 +1854,7 @@
+     -- Every other privilege change RAISES privilege (trap entry -> M), so its
+     -- issued fetch is checked at the stricter old privilege -- the safe
+     -- direction; only the LOWERING MRET case needs this override.
+-    pmp_f_priv <= mret_priv_m when current_state = MTRAP_RET else trap_priv_mode;
++    pmp_f_priv <= trap_priv_mode;
+ 
+     pmp_f_deny <= '1' when (ENABLE_PMP and pmp_f_grant = '0') else '0';
+ 

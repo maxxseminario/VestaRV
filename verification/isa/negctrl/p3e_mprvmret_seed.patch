@@ -1,0 +1,10 @@
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -727,7 +727,6 @@
+                             -- would ride into U -- an escape vector the
+                             -- moment PMP consumes data_priv_m. Negative
+                             -- control: p3e_mprvmret drops exactly this line).
+-                            mst_mprv <= '0';
+                         end if;
+                         mst_mpp <= MPP_U;
+                     end if;

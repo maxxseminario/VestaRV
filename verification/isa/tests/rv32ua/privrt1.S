@@ -107,6 +107,19 @@ RVTEST_CODE_BEGIN
     li   s6, 0x00005020             # CLINT mtimecmp[0] lo
     li   s7, 0x00005010             # CLINT mtime lo
 
+#ifdef CORE_ENABLE_PMP
+    # P3 PMP PROLOGUE (2026-07-29): with PMP implemented, a U-mode access
+    # matching NO entry FAULTS (spec + frozen §4). This test enters U with an
+    # empty bank, so grant U R|W|X over 0x0-0xFFFF (TOR entry 1, base 0) before
+    # any MRET into U. Not assembled on the trapCsr+umode polarity.
+    csrw 0x3B0, x0                  # pmpaddr0 = 0 : entry 1's TOR base
+    li   t0, 0x00010000
+    srli t0, t0, 2
+    csrw 0x3B1, t0                  # pmpaddr1 = 0x10000 >> 2
+    li   t0, 0x00000F00             # cfg1 = TOR|X|W|R, cfg0 = OFF
+    csrw 0x3A0, t0
+#endif
+
     # =====================================================================
     # M SETUP — CHECK 1..3
     # =====================================================================

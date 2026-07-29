@@ -1,0 +1,11 @@
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -813,7 +813,7 @@
+                     -- The WARL mask (pmp_cfg_warl) pins bits 6:5 to 0 and W to
+                     -- 0 when R=0; pmpaddr stores bits 29:0 only (31:30 WARL 0).
+                     -- ======================================================
+-                    when CSR_PMPCFG0 =>
++                    when CSR_PMPCFG0 | x"3A4" =>
+                         if ENABLE_PMP then
+                             if 0 < PMP_ENTRIES and not pmp_locked(pmp_cfg(0)) then
+                                 pmp_cfg(0) <= pmp_cfg_warl(csr_new_val(7 downto 0));

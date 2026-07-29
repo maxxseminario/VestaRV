@@ -1,0 +1,14 @@
+--- a/hdl/common/vesta/pmp_unit.vhd
++++ b/hdl/common/vesta/pmp_unit.vhd
+@@ -211,7 +211,10 @@
+ 
+         -- Matched. An UNLOCKED entry does not constrain M-mode at all; a
+         -- LOCKED entry enforces its R/W/X on M exactly as it does on U.
+-        if priv_m = '1' and hit_cfg(7) = '0' then
++        -- NEGATIVE CONTROL p3_lockmdeny: the L-bit qualifier is dropped, so a
++        -- LOCKED entry no longer enforces on M-mode -- the exact escape the
++        -- lock bit exists to prevent.
++        if priv_m = '1' then
+             return '1';
+         end if;
+ 

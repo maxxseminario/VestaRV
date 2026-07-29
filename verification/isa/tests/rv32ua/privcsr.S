@@ -36,10 +36,12 @@
 #   privprobe poisons (behavioral_mp_stripped/run_extoff.sh + trap_watch.tcl),
 #   one poison per address — a dead-end trap can only ever prove one at a time.
 #
-# NOTE on `csrr`: this core's csr_write_en does NOT special-case rs1=x0, so a
-# CSRRS-with-x0 read also writes the value it just read back. Every arm of the
-# P1 CSR write case is IDEMPOTENT under that (a read-back write re-stores the
-# same masked value), so a plain `csrr` cannot perturb the state being checked.
+# NOTE on `csrr` (UPDATED at P3-entry, 2026-07-29): csr_write_en now implements
+# the spec's instruction-form rule — CSRRW/CSRRWI always write; CSRRS/CSRRC with
+# rs1=x0 and CSRRSI/CSRRCI with uimm=0 do NOT write. A plain `csrr` therefore
+# no longer asserts the write enable at all (CHECK 34 pins this via the mcycle
+# write-precedence freeze). P3-entry also added mstatus.MPRV (CHECK 4/33) and
+# the csr_addr_valid write-enable gate (CHECK 35).
 #
 # t4 carries the CHECK ID at every comparison, so a FAIL is localisable from a
 # waveform / a0 post-mortem without re-running.
@@ -62,10 +64,14 @@
 #ifdef CORE_ENABLE_UMODE
 #define P_MPP0  0x00000000
 #define P_TWALL 0x00200000
+#define P_MPRVALL 0x00020000
 #else
 #define P_MPP0  0x00001800
 #define P_TWALL 0x00000000
+#define P_MPRVALL 0x00000000
 #endif
+/* P_MPRVALL: mstatus.MPRV (17), P3-entry — WARL {0,1} with U-mode, read-only
+   0 without it (priv spec: MPRV is read-only 0 when U is not supported). */
 
 .option norvc
 .option norelax
@@ -126,7 +132,7 @@ RVTEST_CODE_BEGIN
     li   t1, 0xFFFFFFFF
     csrw 0x300, t1
     csrr t2, 0x300
-    li   t3, (0x00001888|P_TWALL)
+    li   t3, (0x00001888|P_TWALL|P_MPRVALL)
     bne  t2, t3, pcsr_fail
 
     li   t4, 5
@@ -343,12 +349,98 @@ RVTEST_CODE_BEGIN
     bne  t2, t3, pcsr_fail
 
     # =====================================================================
+    # CHECK 33 — mstatus.MPRV (17), P3-entry item 1: WARL {0,1} on a U-mode
+    # build, read-only 0 without one. CHECK 4 already proved the all-ones
+    # write stores it; this pins the ISOLATED bit and clears it again.
+    # (The MRET-to-U clears-MPRV rule is privumode CHECK 25 — it needs a
+    # privilege round trip this file deliberately does not perform.)
+    # =====================================================================
+    li   t4, 33
+    li   t1, 0x00020000
+    csrw 0x300, t1
+    csrr t2, 0x300
+    li   t3, (P_MPP0|P_MPRVALL)
+    bne  t2, t3, pcsr_fail
+    csrw 0x300, x0                  # MPRV back to 0
+
+    # =====================================================================
+    # CHECK 34 — P3-entry item 3 (the csr_write_en FORM rule): a plain
+    # `csrr` (CSRRS rd, csr, x0) must NOT assert the CSR write enable.
+    # OBSERVABLE: the mcycle write-precedence. A CSR write to mcycle beats
+    # the same-cycle increment, so a read form that (wrongly) writes back
+    # FREEZES mcycle for every cycle it presents its decode. Two windows,
+    # instruction-identical except the rs1 FIELD of the seven middle reads:
+    #   window A: csrrs t1, mcycle, x5 with x5 = 0 — rs1 /= x0, a REAL
+    #             write-back form under BOTH old and new rules (value 0
+    #             stores back the read value = the freeze, in both);
+    #   window B: csrr t1, mcycle — rs1 = x0, must not write when fixed.
+    # Bug present: deltaB == deltaA exactly (identical timing, both
+    # freeze). Fixed: mcycle keeps counting through window B's reads, so
+    # deltaB > deltaA. Negative control p3e_csrform re-runs this check.
+    # =====================================================================
+    li   t4, 34
+    li   x5, 0
+    csrrs s2, 0xB00, x5             # window A start (write-back form)
+    csrrs t1, 0xB00, x5
+    csrrs t1, 0xB00, x5
+    csrrs t1, 0xB00, x5
+    csrrs t1, 0xB00, x5
+    csrrs t1, 0xB00, x5
+    csrrs t1, 0xB00, x5
+    csrrs t1, 0xB00, x5
+    csrrs s3, 0xB00, x5             # window A end
+    sub  s2, s3, s2                 # deltaA
+    csrrs s4, 0xB00, x5             # window B start (same write-back form)
+    csrr t1, 0xB00
+    csrr t1, 0xB00
+    csrr t1, 0xB00
+    csrr t1, 0xB00
+    csrr t1, 0xB00
+    csrr t1, 0xB00
+    csrr t1, 0xB00
+    csrrs s5, 0xB00, x5             # window B end
+    sub  s4, s5, s4                 # deltaB
+    bgeu s2, s4, pcsr_fail          # FAIL iff deltaA >= deltaB
+
+    # =====================================================================
+    # CHECK 35 — P3-entry item 2 (csr_valid AND csr_addr_valid): a WRITE to
+    # an UNKNOWN CSR address (0x345 — adjacent to the implemented
+    # mscratch/mepc/mcause/mtval/mip block) takes the illegal-instruction
+    # trap and commits NOTHING. Needs standard mode (in legacy an illegal
+    # dead-ends in TRAP_STATE): mtvec -> the +4 skip handler, LEGACY=0 for
+    # exactly the faulting instruction, LEGACY restored immediately after.
+    # mscratch carries a sentinel across the trap (hardware never writes
+    # mscratch); mcause must read 2 back in M. Negative control
+    # p3e_addrvalid re-runs this check (see the repro for its P3 scope).
+    # =====================================================================
+    li   t4, 35
+    la   t1, pcsr_skip
+    csrw 0x305, t1                  # mtvec = the +4 skip handler
+    li   t1, 0x5AFEC0DE
+    csrw 0x340, t1                  # mscratch sentinel
+    csrw 0x300, x0                  # MIE = 0: nothing async in the window
+    li   s5, 0
+    csrw 0x7C0, x0                  # LEGACY = 0 — standard delivery ON
+    csrw 0x345, t1                  # UNKNOWN CSR: traps, handler skips +4
+    li   s5, 1                      # reached only via the handler resume
+    li   t1, 1
+    csrw 0x7C0, t1                  # LEGACY back to 1 IMMEDIATELY
+    li   t3, 1
+    bne  s5, t3, pcsr_fail          # the trap resumed at +4
+    csrr t2, 0x342                  # mcause == 2 (illegal instruction)
+    li   t3, 2
+    bne  t2, t3, pcsr_fail
+    csrr t2, 0x340                  # the sentinel survived: NO commit
+    li   t3, 0x5AFEC0DE
+    bne  t2, t3, pcsr_fail
+
+    # =====================================================================
     # RESTORE the architectural state this test perturbed, so an ON build
     # running the rest of the suite is unaffected:
-    #   mtrapctl.LEGACY = 1 (already restored at CHECK 3 — re-assert),
+    #   mtrapctl.LEGACY = 1 (already restored at CHECK 35 — re-assert),
     #   mstatus.MIE/MPIE = 0, mie = 0.
     # =====================================================================
-    li   t4, 32
+    li   t4, 36
     li   t1, 0x00000001
     csrw 0x7C0, t1
     csrw 0x300, x0
@@ -362,6 +454,19 @@ RVTEST_CODE_BEGIN
     .option pop
 
     RVTEST_PASS
+
+    # ---- CHECK 35's mtvec target: skip the faulting instruction (+4).
+    # Reached only through the standard-mode trap; never by fall-through
+    # (RVTEST_PASS above is a spin loop).
+    .align 2
+pcsr_skip:
+    .option push
+    .option arch, +zicsr
+    csrr t2, 0x341                  # mepc = the faulting csrw
+    addi t2, t2, 4                  # norvc build: always +4
+    csrw 0x341, t2
+    mret
+    .option pop
 
 #else
     # OFF build: the ten P1 addresses are unknown CSRs (illegal instruction,

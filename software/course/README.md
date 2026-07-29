@@ -373,10 +373,15 @@ addresses; the words each lab actually uses are itemized here:
 | lab10_sync             | MOWNER   | 0x102D0   | mutex owner marker (teaching)            |
 | lab10_sync             | DONE[h]  | 0x102E0+4h| tile h reported-in (h = 1..NTILES)       |
 | lab11_npu              | (none)   | --        | hart-0 only; NPU staging RAM 0xC000 is not the band |
+| (P3 suite: privpmpmx)  | MTXVAL   | 0x10378   | hart-1's mutex claim read-back (D5 proof)|
+| (P3 suite: privpmpmx)  | DONE1    | 0x1037C   | hart-1 reported-in                       |
 
 Highest course-band word in use: `lab10 DONE[5] = 0x102F4` (`< 0x1037F`).
 lab09's tile hammer and lab10's counters live below `0x102F8`; the rest of the
-band (`0x102F8`-`0x1037F`) is free for future labs. The HW mutex bank
+band (`0x102F8`-`0x10377`) is free for future labs — the TOP TWO words
+(`0x10378`/`0x1037C`) are claimed by the P3 `privpmpmx` D5 test (2026-07-29,
+runs in isolation like everything else here; listed so no lab reuses them
+without knowing). The HW mutex bank
 (`MUTEX0 @0x6000`) and the NPU staging RAM (`0xC000`) are chip resources, not
 band words -- never LR/SC or AMO a mutex-bank address (the claim-read side
 effect fires).

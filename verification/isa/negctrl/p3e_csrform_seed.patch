@@ -1,0 +1,12 @@
+--- a/hdl/common/vesta/csr_unit.vhd
++++ b/hdl/common/vesta/csr_unit.vhd
+@@ -301,7 +301,8 @@
+     -- write-precedence rule -- privcsr CHECK 34 pins the fixed behavior).
+     -- The P3 pmpcfg/pmpaddr bank is why this lands now: locked entries must
+     -- never see probing writes from read-only instruction forms.
+-    csr_write_en <= csr_valid when (csr_op(1 downto 0) = "01" or csr_rs1_zero = '0')
++    csr_write_en <= csr_valid when (csr_op(1) = '1' or csr_op(0) = '1'
++                                or (csr_write_data /= CSR_ZERO_X))
+                                 else '0';
+ 
+     -- CSR read process

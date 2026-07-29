@@ -1,0 +1,14 @@
+--- a/hdl/common/vesta/pmp_unit.vhd
++++ b/hdl/common/vesta/pmp_unit.vhd
+@@ -136,7 +136,10 @@
+     -- ----------------------------------------------------------------------
+     function napot_dontcare(p : pmp_word_t) return pmp_word_t is
+     begin
+-        return p xor (p + 1);
++        -- NEGATIVE CONTROL p3_napotoff: the don't-care mask is shifted one
++        -- place right, so every NAPOT region decodes ONE POWER OF TWO TOO
++        -- SMALL (a 16-byte region covers only its low 8 bytes).
++        return shift_right(p xor (p + 1), 1);
+     end function;
+ 
+     -- ----------------------------------------------------------------------

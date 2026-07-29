@@ -1,0 +1,14 @@
+--- a/hdl/common/vesta/pmp_unit.vhd
++++ b/hdl/common/vesta/pmp_unit.vhd
+@@ -189,7 +189,10 @@
+         hit_cfg := (others => '0');
+ 
+         for i in 0 to PMP_MAX_ENTRIES-1 loop
+-            if i < entries and not hit then
++            -- NEGATIVE CONTROL p3_priorder: dropping the `not hit` term makes
++            -- the LAST (highest-numbered) matching entry overwrite the verdict,
++            -- i.e. highest-wins instead of the frozen lowest-wins priority.
++            if i < entries then
+                 cfgv := cfg_of(cfg_flat, i);
+                 hi   := addr_of(addr_flat, i);
+                 if i = 0 then

@@ -1,0 +1,23 @@
+--- a/hdl/common/vesta/vesta.vhd
++++ b/hdl/common/vesta/vesta.vhd
+@@ -2404,11 +2404,17 @@
+                                     next_state <= TRAP_STATE;
+                                 end if;
+                             elsif ENABLE_PMP and pmp_d_deny = '1' then
+-                                -- P3 PMP load/store access fault -- the D5 arm; see
+-                                -- the split-fetch arm above for the full rationale.
++                                -- NEGATIVE CONTROL p3_postissue: the check is still
++                                -- made and the trap is still taken with the correct
++                                -- cause/mtval/mepc -- but the ACCESS IS ALLOWED TO
++                                -- ISSUE first (mem_access_instr '1' puts the denied
++                                -- address on data_addr, which is all hart_tile's
++                                -- sh_sel/sh_req need). This models "the check landed
++                                -- after the arbiter grant": every cause-and-mtval
++                                -- test still PASSES; only privpmpmx sees it.
+                                 pc_en            <= '0';
+                                 reg_write_dp     <= '0';
+-                                mem_access_instr <= '0';
++                                mem_access_instr <= '1';
+                                 wen              <= (others => '1');
+                                 if std_mode = '1' then
+                                     next_state <= MTRAP_SV;
