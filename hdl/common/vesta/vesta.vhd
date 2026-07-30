@@ -587,7 +587,7 @@ architecture struct of vesta is
     signal pc_next_reg            : std_logic_vector(XLEN-1 downto 0);  -- Registered PC next
     signal pc_next_trad_reg       : std_logic_vector(XLEN-1 downto 0);  -- Registered traditional PC next
     signal pc_next_ret            : std_logic_vector(XLEN-1 downto 0);  -- Return PC after IRQ
-    signal pc_next_ret_ltch       : std_logic;                      -- Latch for return PC
+    -- F11 (fix pass W1): pc_next_ret_ltch is RETIRED -- see :1109.
     signal pc_en                  : std_logic;                      -- PC update enable
     signal pc_src                 : std_logic;                      -- PC source select
 
@@ -1106,22 +1106,47 @@ architecture struct of vesta is
     -- ==========================================
     -- PC Return Value Latching
     -- ==========================================
-    -- Latch PC return value when clock is gated off
-    pc_next_ret_gt_proc: process(resetn, clk_cpu)
-    begin
-        if resetn = '0' then
-            pc_next_ret_ltch <= '0';
-        elsif rising_edge(clk_cpu) then
-            if en_clk_cpu = '0' then
-                pc_next_ret_ltch <= '1';
-            else
-                pc_next_ret_ltch <= '0';
-            end if;
-        end if;
-    end process;
-
-    -- Select PC return value based on latch state
-    pc_next_ret <= read_data when pc_next_ret_ltch = '0' else pc_next_ret;
+    -- F11 (fix pass W1): this WAS a 32-bit transparent latch bank plus a
+    -- guard flop, and the latch was DEAD -- provably always transparent.
+    --
+    --     pc_next_ret_gt_proc: process(resetn, clk_cpu) ...
+    --         elsif rising_edge(clk_cpu) then
+    --             if en_clk_cpu = '0' then pc_next_ret_ltch <= '1';
+    --             else                     pc_next_ret_ltch <= '0'; end if;
+    --     pc_next_ret <= read_data when pc_next_ret_ltch = '0' else pc_next_ret;
+    --
+    -- WHY IT WAS DEAD. clk_cpu is the ClkGate output, and ClkGate is
+    -- `ClkSync <= En while ClkIn = '0'` + `ClkOut <= ClkSync and ClkIn`
+    -- (hdl/common/sim/ClkGate.vhd; the PREICGX1BA10TH synthesis cell samples
+    -- the enable while the clock is low in the same way). So clk_cpu can only
+    -- RISE when ClkSync = '1', i.e. when en_clk_cpu was '1' at the end of the
+    -- preceding low phase -- EVERY rising edge of clk_cpu therefore has
+    -- en_clk_cpu = '1', the process always took its `else` arm, and
+    -- pc_next_ret_ltch was a constant '0' after reset. (A mid-HIGH fall of
+    -- en_clk_cpu cannot create an edge: ClkOut is already high. And the
+    -- process cannot race it: en_clk_cpu's inputs -- mem_ready, irq_active,
+    -- sleep, current_state -- all settle at delta +1/+2 after an edge, while
+    -- this process ran at delta 0 and read the pre-edge '1'.)
+    --
+    -- MEASURED, not merely argued. A TEMP concurrent assertion whose
+    -- predicate is always false makes its FIRE COUNT equal the number of
+    -- transitions of the signal. Over the full behavioral_mp suite, the
+    -- single-hart lockstep sweep and the multi-hart sweep -- 258 sims x
+    -- 4 harts = 1032 hart-instances -- it fired exactly 4 times per sim,
+    -- always at time 0 FS: the 'U'->'0' reset settle, and never again.
+    -- The netlist agreed, to the digit: `sequential` 2284 -> 2251 instances
+    -- and 21,650.800 -> 21,487.600 area, exactly the predicted -33 / -163.200
+    -- (32 latches @ 4.8 + one DFFRPQX1MA10TH @ 9.6). pc_next_ret_ltch has
+    -- zero residue in the netlist. The latches that REMAIN -- 32 result_reg,
+    -- 32 sp_write_data_reg, is_compressed_reg, reg_write_dp_reg -- are other
+    -- inferences and are not this finding.
+    --
+    -- So pc_next_ret is simply read_data, and its one consumer -- the
+    -- IRQ_REST arm of the pc_next mux (:1527) -- samples the popped return
+    -- PC off the bus at the IRQ_REST clk_cpu edge, which is precisely the
+    -- cycle in which read_data carries it. Keeping the name documents that.
+    -- DO NOT "restore" the latch: it never held anything.
+    pc_next_ret <= read_data;
 
     -- ==========================================
     -- RV32A Reservation Management
