@@ -3540,6 +3540,19 @@ architecture struct of vesta is
                 -- IRQ_REST State - Restore context from interrupt
                 -- ==========================================
                 when IRQ_REST =>
+                    -- W2/F4a: NOTHING may write rd here.  This arm used to fall
+                    -- through to the `reg_write_dp <= reg_write_ctrl` default
+                    -- (:2249) and was correct only by a DECODE COINCIDENCE:
+                    -- instr_curr is held at the `iret`, which is CUSTOM_OPCODE,
+                    -- and maindec's reg_write list (:960-973) happens to end
+                    -- `'0'; -- No write for stores, branches, custom
+                    -- instructions`.  Nothing enforced that, in either file.
+                    -- Unlike MEMORY_WAIT / DIV_DONE / FPU_DONE -- which are REAL
+                    -- COMMIT SITES, where the fall-through IS how a load, a div
+                    -- and an FP op write their rd, and which therefore get an
+                    -- assertion instead -- IRQ_REST has no rd to commit at all,
+                    -- so the coincidence is simply removed.
+                    reg_write_dp <= '0';
                     if irq_save = '1' then
                         -- Nested interrupt
                         next_state <= IRQ_SV;
@@ -3593,6 +3606,12 @@ architecture struct of vesta is
                 -- is cleared by wfi_slept_proc on whichever exit is taken.
                 when SLEEPING =>
                     pc_en <= '0';
+                    -- W2/F4a: same rule as IRQ_REST above.  The held encoding is
+                    -- the `extinguish`/`wfi` that put us here, so reg_write_ctrl
+                    -- is '0' by the same maindec coincidence -- and a sleep can
+                    -- last an unbounded, clock-gated number of cycles, so this is
+                    -- the last state in the machine that should be relying on one.
+                    reg_write_dp <= '0';
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
