@@ -3463,6 +3463,20 @@ architecture struct of vesta is
                 -- ==========================================
                 when TRAP_STATE =>
                     pc_en <= '0';
+                    -- F8 (fix pass W1): TRAP_STATE assigned no `wen`, so it
+                    -- inherited the FSM process default `wen <= wen_controller`
+                    -- (:2126) -- the DECODER's live lane strobes. TRAP_STATE is
+                    -- also absent from the instr_curr hold list (:1429-1474), so
+                    -- instr_curr = instr_decomp of the live bus word; a store
+                    -- encoding on read_data therefore committed a REAL store at
+                    -- data_addr every cycle of this self-loop, until the tb
+                    -- watchdog. wen is ACTIVE-LOW per byte lane, so all-ones =
+                    -- no write; the sibling stall states already do exactly this
+                    -- (MEMORY_WAIT :3221, FENCE_WAIT, IRQ_JUMP, MTRAP_*).
+                    -- mem_access_instr is already at its '0' default here, and
+                    -- the state is terminal, so nothing downstream consumes an
+                    -- access from it. Detector: rv32ua-p-trapstor.
+                    wen <= (others => '1');   -- no store while trapped
                     reg_write_dp <= '0';
                     next_state <= TRAP_STATE;
                     trap_flag <= '1';
