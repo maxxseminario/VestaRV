@@ -974,6 +974,11 @@ architecture struct of vesta is
     -- trap_entry_seq OR pmp_if_squash: the decode-bypassing side effects
     -- (csr_valid, isr_ret, sleep_cpu) are killed by either.
     signal dec_squash             : std_logic;
+    -- W2 (F7/F3/F3+/F3++): the POSITIVE form of that rule -- '1' in exactly the
+    -- cycle in which the decode of instr_curr is a DISPATCHING instruction and
+    -- may therefore commit a side effect that bypasses the FSM. See the
+    -- assignment for the per-term justification.
+    signal dec_dispatch           : std_logic;
     -- data_addr park select (see the mechanism note above).
     signal pmp_if_park            : std_logic;
     -- Data port.
@@ -1488,7 +1493,19 @@ architecture struct of vesta is
                   instr_curr_prev when (current_state = FPU_FETCH3) else  -- X4 Zfinx: hold FP instr
                   instr_curr_prev when (current_state = FPU_WAIT) else
                   instr_curr_prev when (current_state = FPU_DONE) else
-                  instr_curr_prev when (current_state = IRQ_SV) else
+                  -- W2/F5.4: a SECOND `current_state = IRQ_SV` arm used to sit
+                  -- here. It was DEAD -- the `instr when (current_state =
+                  -- IRQ_SV)` arm at the head of this mux (:1484) matches first
+                  -- and wins -- so IRQ_SV has always decoded the RAW BUS WORD,
+                  -- which on this path is deterministically the next instruction
+                  -- in program order. That live decode is F3. The head arm is
+                  -- deliberately LEFT AS IS (changing it to hold would move
+                  -- mtval / PC-target behaviour in the legacy entry path, which
+                  -- is out of scope); instead the raw word is now INERT, because
+                  -- dec_dispatch (:1992) gates every strobe that could have
+                  -- acted on it -- csr_valid_eff (F3) and the sleep_cpu flop in
+                  -- BOTH directions (F3+/F3++) -- and the FSM arm (:3461) forces
+                  -- reg_write_dp='0' and wen all-ones.
                   -- P1: HOLD the faulting/trapping instruction across the standard
                   -- trap-entry pair. Two reasons: (a) mtval for an illegal
                   -- instruction is taken from instr_curr_prev, which stays stable
@@ -1927,7 +1944,68 @@ architecture struct of vesta is
     -- so dec_squash degenerates to trap_entry_seq and the OFF build is
     -- bit-identical.
     dec_squash     <= trap_entry_seq or pmp_if_squash;
-    csr_valid_eff  <= csr_valid and not dec_squash;
+    -- ==========================================
+    -- W2 DECODE-DISPATCH QUALIFICATION (F7, F3, F3+)
+    -- ==========================================
+    -- dec_squash is a STATE BLACKLIST, and a blacklist is only ever as good as
+    -- the list. It named the P1/P3 trap-entry states and missed six legacy ones
+    -- (IRQ_SV, IRQ_JUMP, FENCE_WAIT, PAUSE_WAIT, WRS_WAIT, TRAP_STATE -- F3) and
+    -- the compressed half-fetch bubble inside EXECUTE itself (F7). In every one
+    -- of those cycles instr_curr is NOT the instruction the hart is dispatching:
+    -- it is either the raw bus word (IRQ_SV, :1484) or the PREVIOUS, already
+    -- retired encoding (instr_curr_prev, :1486/:1490+). Any strobe that bypasses
+    -- the FSM's own suppression therefore fires for an instruction that is not
+    -- executing.
+    --
+    -- dec_dispatch replaces the blacklist with a POSITIVE qualification: name
+    -- the ONE cycle in which a decoded instruction may commit a bypassing side
+    -- effect. That is closed against the seventh state nobody wrote down.
+    -- Term by term:
+    --   current_state = EXECUTE
+    --       EXECUTE is the only state in which an explicit CSR write commits
+    --       (v1_retire_enumeration.md 5 row 3, re-verified against csr_unit's
+    --       write process: the only other architectural CSR effects are
+    --       fp_flags_we, trap_entry_we and mret_we, each on its own dedicated
+    --       strobe). Every other state either holds instr_curr_prev -- whose
+    --       encoding cannot be a CSR/sleep op, because those states are entered
+    --       only from a load/store, div, FP or trap dispatch -- or decodes a
+    --       live word that is not executing at all.
+    --   dec_squash = '0'
+    --       inherits P2's trap-entry suppression and P3's PMP park squash
+    --       unchanged (:1932-1946). EXECUTE is reachable with pmp_if_squash='1'.
+    --   not (pc(1)='1' and quadrant_upper="11" and repeat_if='0')
+    --       shape E, the 32-bit split-fetch bubble (FSM arm :2544-2550). That
+    --       cycle assigns reg_write_dp/pc_en/wen but NOTHING about csr_valid,
+    --       while instr_curr is HELD at the previous instruction (:1486) -- so a
+    --       just-retired `csrrw rd,csr,rd` re-fires csr_write_en with csr_wdata
+    --       read LIVE from rf[rs1], reverting the CSR to its own old value (F7).
+    --       The legitimate dispatch of a straddling 32-bit instruction is the
+    --       repeat_if='1' completion cycle, which this term keeps. Copied
+    --       verbatim from fp_op_latch (:1338-1339) and fp_flags_we (:1365),
+    --       where this exact class was already fixed -- and not applied here.
+    --   (ENABLE_COMPRESSED or pc(1)='0')
+    --       shape Q: on a non-C build a halfword-aligned PC is an
+    --       instruction-address-misaligned TRAP arm (:2320), never a dispatch.
+    --       Statically true on the Castalia/Argus C-on builds, so this term
+    --       cannot change the shipping configuration. Also from fp_flags_we
+    --       (:1364).
+    dec_dispatch   <= '1' when (current_state = EXECUTE
+                                and dec_squash = '0'
+                                and not (pc(1) = '1' and quadrant_upper = "11" and repeat_if = '0')
+                                and (ENABLE_COMPRESSED or pc(1) = '0'))
+                      else '0';
+    csr_valid_eff  <= csr_valid and dec_dispatch;
+    -- isr_ret_eff is DELIBERATELY NOT re-qualified (W2 ruling, spec 1).
+    -- irq_handler's sm_proc runs on the FREE-RUNNING clk and consumes isr_ret as
+    -- a LEVEL, both inside WAIT_EOI (irq_handler.vhd:355) and in
+    -- next_state_logic (:431) to leave it. instr_curr holds the iret encoding
+    -- across EXECUTE -> MEMORY_WAIT -> IRQ_REST, so isr_ret_eff is high for that
+    -- whole span; narrowing it to EXECUTE would shrink the window over which the
+    -- EOI and its exit condition are asserted, on the one path where a mistake
+    -- hangs the chip, in exchange for no finding -- nothing in the ledger claims
+    -- isr_ret leaks. It IS an instance of "a level consumed on the free-running
+    -- clock", but unlike F1+ it is IDEMPOTENT (the EOI clears a flag, it does
+    -- not increment a counter), so it integrates nothing and is not a defect.
     isr_ret_eff    <= isr_ret   and not dec_squash;
 
     -- The entry-reason flop. Set at the WFI dispatch edge, cleared at EVERY
@@ -3956,7 +4034,7 @@ architecture struct of vesta is
             csr_addr       => csr_addr,
             csr_write_data => csr_wdata, 
             csr_op         => csr_op,
-            csr_valid      => csr_valid_eff,   -- P2: gated by trap_entry_seq
+            csr_valid      => csr_valid_eff,   -- P2/W2: qualified by dec_dispatch
             csr_read_data  => csr_rdata,
             inst_retired   => inst_retired,
             ev_bus_stall   => hpm_ev_stall,
