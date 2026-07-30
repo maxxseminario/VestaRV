@@ -607,6 +607,30 @@ architecture struct of vesta is
     -- ==========================================
     -- Compressed Instruction Signals
     -- ==========================================
+    -- F5.5 (fix pass W1) -- DOCUMENTED, DELIBERATELY NOT CHANGED.
+    -- is_compressed is assigned in the RESET branch and in four EXECUTE arms,
+    -- but is ABSENT from the FSM process's else-branch default list, so it
+    -- HOLDS in every other state => a third inferred latch (is_compressed_reg,
+    -- a real LATQX1MA10TH in the netlist). Adding it to the default list would
+    -- retire that latch, and the enumeration says it is ALMOST safe:
+    --   * the ONLY reader is instr_to_decomp (:1447), qualified
+    --     `EXECUTE and pc(1)='1' and repeat_if='0'`; the held value in
+    --     non-EXECUTE states is therefore never read;
+    --   * the value is OBSERVABLE only when instr_curr selects instr_decomp,
+    --     i.e. additionally `quadrant_upper /= "11"` -- and in the normal case
+    --     that condition lands exactly on the EXECUTE arm that ASSIGNS
+    --     is_compressed <= '1'. No held value is ever observed there.
+    -- EXCEPT on one path: the hoisted PMP instruction-access-fault arm
+    -- (ENABLE_PMP and pmp_f_deny_r='1'), which does NOT assign is_compressed
+    -- and can run with pc(1)='1', repeat_if='0', quadrant_upper /= "11".
+    -- That path looks harmless (it forces pc_en/reg_write_dp/mem_access_instr
+    -- '0' and wen all-ones; mtrap_disp_code's FIRST arm is x"1" gated on
+    -- pmp_f_deny_r and mtrap_disp_val is pmp_f_addr_r, so cause/mtval/mepc are
+    -- all decode-independent) -- but it writes instr_curr_prev, and the whole
+    -- argument lives in an OPT-IN ENABLE_PMP build that this wave's gates do
+    -- not exercise. The default build folds that arm away statically, so a
+    -- green 136-suite would prove nothing about the only exposed path.
+    -- Not demonstrable => not changed. See ~/vesta_docs/fixpass/w1_report.md.
     signal is_compressed          : std_logic;
     signal is_compressed_cdec     : std_logic;  -- From decompressor (unused)
     signal quadrant_upper         : std_logic_vector(1 downto 0);  -- Upper half instruction type
@@ -2806,6 +2830,18 @@ architecture struct of vesta is
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
                                 pc_en <= '0';
+                            -- F5.3 (fix pass W1): this arm -- the WORD-ALIGNED
+                            -- COMPRESSED shape -- deliberately has NO
+                            -- `elsif isr_ret = '1'` branch, unlike its three
+                            -- siblings. That is CORRECT, not an omission, and
+                            -- the branch must not be added: isr_ret requires
+                            -- op = CUSTOM_OPCODE (maindec.vhd:921;
+                            -- constants.vhd:65 = "0001011", a 32-bit encoding
+                            -- with bits[1:0]="11"), and c_dec NEVER emits
+                            -- CUSTOM_OPCODE -- so no compressed instruction can
+                            -- decompress into an `iret` and this branch would be
+                            -- unreachable by construction. Adding it would be an
+                            -- FSM behaviour change bought for nothing.
                             else
                                 next_state <= EXECUTE;
                             end if;
@@ -3551,8 +3587,18 @@ architecture struct of vesta is
                 -- Default Case
                 -- ==========================================
                 when others =>
+                    -- F5.1 (fix pass W1): `reg_write_dp <= reg_write_dp` was a
+                    -- self-assignment that overrode the :2148 default and so
+                    -- inferred a SECOND latch -- `reg_write_dp_reg` was a real
+                    -- LATQX1MA10TH in the netlist, not a lint curiosity. The
+                    -- arm looks unreachable in the STATE enumeration, but the
+                    -- enumeration is encoded in more bits than it has values,
+                    -- so an illegal encoding reaches here and holding
+                    -- reg_write_dp would commit a stale regfile write. '0' is
+                    -- strictly safer than holding, and it retires the latch.
+                    -- The arm itself stays: VHDL requires it.
                     next_state <= EXECUTE;
-                    reg_write_dp <= reg_write_dp;
+                    reg_write_dp <= '0';
             end case;
         end if;
     end process;

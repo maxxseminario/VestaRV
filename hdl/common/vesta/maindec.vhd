@@ -1031,7 +1031,13 @@ begin
     -- ==========================================
     -- Result Source Selection
     -- ==========================================
-    -- 00: ALU result, 01: Memory data, 10: PC+4, 11: PC+immediate
+    -- F5.2 (fix pass W1): this comment described a 2-BIT encoding
+    -- ("00: ALU result, 01: Memory data, 10: PC+4, 11: PC+immediate"), but
+    -- result_src is THREE bits (:53) and half the codes below are outside that
+    -- list. The real encoding:
+    --   000 ALU result          001 Memory data        010 PC+4
+    --   011 PC+immediate        100 CSR read value     101 Zimop (rd <- 0)
+    --   110 RSRC_FP_SINGLE      111 RSRC_FP_MULTI      (constants.vhd:522-523)
     result_src <= "001" when op = I_LOAD_OPCODE   else  -- Memory data
                   "000" when op = S_OPCODE         else  -- ALU result
                   "000" when op = R_OPCODE         else  -- ALU result (includes Zba/Zbb)
