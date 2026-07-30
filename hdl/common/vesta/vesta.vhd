@@ -54,7 +54,17 @@ entity vesta is
         ENABLE_TRAPCSR    : boolean := false;  -- P1 (trap CSRs + MRET): consumed from phase P1 on; scaffolded P0
         ENABLE_UMODE      : boolean := false;  -- P2 (U-mode, requires TRAPCSR): consumed from phase P2 on; scaffolded P0
         ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp, requires UMODE): consumed from phase P3 on; scaffolded P0
-        PMP_ENTRIES       : integer := 16      -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
+        PMP_ENTRIES       : integer := 16;     -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
+        -- V1 (Spike lockstep co-simulation): instantiate the read-only
+        -- vesta_tracer. Following the ENABLE_* scaffolding idiom exactly --
+        -- default FALSE, so `gen_trace` elaborates nothing and the netlist,
+        -- the cell lists and the full regression are untouched. The tracer has
+        -- no output ports and drives no signal; its only effect is a text file
+        -- named <TRACE_FILE>_h<hart>.trace (the hart suffix is appended at
+        -- runtime because a generic cannot depend on the hart_id PORT).
+        -- Spec: ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2.
+        TRACE_ENABLE      : boolean := false;
+        TRACE_FILE        : string  := "vesta_trace"
     );
     port (
         clk        : in  std_logic;
@@ -219,7 +229,8 @@ architecture struct of vesta is
             ENABLE_ZBKC     : boolean := false;
             ENABLE_ZBKX     : boolean := false;
             ENABLE_ZKN      : boolean := false;
-            ENABLE_ZFINX    : boolean := false
+            ENABLE_ZFINX    : boolean := false;
+            TRACE_ENABLE    : boolean := false
         );
         port (
             clk          : in  std_logic;
@@ -269,6 +280,9 @@ architecture struct of vesta is
             frm_value    : in  std_logic_vector(2 downto 0) := "000";
             fpu_done     : out std_logic;
             fp_flags     : out std_logic_vector(4 downto 0);
+            -- V1 lockstep tracer taps (read-only; the regfile a3/wd3 nets)
+            trc_rd_addr  : out std_logic_vector(4 downto 0);
+            trc_rd_data  : out std_logic_vector(XLEN-1 downto 0);
             a0           : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
@@ -330,7 +344,8 @@ architecture struct of vesta is
             ENABLE_TRAPCSR    : boolean := false;
             ENABLE_UMODE      : boolean := false;
             ENABLE_PMP        : boolean := false;
-            PMP_ENTRIES       : integer := 16
+            PMP_ENTRIES       : integer := 16;
+            TRACE_ENABLE      : boolean := false
         );
         port (
             clk            : in  std_logic;
@@ -391,7 +406,12 @@ architecture struct of vesta is
             -- P3 PMP bank exports (p0_specs.md §4.1); all-zero when ENABLE_PMP
             -- is false.
             pmp_cfg_flat   : out std_logic_vector(127 downto 0);
-            pmp_addr_flat  : out std_logic_vector(479 downto 0)
+            pmp_addr_flat  : out std_logic_vector(479 downto 0);
+            -- V1 lockstep tracer exports (read-only)
+            csr_commit_we  : out std_logic;
+            csr_commit_val : out std_logic_vector(XLEN-1 downto 0);
+            mstatus_value  : out std_logic_vector(XLEN-1 downto 0);
+            fflags_value   : out std_logic_vector(XLEN-1 downto 0)
         );
     end component;
 
@@ -416,6 +436,68 @@ architecture struct of vesta is
             d_read        : in  std_logic;
             d_write       : in  std_logic;
             d_grant       : out std_logic
+        );
+    end component;
+
+    -- ==========================================================
+    -- V1 lockstep tracer (TRACE_ENABLE only). A COMPONENT declaration,
+    -- deliberately NOT direct entity instantiation: `entity work.x` binds at
+    -- ANALYSIS, so it hard-errors (*E,SELLIB) in every one of the ~16 cell
+    -- lists that compile this file without vesta_tracer.vhd. A component
+    -- binds at ELABORATION and is therefore skipped entirely inside a
+    -- statically-false generate -- which is exactly why the pmp_unit
+    -- precedent uses this idiom. Only the flow that actually turns tracing
+    -- ON needs vesta_tracer.vhd in its file list.
+    -- ==========================================================
+    component vesta_tracer
+        generic (
+            TRACE_FILE        : string  := "vesta_trace";
+            ENABLE_PMP        : boolean := false;
+            ENABLE_COMPRESSED : boolean := true;
+            TRAPSTORE_LIMIT   : natural := 8
+        );
+        port (
+            clk_cpu          : in std_logic;                       -- the GATED core clock
+            resetn           : in std_logic;
+            hart_id          : in std_logic_vector(XLEN-1 downto 0);
+            state            : in natural;                         -- cpu_state'pos(current_state)
+            next_state       : in natural;                         -- cpu_state'pos(next_state)
+            pc               : in std_logic_vector(XLEN-1 downto 0);
+            instr            : in std_logic_vector(ILEN-1 downto 0);  -- = read_data (vesta:951)
+            instr_curr       : in std_logic_vector(ILEN-1 downto 0);  -- decoded/held (vesta:1328)
+            instr_lower_half : in std_logic_vector(15 downto 0);
+            quadrant_upper   : in std_logic_vector(1 downto 0);
+            quadrant_lower   : in std_logic_vector(1 downto 0);
+            repeat_if        : in std_logic;
+            reg_write        : in std_logic;                        -- reg_write_dp -> we3
+            rd_addr          : in std_logic_vector(4 downto 0);     -- rf_a3_addr   -> a3
+            rd_data          : in std_logic_vector(XLEN-1 downto 0); -- Result      -> wd3
+            sp_write_en      : in std_logic;
+            sp_write_data    : in std_logic_vector(XLEN-1 downto 0);
+            stack_pointer    : in std_logic_vector(XLEN-1 downto 0);
+            data_addr        : in std_logic_vector(XLEN-1 downto 0);
+            wen              : in std_logic_vector(XLEN_BYTES-1 downto 0);  -- ACTIVE LOW per byte
+            write_data       : in std_logic_vector(XLEN-1 downto 0);
+            mem_access_instr : in std_logic;
+            funct3           : in std_logic_vector(2 downto 0);     -- instr_curr(14 downto 12)
+            csr_addr         : in std_logic_vector(11 downto 0);
+            csr_commit_we    : in std_logic;
+            csr_commit_val   : in std_logic_vector(XLEN-1 downto 0);
+            mstatus_value    : in std_logic_vector(XLEN-1 downto 0); -- for MTRAP_RET's mret pop
+            fflags_value     : in std_logic_vector(XLEN-1 downto 0); -- for FPU_DONE
+            trap             : in std_logic;
+            ecall_op         : in std_logic;
+            ebreak_op        : in std_logic;
+            mret_op          : in std_logic;
+            isr_ret          : in std_logic;
+            pmp_f_deny_r     : in std_logic;
+            pmp_d_deny       : in std_logic;
+            trap_pc_val      : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mepc
+            trap_cause_val   : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mcause
+            trap_value_val   : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mtval
+            mtrap_disp_int   : in std_logic;                          -- dispatch-cycle classification
+            mtrap_disp_code  : in std_logic_vector(3 downto 0);
+            ivt_entry        : in std_logic_vector(XLEN-1 downto 0)   -- legacy vector taken
         );
     end component;
 
@@ -888,6 +970,25 @@ architecture struct of vesta is
     -- source is stable during MTRAP_SV.
     signal mtrap_disp_val         : std_logic_vector(XLEN-1 downto 0);
     signal mtrap_val_r            : std_logic_vector(XLEN-1 downto 0);
+
+    -- ------------------------------------------------------------------
+    -- V1 LOCKSTEP TRACER TAPS (read-only). These carry the committed-write
+    -- values that are NOT otherwise visible at this level: two from datapath
+    -- (the regfile's a3/wd3) and four from csr_unit. They are mapped
+    -- unconditionally -- a port map cannot be conditional -- but TRACE_ENABLE is
+    -- threaded into both sub-blocks, so with TRACE_ENABLE=false the logic that
+    -- would drive them does not exist at all (their `gen_trc_off` arms tie them
+    -- to constants) and nothing reads them here either. Identical BY
+    -- CONSTRUCTION, not by unloaded-logic removal -- the first cut relied on the
+    -- optimiser and cost +174 cells / +745.8 area at elaborate.
+    -- See v1_retire_enumeration.md §2.1/§2.4/§7-A/§7-B.
+    -- ------------------------------------------------------------------
+    signal trc_rd_addr            : std_logic_vector(4 downto 0);
+    signal trc_rd_data            : std_logic_vector(XLEN-1 downto 0);
+    signal csr_commit_we          : std_logic;
+    signal csr_commit_val         : std_logic_vector(XLEN-1 downto 0);
+    signal mstatus_value          : std_logic_vector(XLEN-1 downto 0);
+    signal fflags_value           : std_logic_vector(XLEN-1 downto 0);
 
     -- X3 Zcmp/Zcmt helper functions (pure combinational, spec tables).
     function zcm_reg_at(p : integer) return std_logic_vector is
@@ -3558,7 +3659,8 @@ architecture struct of vesta is
             ENABLE_ZBKC     => ENABLE_ZBKC,
             ENABLE_ZBKX     => ENABLE_ZBKX,
             ENABLE_ZKN      => ENABLE_ZKN,
-            ENABLE_ZFINX    => ENABLE_ZFINX
+            ENABLE_ZFINX    => ENABLE_ZFINX,
+            TRACE_ENABLE    => TRACE_ENABLE
         )
         port map (
             clk         => clk_cpu,
@@ -3605,6 +3707,9 @@ architecture struct of vesta is
             frm_value   => frm_value,
             fpu_done    => fpu_done_sig,
             fp_flags    => fp_flags,
+            -- V1 tracer taps: the regfile a3/wd3 nets (read-only)
+            trc_rd_addr => trc_rd_addr,
+            trc_rd_data => trc_rd_data,
             a0          => a0
         );
 
@@ -3710,7 +3815,8 @@ architecture struct of vesta is
             ENABLE_TRAPCSR    => ENABLE_TRAPCSR,
             ENABLE_UMODE      => ENABLE_UMODE,
             ENABLE_PMP        => ENABLE_PMP,
-            PMP_ENTRIES       => PMP_ENTRIES
+            PMP_ENTRIES       => PMP_ENTRIES,
+            TRACE_ENABLE      => TRACE_ENABLE
         )
         port map (
             clk            => clk,
@@ -3768,8 +3874,89 @@ architecture struct of vesta is
             -- ever writes the flops), which is the second half of the OFF fold
             -- -- the first being that gen_pmp does not instantiate pmp_unit.
             pmp_cfg_flat   => pmp_cfg_flat_sig,
-            pmp_addr_flat  => pmp_addr_flat_sig
+            pmp_addr_flat  => pmp_addr_flat_sig,
+
+            -- V1 tracer exports (read-only). csr_commit_we is generated INSIDE
+            -- csr_unit and is asserted only when a write-case arm actually
+            -- stores -- a vesta-level reproduction of csr_write_en would log
+            -- writes that never committed (red-team R4 / finding F10).
+            csr_commit_we  => csr_commit_we,
+            csr_commit_val => csr_commit_val,
+            mstatus_value  => mstatus_value,
+            fflags_value   => fflags_value
         );
+
+    -- ==========================================================
+    -- V1 SPIKE-LOCKSTEP TRACER (TRACE_ENABLE only)
+    -- ==========================================================
+    -- A PURE OBSERVER: vesta_tracer has no output ports, so this block cannot
+    -- affect the design in the ON build either -- it only writes a file.
+    -- Elaboration removes the whole block when TRACE_ENABLE is false.
+    --
+    -- THE STATE-ORDINAL CONTRACT: `cpu_state` is declared in this architecture
+    -- and cannot cross a port boundary in VHDL-93, so the FSM state is passed
+    -- as `cpu_state'pos(...)`. The ST_* constants in vesta_tracer.vhd MUST
+    -- match the DECLARATION ORDER of the type at ~line 425 of this file.
+    -- IF YOU ADD, REMOVE OR REORDER A STATE THERE, UPDATE vesta_tracer.vhd.
+    -- (The two ordinal signals live inside the generate so the OFF build
+    -- carries not even the conversion.)
+    gen_trace: if TRACE_ENABLE generate
+        signal trc_state      : natural range 0 to 63;
+        signal trc_next_state : natural range 0 to 63;
+    begin
+        trc_state      <= cpu_state'pos(current_state);
+        trc_next_state <= cpu_state'pos(next_state);
+
+        tracer_inst: vesta_tracer
+            generic map (
+                TRACE_FILE        => TRACE_FILE,
+                ENABLE_PMP        => ENABLE_PMP,
+                ENABLE_COMPRESSED => ENABLE_COMPRESSED
+            )
+            port map (
+                clk_cpu          => clk_cpu,
+                resetn           => resetn,
+                hart_id          => hart_id,
+                state            => trc_state,
+                next_state       => trc_next_state,
+                pc               => pc,
+                instr            => instr,
+                instr_curr       => instr_curr,
+                instr_lower_half => instr_lower_half,
+                quadrant_upper   => quadrant_upper,
+                quadrant_lower   => quadrant_lower,
+                repeat_if        => repeat_if,
+                reg_write        => reg_write_dp,
+                rd_addr          => trc_rd_addr,
+                rd_data          => trc_rd_data,
+                sp_write_en      => sp_write_en,
+                sp_write_data    => sp_write_data,
+                stack_pointer    => stack_pointer,
+                data_addr        => data_addr,
+                wen              => wen,
+                write_data       => write_data,
+                mem_access_instr => mem_access_instr,
+                funct3           => instr_curr(14 downto 12),
+                csr_addr         => csr_addr,
+                csr_commit_we    => csr_commit_we,
+                csr_commit_val   => csr_commit_val,
+                mstatus_value    => mstatus_value,
+                fflags_value     => fflags_value,
+                trap             => trap,
+                ecall_op         => ecall_op,
+                ebreak_op        => ebreak_op,
+                mret_op          => mret_op,
+                isr_ret          => isr_ret,
+                pmp_f_deny_r     => pmp_f_deny_r,
+                pmp_d_deny       => pmp_d_deny,
+                trap_pc_val      => trap_pc_val,
+                trap_cause_val   => trap_cause_val,
+                trap_value_val   => trap_value_val,
+                mtrap_disp_int   => mtrap_disp_int,
+                mtrap_disp_code  => mtrap_disp_code,
+                ivt_entry        => ivt_entry
+            );
+    end generate;
 
 end architecture;
 
