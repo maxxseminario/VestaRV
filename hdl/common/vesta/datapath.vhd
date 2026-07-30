@@ -17,7 +17,12 @@ entity datapath is
         ENABLE_ZBKC     : boolean := false;
         ENABLE_ZBKX     : boolean := false;
         ENABLE_ZKN      : boolean := false;
-        ENABLE_ZFINX    : boolean := false
+        ENABLE_ZFINX    : boolean := false;
+        -- V1 lockstep tracer: gates the read-only trc_* taps below. Default
+        -- FALSE so the OFF netlist is identical BY CONSTRUCTION (not by relying
+        -- on the optimiser to strip unloaded logic) -- the same discipline
+        -- gen_pmp / gen_fpu / gen_trapcsr_wb already use.
+        TRACE_ENABLE    : boolean := false
     );
     port (
         clk          : in  std_logic;
@@ -114,6 +119,27 @@ entity datapath is
         fpu_done     : out std_logic;                          -- multi-cycle FP complete (like alu_done)
         fp_flags     : out std_logic_vector(4 downto 0);       -- flags of the completing FP op (mc at FPU_DONE / sc in EXECUTE)
 
+
+        -- ==========================================
+        -- V1 LOCKSTEP TRACER TAPS (read-only; §2.1/§7-B of
+        -- ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2)
+        -- ==========================================
+        -- The regfile's committed MAIN write port has three nets. TWO of them
+        -- are invisible from vesta and are exported here; the THIRD needs no
+        -- port at all, and neither does the sp port -- they are already vesta
+        -- signals wired straight through to the regfile pins with zero
+        -- intervening logic:
+        --     we3      <= reg_write     (datapath INPUT port, driven by
+        --                                vesta's reg_write_dp)
+        --     sp_write <= sp_write_en   (datapath INPUT port)
+        --     sp_in    <= sp_in         (datapath INPUT port, driven by
+        --                                vesta's sp_write_data)
+        -- Exporting those three as outputs as well would be redundant: same
+        -- net, no logic. Hence exactly TWO new ports (Fable's §7-B ruling).
+        -- Both are pure taps on nets that already drive the regfile, so the
+        -- TRACE_ENABLE=false netlist is unchanged (nothing reads them there).
+        trc_rd_addr  : out std_logic_vector(4 downto 0);           -- = a3  (rf_a3_addr)
+        trc_rd_data  : out std_logic_vector(XLEN-1 downto 0);      -- = wd3 (Result)
 
         -- ==========================================
         -- Test Output - Stores pass /fail result of instruction tests
@@ -389,6 +415,19 @@ begin
     -- the Zcm generics are off, so this is bit-identical to the base there).
     rf_a1_addr <= zcm_rs_addr when zcm_rs_sel = '1' else instr(19 downto 15);
     rf_a3_addr <= zcm_rd_addr when zcm_rd_sel = '1' else instr(11 downto 7);
+
+    -- V1 lockstep tracer taps: the two committed-write-port nets that are not
+    -- visible from vesta (see the port-list comment). READ-ONLY -- these drive
+    -- nothing inside datapath and add no logic. Behind a generate so an OFF
+    -- build carries not even the tap (invariant 2: identical by construction).
+    gen_trc: if TRACE_ENABLE generate
+        trc_rd_addr <= rf_a3_addr;
+        trc_rd_data <= Result;
+    end generate;
+    gen_trc_off: if not TRACE_ENABLE generate
+        trc_rd_addr <= (others => '0');
+        trc_rd_data <= (others => '0');
+    end generate;
 
     rf: regfile
         port map (

@@ -31,7 +31,11 @@ entity csr_unit is
         ENABLE_TRAPCSR    : boolean := false;  -- P1 (trap CSRs): consumed from phase P1 on; scaffolded P0
         ENABLE_UMODE      : boolean := false;  -- P2 (U-mode): consumed from phase P2 on; scaffolded P0
         ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp): consumed from phase P3 on; scaffolded P0
-        PMP_ENTRIES       : integer := 16      -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
+        PMP_ENTRIES       : integer := 16;     -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
+        -- V1 lockstep tracer: gates the read-only export block at the end of
+        -- this architecture. Default FALSE so the OFF netlist is identical BY
+        -- CONSTRUCTION rather than by unloaded-logic removal.
+        TRACE_ENABLE      : boolean := false
     );
     port (
         clk              : in  std_logic;
@@ -152,7 +156,27 @@ entity csr_unit is
         -- the upper half is all-zero whenever PMP_ENTRIES < 16.
         -- ------------------------------------------------------------------
         pmp_cfg_flat     : out std_logic_vector(127 downto 0);
-        pmp_addr_flat    : out std_logic_vector(479 downto 0)
+        pmp_addr_flat    : out std_logic_vector(479 downto 0);
+
+        -- ------------------------------------------------------------------
+        -- V1 LOCKSTEP TRACER EXPORTS (read-only; §7-A of
+        -- ~/vesta_docs/lockstep/v1_retire_enumeration.md rev 2).
+        -- Consumed ONLY by vesta_tracer under TRACE_ENABLE. They are pure taps
+        -- on existing nets plus one address decode, so an OFF build prunes them
+        -- (nothing reads the vesta-level signals they drive).
+        --
+        -- csr_commit_we MUST be generated HERE, not reproduced at vesta level:
+        -- `csr_write_en` is only the STROBE, and maindec's csr_addr_valid admits
+        -- 20+ addresses that have NO storing arm in the write case (mhartid,
+        -- misa, cycle/time/instret[h], hpmcounter3-31, mhpmcounter5-31,
+        -- mhpmevent5-31) plus CSR_MIP and CSR_MSTATUSH (both `null`). A
+        -- vesta-level reproduction would log CSR writes that never committed
+        -- (red-team R4 / finding F10).
+        -- ------------------------------------------------------------------
+        csr_commit_we    : out std_logic;
+        csr_commit_val   : out std_logic_vector(XLEN-1 downto 0);
+        mstatus_value    : out std_logic_vector(XLEN-1 downto 0);
+        fflags_value     : out std_logic_vector(XLEN-1 downto 0)
     );
 end csr_unit;
 
@@ -349,6 +373,39 @@ architecture behave of csr_unit is
 
     -- mcause bits 30:4 read 0 (WLRL: only bit31 + code(3:0) are stored).
     constant MCAUSE_RSVD27 : std_logic_vector(26 downto 0) := (others => '0');
+
+    -- V1 tracer export helper: does this CSR address have a write-case arm that
+    -- actually STORES? (See the concurrent assignments at the end of this
+    -- architecture for why this cannot live at vesta level.) Mirrors the arm
+    -- gating exactly; CSR_MIP and CSR_MSTATUSH are `null` arms => false.
+    function csr_addr_stores(a : std_logic_vector(11 downto 0)) return boolean is
+    begin
+        case a is
+            when CSR_MCYCLE | CSR_MCYCLEH | CSR_MINSTRET | CSR_MINSTRETH =>
+                return true;
+            when CSR_MHPMEVENT3    | CSR_MHPMEVENT4    | CSR_MHPMCOUNTER3 |
+                 CSR_MHPMCOUNTER3H | CSR_MHPMCOUNTER4  | CSR_MHPMCOUNTER4H |
+                 CSR_MCOUNTINHIBIT =>
+                return ENABLE_ZIHPM;
+            when CSR_JVT =>
+                return ENABLE_ZCMT;
+            when CSR_FFLAGS | CSR_FRM | CSR_FCSR =>
+                return ENABLE_ZFINX;
+            when CSR_MSTATUS | CSR_MTVEC  | CSR_MIE   | CSR_MSCRATCH |
+                 CSR_MEPC    | CSR_MCAUSE | CSR_MTVAL | CSR_MTRAPCTL =>
+                return ENABLE_TRAPCSR;
+            when CSR_MCOUNTEREN =>
+                return ENABLE_UMODE;
+            when CSR_PMPCFG0  | CSR_PMPCFG1  | CSR_PMPCFG2  | CSR_PMPCFG3  |
+                 CSR_PMPADDR0 | CSR_PMPADDR1 | CSR_PMPADDR2 | CSR_PMPADDR3 |
+                 CSR_PMPADDR4 | CSR_PMPADDR5 | CSR_PMPADDR6 | CSR_PMPADDR7 |
+                 CSR_PMPADDR8 | CSR_PMPADDR9 | CSR_PMPADDR10 | CSR_PMPADDR11 |
+                 CSR_PMPADDR12 | CSR_PMPADDR13 | CSR_PMPADDR14 | CSR_PMPADDR15 =>
+                return ENABLE_PMP;   -- approximation: run-time lock not modelled
+            when others =>
+                return false;        -- incl. CSR_MIP / CSR_MSTATUSH (null arms)
+        end case;
+    end function csr_addr_stores;
 
     -- Internal signals
     signal csr_write_en  : std_logic;
@@ -1115,6 +1172,44 @@ begin
     gen_pmp_flat: for i in 0 to PMP_MAX_ENTRIES-1 generate
         pmp_cfg_flat(8*i+7 downto 8*i)     <= pmp_cfg(i);
         pmp_addr_flat(30*i+29 downto 30*i) <= pmp_addr(i);
+    end generate;
+
+    -- ----------------------------------------------------------------------
+    -- V1 LOCKSTEP TRACER EXPORTS (read-only — see the port-list comment)
+    -- ----------------------------------------------------------------------
+    -- csr_addr_stores() lists EXACTLY the addresses whose write-case arm
+    -- stores, carrying the SAME ENABLE_* gate the arm carries.
+    -- ** KEEP IT IN SYNC WITH THE `case csr_addr` WRITE BLOCK ABOVE. **
+    -- Two documented approximations, both outside the V2 (default-config)
+    -- scope and both listed in v1_report.md:
+    --   * the PMP arms additionally test RUN-TIME conditions (pmp_locked /
+    --     pmp_addr_writable), which a static address decode cannot see, so a
+    --     write to a LOCKED entry would export a commit that did not happen.
+    --     ENABLE_PMP is false in the Castalia/Argus configs.
+    --   * csr_commit_val is csr_new_val, i.e. the value the RMW REQUESTS. For
+    --     the WARL-masked CSRs (mcountinhibit, jvt, fflags/frm/fcsr, mtvec,
+    --     mcause, mstatus, mtrapctl, mcounteren, pmpcfg) the value STORED is a
+    --     masked subset. Exact for every CSR the V2 suite writes: rv32ziscr
+    --     writes only mcycle/mcycleh/minstret/minstreth, all pass-through arms.
+    gen_trc: if TRACE_ENABLE generate
+        csr_commit_we  <= csr_write_en when csr_addr_stores(csr_addr) else '0';
+        csr_commit_val <= csr_new_val;
+
+        -- The same assembly the CSR_MSTATUS read arm uses, so the mret pop that
+        -- MTRAP_RET performs is observable as a `C 300` record.
+        mstatus_value  <= (21 => mst_tw, 17 => mst_mprv,
+                           12 => mst_mpp(1), 11 => mst_mpp(0),
+                            7 => mst_mpie, 3 => mst_mie,
+                           others => '0');
+
+        fflags_value   <= (XLEN-1 downto 5 => '0') & fp_csr(4 downto 0);
+    end generate;
+
+    gen_trc_off: if not TRACE_ENABLE generate
+        csr_commit_we  <= '0';
+        csr_commit_val <= (others => '0');
+        mstatus_value  <= (others => '0');
+        fflags_value   <= (others => '0');
     end generate;
 
 end behave;
