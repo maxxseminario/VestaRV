@@ -3690,12 +3690,52 @@ architecture struct of vesta is
         if resetn = '0' then
             sleep_cpu <= '0';
         elsif rising_edge(clk) then
-            -- P2: no sleep-state update while a trap is being entered (see
-            -- the trap_entry_seq block) -- a U-mode extinguish/ignite traps
-            -- illegal and must not touch this flop.
-            -- P3: nor while a PMP-squashed EXECUTE cycle is decoding the park
-            -- word (dec_squash = trap_entry_seq when ENABLE_PMP is false).
-            if dec_squash = '0' then
+            -- W2/F3+ and F3++: this flop is on the FREE-RUNNING clk while
+            -- sleep_rq and wake_rq are PURE DECODES of instr_curr
+            -- (maindec.vhd:922-923 -- no state qualification at all beyond the
+            -- P2 u_gate), so it used to update in every state the old
+            -- dec_squash blacklist did not name. BOTH directions leak, and they
+            -- are two separate mechanisms sharing one live decode -- the raw bus
+            -- word IRQ_SV puts on instr_curr (:1484), which on this path is
+            -- deterministically the next instruction in program order:
+            --
+            --   F3+  (the SET leak). An `extinguish` encoding sitting there set
+            --        sleep_cpu behind the FSM's back, and IRQ_REST's
+            --        `elsif sleep_cpu = '1'` arm (:3557) then sent the hart to
+            --        SLEEPING instead of resuming. A HANG, invisible to the a0
+            --        contract, for a word the hart never executed.
+            --   F3++ (the CLEAR leak -- the mirror image). An `ignite` encoding
+            --        in the same position CLEARS the flop, so a hart that was
+            --        legitimately asleep resumes instead of re-parking. That
+            --        breaks the bootrom park contract DIRECTLY: the stray-msip
+            --        ISRs (start.S:582-585, and the tile park at :468) rely on
+            --        `iret` WITHOUT `ignite` leaving sleep_cpu SET so IRQ_REST
+            --        returns the hart to its sleep. A silently-awake parked hart
+            --        then spins in its `j <park>` paranoia loop, burning power
+            --        and shared-bus bandwidth on a chip that gated its rails.
+            --
+            -- Hence the whole `if` is re-qualified, not just the set arm.
+            --
+            -- dec_dispatch (:1992) SUPERSEDES dec_squash here and subsumes it
+            -- (dec_squash='0' is one of its terms), so both the P2 trap-entry
+            -- rule -- a U-mode extinguish/ignite traps illegal and must not
+            -- touch this flop -- and the P3 PMP park-word rule are preserved
+            -- exactly. Nothing legitimate is lost: every real sleep/wake
+            -- dispatch is an EXECUTE cycle (the extinguish/wfi arms at :2413 and
+            -- :2709 are EXECUTE sub-arms, and the bootrom park/loader contract
+            -- is EXECUTE-only too -- `EXTINGUISH` at start.S:468 and `IGNITE` at
+            -- start.S:510 are both ordinary dispatches).
+            --
+            -- The one non-EXECUTE update that DOES disappear is benign, and it
+            -- is worth naming so nobody re-derives it as a regression: SLEEPING
+            -- holds instr_curr_prev (:1519) = the `extinguish` itself, so
+            -- sleep_rq stayed HIGH for the whole sleep and this flop re-set an
+            -- already-set bit on every free-running clk edge. Dropping that
+            -- changes no value -- the flop holds, and no state that can run
+            -- while asleep drives wake_rq. The return-to-sleep contract works by
+            -- NOT clearing the flop, so this change can only remove spurious
+            -- updates, never add one.
+            if dec_dispatch = '1' then
                 if wake_rq = '1' then
                     sleep_cpu <= '0';
                 elsif sleep_rq = '1' then
