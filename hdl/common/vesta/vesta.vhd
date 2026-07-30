@@ -4221,6 +4221,130 @@ architecture struct of vesta is
             );
     end generate;
 
+    -- ==========================================
+    -- W2/F4b DESIGN ASSERTIONS -- the decode coincidences, made CHECKED
+    -- ==========================================
+    -- Simulation-only by construction: a VHDL assertion has no hardware and
+    -- Genus emits none for it (verified -- `sequential` and the gate census are
+    -- unchanged with these present).
+    --
+    -- Findings F4 and F4-shapes-B/C are both of the form "this is correct only
+    -- because two files happen to agree, and nothing checks that they do".  The
+    -- fix for a coincidence is not to remove the mechanism -- MEMORY_WAIT,
+    -- DIV_DONE and FPU_DONE are REAL COMMIT SITES, and their fall-through to
+    -- `reg_write_dp <= reg_write_ctrl` (:2249) is precisely how a load, a div
+    -- and an FP op write their rd (v1_retire_enumeration.md 5, rows 4, 6, 9).
+    -- Deleting it would break every load.  The fix is to make the coincidence
+    -- FAIL LOUDLY the day someone breaks it.
+    --
+    -- CLOCKED, NOT CONCURRENT -- and this is load-bearing, not style.  The
+    -- first cut of this block used concurrent assertions, and assertion (4)
+    -- then fired on 23 of the 136 standing tests (every AMO / LR-SC / sh* cell)
+    -- as a pure FALSE POSITIVE.  A concurrent assertion re-evaluates on EVERY
+    -- delta in which any of its operands moves, i.e. it samples the
+    -- combinational cone MID-SETTLE.  Probed at the fire point on
+    -- rv32ua-p-amoadd_w: state=EXECUTE, is_compressed='1', pc(1)='0',
+    -- quadrant_lower="00" (a genuine shape-C compressed cycle) -- but
+    -- amo_op='1' with instr_curr=0x00000000, which is impossible in any settled
+    -- state.  amo_op was simply one delta stale, still holding the PREVIOUS
+    -- cycle's AMO decode while the shape terms had already advanced to the next
+    -- (compressed) instruction.
+    --   The design was never in that state.  c_dec.vhd emits ZERO instances of
+    --   the AMO (0101111), FENCE (0001111), SYSTEM (1110011) and OP-FP
+    --   (1010011) opcodes, so the guarded mechanism remains unreachable.
+    -- Sampling at `rising_edge(clk_cpu)` reads the SETTLED pre-edge values, and
+    -- it is also the more faithful property: every one of these is a statement
+    -- about what a COMMIT EDGE does, not about a combinational instant.
+    -- LESSON, worth more than the assertions: assertion (4) was built on
+    -- `is_compressed`, a signal W1 had ALREADY documented (:615-625) as an
+    -- inferred latch whose value is only meaningful under
+    -- `EXECUTE and pc(1)='1' and repeat_if='0'`.  An assertion never seen to
+    -- fire would have shipped this.
+    --
+    -- SEVERITY `error` -- AND IN THIS ENVIRONMENT THAT ABORTS THE SIMULATION.
+    -- Measured, not assumed (W2, xrun/xmsim 20.09-s006): a firing assertion
+    -- prints `ASSERT/ERROR ... F4 ASSERT: <text>` with the file and line, and
+    -- the run STOPS THERE -- no TEST PASSED/FAILED, no a0 verdict, xmsim exits.
+    -- Deliberate, and the choice is on the record: this project's history is
+    -- silent coincidences surviving a year, so the failure mode to design
+    -- against is being IGNORED, not being disruptive.
+    -- THE CONSEQUENCE, for whoever hits this: if a future knobs-on
+    -- configuration legitimately trips one of these, IT WILL KILL THE
+    -- REGRESSION RUN, and the sim will die at the first occurrence rather than
+    -- finishing with a report.  That is not a broken testbench.  Read the
+    -- report string, then treat it as a FINDING -- these four encode decode
+    -- coincidences across vesta.vhd, maindec.vhd and c_dec.vhd, and an
+    -- assertion firing means the coincidence has broken.  Do not tune the
+    -- assertion to fit the new build; fix the arm it is pointing at.
+    -- These compile into every configuration, including the Argus N=18 suite
+    -- and every opt-in P-series build.
+    f4_assert_proc: process(clk_cpu)
+    begin
+        if rising_edge(clk_cpu) then
+
+            -- (1) MEMORY_WAIT is the LOAD's commit site.  Every other encoding
+            --     that can be held here -- STORE, cbo.zero, cm.push/cm.pop/
+            --     cm.mv, and the `iret` (whose trajectory is
+            --     EXECUTE -> MEMORY_WAIT -> IRQ_REST, v1 rev-2 R1) -- must
+            --     decode reg_write='0' in maindec.  If one ever does not, it
+            --     writes a garbage rd here with no FSM arm to stop it.
+            --     NOTE the scope caveat: with ENABLE_ZCMP on, the Zcmp rd
+            --     commits happen in ZCM_POP_WB / ZCM_A0Z / ZCM_MV1 / ZCM_MV2,
+            --     NOT here -- what reaches MEMORY_WAIT is the held ZCM sentinel,
+            --     which decodes reg_write='0'.  So LOAD-only holds with the knob
+            --     either way, and if a future Zcmp change made the sentinel
+            --     write, this firing is the DESIRED outcome.
+            assert not (current_state = MEMORY_WAIT and reg_write_dp = '1'
+                        and instr_curr(6 downto 0) /= I_LOAD_OPCODE)
+                report "F4 ASSERT: reg_write_dp asserted in MEMORY_WAIT for a non-LOAD encoding"
+                severity error;
+
+            -- (2) DIV_DONE is the DIV/DIVU/REM/REMU commit site.  The held
+            --     encoding must still be the div that dispatched us here.
+            assert not (current_state = DIV_DONE and reg_write_dp = '1'
+                        and is_div_op = '0')
+                report "F4 ASSERT: reg_write_dp asserted in DIV_DONE for a non-DIV encoding"
+                severity error;
+
+            -- (3) FPU_DONE is the multi-cycle / FMA FP commit site.  (Single-
+            --     cycle FP retires in EXECUTE and never reaches this state.)
+            --     Statically unreachable in the default build, where
+            --     ENABLE_ZFINX is false and no FP op decodes at all -- so this
+            --     one is a guard for the knobs-on configurations only, and the
+            --     standing gates cannot exercise it.
+            assert not (current_state = FPU_DONE and reg_write_dp = '1'
+                        and is_fp_multicycle = '0' and is_fp_fma = '0')
+                report "F4 ASSERT: reg_write_dp asserted in FPU_DONE for a non-multicycle-FP encoding"
+                severity error;
+
+            -- (4) The shapes-B/C missing-arm class.  The two COMPRESSED EXECUTE
+            --     arms have NO lr_op / sc_op / amo_op / cboz_op / fence_op /
+            --     wfi_op / wrs_op / is_fp_* branches at all.  That is
+            --     unreachable TODAY only because no compressed encoding
+            --     decompresses to any of them -- a property of c_dec.vhd that
+            --     nothing in vesta.vhd enforces.  If a future Zc* extension ever
+            --     emits one, the instruction would silently retire as a plain
+            --     ALU op with its memory/atomic/FP side effect simply not
+            --     performed.
+            --     The shape terms are spelled out rather than reusing
+            --     `is_compressed`, for the latch reason in the block comment
+            --     above: these are exactly the two `instr_decomp` arms of the
+            --     instr_curr mux (:1487 and :1489), written in terms of pc (a
+            --     flop), repeat_if (a flop) and the quadrant bits (combinational
+            --     off the bus) -- no latched FSM output is read.
+            assert not (current_state = EXECUTE
+                        and ((pc(1) = '1' and repeat_if = '0' and quadrant_upper /= "11")
+                             or (pc(1) = '0' and quadrant_lower /= "11"))
+                        and (lr_op = '1' or sc_op = '1' or amo_op = '1' or cboz_op = '1'
+                             or fence_op = '1' or wfi_op = '1' or wrs_op = '1'
+                             or is_fp_singlecycle = '1' or is_fp_multicycle = '1'
+                             or is_fp_fma = '1'))
+                report "F4 ASSERT: c_dec emitted a sequencer/FP encoding -- shapes B/C have no arm for it"
+                severity error;
+
+        end if;
+    end process;
+
 end architecture;
 
 
