@@ -143,8 +143,12 @@ architecture behav of MCU is
             en_dco1_out        : out std_logic;
             DCO1_BIAS          : out std_logic_vector(11 downto 0);
 
-            --Memory Power 
-            PGEN_mem        : out std_logic_vector(2 downto 0) -- '0' mem on, '1' mem off
+            --Memory Power
+            -- Snapshot repair 2026-07-28: widened 2:0 -> 6:0 to match the
+            -- post-DP-S3 SYSTEM.vhd entity (bits 6:3 = shbank0-3 gating).
+            -- Bits 6:2 have NO consumer here — this frozen chip's shared
+            -- banks stay always-on, its pre-DP-S3 behavior.
+            PGEN_mem        : out std_logic_vector(6 downto 0) -- '0' mem on, '1' mem off
         );
     end component;
 
@@ -853,7 +857,9 @@ architecture behav of MCU is
         -- tile's tcm_pgen port (1); bit 2 (ex-npuram0) has no consumer
         -- in this configuration — the NPU and its staging RAM are dropped.)
         signal RAM_Dout         : std_logic_vector(31 downto 0);
-        signal pgen_mem         : std_logic_vector(2 downto 0);
+        -- Snapshot repair 2026-07-28: widened with the SYSTEM port (see the
+        -- component decl note); bits 6:2 unconsumed in this configuration.
+        signal pgen_mem         : std_logic_vector(6 downto 0);
 
         -- Flash Extended Memory Signals
         signal mem_en_flash    : std_logic;
@@ -3080,7 +3086,15 @@ begin
             rdata     => pwr_rdata,
             pd_iso_en => pd_iso_en,
             pd_sleep  => pd_sleep,
-            pd_rstn   => pd_rstn
+            pd_rstn   => pd_rstn,
+            -- Snapshot repair 2026-07-28: pwr_ctrl gained the DP-S3
+            -- supervision inputs (Jul 24) after this freeze. Argus has no
+            -- fieldPower — tie all three inert exactly as the generator's
+            -- fieldPower=false idiom does ('1'/'0'/'0'); the pgood_rstn
+            -- output stays unassociated (gate stuck released, provable no-op).
+            pgood_pad    => '1',
+            strap_pad    => '0',
+            field_detect => '0'
         );
 
     -- =========================================================================
