@@ -1552,7 +1552,21 @@ architecture struct of vesta is
                  zcm_mem_addr when ((current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD)
                                     and pmp_d_deny = '0') else
                  zcm_jt_addr  when (current_state = ZCM_JT_LD and pmp_d_deny = '0') else
-                 rs1_value  when (current_state = SC_CHECK) else
+                 -- F2 (fix pass W1): the SC_CHECK term is gated by the SAME
+                 -- LOCAL reservation predicate that gates its wen and its
+                 -- mem_access_instr (the :2900 SC_CHECK arm) -- keep all three
+                 -- identical. Steering the address is not optional: sh_sel is a
+                 -- pure decode of data_addr, so suppressing only the request
+                 -- would still have issued the transaction (spec W1-0). On the
+                 -- failing path this arm drops out and data_addr falls through
+                 -- to pc_next = pc_next_reg (:1511) -- the redundant early fetch
+                 -- of the word AMO_COMPLETE presents next cycle.
+                 -- SYNC: this predicate is DUPLICATED at :2931 (the SC_CHECK FSM
+                 -- arm, where it gates wen and mem_access_instr). Change both or
+                 -- neither -- a divergence between them is silent.
+                 rs1_value  when (current_state = SC_CHECK
+                                  and reservation_valid = '1'
+                                  and reservation_addr = rs1_value) else
                  rs1_value  when (current_state = EXECUTE and amo_op = '1'
                                   and mem_access_instr = '1') else
                  ALU_Result when (mem_access_instr = '1' or
@@ -2885,14 +2899,41 @@ architecture struct of vesta is
                 -- ==========================================
                 when SC_CHECK =>
                     pc_en <= '1';  -- Ready to fetch next instruction
-                    mem_access_instr <= '1';
                     reg_write_dp <= '1';  -- Write success/fail to rd
-                    
+
                     -- Only write if reservation is valid and addresses match
+                    -- F2 (fix pass W1): and only ISSUE A BUS ACCESS AT ALL under
+                    -- that same condition. mem_access_instr used to be asserted
+                    -- here UNCONDITIONALLY, so a locally-FAILED sc.w still put
+                    -- rs1 on data_addr (the SC_CHECK arm of the mux, :1567) with
+                    -- only the lanes suppressed -- and hart_tile's sh_sel is a
+                    -- PURE DECODE of data_addr (hart_tile.vhd:654, sh_req_int
+                    -- :726), so the failed SC performed a real, side-effecting
+                    -- shared-window READ: an atomic claim of a HW mutex, an
+                    -- atomic CLAIM of the IRQ router, an SPIxRX TCIF auto-clear.
+                    -- BOTH halves of the fix are required. Suppressing the
+                    -- request alone would drop the mux through to the
+                    -- `ALU_Result when mem_access_instr = '1'` arm, and the ALU
+                    -- is in pass-B during SC_CHECK (ALU_Result = the SC's rd,
+                    -- 0 or 1) -- a WORSE phantom address, inside the boot ROM.
+                    -- So the :1567 arm carries the SAME literal predicate; the
+                    -- two must be kept textually identical. On the failing path
+                    -- data_addr falls through to pc_next, which during SC_CHECK
+                    -- is pc_next_reg (:1511) -- the very address the following
+                    -- AMO_COMPLETE bubble (:2953) presents anyway, i.e. a
+                    -- redundant, harmless early fetch of the pending word.
+                    -- Untouched on purpose: the reservation unit, lr_sc_bus
+                    -- (already "00" on this path) and the success path.
+                    -- Detector: rv32ua-p-scfailrd.
+                    -- SYNC: this predicate is DUPLICATED at :1567 (the SC_CHECK
+                    -- arm of the data_addr mux). Change both or neither -- a
+                    -- divergence between them is silent.
                     if reservation_valid = '1' and reservation_addr = rs1_value then  -- M4b: rs1, not the phase-dependent ALU_result
                         wen <= "0000";  -- Write word (success)
+                        mem_access_instr <= '1';
                     else
                         wen <= (others => '1');  -- No write (fail)
+                        mem_access_instr <= '0';  -- F2: and no READ either
                     end if;
                     
                     if irq_save = '1' then
