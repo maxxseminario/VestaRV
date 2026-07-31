@@ -14,6 +14,12 @@
 --       A7 (V3): the legacy IRQ_SV return-PC push and the iret stack pop LEAVE
 --                the compared stream (# IRQPUSH / # IRETPOP), each bounded by an
 --                equality so a wrong address is loud, not invisible.
+--       A16 (WT, finding T2): a GLOBALLY-failed sc.w no longer emits an
+--                `M ... S`. It never committed -- resv_unit gates the write off
+--                downstream -- so the record contradicted §2's definition of
+--                `M`. Now `# SCGHOST`. This retires the SHAPE that compare.py's
+--                amendment A15 existed to filter; A15 stays as a compatibility
+--                shim for pre-A16 traces.
 --
 -- INVARIANTS THIS FILE MUST HOLD (kickoff §3):
 --   1. -V200X. No VHDL-2008: no external names, no to_hstring, no 2008
@@ -91,6 +97,22 @@ entity vesta_tracer is
         write_data       : in std_logic_vector(XLEN-1 downto 0);
         mem_access_instr : in std_logic;
         funct3           : in std_logic_vector(2 downto 0);     -- instr_curr(14 downto 12)
+
+        -- A16 (finding T2): the GLOBAL SC verdict from resv_unit. In SC_CHECK
+        -- the core drives `wen` on its LOCAL check alone, so the port shows a
+        -- store for a write that resv_unit's `s_we_gated` then suppresses; this
+        -- is the one input the tracer needs to tell a presentation from a
+        -- commit. Sampling it HERE is sound and needs no holding mechanism:
+        -- vesta.vhd:92-95 contracts it stable by the end of the SC_CHECK cycle
+        -- (latched from the arbiter done for a stalled shared SC), and the core
+        -- itself consumes it combinationally in that same cycle to pick
+        -- `amo_phase` "101"/"100" (vesta.vhd:1930-1933). The edge this process
+        -- samples IS the end of that cycle.
+        -- DEFAULT '0' is the FAIL-SAFE direction (R-W4-12): an unwired
+        -- instantiation reports "no external failure" and therefore behaves
+        -- EXACTLY as the pre-A16 tracer did -- it drops nothing. The opposite
+        -- default would silently delete every shared SC's store record.
+        sc_fail_ext      : in std_logic := '0';
 
         -- csr_unit's COMMITTED-write export (generated inside csr_unit: asserted
         -- only when a write `case` arm actually stores — R4/F10)
@@ -377,7 +399,12 @@ begin
                 file_open(f, TRACE_FILE & "_h" & hstr & ".trace", write_mode);
                 fopened := true;
                 emit("# vesta_tracer TRACE_ENABLE=true " & TRACE_FILE & " hart=" & hstr);
-                emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7");
+                -- The format list is the CONSUMER'S vintage signal: compare.py
+                -- and mk_inject must be able to tell a pre-A16 trace (which
+                -- still carries failed-SC ghost stores, filtered by A15) from a
+                -- post-A16 one (which does not). Bump it whenever an amendment
+                -- changes what this file emits.
+                emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7,A16");
             end if;
 
             if resetn = '1' then
@@ -584,6 +611,45 @@ begin
                             emit("# IRQPUSHBAD " & hdr(cyc) & hexstr(data_addr) & " "
                                  & hexstr(sp_write_data) & " " & hexnat(sz, 1) & " "
                                  & hexstr(dat) & " spwe " & std_logic'image(sp_write_en));
+                        end if;
+                    elsif state = ST_SC_CHECK and sc_fail_ext /= '0' then
+                        -- A16 (finding T2): a GLOBALLY-failed sc.w. The core's
+                        -- local reservation check passed, so `wen` is live and
+                        -- this looks exactly like a committed store -- but
+                        -- resv_unit gates the write off downstream
+                        -- (resv_unit.vhd:120-123) and returns sc_fail_ext, so
+                        -- memory is NOT modified. Emitting an `M ... S` here
+                        -- violated §2's own definition of `M` ("a COMMITTED
+                        -- memory transaction"): the record described a
+                        -- presentation, not a commit. It is therefore not
+                        -- buffered at all.
+                        --
+                        -- The evidence stays visible to a human -- this is a
+                        -- diagnostic, not a silent deletion, and it carries the
+                        -- full store it would have emitted so a triage can see
+                        -- exactly what was suppressed and where. Amendment A15
+                        -- (compare.py) used to remove the same record from the
+                        -- COMPARED stream; on a post-A16 trace it now finds
+                        -- nothing to drop, which is the intended end state.
+                        --
+                        -- X-taint is REFUSED, never guessed (the A5/A15
+                        -- discipline): if the verdict itself is unreadable we
+                        -- cannot know whether the write committed, so the
+                        -- record is KEPT -- the conservative direction, since a
+                        -- kept ghost is caught downstream by A15 or by the next
+                        -- load, while a wrongly-dropped real store is invisible.
+                        if sc_fail_ext = '1' then
+                            emit("# SCGHOST " & hdr(cyc) & hexstr(data_addr) & " "
+                                 & hexnat(sz, 1) & " " & hexstr(dat));
+                        else
+                            emit("# SCGHOSTX " & hdr(cyc) & hexstr(data_addr) & " "
+                                 & hexnat(sz, 1) & " " & hexstr(dat) & " scfe "
+                                 & std_logic'image(sc_fail_ext));
+                            if iv_valid and own then
+                                push_mem(true, data_addr, sz, dat);
+                            else
+                                emit_m(true, data_addr, sz, dat);
+                            end if;
                         end if;
                     elsif iv_valid and own then
                         push_mem(true, data_addr, sz, dat);

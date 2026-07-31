@@ -129,6 +129,13 @@ The memory interface is word-addressed with an **active-low per-byte-lane**
   lowest active lane
 * `data` = the `write_data` bytes under the active lanes, right-justified
 
+**A16: `SC_CHECK` is the one state where a presented store is not a committed
+one.** The core drives `wen` on its LOCAL reservation check alone; `resv_unit`
+suppresses the write downstream when the GLOBAL check fails. A store presented
+with `sc_fail_ext = '1'` is therefore **not** an `M … S` — it is
+`# SCGHOST <hart> <cycle> <addr> <size> <data>`. If the verdict is `x`, the
+tracer refuses to classify: `# SCGHOSTX`, and the store is kept.
+
 Sample `data_addr` / `wen` / `write_data` / the returned `read_data` at the
 committed transaction, and never from the AMO/SC `ALU_result` path: in atomic
 states `ALU_result` is `amo_phase`-dependent and `rs1_value` is the
@@ -739,3 +746,81 @@ somewhere, which is the one failure mode of the whole design (`v4_design.md`
 
   **Consequence for A14, ruled the same day: the SC's `rd` is ASSERTED, not
   compared.** See the restatement inside A14 above.
+
+* **A16 (2026-07-31, WT / finding T2) — the failed-SC ghost store is fixed AT
+  SOURCE; A15 becomes a compatibility shim.** §2/§8, and it is the amendment
+  that lets §2 mean what it says again.
+
+  **What changed.** `vesta_tracer.vhd` gains one input, `sc_fail_ext` — the
+  global SC verdict from `resv_unit`, already an existing `vesta` port. In
+  `SC_CHECK`, a store presented with `sc_fail_ext = '1'` is **not recorded as an
+  `M … S`**; the tracer emits
+
+      # SCGHOST <hart> <cycle> <addr> <size> <data>
+
+  instead, carrying the whole store it withheld. §2 defines `M` as a **committed**
+  memory transaction; this write is suppressed downstream by `s_we_gated` and
+  never reaches memory, so the record was describing a *presentation*. A15
+  removed it from the compared stream after the fact; A16 stops it being claimed.
+
+  **No holding mechanism is needed, and that is a measurement, not a
+  simplification.** T2 was logged as "hold the SC's store record until
+  `sc_fail_ext` resolves, then emit or drop", which presumes it resolves later.
+  It does not: `vesta.vhd:92-95` contracts `sc_fail_ext` **stable by the end of
+  the SC_CHECK cycle** (latched from the arbiter done for a stalled shared SC),
+  and the core consumes it combinationally *in that same cycle* to select
+  `amo_phase` `"101"`/`"100"` (`vesta.vhd:1930-1933`) — the very term that
+  produces the SC's architectural `rd`. The tracer samples on the edge that ends
+  that cycle, so the verdict is already there. A hold would have been dead
+  machinery on the tracer's only timing-critical path.
+
+  **X is REFUSED, not guessed** (the A5/A15 discipline). If `sc_fail_ext` is
+  itself `x` the tracer cannot know whether the write committed, so it emits
+  `# SCGHOSTX` and **keeps the store** — the conservative direction, because a
+  kept ghost is caught downstream (by A15, or by the next load of that word)
+  while a wrongly-dropped real store is invisible.
+
+  **The port default is `'0'`, chosen for its FAIL-SAFE direction** (rule
+  R-W4-12, learned on F10's `csr_rs1_zero`): an unwired instantiation reports
+  "no external failure" and therefore behaves **exactly as the pre-A16 tracer
+  did**, dropping nothing. The opposite default would silently delete every
+  shared SC's store record.
+
+  **The trace header now declares its vintage** — `format RECORD_FORMAT.md
+  A1-A7,A16` — because traces and consumers are versioned independently and a
+  pre-A16 trace must still compare correctly.
+
+  **A15's status changes to COMPATIBILITY SHIM + x-FALLBACK; it is NOT deleted,
+  and not only for the obvious reason.** The obvious one is that archived and
+  quarantined pre-A16 traces exist (218 in
+  `cosim_work/legacy_v3_logs.quarantine/` alone) and must still be comparable.
+  The second is sharper: **A16 deliberately declines the `# SCGHOSTX` case, and
+  A15 is what covers it** — A16 decides from the *cause* when the cause is
+  readable, A15 from the *effect* (`rd`) when it is not. They are a division of
+  labour, not duplicates. Consequently:
+  * on a post-A16 trace the A15 census reads `… 0 ghost store(s) dropped`, and
+    **that is the healthy reading**;
+  * the `--no-a15` negative control becomes **inert on post-A16 traces** (exit 0
+    either way) and **stays load-bearing on pre-A16 ones**. Its inversion is the
+    proof that A16 removed the shape at source rather than merely moving
+    numbers: the comparator no longer *needs* the exception;
+  * a **nonzero** census on a trace declaring A16 means an `# SCGHOSTX` fired or
+    `sc_fail_ext` is unwired. Both are findings, and the census prints either way.
+
+  **`mk_inject` gains the same witness, and it is an upgrade rather than a
+  rename.** Its `ext`/`local` failure-shape census counted `ext` from *the
+  presence of a following store* — i.e. it was reading the very defect A15
+  exists to delete as its own instrument. It now counts `# SCGHOST` (keeping the
+  store test so pre-A16 traces still census correctly), which makes the two
+  shapes symmetric: one dedicated diagnostic each, `# SCGHOST` external and
+  `# SCFAILRD` local. A16 also makes a genuinely new cross-check possible, and
+  it is reported (never used to override `rd`): **`rd`=0 alongside a
+  `# SCGHOST`** means `resv_unit` suppressed the write while the core claimed
+  success — the mirror image of the existing `rd`=0-with-`# SCFAILRD` check, and
+  the same M4b shape.
+
+  **What A16 does NOT buy.** The SC's `rd` remains **ASSERTED, not compared**
+  (A14 as restated): `rd` is still the oracle `mk_inject` uses to emit `F`, and
+  A16 changes nothing about that. The M4b "SC premature write" bug would still
+  not be caught at the SC itself. A16 makes the trace HONEST; it does not make
+  the SC verdict CHECKED.

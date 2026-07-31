@@ -425,6 +425,7 @@ def main(argv=None):
     sc_indeterminate = []  # (ln, why) -- rd unusable as the oracle (x / x0)
     sc_shape = {"ext": 0, "local": 0}   # counted failure shapes, not warnings
     last_scfailrd = 0   # `# SCFAILRD` lines seen since the last record line
+    last_scghost = 0    # A16: `# SCGHOST` lines seen since the last record line
 
     def _new_bracket(ln_, kind, push_, tfields=None):
         """A bracket opened either by a legacy `T` (V3) or by `X … wfi_enter`
@@ -517,11 +518,32 @@ def main(argv=None):
             sc_inconsistent.append(
                 (s["ln"], "sc.w reports SUCCESS (rd=00000000) but emitted NO "
                           "store -- the M4b 'success without a write' bug SHAPE"))
-        if failed and s["store"]:
+        if (not failed) and s["scghost"]:
+            # A16: `# SCGHOST` says resv_unit SUPPRESSED the write, yet rd says
+            # the SC succeeded. The two disagree about the same event, and the
+            # core computes rd FROM sc_fail_ext (vesta.vhd:1930-1933), so they
+            # cannot legitimately differ. Reported for exactly the reason its
+            # mirror image above is (`rd`=0 with a `# SCFAILRD`): a
+            # "success" the memory system did not perform is the M4b shape.
+            sc_inconsistent.append(
+                (s["ln"], "sc.w reports SUCCESS (rd=00000000) but the tracer "
+                          "emitted %d '# SCGHOST' diagnostic(s) -- resv_unit "
+                          "suppressed the write yet the core claims success"
+                          % s["scghost"]))
+        if failed and (s["scghost"] or s["store"]):
             # The sc_fail_ext signature, and the COMMON case (every cross-hart
             # kill). Counted, not warned: at ~29,000 per hart a line each would
             # bury the log, and the write's suppression is downstream of the port
             # the tracer samples, so this is the expected shape, not a finding.
+            #
+            # A16 changed WHICH witness proves it, and that is an improvement,
+            # not a rename. Pre-A16 the only evidence of an external kill was
+            # that a store record HAPPENED TO FOLLOW -- i.e. the very record
+            # A15 exists to delete, so the shape census was reading the defect
+            # as its own instrument. `# SCGHOST` is a dedicated witness emitted
+            # by the RTL observer that saw `sc_fail_ext` itself, which makes
+            # `ext` and `local` symmetric: one diagnostic each.
+            # `s["store"]` is kept so a PRE-A16 trace still censuses correctly.
             sc_shape["ext"] += 1
         if failed and s["scfailrd"]:
             sc_shape["local"] += 1
@@ -569,12 +591,29 @@ def main(argv=None):
                 # backwards -- to the sc.w it follows -- never sees a witness at
                 # all and reports a false absence on every locally-failed SC.
                 last_scfailrd += 1
+            elif len(f) >= 2 and f[1] == "SCGHOST":
+                # A16 (finding T2): the tracer's witness that resv_unit
+                # SUPPRESSED this sc.w's write. It replaces the store-presence
+                # accident the `ext` shape used to be counted from: pre-A16 the
+                # only sign of an external kill was that an `M ... S` happened
+                # to follow, which is exactly the record A15/A16 exist to
+                # retire. Binds FORWARD like `# SCFAILRD` and for the same
+                # reason -- both are emitted at the SC_CHECK edge, before the
+                # retire group is flushed, so both PRECEDE the sc.w's own `R`.
+                last_scghost += 1
+            elif len(f) >= 2 and f[1] == "SCGHOSTX":
+                # A16 refused to classify: the verdict itself was x. The store
+                # was KEPT, so this behaves as a pre-A16 trace at that SC and
+                # A15 is what will (or will not) catch it downstream.
+                diag_bad.append((ln, raw.strip()))
             continue
         # A diagnostic binds only to the record on the very next record line.
         push_here, pop_here = last_push, last_pop
         scfailrd_here = last_scfailrd
+        scghost_here = last_scghost
         last_push = last_pop = None
         last_scfailrd = 0
+        last_scghost = 0
         pending = None
         pending_plant = None
 
@@ -611,7 +650,8 @@ def main(argv=None):
                 sc_pend = {"ref": n_ref_retire - 1, "rtl": n_retire,
                            "ln": ln, "rd": f[5].lower(), "depth": depth,
                            "rdval": f[6].lower(), "store": False,
-                           "scfailrd": scfailrd_here}
+                           "scfailrd": scfailrd_here,
+                           "scghost": scghost_here}
             if depth > 0:
                 # ---- V4/A12: the ISR's committed register writes ---------
                 # rd == "00" is x0, i.e. no architectural write.
@@ -845,12 +885,32 @@ def main(argv=None):
     # `# SCFAILRD` witness = the core itself declined to write. They are the two
     # halves of the RTL's SC failure path and their sum should equal `scfail`
     # unless an SC failed with neither witness, which is itself worth seeing.
+    #
+    # AND IT IS NOW ROUTINELY UNEQUAL, so `unwitnessed` is printed rather than
+    # left to the reader's arithmetic. Measured on `shlrsc` h00 at this commit:
+    # 4 forced, ext-shape 2, local-shape 0. The missing two are the LOCALLY
+    # failed SCs, and their witness is gone because fix-pass W1-F2 deleted the
+    # thing that produced it -- `# SCFAILRD` fires on the side-effecting bus
+    # READ a failed sc.w used to issue in SC_CHECK, and F2's whole point was
+    # that this read should never have existed. The diagnostic was correct, the
+    # RTL it observed was the bug, and removing the bug removed the observation.
+    # `# SCFAILRD` is now extinct in every trace.
+    #
+    # This is rule R-WT-4 (audit what was measuring a defect when you remove it)
+    # arriving from an EARLIER wave, and it is left VISIBLE rather than
+    # papered over: an unwitnessed failure is not wrong -- `rd` is still the
+    # oracle and the F is still emitted -- but a census whose halves silently
+    # stop summing is how a real gap gets normalised.
     if n_sc or n_sc_interior:
         sys.stderr.write("mk_inject: sc.w census: %d compared, %d interior "
-                         "(no F), forced=%d [ext-shape=%d local-shape=%d], "
-                         "ghost store(s) withheld from the S replay=%d\n"
+                         "(no F), forced=%d [ext-shape=%d local-shape=%d "
+                         "unwitnessed=%d], ghost store(s) withheld from the "
+                         "S replay=%d\n"
                          % (n_sc, n_sc_interior, len(sc_fails),
-                            sc_shape["ext"], sc_shape["local"], n_sc_ghost))
+                            sc_shape["ext"], sc_shape["local"],
+                            max(0, len(sc_fails)
+                                   - sc_shape["ext"] - sc_shape["local"]),
+                            n_sc_ghost))
     for lnn, why in sc_inconsistent:
         sys.stderr.write("mk_inject: WARNING sc.w at trace line %d: %s\n" % (lnn, why))
     for lnn, why in sc_indeterminate:

@@ -334,6 +334,22 @@ core   0: 3 0x00008204 (0x4081) x1  0x00000000
 """.splitlines(True)
 
 
+# Amendment A16 (WT, finding T2) -- the SAME failed sc.w as A15_FAIL_RTL, as a
+# POST-A16 tracer emits it: no `M ... S` at all, and a `# SCGHOST` carrying the
+# store that was withheld.  The diagnostic PRECEDES the retire because the
+# tracer writes it at the SC_CHECK edge, before the retire group is flushed --
+# the same binding direction as `# SCFAILRD`.
+#
+# This fixture is the A15 pair's third leg and it is what makes the negative
+# control meaningful: against A15_FAIL_SPIKE it must exit 0 **with and without
+# --no-a15**, because there is no longer a ghost record for A15 to remove.
+A16_FAIL_RTL = """\
+# SCGHOST 00 00000040 0001000c 4 000015b3
+R 00 00000040 00008200 19c2aeaf 1d 00000001
+R 00 00000042 00008204 4081 01 00000000
+""".splitlines(True)
+
+
 # --------------------------------------------------------------------------
 # V4 (multi-hart) fixtures -- sleep truncation
 #
@@ -941,6 +957,29 @@ def main():
            0, [HEADER] + A15_X0_RTL, A15_X0_SPIKE,
            expect_in_stderr=["INDETERMINATE", "was NOT dropped"])
 
+    # ---------------- Amendment A16: the ghost is gone at SOURCE ---------
+    # Same failed sc.w, same reference, post-A16 trace. Two things must hold and
+    # the second is the point of the amendment:
+    #   * A15 finds nothing to drop and says WHY it found nothing -- naming
+    #     A16, not the pre-A16 "the core declined the write locally", which
+    #     would be a false statement about every cross-hart kill;
+    #   * the `--no-a15` NEGATIVE CONTROL becomes INERT. V4 proved A15
+    #     load-bearing by flipping this control 0 -> 1. That it no longer flips
+    #     is the evidence that A16 removed the shape at source rather than
+    #     moving numbers: the comparator no longer NEEDS the exception.
+    h.case("exit0 A16 post-fix trace: no ghost to drop, and the note says A16",
+           0, [HEADER] + A16_FAIL_RTL, A15_FAIL_SPIKE,
+           expect_in_stderr=["0 ghost store(s) dropped",
+                             "[# SCGHOST, Amendment A16]"])
+    h.case("exit0 A16 makes --no-a15 INERT (V4's control flipped 0->1; now 0->0)",
+           0, [HEADER] + A16_FAIL_RTL, A15_FAIL_SPIKE, extra=("--no-a15",))
+    # And the shim is NOT dead: the pre-A16 trace still needs A15, both polarities.
+    h.case("exit0 A15 SHIM still drops the ghost in a PRE-A16 trace",
+           0, [HEADER] + A15_FAIL_RTL, A15_FAIL_SPIKE,
+           expect_in_stderr=["1 ghost store(s) dropped"])
+    h.case("exit1 A15 SHIM off + PRE-A16 trace still diverges (control alive)",
+           1, [HEADER] + A15_FAIL_RTL, A15_FAIL_SPIKE, extra=("--no-a15",))
+
     # ---- §6.1 test_bracket_interior_load_dropped (A13's PARTITION) -------
     # This one tests mk_inject.py, not compare.py, but it belongs with the other
     # bracket tests: it pins the half of A13 that FIXES V3's structural hole.
@@ -1002,6 +1041,49 @@ def main():
                 "1 mmio + 1 plant" in blines,
                 "census does not read '1 mmio + 1 plant':\n%s"
                 % "\n".join(l for l in blines.splitlines() if "census" in l))
+    finally:
+        shutil.rmtree(tdir, ignore_errors=True)
+
+    # ---- A16 in mk_inject: the `ext` failure shape gets a real witness ---
+    # Pre-A16 the injector inferred "resv_unit suppressed the write" from THE
+    # PRESENCE OF A FOLLOWING STORE -- i.e. it read the defect A15 exists to
+    # delete as its own instrument, so after A16 that census would silently
+    # read 0. It now counts `# SCGHOST`. Both legs are exercised, because a
+    # counter that has only ever been seen at 0 has not been tested (R-W4-2):
+    #   leg 1  rd=1 + # SCGHOST      -> ext-shape=1, and NO warning
+    #   leg 2  rd=0 + # SCGHOST      -> the new cross-check FIRES
+    # Leg 2's shape cannot occur in the RTL (the core computes rd FROM
+    # sc_fail_ext), which is exactly why it needs a fixture: it is the check
+    # that would otherwise be added to the tool having never once run.
+    tdir = tempfile.mkdtemp(prefix="cosim_a16_")
+    try:
+        for leg, rdval, want_ext, want_warn in (
+                ("rd=1", "00000001", "ext-shape=1", False),
+                ("rd=0", "00000000", "ext-shape=0", True)):
+            tr = os.path.join(tdir, "g_h00.trace")
+            with open(tr, "w") as fh:
+                fh.write(HEADER)
+                fh.writelines([
+                    "# SCGHOST 00 00000040 0001000c 4 000015b3\n",
+                    "R 00 00000040 00008200 19c2aeaf 1d %s\n" % rdval,
+                    "R 00 00000042 00008204 4081 01 00000000\n",
+                ])
+            inj = os.path.join(tdir, "g.inject")
+            brk = os.path.join(tdir, "g.bracket")
+            p = subprocess.Popen(
+                [PY, mkinj, "--rtl", tr, "-o", inj, "--bracket-out", brk,
+                 "--mmio", "0x4000:0x4000", "--plant", "0xc000:0x14000"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, se = p.communicate(); se = se.decode()
+            h.check("A16 mk_inject counts # SCGHOST as the ext shape (%s)" % leg,
+                    want_ext in se,
+                    "census does not read %r; stderr was:\n%s" % (want_ext, se))
+            fired = "SCGHOST" in se and "claims success" in se
+            h.check("A16 rd/SCGHOST disagreement %s (%s)"
+                    % ("is REPORTED" if want_warn else "is silent", leg),
+                    fired == want_warn,
+                    "warning %s; stderr was:\n%s"
+                    % ("missing" if want_warn else "fired unexpectedly", se))
     finally:
         shutil.rmtree(tdir, ignore_errors=True)
 
