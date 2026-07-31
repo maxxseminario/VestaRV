@@ -40,7 +40,7 @@ The **VestaRV** core is a single-issue, in-order, multicycle RISC-V processor im
 | Atomics (A) | LR/SC and AMO instructions |
 | Interrupts | Stack-based recursive interrupt controller — up to 83 vectors, priority-encoded, re-entrant |
 | Context switching | Software-managed (standard ABI register save/restore) |
-| Clock gating | Instruction-retire clock gate (`cg_insret`) to reduce dynamic power |
+| Clock gating | Core-wide CPU clock gate (`cg_clk_cpu`) — the whole core freezes on a memory stall, on the external `sleep` pin, and in `SLEEPING`; per-register-bank gating is tool-inserted at synthesis |
 
 ### Core Source Files
 
