@@ -1816,8 +1816,48 @@ architecture struct of vesta is
                  rs1_value  when (current_state = SC_CHECK
                                   and reservation_valid = '1'
                                   and reservation_addr = rs1_value) else
-                 rs1_value  when (current_state = EXECUTE and amo_op = '1'
-                                  and mem_access_instr = '1') else
+                 -- F6 (fix pass W4): LR JOINS SC AND AMO ON THE PHASE-INDEPENDENT
+                 -- rs1 ADDRESS. `valid_funct` whitelists AMO_OPCODE on funct3 +
+                 -- funct5 only (maindec:846-865) and lr_op has no rs2 term
+                 -- (maindec:507), so `lr.w rd, rs2, (rs1)` with a NON-ZERO rs2
+                 -- FIELD is a legal decode; ALU_src is '0' for AMO_OPCODE
+                 -- (maindec:1006) and alu_control is ADD for LR/SC
+                 -- (maindec:1201), so ALU_Result = rs1 + reg[rs2]. Before this
+                 -- fix BOTH the EXECUTE dispatch and LR_READ fell through to that
+                 -- ALU_Result while the reservation armed at rs1_value (:1377) --
+                 -- the read and the reservation landed on DIFFERENT addresses.
+                 -- lr.w is the one member of the family that was left out of the
+                 -- M4b/M8 rs1_value rule (see the SC note at :2680 and the
+                 -- EXECUTE+amo_op term folded in below).
+                 --
+                 -- BOTH TERMS ARE REQUIRED; either alone is a HALF FIX:
+                 --  * EXECUTE alone -- the LR's read transaction rides the
+                 --    EXECUTE cycle (:1947's `lr_sc_bus <= "01"` says so), and it
+                 --    is data_addr in THAT cycle that the resv_unit sees, so this
+                 --    term is what moves the GLOBAL reservation to rs1 as well as
+                 --    the read. But LR_READ would then re-present a DIFFERENT
+                 --    word address to a window whose ack is word-address
+                 --    qualified (hart_tile.vhd:701/715 sh_acked_addr), dropping
+                 --    sh_ack_ok and re-arbitrating a second, wrong-address read.
+                 --  * LR_READ alone -- the read and the global reservation both
+                 --    stay at rs1+reg[rs2], so a later shared `sc.w` at rs1 can
+                 --    never succeed (W4 measured exactly that, a7 = 1).
+                 -- Moving both keeps the two cycles' word addresses EQUAL, which
+                 -- is what lets hart_tile absorb LR_READ into the EXECUTE ack
+                 -- (hart_tile.vhd:682-683) exactly as it does today.
+                 --
+                 -- Canonical `lr.w` has rs2 = x0, so rs1 + 0 = rs1: today's
+                 -- behaviour for every assembler-emitted LR is unchanged, and
+                 -- Spike decodes lr.w ignoring rs2 -- forcing the address (rather
+                 -- than trapping the encoding) is what keeps lockstep clean.
+                 -- NOTE: the ALU_Result arm below keeps its `current_state =
+                 -- LR_READ` term, now SHADOWED by the arm above. It is left in
+                 -- place as the AMO_READ/AMO_WRITE symmetry it was written as;
+                 -- removing it would change nothing.
+                 rs1_value  when (current_state = LR_READ or
+                                  (current_state = EXECUTE
+                                   and (amo_op = '1' or lr_op = '1')
+                                   and mem_access_instr = '1')) else
                  ALU_Result when (mem_access_instr = '1' or
                                   current_state = AMO_READ or current_state = AMO_WRITE or
                                   current_state = LR_READ) else
@@ -2204,9 +2244,19 @@ architecture struct of vesta is
     -- it back here would be a combinational loop. Every term below is either a
     -- STATE-selected registered sequencer address or a regfile/ALU export that
     -- the data_addr mux would have chosen in the same cycle:
-    --   EXECUTE + AMO/SC : rs1_value  (the M4b/M8 phase-independent address --
-    --                      ALU_Result holds rs1<op>rs2 in those cycles)
-    --   EXECUTE + load/store/LR : ALU_Result (rs1+imm, exactly data_addr's term)
+    --   EXECUTE + LR/SC/AMO : rs1_value  (the M4b/M8 phase-independent address --
+    --                      ALU_Result holds rs1<op>rs2 in those cycles). F6 (fix
+    --                      pass W4) ADDED lr_op here: data_addr's EXECUTE term
+    --                      now takes rs1_value for an LR too (:1857), and this
+    --                      mux exists precisely to mirror data_addr's choice. A
+    --                      malformed `lr.w` with a non-zero rs2 field would
+    --                      otherwise be PMP-checked at rs1+reg[rs2] while the
+    --                      access issued at rs1 -- check and access disagreeing
+    --                      is the one thing a pre-issue check may never do.
+    --                      (ENABLE_PMP is false in every standing build, so this
+    --                      arm folds away there; it is correctness for the
+    --                      knobs-on build, not a default-build change.)
+    --   EXECUTE + load/store : ALU_Result (rs1+imm, exactly data_addr's term)
     --   CBOZ_WRITE / ZCM_PUSH_ST / ZCM_POP_LD / ZCM_JT_LD : the sequencer's own
     --                      generated address for THIS step (§4 "each generated
     --                      address is checked pre-issue at its own dispatch").
@@ -2214,15 +2264,16 @@ architecture struct of vesta is
     pmp_d_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE) else
                   zcm_mem_addr   when (current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD) else
                   zcm_jt_addr    when (current_state = ZCM_JT_LD) else
-                  rs1_value      when (current_state = EXECUTE and (amo_op = '1' or sc_op = '1')) else
+                  rs1_value      when (current_state = EXECUTE and (amo_op = '1' or sc_op = '1'
+                                                                    or lr_op = '1')) else
                   ALU_Result;
 
     -- Permission NEEDS (frozen §4: LR/SC/AMO drive BOTH R and W). A plain
     -- access is a store iff its byte-lane enables are not all inactive --
-    -- wen_controller is "1111" for every load and for LR (maindec:~1029).
+    -- wen_controller is "1111" for every load and for LR (maindec:1106).
     --
     -- P3 red-team F2/F3 FIX: the `isr_ret` (iret) decode ALSO raises
-    -- read_data_flag => mem_access_controller (maindec:~1074), so without a
+    -- read_data_flag => mem_access_controller (maindec:1162), so without a
     -- guard iret looks like a load here and PMP-checks a PHANTOM read at its
     -- ALU_Result (= 0 for the canonical encoding). A locked/no-perm entry over
     -- that address then faults EVERY M-mode iret (an M-mode DoS -- F2). iret is
