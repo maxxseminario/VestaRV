@@ -1,0 +1,62 @@
+# cosim_xallow.txt — the Amendment A9 x-wildcard allowlist (V3, 2026-07-30).
+#
+# Consumed by tools/cosim/compare.py --x-allow. One `<pc> <addr>` pair per
+# line, lowercase 8-hex, #-comments ignored. For a record whose pc (an `R`) or
+# addr (an `M`) appears here, an `x` nibble in the RTL field compares as a
+# WILDCARD; every DEFINED nibble is still compared exactly and the field width
+# must still match. Records NOT named here keep Amendment A5's exit-4
+# INVESTIGATE behaviour unchanged.
+#
+# THIS FILE IS THE OPERATIONAL FORM OF RULING A2: refuse x-tainted records by
+# default, permit a NAMED one only with its rationale written down and its use
+# COUNTED. compare.py prints an application census on every run ("x-wildcard
+# applied N application(s) across M record ident(s)"), so an entry that starts
+# firing more often than its rationale predicts is visible in the run log
+# rather than silently absorbing new taint. It is NOT a "skip x" switch.
+#
+# Both entries below are needed only for BOOTROM-INCLUSIVE runs (COSIM_BOOT=1).
+# In the entry-aligned V2/V3 default they are pre-entry and never compared.
+#
+# ---------------------------------------------------------------------------
+# ENTRY 1 — GPIO0 PxIN read of undriven input pads
+#   pc   0x00000070  `lw x14, 0(x11)`   (encoding 0005a703)
+#   addr 0x00004000  GPIO0 PxIN
+#   Observed:  rdval / L-data = 000000bx   (bit 0 undriven)
+#   Rationale: the boot ROM reads the strap/pad byte and IMMEDIATELY masks it
+#   (`andi a4,a4,0x80` on the next instruction), so the undriven bit cannot
+#   reach architectural state. v1_report.md §8.2 classifies it as benign and
+#   as neither a tracer bug nor an RTL bug: undriven input pads in a
+#   behavioural sim have no defined level. Verified stable across two runs
+#   (byte-identical traces, V3 checkpoint 3).
+00000070 00004000
+#
+# ENTRY 2 — SPI0 RX buffer read before any transfer has completed
+#   pc   0x00000198  `lw x5, 12(x10)`   (encoding 00c52283)
+#   addr 0x0000420c  SPI0 RXBUF
+#   Observed:  rdval / L-data = 000000xx   (whole low byte undriven)
+#   Rationale: the first read drains a shift register that has never been
+#   loaded; the boot's flash-copy loop discards this first word. v1_report.md
+#   §8.2, same classification. Verified stable across two runs.
+00000198 0000420c
+#
+#
+# ---------------------------------------------------------------------------
+# The paired injection-side allowlist (mk_inject.py --allow-x) supplies the
+# SUBSTITUTED values fed to the reference model for the same two reads, chosen
+# so their defined nibbles match the observed defined nibbles:
+#     --allow-x <ord>:00004000:000000b1
+#     --allow-x <ord>:0000420c:00000000
+#
+# A10 CORRECTION (2026-07-31, W5). Entry 1's substituted value above read
+# ':000000b0' until now -- the V3 value, kept here after amendment A10 had
+# already corrected it in xrun_cosim.sh (BOOT_ALLOW_X_1). It was WRONG: the
+# RTL DRIVES bit 0 of this read to 1 (`# XBITS ... data 00000002 000000b1`
+# -- only bit 1 is undriven), so 0xb0 contradicted a driven bit and
+# mk_inject now REFUSES it with EXIT_REFUSED(5). Measured at W5, not
+# inferred. The lesson is the R-W2-3 one: this file is the allowlist's
+# written RATIONALE, so a stale value here is worse than a stale value in a
+# script -- the next reader trusts it. Canonical copy + drift checker:
+# tools/cosim/gate/ and tools/cosim/check_gate_files.py.
+# Injection and comparison must be kept consistent: the reference is handed a
+# concrete value, and the comparator is told not to hold the RTL's undriven
+# nibbles against it.

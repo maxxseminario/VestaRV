@@ -12,6 +12,77 @@ under `xcelium/` (gitignored).
 | `records.py` | the wire-format record object + the RTL-trace parser. |
 | `disasm.py` | compact `rv32imac_zba_zbb_zbs_zbc` disassembler, used only to annotate context output. |
 | `test_compare.py` | standalone self-tests. Every exit code exercised. |
+| `check_gate_files.py` | **the gate-infrastructure drift checker** — see below. |
+| `gate/` | **canonical, tracked copies of the gate infrastructure** — see below. |
+
+---
+
+## `gate/` + `check_gate_files.py` — the gate infrastructure is tracked HERE
+
+**The problem, measured not assumed.** The two standing lockstep gates and the
+136-test behavioural suite are driven by scripts and lists under `xcelium/`, and
+`.gitignore`'s bare `xcelium/` rule (a deliberate 2026-07-18 decision) means git
+tracks **none** of them. A `git clean -xdf` deletes the whole gate apparatus.
+At W5 (2026-07-31) that cost was already being paid twice over:
+
+* amendment **A10**'s correction to the boot x-wildcard substitution
+  (`00004000:000000b0` → `…b1` — a value that had been silently overwriting a
+  bit the RTL *does* drive, ever since V3) existed **only on disk**; and
+* the V4 **missing-plant negative control** lived only in a session scratchpad
+  outside the repo, still carried the pre-A10 value, and had therefore **stopped
+  executing entirely** (`mk_inject … EXIT_REFUSED`, rc=5). A negative control
+  that cannot run is not a control.
+
+**The fix (user ruling, W5)** is the same canonical-copy-plus-verifier idiom the
+project already uses for the generated `MCU.vhd` via
+`platform/common/python/check_mcu_vhd.py`: `tools/cosim/gate/` holds the tracked
+record, `xcelium/…` holds what actually runs, and the checker makes any
+divergence loud. **`.gitignore` is deliberately untouched** — a plain negation
+cannot work anyway, because git will not re-include a file whose parent
+directory is excluded.
+
+| canonical (tracked) | live (gitignored) |
+|---|---|
+| `gate/xrun_cosim.sh` | `xcelium/riscv_test/behavioral_mp/xrun_cosim.sh` |
+| `gate/xrun_parallel.sh` | `xcelium/riscv_test/behavioral_mp/xrun_parallel.sh` |
+| `gate/cosim_tests.txt` | `xcelium/riscv_test/behavioral_mp/cosim_tests.txt` |
+| `gate/cosim_sh_tests.txt` | `xcelium/riscv_test/behavioral_mp/cosim_sh_tests.txt` |
+| `gate/cosim_xallow.txt` | `xcelium/riscv_test/behavioral_mp/cosim_xallow.txt` |
+| `gate/negctrl_RERUN.sh` | *(canonical only — run it in place)* |
+
+```bash
+/usr/bin/python3.6 tools/cosim/check_gate_files.py            # check   rc 0/1/2
+/usr/bin/python3.6 tools/cosim/check_gate_files.py --update   # live -> canonical
+/usr/bin/python3.6 tools/cosim/check_gate_files.py --restore  # canonical -> live
+```
+
+* `rc 0` match · `rc 1` **DRIFT** (unified diff printed) · `rc 2` a file is
+  missing on one side.
+* **`--update` is the only sanctioned way to move the record.** Run it when you
+  change a gate deliberately, then commit `tools/cosim/gate/` **in the same
+  commit** as the change that motivated it.
+* **`--restore` is what a fresh clone or a post-`git clean` tree needs.** It
+  **refuses** to overwrite a live file that differs unless `--force` is also
+  given, so it cannot silently discard an uncommitted fix — precisely the
+  accident the checker exists to catch.
+
+Both polarities of the checker were proven at W5 before it was believed: a
+one-line perturbation of a live list → `rc=1` with the diff; a deleted live file
+→ `rc=2` with the recovery hint; `--restore` refusing a differing live copy;
+and the tree byte-identical afterwards.
+
+### Running the negative control
+
+```bash
+source ~/vestarv/cdspaths.sh
+bash tools/cosim/gate/negctrl_RERUN.sh        # ~2 min; regenerates its trace if absent
+```
+
+Artifacts go to `$NEGCTRL_WORKDIR` (default
+`xcelium/riscv_test/behavioral_mp/cosim_work/negctrl_plant/`), never beside the
+tracked script and never over the sweep's own `cosim_work/traces` or
+`cosim_work/inject`. Expected: **GOLD exit=0 plants=9281/9281**, **PERTURBED
+exit=1 plants=9280/9280, divergence at compared record #50154**.
 
 ---
 
