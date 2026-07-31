@@ -1087,6 +1087,67 @@ def main():
     finally:
         shutil.rmtree(tdir, ignore_errors=True)
 
+    # ---- A10: the --allow-x substitution is CHECKED against the bit mask ---
+    # THE SHAPE IS `rv32ui-p-afsel`'s, verbatim in structure: a GPIO1 `PxIN`
+    # read at 0x4100 whose byte prints `000000xx`, where bits 7:1 are genuinely
+    # undriven and bit 0 is DRIVEN and is the bit the program branches on.
+    #
+    # Before A10 both legs below were accepted silently, because nibble-granular
+    # `x` cannot tell a fabricated bit from a contradicted one. Leg 2 is the
+    # dangerous one: it hands the reference the OPPOSITE branch bit, and the
+    # only symptom is a divergence somewhere downstream, blamed on the DUT.
+    tdir = tempfile.mkdtemp(prefix="cosim_a10_")
+    try:
+        # NB `subx`, not `sub` -- `sub()` is a module-level helper this
+        # function calls elsewhere, and shadowing it makes every earlier call
+        # in main() an UnboundLocalError. Caught by running the suite.
+        for leg, subx, want_rc, needle in (
+                ("fills only UNDRIVEN bits -> accepted, and COUNTED",
+                 "000000f1", 0, "substitution(s) VERIFIED"),
+                ("CONTRADICTS the driven bit 0 -> REFUSED",
+                 "00000000", 5, "CONTRADICTS a bit the RTL actually drove")):   # 5 = EXIT_REFUSED
+            tr = os.path.join(tdir, "x_h00.trace")
+            with open(tr, "w") as fh:
+                fh.write(HEADER)
+                fh.writelines([
+                    "R 00 00000010 00008200 00012083 01 00000001\n",
+                    "M 00 00000010 L 00004100 4 000000xx\n",
+                    "# XBITS 00 00000010 data 000000fe 00000001\n",
+                ])
+            inj = os.path.join(tdir, "x.inject")
+            brk = os.path.join(tdir, "x.bracket")
+            p = subprocess.Popen(
+                [PY, mkinj, "--rtl", tr, "-o", inj, "--bracket-out", brk,
+                 "--mmio", "0x4000:0x4000", "--plant", "0xc000:0x14000",
+                 "--allow-x", "0:00004100:" + subx],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, se = p.communicate(); se = se.decode()
+            h.check("A10 --allow-x %s" % leg,
+                    p.returncode == want_rc and needle in se,
+                    "exit %d (want %d) / stderr:\n%s" % (p.returncode, want_rc, se))
+        # And the shim direction: a PRE-A10 trace carries no mask, so the
+        # substitution is unchecked exactly as before -- no new refusals on
+        # archived traces.
+        tr = os.path.join(tdir, "old_h00.trace")
+        with open(tr, "w") as fh:
+            fh.write(HEADER)
+            fh.writelines([
+                "R 00 00000010 00008200 00012083 01 00000001\n",
+                "M 00 00000010 L 00004100 4 000000xx\n",
+            ])
+        inj = os.path.join(tdir, "o.inject"); brk = os.path.join(tdir, "o.bracket")
+        p = subprocess.Popen(
+            [PY, mkinj, "--rtl", tr, "-o", inj, "--bracket-out", brk,
+             "--mmio", "0x4000:0x4000", "--plant", "0xc000:0x14000",
+             "--allow-x", "0:00004100:00000000"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, se = p.communicate(); se = se.decode()
+        h.check("A10 a PRE-A10 trace is unaffected (no mask, no new refusal)",
+                p.returncode == 0 and "A10 bit-granular" not in se,
+                "exit %d / stderr:\n%s" % (p.returncode, se))
+    finally:
+        shutil.rmtree(tdir, ignore_errors=True)
+
     # ---- A13/A6 SUB-WORD PLANT LANE SELECT (vesta_ref) -------------------
     # A real bug, caught only by the full sh* suite: an `M ... L` data field is the
     # RAW BUS WORD (A6), so a plant of `size` bytes at `addr` must poke

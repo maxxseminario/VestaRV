@@ -62,7 +62,14 @@ FINDING_TAGS = (
     "INIT",           # R6 -- INITIALIZE actually executed
     "IRETPHANTOM",    # finding F9           -- every iret reads address 0
     "SLEEPEXIT",      # R5 -- a SLEEPING exit with no WFI dispatch
+    "SCGHOST",        # A16 / finding T2     -- resv_unit suppressed an sc.w write
+    "SCGHOSTX",       # A16                  -- the SC verdict itself was x
 )
+# `XBITS` (A10) is deliberately NOT here. It is METADATA, not a finding: it says
+# which bits of an already-`x`-marked field were undriven. Naming it in the
+# findings surface would read as a defect signal on every trace that carries any
+# taint at all. It still surfaces, with its count, on the "other '#' comment
+# tags" line -- visible without being alarming.
 
 # Compared field names per record kind, RECORD_FORMAT §8.  `None` marks a field
 # that exists on the wire but is debug-only (an `M L` size/data: Spike emits a
