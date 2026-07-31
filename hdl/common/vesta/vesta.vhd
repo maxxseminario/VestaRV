@@ -579,6 +579,50 @@ architecture struct of vesta is
     signal current_state, next_state : cpu_state;
 
     -- ==========================================
+    -- S-series commit-intent interface (S0 interface spec, section 2)
+    -- ==========================================
+    -- A state DECLARES what it commits; the commit block at the tail of
+    -- next_state_logic is the only place that turns intent into the four nets
+    -- (reg_write_dp / sp_write_en / wen / pc_en).  Every default is the
+    -- FAIL-SAFE direction: a state that declares nothing commits nothing and
+    -- holds the PC.  Note ci_st_lanes is ACTIVE-HIGH -- the active-low wen
+    -- convention is re-derived at 64 sites today and exists in exactly one
+    -- line (`wen <= not ci_st_lanes`) after migration.
+    --
+    -- S1 adds a declaration exactly where a state's CURRENT effective drive
+    -- differs from that fail-safe value.  That includes the paths which reach
+    -- a non-default value by FALLING THROUGH to the process defaults
+    -- (reg_write_ctrl / wen_controller / pc_en '1'), which is why arms that
+    -- assign nothing today still declare here -- and it excludes the arms that
+    -- force '0' / all-ones / pc-hold, which the default already covers.  Where
+    -- an earlier declaration in the SAME path has already moved a signal off
+    -- its default, restoring it takes an explicit declaration (the pc_en '1'
+    -- then '0' shape of AMO_WRITE, LR_READ, SC_CHECK, DIV_DONE, ...).
+    --
+    -- ONE DELIBERATE EXCEPTION, for `wen` only (rulings R-S1-1c, R-S1-2):
+    -- **a wen fall-through in a NON-DISPATCH state declares NOTHING.**  There,
+    -- no-store is the INTENDED behaviour and it holds today only by a
+    -- cross-file decode coincidence over a HELD word (census N1), so mirroring
+    -- it would blind the shadow checker to that coincidence breaking.  The
+    -- sites: SLEEPING, DIV_WAIT, DIV_DONE, FPU_FETCH3, FPU_WAIT, FPU_DONE,
+    -- IRQ_REST's irq_save and std_irq_take paths, and `when others`.
+    -- IN EXECUTE THE MIRROR STAYS: there the live decode is the DISPATCHING
+    -- word's own intent, so `not wen_controller` on a div / fp / lr / trap-entry
+    -- branch is that instruction's true no-store, not a coincidence.
+    signal ci_rd_commit  : std_logic;                     -- default '0' : no rd write
+    signal ci_sp_commit  : std_logic;                     -- default '0' : no sp write
+    signal ci_st_lanes   : std_logic_vector(3 downto 0);  -- ACTIVE-HIGH, default "0000" : no store
+    signal ci_pc_advance : std_logic;                     -- default '0' : PC holds
+
+    -- S2 migration gate (S0 interface spec, section 3): one entry per
+    -- cpu_state.  EMPTY in S1 -- the commit block is present and syntactically
+    -- live but drives nothing, so every state keeps its existing direct drives
+    -- and all four outputs are bit-identical.  S2 switches families on one
+    -- commit at a time; the cleanup commit deletes the table and its `if`.
+    type commit_gate_t is array (cpu_state) of boolean;
+    constant state_commits_via_block : commit_gate_t := (others => false);
+
+    -- ==========================================
     -- PC Management Signals
     -- ==========================================
     signal pc, pc_next           : std_logic_vector(XLEN-1 downto 0);
@@ -2495,6 +2539,17 @@ architecture struct of vesta is
             is_compressed <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- P2 standard-WFI entry marker
+            -- S-series intent defaults: FAIL-SAFE (S0 spec section 2).  NOTE
+            -- (ruling R-S1-1a) the live reset branch above is NOT fail-safe --
+            -- it drives `wen <= wen_controller` and `pc_en <= '1'` -- so intent
+            -- and the live nets DISAGREE here by construction.  That is why the
+            -- shadow checker is qualified with resetn='1'; reproducing the
+            -- reset-branch values exactly is the S2 cleanup commit's job
+            -- (spec section 3), not S1's.
+            ci_rd_commit  <= '0';
+            ci_sp_commit  <= '0';
+            ci_st_lanes   <= "0000";
+            ci_pc_advance <= '0';
 
         else
             -- Default signal values
@@ -2510,6 +2565,11 @@ architecture struct of vesta is
             irq_save_ack <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- P2: only the WFI dispatch arms raise this
+            -- S-series intent defaults: FAIL-SAFE (S0 spec section 2).
+            ci_rd_commit  <= '0';
+            ci_sp_commit  <= '0';
+            ci_st_lanes   <= "0000";
+            ci_pc_advance <= '0';
 
             case current_state is
                 -- ==========================================
@@ -2522,6 +2582,9 @@ architecture struct of vesta is
                     div_start <= '0';
                     wen <= wen_controller;
                     is_compressed <= '0';
+                    ci_rd_commit  <= reg_write_ctrl;
+                    ci_st_lanes   <= not wen_controller;
+                    ci_pc_advance <= '1';
 
                 -- ==========================================
                 -- EXECUTE State - Main instruction execution
@@ -2582,6 +2645,10 @@ architecture struct of vesta is
                             next_state <= TRAP_STATE;
                         end if;
                         pc_en <= '0';
+                        -- SHAPE_Q drives neither reg_write_dp nor wen today, so
+                        -- both fall through to the live decode (census N2).
+                        ci_rd_commit <= reg_write_ctrl;
+                        ci_st_lanes  <= not wen_controller;
                     elsif pc(1) = '1' then
                         -- Current instruction on half-word boundary
                         if quadrant_upper = "11" or repeat_if = '1' then
@@ -2605,6 +2672,11 @@ architecture struct of vesta is
                                         wen <= (others => '1');
                                     else
                                         next_state <= TRAP_STATE;
+                                        -- The LEGACY trap-entry cycle has no
+                                        -- reg_write_dp / wen arm, so both keep the
+                                        -- live decode's drives.
+                                        ci_rd_commit <= reg_write_ctrl;
+                                        ci_st_lanes  <= not wen_controller;
                                     end if;
                                 elsif ecall_op = '1' or ebreak_op = '1' then
                                     -- P1 ECALL (cause 11) / EBREAK (cause 3), both
@@ -2666,6 +2738,8 @@ architecture struct of vesta is
                                 elsif sleep_rq = '1' then
                                     next_state <= SLEEPING;
                                     pc_en <= '0';
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 elsif wfi_op = '1' then
                                     -- P2 standard WFI: enter SLEEPING and RAISE
                                     -- the entry-reason marker, so the SLEEPING
@@ -2679,14 +2753,19 @@ architecture struct of vesta is
                                     next_state <= SLEEPING;
                                     pc_en      <= '0';
                                     wfi_enter  <= '1';
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 elsif wrs_op = '1' then
                                     -- X1 Zawrs: stall only if a global reservation
                                     -- is live; else the hint retires immediately.
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                     if resv_valid_ext = '1' then
                                         next_state <= WRS_WAIT;
                                         pc_en <= '0';
                                     else
                                         next_state <= EXECUTE;  -- pc_en defaults '1'
+                                        ci_pc_advance <= '1';
                                     end if;
                                 elsif lr_op = '1' then
                                     -- Load-Reserved operation
@@ -2694,6 +2773,7 @@ architecture struct of vesta is
                                     next_state <= LR_READ;
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
+                                    ci_st_lanes <= not wen_controller;
                                 elsif sc_op = '1' then
                                     -- Store-Conditional operation
                                     -- M4b FIX: no EXECUTE-phase access — the
@@ -2737,12 +2817,15 @@ architecture struct of vesta is
                                     -- ENABLE_ZIHINT + window>0 are static, so a
                                     -- disabled/seeded build takes the FENCE arm =
                                     -- bit-identical today.
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                     if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
                                         next_state <= PAUSE_WAIT;
                                         pc_en <= '0';
                                     else
                                         next_state <= FENCE_WAIT;
                                         pc_en <= '1';
+                                        ci_pc_advance <= '1';
                                     end if;
                                 elsif mem_access_controller = '1' then
                                     -- ==========================================
@@ -2809,6 +2892,7 @@ architecture struct of vesta is
                                     next_state <= MEMORY_WAIT;
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
+                                    ci_st_lanes <= not wen_controller;
                                 elsif is_div_op = '1' then
                                     next_state <= DIV_WAIT;
                                     pc_en <= '0';
@@ -2823,6 +2907,7 @@ architecture struct of vesta is
                                     -- (spurious div-by-zero). rd is written exactly
                                     -- once, at DIV_DONE, like lr/sc/amo/mem_access.
                                     reg_write_dp <= '0';
+                                    ci_st_lanes <= not wen_controller;
                                 elsif is_fp_fma = '1' then
                                     -- X4 Zfinx FMA: fetch rs3 then run. pc_en frozen
                                     -- and reg_write_dp forced '0' across the whole
@@ -2831,13 +2916,17 @@ architecture struct of vesta is
                                     next_state <= FPU_FETCH3;
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
+                                    ci_st_lanes <= not wen_controller;
                                 elsif is_fp_multicycle = '1' then
                                     next_state <= FPU_WAIT;
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
+                                    ci_st_lanes <= not wen_controller;
                                 elsif irq_save = '1' then
                                     next_state <= IRQ_SV;
                                     pc_en <= '0';
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 elsif std_irq_take = '1' then
                                     -- P1 standard delivery: the SAME check point, no new one. In
                                     -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -2848,10 +2937,18 @@ architecture struct of vesta is
                                     -- no std_irq_take site either.
                                     next_state <= MTRAP_SV;
                                     pc_en <= '0';
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 elsif isr_ret = '1' then
                                     next_state <= IRQ_REST;
+                                    ci_rd_commit  <= reg_write_ctrl;
+                                    ci_st_lanes   <= not wen_controller;
+                                    ci_pc_advance <= '1';
                                 else
                                     next_state <= EXECUTE;
+                                    ci_rd_commit  <= reg_write_ctrl;
+                                    ci_st_lanes   <= not wen_controller;
+                                    ci_pc_advance <= '1';
                                 end if;
                             else
                                 -- Need to fetch upper half of instruction
@@ -2876,6 +2973,8 @@ architecture struct of vesta is
                                     wen <= (others => '1');
                                 else
                                     next_state <= TRAP_STATE;
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1: c.ebreak DECOMPRESSES to EBREAK (c_dec:~676),
@@ -2947,6 +3046,7 @@ architecture struct of vesta is
                                 next_state <= MEMORY_WAIT;
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
                                 pc_en <= '0';
@@ -2956,9 +3056,12 @@ architecture struct of vesta is
                                 -- ResultSignal (=0) before the divider latches its
                                 -- operands. rd is written exactly once, at DIV_DONE.
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
                                 -- P1 standard delivery: the SAME check point, no new one. In
                                 -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -2969,10 +3072,18 @@ architecture struct of vesta is
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif isr_ret = '1' then
                                 next_state <= IRQ_REST;
+                                ci_rd_commit  <= reg_write_ctrl;
+                                ci_st_lanes   <= not wen_controller;
+                                ci_pc_advance <= '1';
                             else
                                 next_state <= EXECUTE;
+                                ci_rd_commit  <= reg_write_ctrl;
+                                ci_st_lanes   <= not wen_controller;
+                                ci_pc_advance <= '1';
                             end if;
                         end if;
                     else
@@ -2992,6 +3103,8 @@ architecture struct of vesta is
                                     wen <= (others => '1');
                                 else
                                     next_state <= TRAP_STATE;
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1 ECALL (11) / EBREAK (3); see the split-fetch
@@ -3031,6 +3144,8 @@ architecture struct of vesta is
                             elsif sleep_rq = '1' then
                                 next_state <= SLEEPING;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif wfi_op = '1' then
                                 -- P2 standard WFI (see the split-fetch arm above
                                 -- for the full rationale). WFI is a 32-bit
@@ -3041,14 +3156,19 @@ architecture struct of vesta is
                                 next_state <= SLEEPING;
                                 pc_en      <= '0';
                                 wfi_enter  <= '1';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif wrs_op = '1' then
                                 -- X1 Zawrs: stall only if a global reservation is
                                 -- live; else the hint retires immediately.
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                                 if resv_valid_ext = '1' then
                                     next_state <= WRS_WAIT;
                                     pc_en <= '0';
                                 else
                                     next_state <= EXECUTE;  -- pc_en defaults '1'
+                                    ci_pc_advance <= '1';
                                 end if;
                             elsif lr_op = '1' then
                                 -- Load-Reserved operation
@@ -3056,6 +3176,7 @@ architecture struct of vesta is
                                 next_state <= LR_READ;
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif sc_op = '1' then
                                 -- Store-Conditional operation
                                 -- M4b FIX: no EXECUTE-phase access (see the
@@ -3088,12 +3209,15 @@ architecture struct of vesta is
                                 -- X1 Zihintpause (D6): PAUSE -> arbiter-yield
                                 -- window; any other FENCE -> 1-cycle nop. See the
                                 -- half-word path above for the rationale.
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                                 if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
                                     next_state <= PAUSE_WAIT;
                                     pc_en <= '0';
                                 else
                                     next_state <= FENCE_WAIT;
                                     pc_en <= '1';
+                                    ci_pc_advance <= '1';
                                 end if;
                             elsif mem_access_controller = '1' then
                                 -- F9 (fix pass W4): see shape A's block at :2747.
@@ -3104,6 +3228,7 @@ architecture struct of vesta is
                                 next_state <= MEMORY_WAIT;
                                 reg_write_dp <= '0';
                                 pc_en <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
                                 pc_en <= '0';
@@ -3113,19 +3238,24 @@ architecture struct of vesta is
                                 -- ResultSignal (=0) before the divider latches its
                                 -- operands. rd is written exactly once, at DIV_DONE.
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif is_fp_fma = '1' then
                                 -- X4 Zfinx FMA (see the half-word arm for rationale):
                                 -- freeze pc_en, force reg_write_dp '0' across dispatch.
                                 next_state <= FPU_FETCH3;
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif is_fp_multicycle = '1' then
                                 next_state <= FPU_WAIT;
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
                                 -- P1 standard delivery: the SAME check point, no new one. In
                                 -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3136,10 +3266,18 @@ architecture struct of vesta is
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif isr_ret = '1' then
                                 next_state <= IRQ_REST;
+                                ci_rd_commit  <= reg_write_ctrl;
+                                ci_st_lanes   <= not wen_controller;
+                                ci_pc_advance <= '1';
                             else
                                 next_state <= EXECUTE;
+                                ci_rd_commit  <= reg_write_ctrl;
+                                ci_st_lanes   <= not wen_controller;
+                                ci_pc_advance <= '1';
                             end if;
                         else
                             -- Compressed instruction
@@ -3154,6 +3292,8 @@ architecture struct of vesta is
                                     wen <= (others => '1');
                                 else
                                     next_state <= TRAP_STATE;
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1: c.ebreak decompresses to EBREAK (c_dec:~676).
@@ -3217,6 +3357,7 @@ architecture struct of vesta is
                                 next_state <= MEMORY_WAIT;
                                 reg_write_dp <= '0';
                                 pc_en <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
                                 pc_en <= '0';
@@ -3226,9 +3367,12 @@ architecture struct of vesta is
                                 -- ResultSignal (=0) before the divider latches its
                                 -- operands. rd is written exactly once, at DIV_DONE.
                                 reg_write_dp <= '0';
+                                ci_st_lanes <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
                                 -- P1 standard delivery: the SAME check point, no new one. In
                                 -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3239,6 +3383,8 @@ architecture struct of vesta is
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
                                 pc_en <= '0';
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             -- F5.3 (fix pass W1): this arm -- the WORD-ALIGNED
                             -- COMPRESSED shape -- deliberately has NO
                             -- `elsif isr_ret = '1'` branch, unlike its three
@@ -3265,6 +3411,9 @@ architecture struct of vesta is
                             -- hazard than leaving it documented.
                             else
                                 next_state <= EXECUTE;
+                                ci_rd_commit  <= reg_write_ctrl;
+                                ci_st_lanes   <= not wen_controller;
+                                ci_pc_advance <= '1';
                             end if;
                         end if;
                     end if;
@@ -3286,6 +3435,7 @@ architecture struct of vesta is
                     wen <= (others => '1');  -- No memory access
                     mem_access_instr <= '0';
                     reg_write_dp <= '1';  -- Write old value to rd
+                    ci_rd_commit <= '1';
                     next_state <= AMO_COMPUTE;
 
                 -- ==========================================
@@ -3306,10 +3456,13 @@ architecture struct of vesta is
                     wen <= amo_wen;  -- X2 Zabha: byte-lane enables (word AMO = "0000")
                     mem_access_instr <= '1';
                     reg_write_dp <= '0';
+                    ci_pc_advance <= '1';
+                    ci_st_lanes   <= not amo_wen;
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3320,9 +3473,10 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     else
                         -- Need to fetch next instruction from memory
-                        next_state <= AMO_COMPLETE; 
+                        next_state <= AMO_COMPLETE;
                     end if;
 
                 -- ==========================================
@@ -3333,9 +3487,11 @@ architecture struct of vesta is
                     wen <= (others => '1');  -- No memory access
                     mem_access_instr <= '0';
                     reg_write_dp <= '0';
+                    ci_pc_advance <= '1';
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3346,6 +3502,7 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     else
                         next_state <= EXECUTE;
                     end if;
@@ -3358,10 +3515,13 @@ architecture struct of vesta is
                     wen <= (others => '1');  -- Read operation
                     mem_access_instr <= '1';
                     reg_write_dp <= '1';  -- Write value to rd
+                    ci_pc_advance <= '1';
+                    ci_rd_commit  <= '1';
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3372,6 +3532,7 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     else
                         next_state <= AMO_COMPLETE;
                     end if;
@@ -3382,6 +3543,8 @@ architecture struct of vesta is
                 when SC_CHECK =>
                     pc_en <= '1';  -- Ready to fetch next instruction
                     reg_write_dp <= '1';  -- Write success/fail to rd
+                    ci_pc_advance <= '1';
+                    ci_rd_commit  <= '1';
 
                     -- Only write if reservation is valid and addresses match
                     -- F2 (fix pass W1): and only ISSUE A BUS ACCESS AT ALL under
@@ -3412,6 +3575,7 @@ architecture struct of vesta is
                     -- divergence between them is silent.
                     if reservation_valid = '1' and reservation_addr = rs1_value then  -- M4b: rs1, not the phase-dependent ALU_result
                         wen <= "0000";  -- Write word (success)
+                        ci_st_lanes <= "1111";
                         mem_access_instr <= '1';
                     else
                         wen <= (others => '1');  -- No write (fail)
@@ -3421,6 +3585,7 @@ architecture struct of vesta is
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3431,6 +3596,7 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     else
                         next_state <= AMO_COMPLETE;
                     end if;
@@ -3472,6 +3638,7 @@ architecture struct of vesta is
                     else
                         mem_access_instr <= '1';
                         wen              <= "0000";
+                        ci_st_lanes      <= "1111";
                         next_state       <= CBOZ_GAP;
                     end if;
 
@@ -3519,6 +3686,7 @@ architecture struct of vesta is
                     else
                         mem_access_instr <= '1';
                         wen              <= "0000";
+                        ci_st_lanes      <= "1111";
                         next_state       <= ZCM_PUSH_GAP;
                     end if;
 
@@ -3555,6 +3723,7 @@ architecture struct of vesta is
                 when ZCM_POP_WB =>
                     pc_en            <= '0';
                     reg_write_dp     <= '1';
+                    ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
                     if zcm_idx = zcm_nregs_val - 1 then
@@ -3570,6 +3739,7 @@ architecture struct of vesta is
                 when ZCM_A0Z =>
                     pc_en            <= '0';
                     reg_write_dp     <= '1';
+                    ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
                     next_state       <= ZCM_SP_COMMIT;
@@ -3580,6 +3750,7 @@ architecture struct of vesta is
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
                     sp_write_en      <= '1';
+                    ci_sp_commit     <= '1';
                     sp_write_data    <= zcm_final_sp;
                     if zcm_is_popret = '1' then
                         next_state <= ZCM_RET;
@@ -3589,6 +3760,7 @@ architecture struct of vesta is
 
                 when ZCM_RET =>
                     pc_en            <= '1';
+                    ci_pc_advance    <= '1';
                     reg_write_dp     <= '0';
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
@@ -3597,6 +3769,7 @@ architecture struct of vesta is
                 when ZCM_MV1 =>
                     pc_en            <= '0';
                     reg_write_dp     <= '1';
+                    ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
                     next_state       <= ZCM_MV2;
@@ -3604,6 +3777,7 @@ architecture struct of vesta is
                 when ZCM_MV2 =>
                     pc_en            <= '0';
                     reg_write_dp     <= '1';
+                    ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
                     next_state       <= MEMORY_WAIT;
@@ -3631,7 +3805,9 @@ architecture struct of vesta is
 
                 when ZCM_JT_WB =>
                     pc_en            <= '1';
+                    ci_pc_advance    <= '1';
                     reg_write_dp     <= zcm_jt_link;
+                    ci_rd_commit     <= zcm_jt_link;
                     mem_access_instr <= '0';
                     wen              <= (others => '1');
                     next_state       <= EXECUTE;
@@ -3643,6 +3819,7 @@ architecture struct of vesta is
                 when FENCE_WAIT =>
                     next_state <= EXECUTE;
                     pc_en <= '1';
+                    ci_pc_advance <= '1';
                     WEN <= (others => '1');  -- No memory write
                     reg_write_dp <= '0';     -- No register write
 
@@ -3671,6 +3848,7 @@ architecture struct of vesta is
                     if pause_cnt = 0 then
                         next_state <= EXECUTE;
                         pc_en <= '1';   -- window closed: PAUSE retires, PC advances
+                        ci_pc_advance <= '1';
                     else
                         next_state <= PAUSE_WAIT;
                         pc_en <= '0';
@@ -3680,6 +3858,9 @@ architecture struct of vesta is
                 -- MEMORY_WAIT State
                 -- ==========================================
                 when MEMORY_WAIT =>
+                    -- The LOAD's rd commit rides the fall-through to the process
+                    -- default on EVERY path out of this state (F4 assert (1)).
+                    ci_rd_commit <= reg_write_ctrl;
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
@@ -3699,6 +3880,7 @@ architecture struct of vesta is
                     else
                         next_state <= EXECUTE;
                         pc_en <= '1';
+                        ci_pc_advance <= '1';
                     end if;
                     wen <= (others => '1');  -- Disable write
 
@@ -3708,6 +3890,11 @@ architecture struct of vesta is
                 when DIV_WAIT =>
                     pc_en <= '0';
                     reg_write_dp <= '0';
+                    -- N1 / R-S1-1c: wen is NOT assigned here, so it falls through
+                    -- to the decoder's live lane strobes and is a non-store only
+                    -- by a cross-file decode coincidence.  ci_st_lanes therefore
+                    -- declares NOTHING (fail-safe "0000" = the intended no-store)
+                    -- and the shadow checker becomes a live N1 detector here.
                     if alu_done = '1' then
                         next_state <= DIV_DONE;
                         div_start <= '0';
@@ -3721,10 +3908,17 @@ architecture struct of vesta is
                 -- ==========================================
                 when DIV_DONE =>
                     pc_en <= '1';
+                    -- The DIV's rd commit rides the fall-through to the process
+                    -- default (F4 assert (2)), so it is declared.  wen also falls
+                    -- through here, but that one is the N1 coincidence -- left
+                    -- undeclared per R-S1-1c (see DIV_WAIT).
+                    ci_pc_advance <= '1';
+                    ci_rd_commit  <= reg_write_ctrl;
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3735,6 +3929,7 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
                     else
@@ -3752,6 +3947,7 @@ architecture struct of vesta is
                 when FPU_FETCH3 =>
                     pc_en <= '0';
                     reg_write_dp <= '0';
+                    -- N1 / R-S1-1c: no ci_st_lanes declaration (see DIV_WAIT).
                     next_state <= FPU_WAIT;
 
                 -- ==========================================
@@ -3763,6 +3959,7 @@ architecture struct of vesta is
                 when FPU_WAIT =>
                     pc_en <= '0';
                     reg_write_dp <= '0';
+                    -- N1 / R-S1-1c: no ci_st_lanes declaration (see DIV_WAIT).
                     if fpu_done_sig = '1' then
                         next_state <= FPU_DONE;
                     else
@@ -3778,10 +3975,17 @@ architecture struct of vesta is
                 -- IRQ/isr_ret handling is identical to DIV_DONE.
                 when FPU_DONE =>
                     pc_en <= '1';
+                    -- Like DIV_DONE: the FP rd commit rides the fall-through to
+                    -- the process default (F4 assert (3)) and is declared; the
+                    -- wen fall-through is the N1 coincidence and is not
+                    -- (R-S1-1c, see DIV_WAIT).
+                    ci_pc_advance <= '1';
+                    ci_rd_commit  <= reg_write_ctrl;
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3792,6 +3996,7 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        ci_pc_advance <= '0';
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
                     else
@@ -3803,9 +4008,11 @@ architecture struct of vesta is
                 -- ==========================================
                 when IRQ_SV =>
                     wen <= (others => '0');  -- Enable write to save PC
+                    ci_st_lanes <= "1111";   -- ACTIVE-HIGH: the full-word push
 
                     -- Update stack pointer
                     sp_write_en <= '1';
+                    ci_sp_commit <= '1';
                     sp_write_data <= std_logic_vector(unsigned(stack_pointer) - 4);
 
                     -- No writeback belongs to the IRQ dispatch cycles: the
@@ -3824,6 +4031,7 @@ architecture struct of vesta is
                 when IRQ_JUMP =>
                     irq_save_ack <= '1';
                     pc_en <= '1';  -- Load IVT entry
+                    ci_pc_advance <= '1';
                     wen <= (others => '1');
                     reg_write_dp <= '0';
                     next_state <= EXECUTE;
@@ -3861,6 +4069,7 @@ architecture struct of vesta is
                 -- pc_next), exactly like IRQ_JUMP loading ivt_entry.
                 when MTRAP_JUMP =>
                     pc_en            <= '1';
+                    ci_pc_advance    <= '1';
                     wen              <= (others => '1');
                     mem_access_instr <= '0';
                     reg_write_dp     <= '0';
@@ -3874,6 +4083,7 @@ architecture struct of vesta is
                 -- access, no writeback, no sp touch -- the JALR shape.
                 when MTRAP_RET =>
                     pc_en            <= '1';
+                    ci_pc_advance    <= '1';
                     wen              <= (others => '1');
                     mem_access_instr <= '0';
                     reg_write_dp     <= '0';
@@ -3900,6 +4110,12 @@ architecture struct of vesta is
                         -- Nested interrupt
                         next_state <= IRQ_SV;
                         pc_en <= '0';
+                        -- N1 / R-S1-2: this path has no wen arm, so wen falls
+                        -- through to the live decode of the HELD word -- the
+                        -- `iret` -- in a NON-DISPATCH state.  That is a
+                        -- coincidence, exactly the one F4a closed for
+                        -- reg_write_dp in this very state, so ci_st_lanes
+                        -- declares NOTHING and the shadow checker watches it.
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3910,20 +4126,25 @@ architecture struct of vesta is
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
                         pc_en <= '0';
+                        -- N1 / R-S1-2: same non-dispatch wen fall-through as the
+                        -- irq_save path above -- declares nothing.
                     elsif sleep_cpu = '1' then
                         -- Return to sleep after interrupt
                         next_state <= SLEEPING;
                         pc_en <= '0';
                         wen <= (others => '1');
                         sp_write_en <= '1';
+                        ci_sp_commit <= '1';
                         sp_write_data <= std_logic_vector(unsigned(stack_pointer) + 4);
                     else
                         -- Return to normal execution
                         next_state <= EXECUTE;
                         wen <= (others => '1');
                         sp_write_en <= '1';
+                        ci_sp_commit <= '1';
                         sp_write_data <= std_logic_vector(unsigned(stack_pointer) + 4);
                         pc_en <= '1';
+                        ci_pc_advance <= '1';
                     end if;
 
                 -- ==========================================
@@ -3955,6 +4176,9 @@ architecture struct of vesta is
                     -- last an unbounded, clock-gated number of cycles, so this is
                     -- the last state in the machine that should be relying on one.
                     reg_write_dp <= '0';
+                    -- N1 / R-S1-1c: no ci_st_lanes declaration (see DIV_WAIT) --
+                    -- and a sleep can last an unbounded number of clk_cpu edges,
+                    -- so this is where the N1 detector has the most to say.
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
@@ -3973,6 +4197,7 @@ architecture struct of vesta is
                         -- extinguish-entered sleep on ANY build (wfi_slept='0').
                         next_state <= EXECUTE;
                         pc_en      <= '1';
+                        ci_pc_advance <= '1';
                     else
                         next_state <= SLEEPING;
                     end if;
@@ -3996,6 +4221,7 @@ architecture struct of vesta is
                     if wrs_wake = '1' then
                         next_state <= EXECUTE;
                         pc_en <= '1';         -- retire the hint, advance the PC
+                        ci_pc_advance <= '1';
                     else
                         next_state <= WRS_WAIT;
                     end if;
@@ -4039,7 +4265,88 @@ architecture struct of vesta is
                     -- The arm itself stays: VHDL requires it.
                     next_state <= EXECUTE;
                     reg_write_dp <= '0';
+                    -- pc_en and wen are both unassigned in this arm.  pc_en's
+                    -- fall-through to '1' is genuine and is declared -- pc is
+                    -- not in the N1 class.  wen's is NOT declared (R-S1-2):
+                    -- this is the illegal-encoding recovery arm, and a store
+                    -- committing here would be a real finding, so the checker
+                    -- is left able to see it.
+                    ci_pc_advance <= '1';
             end case;
+
+            -- =====================================================
+            -- COMMIT BLOCK (S-series; S0 interface spec section 3)
+            -- =====================================================
+            -- After the S2 cleanup commit this is the ONLY assignment site for
+            -- the four nets.  In S1 `state_commits_via_block` is EMPTY, so the
+            -- `if` is statically false: nothing here drives, every state keeps
+            -- its direct drives above, and the four outputs are bit-identical.
+            -- It sits INSIDE the else branch on purpose: the resetn branch is
+            -- out of its reach, and reproducing that branch's values exactly
+            -- (they are NOT the fail-safe ones) is the S2 cleanup commit's
+            -- job -- spec section 3, as amended by ruling R-S1-1a.
+            if state_commits_via_block(current_state) then
+                reg_write_dp <= ci_rd_commit;
+                sp_write_en  <= ci_sp_commit;
+                wen          <= not ci_st_lanes;
+                pc_en        <= ci_pc_advance;
+            end if;
+        end if;
+    end process;
+
+    -- ==========================================
+    -- S1 SHADOW CHECKER (S-series; DELETED IN S3)
+    -- ==========================================
+    -- Proves, on every core-advance edge and in every state, that the commit
+    -- block CAN reproduce the live behaviour of the four nets it will own --
+    -- while it still drives nothing.  If the block cannot reproduce current
+    -- behaviour while merely observing it, the design is wrong before
+    -- anything is allowed to depend on it.
+    --
+    -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle
+    -- (F4b's first cut fired on 23 of 136 tests for exactly that reason).
+    -- Style, severity and the "a firing assertion is a FINDING, do not tune
+    -- it away" contract are f4_assert_proc's, at the end of this
+    -- architecture -- read its block comment before touching this one.
+    --
+    -- Simulation-only in effect: assertions, no signal drives, so Genus
+    -- prunes the process (and, with the commit gate empty, the intent
+    -- signals with it).
+    --
+    -- SCOPE (ruling R-S1-1a/b): POST-RESET behaviour, on every rising clk_cpu
+    -- edge.  The `resetn = '1'` qualifier is load-bearing -- the live reset
+    -- branch drives `wen <= wen_controller` / `pc_en <= '1'` against fail-safe
+    -- intent, so an unqualified checker would fire on every test.  And
+    -- clk_cpu is GATED, so a stalled cycle is structurally unchecked here;
+    -- the honest claim is "every core-advance edge", not "every cycle".
+    --
+    -- Every NON-DISPATCH `wen` fall-through deliberately declares NOTHING for
+    -- ci_st_lanes (R-S1-1c as generalised by R-S1-2), so this process is also
+    -- a LIVE N1 DETECTOR at nine sites: the six states SLEEPING, DIV_WAIT,
+    -- DIV_DONE, FPU_FETCH3, FPU_WAIT, FPU_DONE, plus IRQ_REST's irq_save and
+    -- std_irq_take paths, plus `when others`.  A fire at any of them is a real
+    -- cross-file decode coincidence having broken -- a stop-and-report
+    -- finding, not a checker bug, and NOT to be silenced by declaring the
+    -- mirror back in.
+    s1_shadow_proc: process(clk_cpu)
+    begin
+        if rising_edge(clk_cpu) then
+            assert not (resetn = '1' and reg_write_dp /= ci_rd_commit)
+                report "S1 SHADOW: signal reg_write_dp differs from commit-block intent in state "
+                       & cpu_state'image(current_state)
+                severity error;
+            assert not (resetn = '1' and sp_write_en /= ci_sp_commit)
+                report "S1 SHADOW: signal sp_write_en differs from commit-block intent in state "
+                       & cpu_state'image(current_state)
+                severity error;
+            assert not (resetn = '1' and wen /= (not ci_st_lanes))
+                report "S1 SHADOW: signal wen differs from commit-block intent in state "
+                       & cpu_state'image(current_state)
+                severity error;
+            assert not (resetn = '1' and pc_en /= ci_pc_advance)
+                report "S1 SHADOW: signal pc_en differs from commit-block intent in state "
+                       & cpu_state'image(current_state)
+                severity error;
         end if;
     end process;
 
