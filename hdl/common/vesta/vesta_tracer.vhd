@@ -14,6 +14,13 @@
 --       A7 (V3): the legacy IRQ_SV return-PC push and the iret stack pop LEAVE
 --                the compared stream (# IRQPUSH / # IRETPOP), each bounded by an
 --                equality so a wrong address is loud, not invisible.
+--       A10 (WT): BIT-GRANULAR x. The compared fields are UNCHANGED -- `hexstr`
+--                is still nibble-granular and every width is frozen. A tainted
+--                compared field now additionally emits
+--                `# XBITS <hart> <cycle> <field> <mask> <defined>` on the line
+--                BELOW its record: `mask` = 1 at each undriven bit, `defined` =
+--                the value with those bits forced to 0. A clean trace is
+--                byte-identical to a pre-A10 one.
 --       A16 (WT, finding T2): a GLOBALLY-failed sc.w no longer emits an
 --                `M ... S`. It never committed -- resv_unit gates the write off
 --                downstream -- so the record contradicted §2's definition of
@@ -232,6 +239,58 @@ architecture behav of vesta_tracer is
         return s;
     end function hexstr;
 
+    -- ==========================================================
+    -- A10 (WT): BIT-GRANULAR x. `hexstr` above is NIBBLE-granular by design and
+    -- STAYS THAT WAY -- the compared field keeps its frozen width and its
+    -- meaning, so every existing consumer is untouched. What A5 could not say
+    -- is WHICH BITS were undriven, and that is the whole of A10: the three
+    -- functions below let the tracer emit a companion `# XBITS` line carrying
+    -- the exact undriven-bit MASK and the exact DEFINED bits, alongside (never
+    -- instead of) the record.
+    --
+    -- Why the extra line rather than a wider field: a `000000xx` data field
+    -- says eight bits MIGHT be undriven. It does not say that seven are and one
+    -- is a defined '0' that the program then branches on -- which is exactly
+    -- `rv32ui-p-afsel`'s shape and exactly why it is uninjectable.
+    function has_x(v : std_logic_vector) return boolean is
+        variable a : std_logic_vector(v'length-1 downto 0);
+    begin
+        a := v;
+        for i in 0 to v'length-1 loop
+            if a(i) /= '0' and a(i) /= '1' then
+                return true;
+            end if;
+        end loop;
+        return false;
+    end function has_x;
+
+    -- 1 at every position `hexstr` would have had to call `x`.
+    function x_mask_of(v : std_logic_vector) return std_logic_vector is
+        variable a : std_logic_vector(v'length-1 downto 0);
+        variable r : std_logic_vector(v'length-1 downto 0);
+    begin
+        a := v;
+        for i in 0 to v'length-1 loop
+            if a(i) = '0' or a(i) = '1' then r(i) := '0'; else r(i) := '1'; end if;
+        end loop;
+        return r;
+    end function x_mask_of;
+
+    -- The value with every undriven bit forced to '0'. This is NOT an invented
+    -- value and must never be read as one: it is only meaningful UNDER the
+    -- mask, and the mask is emitted beside it precisely so a consumer cannot
+    -- use one without the other.
+    function x_def_of(v : std_logic_vector) return std_logic_vector is
+        variable a : std_logic_vector(v'length-1 downto 0);
+        variable r : std_logic_vector(v'length-1 downto 0);
+    begin
+        a := v;
+        for i in 0 to v'length-1 loop
+            if a(i) = '1' then r(i) := '1'; else r(i) := '0'; end if;
+        end loop;
+        return r;
+    end function x_def_of;
+
     -- Fixed-width hex of a natural (the cycle field, and the state ordinals in
     -- diagnostics). Truncates from the top if nd is too small, which is fine:
     -- the cycle field is debug-only and NEVER compared (RECORD_FORMAT §0).
@@ -334,16 +393,40 @@ begin
             writeline(f, ll);
         end procedure emit;
 
+        -- A10: the companion line for ONE tainted field of the record on the
+        -- line immediately above. Emitted only when the field is actually
+        -- tainted, so a clean trace is byte-identical to a pre-A10 one.
+        -- BINDS BACKWARD, like `# NODATA` and unlike `# SCFAILRD`/`# SCGHOST`
+        -- (which are written at their event edge, before the retire flush).
+        -- The two conventions coexist in this file already; the discriminator
+        -- is simply where the emit sits, and A10's sits INSIDE the record
+        -- procedures so the adjacency cannot be broken by a later edit.
+        --   # XBITS <hart> <cycle> <field> <mask> <defined>
+        -- `mask` is 1 at every undriven bit; `defined` is the value with those
+        -- bits forced to 0. Both are the SAME WIDTH as the field they describe.
+        procedure emit_xbits(fld : string; v : std_logic_vector) is
+        begin
+            if has_x(v) then
+                emit("# XBITS " & hdr(cyc) & fld & " "
+                     & hexstr(x_mask_of(v)) & " " & hexstr(x_def_of(v)));
+            end if;
+        end procedure emit_xbits;
+
         procedure emit_r(a : std_logic_vector(4 downto 0);
                          v : std_logic_vector(XLEN-1 downto 0)) is
         begin
             if iv_c16 then
                 emit("R " & hdr(cyc) & hexstr(iv_pc) & " " & hexstr(iv_insn(15 downto 0))
                      & " " & hexstr(a) & " " & hexstr(v));
+                emit_xbits("insn", iv_insn(15 downto 0));
             else
                 emit("R " & hdr(cyc) & hexstr(iv_pc) & " " & hexstr(iv_insn)
                      & " " & hexstr(a) & " " & hexstr(v));
+                emit_xbits("insn", iv_insn);
             end if;
+            emit_xbits("pc",    iv_pc);
+            emit_xbits("rd",    a);
+            emit_xbits("rdval", v);
         end procedure emit_r;
 
         procedure emit_m(st : boolean; ad : std_logic_vector(XLEN-1 downto 0);
@@ -352,6 +435,8 @@ begin
         begin
             if st then c := "S"; else c := "L"; end if;
             emit("M " & hdr(cyc) & c & " " & hexstr(ad) & " " & hexnat(n, 1) & " " & hexstr(dt));
+            emit_xbits("addr", ad);
+            emit_xbits("data", dt);
         end procedure emit_m;
 
         procedure push_mem(st : boolean; ad : std_logic_vector(XLEN-1 downto 0);
@@ -404,7 +489,7 @@ begin
                 -- still carries failed-SC ghost stores, filtered by A15) from a
                 -- post-A16 one (which does not). Bump it whenever an amendment
                 -- changes what this file emits.
-                emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7,A16");
+                emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7,A10,A16");
             end if;
 
             if resetn = '1' then
@@ -686,14 +771,22 @@ begin
                         end loop;
                     end if;
                     flush_mem;
+                    -- A10 covers the COMPARED set (R/M/C) and stops there. T and
+                    -- X are RTL-side only and never compared (§4/§5), so a mask
+                    -- on them would be a metric nothing can act on -- decorative,
+                    -- which is worse than absent (R-W3-4).
                     if state = ST_MTRAP_RET then
                         emit("C " & hdr(cyc) & "300 " & hexstr(mstatus_value));
+                        emit_xbits("val", mstatus_value);
                     end if;
                     if state = ST_FPU_DONE then
                         emit("C " & hdr(cyc) & "001 " & hexstr(fflags_value));
+                        emit_xbits("val", fflags_value);
                     end if;
                     if csr_p then
                         emit("C " & hdr(cyc) & hexstr(csr_pa) & " " & hexstr(csr_pv));
+                        emit_xbits("csr", csr_pa);
+                        emit_xbits("val", csr_pv);
                     end if;
                     clear_inflight;
                 end if;

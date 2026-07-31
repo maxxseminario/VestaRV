@@ -548,6 +548,27 @@ def main(argv=None):
         if failed and s["scfailrd"]:
             sc_shape["local"] += 1
 
+    # ---- A10 pre-pass: index the bit-granular x masks ----------------------
+    # `# XBITS <hart> <cycle> <field> <mask> <defined>` BINDS BACKWARD -- it
+    # describes the record on the line ABOVE it. The main loop decides what to
+    # do with a record when it reaches that record's line, i.e. BEFORE the mask
+    # line has been read, so the index is built in one cheap pre-pass rather
+    # than by look-ahead inside the main loop. A pre-A10 trace simply yields an
+    # empty index and every consumer below behaves exactly as it did.
+    xbits = {}          # record lineno -> {field: (mask_int, defined_int)}
+    n_xbits = 0
+    n_x_verified = 0    # --allow-x substitutions checked against a mask
+    n_x_bits_filled = 0 # undriven bits those substitutions were allowed to fill
+    for _n, _raw in enumerate(lines, 1):
+        _f = _raw.split()
+        if len(_f) == 7 and _f[0] == "#" and _f[1] == "XBITS":
+            try:
+                xbits.setdefault(_n - 1, {})[_f[4]] = (int(_f[5], 16),
+                                                       int(_f[6], 16))
+                n_xbits += 1
+            except ValueError:
+                pass    # malformed: leave it to the findings-surface census
+
     for ln, raw in enumerate(lines, 1):
         f = raw.split()
         if not f:
@@ -818,6 +839,41 @@ def main(argv=None):
                     "    --allow-x %d:%s:<8hex>\n"
                     % (ordn, addr_s, val_s, ordn, addr_s))
                 return EXIT_REFUSED
+            # ---- A10: VERIFY the substitution instead of trusting it --------
+            # Before A10 this was an unchecked hand-off: the operator supplied
+            # 8 hex digits and mk_inject wrote them into the reference's mouth.
+            # `x` was NIBBLE-granular, so nothing could tell whether those
+            # digits preserved the bits the RTL had actually DRIVEN -- an
+            # allowlist entry could silently overwrite a defined bit and the
+            # only symptom would be a divergence somewhere downstream, blamed
+            # on the DUT.
+            #
+            # With the mask the check is exact and cheap: every bit the RTL
+            # DROVE must survive the substitution, and the entry may only fill
+            # bits the RTL left UNDRIVEN. Ruling A2 permits fabrication; it
+            # does not permit contradiction.
+            xb = xbits.get(ln, {}).get("data")
+            if xb is not None:
+                mask, defined = xb
+                try:
+                    subv = int(sub, 16)
+                except ValueError:
+                    subv = None
+                if subv is not None and (subv & ~mask & 0xffffffff) != defined:
+                    sys.stderr.write(
+                        "mk_inject: REFUSED ordinal %d addr=%s: the --allow-x "
+                        "substitution %s CONTRADICTS a bit the RTL actually "
+                        "drove [amendment A10].\n"
+                        "  observed=%s  undriven-mask=%08x  driven-bits=%08x\n"
+                        "  substituted=%08x  driven-bits-after=%08x\n"
+                        "  A2 permits filling UNDRIVEN bits; it does not permit "
+                        "overwriting DRIVEN ones.\n"
+                        % (ordn, addr_s, sub, val_s, mask, defined, subv,
+                           subv & ~mask & 0xffffffff))
+                    return EXIT_REFUSED
+                if subv is not None:
+                    n_x_verified += 1
+                    n_x_bits_filled += bin(mask).count("1")
             # One line per (addr, observed, substituted) TRIPLE, not per record:
             # a 514-iteration poll loop would otherwise bury the log in
             # identical lines. The COUNT is what makes drift visible, and it is
@@ -837,6 +893,16 @@ def main(argv=None):
 
     # The A2 census: one line per distinct substitution, with its COUNT, both
     # to stderr (the run log) and stamped into the output's provenance header.
+    # A10: the mask census. Printed whenever the trace carried masks, INCLUDING
+    # the zero-substitution case -- "the trace is bit-granular and no allowlist
+    # entry needed checking" is a different statement from "this trace predates
+    # A10", and only the count distinguishes them.
+    if n_xbits:
+        sys.stderr.write("mk_inject: A10 bit-granular x: %d '# XBITS' mask(s) "
+                         "indexed; %d --allow-x substitution(s) VERIFIED "
+                         "against a mask (%d undriven bit(s) filled, 0 driven "
+                         "bit(s) overwritten -- a contradiction is EXIT_REFUSED)"
+                         "\n" % (n_xbits, n_x_verified, n_x_bits_filled))
     for (addr_s, obs, sub) in sorted(applied):
         first, cnt = applied[(addr_s, obs, sub)]
         line = ("# allow-x addr=%s observed=%s substituted=%s applied=%d "
@@ -883,11 +949,14 @@ def main(argv=None):
     # kind): `ext` = rd says fail AND a store was presented = the write was
     # suppressed downstream in resv_unit; `local` = rd says fail AND a
     # `# SCFAILRD` witness = the core itself declined to write. They are the two
-    # halves of the RTL's SC failure path and their sum should equal `scfail`
-    # unless an SC failed with neither witness, which is itself worth seeing.
-    #
-    # AND IT IS NOW ROUTINELY UNEQUAL, so `unwitnessed` is printed rather than
-    # left to the reader's arithmetic. Measured on `shlrsc` h00 at this commit:
+    # halves of the RTL's SC failure path. THEIR SUM IS LESS THAN `scfail`
+    # WHENEVER A LOCAL FAILURE OCCURS, and at this commit that means always --
+    # so `unwitnessed` is printed rather than left to the reader's arithmetic.
+    # (The pre-A16 wording here said the two "should equal `scfail`". That was
+    # true when it was written and is false now; it is corrected rather than
+    # annotated, because the person it would mislead is precisely the one
+    # debugging a census that no longer balances.)
+    # Measured on `shlrsc` h00 at this commit:
     # 4 forced, ext-shape 2, local-shape 0. The missing two are the LOCALLY
     # failed SCs, and their witness is gone because fix-pass W1-F2 deleted the
     # thing that produced it -- `# SCFAILRD` fires on the side-effecting bus

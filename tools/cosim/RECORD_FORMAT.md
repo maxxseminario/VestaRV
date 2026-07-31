@@ -129,6 +129,14 @@ The memory interface is word-addressed with an **active-low per-byte-lane**
   lowest active lane
 * `data` = the `write_data` bytes under the active lanes, right-justified
 
+**A10: a tainted compared field is followed by its bit mask.** `hexstr` marks a
+whole nibble `x` if any of its four bits is non-0/1 — that is unchanged and the
+field width is frozen. What the nibble cannot say is *which* bits, so a tainted
+`R`/`M`/`C` field additionally emits, on the line **below** its record,
+`# XBITS <hart> <cycle> <field> <mask> <defined>` — `mask` 1 at each undriven
+bit, `defined` the value with those bits zeroed, both the field's own width. A
+clean trace is byte-identical to a pre-A10 one.
+
 **A16: `SC_CHECK` is the one state where a presented store is not a committed
 one.** The core drives `wen` on its LOCAL reservation check alone; `resv_unit`
 suppresses the write downstream when the GLOBAL check fails. A store presented
@@ -471,7 +479,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   than a standing licence. Proven: a budget of 513 against a 514-read loop
   refuses at ordinal 520 with exit 5.
 
-* **A10 (CANDIDATE, logged 2026-07-30, NOT implemented)** — §0: **bit-granular
+* **A10 (logged 2026-07-30 as a candidate; IMPLEMENTED 2026-07-31, WT)** — §0: **bit-granular
   `x` marking.** A5 marks a hex *nibble* `x` if ANY of its four bits is non-0/1,
   which is conservative for detection but **lossy for reproduction**: it does not
   say WHICH bits were undriven, so a load whose *defined* bits determine control
@@ -486,6 +494,60 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   both-polarity discipline — the core-RTL freeze does not forbid tracer edits
   (the tracer is verification collateral, amended twice in V3), but one test does
   not justify the churn mid-phase. Backlogged to V4 / the per-config phase.
+
+  **AS IMPLEMENTED (WT, 2026-07-31).** The candidate form is what shipped, with
+  one deliberate narrowing and one motivation the candidate text did not have.
+
+  * **The compared fields are UNCHANGED.** `hexstr` stays nibble-granular, every
+    field keeps its frozen width, and A5's "a record containing `x` is never a
+    match" is untouched. A10 adds INFORMATION; it changes no verdict.
+  * A tainted **compared** field (`R` pc/insn/rd/rdval, `M` addr/data, `C`
+    csr/val) additionally emits, on the line **below** its record:
+
+        # XBITS <hart> <cycle> <field> <mask> <defined>
+
+    `mask` = 1 at every undriven bit; `defined` = the value with those bits
+    forced to `0`; both are the same width as the field they describe. It
+    **binds backward**, like `# NODATA` — the emit sits inside the record
+    procedures so the adjacency cannot be broken by a later edit.
+  * **`T` and `X` are excluded.** They are RTL-side only and never compared
+    (§4/§5), so a mask there would be a number nothing can act on.
+  * **A clean trace is byte-identical to a pre-A10 one** — the line is emitted
+    only when a field is actually tainted.
+  * The header declares `A1-A7,A10,A16`, so a consumer can tell the vintages
+    apart at a glance.
+
+  **The motivation that turned out to matter more than `afsel`.** `mk_inject`'s
+  `--allow-x ORD:ADDR:VAL` (ruling A2) was an **unchecked hand-off**: the
+  operator supplied 8 hex digits and they were written into the reference's
+  mouth. Nibble-granular `x` made it impossible to tell whether those digits
+  preserved the bits the RTL had actually **driven**, so an allowlist entry
+  could silently **overwrite a driven bit** and the only symptom would be a
+  divergence somewhere downstream, blamed on the DUT. With the mask the check is
+  exact: every driven bit must survive, and the entry may only fill undriven
+  ones. **A2 permits fabrication; it does not permit contradiction.** A
+  contradiction is now `EXIT_REFUSED`, and the fills are counted.
+
+  **What A10 does NOT do, stated because the candidate text invites the
+  opposite reading.** It does not clear `rv32ui-p-afsel`. That test's
+  disposition names TWO obstacles and A10 removes only the first: the format
+  can now say that bits 7:1 of its `PxIN` reads are undriven while bit 0 — the
+  bit the program branches on — is driven. Making the test RUN still needs a
+  substitution policy for 514 records with three different required bit-0
+  presentations, and that is a new amendment with its own both-polarity
+  control, not a consequence of this one. **`afsel` moves from
+  X-GRANULARITY (a defect in the wire format) to an ordinary
+  injection-scope item.** The blocker moves; it does not vanish.
+
+  **Consumers, enumerated, because a silent parse-through is the failure mode:**
+  `records.py` — indifferent (counts every `#` tag already, so `XBITS` reaches
+  the findings surface for free); `compare.py` — indifferent by parse, and
+  `XBITS` is deliberately left off `FINDING_TAGS` because it is metadata, not a
+  defect signal; `mk_inject.py` — **changed** (indexes the masks, verifies
+  `--allow-x`); `spike_log.py` — indifferent (parses Spike logs, never a trace);
+  `disasm.py` — indifferent (decodes instruction words only);
+  `test_compare.py` — **changed** (three cases, both polarities plus the
+  pre-A10 no-mask case).
 
 * **A11 (2026-07-30, V4) — the SLEEP bracket.** §5: an ISR bracket may open on
   `X <hart> <cycle> wfi_enter` as well as on a `T` record, and closes on the
