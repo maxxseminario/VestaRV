@@ -2270,10 +2270,10 @@ architecture struct of vesta is
 
     -- Permission NEEDS (frozen §4: LR/SC/AMO drive BOTH R and W). A plain
     -- access is a store iff its byte-lane enables are not all inactive --
-    -- wen_controller is "1111" for every load and for LR (maindec:1106).
+    -- wen_controller is "1111" for every load and for LR (maindec:1029).
     --
     -- P3 red-team F2/F3 FIX: the `isr_ret` (iret) decode ALSO raises
-    -- read_data_flag => mem_access_controller (maindec:1162), so without a
+    -- read_data_flag => mem_access_controller (maindec:1080), so without a
     -- guard iret looks like a load here and PMP-checks a PHANTOM read at its
     -- ALU_Result (= 0 for the canonical encoding). A locked/no-perm entry over
     -- that address then faults EVERY M-mode iret (an M-mode DoS -- F2). iret is
@@ -2284,6 +2284,23 @@ architecture struct of vesta is
     -- p0_specs.md §4.1). `and isr_ret = '0'` removes iret from the data check
     -- entirely (the IRQ_SV push / IRQ_REST pop states already carry no PMP
     -- term -- F3, the same exemption).
+    --
+    -- F12 RESIDUE (fix pass W4, COMMENT ONLY -- deliberately not changed).
+    -- That `and isr_ret = '0'` guard SILENTLY STOPS APPLYING IN U-MODE: isr_ret
+    -- is u-gated (maindec:921) so it reads '0' there, while
+    -- mem_access_controller is NOT u-gated and still reads '1' for the iret
+    -- encoding. A U-mode iret on an ENABLE_PMP build therefore raises
+    -- pmp_d_active and, over a denying region, pmp_d_deny. It is INERT TODAY --
+    -- and only by ARM ORDERING: the `trap = '1'` arm is the FIRST arm of all
+    -- four EXECUTE shapes (:2594/:2867/:2982/:3145), above the D5 pmp_d_deny arm
+    -- (:2637 etc.), and a U-mode CUSTOM opcode is illegal (maindec:750-757), so
+    -- the illegal-instruction trap wins and reports cause 2. W4 MEASURED that
+    -- (mcause 2, mepc = the iret's own pc, mtval = its own encoding, bus
+    -- silent) on an ENABLE_UMODE build; the ENABLE_PMP leg is argued from
+    -- source, not measured. IF A FUTURE CHANGE EVER HOISTS THE PMP DATA ARM
+    -- ABOVE THE TRAP ARM, a U-mode iret starts reporting cause 5 instead of
+    -- cause 2. The one-line repair at that point is `and isr_ret_arch = '0'`
+    -- against a NON-u-gated iret decode -- not a reordering.
     pmp_d_rd <= '1' when (current_state = EXECUTE and
                           (lr_op = '1' or sc_op = '1' or amo_op = '1')) else
                 '1' when (current_state = EXECUTE and mem_access_controller = '1'
@@ -2726,7 +2743,67 @@ architecture struct of vesta is
                                         pc_en <= '1';
                                     end if;
                                 elsif mem_access_controller = '1' then
-                                    mem_access_instr <= '1';
+                                    -- ==========================================
+                                    -- F9 (fix pass W4) -- AN `iret` IS NOT A LOAD
+                                    -- ==========================================
+                                    -- maindec's read_data_flag has an arm for
+                                    -- op=CUSTOM_OPCODE, funct3=000, funct7=0
+                                    -- (maindec:1080) -- that IS the `iret`
+                                    -- encoding -- so mem_access_controller
+                                    -- (maindec:1088) is high for an iret and THIS
+                                    -- arm, tested above the `elsif isr_ret` arm at
+                                    -- :2849, is the one an iret takes. (The isr_ret
+                                    -- arm below is dead; the trajectory it names is
+                                    -- reached through MEMORY_WAIT instead, :3694.)
+                                    --
+                                    -- With mem_access_instr='1' the data_addr mux
+                                    -- (:1861) put ALU_Result on the bus for that
+                                    -- cycle, and for CUSTOM_OPCODE the ALU ADDS TWO
+                                    -- REGISTERS (alu_control="0000000" at
+                                    -- maindec:1107; ALU_src has no CUSTOM row and
+                                    -- falls through to '0' = register operand),
+                                    -- while the custom decode never inspects
+                                    -- rs1/rs2 (maindec:750-763 whitelists funct3 +
+                                    -- funct7 only). So every ISR return issued a
+                                    -- REAL, SIDE-EFFECTING read at reg[rs1]+reg[rs2]
+                                    -- -- 0 for the canonical macro (riscv_test.h
+                                    -- `.insn r 0x0b,0,0,x0,x0,x0`), which is inside
+                                    -- the shared boot ROM, hence a genuine arbiter
+                                    -- transaction: sh_sel is a PURE DECODE of
+                                    -- data_addr (hart_tile.vhd:654, sh_req_int :726).
+                                    -- W4's detector steered it with a hand-assembled
+                                    -- rs1 and the iret CLAIMED A HARDWARE MUTEX.
+                                    -- MEASURED cost: 6 clk per ISR return, chip-wide.
+                                    --
+                                    -- FIX = SUPPRESS THE REQUEST, KEEP THE
+                                    -- TRAJECTORY. next_state / pc_en / reg_write_dp
+                                    -- are untouched, so EXECUTE -> MEMORY_WAIT ->
+                                    -- IRQ_REST still holds and the REAL pop is still
+                                    -- addressed from stack_pointer in MEMORY_WAIT
+                                    -- (:1865). wen is already "1111" for CUSTOM
+                                    -- (maindec:1029) -- the phantom was a READ.
+                                    -- With the request suppressed the ALU_Result arm
+                                    -- drops out and data_addr falls through the mux
+                                    -- to pc_next: an ordinary early fetch of the word
+                                    -- this ISR was about to fetch anyway -- the same
+                                    -- fall-through idiom F2 relies on at :1810. For a
+                                    -- TCM-resident ISR (every committed test; the ISR
+                                    -- bank is 0xB100-0xBAFF) that is a private access
+                                    -- and the stall disappears entirely; for an ISR
+                                    -- executing FROM the shared window (the bootrom
+                                    -- park/loader ISR) it is a legitimate instruction
+                                    -- fetch of read-only ROM instead of a data read
+                                    -- at a register-dependent address.
+                                    --
+                                    -- U-MODE: `isr_ret` is u-gated (maindec:921) so
+                                    -- this qualifier does not fire in U -- and it
+                                    -- does not need to. W4 MEASURED (knobs-on build)
+                                    -- that a U-mode iret takes the `trap = '1'` arm,
+                                    -- which is the FIRST arm of all four shapes
+                                    -- (:2594/:2867/:2982/:3145): mcause 2, mepc = its
+                                    -- own pc, mtval = its own encoding, bus silent.
+                                    -- It never reaches this arm. (F12 REFUTED.)
+                                    mem_access_instr <= not isr_ret;
                                     next_state <= MEMORY_WAIT;
                                     pc_en <= '0';
                                     reg_write_dp <= '0';
@@ -2855,7 +2932,16 @@ architecture struct of vesta is
                                     next_state <= ZCM_POP_LD;
                                 end if;
                             elsif mem_access_controller = '1' then
-                                mem_access_instr <= '1';
+                                -- F9 (fix pass W4): see shape A's block at :2747.
+                                -- SHAPE B is the HALF-WORD-ALIGNED COMPRESSED shape,
+                                -- so `isr_ret` is statically '0' here: isr_ret needs
+                                -- op = CUSTOM_OPCODE and c_dec NEVER emits it (the
+                                -- same F5.3 argument recorded at :3240 for shape D --
+                                -- which is why shape B's own `elsif isr_ret` arm at
+                                -- :2970 is equally dead). The qualifier is carried on
+                                -- all four arms anyway so the rule is uniform and a
+                                -- fifth shape would inherit it; it folds away here.
+                                mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
                                 pc_en <= '0';
                                 reg_write_dp <= '0';
@@ -3008,7 +3094,11 @@ architecture struct of vesta is
                                     pc_en <= '1';
                                 end if;
                             elsif mem_access_controller = '1' then
-                                mem_access_instr <= '1';
+                                -- F9 (fix pass W4): see shape A's block at :2747.
+                                -- SHAPE C is the word-aligned 32-bit shape, so this
+                                -- arm and shape A's are the two that really carry an
+                                -- `iret`.
+                                mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
                                 reg_write_dp <= '0';
                                 pc_en <= '0';
@@ -3116,7 +3206,12 @@ architecture struct of vesta is
                                     next_state <= ZCM_POP_LD;
                                 end if;
                             elsif mem_access_controller = '1' then
-                                mem_access_instr <= '1';
+                                -- F9 (fix pass W4): see shape A's block at :2747.
+                                -- SHAPE D is the WORD-ALIGNED COMPRESSED shape, so
+                                -- `isr_ret` is statically '0' here for the F5.3
+                                -- reason spelled out at :3240 below. Carried anyway
+                                -- for uniformity; it folds away.
+                                mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
                                 reg_write_dp <= '0';
                                 pc_en <= '0';
@@ -3154,6 +3249,18 @@ architecture struct of vesta is
                             -- decompress into an `iret` and this branch would be
                             -- unreachable by construction. Adding it would be an
                             -- FSM behaviour change bought for nothing.
+                            -- F9 (fix pass W4) COROLLARY, measured by the W4
+                            -- detector agent against c_dec's complete opcode set
+                            -- (c_dec.vhd:790, one `instr_out <= dec` assignment;
+                            -- the literals it can emit are 0010011 0110011 0100011
+                            -- 0000011 1101111 1100111 1100011 0110111 +
+                            -- ZCM_SENTINEL_OP -- 0001011 is NOT among them): the
+                            -- SAME argument makes shape B's *present* `elsif
+                            -- isr_ret` arm at :2970 dead too. So shape D's missing
+                            -- arm is not the asymmetry -- shape B's spare one is.
+                            -- Neither is removed: deleting a dead arm from one of
+                            -- four near-identical shapes is a bigger readability
+                            -- hazard than leaving it documented.
                             else
                                 next_state <= EXECUTE;
                             end if;
