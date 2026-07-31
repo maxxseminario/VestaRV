@@ -825,8 +825,16 @@ architecture struct of vesta is
     signal trap_entry_seq         : std_logic;
     signal csr_valid_eff          : std_logic;
     signal isr_ret_eff            : std_logic;
-    signal en_cg_insret           : std_logic;
-    signal inst_retired          : std_logic;
+    -- W3 (fix pass, F1/F1+): THE STRUCTURAL RETIRE PATH. `retire_now` is the
+    -- architectural predicate "an instruction retires at this clk_cpu edge"
+    -- (v1_retire_enumeration.md §3-R0 + one documented deviation);
+    -- `retire_wfi_armed` is its SLEEPING one-shot; `inst_retired` is the same
+    -- predicate qualified into the free-running clk domain that csr_unit's
+    -- minstret counts on. The old `en_cg_insret` + `cg_insret` ClkGate pair is
+    -- DELETED -- see the assignments in the clock-gating section for why.
+    signal retire_now             : std_logic;
+    signal retire_wfi_armed       : std_logic;
+    signal inst_retired           : std_logic;
 
     -- X1 Zihpm event levels (fed to csr_unit's hpm counters). Sourced ONLY from
     -- signals already visible inside vesta -- no hart_tile/MCU boundary ports.
@@ -1120,16 +1128,191 @@ architecture struct of vesta is
             ClkOut => clk_cpu
         );
 
-    -- Signal for counting how many instructions have retired
-    en_cg_insret <= '1' when next_state = EXECUTE else '0';
-    cg_insret: entity work.ClkGate
-        port map (
-            ClkIn  => not clk_cpu,
-            En     => en_cg_insret,
-            ClkOut => inst_retired
-        );
+    -- ==========================================
+    -- THE RETIRE STROBE  (fix pass W3: findings F1 and F1+)
+    -- ==========================================
+    -- This is roadmap step 10, "make the retire path structural" -- not a
+    -- counter patch. Spec: ~/vesta_docs/fixpass/specs/w3_spec.md; condition:
+    -- ~/vesta_docs/lockstep/v1_retire_enumeration.md §3-R0 (+ §5's 39-row
+    -- table); detector: rv32ua-p-insretov.
+    --
+    -- WHAT WAS HERE, AND WHY IT WAS WRONG. Two independent defects:
+    --
+    --     en_cg_insret <= '1' when next_state = EXECUTE else '0';
+    --     cg_insret: entity work.ClkGate
+    --         port map (ClkIn => not clk_cpu, En => en_cg_insret,
+    --                   ClkOut => inst_retired);
+    --
+    -- F1 -- THE CONDITION. `next_state = EXECUTE` is not "an instruction
+    -- retired": through a `not clk_cpu`-clocked ClkGate it makes minstret count
+    -- EXECUTE CYCLES, and the compressed straddling fetch (the shape-E
+    -- half-fetch bubble, the `else` at :2726 below) spends TWO EXECUTE cycles
+    -- on ONE instruction. Measured +1 per straddling 32-bit instruction
+    -- (d1s = 5 vs the word-aligned control d1a = 4).
+    --   Do NOT re-add "+1 per FENCE / per AMO / per interrupt entry" to this
+    --   list. Three separate reviews asserted it; all three counted a trailing
+    --   state's fire without checking whether the DISPATCH EXECUTE cycle fired
+    --   at all. It does not: FENCE_WAIT / AMO_COMPLETE / MEMORY_WAIT etc. are
+    --   the FETCH-NEXT states, so the dispatch cycle has next_state /= EXECUTE
+    --   and the trailing fire is the ONLY fire. Measured correct today
+    --   (d2f = d3a = d2n = 2). The standing habit: before believing any
+    --   "+1 from state X" claim about this counter, write out the
+    --   instruction's whole state trajectory and count its EXECUTE cycles.
+    --
+    -- F1+ -- THE DOMAIN, and the dominant term. `inst_retired` was a GATED
+    -- CLOCK consumed as a LEVEL on the free-running clk (csr_unit :681, inside
+    -- `elsif rising_edge(clk)`). With ClkIn = not clk_cpu the ClkGate latch is
+    -- transparent only while clk_cpu is HIGH, so once clk_cpu gated off with
+    -- the enable latched '1' the level STUCK HIGH and minstret incremented
+    -- once per free-running clk cycle for the whole stall.
+    --   It fires per shared-window instruction FETCH, not per shared-window
+    --   ACCESS: hart_tile's `mem_ready_sh <= (not sh_sel) or sh_ack_ok` is a
+    --   combinational decode of data_addr, so a shared DATA access freezes the
+    --   core inside an EXECUTE whose next_state is MEMORY_WAIT -- the latch
+    --   holds '0' and the stall integrates nothing. Measured: two bursts
+    --   stalling for exactly the same 48 clk, the fetch case gained 48 phantom
+    --   retires and the data case 0 -- one phantom retire per stalled clk
+    --   cycle, exactly. Every hart boots from the SHARED ROM (M12), so ~79 %
+    --   of all boot clk cycles were counted as retired instructions.
+    --
+    -- THE FIX, part 1: the condition.  `retire_now` implements §3-R0. That
+    -- boolean is not a sketch -- it was adopted from the lockstep red team's
+    -- R5/R7, re-verified arm by arm, and every state ordinal in it checked
+    -- against §5's 39-row table. Do not "simplify" an arm; each term has a
+    -- named counter-example:
+    --   * `next_state in {EXECUTE, IRQ_SV, MTRAP_SV, FENCE_WAIT}` is what
+    --     separates a RETIRE from a multi-cycle DISPATCH. Verified complete
+    --     against the four surviving EXECUTE arms (the four `else`
+    --     next_state <= EXECUTE tails, irq_save->IRQ_SV, std_irq_take->
+    --     MTRAP_SV, fence_op-non-PAUSE->FENCE_WAIT, wrs_op-with-no-reservation
+    --     ->EXECUTE). An interrupt divert takes away only pc_en, so the
+    --     interrupted instruction still retires -- the retire condition is a
+    --     function of current_state + decode class + next_state, and NEVER of
+    --     pc_en (pc_en is neither necessary nor sufficient: it is '1' with no
+    --     retire in INITIALIZE, IRQ_JUMP, MTRAP_JUMP, FENCE_WAIT and
+    --     AMO_COMPLETE).
+    --   * the hoisted shapes P (:2476, ENABLE_PMP fetch deny) and Q (:2503,
+    --     non-compressed build, pc(1)='1') sit ABOVE every shape selector and
+    --     leave the quadrant/pc bits untouched, so they need their own
+    --     exclusions; the trap / ecall_op / ebreak_op / mret_op / pmp_d_deny
+    --     sub-arms each MATCH a shape predicate and must be excluded too
+    --     (in standard mode they target MTRAP_SV, which is in the allowed
+    --     next_state set). All exclusions are ANDed, so this expression does
+    --     not depend on the FSM's arm ORDER.
+    --   * shape E (:2726, "need to fetch upper half") emits nothing -- that is
+    --     the F1 half-fetch bubble itself.
+    --   * SLEEPING retires on the EXIT cycle only, and only for a real
+    --     WFI/extinguish dispatch. SLEEPING has a SECOND entry -- IRQ_REST's
+    --     sleep_cpu arm (:3755), the bootrom park contract for harts 1..N-1 --
+    --     so an unqualified "retire on every SLEEPING exit" would invent a
+    --     retire on every parked-hart ISR round trip, i.e. on every sh* test.
+    --     retire_wfi_armed below is the one-shot that separates them.
+    --
+    -- THE ONE DOCUMENTED DEVIATION FROM §3-R0: `iret` RETIRES.
+    -- (Ruling: w3_spec.md §6.3.) §3-R0 rule 2 reads
+    --     RETIRE_MEMORY_WAIT = (current_state = MEMORY_WAIT) and isr_ret = '0'
+    -- and that `isr_ret = '0'` qualifier is deliberately NOT reproduced here.
+    -- §3-R0 is the TRACER'S COMPARISON CONTRACT, not an architectural
+    -- definition of retirement: it excludes `iret` only because Spike has no
+    -- encoding for this custom instruction, so the tracer emits X instead of
+    -- R. That is a statement about what can be COMPARED, not about what
+    -- EXECUTED. §3-R0 already treats `mret` as a retire (§5 row 16) and `iret`
+    -- is the legacy-path analogue of `mret`; counting one and not the other in
+    -- an architectural counter is indefensible. `iret`'s real trajectory is
+    -- EXECUTE -> MEMORY_WAIT -> IRQ_REST (the three EXECUTE isr_ret arms are
+    -- dead code, :2224-2235 and enumeration R1), and MEMORY_WAIT is a
+    -- single-cycle state, so dropping the qualifier counts it EXACTLY ONCE.
+    -- DO NOT "correct" this to match the tracer.
+    --   Nothing is added on IRQ_REST's re-park arm, and that is deliberate:
+    --   the re-parking `iret` is ALREADY counted here, exactly like the
+    --   resuming one (measured d_fb = d4 + 1 = 3 over a 498-clk gated park).
+    --   Adding a count there would DOUBLE-count every parked-hart msip round
+    --   trip -- every sh* test on harts 1..N-1.
+    retire_now <=
+        -- 1. EXECUTE -- §3-R0 rule 1.
+        '1' when (current_state = EXECUTE
+                  and not (ENABLE_PMP and pmp_f_deny_r = '1')            -- shape P
+                  and not ((not ENABLE_COMPRESSED) and pc(1) = '1')      -- shape Q
+                  and not (pc(1) = '1' and quadrant_upper = "11"
+                           and repeat_if = '0')                          -- shape E
+                  and trap = '0' and ecall_op = '0' and ebreak_op = '0'  -- trap sub-arms
+                  and mret_op = '0'                                      -- retires at MTRAP_RET
+                  and not (ENABLE_PMP and pmp_d_deny = '1')              -- the P3 D5 arm
+                  and (next_state = EXECUTE  or next_state = IRQ_SV or
+                       next_state = MTRAP_SV or next_state = FENCE_WAIT)) else
+        -- 2. MEMORY_WAIT -- §3-R0 rule 2 WITHOUT its `isr_ret = '0'` qualifier;
+        --    that omission is the one documented deviation (see above).
+        '1' when (current_state = MEMORY_WAIT) else
+        -- 3. SLEEPING -- §3-R0 rule 3: the exit cycle of an armed sleep only.
+        '1' when (current_state = SLEEPING and next_state /= SLEEPING
+                  and retire_wfi_armed = '1') else
+        -- 4..11. Unconditional in the state -- no arm can suppress the commit.
+        '1' when (current_state = DIV_DONE  or current_state = FPU_DONE  or
+                  current_state = LR_READ   or current_state = SC_CHECK  or
+                  current_state = AMO_WRITE or current_state = MTRAP_RET or
+                  current_state = ZCM_RET   or current_state = ZCM_JT_WB) else
+        -- 12. PAUSE_WAIT retires on the window-close cycle only.
+        '1' when (current_state = PAUSE_WAIT and pause_cnt = 0) else
+        -- 13. WRS_WAIT retires on the wake cycle only.
+        '1' when (current_state = WRS_WAIT and wrs_wake = '1') else
+        '0';
 
-    -- inst_retired <= clk_inst_ret when en_clk_cpu = '1' else '0';
+    -- The SLEEPING one-shot (§3-R0's `trc_wfi_armed`, core-side equivalent).
+    -- Set at the ONLY real WFI/extinguish dispatch edge (EXECUTE -> SLEEPING,
+    -- the sleep_rq and wfi_op arms at :2596/:2599 and :2892/:2895); cleared on
+    -- the first SLEEPING exit, whichever arm takes it. Set and clear cannot
+    -- coincide (one needs current_state = EXECUTE, the other SLEEPING).
+    -- NOT reusable: wfi_slept looks identical but is set from `wfi_enter`,
+    -- which the extinguish arms do NOT raise (it selects the STANDARD wake
+    -- rule), and which is statically '0' on a non-ENABLE_TRAPCSR build -- so
+    -- reusing it would drop the retire of every extinguish in the default
+    -- config. This flop is the one piece of new state W3 adds.
+    retire_wfi_arm_proc: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            retire_wfi_armed <= '0';
+        elsif rising_edge(clk_cpu) then
+            if current_state = EXECUTE and next_state = SLEEPING then
+                retire_wfi_armed <= '1';
+            elsif current_state = SLEEPING and next_state /= SLEEPING then
+                retire_wfi_armed <= '0';
+            end if;
+        end if;
+    end process;
+
+    -- THE FIX, part 2: the domain crossing -- one clk_cpu cycle, exactly one
+    -- increment. This is what the author's own commented-out line was reaching
+    -- for, and it deletes the cg_insret ClkGate entirely.
+    --
+    -- clk_cpu is ClkGate(clk, en_clk_cpu): its edges are a SUBSET of clk's,
+    -- same source, no phase relationship -- an edge-REMOVAL problem, not a CDC
+    -- problem. csr_unit samples inst_retired on rising_edge(clk). The question
+    -- is whether "en_clk_cpu sampled at a clk rising edge" is the same
+    -- predicate as "this edge is also a clk_cpu edge". IT IS, IN BOTH VIEWS:
+    --   * hdl/common/sim/ClkGate.vhd is the classic latch-then-AND
+    --     (`if ClkIn = '0' then ClkSync <= En;` + `ClkOut <= ClkSync and
+    --     ClkIn`), so a clk_cpu edge occurs iff ClkSync = '1', and ClkSync at
+    --     that edge is en_clk_cpu as of the END OF THE LOW PHASE -- exactly
+    --     the value a clk-edge flop samples under setup;
+    --   * hdl/common/commune/ClkGate_cmn65gp_ARM.vhd wraps PREICGX1BA10TH, a
+    --     standard integrated clock gate with the same latch-then-AND
+    --     semantics, so the argument holds in gates as well as in sim.
+    -- Both files re-confirmed unchanged at W3. Un-stalled, every clk edge is a
+    -- clk_cpu edge and the strobe is high for exactly the retiring cycle => one
+    -- increment. Stalled (or slept, or externally sleep-gated), en_clk_cpu = '0'
+    -- kills it => the stall integrates NOTHING, and the cycle in which the
+    -- stall releases counts once.
+    --   The toggle-flop alternative is deliberately NOT used: it adds a
+    --   same-edge launch/capture path into a tile with picosecond setup margin.
+    inst_retired <= retire_now and en_clk_cpu;
+
+    -- BINDING (w3_spec.md §2.3): vesta_tracer must NOT consume `retire_now`.
+    -- The tracer implements §3-R0 independently (its own `wfi_armed`
+    -- variable). Wiring this signal into it would make the two agree BY
+    -- CONSTRUCTION and destroy the only thing that makes their agreement
+    -- evidence: two independent implementations of one spec agreeing over
+    -- 4.6 M records is a result; one implementation observed twice is a
+    -- tautology. Keep them separate -- do NOT "de-duplicate" them.
 
 
     -- ==========================================
