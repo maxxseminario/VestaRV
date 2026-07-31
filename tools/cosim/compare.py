@@ -195,7 +195,28 @@ def compared_stream(recs):
 
 # --------------------------------------------------------------------------
 # Amendment A15 (V4): the spurious failed-SC `M … S` record
+#   STATUS SINCE A16 (WT, finding T2): COMPATIBILITY SHIM + x-FALLBACK.
 # --------------------------------------------------------------------------
+#
+# A16 fixed this AT SOURCE: `vesta_tracer.vhd` now samples `sc_fail_ext` in
+# SC_CHECK and emits `# SCGHOST` instead of an `M … S` for a write resv_unit
+# suppressed. On a post-A16 trace this pass therefore finds NOTHING TO DROP,
+# and that is the intended end state -- `dropped=0` is the healthy reading.
+#
+# It is NOT dead code, for two distinct reasons, and only the first is the
+# obvious one:
+#   1. traces and comparators are versioned independently. An archived or
+#      quarantined pre-A16 trace (there are 218 legacy artifacts in
+#      cosim_work/legacy_v3_logs.quarantine/ alone) meeting a current
+#      compare.py is a real combination, and it must still compare correctly.
+#   2. A16 REFUSES to classify when `sc_fail_ext` is itself x: it emits
+#      `# SCGHOSTX` and KEEPS the store, deliberately, because a wrongly
+#      dropped real store is invisible while a kept ghost is not. A15 is the
+#      thing that then catches it, from `rd` -- the effect -- when A16 could
+#      not read the cause. The two are a division of labour, not duplicates.
+# So: a NONZERO census on a trace whose header declares A16 means either an
+# `# SCGHOSTX` occurred or the tracer's `sc_fail_ext` is unwired. Both are
+# findings, and neither is silent -- the census below prints either way.
 #
 # A globally-failed `sc.w` STILL EMITS AN `M … S` RECORD on the RTL side. The
 # core's LOCAL reservation check (`reservation_valid` + address match) passes, so
@@ -1038,9 +1059,24 @@ def summarise_a15(err, info):
         err.write("      pc %s -> addr %s  x%d\n"
                   % (pc, addr, a["census"][(pc, addr)]))
     if a["fail"] and not a["dropped"]:
-        err.write("      note: every failed sc.w emitted NO store record -- the "
-                  "core declined the write LOCALLY at each one, so nothing "
-                  "needed dropping\n")
+        # WHY the reason is read off `# SCGHOST` and not assumed: pre-A16 there
+        # was exactly one way for a failed sc.w to carry no store -- the core
+        # declined the write LOCALLY -- so that sentence was safe. A16 created a
+        # SECOND way, and printing the old reason on a post-A16 trace would
+        # assert a local decline for every cross-hart kill in the run. The
+        # tracer tells us which: `# SCGHOST` is emitted only on the external
+        # path, `# SCFAILRD` only on the local one.
+        n_ghost = info["comments"].get("SCGHOST", 0)
+        if n_ghost:
+            err.write("      note: nothing needed dropping because the TRACER "
+                      "already withheld %d never-committed store(s) "
+                      "[# SCGHOST, Amendment A16]. This is the healthy "
+                      "post-A16 reading, not an absence of failed SCs\n"
+                      % n_ghost)
+        else:
+            err.write("      note: every failed sc.w emitted NO store record -- "
+                      "the core declined the write LOCALLY at each one, so "
+                      "nothing needed dropping\n")
     for lineno, pc, why in a["indeterminate"]:
         err.write("      INDETERMINATE at %s:%d (pc %s): %s\n"
                   % (info["rtl"], lineno, pc, why))

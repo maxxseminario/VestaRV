@@ -481,7 +481,7 @@ architecture struct of vesta is
             wen              : in std_logic_vector(XLEN_BYTES-1 downto 0);  -- ACTIVE LOW per byte
             write_data       : in std_logic_vector(XLEN-1 downto 0);
             mem_access_instr : in std_logic;
-            funct3           : in std_logic_vector(2 downto 0);     -- instr_curr(14 downto 12)
+            funct3           : in std_logic_vector(2 downto 0); sc_fail_ext : in std_logic := '0';  -- instr_curr(14:12); A16/T2 verdict SHARES THIS LINE ON PURPOSE -- see the port map
             csr_addr         : in std_logic_vector(11 downto 0);
             csr_commit_we    : in std_logic;
             csr_commit_val   : in std_logic_vector(XLEN-1 downto 0);
@@ -4548,6 +4548,28 @@ architecture struct of vesta is
                 write_data       => write_data,
                 mem_access_instr => mem_access_instr,
                 funct3           => instr_curr(14 downto 12),
+                -- A16/T2: the tracer's only new input. `sc_fail_ext` is an
+                -- EXISTING vesta input port, so this creates no signal and no
+                -- logic -- it is a wire already present in every build, read by
+                -- an observer that only exists when TRACE_ENABLE is true.
+                --
+                -- WHY ITS COMPONENT DECLARATION SHARES A LINE WITH `funct3`
+                -- (:483, and it looks wrong until you know this): Genus derives
+                -- internal net names from the SOURCE LINE of the expression that
+                -- creates them -- `add_1469_57`, `plus_3919_83`. Inserting even
+                -- a comment line above ~3919 renumbers them, and the OFF-build
+                -- netlist then differs from its predecessor in 1,794 lines of
+                -- pure renaming. Measured, not feared: the first cut of this
+                -- change did exactly that, and the diff was provably nothing
+                -- else (identical cell counts, identical area to 3 decimals,
+                -- byte-identical after normalising 7 line/col keys).
+                -- A netlist A/B is the evidence that a tracer edit invalidates
+                -- no hardened block, so it is worth keeping that A/B checkable
+                -- with `grep -v 'Generated on' | md5sum` instead of a bespoke
+                -- normaliser. Hence: NO NEW LINE above the last generated name.
+                -- Anything below here is free -- which is why this comment can
+                -- afford to exist at all.
+                sc_fail_ext      => sc_fail_ext,
                 csr_addr         => csr_addr,
                 csr_commit_we    => csr_commit_we,
                 csr_commit_val   => csr_commit_val,
