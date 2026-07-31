@@ -104,6 +104,26 @@ entity maindec is
         status_tw        : in  STD_LOGIC := '0';                       -- mstatus.TW
         mcounteren_bits  : in  STD_LOGIC_VECTOR(4 downto 0) := "00000"; -- {HPM4,HPM3,IR,TM,CY}
 
+        -- F10 (fix pass W4): the rs1/uimm FIELD is zero. maindec has no rs1 port
+        -- by convention, so this one bit is passed in the same way as the P2
+        -- inputs above -- it is what distinguishes a CSR WRITE from a read-only
+        -- CSR instruction form, and the read-only-CSR trap must fire on writes
+        -- ONLY (`csrr t0, mhartid` is legal and appears 74 times in the suite).
+        -- SAME rule as csr_unit's write enable (csr_unit.vhd:456): CSRRW/CSRRWI
+        -- always write; the set/clear forms write iff the FIELD is nonzero.
+        -- DEFAULT '1' = "read-only form". This default is SAFETY, not inertness:
+        -- the read-only-CSR trap is UNGATED (it applies in every build), so an
+        -- instantiation that left this port unconnected would otherwise see
+        -- csr_rs1_zero = '0' and trap every CSR instruction aimed at the
+        -- read-only quadrant, INCLUDING plain reads like `csrr t0, mhartid`.
+        -- Defaulting '1' means an unwired instantiation traps nothing rather
+        -- than trapping everything -- it fails safe, it does not "behave as
+        -- before". The only instantiation (controller -> vesta) drives it.
+        -- (csr_unit's port of the same name defaults '0'; there the safe
+        -- direction is the opposite -- writes enabled, i.e. pre-P3 behaviour.
+        -- The two defaults differ on purpose; neither is a typo.)
+        csr_rs1_zero     : in  STD_LOGIC := '1';
+
         -- X1 Zawrs: wrs_op = decoded wrs.nto or wrs.sto (illegal unless
         -- ENABLE_ZAWRS and ENABLE_ATOMICS); wrs_sto = the timeout variant.
         wrs_op           : out STD_LOGIC;
@@ -226,6 +246,10 @@ architecture behave of maindec is
     -- address, or a counter whose mcounteren bit is clear). Drives BOTH the
     -- illegal-instruction trap and the csr_valid write-enable suppression.
     signal u_csr_denied    : STD_LOGIC;
+    -- F10 (fix pass W4): '1' when this CSR instruction WRITES a READ-ONLY CSR.
+    -- Like u_csr_denied it drives BOTH the illegal-instruction trap and the
+    -- csr_valid write-enable suppression, and for the same reason.
+    signal csr_ro_denied   : STD_LOGIC;
 
 
 begin
@@ -498,7 +522,82 @@ begin
     -- 16+4 new write arms, where any arm decoded wider than the exact address
     -- set would otherwise be reachable from a trapping encoding. privcsr
     -- CHECK 35 pins the trap-and-commit-nothing behavior.
-    csr_valid <= is_csr_instr and csr_addr_valid and (not u_csr_denied);
+    -- F10 (fix pass W4): and by csr_ro_denied, for the identical reason -- a
+    -- read-only-CSR write traps, so it must commit nothing. Belt and braces
+    -- here (no csr_unit write arm matches a read-only address today), exactly
+    -- as the csr_addr_valid term above is.
+    csr_valid <= is_csr_instr and csr_addr_valid
+                 and (not u_csr_denied) and (not csr_ro_denied);
+
+    -- ==========================================================================
+    -- F10 (fix pass W4) -- A WRITE TO A READ-ONLY CSR IS AN ILLEGAL INSTRUCTION
+    -- ==========================================================================
+    -- THE RULE (RISC-V privileged spec, csr address encoding): csr[11:10] = "11"
+    -- marks the address READ-ONLY, and any instruction FORM that would write
+    -- such a CSR raises an illegal-instruction exception. Everything below that
+    -- quadrant is WRITABLE -- possibly WARL, possibly write-ignored, but NOT a
+    -- trap. Spike implements exactly this, which is why the rule is stated as
+    -- ONE COMPARATOR on imm12(11:10) and not as an enumeration of the CSRs this
+    -- csr_unit happens not to store.
+    --
+    -- SCOPE NOTE, because the finding as filed was wider than the rule.
+    -- rtl_findings.md F10 lists "mhartid, misa, cycle/time/instret[h],
+    -- hpmcounter*, mhpmcounter5-31, mhpmevent5-31 ... plus mip => null", i.e.
+    -- every address csr_unit ADMITS BUT DOES NOT STORE (csr_unit.vhd's
+    -- `csr_addr_stores`). That set is NOT the read-only set, and the difference
+    -- is load-bearing: misa (0x301), mip (0x344), mstatush (0x310),
+    -- mcountinhibit (0x320), mhpmevent3-31 (0x32x/0x33x) and mhpmcounter3-31
+    -- (0xB0x-0xB1F) all sit BELOW the read-only quadrant. They are writable
+    -- CSRs whose writes this implementation legally ignores (WARL / not
+    -- implemented) -- and the ledger's own justification, "Spike traps", does
+    -- NOT hold for them: Spike accepts those writes too. Trapping them would
+    -- manufacture divergences rather than remove them. So the trap covers
+    -- imm12(11:10)="11" and nothing else, and the write-ignore behaviour of the
+    -- rest stays as-is and stays documented in the erratum. In particular
+    -- divergence D-2026-07-29-1 (`csrrw zero, mhpmevent3, t0`, address 0x323)
+    -- is NOT in this set and is unaffected.
+    --
+    -- WHY IT IS GATED ON ENABLE_TRAPCSR (user ruling D3-bis, 2026-07-31).
+    -- UNGATED, IN EVERY BUILD (user ruling, 2026-07-31, superseding D3-bis).
+    -- An earlier draft gated this on ENABLE_TRAPCSR, on the reasoning that
+    -- trapping is only well-defined where a trap architecture exists. That
+    -- ruling rested on a premise that measurement removed: it assumed
+    -- `rv32ua-p-extzihpm` depended on the accept-and-drop behaviour, which is
+    -- true only under the MIS-SCOPED reading above -- all nine of its writes
+    -- are writable-quadrant and none of them reach this arm. With the premise
+    -- gone the user re-ruled to ungate, and the reasons are worth keeping:
+    --   * the SHIPPING configuration gets spec-conformant behaviour, not just
+    --     knobs-on builds;
+    --   * `unimp` (0xC0001073 = `csrrw x0, cycle, x0`) starts trapping, which
+    --     is what CLAUDE.md has always claimed it does. That documented
+    --     property was FALSE -- measured, not argued: the F10 detector's hart 2
+    --     executed `unimp` and walked straight past it into its park loop with
+    --     current_state = EXECUTE. This arm is what makes the doc true, and a
+    --     documented safety property that does not hold is worse than an
+    --     undocumented one, because tests get written against it;
+    --   * the exposure is bounded and was measured, not assumed. Across EVERY
+    --     .rcf in the repo (843 files, 10,053,900 halfwords, scanned at BOTH
+    --     halfword phases) the only read-only-quadrant CSR write that exists
+    --     anywhere is `unimp` -- 273 sites, and ZERO of them in either bootrom
+    --     image or any course image. Of the 139 `unimp` instructions in the
+    --     built ELFs, 129 sit behind a spin/self-loop, 6 behind an `iret` and 4
+    --     behind a `ret`: NONE is fall-through reachable;
+    --   * and if one ever were reachable it now fails LOUDLY instead of
+    --     silently. On a legacy build the trap enters the terminal TRAP_STATE,
+    --     the PC freezes, no a0 is written and the 100 ms tb watchdog reports
+    --     the test FAILED. Today that same site is a silent NOP. Turning a
+    --     silent wrong-behaviour into a loud one is the point.
+    --
+    -- THIS IS A REAL BEHAVIOUR CHANGE IN THE DEFAULT BUILD -- there is no
+    -- bit-identity argument here and none should be reconstructed. What changes
+    -- is exactly: a CSR instruction in a WRITE FORM aimed at an address with
+    -- imm12(11:10) = "11" now raises illegal-instruction instead of retiring as
+    -- a NOP. Reads of those addresses are untouched, and every writable-quadrant
+    -- WARL write-ignore is untouched.
+    csr_ro_denied <= '1' when (is_csr_instr = '1' and
+                               imm12(11 downto 10) = "11" and
+                               (funct3(1 downto 0) = "01" or csr_rs1_zero = '0'))
+                     else '0';
 
     -- ==========================================
     -- RV32A Atomic Operation Signals
@@ -629,7 +728,7 @@ begin
         (ENABLE_ZFINX and op = FNMADD_OPCODE)     -- fnmadd.s
     ) else '0';
 
-    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_aes_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5, is_sha256_instr, is_sha512_instr, is_zbkb_new_r_instr, is_zbkb_new_i_instr, is_zbkb_shared_r_instr, is_zbkb_shared_i_instr, is_zbkx_instr, is_fp_single, is_fp_arith_mc, is_fp_fma_op, u_gate, u_csr_denied, status_tw)
+    process(op, funct3, funct7, funct5, imm12, valid_opcode, is_custom_instr, is_mul_div, is_amo_instr, is_zba_instr, is_zbb_r_instr, is_zbb_i_instr, is_zbs_r_instr, is_zbs_i_instr, is_zbc_instr, is_zicond_instr, is_aes_instr, is_wrs_instr, is_csr_instr, is_zimop_instr, csr_addr_valid, is_std_amo_fn5, is_sha256_instr, is_sha512_instr, is_zbkb_new_r_instr, is_zbkb_new_i_instr, is_zbkb_shared_r_instr, is_zbkb_shared_i_instr, is_zbkx_instr, is_fp_single, is_fp_arith_mc, is_fp_fma_op, u_gate, u_csr_denied, csr_ro_denied, status_tw)
     begin
         valid_funct <= '1';
         
@@ -788,7 +887,14 @@ begin
                         -- ONE expression, shared with the csr_valid write-enable
                         -- suppression (u_csr_denied) so the trap and the
                         -- side-effect block can never disagree.
+                        -- F10 (fix pass W4): a WRITE to a READ-ONLY CSR
+                        --     (imm12(11:10)="11") is likewise illegal, on an
+                        --     ENABLE_TRAPCSR build. Tested AFTER the U-mode
+                        --     denial only because that one is the older rule;
+                        --     both report cause 2, so the order is cosmetic.
                         if u_csr_denied = '1' then
+                            valid_funct <= '0';
+                        elsif csr_ro_denied = '1' then
                             valid_funct <= '0';
                         else
                             valid_funct <= csr_addr_valid;

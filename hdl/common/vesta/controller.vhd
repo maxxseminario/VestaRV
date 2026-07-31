@@ -87,6 +87,16 @@ entity controller is
         status_tw        : in  std_logic := '0';                        -- mstatus.TW
         mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000"; -- {HPM4,HPM3,IR,TM,CY}
 
+        -- F10 (fix pass W4): the CSR instruction's rs1/uimm FIELD is zero, i.e.
+        -- this is a read-only instruction form. Straight through to maindec,
+        -- where it qualifies the read-only-CSR illegal-instruction trap. That
+        -- trap is UNGATED -- it applies in EVERY build, not just knobs-on ones
+        -- -- so this port is load-bearing in the shipping configuration.
+        -- Default '1' (= read-only form) is a FAIL-SAFE, not an identity: an
+        -- unconnected instantiation traps nothing, rather than trapping every
+        -- read of a read-only CSR. It does not preserve pre-fix behaviour.
+        csr_rs1_zero     : in  std_logic := '1';
+
         -- ==========================================
         -- Atomic Memory Operation Outputs
         -- ==========================================
@@ -186,6 +196,8 @@ architecture struct of controller is
             priv_m           : in  std_logic := '1';
             status_tw        : in  std_logic := '0';
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
+            -- F10 (fix pass W4): rs1/uimm-field-is-zero, straight through
+            csr_rs1_zero     : in  std_logic := '1';
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
@@ -291,6 +303,7 @@ begin
             priv_m           => priv_m,
             status_tw        => status_tw,
             mcounteren_bits  => mcounteren_bits,
+            csr_rs1_zero     => csr_rs1_zero,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
                    

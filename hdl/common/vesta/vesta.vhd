@@ -191,6 +191,8 @@ architecture struct of vesta is
             priv_m           : in  std_logic := '1';
             status_tw        : in  std_logic := '0';
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
+            -- F10 (fix pass W4): CSR rs1/uimm-field-is-zero (read-only form)
+            csr_rs1_zero     : in  std_logic := '1';
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
@@ -1818,11 +1820,11 @@ architecture struct of vesta is
                                   and reservation_addr = rs1_value) else
                  -- F6 (fix pass W4): LR JOINS SC AND AMO ON THE PHASE-INDEPENDENT
                  -- rs1 ADDRESS. `valid_funct` whitelists AMO_OPCODE on funct3 +
-                 -- funct5 only (maindec:846-865) and lr_op has no rs2 term
-                 -- (maindec:507), so `lr.w rd, rs2, (rs1)` with a NON-ZERO rs2
+                 -- funct5 only (maindec:952-971) and lr_op has no rs2 term
+                 -- (maindec:606), so `lr.w rd, rs2, (rs1)` with a NON-ZERO rs2
                  -- FIELD is a legal decode; ALU_src is '0' for AMO_OPCODE
-                 -- (maindec:1006) and alu_control is ADD for LR/SC
-                 -- (maindec:1201), so ALU_Result = rs1 + reg[rs2]. Before this
+                 -- (maindec:1112) and alu_control is ADD for LR/SC
+                 -- (maindec:1307), so ALU_Result = rs1 + reg[rs2]. Before this
                  -- fix BOTH the EXECUTE dispatch and LR_READ fell through to that
                  -- ALU_Result while the reservation armed at rs1_value (:1377) --
                  -- the read and the reservation landed on DIFFERENT addresses.
@@ -2270,10 +2272,10 @@ architecture struct of vesta is
 
     -- Permission NEEDS (frozen §4: LR/SC/AMO drive BOTH R and W). A plain
     -- access is a store iff its byte-lane enables are not all inactive --
-    -- wen_controller is "1111" for every load and for LR (maindec:1029).
+    -- wen_controller is "1111" for every load and for LR (maindec:1135).
     --
     -- P3 red-team F2/F3 FIX: the `isr_ret` (iret) decode ALSO raises
-    -- read_data_flag => mem_access_controller (maindec:1080), so without a
+    -- read_data_flag => mem_access_controller (maindec:1186), so without a
     -- guard iret looks like a load here and PMP-checks a PHANTOM read at its
     -- ALU_Result (= 0 for the canonical encoding). A locked/no-perm entry over
     -- that address then faults EVERY M-mode iret (an M-mode DoS -- F2). iret is
@@ -2287,13 +2289,13 @@ architecture struct of vesta is
     --
     -- F12 RESIDUE (fix pass W4, COMMENT ONLY -- deliberately not changed).
     -- That `and isr_ret = '0'` guard SILENTLY STOPS APPLYING IN U-MODE: isr_ret
-    -- is u-gated (maindec:921) so it reads '0' there, while
+    -- is u-gated (maindec:1027) so it reads '0' there, while
     -- mem_access_controller is NOT u-gated and still reads '1' for the iret
     -- encoding. A U-mode iret on an ENABLE_PMP build therefore raises
     -- pmp_d_active and, over a denying region, pmp_d_deny. It is INERT TODAY --
     -- and only by ARM ORDERING: the `trap = '1'` arm is the FIRST arm of all
     -- four EXECUTE shapes (:2594/:2867/:2982/:3145), above the D5 pmp_d_deny arm
-    -- (:2637 etc.), and a U-mode CUSTOM opcode is illegal (maindec:750-757), so
+    -- (:2637 etc.), and a U-mode CUSTOM opcode is illegal (maindec:849-856), so
     -- the illegal-instruction trap wins and reports cause 2. W4 MEASURED that
     -- (mcause 2, mepc = the iret's own pc, mtval = its own encoding, bus
     -- silent) on an ENABLE_UMODE build; the ENABLE_PMP leg is argued from
@@ -2748,9 +2750,9 @@ architecture struct of vesta is
                                     -- ==========================================
                                     -- maindec's read_data_flag has an arm for
                                     -- op=CUSTOM_OPCODE, funct3=000, funct7=0
-                                    -- (maindec:1080) -- that IS the `iret`
+                                    -- (maindec:1186) -- that IS the `iret`
                                     -- encoding -- so mem_access_controller
-                                    -- (maindec:1088) is high for an iret and THIS
+                                    -- (maindec:1194) is high for an iret and THIS
                                     -- arm, tested above the `elsif isr_ret` arm at
                                     -- :2849, is the one an iret takes. (The isr_ret
                                     -- arm below is dead; the trajectory it names is
@@ -2760,10 +2762,10 @@ architecture struct of vesta is
                                     -- (:1861) put ALU_Result on the bus for that
                                     -- cycle, and for CUSTOM_OPCODE the ALU ADDS TWO
                                     -- REGISTERS (alu_control="0000000" at
-                                    -- maindec:1107; ALU_src has no CUSTOM row and
+                                    -- maindec:1213; ALU_src has no CUSTOM row and
                                     -- falls through to '0' = register operand),
                                     -- while the custom decode never inspects
-                                    -- rs1/rs2 (maindec:750-763 whitelists funct3 +
+                                    -- rs1/rs2 (maindec:849-862 whitelists funct3 +
                                     -- funct7 only). So every ISR return issued a
                                     -- REAL, SIDE-EFFECTING read at reg[rs1]+reg[rs2]
                                     -- -- 0 for the canonical macro (riscv_test.h
@@ -2781,7 +2783,7 @@ architecture struct of vesta is
                                     -- IRQ_REST still holds and the REAL pop is still
                                     -- addressed from stack_pointer in MEMORY_WAIT
                                     -- (:1865). wen is already "1111" for CUSTOM
-                                    -- (maindec:1029) -- the phantom was a READ.
+                                    -- (maindec:1135) -- the phantom was a READ.
                                     -- With the request suppressed the ALU_Result arm
                                     -- drops out and data_addr falls through the mux
                                     -- to pc_next: an ordinary early fetch of the word
@@ -2795,7 +2797,7 @@ architecture struct of vesta is
                                     -- fetch of read-only ROM instead of a data read
                                     -- at a register-dependent address.
                                     --
-                                    -- U-MODE: `isr_ret` is u-gated (maindec:921) so
+                                    -- U-MODE: `isr_ret` is u-gated (maindec:1027) so
                                     -- this qualifier does not fire in U -- and it
                                     -- does not need to. W4 MEASURED (knobs-on build)
                                     -- that a U-mode iret takes the `trap = '1'` arm,
@@ -4209,6 +4211,11 @@ architecture struct of vesta is
             priv_m           => trap_priv_mode,
             status_tw        => trap_status_tw,
             mcounteren_bits  => trap_mcounteren,
+            -- F10 (fix pass W4): the SAME csr_rs1_zero the csr_unit already
+            -- consumes for its write enable (:4479 below), so the decode's
+            -- read-only-CSR trap and the write path can never disagree about
+            -- what counts as a write.
+            csr_rs1_zero     => csr_rs1_zero,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
             mem_access_instr => mem_access_controller,
