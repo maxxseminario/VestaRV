@@ -1,0 +1,117 @@
+# V4 multi-hart lockstep sweep list — the sh* (SH-MULTIHART) suite.
+#
+# Use with:  MULTIHART=1 COSIM_BOOT=1 BRACKET_ISR=1 \
+#              TESTS_FILE=cosim_sh_tests.txt ./xrun_cosim.sh
+#
+# BRACKET_ISR=1 IS REQUIRED for this list, not optional. shafe's HART 0 takes a
+# legacy meip trap (cause=8000007f tval=00008154 -> IVT slot 85); without hart-0
+# ISR bracketing that T record is correctly reported as a control-flow divergence
+# and the cell is a FALSE DIVERGE. Harts 1-3 are bracketed unconditionally
+# (Amendment A11 - the park window is in their stream by construction).
+#
+# One rcf basename per line; blank lines and #-comments are ignored. Every entry
+# is 22 chars so that "../rcf/" + name is exactly the 29-char TEST_FILE generic.
+#
+# Staged per ~/vesta_docs/lockstep/v4_design.md §4.9/§4.10. Classification is by
+# MECHANISM, mechanically censused from the sources. The stage order is
+# simplest-first so that each stage adds ONE new piece of machinery.
+#
+# WHAT LOCKSTEP DOES NOT PROVE HERE (v4_design.md §4.8 — read before quoting a
+# pass): each hart's own architectural stream is compared; inter-hart ORDERING,
+# ATOMICITY (AMO grant-locking, mutex claim, resv_unit's SC adjudication) and
+# MUTUAL EXCLUSION are taken as TRUE by construction, because every shared load
+# is defined by what the RTL itself returned. "The sh* tests pass lockstep" is
+# NOT "the shared window is verified".
+
+# ── Stage 1/2 · class A — hart-0-only (tiles stay parked; no new mechanism) ───
+xxxxrv32ui-p-shmem.rcf
+xxrv32ui-p-shclint.rcf
+
+# ── Stage 2 · class C — plain shared stores + loads ───────────────────────────
+# First use of PLANT + the sleep bracket + G (register replay).
+# shboot is the cleanest bracket test in the tree: its subject IS the loader.
+# NOTE shmem_mp carries finding T1 (rtl_findings.md): its three tiles never
+# reach tile_body (launch margin 1,011 cycles vs 32,768 needed). They are
+# expected LAUNCHED-ONLY -- they DO take the loader trap and copy ~33 of 4096
+# words, they just never arrive, so they are NOT coverage. (Pre-C3 the audit
+# called them PARTICIPATED, because the IVT slot jump at 0x814c alone satisfied
+# the old "any retire at pc >= 0x4000" rule.) Ruled run-as-is in V4 (V4-7); do
+# not "fix" the test here.
+xrv32ui-p-shmem_mp.rcf
+xxxrv32ui-p-shboot.rcf
+xxxrv32ui-p-shuart.rcf
+
+# ── Stage 3 · classes D+E — LR/SC and AMO. THE VALUE CASES. ──────────────────
+# Three of the five historical core-bug post-mortems live here (M4b's SC
+# premature write + SC-addr-via-PASS-B, M8's AMO dispatch phantom read).
+# Adds F (forced SC failure). The SC success/failure DECISION is asserted, not
+# compared; the SC's address, its rd, and outcome/effect consistency ARE.
+# shlrsc first (smallest: 5 lr / 6 sc), then shcount (measured 4-hart live).
+xxxrv32ua-p-shlrsc.rcf
+xxrv32ua-p-shcount.rcf
+xxxrv32ua-p-shspin.rcf
+xxxrv32ua-p-shlock.rcf
+xxxxrv32ua-p-shamo.rcf
+
+# ── Stage 4 · class F — claim-based (side-effecting READS) ────────────────────
+# Mutex-bank claim reads arbitrate roles. Served by the existing MMIO replay, so
+# the mutex bank is taken as true four times over: shmutex passing lockstep says
+# NOTHING about mutual exclusion.
+xxrv32ui-p-shmutex.rcf
+xxrv32ui-p-shtimer.rcf
+xrv32ui-p-shperiph.rcf
+xxxxrv32ui-p-shi2c.rcf
+
+# ── Stage 5 · class G — sleep / IPI / mid-test re-park (ATTEMPT, per V4-6) ────
+# Needs NESTED sleep brackets + the meip inject partition. Highest machinery,
+# lowest incremental value. Stopping after Stage 4 is pre-authorised IF Stage 5
+# proves disproportionate — but if we stop, the residue text must say plainly
+# that meip-driven interrupt lockstep remains UNDEMONSTRATED PROGRAM-WIDE.
+# RESULT 2026-07-30 (C3): Stage 5 RAN AND PASSED 12/12. Nested brackets work on
+# real workloads (2 brackets per re-park cell, up to 32,850 records bracketed
+# out) and the meip inject partition delivered: shafe hart 0 brackets four
+# src=85 (meip) windows, so meip-driven interrupt lockstep is DEMONSTRATED
+# rather than residue. The V4-6 "stop after Stage 4" authorisation was not used.
+xxxxrv32ui-p-shwfi.rcf
+xxxxrv32ui-p-shirq.rcf
+xxxxrv32ui-p-shafe.rcf
+
+# ── class B · knob-OFF stubs in the shipped N=4 image — DEFERRED ──────────────
+# Their multi-hart body is #ifdef-gated on a knob that is FALSE in this build
+# (shzabha.S:28-29 "ON = built by EXPLICITLY appending -DCORE_ENABLE_ZABHA";
+# MemoryMap.vhd:1194-1203 — ZCB/ZAWRS/ZABHA/ZACAS/ZICBOZ/ZCMP/ZCMT all false).
+# They would report PASS while exercising NO multi-hart mechanism at all, so
+# they must never be folded into an "sh* tests pass" count. Their real content
+# belongs to the per-config matrix — the same bucket as A8/C3.
+#xxxxrv32ua-p-shwrs.rcf
+#xxrv32ua-p-shzabha.rcf
+#xxrv32ua-p-shzacas.rcf
+#xxrv32ua-p-shcaslr.rcf
+#xxxrv32ua-p-shmixw.rcf
+#xxxrv32ua-p-shcboz.rcf
+#xxxxrv32ua-p-shcmp.rcf
+#rv32ua-p-shcmppush.rcf
+#xxxxrv32ua-p-shcmt.rcf
+
+# ── class H · deferred with named reasons ─────────────────────────────────────
+# shexec/shexecc: execute-from-shared. An instruction FETCH from the plant
+#   region emits no M...L record, so a hart running code another hart wrote has
+#   nothing to plant from. Ruled DEFER (V4-4); fetch-plant not authorised.
+# shnpu:  NPU THINK + the DP-SG vector-120 IRQ leg.
+# shpwr:  PWRCTRL cold-gates the tiles, so tile traces are absent BY DESIGN
+#         (the NO-TRACE participation class exists for exactly this).
+# shpause: Zihintpause / the WRS_WAIT sequencer.
+#xxxrv32ui-p-shexec.rcf
+#xxrv32ui-p-shexecc.rcf
+#xxxxrv32ui-p-shnpu.rcf
+#xxxxrv32ui-p-shpwr.rcf
+#xxrv32ua-p-shpause.rcf
+
+# ── out of scope, confirmed from the runner lists ─────────────────────────────
+# shdma, shevfab — NOT in behavioral_mp/xrun_parallel.sh; they appear only in
+#   verify_wound/ verify_castaliadp/ verify_castaliaevfab/ verify_castaliadma/
+#   and the wound genus lists. Their peripherals (DMA0/EVFAB0) are absent from
+#   the base Castalia N=4 memory map.
+# shfault — an rcf exists but NO runner references it (grep -l shfault */*.sh is
+#   empty). An unrun test in the tree; reported as its own small finding.
+# Argus N=18 — blocked by the runner's .nharts guard, which V4 does not weaken.
