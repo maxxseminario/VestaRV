@@ -615,12 +615,14 @@ architecture struct of vesta is
     signal ci_pc_advance : std_logic;                     -- default '0' : PC holds
 
     -- S2 migration gate (S0 interface spec, section 3): one entry per
-    -- cpu_state.  EMPTY in S1 -- the commit block is present and syntactically
-    -- live but drives nothing, so every state keeps its existing direct drives
-    -- and all four outputs are bit-identical.  S2 switches families on one
-    -- commit at a time; the cleanup commit deletes the table and its `if`.
+    -- cpu_state.  A state whose row is true has NO direct drive of the four
+    -- owned nets left in its arm: the commit block below is what drives them,
+    -- from that state's intent declarations.  S2 turns rows on one family at a
+    -- time; the cleanup commit deletes the table and its `if` once every row is
+    -- true and the gate has nothing left to select.
     type commit_gate_t is array (cpu_state) of boolean;
-    constant state_commits_via_block : commit_gate_t := (others => false);
+    constant state_commits_via_block : commit_gate_t := (EXECUTE => true,
+                                                         others  => false);
 
     -- ==========================================
     -- PC Management Signals
@@ -2541,17 +2543,6 @@ architecture struct of vesta is
                              -- four owned outputs or of any ci_* -- no feedback,
                              -- so the extra evaluation settles in one delta.
                              ci_rd_commit, ci_sp_commit, ci_st_lanes, ci_pc_advance)
-        -- S2 intra-EXECUTE migration gate (ruling R-S2-1).  R-DS2 splits EXECUTE
-        -- across commits 2-6, so a per-SHAPE switchover is needed inside the one
-        -- state that `state_commits_via_block` can only address whole.  A
-        -- VARIABLE, not a signal: a signal read later in the same process returns
-        -- its pre-delta value, which would make the tail read the PREVIOUS
-        -- evaluation's gate.  It is set true at the head of each migrated shape's
-        -- own branch, so no shape predicate is ever written twice (the N3a
-        -- duplicated-predicate class).  Scaffolding with a scheduled death: when
-        -- commit 6 finishes EXECUTE, this variable and its `or` term are deleted
-        -- and EXECUTE joins the constant table.
-        variable v_exec_via_block : boolean;
     begin
         if resetn = '0' then
             -- Reset all control signals
@@ -2582,9 +2573,6 @@ architecture struct of vesta is
             ci_pc_advance <= '0';
 
         else
-            -- R-S2-1: false unconditionally, before anything can read it, so the
-            -- variable never holds a value across process evaluations.
-            v_exec_via_block := false;
             -- Default signal values
             pc_en <= '1';
             mem_access_instr <= '0';
@@ -2646,7 +2634,6 @@ architecture struct of vesta is
                         -- nothing and the deletion is value-neutral by
                         -- construction (R-S2-1).  sp_write_en fell through to '0'
                         -- and the block drives ci_sp_commit '0'.
-                        v_exec_via_block := true;
                         mem_access_instr <= '0';
                         -- P3 red-team F4 FIX: clear a pending repeat_if. When
                         -- the DENIED fetch is the UPPER half of a straddling
@@ -2690,7 +2677,6 @@ architecture struct of vesta is
                         -- false wherever ENABLE_COMPRESSED is true, which is every
                         -- shipped config (MemoryMap CORE_ENABLE_COMPRESSED = true,
                         -- Castalia and Argus alike), so no gate can observe it.
-                        v_exec_via_block := true;
                         if std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
@@ -2711,7 +2697,6 @@ architecture struct of vesta is
                                 -- the fail-safe values ('0' / '0' / all-ones); the
                                 -- 38th (the FENCE_WAIT pc_en '1') is carried by the
                                 -- ci_pc_advance declaration beside it.
-                                v_exec_via_block := true;
                                 clr_repeat_if <= '1';
                                 
                                 -- Determine next state based on instruction type
@@ -2982,7 +2967,6 @@ architecture struct of vesta is
                                 -- is the ONLY shape in this commit with live
                                 -- coverage: the bubble fires on every straddling
                                 -- 32-bit instruction.
-                                v_exec_via_block := true;
                                 ltch_lh_inst <= '1';
                                 repeat_if_req <= '1';
                                 next_state <= EXECUTE;
@@ -2996,7 +2980,6 @@ architecture struct of vesta is
                             -- fence/lr/sc/amo/cboz/wfi/wrs/fp arms at all (the F4
                             -- assert (4) class), so it has no FENCE_WAIT pc_en '1'
                             -- exception the way STRADDLE and WA32 do.
-                            v_exec_via_block := true;
                             is_compressed <= '1';
                             if trap = '1' then
                                 if std_mode = '1' then
@@ -3113,7 +3096,6 @@ architecture struct of vesta is
                             -- 37 of its 38 owned drives were the fail-safe values,
                             -- the 38th (the FENCE_WAIT pc_en '1') is carried by the
                             -- ci_pc_advance declaration beside it.
-                            v_exec_via_block := true;
                             is_compressed <= '0';
                             
                             if trap = '1' then
@@ -3272,15 +3254,16 @@ architecture struct of vesta is
                             end if;
                         else
                             -- Compressed instruction
+                            -- S2 c6: SHAPE_WAC MIGRATED -- the last of the seven.
+                            -- A pure deletion like SHAPE_HWC, whose missing-arm set
+                            -- it shares.  With this arm the EXECUTE state holds no
+                            -- direct drive of the four owned nets at all.
                             is_compressed <= '1';
                             if trap = '1' then
-                                pc_en <= '0';
                                 if std_mode = '1' then
                                     -- P1: recoverable illegal-instruction exception
                                     next_state <= MTRAP_SV;
-                                    reg_write_dp <= '0';
                                     mem_access_instr <= '0';
-                                    wen <= (others => '1');
                                 else
                                     next_state <= TRAP_STATE;
                                     ci_rd_commit <= reg_write_ctrl;
@@ -3288,20 +3271,14 @@ architecture struct of vesta is
                                 end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1: c.ebreak decompresses to EBREAK (c_dec:~676).
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 mem_access_instr <= '0';
-                                wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
                             elsif mret_op = '1' then
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 mem_access_instr <= '0';
-                                wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_RET;
                                 else
@@ -3314,10 +3291,7 @@ architecture struct of vesta is
                                 -- mem_access_controller exactly like a 32-bit one;
                                 -- cm.* sequencer steps are checked in their OWN
                                 -- states, so pmp_d_active is '0' at a zcm dispatch.)
-                                pc_en            <= '0';
-                                reg_write_dp     <= '0';
                                 mem_access_instr <= '0';
-                                wen              <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
@@ -3325,9 +3299,6 @@ architecture struct of vesta is
                                 end if;
                             elsif zcm_op = '1' then
                                 mem_access_instr <= '0';
-                                reg_write_dp <= '0';
-                                pc_en <= '0';
-                                wen <= (others => '1');
                                 if instr_curr(14 downto 12) = ZCM_SUB_TABJUMP then
                                     next_state <= ZCM_JT_LD;
                                 elsif instr_curr(14 downto 12) = ZCM_SUB_PUSH then
@@ -3346,22 +3317,20 @@ architecture struct of vesta is
                                 -- for uniformity; it folds away.
                                 mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
-                                reg_write_dp <= '0';
-                                pc_en <= '0';
                                 ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
-                                pc_en <= '0';
                                 -- Div-aliasing fix: suppress the EXECUTE-cycle
-                                -- writeback (reg_write_dp defaults to '1' for a
-                                -- DIV) so rd is not clobbered with the idle
-                                -- ResultSignal (=0) before the divider latches its
-                                -- operands. rd is written exactly once, at DIV_DONE.
-                                reg_write_dp <= '0';
+                                -- writeback. The decode says reg_write='1' for a
+                                -- DIV, so an unsuppressed dispatch cycle clobbers
+                                -- rd with the ALU's idle ResultSignal (=0) before
+                                -- the divider latches its operands. rd is written
+                                -- exactly once, at DIV_DONE.  S2 c6: the
+                                -- suppression is STRUCTURAL here now -- this arm
+                                -- declares no rd commit, so the block drives '0'.
                                 ci_st_lanes <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
@@ -3373,7 +3342,6 @@ architecture struct of vesta is
                                 -- stay uninterruptible: they have no irq_save site, so they get
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             -- F5.3 (fix pass W1): this arm -- the WORD-ALIGNED
@@ -4269,19 +4237,23 @@ architecture struct of vesta is
             -- COMMIT BLOCK (S-series; S0 interface spec section 3)
             -- =====================================================
             -- After the S2 cleanup commit this is the ONLY assignment site for
-            -- the four nets.  Two gates feed it while migration is in progress:
-            -- `state_commits_via_block` for whole states, and `v_exec_via_block`
-            -- (the R-S2-1 intra-EXECUTE gate) for individual EXECUTE shapes.
-            -- WHAT HAS MIGRATED IS WHATEVER THOSE TWO SAY -- read the constant's
-            -- initialiser and grep the `v_exec_via_block := true` sets; no list
-            -- is kept here, because a list rots at every S2 commit.  Anything
-            -- they do not select still drives the nets directly above and is
-            -- untouched by this block.
+            -- the four nets.  ONE gate feeds it: `state_commits_via_block`.
+            -- WHAT HAS MIGRATED IS WHATEVER THAT TABLE SAYS -- read its
+            -- initialiser; no list is kept here, because a list rots at every
+            -- S2 commit.  Anything it does not select still drives the nets
+            -- directly above and is untouched by this block.
+            -- (History: commits 2-6 also carried a process VARIABLE,
+            -- v_exec_via_block, because R-DS2 split EXECUTE across five commits
+            -- and the table can only address a state whole.  EXECUTE's seven
+            -- dispatch shapes are exhaustive -- every path through the arm lands
+            -- in exactly one -- so when the last of them migrated, the table row
+            -- became equivalent to the variable and R-S2-1's scheduled death was
+            -- executed in that same commit.)
             -- It sits INSIDE the else branch on purpose: the resetn branch is
             -- out of its reach, and reproducing that branch's values exactly
             -- (they are NOT the fail-safe ones) is the S2 cleanup commit's
             -- job -- spec section 3, as amended by ruling R-S1-1a.
-            if state_commits_via_block(current_state) or v_exec_via_block then
+            if state_commits_via_block(current_state) then
                 reg_write_dp <= ci_rd_commit;
                 sp_write_en  <= ci_sp_commit;
                 wen          <= not ci_st_lanes;
@@ -4300,17 +4272,16 @@ architecture struct of vesta is
     -- anything is allowed to depend on it.
     --
     -- FROM S2 ONWARD THE CHECKER'S SCOPE SHRINKS AS MIGRATION PROCEEDS.  Inside
-    -- a migrated state or EXECUTE shape the block DRIVES these nets from the
-    -- very intent this process compares them against, so the comparison there
-    -- is tautological -- true by construction, proving nothing.  It keeps its
-    -- full force over everything not yet migrated, which is what it is for.
+    -- a migrated state the block DRIVES these nets from the very intent this
+    -- process compares them against, so the comparison there is tautological --
+    -- true by construction, proving nothing.  It keeps its full force over
+    -- everything not yet migrated, which is what it is for.
     -- The gate for a migration commit is therefore the BIT-EXACT LOCKSTEP PIN,
     -- never this checker's silence.  WHAT HAS MIGRATED IS DEFINED BY
-    -- `state_commits_via_block` plus the `v_exec_via_block := true` sets at the
-    -- migrated EXECUTE shapes' branch heads -- grep those two, and do not trust
-    -- any list here.  (A list would rot at every remaining S2 commit; this
-    -- comment points at the ground truth instead of restating it, the same rule
-    -- the S-series applies to bare line numbers.)
+    -- `state_commits_via_block`'s initialiser -- read it, and do not trust any
+    -- list here.  (A list would rot at every remaining S2 commit; this comment
+    -- points at the ground truth instead of restating it, the same rule the
+    -- S-series applies to bare line numbers.)
     --
     -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle
     -- (F4b's first cut fired on 23 of 136 tests for exactly that reason).
