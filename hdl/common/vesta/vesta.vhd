@@ -3118,17 +3118,21 @@ architecture struct of vesta is
                         -- Full word boundary
                         if quadrant_lower = "11" then
                             -- Not compressed
+                            -- S2 c4: SHAPE_WA32 MIGRATED -- the word-aligned
+                            -- 32-bit shape, and the most-executed one in the
+                            -- machine.  Structurally identical to SHAPE_STRADDLE:
+                            -- 37 of its 38 owned drives were the fail-safe values,
+                            -- the 38th (the FENCE_WAIT pc_en '1') is carried by the
+                            -- ci_pc_advance declaration beside it.
+                            v_exec_via_block := true;
                             is_compressed <= '0';
                             
                             if trap = '1' then
-                                pc_en <= '0';
                                 if std_mode = '1' then
                                     -- P1: recoverable illegal-instruction exception
                                     -- (cause 2, mtval = the faulting encoding).
                                     next_state <= MTRAP_SV;
-                                    reg_write_dp <= '0';
                                     mem_access_instr <= '0';
-                                    wen <= (others => '1');
                                 else
                                     next_state <= TRAP_STATE;
                                     ci_rd_commit <= reg_write_ctrl;
@@ -3137,10 +3141,7 @@ architecture struct of vesta is
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1 ECALL (11) / EBREAK (3); see the split-fetch
                                 -- arm above for the full rationale.
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 mem_access_instr <= '0';
-                                wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
@@ -3148,10 +3149,7 @@ architecture struct of vesta is
                                 end if;
                             elsif mret_op = '1' then
                                 -- P1 MRET; see the split-fetch arm above.
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 mem_access_instr <= '0';
-                                wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_RET;
                                 else
@@ -3160,10 +3158,7 @@ architecture struct of vesta is
                             elsif ENABLE_PMP and pmp_d_deny = '1' then
                                 -- P3 PMP load/store access fault -- the D5 arm; see
                                 -- the split-fetch arm above for the full rationale.
-                                pc_en            <= '0';
-                                reg_write_dp     <= '0';
                                 mem_access_instr <= '0';
-                                wen              <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
@@ -3171,7 +3166,6 @@ architecture struct of vesta is
                                 end if;
                             elsif sleep_rq = '1' then
                                 next_state <= SLEEPING;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif wfi_op = '1' then
@@ -3182,7 +3176,6 @@ architecture struct of vesta is
                                 -- places it can appear -- exactly like
                                 -- extinguish/sleep_rq, whose arms it sits beside.
                                 next_state <= SLEEPING;
-                                pc_en      <= '0';
                                 wfi_enter  <= '1';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
@@ -3193,7 +3186,6 @@ architecture struct of vesta is
                                 ci_st_lanes  <= not wen_controller;
                                 if resv_valid_ext = '1' then
                                     next_state <= WRS_WAIT;
-                                    pc_en <= '0';
                                 else
                                     next_state <= EXECUTE;  -- pc_en defaults '1'
                                     ci_pc_advance <= '1';
@@ -3202,8 +3194,6 @@ architecture struct of vesta is
                                 -- Load-Reserved operation
                                 mem_access_instr <= '1';
                                 next_state <= LR_READ;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 ci_st_lanes <= not wen_controller;
                             elsif sc_op = '1' then
                                 -- Store-Conditional operation
@@ -3211,18 +3201,14 @@ architecture struct of vesta is
                                 -- half-word path above).
                                 mem_access_instr <= '0';
                                 next_state <= SC_CHECK;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 -- M4b FIX: no unconditional EXECUTE-phase SC
-                                -- write (see the half-word path above).
-                                wen <= (others => '1');
+                                -- write (see the half-word path above).  S2 c4:
+                                -- the suppression is now the block's fail-safe
+                                -- default, not a local drive.
                             elsif amo_op = '1' then
                                 -- Atomic memory operation
                                 mem_access_instr <= '1';
                                 next_state <= AMO_READ;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
-                                wen <= (others => '1'); -- TODO - added
                             elsif cboz_op = '1' then
                                 -- X3 Zicboz: launch the cbo.zero block-zero store
                                 -- sequencer (see the half-word arm above for the
@@ -3230,9 +3216,6 @@ architecture struct of vesta is
                                 -- cboz_base latched from rs1 on this transition.
                                 mem_access_instr <= '0';
                                 next_state <= CBOZ_WRITE;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
-                                wen <= (others => '1');
                             elsif fence_op = '1' then
                                 -- X1 Zihintpause (D6): PAUSE -> arbiter-yield
                                 -- window; any other FENCE -> 1-cycle nop. See the
@@ -3241,10 +3224,8 @@ architecture struct of vesta is
                                 ci_st_lanes  <= not wen_controller;
                                 if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
                                     next_state <= PAUSE_WAIT;
-                                    pc_en <= '0';
                                 else
                                     next_state <= FENCE_WAIT;
-                                    pc_en <= '1';
                                     ci_pc_advance <= '1';
                                 end if;
                             elsif mem_access_controller = '1' then
@@ -3254,34 +3235,28 @@ architecture struct of vesta is
                                 -- `iret`.
                                 mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
-                                reg_write_dp <= '0';
-                                pc_en <= '0';
                                 ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
-                                pc_en <= '0';
                                 -- Div-aliasing fix: suppress the EXECUTE-cycle
-                                -- writeback (reg_write_dp defaults to '1' for a
-                                -- DIV) so rd is not clobbered with the idle
-                                -- ResultSignal (=0) before the divider latches its
-                                -- operands. rd is written exactly once, at DIV_DONE.
-                                reg_write_dp <= '0';
+                                -- writeback. The decode says reg_write='1' for a
+                                -- DIV, so an unsuppressed dispatch cycle clobbers
+                                -- rd with the ALU's idle ResultSignal (=0) before
+                                -- the divider latches its operands. rd is written
+                                -- exactly once, at DIV_DONE.  S2 c4: the
+                                -- suppression is STRUCTURAL here now -- this arm
+                                -- declares no rd commit, so the block drives '0'.
                                 ci_st_lanes <= not wen_controller;
                             elsif is_fp_fma = '1' then
                                 -- X4 Zfinx FMA (see the half-word arm for rationale):
                                 -- freeze pc_en, force reg_write_dp '0' across dispatch.
                                 next_state <= FPU_FETCH3;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 ci_st_lanes <= not wen_controller;
                             elsif is_fp_multicycle = '1' then
                                 next_state <= FPU_WAIT;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 ci_st_lanes <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
@@ -3293,7 +3268,6 @@ architecture struct of vesta is
                                 -- stay uninterruptible: they have no irq_save site, so they get
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif isr_ret = '1' then
