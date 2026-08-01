@@ -2704,19 +2704,24 @@ architecture struct of vesta is
                             
                             if repeat_if = '1' then
                                 -- Completing split fetch of 32-bit instruction
+                                -- S2 c3: SHAPE_STRADDLE MIGRATED.  The first shape
+                                -- with real work: retiring tails, every memory /
+                                -- div / FP / atomic dispatch, the trap arms and
+                                -- both IRQ takes.  37 of its 38 owned drives were
+                                -- the fail-safe values ('0' / '0' / all-ones); the
+                                -- 38th (the FENCE_WAIT pc_en '1') is carried by the
+                                -- ci_pc_advance declaration beside it.
+                                v_exec_via_block := true;
                                 clr_repeat_if <= '1';
                                 
                                 -- Determine next state based on instruction type
                                 if trap = '1' then
-                                    pc_en <= '0';
                                     if std_mode = '1' then
                                         -- P1: RECOVERABLE illegal-instruction
                                         -- exception (cause 2, mtval = the faulting
                                         -- encoding). Zero memory transactions.
                                         next_state <= MTRAP_SV;
-                                        reg_write_dp <= '0';
                                         mem_access_instr <= '0';
-                                        wen <= (others => '1');
                                     else
                                         next_state <= TRAP_STATE;
                                         -- The LEGACY trap-entry cycle has no
@@ -2732,10 +2737,7 @@ architecture struct of vesta is
                                     -- with no legacy semantics, so they land in the
                                     -- terminal TRAP_STATE -- exactly where the OFF
                                     -- build's illegal-instruction path puts them.
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     mem_access_instr <= '0';
-                                    wen <= (others => '1');
                                     if std_mode = '1' then
                                         next_state <= MTRAP_SV;
                                     else
@@ -2746,10 +2748,7 @@ architecture struct of vesta is
                                     -- dedicated MTRAP_RET state (JALR shape, no
                                     -- memory access, no writeback). Legacy mode:
                                     -- terminal TRAP_STATE, as above.
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     mem_access_instr <= '0';
-                                    wen <= (others => '1');
                                     if std_mode = '1' then
                                         next_state <= MTRAP_RET;
                                     else
@@ -2773,10 +2772,7 @@ architecture struct of vesta is
                                     -- SC/AMO never enters SC_CHECK/AMO_READ at all,
                                     -- and amo_lock -- qualified by mem_access_instr --
                                     -- never pins the grant.
-                                    pc_en            <= '0';
-                                    reg_write_dp     <= '0';
                                     mem_access_instr <= '0';
-                                    wen              <= (others => '1');
                                     if std_mode = '1' then
                                         next_state <= MTRAP_SV;
                                     else
@@ -2784,7 +2780,6 @@ architecture struct of vesta is
                                     end if;
                                 elsif sleep_rq = '1' then
                                     next_state <= SLEEPING;
-                                    pc_en <= '0';
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 elsif wfi_op = '1' then
@@ -2798,7 +2793,6 @@ architecture struct of vesta is
                                     -- no writeback: reg_write/WEN for a SYSTEM
                                     -- PRIV encoding are already '0'/"1111".
                                     next_state <= SLEEPING;
-                                    pc_en      <= '0';
                                     wfi_enter  <= '1';
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
@@ -2809,7 +2803,6 @@ architecture struct of vesta is
                                     ci_st_lanes  <= not wen_controller;
                                     if resv_valid_ext = '1' then
                                         next_state <= WRS_WAIT;
-                                        pc_en <= '0';
                                     else
                                         next_state <= EXECUTE;  -- pc_en defaults '1'
                                         ci_pc_advance <= '1';
@@ -2818,8 +2811,6 @@ architecture struct of vesta is
                                     -- Load-Reserved operation
                                     mem_access_instr <= '1';
                                     next_state <= LR_READ;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     ci_st_lanes <= not wen_controller;
                                 elsif sc_op = '1' then
                                     -- Store-Conditional operation
@@ -2828,20 +2819,16 @@ architecture struct of vesta is
                                     -- the only SC access is SC_CHECK's write.
                                     mem_access_instr <= '0';
                                     next_state <= SC_CHECK;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     -- M4b FIX: wen_controller decodes SC as a
                                     -- word store, which committed the write
                                     -- HERE — before the reservation check. The
                                     -- only (conditional) SC write is SC_CHECK's.
-                                    wen <= (others => '1');
+                                    -- S2 c3: the suppression is now the block's
+                                    -- fail-safe default, not a local drive.
                                 elsif amo_op = '1' then
                                     -- Atomic memory operation
                                     mem_access_instr <= '1';
                                     next_state <= AMO_READ;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
-                                    wen <= (others => '1'); -- TODO - added
                                 elsif cboz_op = '1' then
                                     -- X3 Zicboz: launch the cbo.zero block-zero
                                     -- store sequencer. NO memory access this cycle
@@ -2853,9 +2840,6 @@ architecture struct of vesta is
                                     -- commits no write.
                                     mem_access_instr <= '0';
                                     next_state <= CBOZ_WRITE;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
-                                    wen <= (others => '1');
                                 elsif fence_op = '1' then
                                     -- X1 Zihintpause (D6): the exact PAUSE hint
                                     -- enters the arbiter-yield window instead of
@@ -2868,10 +2852,8 @@ architecture struct of vesta is
                                     ci_st_lanes  <= not wen_controller;
                                     if ENABLE_ZIHINT and pause_hint = '1' and PAUSE_WINDOW_CYCLES > 0 then
                                         next_state <= PAUSE_WAIT;
-                                        pc_en <= '0';
                                     else
                                         next_state <= FENCE_WAIT;
-                                        pc_en <= '1';
                                         ci_pc_advance <= '1';
                                     end if;
                                 elsif mem_access_controller = '1' then
@@ -2937,23 +2919,23 @@ architecture struct of vesta is
                                     -- It never reaches this arm. (F12 REFUTED.)
                                     mem_access_instr <= not isr_ret;
                                     next_state <= MEMORY_WAIT;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     ci_st_lanes <= not wen_controller;
                                 elsif is_div_op = '1' then
                                     next_state <= DIV_WAIT;
-                                    pc_en <= '0';
                                     -- Div-aliasing fix: suppress the EXECUTE-cycle
-                                    -- writeback. reg_write_dp defaults to
-                                    -- reg_write_ctrl='1' for a DIV, so without this
-                                    -- the EXECUTE->DIV_WAIT edge writes rd with the
-                                    -- ALU's idle ResultSignal (=0) BEFORE the divider
-                                    -- latches its operands in DIV_WAIT. When rd==rs1
-                                    -- that zero becomes the latched dividend (result
-                                    -- 0); when rd==rs2 it zeroes the divisor read
-                                    -- (spurious div-by-zero). rd is written exactly
-                                    -- once, at DIV_DONE, like lr/sc/amo/mem_access.
-                                    reg_write_dp <= '0';
+                                    -- writeback. The decode says reg_write='1' for
+                                    -- a DIV, so an unsuppressed dispatch cycle
+                                    -- writes rd with the ALU's idle ResultSignal
+                                    -- (=0) BEFORE the divider latches its operands
+                                    -- in DIV_WAIT. When rd==rs1 that zero becomes
+                                    -- the latched dividend (result 0); when rd==rs2
+                                    -- it zeroes the divisor read (spurious
+                                    -- div-by-zero). rd is written exactly once, at
+                                    -- DIV_DONE, like lr/sc/amo/mem_access.
+                                    -- S2 c3: the suppression is now STRUCTURAL --
+                                    -- this arm declares no rd commit, so the block
+                                    -- drives '0'. There is no longer a drive to
+                                    -- forget.
                                     ci_st_lanes <= not wen_controller;
                                 elsif is_fp_fma = '1' then
                                     -- X4 Zfinx FMA: fetch rs3 then run. pc_en frozen
@@ -2961,17 +2943,12 @@ architecture struct of vesta is
                                     -- dispatch+wait window (writeback lands only in
                                     -- FPU_DONE) — the div-arm ungated-write bug class.
                                     next_state <= FPU_FETCH3;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     ci_st_lanes <= not wen_controller;
                                 elsif is_fp_multicycle = '1' then
                                     next_state <= FPU_WAIT;
-                                    pc_en <= '0';
-                                    reg_write_dp <= '0';
                                     ci_st_lanes <= not wen_controller;
                                 elsif irq_save = '1' then
                                     next_state <= IRQ_SV;
-                                    pc_en <= '0';
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 elsif std_irq_take = '1' then
@@ -2983,7 +2960,6 @@ architecture struct of vesta is
                                     -- stay uninterruptible: they have no irq_save site, so they get
                                     -- no std_irq_take site either.
                                     next_state <= MTRAP_SV;
-                                    pc_en <= '0';
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 elsif isr_ret = '1' then
@@ -4330,12 +4306,14 @@ architecture struct of vesta is
             -- COMMIT BLOCK (S-series; S0 interface spec section 3)
             -- =====================================================
             -- After the S2 cleanup commit this is the ONLY assignment site for
-            -- the four nets.  `state_commits_via_block` is still EMPTY (no whole
-            -- state has migrated yet); `v_exec_via_block` is the R-S2-1
-            -- intra-EXECUTE gate and is true in exactly the EXECUTE shapes
-            -- migrated so far -- as of commit 2: SHAPE_P, SHAPE_Q, SHAPE_E.
-            -- Every other state and the four unmigrated EXECUTE shapes still
-            -- drive the nets directly above and are untouched by this block.
+            -- the four nets.  Two gates feed it while migration is in progress:
+            -- `state_commits_via_block` for whole states, and `v_exec_via_block`
+            -- (the R-S2-1 intra-EXECUTE gate) for individual EXECUTE shapes.
+            -- WHAT HAS MIGRATED IS WHATEVER THOSE TWO SAY -- read the constant's
+            -- initialiser and grep the `v_exec_via_block := true` sets; no list
+            -- is kept here, because a list rots at every S2 commit.  Anything
+            -- they do not select still drives the nets directly above and is
+            -- untouched by this block.
             -- It sits INSIDE the else branch on purpose: the resetn branch is
             -- out of its reach, and reproducing that branch's values exactly
             -- (they are NOT the fail-safe ones) is the S2 cleanup commit's
@@ -4364,8 +4342,12 @@ architecture struct of vesta is
     -- is tautological -- true by construction, proving nothing.  It keeps its
     -- full force over everything not yet migrated, which is what it is for.
     -- The gate for a migration commit is therefore the BIT-EXACT LOCKSTEP PIN,
-    -- never this checker's silence.  (Migrated as of S2 commit 2: EXECUTE
-    -- shapes P, Q and E.)
+    -- never this checker's silence.  WHAT HAS MIGRATED IS DEFINED BY
+    -- `state_commits_via_block` plus the `v_exec_via_block := true` sets at the
+    -- migrated EXECUTE shapes' branch heads -- grep those two, and do not trust
+    -- any list here.  (A list would rot at every remaining S2 commit; this
+    -- comment points at the ground truth instead of restating it, the same rule
+    -- the S-series applies to bare line numbers.)
     --
     -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle
     -- (F4b's first cut fired on 23 of 136 tests for exactly that reason).
