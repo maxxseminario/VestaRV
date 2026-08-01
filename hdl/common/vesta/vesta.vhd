@@ -2990,15 +2990,19 @@ architecture struct of vesta is
                         else
                             
                             -- Compressed instruction on half-word boundary
+                            -- S2 c5: SHAPE_HWC MIGRATED.  A PURE deletion: all 21
+                            -- of its owned drives were the fail-safe values, none
+                            -- depended on a declaration.  This shape has no
+                            -- fence/lr/sc/amo/cboz/wfi/wrs/fp arms at all (the F4
+                            -- assert (4) class), so it has no FENCE_WAIT pc_en '1'
+                            -- exception the way STRADDLE and WA32 do.
+                            v_exec_via_block := true;
                             is_compressed <= '1';
                             if trap = '1' then
-                                pc_en <= '0';
                                 if std_mode = '1' then
                                     -- P1: recoverable illegal-instruction exception
                                     next_state <= MTRAP_SV;
-                                    reg_write_dp <= '0';
                                     mem_access_instr <= '0';
-                                    wen <= (others => '1');
                                 else
                                     next_state <= TRAP_STATE;
                                     ci_rd_commit <= reg_write_ctrl;
@@ -3010,20 +3014,14 @@ architecture struct of vesta is
                                 -- Same routing as the 32-bit arm. (ECALL/MRET have
                                 -- no compressed form; the term costs nothing and
                                 -- keeps the four decode arms uniform.)
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 mem_access_instr <= '0';
-                                wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
                             elsif mret_op = '1' then
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 mem_access_instr <= '0';
-                                wen <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_RET;
                                 else
@@ -3036,10 +3034,7 @@ architecture struct of vesta is
                                 -- mem_access_controller exactly like a 32-bit one;
                                 -- cm.* sequencer steps are checked in their OWN
                                 -- states, so pmp_d_active is '0' at a zcm dispatch.)
-                                pc_en            <= '0';
-                                reg_write_dp     <= '0';
                                 mem_access_instr <= '0';
-                                wen              <= (others => '1');
                                 if std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
@@ -3047,9 +3042,6 @@ architecture struct of vesta is
                                 end if;
                             elsif zcm_op = '1' then
                                 mem_access_instr <= '0';
-                                reg_write_dp <= '0';
-                                pc_en <= '0';
-                                wen <= (others => '1');
                                 if instr_curr(14 downto 12) = ZCM_SUB_TABJUMP then
                                     next_state <= ZCM_JT_LD;
                                 elsif instr_curr(14 downto 12) = ZCM_SUB_PUSH then
@@ -3072,22 +3064,20 @@ architecture struct of vesta is
                                 -- fifth shape would inherit it; it folds away here.
                                 mem_access_instr <= not isr_ret;
                                 next_state <= MEMORY_WAIT;
-                                pc_en <= '0';
-                                reg_write_dp <= '0';
                                 ci_st_lanes <= not wen_controller;
                             elsif is_div_op = '1' then
                                 next_state <= DIV_WAIT;
-                                pc_en <= '0';
                                 -- Div-aliasing fix: suppress the EXECUTE-cycle
-                                -- writeback (reg_write_dp defaults to '1' for a
-                                -- DIV) so rd is not clobbered with the idle
-                                -- ResultSignal (=0) before the divider latches its
-                                -- operands. rd is written exactly once, at DIV_DONE.
-                                reg_write_dp <= '0';
+                                -- writeback. The decode says reg_write='1' for a
+                                -- DIV, so an unsuppressed dispatch cycle clobbers
+                                -- rd with the ALU's idle ResultSignal (=0) before
+                                -- the divider latches its operands. rd is written
+                                -- exactly once, at DIV_DONE.  S2 c5: the
+                                -- suppression is STRUCTURAL here now -- this arm
+                                -- declares no rd commit, so the block drives '0'.
                                 ci_st_lanes <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif std_irq_take = '1' then
@@ -3099,7 +3089,6 @@ architecture struct of vesta is
                                 -- stay uninterruptible: they have no irq_save site, so they get
                                 -- no std_irq_take site either.
                                 next_state <= MTRAP_SV;
-                                pc_en <= '0';
                                 ci_rd_commit <= reg_write_ctrl;
                                 ci_st_lanes  <= not wen_controller;
                             elsif isr_ret = '1' then
