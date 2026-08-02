@@ -634,6 +634,8 @@ architecture struct of vesta is
                                                          AMO_COMPUTE   => true,
                                                          AMO_WRITE     => true,
                                                          AMO_COMPLETE  => true,
+                                                         LR_READ       => true,
+                                                         SC_CHECK      => true,
                                                          others      => false);
 
     -- ==========================================
@@ -1870,9 +1872,17 @@ architecture struct of vesta is
                  -- failing path this arm drops out and data_addr falls through
                  -- to pc_next = pc_next_reg (:1511) -- the redundant early fetch
                  -- of the word AMO_COMPLETE presents next cycle.
-                 -- SYNC: this predicate is DUPLICATED at :2931 (the SC_CHECK FSM
-                 -- arm, where it gates wen and mem_access_instr). Change both or
-                 -- neither -- a divergence between them is silent.
+                 -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
+                 -- `reservation_valid = '1' and reservation_addr = rs1_value` is
+                 -- duplicated at FOUR sites. Change all four or none -- a
+                 -- divergence between them is SILENT. By role, not line number
+                 -- (three of the four WRAP across lines, so a line-based grep
+                 -- under-reports them):
+                 --   1. THIS arm of the data_addr mux   (steers rs1_value)
+                 --   2. amo_phase                       ("101" SC-success)
+                 --   3. lr_sc_bus                       ("10" SC-write tag)
+                 --   4. the SC_CHECK FSM arm            (store lanes +
+                 --                                       mem_access_instr)
                  rs1_value  when (current_state = SC_CHECK
                                   and reservation_valid = '1'
                                   and reservation_addr = rs1_value) else
@@ -1977,10 +1987,19 @@ architecture struct of vesta is
     -- Atomic Operation Phase Signal - Pass to Datapath to use ALU for computation
     -- ==========================================
     -- M4b: SC success = LOCAL reservation check (valid AND address match — the
-    -- same condition that drives wen in SC_CHECK; the old valid-only term let
-    -- an address-mismatched SC report success while skipping the write) AND
-    -- the EXTERNAL verdict (sc_fail_ext, from the global resv_unit for shared
+    -- same condition that drives the store lanes in SC_CHECK; the old valid-only
+    -- term let an address-mismatched SC report success while skipping the write)
+    -- AND the EXTERNAL verdict (sc_fail_ext, from the global resv_unit for shared
     -- addresses; ties '0' for private/single-master use).
+    -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
+    -- `reservation_valid = '1' and reservation_addr = rs1_value` is duplicated at
+    -- FOUR sites. Change all four or none -- a divergence between them is SILENT.
+    -- By role, not line number (three of the four WRAP across lines, so a
+    -- line-based grep under-reports them):
+    --   1. the data_addr mux's SC_CHECK term  (steers rs1_value)
+    --   2. THIS term, amo_phase               ("101" SC-success, with sc_fail_ext)
+    --   3. lr_sc_bus                          ("10" SC-write tag)
+    --   4. the SC_CHECK FSM arm               (store lanes + mem_access_instr)
     amo_phase <=    "001" when current_state = AMO_READ or current_state = LR_READ else  -- Reading address
                     "110" when current_state = AMO_WRITEBACK else  -- X2 Zacas: rd-capture window (steer rs2 port to rd + latch amo_cmp_reg; ALU output unused here, datapath muxes default like normal)
                     "010" when current_state = AMO_COMPUTE else  -- Computing with memory data
@@ -2004,6 +2023,15 @@ architecture struct of vesta is
     -- this qualifier the "01" tag would ride that FETCH transaction into the
     -- arbiter and arm a global reservation on the fetch address. pmp_d_deny is
     -- statically '0' when ENABLE_PMP is false => the OFF tag is unchanged.
+    -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
+    -- `reservation_valid = '1' and reservation_addr = rs1_value` is duplicated at
+    -- FOUR sites. Change all four or none -- a divergence between them is SILENT.
+    -- By role, not line number (three of the four WRAP across lines, so a
+    -- line-based grep under-reports them):
+    --   1. the data_addr mux's SC_CHECK term  (steers rs1_value)
+    --   2. amo_phase                          ("101" SC-success, with sc_fail_ext)
+    --   3. THIS term, lr_sc_bus               ("10" SC-write tag)
+    --   4. the SC_CHECK FSM arm               (store lanes + mem_access_instr)
     lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' and pmp_d_deny = '0' else
                  "10" when current_state = SC_CHECK and reservation_valid = '1'
                            and reservation_addr = rs1_value else
@@ -3501,16 +3529,18 @@ architecture struct of vesta is
                 -- LR_READ State - Load-Reserved read
                 -- ==========================================
                 when LR_READ =>
-                    pc_en <= '1';  -- Ready to fetch next instruction
-                    wen <= (others => '1');  -- Read operation
+                    -- S2 c11: MIGRATED.  The LR's rd commit site -- it returns the
+                    -- loaded word, so the declaration is an unconditional '1'
+                    -- (the value is the state's own, not the decoder's).  Read
+                    -- operation: no store lanes, which is the fail-safe default.
+                    -- mem_access_instr stays -- not owned, and it is what makes
+                    -- this a read.
                     mem_access_instr <= '1';
-                    reg_write_dp <= '1';  -- Write value to rd
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= '1';
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -3521,7 +3551,6 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     else
                         next_state <= AMO_COMPLETE;
@@ -3531,8 +3560,11 @@ architecture struct of vesta is
                 -- SC_CHECK State - Store-Conditional check and write
                 -- ==========================================
                 when SC_CHECK =>
-                    pc_en <= '1';  -- Ready to fetch next instruction
-                    reg_write_dp <= '1';  -- Write success/fail to rd
+                    -- S2 c11: MIGRATED.  rd is committed unconditionally here --
+                    -- the SC writes its success/fail result to rd on BOTH paths,
+                    -- which is why the declaration is '1' and sits above the
+                    -- reservation test rather than inside it.  Only the STORE
+                    -- LANES are conditional (below).
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= '1';
 
@@ -3551,30 +3583,40 @@ architecture struct of vesta is
                     -- `ALU_Result when mem_access_instr = '1'` arm, and the ALU
                     -- is in pass-B during SC_CHECK (ALU_Result = the SC's rd,
                     -- 0 or 1) -- a WORSE phantom address, inside the boot ROM.
-                    -- So the :1567 arm carries the SAME literal predicate; the
-                    -- two must be kept textually identical. On the failing path
-                    -- data_addr falls through to pc_next, which during SC_CHECK
-                    -- is pc_next_reg (:1511) -- the very address the following
-                    -- AMO_COMPLETE bubble (:2953) presents anyway, i.e. a
+                    -- So the data_addr mux's SC_CHECK term carries the SAME
+                    -- literal predicate; they must be kept textually identical.
+                    -- On the failing path data_addr falls through to pc_next,
+                    -- which during SC_CHECK is pc_next_reg -- the very address the
+                    -- following AMO_COMPLETE bubble presents anyway, i.e. a
                     -- redundant, harmless early fetch of the pending word.
-                    -- Untouched on purpose: the reservation unit, lr_sc_bus
-                    -- (already "00" on this path) and the success path.
+                    -- Untouched on purpose: the reservation unit and the success
+                    -- path.
                     -- Detector: rv32ua-p-scfailrd.
-                    -- SYNC: this predicate is DUPLICATED at :1567 (the SC_CHECK
-                    -- arm of the data_addr mux). Change both or neither -- a
-                    -- divergence between them is silent.
+                    --
+                    -- ***** SC-SUCCESS PREDICATE: FOUR COPIES, ALL IDENTICAL *****
+                    -- `reservation_valid = '1' and reservation_addr = rs1_value`
+                    -- is duplicated at FOUR sites.  Change all four or none -- a
+                    -- divergence between them is SILENT.  By role, not line
+                    -- number (numbers rot; three of the four also WRAP across
+                    -- lines, so a line-based grep finds only this one):
+                    --   1. the data_addr mux's SC_CHECK term  (steers rs1_value)
+                    --   2. amo_phase                          ("101" SC-success,
+                    --                                          with sc_fail_ext)
+                    --   3. lr_sc_bus                          ("10" SC-write tag)
+                    --   4. THIS arm                           (store lanes +
+                    --                                          mem_access_instr)
+                    -- S2 c11 replaced the old two-site SYNC notes, which named
+                    -- one sibling each and missed copies 2 and 3 entirely.
                     if reservation_valid = '1' and reservation_addr = rs1_value then  -- M4b: rs1, not the phase-dependent ALU_result
-                        wen <= "0000";  -- Write word (success)
-                        ci_st_lanes <= "1111";
+                        ci_st_lanes <= "1111";   -- write word (success)
                         mem_access_instr <= '1';
                     else
-                        wen <= (others => '1');  -- No write (fail)
+                        -- no lanes declared => fail-safe "0000" => wen all-ones
                         mem_access_instr <= '0';  -- F2: and no READ either
                     end if;
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -3585,7 +3627,6 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     else
                         next_state <= AMO_COMPLETE;
