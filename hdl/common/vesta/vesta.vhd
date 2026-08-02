@@ -649,6 +649,13 @@ architecture struct of vesta is
                                                          ZCM_MV2       => true,
                                                          ZCM_JT_LD     => true,
                                                          ZCM_JT_WB     => true,
+                                                         IRQ_SV        => true,
+                                                         IRQ_REST      => true,
+                                                         IRQ_JUMP      => true,
+                                                         TRAP_STATE    => true,
+                                                         MTRAP_SV      => true,
+                                                         MTRAP_JUMP    => true,
+                                                         MTRAP_RET     => true,
                                                          others      => false);
 
     -- ==========================================
@@ -4064,11 +4071,17 @@ architecture struct of vesta is
                 -- IRQ_SV State - Save context for interrupt
                 -- ==========================================
                 when IRQ_SV =>
-                    wen <= (others => '0');  -- Enable write to save PC
-                    ci_st_lanes <= "1111";   -- ACTIVE-HIGH: the full-word push
+                    -- S2 c14: MIGRATED.  The full-word PC push -- the ONE active
+                    -- store declaration outside the data states.  ACTIVE-HIGH
+                    -- "1111" here is the block's `wen <= not ci_st_lanes`
+                    -- all-lanes-low strobe.
+                    ci_st_lanes <= "1111";
 
-                    -- Update stack pointer
-                    sp_write_en <= '1';
+                    -- Update stack pointer.  sp_write_en is OWNED and now arrives
+                    -- from the commit block via ci_sp_commit; sp_write_data is NOT
+                    -- owned and stays here.  Same-evaluation, combinational block:
+                    -- the two settle within deltas of one another and take effect
+                    -- on the same edge, which is all their clocked consumers see.
                     ci_sp_commit <= '1';
                     sp_write_data <= std_logic_vector(unsigned(stack_pointer) - 4);
 
@@ -4076,21 +4089,22 @@ architecture struct of vesta is
                     -- instruction mux shows the already-retired interrupted
                     -- instruction here (a load decodes RegWrite=1 and would
                     -- re-write its rd with garbage) and raw read_data during
-                    -- IRQ_JUMP (arbitrary image -> arbitrary rd). Caught by
-                    -- rv32ui-p-irqctx (phantom t1 write during IRQ_JUMP).
-                    reg_write_dp <= '0';
-                    pc_en <= '0';
+                    -- IRQ_JUMP (arbitrary image -> arbitrary rd).  That
+                    -- suppression is now STRUCTURAL: this arm declares no rd
+                    -- commit, so the block drives '0' and there is no drive left
+                    -- to forget.  Caught by rv32ui-p-irqctx (phantom t1 write
+                    -- during IRQ_JUMP).
                     next_state <= IRQ_JUMP;
 
                 -- ==========================================
                 -- IRQ_JUMP State - Jump to interrupt vector
                 -- ==========================================
                 when IRQ_JUMP =>
+                    -- S2 c14: MIGRATED.  Loads the IVT entry; no store, no rd
+                    -- commit (see IRQ_SV's note -- read_data is an arbitrary
+                    -- image here), both now structural.
                     irq_save_ack <= '1';
-                    pc_en <= '1';  -- Load IVT entry
                     ci_pc_advance <= '1';
-                    wen <= (others => '1');
-                    reg_write_dp <= '0';
                     next_state <= EXECUTE;
 
                 -- ==========================================
@@ -4112,10 +4126,10 @@ architecture struct of vesta is
                 -- trap_flag is NOT raised: a standard trap is RECOVERABLE, unlike
                 -- the terminal TRAP_STATE.
                 when MTRAP_SV =>
-                    pc_en            <= '0';
-                    wen              <= (others => '1');
+                    -- S2 c14: MIGRATED.  Every memory effect this state must NOT
+                    -- have -- no push, no sp touch, no writeback -- is now the
+                    -- fail-safe default, so the arm declares nothing at all.
                     mem_access_instr <= '0';
-                    reg_write_dp     <= '0';
                     next_state       <= MTRAP_JUMP;
 
                 -- ==========================================
@@ -4125,11 +4139,9 @@ architecture struct of vesta is
                 -- issues the fetch from there (data_addr falls through to
                 -- pc_next), exactly like IRQ_JUMP loading ivt_entry.
                 when MTRAP_JUMP =>
-                    pc_en            <= '1';
+                    -- S2 c14: MIGRATED.
                     ci_pc_advance    <= '1';
-                    wen              <= (others => '1');
                     mem_access_instr <= '0';
-                    reg_write_dp     <= '0';
                     next_state       <= EXECUTE;
 
                 -- ==========================================
@@ -4139,11 +4151,10 @@ architecture struct of vesta is
                 -- (MIE<=MPIE, MPIE<='1') via the mret_we one-shot. No memory
                 -- access, no writeback, no sp touch -- the JALR shape.
                 when MTRAP_RET =>
-                    pc_en            <= '1';
+                    -- S2 c14: MIGRATED.  The JALR shape: PC <- mepc, no access,
+                    -- no writeback, no sp touch -- all fail-safe.
                     ci_pc_advance    <= '1';
-                    wen              <= (others => '1');
                     mem_access_instr <= '0';
-                    reg_write_dp     <= '0';
                     next_state       <= EXECUTE;
 
                 -- ==========================================
@@ -4151,8 +4162,9 @@ architecture struct of vesta is
                 -- ==========================================
                 when IRQ_REST =>
                     -- W2/F4a: NOTHING may write rd here.  This arm used to fall
-                    -- through to the `reg_write_dp <= reg_write_ctrl` default
-                    -- (:2249) and was correct only by a DECODE COINCIDENCE:
+                    -- through to the `reg_write_dp <= reg_write_ctrl` default in
+                    -- the else branch of this process (the pre-case default
+                    -- block) and was correct only by a DECODE COINCIDENCE:
                     -- instr_curr is held at the `iret`, which is CUSTOM_OPCODE,
                     -- and maindec's reg_write list (:960-973) happens to end
                     -- `'0'; -- No write for stores, branches, custom
@@ -4162,17 +4174,19 @@ architecture struct of vesta is
                     -- (by whichever mechanism currently delivers it), and which
                     -- therefore get an assertion instead -- IRQ_REST has no rd to
                     -- commit at all, so the coincidence is simply removed.
-                    reg_write_dp <= '0';
+                    -- S2 c14: MIGRATED.  The rd suppression above is now
+                    -- STRUCTURAL -- this arm declares no rd commit, so the block
+                    -- drives '0'; the coincidence is closed, not relied on.
                     if irq_save = '1' then
                         -- Nested interrupt
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
-                        -- N1 / R-S1-2: this path has no wen arm, so wen falls
-                        -- through to the live decode of the HELD word -- the
-                        -- `iret` -- in a NON-DISPATCH state.  That is a
-                        -- coincidence, exactly the one F4a closed for
-                        -- reg_write_dp in this very state, so ci_st_lanes
-                        -- declares NOTHING and the shadow checker watches it.
+                        -- N1 / R-S1-2 CLOSED HERE BY c14: this path has no wen
+                        -- arm, so wen used to fall through to the live decode of
+                        -- the HELD word -- the `iret` -- in a NON-DISPATCH state.
+                        -- ci_st_lanes still declares NOTHING, but that now MEANS
+                        -- something: the block drives all-ones structurally.  The
+                        -- evidence it was safe to close is the shadow checker's
+                        -- silence at this exact site since S1.
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -4182,25 +4196,19 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
-                        -- N1 / R-S1-2: same non-dispatch wen fall-through as the
-                        -- irq_save path above -- declares nothing.
+                        -- N1 / R-S1-2 closed here by c14, as on the irq_save path.
                     elsif sleep_cpu = '1' then
-                        -- Return to sleep after interrupt
+                        -- Return to sleep after interrupt.  sp_write_data stays
+                        -- here; the enable now arrives from the block via
+                        -- ci_sp_commit -- same evaluation, same edge (IRQ_SV).
                         next_state <= SLEEPING;
-                        pc_en <= '0';
-                        wen <= (others => '1');
-                        sp_write_en <= '1';
                         ci_sp_commit <= '1';
                         sp_write_data <= std_logic_vector(unsigned(stack_pointer) + 4);
                     else
                         -- Return to normal execution
                         next_state <= EXECUTE;
-                        wen <= (others => '1');
-                        sp_write_en <= '1';
                         ci_sp_commit <= '1';
                         sp_write_data <= std_logic_vector(unsigned(stack_pointer) + 4);
-                        pc_en <= '1';
                         ci_pc_advance <= '1';
                     end if;
 
@@ -4287,22 +4295,22 @@ architecture struct of vesta is
                 -- TRAP State
                 -- ==========================================
                 when TRAP_STATE =>
-                    pc_en <= '0';
-                    -- F8 (fix pass W1): TRAP_STATE assigned no `wen`, so it
-                    -- inherited the FSM process default `wen <= wen_controller`
-                    -- (:2126) -- the DECODER's live lane strobes. TRAP_STATE is
-                    -- also absent from the instr_curr hold list (:1429-1474), so
-                    -- instr_curr = instr_decomp of the live bus word; a store
-                    -- encoding on read_data therefore committed a REAL store at
-                    -- data_addr every cycle of this self-loop, until the tb
-                    -- watchdog. wen is ACTIVE-LOW per byte lane, so all-ones =
-                    -- no write; the sibling stall states already do exactly this
-                    -- (MEMORY_WAIT :3221, FENCE_WAIT, IRQ_JUMP, MTRAP_*).
-                    -- mem_access_instr is already at its '0' default here, and
-                    -- the state is terminal, so nothing downstream consumes an
-                    -- access from it. Detector: rv32ua-p-trapstor.
-                    wen <= (others => '1');   -- no store while trapped
-                    reg_write_dp <= '0';
+                    -- F8 (fix pass W1), and S2 c14 makes it STRUCTURAL.
+                    -- HISTORY, which must not be lost: TRAP_STATE originally
+                    -- assigned no `wen` at all, so it inherited the process
+                    -- default `wen <= wen_controller` -- the DECODER's live lane
+                    -- strobes. TRAP_STATE is also absent from the instr_curr hold
+                    -- list, so instr_curr = instr_decomp of the live bus word; a
+                    -- store encoding on read_data therefore committed a REAL
+                    -- store at data_addr every cycle of this self-loop, until the
+                    -- tb watchdog. F8 fixed it with an explicit all-ones drive.
+                    -- NOW: this arm declares no store lanes, so the block drives
+                    -- all-ones -- the protection is the fail-safe default rather
+                    -- than a line someone must remember to keep. The F8 class
+                    -- cannot recur here: there is no drive left to omit.
+                    -- mem_access_instr is at its '0' default and the state is
+                    -- terminal, so nothing downstream consumes an access from it.
+                    -- Detector: rv32ua-p-trapstor.
                     next_state <= TRAP_STATE;
                     trap_flag <= '1';
 
