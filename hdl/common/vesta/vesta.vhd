@@ -615,6 +615,76 @@ architecture struct of vesta is
     signal ci_pc_advance : std_logic;                     -- default '0' : PC holds
 
     -- ==========================================
+    -- S3 COMMIT PERMISSION MASKS (S0 interface spec, section 3.1)
+    -- ==========================================
+    -- "No commit outside a retire group", made STRUCTURAL rather than declared.
+    -- Each table names the states in which the corresponding commit is
+    -- LEGITIMATE; the commit block ANDs intent with the table, so a state that
+    -- declares a commit it has no business making cannot make one.
+    --
+    -- DERIVED FROM THE TREE, not adopted from prose (spec section 4 requires the
+    -- re-derivation and treats any difference as a finding): a state is allowed
+    -- exactly when its own arm can produce a NONZERO value for that intent
+    -- signal.  Because S2 made every state's intent explicit, that derivation is
+    -- mechanical and complete -- which is also why masking is a no-op today and
+    -- why any behavioural movement here means a table is wrong.
+    --
+    -- Retire GROUPS, not `retire_now` (R-S0-1 item 2): commit state /= retire
+    -- state for 6 of the 12 commit sites -- AMO_WRITEBACK commits where
+    -- AMO_WRITE retires, ZCM_POP_WB/A0Z/MV1/MV2 commit where ZCM_RET or
+    -- MEMORY_WAIT retires.  A mask keyed on retirement would be wrong.
+    --
+    -- NOTE on ci_pc_advance: there is deliberately NO pc table.  A wrong PC hold
+    -- is loud by construction (the machine stops), and a table naming every
+    -- state that may advance the PC would be a second copy of the state machine
+    -- -- a decorative instrument, which is worse than none.
+    -- The tables are std_logic / std_logic_vector rather than boolean so the
+    -- mask is a plain AND against the intent signal -- no type juggling and no
+    -- conditional-assignment form (which VHDL-93 does not allow inside a
+    -- process).  The lane table holds the PERMITTED LANE MASK directly.
+    type commit_perm_t is array (cpu_state) of std_logic;
+    type lanes_perm_t  is array (cpu_state) of std_logic_vector(3 downto 0);
+
+    constant rd_commit_allowed : commit_perm_t := (
+        EXECUTE       => '1',   -- every retiring dispatch shape
+        INITIALIZE    => '1',   -- x0-inert pass-through, allowed for exactness
+        MEMORY_WAIT   => '1',   -- the LOAD's commit site
+        DIV_DONE      => '1',   -- the DIV's
+        FPU_DONE      => '1',   -- the multi-cycle/FMA FP op's
+        AMO_WRITEBACK => '1',   -- returns the OLD memory word to rd
+        LR_READ       => '1',   -- returns the loaded word
+        SC_CHECK      => '1',   -- returns success/fail on BOTH paths
+        ZCM_POP_WB    => '1',   -- cm.pop frame writeback
+        ZCM_A0Z       => '1',   -- cm.popretz a0 <- 0
+        ZCM_MV1       => '1',   -- cm.mv, first
+        ZCM_MV2       => '1',   -- cm.mv, second
+        ZCM_JT_WB     => '1',   -- cm.jalt links ra (conditional on zcm_jt_link)
+        others        => '0');
+
+    constant sp_commit_allowed : commit_perm_t := (
+        IRQ_SV        => '1',   -- push: sp <- sp-4
+        IRQ_REST      => '1',   -- pop:  sp <- sp+4 (both legs)
+        ZCM_SP_COMMIT => '1',   -- the ONCE-and-LAST cm.* sp commit
+        others        => '0');
+
+    constant st_commit_allowed : lanes_perm_t := (
+        EXECUTE       => "1111",   -- dispatch stores, via not wen_controller
+        INITIALIZE    => "1111",   -- passes the live decode through (see below)
+        AMO_WRITE     => "1111",   -- the AMO's write phase, computed lanes
+        SC_CHECK      => "1111",   -- the conditional SC write
+        CBOZ_WRITE    => "1111",   -- cbo.zero's full-word store
+        ZCM_PUSH_ST   => "1111",   -- cm.push's frame store
+        IRQ_SV        => "1111",   -- the full-word PC push
+        others        => "0000");
+    -- INITIALIZE is in the store list because its arm declares
+    -- `ci_st_lanes <= not wen_controller` -- a LIVE DECODE, so store-capable.
+    -- Spec section 4's list omits it and instead names MEMORY_WAIT, which
+    -- declares no lanes at all (its pre-S2 `wen` site drove the all-ones
+    -- NO-STORE value).  The two errors cancel in the count, so a count-only
+    -- check passes; the membership is what matters.  Derivation over prose --
+    -- see the S3 implementation report.
+
+    -- ==========================================
     -- PC Management Signals
     -- ==========================================
     signal pc, pc_next           : std_logic_vector(XLEN-1 downto 0);
@@ -4350,82 +4420,79 @@ architecture struct of vesta is
             -- out of its reach, and reproduces its own four values exactly --
             -- two of which are deliberately NOT the fail-safe ones.  See the
             -- reset branch's note (spec section 3, ruling R-S1-1a).
-            reg_write_dp <= ci_rd_commit;
-            sp_write_en  <= ci_sp_commit;
-            wen          <= not ci_st_lanes;
+            -- S3: intent is GATED BY PERMISSION.  A state may commit only what
+            -- its permission table allows; anything else is squashed here and
+            -- shouted about by s3_perm_assert_proc.  pc_advance is deliberately
+            -- ungated (see the tables' note).
+            reg_write_dp <= ci_rd_commit  and rd_commit_allowed(current_state);
+            sp_write_en  <= ci_sp_commit  and sp_commit_allowed(current_state);
+            wen          <= not (ci_st_lanes and st_commit_allowed(current_state));
             pc_en        <= ci_pc_advance;
         end if;
     end process;
 
     -- ==========================================
-    -- S1 SHADOW CHECKER (S-series; DELETED IN S3)
+    -- S3 COMMIT-PERMISSION ASSERTIONS (S-series; PERMANENT)
     -- ==========================================
-    -- Proves, on every core-advance edge and in every state, that the commit
-    -- block CAN reproduce the live behaviour of the four nets it will own --
-    -- while it still drives nothing.  If the block cannot reproduce current
-    -- behaviour while merely observing it, the design is wrong before
-    -- anything is allowed to depend on it.
+    -- WHAT REPLACED THE S1 SHADOW CHECKER, deleted in this commit.
     --
-    -- AS OF THE S2 CLEANUP THIS PROCESS PROVES NOTHING, ANYWHERE.  Migration is
-    -- complete: the commit block drives all four nets in every state, from the
-    -- very intent this process compares them against, so every one of these
-    -- assertions is now tautological -- true by construction.  It is retained
-    -- ONLY as S3's demolition target (spec section 5: delete it and record what
-    -- instrument replaced it).  DO NOT read its silence as coverage: it has no
-    -- non-tautological site left in the machine.
+    -- The shadow checker existed to prove, before anything depended on it, that
+    -- the commit block could reproduce the machine it was going to own.  It did
+    -- that job across S1 and all of S2 -- it is why every migration could be
+    -- made value-equal by MEASUREMENT rather than by argument, and it caught the
+    -- N1 decode coincidences at nine sites as they closed one by one.  When the
+    -- S2 cleanup made the block the sole driver in every state, the checker
+    -- began comparing the block's outputs against the block's own inputs: it
+    -- became tautological EVERYWHERE and its silence stopped being coverage.
+    -- Keeping it would have been a decorative instrument (method rule 9/11), so
+    -- it is gone.
     --
-    -- (Its scope shrank state by state across S2; while migration was in
-    -- progress it kept full force over everything not yet migrated, which is
-    -- what it was for -- and it is why every one of those migrations could be
-    -- made value-equal by measurement rather than by argument.)
-    -- The gate for each migration commit was therefore the BIT-EXACT LOCKSTEP
-    -- PIN, never this checker's silence.  (While migration ran, this comment
-    -- pointed at the migration table as the ground truth rather than restating
-    -- a list that would rot every commit.  The table is gone; the ground truth
-    -- now is simply that the commit block drives every state.)
+    -- THE REPLACEMENT, so no one has to reconstruct it:
+    --   1. the PERMISSION MASKS in the commit block -- a state can no longer
+    --      commit anything its table does not allow, structurally;
+    --   2. THIS process -- the masks made loud.  A mask that silently squashes
+    --      is exactly instrument rule 11's defect, so every squash is an
+    --      assertion failure naming the signal and the state;
+    --   3. the standing BIT-EXACT LOCKSTEP GATES, which were the real gate on
+    --      every one of the sixteen migration commits and remain so;
+    --   4. f4_assert_proc's four decode assertions, at the end of this
+    --      architecture, which police a DIFFERENT property -- which encoding may
+    --      be held when a permitted commit happens.  The masks and those four
+    --      are complementary; neither subsumes the other.
     --
-    -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle
-    -- (F4b's first cut fired on 23 of 136 tests for exactly that reason).
-    -- Style, severity and the "a firing assertion is a FINDING, do not tune
-    -- it away" contract are f4_assert_proc's, at the end of this
-    -- architecture -- read its block comment before touching this one.
+    -- Note what this process does NOT check: it says nothing about whether a
+    -- PERMITTED commit carries the right VALUE.  That is the lockstep stream's
+    -- job, and it compares every retire's rd across 4,668,509 records.
     --
-    -- Simulation-only in effect: assertions, no signal drives, so Genus
-    -- prunes the process (and, with the commit gate empty, the intent
-    -- signals with it).
+    -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle (F4b's
+    -- first cut fired on 23 of 136 tests for exactly that reason).  Style,
+    -- severity and the "a firing assertion is a FINDING, do not tune it away"
+    -- contract are f4_assert_proc's -- read its block comment before touching
+    -- this one.  These are PERMANENT: they compile into every configuration.
     --
-    -- SCOPE (ruling R-S1-1a/b): POST-RESET behaviour, on every rising clk_cpu
-    -- edge.  The `resetn = '1'` qualifier is load-bearing -- the live reset
-    -- branch drives `wen <= wen_controller` / `pc_en <= '1'` against fail-safe
-    -- intent, so an unqualified checker would fire on every test.  And
-    -- clk_cpu is GATED, so a stalled cycle is structurally unchecked here;
-    -- the honest claim is "every core-advance edge", not "every cycle".
+    -- SCOPE: post-reset, on every rising clk_cpu edge.  The `resetn = '1'`
+    -- qualifier is load-bearing (the reset branch drives its own values, which
+    -- the block cannot reach).  clk_cpu is GATED, so a stalled cycle is
+    -- structurally unchecked; the honest claim is "every core-advance edge".
     --
-    -- Every NON-DISPATCH `wen` fall-through deliberately declares NOTHING for
-    -- ci_st_lanes (R-S1-1c as generalised by R-S1-2), so this process is also
-    -- a LIVE N1 DETECTOR at nine sites: the six states SLEEPING, DIV_WAIT,
-    -- DIV_DONE, FPU_FETCH3, FPU_WAIT, FPU_DONE, plus IRQ_REST's irq_save and
-    -- std_irq_take paths, plus `when others`.  A fire at any of them is a real
-    -- cross-file decode coincidence having broken -- a stop-and-report
-    -- finding, not a checker bug, and NOT to be silenced by declaring the
-    -- mirror back in.
-    s1_shadow_proc: process(clk_cpu)
+    -- Simulation-only in effect: assertions, no signal drives, so Genus emits
+    -- nothing for them (VHDL-644).
+    s3_perm_assert_proc: process(clk_cpu)
     begin
         if rising_edge(clk_cpu) then
-            assert not (resetn = '1' and reg_write_dp /= ci_rd_commit)
-                report "S1 SHADOW: signal reg_write_dp differs from commit-block intent in state "
+            assert not (resetn = '1' and ci_rd_commit = '1'
+                        and rd_commit_allowed(current_state) = '0')
+                report "S3 PERM: rd commit DECLARED but NOT PERMITTED in state "
                        & cpu_state'image(current_state)
                 severity error;
-            assert not (resetn = '1' and sp_write_en /= ci_sp_commit)
-                report "S1 SHADOW: signal sp_write_en differs from commit-block intent in state "
+            assert not (resetn = '1' and ci_sp_commit = '1'
+                        and sp_commit_allowed(current_state) = '0')
+                report "S3 PERM: sp commit DECLARED but NOT PERMITTED in state "
                        & cpu_state'image(current_state)
                 severity error;
-            assert not (resetn = '1' and wen /= (not ci_st_lanes))
-                report "S1 SHADOW: signal wen differs from commit-block intent in state "
-                       & cpu_state'image(current_state)
-                severity error;
-            assert not (resetn = '1' and pc_en /= ci_pc_advance)
-                report "S1 SHADOW: signal pc_en differs from commit-block intent in state "
+            assert not (resetn = '1'
+                        and (ci_st_lanes and not st_commit_allowed(current_state)) /= "0000")
+                report "S3 PERM: store lanes DECLARED but NOT PERMITTED in state "
                        & cpu_state'image(current_state)
                 severity error;
         end if;
@@ -5048,7 +5115,12 @@ architecture struct of vesta is
             --     cm.mv, and the `iret` (whose trajectory is
             --     EXECUTE -> MEMORY_WAIT -> IRQ_REST, v1 rev-2 R1) -- must
             --     decode reg_write='0' in maindec.  If one ever does not, it
-            --     writes a garbage rd here with no FSM arm to stop it.
+            --     writes a garbage rd here -- and NOTHING STRUCTURAL STOPS IT,
+            --     because MEMORY_WAIT is a legitimate rd commit site and its
+            --     S3 permission mask therefore ALLOWS the write.  The masks
+            --     police WHICH STATE may commit; this assertion polices WHICH
+            --     ENCODING may be held when it does.  That is why the two are
+            --     complementary and why neither retires the other.
             --     NOTE the scope caveat: with ENABLE_ZCMP on, the Zcmp rd
             --     commits happen in ZCM_POP_WB / ZCM_A0Z / ZCM_MV1 / ZCM_MV2,
             --     NOT here -- what reaches MEMORY_WAIT is the held ZCM sentinel,
