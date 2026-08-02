@@ -614,54 +614,6 @@ architecture struct of vesta is
     signal ci_st_lanes   : std_logic_vector(3 downto 0);  -- ACTIVE-HIGH, default "0000" : no store
     signal ci_pc_advance : std_logic;                     -- default '0' : PC holds
 
-    -- S2 migration gate (S0 interface spec, section 3): one entry per
-    -- cpu_state.  A state whose row is true has NO direct drive of the four
-    -- owned nets left in its arm: the commit block below is what drives them,
-    -- from that state's intent declarations.  S2 turns rows on one family at a
-    -- time; the cleanup commit deletes the table and its `if` once every row is
-    -- true and the gate has nothing left to select.
-    type commit_gate_t is array (cpu_state) of boolean;
-    constant state_commits_via_block : commit_gate_t := (EXECUTE     => true,
-                                                         INITIALIZE  => true,
-                                                         MEMORY_WAIT => true,
-                                                         DIV_WAIT    => true,
-                                                         DIV_DONE    => true,
-                                                         FPU_FETCH3  => true,
-                                                         FPU_WAIT    => true,
-                                                         FPU_DONE    => true,
-                                                         AMO_READ      => true,
-                                                         AMO_WRITEBACK => true,
-                                                         AMO_COMPUTE   => true,
-                                                         AMO_WRITE     => true,
-                                                         AMO_COMPLETE  => true,
-                                                         LR_READ       => true,
-                                                         SC_CHECK      => true,
-                                                         CBOZ_WRITE    => true,
-                                                         CBOZ_GAP      => true,
-                                                         ZCM_PUSH_ST   => true,
-                                                         ZCM_PUSH_GAP  => true,
-                                                         ZCM_POP_LD    => true,
-                                                         ZCM_POP_WB    => true,
-                                                         ZCM_A0Z       => true,
-                                                         ZCM_SP_COMMIT => true,
-                                                         ZCM_RET       => true,
-                                                         ZCM_MV1       => true,
-                                                         ZCM_MV2       => true,
-                                                         ZCM_JT_LD     => true,
-                                                         ZCM_JT_WB     => true,
-                                                         IRQ_SV        => true,
-                                                         IRQ_REST      => true,
-                                                         IRQ_JUMP      => true,
-                                                         TRAP_STATE    => true,
-                                                         MTRAP_SV      => true,
-                                                         MTRAP_JUMP    => true,
-                                                         MTRAP_RET     => true,
-                                                         SLEEPING      => true,
-                                                         FENCE_WAIT    => true,
-                                                         PAUSE_WAIT    => true,
-                                                         WRS_WAIT      => true,
-                                                         others      => false);
-
     -- ==========================================
     -- PC Management Signals
     -- ==========================================
@@ -2624,29 +2576,37 @@ architecture struct of vesta is
             is_compressed <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- P2 standard-WFI entry marker
-            -- S-series intent defaults: FAIL-SAFE (S0 spec section 2).  NOTE
-            -- (ruling R-S1-1a) the live reset branch above is NOT fail-safe --
-            -- it drives `wen <= wen_controller` and `pc_en <= '1'` -- so intent
-            -- and the live nets DISAGREE here by construction.  That is why the
-            -- shadow checker is qualified with resetn='1'; reproducing the
-            -- reset-branch values exactly is the S2 cleanup commit's job
-            -- (spec section 3), not S1's.
+            -- RESET-VALUE EXACTNESS (spec section 3, ruling R-S1-1a) -- the
+            -- obligation S1 deferred, discharged here by deliberately changing
+            -- NOTHING above.  Two of the reset branch's four owned-net drives
+            -- are NOT the fail-safe intent values: `wen <= wen_controller` (not
+            -- all-ones) and `pc_en <= '1'` (not hold).  The commit block sits in
+            -- the ELSE branch, so it cannot reach reset and cannot reproduce
+            -- them -- therefore the four reset drives STAY, exactly as written.
+            -- Spec section 3 anticipated this: "if that requires keeping two
+            -- explicit reset lines, keep them -- a simple edit beats a clever
+            -- one."  This is why the final census is 4 reset + 4 block = 8, and
+            -- why "one assignment site per signal" means one OUTSIDE reset.
+            -- The intent defaults below are still FAIL-SAFE (spec section 2), so
+            -- intent and the live nets disagree during reset by construction --
+            -- which is why the shadow checker is qualified with resetn='1'.
             ci_rd_commit  <= '0';
             ci_sp_commit  <= '0';
             ci_st_lanes   <= "0000";
             ci_pc_advance <= '0';
 
         else
-            -- Default signal values
-            pc_en <= '1';
+            -- Default signal values.  NOTE: the four commit-block nets
+            -- (reg_write_dp / sp_write_en / wen / pc_en) are deliberately ABSENT
+            -- from this list.  They are driven unconditionally by the commit
+            -- block at the end of this branch, from the ci_* intent each state
+            -- declares -- a default here would be dead code overwritten every
+            -- cycle, and worse, would read as though a state could rely on it.
             mem_access_instr <= '0';
-            reg_write_dp <= reg_write_ctrl;
             repeat_if_req <= '0';
             clr_repeat_if <= '0';
-            wen <= wen_controller;
             div_start <= '0';
             ltch_lh_inst <= '0';
-            sp_write_en <= '0';
             irq_save_ack <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- P2: only the WFI dispatch arms raise this
@@ -3596,7 +3556,8 @@ architecture struct of vesta is
                     -- F2 (fix pass W1): and only ISSUE A BUS ACCESS AT ALL under
                     -- that same condition. mem_access_instr used to be asserted
                     -- here UNCONDITIONALLY, so a locally-FAILED sc.w still put
-                    -- rs1 on data_addr (the SC_CHECK arm of the mux, :1567) with
+                    -- rs1 on data_addr (via the SC_CHECK term of the data_addr
+                    -- mux -- copy 1 of the four listed below) with
                     -- only the lanes suppressed -- and hart_tile's sh_sel is a
                     -- PURE DECODE of data_addr (hart_tile.vhd:654, sh_req_int
                     -- :726), so the failed SC performed a real, side-effecting
@@ -4332,70 +4293,67 @@ architecture struct of vesta is
                 -- Default Case
                 -- ==========================================
                 when others =>
-                    -- F5.1 (fix pass W1): `reg_write_dp <= reg_write_dp` was a
-                    -- self-assignment that overrode the :2148 default and so
+                    -- F5.1 (fix pass W1), CLOSED STRUCTURALLY BY THE S2 CLEANUP.
+                    -- HISTORY: `reg_write_dp <= reg_write_dp` here was a
+                    -- self-assignment that overrode the process default and so
                     -- inferred a SECOND latch -- `reg_write_dp_reg` was a real
-                    -- LATQX1MA10TH in the netlist, not a lint curiosity. The
+                    -- LATQX1MA10TH in the netlist, not a lint curiosity.  The
                     -- arm looks unreachable in the STATE enumeration, but the
-                    -- enumeration is encoded in more bits than it has values,
-                    -- so an illegal encoding reaches here and holding
-                    -- reg_write_dp would commit a stale regfile write. '0' is
-                    -- strictly safer than holding, and it retires the latch.
-                    -- The arm itself stays: VHDL requires it.
+                    -- enumeration is encoded in more bits than it has values, so
+                    -- an illegal encoding reaches here and holding reg_write_dp
+                    -- would have committed a stale regfile write.  F5.1 replaced
+                    -- the hold with an explicit '0'.  The arm itself stays: VHDL
+                    -- requires it.
                     --
-                    -- S2 c7: THIS DRIVE DELIBERATELY DOES NOT MIGRATE, and it
-                    -- cannot until the cleanup commit.  state_commits_via_block is
-                    -- indexed by cpu_state, so its rows are the 39 LITERALS; the
-                    -- `others` in its aggregate selects the remaining STATES and
-                    -- has nothing to do with this case arm, which covers NON-values
-                    -- of the type.  There is no row to turn on.  And the only way
-                    -- to reach here is an illegal encoding, for which the lookup is
-                    -- a don't-care that synthesis will most likely minimise to
-                    -- `current_state = EXECUTE` = FALSE -- so the block would not
-                    -- drive, and reg_write_dp would fall through to the process
-                    -- default `reg_write_ctrl`: a LIVE DECODE committing a regfile
-                    -- write, precisely the hazard the F5.1 note above removed.
-                    -- Deleting this line would trade a documented fix for a
-                    -- synthesiser's don't-care.  It goes when the tail's `if`
-                    -- goes, at which point the block drives unconditionally and
-                    -- coverage no longer depends on the state value at all.
+                    -- S2 deferred migrating that '0' until this commit, and the
+                    -- order was load-bearing (R-S2-6): while the commit block was
+                    -- still gated by a per-cpu_state table, this arm had no row
+                    -- to turn on -- it covers NON-values of the type -- so under
+                    -- an illegal encoding the lookup was a synthesis don't-care
+                    -- and deleting the drive could have dropped rd back onto the
+                    -- live decode, recreating F5.1 exactly.  The gate is now
+                    -- GONE: the block drives all four nets unconditionally, from
+                    -- intent, whatever the state register holds.  This arm
+                    -- declares no rd commit, so rd is driven '0' by construction
+                    -- -- the protection no longer depends on anyone remembering
+                    -- a line, and the latch cannot return.
+                    --
+                    -- pc_en's fall-through to '1' is genuine and is declared
+                    -- below.  wen is NOT declared (R-S1-2): a store committing in
+                    -- the illegal-encoding recovery arm would be a real finding,
+                    -- and leaving it undeclared means the block drives all-ones
+                    -- rather than the live decode -- the safe direction.
                     next_state <= EXECUTE;
-                    reg_write_dp <= '0';
-                    -- pc_en and wen are both unassigned in this arm.  pc_en's
-                    -- fall-through to '1' is genuine and is declared -- pc is
-                    -- not in the N1 class.  wen's is NOT declared (R-S1-2):
-                    -- this is the illegal-encoding recovery arm, and a store
-                    -- committing here would be a real finding, so the checker
-                    -- is left able to see it.
                     ci_pc_advance <= '1';
             end case;
 
             -- =====================================================
             -- COMMIT BLOCK (S-series; S0 interface spec section 3)
             -- =====================================================
-            -- After the S2 cleanup commit this is the ONLY assignment site for
-            -- the four nets.  ONE gate feeds it: `state_commits_via_block`.
-            -- WHAT HAS MIGRATED IS WHATEVER THAT TABLE SAYS -- read its
-            -- initialiser; no list is kept here, because a list rots at every
-            -- S2 commit.  Anything it does not select still drives the nets
-            -- directly above and is untouched by this block.
-            -- (History: commits 2-6 also carried a process VARIABLE,
-            -- v_exec_via_block, because R-DS2 split EXECUTE across five commits
-            -- and the table can only address a state whole.  EXECUTE's seven
-            -- dispatch shapes are exhaustive -- every path through the arm lands
-            -- in exactly one -- so when the last of them migrated, the table row
-            -- became equivalent to the variable and R-S2-1's scheduled death was
-            -- executed in that same commit.)
+            -- THIS IS THE ONLY ASSIGNMENT SITE FOR THE FOUR NETS outside the
+            -- resetn branch.  It is UNCONDITIONAL: every state reaches it, and
+            -- what each state commits is decided entirely by the ci_* intent it
+            -- declared in its own arm.  A state that declares nothing commits
+            -- nothing and holds the PC -- so there is no longer anywhere to
+            -- forget a `reg_write_dp <= '0'`, which is the whole point of the
+            -- exercise (S0 spec section 6).
+            --
+            -- (History, because the scaffolding is gone and left no trace:
+            -- migration ran state-by-state behind two temporary gates -- a
+            -- constant table `state_commits_via_block` indexed by cpu_state, and
+            -- for the five commits that split EXECUTE a process variable
+            -- `v_exec_via_block`.  The variable died when EXECUTE's seven
+            -- dispatch shapes were all migrated; the table died here, when all
+            -- 39 rows had become true and it selected everything.  Both were
+            -- built with a scheduled death and both met it.)
             -- It sits INSIDE the else branch on purpose: the resetn branch is
-            -- out of its reach, and reproducing that branch's values exactly
-            -- (they are NOT the fail-safe ones) is the S2 cleanup commit's
-            -- job -- spec section 3, as amended by ruling R-S1-1a.
-            if state_commits_via_block(current_state) then
-                reg_write_dp <= ci_rd_commit;
-                sp_write_en  <= ci_sp_commit;
-                wen          <= not ci_st_lanes;
-                pc_en        <= ci_pc_advance;
-            end if;
+            -- out of its reach, and reproduces its own four values exactly --
+            -- two of which are deliberately NOT the fail-safe ones.  See the
+            -- reset branch's note (spec section 3, ruling R-S1-1a).
+            reg_write_dp <= ci_rd_commit;
+            sp_write_en  <= ci_sp_commit;
+            wen          <= not ci_st_lanes;
+            pc_en        <= ci_pc_advance;
         end if;
     end process;
 
@@ -4408,17 +4366,23 @@ architecture struct of vesta is
     -- behaviour while merely observing it, the design is wrong before
     -- anything is allowed to depend on it.
     --
-    -- FROM S2 ONWARD THE CHECKER'S SCOPE SHRINKS AS MIGRATION PROCEEDS.  Inside
-    -- a migrated state the block DRIVES these nets from the very intent this
-    -- process compares them against, so the comparison there is tautological --
-    -- true by construction, proving nothing.  It keeps its full force over
-    -- everything not yet migrated, which is what it is for.
-    -- The gate for a migration commit is therefore the BIT-EXACT LOCKSTEP PIN,
-    -- never this checker's silence.  WHAT HAS MIGRATED IS DEFINED BY
-    -- `state_commits_via_block`'s initialiser -- read it, and do not trust any
-    -- list here.  (A list would rot at every remaining S2 commit; this comment
-    -- points at the ground truth instead of restating it, the same rule the
-    -- S-series applies to bare line numbers.)
+    -- AS OF THE S2 CLEANUP THIS PROCESS PROVES NOTHING, ANYWHERE.  Migration is
+    -- complete: the commit block drives all four nets in every state, from the
+    -- very intent this process compares them against, so every one of these
+    -- assertions is now tautological -- true by construction.  It is retained
+    -- ONLY as S3's demolition target (spec section 5: delete it and record what
+    -- instrument replaced it).  DO NOT read its silence as coverage: it has no
+    -- non-tautological site left in the machine.
+    --
+    -- (Its scope shrank state by state across S2; while migration was in
+    -- progress it kept full force over everything not yet migrated, which is
+    -- what it was for -- and it is why every one of those migrations could be
+    -- made value-equal by measurement rather than by argument.)
+    -- The gate for each migration commit was therefore the BIT-EXACT LOCKSTEP
+    -- PIN, never this checker's silence.  (While migration ran, this comment
+    -- pointed at the migration table as the ground truth rather than restating
+    -- a list that would rot every commit.  The table is gone; the ground truth
+    -- now is simply that the commit block drives every state.)
     --
     -- CLOCKED, not concurrent: a concurrent assertion samples mid-settle
     -- (F4b's first cut fired on 23 of 136 tests for exactly that reason).
