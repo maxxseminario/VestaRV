@@ -629,6 +629,11 @@ architecture struct of vesta is
                                                          FPU_FETCH3  => true,
                                                          FPU_WAIT    => true,
                                                          FPU_DONE    => true,
+                                                         AMO_READ      => true,
+                                                         AMO_WRITEBACK => true,
+                                                         AMO_COMPUTE   => true,
+                                                         AMO_WRITE     => true,
+                                                         AMO_COMPLETE  => true,
                                                          others      => false);
 
     -- ==========================================
@@ -3407,19 +3412,23 @@ architecture struct of vesta is
                 -- AMO_READ State - Read phase of atomic operation
                 -- ==========================================
                 when AMO_READ =>
-                    pc_en <= '0';
-                    wen <= (others => '1');  -- Read operation
+                    -- S2 c10: MIGRATED.  Read phase: no store lanes, no rd yet --
+                    -- all three are the fail-safe values, so the arm declares
+                    -- nothing and the block supplies them.  mem_access_instr stays
+                    -- here: it is not an owned signal and it encodes the AMO bus
+                    -- protocol (read phase asserts the request).
                     mem_access_instr <= '1';
-                    reg_write_dp <= '0';  -- Don't write yet
                     next_state <= AMO_WRITEBACK;
                 -- ==========================================
                 -- AMO_WRITEBACK State - Write value to rd
                 -- ==========================================
                 when AMO_WRITEBACK =>
-                    pc_en <= '0';
-                    wen <= (others => '1');  -- No memory access
+                    -- S2 c10: MIGRATED.  This is the AMO's rd commit site -- it
+                    -- returns the OLD memory value to rd, which is why the
+                    -- declaration is an unconditional '1' rather than the live
+                    -- decode: the value committed here is the state's own, not the
+                    -- decoder's.  No memory access this cycle.
                     mem_access_instr <= '0';
-                    reg_write_dp <= '1';  -- Write old value to rd
                     ci_rd_commit <= '1';
                     next_state <= AMO_COMPUTE;
 
@@ -3427,26 +3436,26 @@ architecture struct of vesta is
                 -- AMO_COMPUTE State - Compute phase of atomic operation
                 -- ==========================================
                 when AMO_COMPUTE =>
-                    pc_en <= '0';
-                    wen <= (others => '1');  -- No memory access
+                    -- S2 c10: MIGRATED.  rd was already committed in
+                    -- AMO_WRITEBACK, so this cycle commits nothing and declares
+                    -- nothing -- the fail-safe default IS the intent here.
                     mem_access_instr <= '0';
-                    reg_write_dp <= '0';  -- Already wrote in AMO_WRITEBACK
                     next_state <= AMO_WRITE;
 
                 -- ==========================================
                 -- AMO_WRITE State - Write phase of atomic operation
                 -- ==========================================
                 when AMO_WRITE =>
-                    pc_en <= '1';  -- Ready to fetch next instruction
-                    wen <= amo_wen;  -- X2 Zabha: byte-lane enables (word AMO = "0000")
+                    -- S2 c10: MIGRATED.  The store lanes are the COMPUTED vector
+                    -- amo_wen (X2 Zabha: byte-lane enables, word AMO = "0000");
+                    -- only the drive moved, the computation stays at its own site.
+                    -- ci_st_lanes is ACTIVE-HIGH, hence the inversion.
                     mem_access_instr <= '1';
-                    reg_write_dp <= '0';
                     ci_pc_advance <= '1';
                     ci_st_lanes   <= not amo_wen;
                     
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -3457,7 +3466,6 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     else
                         -- Need to fetch next instruction from memory
@@ -3468,14 +3476,12 @@ architecture struct of vesta is
                 -- AMO COMPLETE State - Fetch next instruction
                 -- ==========================================
                 when AMO_COMPLETE =>
-                    pc_en <= '1';  -- Ready to fetch next instruction
-                    wen <= (others => '1');  -- No memory access
+                    -- S2 c10: MIGRATED.  The AMO's retire bubble: no access, no
+                    -- commit, PC advances unless an interrupt is taken here.
                     mem_access_instr <= '0';
-                    reg_write_dp <= '0';
                     ci_pc_advance <= '1';
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -3486,7 +3492,6 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     else
                         next_state <= EXECUTE;
