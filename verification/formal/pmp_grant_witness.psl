@@ -1,0 +1,25 @@
+-- verification/formal/pmp_grant_witness.psl -- HARNESS VALIDATION ONLY.
+-- Same instrument as fabric_witness.psl and for the same measured reason:
+-- PSL `cover` reports nothing in this flow (proved with a cannot-hit
+-- control), so each triggering shape is shadowed by an `assert never`
+-- that MUST FIRE.  A SILENT witness means the shadowed property is
+-- passing vacuously and is a finding against the harness.
+vunit pmp_grant_witness (pmp_formal_tb(tb)) {
+    default clock is rising_edge(sample);
+    W_SETTLED       : assert never {settled = '1'};
+    W_DENY_DATA     : assert never {settled = '1' and d16 = '0'};
+    W_GRANT_DATA    : assert never {settled = '1' and d16 = '1'};
+    W_DENY_FETCH    : assert never {settled = '1' and f16 = '0'};
+    W_UMODE         : assert never {settled = '1' and d_priv_m = '0'};
+    W_MMODE         : assert never {settled = '1' and d_priv_m = '1'};
+    W_CFG_ZERO      : assert never {settled = '1' and cfg_flat = (cfg_flat'range => '0')};
+    W_CFG_ZERO_UMODE: assert never {settled = '1' and cfg_flat = (cfg_flat'range => '0') and d_priv_m = '0'};
+    W_CFG_ZERO_MMODE: assert never {settled = '1' and cfg_flat = (cfg_flat'range => '0') and d_priv_m = '1'};
+    W_NAPOT_E0      : assert never {settled = '1' and cfg_flat(4 downto 3) = "11"};
+    W_TOR_E0        : assert never {settled = '1' and cfg_flat(4 downto 3) = "01"};
+    W_LOWER8_ZERO   : assert never {settled = '1' and cfg_flat(63 downto 0) = (63 downto 0 => '0')};
+    W_NAPOT_IN      : assert never {settled = '1' and napot_in = '1'};
+    W_NAPOT_OUT     : assert never {settled = '1' and napot_out = '1'};
+    W_TOR_IN        : assert never {settled = '1' and tor_in = '1'};
+    W_TOR_AT_HI     : assert never {settled = '1' and tor_at_hi = '1'};
+}

@@ -1,0 +1,112 @@
+-- =====================================================================
+-- verification/formal/pmp_grant_props.psl
+-- S4 pmp_unit GRANT-FUNCTION properties (scope per R-S4-1).
+--
+-- UNCLOCKED PSL: pmp_unit is purely combinational and pmp_unit_tb has NO
+-- clock at all (measured: 0 occurrences of clk/rising_edge).  These are
+-- therefore continuous boolean invariants with no `default clock`.
+--
+-- NOT in scope (R-S4-1): "a denied access issues no bus transaction".
+-- pmp_unit has no bus; that property lives in the core FSM's D5 arm and
+-- is ledgered to the K-series/Jasper phase.
+--
+-- Each property below is INDEPENDENT of the implementation -- derived
+-- from the RISC-V PMP contract and the tb's three-instance shape, never
+-- by restating pmp_check.  A property that re-implemented the DUT would
+-- be tautological.
+--
+--
+-- SETTLED GUARD (measured, not assumed): unclocked PSL is evaluated at
+-- time 0 FS, BEFORE any signal has settled -- every grant is 'U' there,
+-- so each invariant fired spuriously at t=0 on the first run.  The tb's
+-- `checks` counter is 0 until the first directed check completes, so
+-- `(settled = '1') ->` is the settled-guard, exactly analogous to the
+-- `resetn = '1'` qualifier the clocked properties carry.  It restricts
+-- the properties to the settled region and nothing else.
+--
+-- Binding: pmp_formal_tb(tb).  Instances: f16/d16 (ENABLE_PMP=true,16),
+-- f8/d8 (true,8), foff/doff (false).
+-- =====================================================================
+vunit pmp_grant_props (pmp_formal_tb(tb)) {
+
+    default clock is rising_edge(sample);
+
+    -- ---------------------------------------------------------------
+    -- THE KNOB CONTRACT.  With ENABLE_PMP false the comparator tree is
+    -- generic-static and must fold away PERMISSIVE -- both grants stuck
+    -- '1' no matter what the bank says.  If this ever failed, every
+    -- default (non-PMP) build would be gated by an accidental denial.
+    -- ---------------------------------------------------------------
+    P_OFF_PERMISSIVE_F : assert always ( (settled = '1') -> (foff = '1'));
+    P_OFF_PERMISSIVE_D : assert always ( (settled = '1') -> (doff = '1'));
+
+    -- ---------------------------------------------------------------
+    -- M-MODE, NO MATCHING ENTRY -> GRANT  (RISC-V PMP contract).
+    -- With no entry enabled anywhere in the bank, an M-mode access is
+    -- unconstrained and must be allowed.
+    -- ---------------------------------------------------------------
+    P_MMODE_NOMATCH_FETCH : assert always ( (settled = '1') -> (
+        ((cfg_flat = (cfg_flat'range => '0')) and (f_priv_m = '1')) -> (f16 = '1')));
+    P_MMODE_NOMATCH_DATA  : assert always ( (settled = '1') -> (
+        ((cfg_flat = (cfg_flat'range => '0')) and (d_priv_m = '1')) -> (d16 = '1')));
+
+    -- ---------------------------------------------------------------
+    -- NON-M-MODE, NO MATCHING ENTRY -> DENY.  The security-critical
+    -- half: U-mode with no matching entry has NO permission, so the
+    -- access must be refused.  A grant here is a privilege escape.
+    -- ---------------------------------------------------------------
+    P_UMODE_NOMATCH_FETCH : assert always ( (settled = '1') -> (
+        ((cfg_flat = (cfg_flat'range => '0')) and (f_priv_m = '0')) -> (f16 = '0')));
+    P_UMODE_NOMATCH_DATA  : assert always ( (settled = '1') -> (
+        ((cfg_flat = (cfg_flat'range => '0')) and (d_priv_m = '0')) -> (d16 = '0')));
+
+    -- ---------------------------------------------------------------
+    -- ENTRY-COUNT TRUNCATION.  The 8-entry instance must ignore the
+    -- upper half of the bank ENTIRELY.  So if the LOWER 8 entries are
+    -- unconfigured, dut8 must behave as no-match regardless of whatever
+    -- is programmed into entries 8..15 -- i.e. deny in U-mode.  This is
+    -- the tb's "upper half must be DEAD" contract, stated independently.
+    -- cfg_flat is 16 entries x 8 bits; entries 0..7 are bits 63..0.
+    -- ---------------------------------------------------------------
+    P_DUT8_UPPER_DEAD_FETCH : assert always ( (settled = '1') -> (
+        ((cfg_flat(63 downto 0) = (63 downto 0 => '0')) and (f_priv_m = '0')) -> (f8 = '0')));
+    P_DUT8_UPPER_DEAD_DATA  : assert always ( (settled = '1') -> (
+        ((cfg_flat(63 downto 0) = (63 downto 0 => '0')) and (d_priv_m = '0')) -> (d8 = '0')));
+
+    -- ---------------------------------------------------------------
+    -- X-HYGIENE.  A grant is a security decision; a metavalue on it is
+    -- not a "maybe", it is an unreviewed outcome downstream.  Every
+    -- grant output must be a hard 0 or 1 at all times.
+    -- ---------------------------------------------------------------
+    P_NO_META_F16  : assert always ( (settled = '1') -> ((f16  = '0') or (f16  = '1')));
+    P_NO_META_D16  : assert always ( (settled = '1') -> ((d16  = '0') or (d16  = '1')));
+    P_NO_META_F8   : assert always ( (settled = '1') -> ((f8   = '0') or (f8   = '1')));
+    P_NO_META_D8   : assert always ( (settled = '1') -> ((d8   = '0') or (d8   = '1')));
+
+    -- ---------------------------------------------------------------
+    -- R-S4-3 item 1: NAPOT DECODE SENSITIVITY.
+    -- The first pass only probed no-match shapes, so a decoder that
+    -- compared the DON'T-CARE bits instead of the significant ones
+    -- flipped three grants in silence.  These state the region contract
+    -- directly: with a permissive NAPOT entry and U-mode, an address the
+    -- STIMULUS says is inside must be granted, and one it says is
+    -- outside must be denied.  The in/out flags come from the bench, not
+    -- from pmp_check -- so this is an independent statement, not a
+    -- restatement of the DUT.
+    -- ---------------------------------------------------------------
+    P_NAPOT_IN_GRANTS  : assert always (
+        ((settled = '1') and (napot_in = '1')) -> (d16 = '1'));
+    P_NAPOT_OUT_DENIES : assert always (
+        ((settled = '1') and (napot_out = '1')) -> (d16 = '0'));
+
+    -- ---------------------------------------------------------------
+    -- R-S4-3 item 2: TOR DECODE, INCLUDING THE a = hi BOUNDARY.
+    -- RISC-V TOR is [lo, hi) -- the top address is OUTSIDE.  An
+    -- a < hi -> a <= hi off-by-one is invisible unless a = hi is
+    -- actually probed, which the first pass never did.
+    -- ---------------------------------------------------------------
+    P_TOR_IN_GRANTS   : assert always (
+        ((settled = '1') and (tor_in = '1')) -> (d16 = '1'));
+    P_TOR_AT_HI_DENIES : assert always (
+        ((settled = '1') and (tor_at_hi = '1')) -> (d16 = '0'));
+}

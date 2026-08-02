@@ -1,0 +1,107 @@
+-- =====================================================================
+-- verification/formal/fabric_props.psl
+-- S4 shared-fabric properties -- PSL vunit, bound EXTERNALLY to
+-- arb_lat_tb(sim).  The four S4 units are NOT edited: a vunit is an
+-- observer, and R-S4-1 makes this form binding for the wave.
+--
+-- Run:  xrun ... -assert_vhdl -propfile_vhdl <this file>
+-- Fire: xmsim: *E,ASRTST (<file>,<line>): Assertion :<NAME> has failed
+-- A clean run has NO ASRTST lines.
+--
+-- Binding must NOT be library-qualified (probe finding: worklib.x(a) is a
+-- parse error; x(a) is correct).
+--
+-- Stimulus is arb_lat_tb's, which is tile-accurate (req held THROUGH the
+-- done cycle, dropped one clock later -- the M5a ghost-txn shape) and
+-- drives ALL THREE clocked S4 units in one contended system: LR/SC
+-- retries (pass 5), grant-locked RMW pairs (pass 6), mutex claim-read
+-- storms (pass 7).  N_DELAY sweeps the registered tile boundary 0/1/2.
+-- =====================================================================
+vunit fabric_props (arb_lat_tb(sim)) {
+
+    default clock is rising_edge(clk);
+
+    -- ---------------------------------------------------------------
+    -- mp_arbiter -- MUTUAL EXCLUSION.
+    -- Contract: the arbiter grants at most one master at a time.  This
+    -- is the property the sh* suite is documented as unable to see.
+    -- Written pairwise rather than with onehot0 so it is unambiguous
+    -- and needs no library support.
+    -- ---------------------------------------------------------------
+    P_ARB_MUTEX : assert always (
+        not (arb_gnt(0) = '1' and arb_gnt(1) = '1') and
+        not (arb_gnt(0) = '1' and arb_gnt(2) = '1') and
+        not (arb_gnt(0) = '1' and arb_gnt(3) = '1') and
+        not (arb_gnt(1) = '1' and arb_gnt(2) = '1') and
+        not (arb_gnt(1) = '1' and arb_gnt(3) = '1') and
+        not (arb_gnt(2) = '1' and arb_gnt(3) = '1'));
+
+    -- ---------------------------------------------------------------
+    -- mp_arbiter -> slave enable.  Contract: the shared slave is only
+    -- ever enabled underneath a grant.  A slave access with no granted
+    -- master is the phantom-transaction class (F2/F9).
+    -- ---------------------------------------------------------------
+    P_ARB_SEN_UNDER_GRANT : assert always (
+        (s_en = '1') -> (arb_gnt /= "0000"));
+
+    -- ---------------------------------------------------------------
+    -- mutex_bank / mp_arbiter -- s_master ATTRIBUTION.
+    -- Contract (CLAUDE.md): the mutex bank's claim-read is attributed
+    -- to the master the arbiter granted -- "the arbiter's s_master
+    -- attributes the read".  If s_master ever named a master that was
+    -- not granted, a claim would be credited to the wrong hart.
+    -- ---------------------------------------------------------------
+    P_ATTRIB_M0 : assert always ((s_en = '1' and s_master = "00") -> (arb_gnt(0) = '1'));
+    P_ATTRIB_M1 : assert always ((s_en = '1' and s_master = "01") -> (arb_gnt(1) = '1'));
+    P_ATTRIB_M2 : assert always ((s_en = '1' and s_master = "10") -> (arb_gnt(2) = '1'));
+    P_ATTRIB_M3 : assert always ((s_en = '1' and s_master = "11") -> (arb_gnt(3) = '1'));
+
+    -- ---------------------------------------------------------------
+    -- mp_arbiter -- WAIT-FOR-RELEASE (the M5a ghost-txn class).
+    -- Contract: a master's req is stale-high after its done (the ack
+    -- flop clears it a clock later, 1+2N cycles under an N-deep
+    -- registered boundary).  The arbiter must therefore NOT re-grant a
+    -- served master until its req has been OBSERVED LOW.  This is the
+    -- property whose absence leaked ghosts at N_DELAY>=1 under the old
+    -- one-pick mask_last -- and the bench sweeps exactly those depths.
+    -- ---------------------------------------------------------------
+    P_NOREGRANT_M0 : assert always ((arb_done(0) = '1') ->
+        next ((arb_gnt(0) = '0') until (a_req(0) = '0')));
+    P_NOREGRANT_M1 : assert always ((arb_done(1) = '1') ->
+        next ((arb_gnt(1) = '0') until (a_req(1) = '0')));
+    P_NOREGRANT_M2 : assert always ((arb_done(2) = '1') ->
+        next ((arb_gnt(2) = '0') until (a_req(2) = '0')));
+    P_NOREGRANT_M3 : assert always ((arb_done(3) = '1') ->
+        next ((arb_gnt(3) = '0') until (a_req(3) = '0')));
+
+    -- ---------------------------------------------------------------
+    -- M8 GRANT-LOCKING IS DELIBERATELY ABSENT HERE -- DO NOT RE-ADD IT
+    -- IN THIS FORM.  Two attempts lived at this spot and both keyed the
+    -- locked window off a_lock(i); both FIRED ON CORRECT RTL, because
+    -- a master may assert lock before it is ever granted and the
+    -- arbiter pins only on its own DATA->LOCKED edge -- LOCKED
+    -- residency is not a function of arb_lat_tb's bound ports, so no
+    -- amount of rewriting at these ports can state it.
+    -- The working form is P_LOCK_ATOMIC in fabric_formal_props.psl,
+    -- where the BENCH declares the window (lock_window) instead of the
+    -- property inferring it; mutant-proven (F3: 9 fires vs 0 clean).
+    -- ---------------------------------------------------------------
+
+    -- ---------------------------------------------------------------
+    -- resv_unit -- THE SUPPRESSION-ONLY SAFETY PROPERTY.
+    -- Contract (RTL): s_we_gated is s_we, except that a locally-failed
+    -- SC forces it to all-zero.  So the reservation unit may only ever
+    -- SUPPRESS a write -- it must never create or widen one.  A gating
+    -- unit that could turn lanes ON would be able to manufacture a
+    -- store that no master asked for.
+    -- ---------------------------------------------------------------
+    P_RESV_SUPPRESS_ONLY : assert always (
+        (s_we_g /= s_we) -> (s_we_g = "0000"));
+
+    -- ---------------------------------------------------------------
+    -- resv_unit -- a write that is gated off must not reach the slave
+    -- as a write on the SAME cycle it is suppressed.
+    -- ---------------------------------------------------------------
+    P_RESV_GATED_IS_QUIET : assert always (
+        ((s_en = '1') and (s_we_g = "0000")) -> (s_we_g /= s_we or s_we = "0000"));
+}
