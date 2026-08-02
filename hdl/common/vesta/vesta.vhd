@@ -636,6 +636,8 @@ architecture struct of vesta is
                                                          AMO_COMPLETE  => true,
                                                          LR_READ       => true,
                                                          SC_CHECK      => true,
+                                                         CBOZ_WRITE    => true,
+                                                         CBOZ_GAP      => true,
                                                          others      => false);
 
     -- ==========================================
@@ -3656,11 +3658,15 @@ architecture struct of vesta is
                 -- structural (it folds away with ENABLE_ZICBOZ) and sim-untested
                 -- in P3 -- flagged for the red team.
                 when CBOZ_WRITE =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
+                    -- S2 c12: MIGRATED.  PC frozen and no rd commit for the whole
+                    -- burst -- both are the fail-safe defaults, so neither is
+                    -- declared.  Only the store lanes differ per branch: the
+                    -- PMP-deny path declares nothing (=> all-ones, no strobe) and
+                    -- the store path declares the FULL-WORD "1111".
+                    -- mem_access_instr is not owned and keeps its per-branch
+                    -- protocol values.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
-                        wen              <= (others => '1');
                         if std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
@@ -3668,7 +3674,6 @@ architecture struct of vesta is
                         end if;
                     else
                         mem_access_instr <= '1';
-                        wen              <= "0000";
                         ci_st_lanes      <= "1111";
                         next_state       <= CBOZ_GAP;
                     end if;
@@ -3685,10 +3690,11 @@ architecture struct of vesta is
                 -- (PC advance + IRQ re-check happen there). cboz_idx advances in
                 -- cboz_seq_proc on this state.
                 when CBOZ_GAP =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
+                    -- S2 c12: MIGRATED.  A pure hold cycle: no PC advance, no rd
+                    -- commit, no store -- all three are the fail-safe defaults, so
+                    -- this arm declares nothing at all.  mem_access_instr '0' is
+                    -- what makes it the req-low settle the arbiter needs.
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     if cboz_idx = CBOZ_WORDS - 1 then
                         next_state <= MEMORY_WAIT;
                     else
