@@ -1,0 +1,35 @@
+-- =====================================================================
+-- verification/formal/fabric_witness.psl   -- HARNESS VALIDATION ONLY
+-- NOT part of the shipped property set.  Run ONCE, deliberately, to
+-- prove the stimulus actually REACHES each property's antecedent.
+--
+-- WHY THIS AND NOT `cover`: measured on this flow (xrun 20.09,
+-- -assert_vhdl, no covdb) PSL cover directives produce NO output
+-- whether they hit or not -- an impossible cover (arb_gnt = "1111")
+-- compiled and reported exactly like the ones that do hit.  Covers are
+-- therefore decorative here.  Assertion FIRES are the one channel this
+-- flow does report, so each witness below asserts that a trigger NEVER
+-- happens: every one MUST FIRE, and the fire is the evidence that the
+-- corresponding real property was actually evaluated, not vacuous.
+--
+-- EXPECTED RESULT: every witness fires.  A SILENT witness is a finding
+-- against the harness -- it means the real property it shadows is
+-- passing vacuously.
+-- =====================================================================
+vunit fabric_witness (arb_lat_tb(sim)) {
+    default clock is rising_edge(clk);
+
+    W_GRANTED       : assert never {arb_gnt /= "0000"};
+    W_SEN           : assert never {s_en = '1'};
+    W_ATTRIB_M0     : assert never {s_en = '1' and s_master = "00"};
+    W_ATTRIB_M1     : assert never {s_en = '1' and s_master = "01"};
+    W_ATTRIB_M2     : assert never {s_en = '1' and s_master = "10"};
+    W_ATTRIB_M3     : assert never {s_en = '1' and s_master = "11"};
+    W_DONE_M0       : assert never {arb_done(0) = '1'};
+    W_DONE_M1       : assert never {arb_done(1) = '1'};
+    W_DONE_M2       : assert never {arb_done(2) = '1'};
+    W_DONE_M3       : assert never {arb_done(3) = '1'};
+    W_REQ_STALE_M0  : assert never {arb_done(0) = '1' and a_req(0) = '1'};
+    W_RESV_SUPPRESS : assert never {s_we_g /= s_we};
+    W_LOCK_HELD     : assert never {a_lock /= "0000"};
+}

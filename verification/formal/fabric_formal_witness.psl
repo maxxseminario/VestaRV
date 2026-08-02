@@ -1,0 +1,16 @@
+-- HARNESS VALIDATION ONLY -- every witness MUST fire (see fabric_witness.psl).
+vunit fabric_formal_witness (fabric_formal_tb(tb)) {
+    default clock is rising_edge(clk);
+    W_MTX_CLAIM_FREE  : assert never {resetn='1' and mx_en='1' and mx_we="0000" and mx_claim_held='0'};
+    W_MTX_CLAIM_HELD  : assert never {resetn='1' and mx_en='1' and mx_we="0000" and mx_claim_held='1'};
+    W_RESV_ARMED      : assert never {resetn='1' and rv_valid(0)='1'};
+    W_FOREIGN_WRITE   : assert never {resetn='1' and foreign_write_done='1'};
+    W_SC_ATTEMPTED    : assert never {resetn='1' and rv_sen='1' and rv_lrsc(1 downto 0)="10" and rv_gnt(0)='1'};
+    W_SC_FAILED       : assert never {resetn='1' and rv_scfail(0)='1'};
+}
+-- appended: M8 window witnesses (must fire, else the window property is vacuous)
+vunit fabric_formal_witness_m8 (fabric_formal_tb(tb)) {
+    default clock is rising_edge(clk);
+    W_LOCK_WINDOW    : assert never {resetn='1' and lock_window='1'};
+    W_CONTENDED      : assert never {resetn='1' and lock_window='1' and (ab_req(1)='1' or ab_req(2)='1' or ab_req(3)='1')};
+}
