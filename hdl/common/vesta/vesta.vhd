@@ -624,6 +624,11 @@ architecture struct of vesta is
     constant state_commits_via_block : commit_gate_t := (EXECUTE     => true,
                                                          INITIALIZE  => true,
                                                          MEMORY_WAIT => true,
+                                                         DIV_WAIT    => true,
+                                                         DIV_DONE    => true,
+                                                         FPU_FETCH3  => true,
+                                                         FPU_WAIT    => true,
+                                                         FPU_DONE    => true,
                                                          others      => false);
 
     -- ==========================================
@@ -3870,13 +3875,15 @@ architecture struct of vesta is
                 -- DIV_WAIT State
                 -- ==========================================
                 when DIV_WAIT =>
-                    pc_en <= '0';
-                    reg_write_dp <= '0';
-                    -- N1 / R-S1-1c: wen is NOT assigned here, so it falls through
-                    -- to the decoder's live lane strobes and is a non-store only
-                    -- by a cross-file decode coincidence.  ci_st_lanes therefore
-                    -- declares NOTHING (fail-safe "0000" = the intended no-store)
-                    -- and the shadow checker becomes a live N1 detector here.
+                    -- N1 / R-S1-1c CLOSED HERE BY S2 c9.  This state never drove
+                    -- wen, so wen used to fall through to the decoder's live lane
+                    -- strobes and was a non-store only by a cross-file decode
+                    -- coincidence.  ci_st_lanes still declares NOTHING, but that
+                    -- now MEANS something: the block drives all-ones here
+                    -- structurally.  The coincidence is closed, not relied on.
+                    -- The evidence it was safe to close is the shadow checker's
+                    -- silence at this exact site since S1 -- which is what
+                    -- declaring nothing was for.
                     if alu_done = '1' then
                         next_state <= DIV_DONE;
                         div_start <= '0';
@@ -3889,17 +3896,18 @@ architecture struct of vesta is
                 -- DIV_DONE State
                 -- ==========================================
                 when DIV_DONE =>
-                    pc_en <= '1';
-                    -- The DIV's rd commit rides the fall-through to the process
-                    -- default (F4 assert (2)), so it is declared.  wen also falls
-                    -- through here, but that one is the N1 coincidence -- left
-                    -- undeclared per R-S1-1c (see DIV_WAIT).
+                    -- S2 c9: MIGRATED.  This is the DIV's rd commit site: it
+                    -- CARRIES the live decode through to rd rather than
+                    -- suppressing it, which is why the declaration is
+                    -- reg_write_ctrl and not '0'.  F4 assert (2) polices it and is
+                    -- unaffected -- it reads the net, which still evaluates to
+                    -- reg_write_ctrl on every cycle.  wen is the N1 site closed
+                    -- here (see DIV_WAIT).
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= reg_write_ctrl;
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -3910,10 +3918,21 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
-                    elsif isr_ret = '1' then
-                        next_state <= IRQ_REST;
+                    -- S2 c9 (R-DS2 item 9): the dead `elsif isr_ret = '1'` arm that
+                    -- stood here is DELETED.  w5_report residue 4 recorded it and
+                    -- handed it to "the next programme that opens vesta.vhd for a
+                    -- real change".  Deadness, from the tree: isr_ret requires
+                    -- op = CUSTOM_OPCODE (F5.3 note at the WORD-ALIGNED COMPRESSED
+                    -- arm), DIV_DONE holds the dispatching encoding via the
+                    -- instr_curr mux's `instr_curr_prev when current_state =
+                    -- DIV_DONE` term, and DIV_DONE is reachable only from DIV_WAIT,
+                    -- itself reachable only from EXECUTE's is_div_op arm -- so the
+                    -- held encoding is necessarily a DIV (op = OP) and isr_ret is
+                    -- statically '0'.  The `else` below already handled these
+                    -- cycles.  NOTE: Genus could not prove this (isr_ret is a live
+                    -- controller output off a flop-held instr_curr), so the mux
+                    -- term was really synthesised and this deletion removes gates.
                     else
                         next_state <= EXECUTE;
                     end if;
@@ -3927,21 +3946,18 @@ architecture struct of vesta is
                 -- decodes from FPU_WAIT only, so every operand register is stable
                 -- strictly before the first edge at which the unit samples start.
                 when FPU_FETCH3 =>
-                    pc_en <= '0';
-                    reg_write_dp <= '0';
-                    -- N1 / R-S1-1c: no ci_st_lanes declaration (see DIV_WAIT).
+                    -- N1 / R-S1-1c closed here by S2 c9 (see DIV_WAIT).
                     next_state <= FPU_WAIT;
 
                 -- ==========================================
                 -- FPU_WAIT State (X4 Zfinx) - run the multi-cycle unit
                 -- ==========================================
-                -- Exactly the DIV_WAIT contract: pc_en frozen, reg_write_dp '0',
-                -- instr held. fpu_start is asserted (concurrently, from state =
-                -- FPU_WAIT) while waiting; fpu_done ends the stall.
+                -- Exactly the DIV_WAIT contract: PC frozen, no rd commit, instr
+                -- held -- all three now declared through the commit block rather
+                -- than driven here. fpu_start is asserted (concurrently, from
+                -- state = FPU_WAIT) while waiting; fpu_done ends the stall.
                 when FPU_WAIT =>
-                    pc_en <= '0';
-                    reg_write_dp <= '0';
-                    -- N1 / R-S1-1c: no ci_st_lanes declaration (see DIV_WAIT).
+                    -- N1 / R-S1-1c closed here by S2 c9 (see DIV_WAIT).
                     if fpu_done_sig = '1' then
                         next_state <= FPU_DONE;
                     else
@@ -3951,22 +3967,20 @@ architecture struct of vesta is
                 -- ==========================================
                 -- FPU_DONE State (X4 Zfinx) - writeback + flags
                 -- ==========================================
-                -- Mirrors DIV_DONE exactly: reg_write_dp is NOT reassigned here, so
-                -- it takes the default reg_write_ctrl (=1 for an FP op) and the
+                -- Mirrors DIV_DONE exactly: this state CARRIES the live decode
+                -- through to rd (reg_write_ctrl = 1 for an FP op) and the
                 -- writeback of the fpu result (result_src=111) lands in this cycle.
-                -- IRQ/isr_ret handling is identical to DIV_DONE.
+                -- IRQ handling is identical to DIV_DONE.
                 when FPU_DONE =>
-                    pc_en <= '1';
-                    -- Like DIV_DONE: the FP rd commit rides the fall-through to
-                    -- the process default (F4 assert (3)) and is declared; the
-                    -- wen fall-through is the N1 coincidence and is not
-                    -- (R-S1-1c, see DIV_WAIT).
+                    -- S2 c9: MIGRATED, and the FP rd commit site -- carried, not
+                    -- suppressed, exactly as at DIV_DONE.  F4 assert (3) polices it
+                    -- and is unaffected: it reads the net, still reg_write_ctrl on
+                    -- every cycle.  wen is the N1 site closed here (see DIV_WAIT).
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= reg_write_ctrl;
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -3977,10 +3991,11 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                         ci_pc_advance <= '0';
-                    elsif isr_ret = '1' then
-                        next_state <= IRQ_REST;
+                    -- S2 c9 (R-DS2 item 9): dead `elsif isr_ret = '1'` arm DELETED
+                    -- here too -- same argument as DIV_DONE's, with FPU_DONE
+                    -- reachable only from FPU_WAIT and holding an FP encoding, so
+                    -- isr_ret is statically '0'.  w5_report residue 4.
                     else
                         next_state <= EXECUTE;
                     end if;
