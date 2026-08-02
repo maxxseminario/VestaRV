@@ -621,8 +621,9 @@ architecture struct of vesta is
     -- time; the cleanup commit deletes the table and its `if` once every row is
     -- true and the gate has nothing left to select.
     type commit_gate_t is array (cpu_state) of boolean;
-    constant state_commits_via_block : commit_gate_t := (EXECUTE => true,
-                                                         others  => false);
+    constant state_commits_via_block : commit_gate_t := (EXECUTE    => true,
+                                                         INITIALIZE => true,
+                                                         others     => false);
 
     -- ==========================================
     -- PC Management Signals
@@ -2597,11 +2598,30 @@ architecture struct of vesta is
                 -- INITIALIZE State
                 -- ==========================================
                 when INITIALIZE =>
+                    -- S2 c7: MIGRATED.  This arm passes the LIVE DECODE through to
+                    -- rd and to the store lanes, and that is safe for a reason
+                    -- worth writing down rather than rediscovering: instr_curr is
+                    -- forced to a nop whenever this state is current --
+                    --   instr_curr <= nop when (resetn = '0' or
+                    --                           current_state = INITIALIZE) else ...
+                    -- and nop is x"00000013" (ADDI x0,x0,0; constants.vhd).  So
+                    -- reg_write_ctrl is '1' here (OP-IMM decodes a write) and the
+                    -- pass-through is inert NOT because the decode is quiet but
+                    -- because **rd is x0**, which the regfile discards; the lane
+                    -- strobes are all-ones because a nop is not a store.  The
+                    -- block reproduces both exactly, so nothing is special-cased.
+                    --
+                    -- NOTE, measured 2026-08-02: this state is UNREACHABLE by
+                    -- design.  current_state has exactly two writers -- an async
+                    -- reset to EXECUTE, and `<= next_state` -- and the only
+                    -- producer of next_state = INITIALIZE sits inside the
+                    -- `resetn = '0'` branch, where the async reset dominates.  The
+                    -- machine resets into EXECUTE and never enters this arm; only
+                    -- a corrupted state encoding can land here.  The arm is kept
+                    -- (and kept correct) for exactly that case.
                     next_state <= EXECUTE;
                     mem_access_instr <= '0';
-                    reg_write_dp <= reg_write_ctrl;
                     div_start <= '0';
-                    wen <= wen_controller;
                     is_compressed <= '0';
                     ci_rd_commit  <= reg_write_ctrl;
                     ci_st_lanes   <= not wen_controller;
@@ -4222,6 +4242,23 @@ architecture struct of vesta is
                     -- reg_write_dp would commit a stale regfile write. '0' is
                     -- strictly safer than holding, and it retires the latch.
                     -- The arm itself stays: VHDL requires it.
+                    --
+                    -- S2 c7: THIS DRIVE DELIBERATELY DOES NOT MIGRATE, and it
+                    -- cannot until the cleanup commit.  state_commits_via_block is
+                    -- indexed by cpu_state, so its rows are the 39 LITERALS; the
+                    -- `others` in its aggregate selects the remaining STATES and
+                    -- has nothing to do with this case arm, which covers NON-values
+                    -- of the type.  There is no row to turn on.  And the only way
+                    -- to reach here is an illegal encoding, for which the lookup is
+                    -- a don't-care that synthesis will most likely minimise to
+                    -- `current_state = EXECUTE` = FALSE -- so the block would not
+                    -- drive, and reg_write_dp would fall through to the process
+                    -- default `reg_write_ctrl`: a LIVE DECODE committing a regfile
+                    -- write, precisely the hazard the F5.1 note above removed.
+                    -- Deleting this line would trade a documented fix for a
+                    -- synthesiser's don't-care.  It goes when the tail's `if`
+                    -- goes, at which point the block drives unconditionally and
+                    -- coverage no longer depends on the state value at all.
                     next_state <= EXECUTE;
                     reg_write_dp <= '0';
                     -- pc_en and wen are both unassigned in this arm.  pc_en's
