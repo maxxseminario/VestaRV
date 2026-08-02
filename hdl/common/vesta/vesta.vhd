@@ -638,6 +638,17 @@ architecture struct of vesta is
                                                          SC_CHECK      => true,
                                                          CBOZ_WRITE    => true,
                                                          CBOZ_GAP      => true,
+                                                         ZCM_PUSH_ST   => true,
+                                                         ZCM_PUSH_GAP  => true,
+                                                         ZCM_POP_LD    => true,
+                                                         ZCM_POP_WB    => true,
+                                                         ZCM_A0Z       => true,
+                                                         ZCM_SP_COMMIT => true,
+                                                         ZCM_RET       => true,
+                                                         ZCM_MV1       => true,
+                                                         ZCM_MV2       => true,
+                                                         ZCM_JT_LD     => true,
+                                                         ZCM_JT_WB     => true,
                                                          others      => false);
 
     -- ==========================================
@@ -3710,11 +3721,14 @@ architecture struct of vesta is
                 -- pc (frozen since dispatch) is the cm.push itself. Zcmp/Zcmt are
                 -- OFF in the Castalia/Argus configs => structural, sim-untested.
                 when ZCM_PUSH_ST =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
+                    -- S2 c13: MIGRATED.  PC frozen and no rd commit for the whole
+                    -- push sequence (sp is committed ONCE, LAST, in
+                    -- ZCM_SP_COMMIT) -- both fail-safe, so neither is declared.
+                    -- Only the store lanes differ per branch, exactly as in
+                    -- CBOZ_WRITE: the PMP-deny path declares nothing (=> all-ones,
+                    -- no strobe), the store path declares the FULL-WORD "1111".
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
-                        wen              <= (others => '1');
                         if std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
@@ -3722,16 +3736,13 @@ architecture struct of vesta is
                         end if;
                     else
                         mem_access_instr <= '1';
-                        wen              <= "0000";
                         ci_st_lanes      <= "1111";
                         next_state       <= ZCM_PUSH_GAP;
                     end if;
 
                 when ZCM_PUSH_GAP =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
+                    -- S2 c13: MIGRATED -- pure settle cycle, declares nothing.
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     if zcm_idx = zcm_nregs_val - 1 then
                         next_state <= ZCM_SP_COMMIT;
                     else
@@ -3742,9 +3753,8 @@ architecture struct of vesta is
                 -- The register writeback happens in ZCM_POP_WB, which a fault never
                 -- reaches => no rd commit. Structural, sim-untested (Zcmp OFF).
                 when ZCM_POP_LD =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
-                    wen              <= (others => '1');
+                    -- S2 c13: MIGRATED -- issues the frame-slot load; the
+                    -- writeback is ZCM_POP_WB's, so this cycle declares nothing.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
                         if std_mode = '1' then
@@ -3758,11 +3768,10 @@ architecture struct of vesta is
                     end if;
 
                 when ZCM_POP_WB =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '1';
+                    -- S2 c13: MIGRATED -- a cm.pop rd commit site.  The value is
+                    -- the loaded frame word, so the declaration is '1'.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     if zcm_idx = zcm_nregs_val - 1 then
                         if zcm_is_popretz = '1' then
                             next_state <= ZCM_A0Z;
@@ -3774,19 +3783,23 @@ architecture struct of vesta is
                     end if;
 
                 when ZCM_A0Z =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '1';
+                    -- S2 c13: MIGRATED -- cm.popretz's a0 <- 0, an rd commit.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     next_state       <= ZCM_SP_COMMIT;
 
                 when ZCM_SP_COMMIT =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
+                    -- S2 c13: MIGRATED, and the one PAIRING to be careful with.
+                    -- sp_write_en is OWNED and migrates; sp_write_data is NOT
+                    -- owned and stays right here.  They remain same-cycle: the
+                    -- commit block is COMBINATIONAL and lives in this very
+                    -- process, so it assigns sp_write_en later in the SAME
+                    -- evaluation that assigns sp_write_data below -- both settle
+                    -- in the same delta and land on the same clock edge.  Only
+                    -- which statement writes the enable moved.  (A REGISTERED
+                    -- interface would have broken exactly this; spec section 0
+                    -- rejected one, and this arm is why it matters.)
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
-                    sp_write_en      <= '1';
                     ci_sp_commit     <= '1';
                     sp_write_data    <= zcm_final_sp;
                     if zcm_is_popret = '1' then
@@ -3796,27 +3809,22 @@ architecture struct of vesta is
                     end if;
 
                 when ZCM_RET =>
-                    pc_en            <= '1';
+                    -- S2 c13: MIGRATED -- cm.popret's PC redirect; no commit.
                     ci_pc_advance    <= '1';
-                    reg_write_dp     <= '0';
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     next_state       <= EXECUTE;
 
                 when ZCM_MV1 =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '1';
+                    -- S2 c13: MIGRATED -- first of the two cm.mv rd commits.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     next_state       <= ZCM_MV2;
 
                 when ZCM_MV2 =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '1';
+                    -- S2 c13: MIGRATED -- second cm.mv rd commit; retires via
+                    -- MEMORY_WAIT.
                     ci_rd_commit     <= '1';
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     next_state       <= MEMORY_WAIT;
 
                 -- P3: the Zcmt jump-TABLE fetch is a DATA read of jvt+4*index
@@ -3825,9 +3833,8 @@ architecture struct of vesta is
                 -- both live in ZCM_JT_WB, which a fault never reaches. Structural,
                 -- sim-untested (Zcmt OFF).
                 when ZCM_JT_LD =>
-                    pc_en            <= '0';
-                    reg_write_dp     <= '0';
-                    wen              <= (others => '1');
+                    -- S2 c13: MIGRATED -- issues the jvt table read; the target
+                    -- capture and the ra link both land in ZCM_JT_WB.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
                         if std_mode = '1' then
@@ -3841,12 +3848,13 @@ architecture struct of vesta is
                     end if;
 
                 when ZCM_JT_WB =>
-                    pc_en            <= '1';
+                    -- S2 c13: MIGRATED.  The rd commit is CONDITIONAL on the
+                    -- computed zcm_jt_link (cm.jalt links ra, cm.jt does not) --
+                    -- the declaration carries that value verbatim; the
+                    -- computation stays at its own site.
                     ci_pc_advance    <= '1';
-                    reg_write_dp     <= zcm_jt_link;
                     ci_rd_commit     <= zcm_jt_link;
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
                     next_state       <= EXECUTE;
 
                 -- ==========================================
