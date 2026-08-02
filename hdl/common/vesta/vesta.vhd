@@ -621,9 +621,10 @@ architecture struct of vesta is
     -- time; the cleanup commit deletes the table and its `if` once every row is
     -- true and the gate has nothing left to select.
     type commit_gate_t is array (cpu_state) of boolean;
-    constant state_commits_via_block : commit_gate_t := (EXECUTE    => true,
-                                                         INITIALIZE => true,
-                                                         others     => false);
+    constant state_commits_via_block : commit_gate_t := (EXECUTE     => true,
+                                                         INITIALIZE  => true,
+                                                         MEMORY_WAIT => true,
+                                                         others      => false);
 
     -- ==========================================
     -- PC Management Signals
@@ -3837,12 +3838,18 @@ architecture struct of vesta is
                 -- MEMORY_WAIT State
                 -- ==========================================
                 when MEMORY_WAIT =>
-                    -- The LOAD's rd commit rides the fall-through to the process
-                    -- default on EVERY path out of this state (F4 assert (1)).
+                    -- S2 c8: MIGRATED -- the first LIVE commit site to go through
+                    -- the table.  This state is the LOAD's rd commit site: its rd
+                    -- write is CARRIED, not suppressed, on every one of the four
+                    -- paths out, which is why the declaration sits at the arm top
+                    -- rather than in a branch.  The value is the live decode, and
+                    -- it is the same expression the process default used to supply
+                    -- -- only the carrier changed.  F4 assert (1) polices it and
+                    -- is unaffected: it reads the net, which still evaluates to
+                    -- reg_write_ctrl on every cycle.
                     ci_rd_commit <= reg_write_ctrl;
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
-                        pc_en <= '0';
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
                         -- standard mode irq_save can never fire (irq_en_eff is masked
@@ -3852,16 +3859,12 @@ architecture struct of vesta is
                         -- stay uninterruptible: they have no irq_save site, so they get
                         -- no std_irq_take site either.
                         next_state <= MTRAP_SV;
-                        pc_en <= '0';
                     elsif isr_ret = '1' then
                         next_state <= IRQ_REST;
-                        pc_en <= '0';
                     else
                         next_state <= EXECUTE;
-                        pc_en <= '1';
                         ci_pc_advance <= '1';
                     end if;
-                    wen <= (others => '1');  -- Disable write
 
                 -- ==========================================
                 -- DIV_WAIT State
@@ -4080,10 +4083,10 @@ architecture struct of vesta is
                     -- `'0'; -- No write for stores, branches, custom
                     -- instructions`.  Nothing enforced that, in either file.
                     -- Unlike MEMORY_WAIT / DIV_DONE / FPU_DONE -- which are REAL
-                    -- COMMIT SITES, where the fall-through IS how a load, a div
-                    -- and an FP op write their rd, and which therefore get an
-                    -- assertion instead -- IRQ_REST has no rd to commit at all,
-                    -- so the coincidence is simply removed.
+                    -- COMMIT SITES, each CARRYING the live decode through to rd
+                    -- (by whichever mechanism currently delivers it), and which
+                    -- therefore get an assertion instead -- IRQ_REST has no rd to
+                    -- commit at all, so the coincidence is simply removed.
                     reg_write_dp <= '0';
                     if irq_save = '1' then
                         -- Nested interrupt
@@ -4925,11 +4928,14 @@ architecture struct of vesta is
     -- Findings F4 and F4-shapes-B/C are both of the form "this is correct only
     -- because two files happen to agree, and nothing checks that they do".  The
     -- fix for a coincidence is not to remove the mechanism -- MEMORY_WAIT,
-    -- DIV_DONE and FPU_DONE are REAL COMMIT SITES, and their fall-through to
-    -- `reg_write_dp <= reg_write_ctrl` (:2249) is precisely how a load, a div
-    -- and an FP op write their rd (v1_retire_enumeration.md 5, rows 4, 6, 9).
-    -- Deleting it would break every load.  The fix is to make the coincidence
-    -- FAIL LOUDLY the day someone breaks it.
+    -- DIV_DONE and FPU_DONE are REAL COMMIT SITES: each CARRIES the live decode
+    -- through to rd rather than suppressing it, and that is precisely how a
+    -- load, a div and an FP op write their rd (v1_retire_enumeration.md 5,
+    -- rows 4, 6, 9).  Removing the carrier would break them.  The S-series is
+    -- MOVING that carrier, state by state, from the process default to the
+    -- commit block -- which changes who delivers the value, never the value --
+    -- so do not read "fall-through" into these three; read "not suppressed".
+    -- The fix is to make the coincidence FAIL LOUDLY the day someone breaks it.
     --
     -- CLOCKED, NOT CONCURRENT -- and this is load-bearing, not style.  The
     -- first cut of this block used concurrent assertions, and assertion (4)
