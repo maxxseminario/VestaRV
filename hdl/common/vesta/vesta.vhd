@@ -656,6 +656,10 @@ architecture struct of vesta is
                                                          MTRAP_SV      => true,
                                                          MTRAP_JUMP    => true,
                                                          MTRAP_RET     => true,
+                                                         SLEEPING      => true,
+                                                         FENCE_WAIT    => true,
+                                                         PAUSE_WAIT    => true,
+                                                         WRS_WAIT      => true,
                                                          others      => false);
 
     -- ==========================================
@@ -3869,11 +3873,14 @@ architecture struct of vesta is
                 -- ==========================================
                 -- Note - for single core - fence may be treated as nop
                 when FENCE_WAIT =>
+                    -- S2 c15: MIGRATED.  The fence retires here, so the PC
+                    -- advance is declared; no store and no rd commit are the
+                    -- fail-safe defaults.  (The deleted lane drive was spelled
+                    -- `WEN` in upper case -- the S0 census's case-insensitivity
+                    -- landmark; a case-sensitive edit would have left a live
+                    -- drive behind in a migrated state.)
                     next_state <= EXECUTE;
-                    pc_en <= '1';
                     ci_pc_advance <= '1';
-                    WEN <= (others => '1');  -- No memory write
-                    reg_write_dp <= '0';     -- No register write
 
                 -- ==========================================
                 -- PAUSE_WAIT State - X1 Zihintpause arbiter-yield window (D6)
@@ -3894,16 +3901,16 @@ architecture struct of vesta is
                 -- window is uninterruptible-short, so (like DIV_WAIT) IRQs are
                 -- re-checked on the EXECUTE cycle after the window, not mid-hold.
                 when PAUSE_WAIT =>
+                    -- S2 c15: MIGRATED.  A hold with a conditional retire: the
+                    -- window-closed branch declares the PC advance, the holding
+                    -- branch declares nothing.  No store, no rd commit -- both
+                    -- fail-safe.  pause_cnt is untouched.
                     mem_access_instr <= '0';
-                    wen              <= (others => '1');
-                    reg_write_dp     <= '0';
                     if pause_cnt = 0 then
-                        next_state <= EXECUTE;
-                        pc_en <= '1';   -- window closed: PAUSE retires, PC advances
+                        next_state <= EXECUTE;   -- window closed: PAUSE retires
                         ci_pc_advance <= '1';
                     else
                         next_state <= PAUSE_WAIT;
-                        pc_en <= '0';
                     end if;
 
                 -- ==========================================
@@ -4234,16 +4241,25 @@ architecture struct of vesta is
                 -- pc_next), so EXECUTE consumes the right instruction. wfi_slept
                 -- is cleared by wfi_slept_proc on whichever exit is taken.
                 when SLEEPING =>
-                    pc_en <= '0';
-                    -- W2/F4a: same rule as IRQ_REST above.  The held encoding is
-                    -- the `extinguish`/`wfi` that put us here, so reg_write_ctrl
-                    -- is '0' by the same maindec coincidence -- and a sleep can
-                    -- last an unbounded, clock-gated number of cycles, so this is
-                    -- the last state in the machine that should be relying on one.
-                    reg_write_dp <= '0';
-                    -- N1 / R-S1-1c: no ci_st_lanes declaration (see DIV_WAIT) --
-                    -- and a sleep can last an unbounded number of clk_cpu edges,
-                    -- so this is where the N1 detector has the most to say.
+                    -- S2 c15: MIGRATED.  Two things this arm used to hold by
+                    -- coincidence are now structural, which matters more here than
+                    -- anywhere else because a sleep lasts an unbounded, clock-gated
+                    -- number of cycles:
+                    --   * rd (W2/F4a): the held encoding is the `extinguish`/`wfi`
+                    --     that put us here, so reg_write_ctrl was '0' only by the
+                    --     maindec coincidence.  This arm now declares no rd
+                    --     commit, so the block drives '0' outright.
+                    --   * lanes (N1 / R-S1-1c): there is no wen site here, so wen
+                    --     used to fall through to the live decode.  ci_st_lanes
+                    --     still declares NOTHING, and that now MEANS all-ones from
+                    --     the block.  This was the LAST live N1 site; the licence
+                    --     to close it is the shadow checker's silence here across
+                    --     every gate since S1.
+                    -- The PC is held by declaring nothing; the only ci_pc_advance
+                    -- below sits in the P2 std_wfi_wake leg, which is statically
+                    -- unreachable while ENABLE_TRAPCSR is false -- real wakes take
+                    -- the irq_save leg and must NOT advance the PC, since it is the
+                    -- return address IRQ_SV is about to push.
 
                     if irq_save = '1' then
                         next_state <= IRQ_SV;
@@ -4261,7 +4277,6 @@ architecture struct of vesta is
                         -- ENABLE_TRAPCSR is off, and unreachable for an
                         -- extinguish-entered sleep on ANY build (wfi_slept='0').
                         next_state <= EXECUTE;
-                        pc_en      <= '1';
                         ci_pc_advance <= '1';
                     else
                         next_state <= SLEEPING;
@@ -4279,13 +4294,12 @@ architecture struct of vesta is
                 -- Deliberately does NOT set sleep_cpu, so an interrupt taken here
                 -- does not leave the hart in the return-to-sleep contract.
                 when WRS_WAIT =>
-                    pc_en <= '0';
-                    wen <= (others => '1');   -- no memory access while stalled
+                    -- S2 c15: MIGRATED.  Same shape as PAUSE_WAIT: the wake branch
+                    -- declares the PC advance and retires the hint; the stalled
+                    -- branch declares nothing.  wrs_wake is untouched.
                     mem_access_instr <= '0';
-                    reg_write_dp <= '0';
                     if wrs_wake = '1' then
                         next_state <= EXECUTE;
-                        pc_en <= '1';         -- retire the hint, advance the PC
                         ci_pc_advance <= '1';
                     else
                         next_state <= WRS_WAIT;
