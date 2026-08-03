@@ -2,10 +2,17 @@
 # Makefrag for rv32um tests
 #-----------------------------------------------------------------------
 
+# K5 blind detectors are BUILDABLE from here but are deliberately NOT in any
+# standing run list -- wiring them into the 136-suite or either lockstep list
+# is a K5-close decision, not a build-system one.
+#   dvintmin -- defect A (the signed-magnitude divider).  Registered here.
+#   dvbubble -- defect B (the unqualified divide dispatch).  Registered with
+#               its own fix, so each detector lands in the commit it detects.
 rv32um_sc_tests = \
 	div divu \
 	mul mulh mulhsu mulhu \
 	rem remu \
+	dvintmin \
 
 rv32um_p_tests = $(addprefix rv32um-p-, $(rv32um_sc_tests))
 rv32um_v_tests = $(addprefix rv32um-v-, $(rv32um_sc_tests))

@@ -28,12 +28,28 @@ architecture rtl of div is
     signal state : state_t;
     signal N, D  : signed(XLEN-1 downto 0);
     signal N_u, D_u : unsigned(XLEN-1 downto 0);
-    signal Q : signed(XLEN-1 downto 0);
-    signal R : signed(XLEN-1 downto 0);
+    -- K5 defect A: the signed restoring loop's MAGNITUDES and PARTIAL REMAINDER
+    -- are UNSIGNED.  They were `signed(XLEN-1 downto 0)`, and that is the whole
+    -- bug: a magnitude of exactly 2**31 -- which is what abs(INT_MIN) is, since
+    -- abs() wraps -- reads as NEGATIVE in the loop guard at :154.  Two escapes
+    -- followed, both measured:
+    --   * b = INT_MIN  => D_Abs read as -2**31, so `R_var >= D_Abs` was TRUE at
+    --     all 32 steps and every quotient bit was set.
+    --   * a = INT_MIN and abs(b) > 2**30 => the final shift_left produces
+    --     exactly 2**31, read as negative, so the last restore was SKIPPED.
+    -- No other operand can reach bit 31: at a non-final step the partial
+    -- remainder is floor(N_Abs / 2**j) mod D_Abs with j >= 1, hence < 2**30
+    -- whenever N_Abs < 2**31.  That is why every non-INT_MIN pair was already
+    -- correct, and why the UNSIGNED branch below (R_unsigned/Q_unsigned) never
+    -- had the defect at all -- this change simply gives the signed branch the
+    -- same unsigned datapath, fed magnitudes.  Signs are applied only at the
+    -- result mux (:224/:231), which is otherwise unchanged.
+    signal Q : unsigned(XLEN-1 downto 0);
+    signal R : unsigned(XLEN-1 downto 0);
     signal cnt : integer range 0 to XLEN;
     signal Q_unsigned : unsigned(XLEN-1 downto 0);
     signal R_unsigned : unsigned(XLEN-1 downto 0);
-    signal N_Abs, D_Abs : signed(XLEN-1 downto 0);
+    signal N_Abs, D_Abs : unsigned(XLEN-1 downto 0);
     signal neg_result : std_logic;
     signal neg_rem : std_logic;
     signal start_reg : std_logic;
@@ -60,8 +76,8 @@ begin
     -- complete <= '1' when state = COMPLETED else '0';
 
     process(clk, resetn)
-        variable R_var : signed(XLEN-1 downto 0);
-        variable Q_var : signed(XLEN-1 downto 0);
+        variable R_var : unsigned(XLEN-1 downto 0);
+        variable Q_var : unsigned(XLEN-1 downto 0);
         variable R_u_var : unsigned(XLEN-1 downto 0);
         variable Q_u_var : unsigned(XLEN-1 downto 0);
     begin
@@ -101,8 +117,12 @@ begin
                         if sel_signed = '1' then
                             N <= signed(a);
                             D <= signed(b);
-                            N_Abs <= abs(signed(a));
-                            D_Abs <= abs(signed(b));
+                            -- abs() on signed WRAPS at INT_MIN and returns
+                            -- x"80000000".  Read as UNSIGNED that bit pattern is
+                            -- 2**31, which is the CORRECT magnitude -- so the
+                            -- cast, not a wider adder, is the whole fix.
+                            N_Abs <= unsigned(abs(signed(a)));
+                            D_Abs <= unsigned(abs(signed(b)));
                             neg_result <= (a(XLEN-1) xor b(XLEN-1));
                             neg_rem <= a(XLEN-1);       -- only dividend sign for remainder
                         else
@@ -129,6 +149,8 @@ begin
                         R_var := shift_left(R, 1);
                         R_var(0) := N_Abs(cnt);
                         Q_var := Q;
+                        -- K5 defect A: this compare is now UNSIGNED.  As a signed
+                        -- compare it was the single site the defect acted at.
                         if R_var >= D_Abs then
                             R_var := R_var - D_Abs;
                             Q_var(cnt) := '1';
@@ -195,15 +217,18 @@ begin
                 if sel_signed = '1' then
                     if sel_rem = '1' then
                         -- REM: signed remainder
+                        -- R is UNSIGNED now (defect A), so the negation casts to
+                        -- signed explicitly: numeric_std defines unary "-" for
+                        -- SIGNED only.  Value-identical to the old `-R`.
                         if neg_rem = '1' then
-                            result <= std_logic_vector(-R);
+                            result <= std_logic_vector(-signed(R));
                         else
                             result <= std_logic_vector(R);
                         end if;
                     else
                         -- DIV: signed division
                         if neg_result = '1' then
-                            result <= std_logic_vector(-Q);
+                            result <= std_logic_vector(-signed(Q));
                         else
                             result <= std_logic_vector(Q);
                         end if;
