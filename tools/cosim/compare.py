@@ -1684,6 +1684,17 @@ def main(argv):
                           "x-corrupted RTL record after %d matching records"
                           % n)
 
+        # K2b amendment `hpm-warl` tier 2: a read-back of a NAMED HPM
+        # CONFIGURATION register (mcountinhibit / mhpmevent3 / mhpmevent4) stops
+        # comparing `rdval` -- the two models WARL it differently and both are
+        # legal.  Checked only INSIDE the mismatch arm, so a matching pair never
+        # reaches it, and both streams still advance together (the compared count
+        # is untouched).  `mhpmcounter*` is deliberately NOT in that list: the
+        # counter-value divergence is F1, and this amendment exists to expose it.
+        if a.key() != b.key() and amend.hpm_keys_match(am, a, b):
+            i += 1; j += 1; n += 1
+            continue
+
         if a.key() != b.key():
             out.write("DIVERGENCE at compared record #%d "
                       "(rtl %s:%d, spike %s:%d).\n"

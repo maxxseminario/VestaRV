@@ -1692,6 +1692,87 @@ core   0: 3 0x00008204 (0x00000013)
            1, FCSR_READ_RTL, FCSR_READ_SPIKE, extra=["--amend", "fcsr-split"],
            expect_in_stderr=["is not an explicit fcsr write -- left alone"])
 
+    # ======================================================================
+    # K2b AMENDMENT 4 -- `hpm-warl` (isa.zihpm), TWO TIERS, and the second is
+    # deliberately smaller than the first.
+    #
+    # MEASURED SHAPES (D-2026-07-29-1 / k0 §3.3, re-measured on the reference
+    # this wave with `--isa …_zihpm`):
+    #     csrw 0x323,1        reference: `C 323 00000000` (WARL to zero)
+    #                         RTL+ZIHPM: `C 323 00000001` (stores 32 bits)
+    #     csrw 0xb03,zero     reference: NOTHING logged
+    #                         RTL+ZIHPM: `C b03 00000000`
+    #     csrr 0xb03          reference: 0   RTL: a real event count  <-- F1
+    # Tier 1 drops the WRITE record on BOTH sides; tier 2 relaxes `rdval` on the
+    # CONFIGURATION registers' read-backs ONLY.
+    # ======================================================================
+    HPM_RTL = """\
+R 00 00000100 00008200 32329073 00 00000000
+C 00 00000100 323 00000001
+R 00 00000102 00008204 b0301073 00 00000000
+C 00 00000102 b03 00000000
+R 00 00000104 00008208 32302373 06 00000001
+R 00 00000106 0000820c 00000013 00 00000000
+""".splitlines(True)
+    HPM_SPIKE = """\
+core   0: 3 0x00008200 (0x32329073) c803_mhpmevent3 0x00000000
+core   0: 3 0x00008204 (0xb0301073)
+core   0: 3 0x00008208 (0x32302373) x6  0x00000000
+core   0: 3 0x0000820c (0x00000013)
+""".splitlines(True)
+    h.case("K2b hpm: WITHOUT the amendment the write VALUE diverges first",
+           1, HPM_RTL, HPM_SPIKE,
+           expect_in_stdout=["val: rtl=00000001 spike=00000000"])
+    h.case("K2b hpm: WITH it, tier 1 drops both sides and tier 2 the read-back",
+           0, HPM_RTL, HPM_SPIKE, extra=["--amend", "hpm-warl"],
+           expect_in_stderr=["hpm-warl               4 application(s)",
+                             "rtl C 323                x1",
+                             "rtl C b03                x1",
+                             "spike C 323              x1",
+                             "rdval 323                x1"])
+    # THE ABSENCE THAT IS THE POINT: a COUNTER read-back is NOT relaxed, so the
+    # RTL's real event count against the reference's hardwired zero is still a
+    # divergence. This is F1 staying visible; an amendment that swallowed it
+    # would be method rule 11 in its purest form (the instrument keyed on the
+    # thing it was written to expose).
+    HPM_CTR_RTL = """\
+R 00 00000100 00008200 32329073 00 00000000
+C 00 00000100 323 00000001
+R 00 00000102 00008204 b0302973 12 0000002a
+""".splitlines(True)
+    HPM_CTR_SPIKE = """\
+core   0: 3 0x00008200 (0x32329073) c803_mhpmevent3 0x00000000
+core   0: 3 0x00008204 (0xb0302973) x18 0x00000000
+""".splitlines(True)
+    h.case("K2b hpm: NEGATIVE -- a COUNTER read-back is NOT relaxed (F1 stays)",
+           1, HPM_CTR_RTL, HPM_CTR_SPIKE, extra=["--amend", "hpm-warl"],
+           expect_in_stdout=["rdval: rtl=0000002a spike=00000000"])
+    # Tier 2 relaxes ONLY the value: same CSR, but a read into a DIFFERENT
+    # register is a different instruction and must still diverge.
+    HPM_RD_RTL = """\
+R 00 00000100 00008200 32302373 06 00000001
+""".splitlines(True)
+    HPM_RD_SPIKE_OTHERREG = """\
+core   0: 3 0x00008200 (0x323023f3) x7  0x00000000
+""".splitlines(True)
+    h.case("K2b hpm: NEGATIVE -- tier 2 forgives the VALUE, not the register",
+           1, HPM_RD_RTL, HPM_RD_SPIKE_OTHERREG, extra=["--amend", "hpm-warl"],
+           expect_in_stdout=["insn: rtl=32302373 spike=323023f3"])
+    # And an unrelated CSR write is untouched by tier 1 -- the list is NAMED
+    # addresses, not "anything that looks like a counter".
+    HPM_OTHER_RTL = """\
+R 00 00000100 00008200 b0501073 00 00000000
+C 00 00000100 b05 00000000
+R 00 00000102 00008204 00000013 00 00000000
+""".splitlines(True)
+    HPM_OTHER_SPIKE = """\
+core   0: 3 0x00008200 (0xb0501073)
+core   0: 3 0x00008204 (0x00000013)
+""".splitlines(True)
+    h.case("K2b hpm: NEGATIVE -- mhpmcounter5 is NOT in the drop set",
+           1, HPM_OTHER_RTL, HPM_OTHER_SPIKE, extra=["--amend", "hpm-warl"],
+           expect_in_stdout=["record KIND differs: rtl=C spike=R"])
+
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
     h.case("K2b: ungated, an old fixture is bit-identical to pre-K2b",

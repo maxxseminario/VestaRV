@@ -139,6 +139,11 @@ GATE_FILES = [
      None,
      'the K2b amendment-2 lockstep list (extzcmt + shcmt) — the only two tests '
      'in the tree that execute a table jump (extjvt\'s ON arm executes none)'),
+    ('cosim_zihpm_tests.txt',
+     None,
+     'the K2b amendment-4 lockstep list (extzihpm) — EXPECTED TO DIVERGE at the '
+     'first mhpmcounter read: that divergence is F1 under measurement for the '
+     'first time, pre-registered by k0 §3.3 as the row\'s PASS condition'),
     ('cosim_trapcsr_tests.txt',
      None,
      'the K2b amendment-3 lockstep list (rocsrw + privecall) — EXPECTED TO '

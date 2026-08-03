@@ -70,8 +70,19 @@ KNOB_ORACLE = (
     ('zcb',        A, 'k0 §1.2: `_zca_zcb`'),
     ('zimop',      A, 'k0 §1.2: `_zimop`(+`_zcmop`)'),
     ('zihint',     A, 'k0 §1.2/§1.3b: pause retires in BOTH polarities'),
-    ('zihpm',      B, 'k0 §1.2/§3: the --isa string has NO effect on HPM CSRs; '
-                      'D-2026-07-29-1 is the standing divergence'),
+    # zihpm STAYS B AT K2b AMENDMENT 4, for the same reason trapCsr does (see
+    # the note there) and with a sharper edge: `hpm-warl` reconciles the WRITE
+    # records and the CONFIGURATION registers' read-backs, and DELIBERATELY not
+    # the COUNTER values -- the RTL has real event counters and the reference
+    # hardwires them to zero, which is F1 and is the finding the amendment
+    # exists to expose.  A stream that reads mhpmcounter* therefore diverges BY
+    # CONSTRUCTION, and no amendment can or should change that.  Judgeable only
+    # under a constraint no generator currently enforces => B.
+    ('zihpm',      B, 'k0 §1.2/§3 + K2b: `hpm-warl` reconciles the HPM WRITE '
+                      'records and the mcountinhibit/mhpmevent read-backs, but '
+                      'a COUNTER read diverges by construction (real RTL event '
+                      'counters vs a hardwired zero -- finding F1), so the knob '
+                      'is judgeable only for streams that never read one'),
     ('zawrs',      A, 'k0 §1.2/§1.3c: RTL gate is ZAWRS *and* ATOMICS'),
     ('zabha',      A, 'k0 §1.2: `_zabha`, WITNESS amoadd.b'),
     ('zacas',      A, 'k0 §1.2: `_zacas`, WITNESS amocas.w'),

@@ -1,0 +1,35 @@
+# K2b amendment-4 lockstep list -- the KNOB-BEARING Zihpm test.
+#
+# ONE test, and it is the cheapest row of the four to set up: `extzihpm` is
+# RUNTIME-adaptive (it dispatches on whether counter 3 actually moves, so ONE
+# image serves both polarities) and it is ALREADY in the standing single-hart
+# list, where it is the 1 of the standing 104/1.
+#
+# THIS ROW IS EXPECTED TO DIVERGE, AND THAT IS ITS PASS CONDITION.  The K0
+# oracle probe §3.3 pre-registered the outcome before anything was built:
+#   * with ZIHPM OFF (every shipped config) the divergence is a record-KIND
+#     mismatch at the `csrw mhpmevent3` -- the standing D-2026-07-29-1;
+#   * with ZIHPM ON the mechanism INVERTS and gets worse: the RTL stores the
+#     full 32 bits and logs `C 323 00000001` where the reference WARLs to zero
+#     and logs `C 323 00000000`, and the follow-on read-back disagrees too;
+#   * `hpm-warl` reconciles BOTH of those -- and deliberately NOT the counter
+#     VALUES, because the RTL has real event counters (arbiter stall, grant,
+#     sleep, trap entry) and the reference hardwires them to zero.
+# So the row runs until `extzihpm.S:79`'s `csrr s2, mhpmcounter3` and diverges
+# there.  **That divergence is F1 -- the hpm counter values under the gated
+# clock -- becoming measurable for the FIRST time**, which the disposition
+# records as masked in every other configuration.  It is REPORT-NOT-FIX (K5).
+#
+# Note when reading it: `extzihpm`'s ON-arm assertions are TIMING-derived
+# (`:89` requires stalls > grants, `:98` requires strict growth), so the counter
+# values it reads are not reproducible by ANY reference model.  This is not a
+# gap in the amendment; it is what a hardware event counter IS.
+#
+# ELIGIBILITY: single-hart, TCM-resident (its bus hammer READS shared 0x10000,
+# which the reference models itself under BOOT_MEM -- no other master writes it,
+# so no A13 plants), no custom opcode, no MMIO write, normal RVTEST_PASS.
+#
+# Built by `make verify CONFIG=config/castalia_zihpm.json`.  Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zihpm_tests.txt
+# which gives the row its own RUN_KEY (`zihpm__h1__cosim_zihpm_tests`).
+xrv32ua-p-extzihpm.rcf
