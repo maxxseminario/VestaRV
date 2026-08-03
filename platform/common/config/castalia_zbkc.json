@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zbkc carryless multiply (clmul/clmulh; reuses the Zbc datapath). Prove with: SUITE=full make verify CONFIG=config/castalia_zbkc.json",
+  "chipName": "CastaliaZbkc",
+  "isa": { "zbkc": true }
+}

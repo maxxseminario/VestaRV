@@ -1,0 +1,28 @@
+# K4 (R-DK1 tier B, row B7) lockstep list -- the KNOB-BEARING Zabha tests.
+#
+# WHY A SEPARATE LIST. R-K2-7 (2): a knobs-on lockstep ROW is not knobs-on
+# lockstep COVERAGE. Every test below either lives in the ON-POLARITY-ONLY
+# `rv32uzabha` suite (which no OFF build can run at all -- gas 13.2 has no
+# `zabha` -march suffix, so the tests emit explicit `.insn` R-types and would
+# take an illegal-instruction trap on an OFF core) or dispatches on
+# `-DCORE_ENABLE_ZABHA` at build time. None of them can join the standing
+# `cosim_tests.txt`.
+#
+# ELIGIBILITY, CHECKED PER TEST RATHER THAN ASSUMED (the zicboz list's rule):
+#   * single-hart. All four are hart-0 directed and launch no tile.
+#   * no VestaRV custom opcode (iret/ignite/extinguish), no MMIO, no trap.
+#   * normal RVTEST_PASS spin.
+#
+# DELIBERATELY ABSENT, with the reason: `rv32ua-p-shzabha` and
+# `rv32ua-p-shmixw` both LAUNCH ALL THREE TILES (`bnez s10, tile_entry` after
+# `csrr mhartid`, then MP_LAUNCH_HART). Hart 0's stream then contains
+# shared-window loads written by OTHER masters, which the reference can only
+# follow through A13 plants -- and an unconsumed plant tail is the one failure
+# mode that design has. They are candidates for a later multi-hart or
+# plant-audited row, not for this one, and leaving them out is a scope
+# statement rather than a coverage claim: this list covers the byte/halfword
+# AMO ENCODINGS, not their cross-hart atomicity.
+xrv32ua-p-extzabha.rcf
+rv32uzabha-p-ops_b.rcf
+rv32uzabha-p-ops_h.rcf
+xxrv32uzabha-p-mis.rcf

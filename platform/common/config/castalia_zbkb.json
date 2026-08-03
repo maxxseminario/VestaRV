@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zbkb crypto bit-manip (pack/packh/brev8/zip/unzip). Prove with: SUITE=full make verify CONFIG=config/castalia_zbkb.json",
+  "chipName": "CastaliaZbkb",
+  "isa": { "zbkb": true }
+}

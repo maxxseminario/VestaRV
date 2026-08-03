@@ -1,0 +1,6 @@
+{
+  "_comment": "K4 R-DK1 tier-C row C3: compressed OFF, PAIRED WITH trapCsr (R-DK1 pairs them so the SHAPE_Q instruction-address-misaligned trap is recoverable). NOTE the infra hazard recorded as P-C3-2: COMPRESSED is excluded from DEFINE_KNOBS, so image_defines() emits no -DCORE_ENABLE_COMPRESSED and the .imgset digest does NOT distinguish a norvc image set from the default one -- this row needs its images built with an -march override and its imgset identity checked by hand. Prove with: SUITE=full make verify CONFIG=config/castalia_norvc.json",
+  "chipName": "CastaliaNorvc",
+  "isa": { "compressed": false },
+  "priv": { "trapCsr": true }
+}

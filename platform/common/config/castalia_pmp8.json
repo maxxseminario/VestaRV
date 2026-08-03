@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-A sub-row A3.8: A3 with PMP_ENTRIES=8 (the K0 oracle probe amendment carried into R-DK1). The CSR map stays the 16-entry superset; entries above the count are WARL all-zero -- pmpaddr8 is the row question K2 s13.4 left open. Prove with: SUITE=full make verify CONFIG=config/castalia_pmp8.json",
+  "chipName": "CastaliaPmp8",
+  "priv": { "trapCsr": true, "umode": true, "pmp": true, "pmpEntries": 8 }
+}

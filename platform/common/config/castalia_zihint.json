@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zihintpause+Zihintntl (PAUSE = 16-cycle arbiter-yield window). Prove with: SUITE=full make verify CONFIG=config/castalia_zihint.json",
+  "chipName": "CastaliaZihint",
+  "isa": { "zihint": true }
+}

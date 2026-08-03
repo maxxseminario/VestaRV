@@ -1,0 +1,46 @@
+# K4 (R-DK1 tier B, row B13) lockstep list -- the KNOB-BEARING Zbkc test.
+#
+# ONE cell, AND ITS EXISTENCE IS A CORRECTION TO THE RECORD. K4's session-1
+# prediction P4.2 recorded that `zbkc` has NO knob-bearing test in the tree
+# ("no extzbkc.S; clmul/clmulh are Zbc-shared") and that the row would
+# therefore be a plumbing control. The first half is true -- there is no
+# `extzbkc.S` -- but the conclusion was wrong: `rv32ui-p-zbk` carries a
+# `#if defined(CORE_ENABLE_ZBKC)` arm (:114-124) with two known-answer cases,
+# `clmul(3,5)==0xF` and `clmulh(0x80000000,2)==1`, and that arm is compiled
+# ONLY when this row's `-DCORE_ENABLE_ZBKC` is on the image build.
+#
+# WHAT THIS CELL DOES AND DOES NOT SHOW. Because `isa.bitmanip` is TRUE on this
+# row (it is a single-knob row over the Castalia defaults), Zbc is present and
+# the clmul/clmulh ENCODINGS are legal on both models with or without Zbkc. So
+# this cell proves the Zbkc arm's arithmetic is right and that the OR-gating
+# onto the Zbc datapath retires identically -- it does NOT isolate Zbkc as the
+# enabling extension. Isolating that needs `bitmanip=false ^ zbkc=true`, which
+# is not an R-DK1 row.
+#
+# ELIGIBILITY, CHECKED PER TEST RATHER THAN ASSUMED (the zicboz list's rule,
+# and the discipline K4-L1 cost when it was skipped once): every cell below was
+# screened on five hazards by reading the source, not by pattern-matching a
+# name -- (1) a counter CSR read (cycle/time/instret/mcycle/minstret), which the
+# two models can never agree on; (2) MMIO; (3) a VestaRV custom opcode
+# (iret/ignite/extinguish); (4) a tile launch or any other master writing the
+# shared window (which would need an A13 plant audit); (5) a deliberate trap.
+# Every cell here scored ZERO on all five. The screen was validated against a
+# known-nonzero: `rv32ua-p-extzawrs` scores 4 counter reads, 6 MMIO sites and
+# one `iret`, and is REFUSED by it -- which is why the zawrs row has NO
+# knob-bearing lockstep list at all (its only other candidate, `shwrs`, is
+# multi-hart). The `zihint` row is in the same position: its ONLY
+# CORE_ENABLE_ZIHINT-gated test in the whole tree is `shpause`, which is
+# multi-hart AND `harts_le4`-tagged. Those two rows are recorded as plumbing
+# controls with the reason, and deliberately have no file here -- an empty
+# TESTS_FILE would be a trap, not a document.
+#
+# EVERY sh* SIBLING IS DELIBERATELY ABSENT, and that is a SCOPE statement, not a
+# coverage claim: the sh* tests launch all three tiles, so hart 0's stream
+# carries shared-window loads written by other masters and the reference can
+# only follow them through A13 plants. This list covers the knob's ENCODINGS on
+# hart 0, and says nothing about their cross-hart behaviour.
+#
+# Built by `make verify CONFIG=config/castalia_zbkc.json` into that row's own
+# image set. Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zbkc_tests.txt
+xxxxxxrv32ui-p-zbk.rcf

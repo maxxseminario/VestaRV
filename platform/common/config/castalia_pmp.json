@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-A row A3: the P-ladder at its third rung. The ladder is CUMULATIVE (R-K4-1 (2)) and the generator enforces it anyway (priv.pmp requires priv.umode requires priv.trapCsr), so this config is trapCsr+umode+pmp with the default 16 entries. Prove with: SUITE=full make verify CONFIG=config/castalia_pmp.json",
+  "chipName": "CastaliaPmp",
+  "priv": { "trapCsr": true, "umode": true, "pmp": true }
+}

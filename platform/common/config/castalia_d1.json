@@ -1,0 +1,6 @@
+{
+  "_comment": "K4 R-DK1 tier-D row D1: the priv ladder plus the three state-bearing X3 knobs -- trapCsr+umode+pmp+zicboz+zcmp+zcmt. This is the ONLY row reaching the four sequencer PMP-deny arms (a cbo.zero whose block crosses a denied region; a cm.push whose frame does). Prove with: SUITE=full make verify CONFIG=config/castalia_d1.json",
+  "chipName": "CastaliaD1",
+  "isa": { "zicboz": true, "zcmp": true, "zcmt": true },
+  "priv": { "trapCsr": true, "umode": true, "pmp": true }
+}

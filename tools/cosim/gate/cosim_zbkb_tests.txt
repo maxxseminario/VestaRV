@@ -1,0 +1,39 @@
+# K4 (R-DK1 tier B, row B12) lockstep list -- the KNOB-BEARING Zbkb tests.
+#
+# TWO cells. `rv32ua-p-extzbkb`'s OFF arm is a terminal-trap POISON (an
+# unconditional `packh`), so only this list ever compares its ON arm.
+# `rv32ui-p-zbk` IS in the standing `cosim_tests.txt` (line 97) but with none of
+# CORE_ENABLE_ZBK* defined, i.e. with all three of its arms preprocessed away --
+# a green cell covering nothing, which is exactly the shape R-K2-7 (2) put on
+# the residue list. On this row it compiles its ZBKB arm (pack/packh/brev8/zip/
+# unzip plus the Zbb-shared andn/orn/xnor/rol/ror/rori/rev8 subset) with
+# known-answer vectors.
+#
+# ELIGIBILITY, CHECKED PER TEST RATHER THAN ASSUMED (the zicboz list's rule,
+# and the discipline K4-L1 cost when it was skipped once): every cell below was
+# screened on five hazards by reading the source, not by pattern-matching a
+# name -- (1) a counter CSR read (cycle/time/instret/mcycle/minstret), which the
+# two models can never agree on; (2) MMIO; (3) a VestaRV custom opcode
+# (iret/ignite/extinguish); (4) a tile launch or any other master writing the
+# shared window (which would need an A13 plant audit); (5) a deliberate trap.
+# Every cell here scored ZERO on all five. The screen was validated against a
+# known-nonzero: `rv32ua-p-extzawrs` scores 4 counter reads, 6 MMIO sites and
+# one `iret`, and is REFUSED by it -- which is why the zawrs row has NO
+# knob-bearing lockstep list at all (its only other candidate, `shwrs`, is
+# multi-hart). The `zihint` row is in the same position: its ONLY
+# CORE_ENABLE_ZIHINT-gated test in the whole tree is `shpause`, which is
+# multi-hart AND `harts_le4`-tagged. Those two rows are recorded as plumbing
+# controls with the reason, and deliberately have no file here -- an empty
+# TESTS_FILE would be a trap, not a document.
+#
+# EVERY sh* SIBLING IS DELIBERATELY ABSENT, and that is a SCOPE statement, not a
+# coverage claim: the sh* tests launch all three tiles, so hart 0's stream
+# carries shared-window loads written by other masters and the reference can
+# only follow them through A13 plants. This list covers the knob's ENCODINGS on
+# hart 0, and says nothing about their cross-hart behaviour.
+#
+# Built by `make verify CONFIG=config/castalia_zbkb.json` into that row's own
+# image set. Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zbkb_tests.txt
+xxrv32ua-p-extzbkb.rcf
+xxxxxxrv32ui-p-zbk.rcf

@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zcb extra compressed insns (needs isa.compressed, default true). Prove with: SUITE=full make verify CONFIG=config/castalia_zcb.json",
+  "chipName": "CastaliaZcb",
+  "isa": { "zcb": true }
+}
