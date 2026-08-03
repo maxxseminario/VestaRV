@@ -1,0 +1,5 @@
+{
+  "_comment": "K2b amendment-3 config: Castalia defaults + the P1 standard trap architecture (priv.trapCsr) ALONE -- the R-DK1 tier-B single-knob row. priv.umode would require trapCsr but not the reverse, so this is the smaller of the two privileged rows (castalia_umode.json is trapCsr+umode). The K2 harness derives -DCORE_ENABLE_TRAPCSR for this row's images from THIS file, so rocsrw.S / privecall.S / privcsr.S compile their ON arms. It is also the config that gates the comparator's `mret-csr` and `mtrap-t` amendments on (tools/cosim/oracle_isa.py::derive_amendments). READ THE ROW'S FINDING BEFORE USING IT FOR LOCKSTEP: reaching standard delivery at all requires software to clear mtrapctl.LEGACY, and mtrapctl (0x7C0) is a VestaRV CUSTOM CSR the unmodified reference treats as an illegal instruction -- so a trapCsr lockstep row diverges at the enabling instruction, before any mret or trap exists for the amendments to reconcile. See k2b_impl_report.md Part III (F-K2b-2). Prove the RTL side with: SUITE=full make verify CONFIG=config/castalia_trapcsr.json",
+  "chipName": "CastaliaTrapCsr",
+  "priv": { "trapCsr": true }
+}

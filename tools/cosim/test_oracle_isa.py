@@ -273,8 +273,15 @@ def test_amendments_are_config_gated():
     import amend
     check('default config derives NO amendment',
           O.derive_amendments(cfg()) == [])
-    check('isa.zfinx derives zfinx-fflags',
-          O.derive_amendments(cfg(isa={'zfinx': True})) == ['zfinx-fflags'])
+    # isa.zfinx owns TWO amendments since K2b amendment 3 (`fcsr-split` is
+    # gated by the Zfinx knob, not by trapCsr -- an fcsr write only exists on a
+    # build that has the F CSRs at all), and the order is AMENDMENTS' order.
+    check('isa.zfinx derives zfinx-fflags AND fcsr-split, in canonical order',
+          O.derive_amendments(cfg(isa={'zfinx': True}))
+          == ['zfinx-fflags', 'fcsr-split'])
+    check('priv.trapCsr derives BOTH of its amendments',
+          O.derive_amendments(cfg(priv={'trapCsr': True}))
+          == ['mret-csr', 'mtrap-t'])
     # Every amendment's gate predicate must name a key the resolved config
     # actually has -- a typo would silently make the amendment underivable,
     # i.e. permanently off, which reads exactly like "it never fires".

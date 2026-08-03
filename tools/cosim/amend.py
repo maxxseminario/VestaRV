@@ -24,10 +24,27 @@ and only on a configuration whose resolved config turns the owning knob on.
                                               the DATA port (state ZCM_JT_LD) --
                                               one `M L` the reference never logs
                                               (k0 oracle probe §1.3e)
+    priv.trapCsr    mret-csr                  `mret` is THREE reference `C`
+                                              records (300 mstatus, 310
+                                              mstatush, 7a5 tcontrol) and ONE
+                                              RTL one: the latter two CSRs do
+                                              not exist in the VestaRV map
+                                              (k0 oracle probe §1.3i)
+    priv.trapCsr    mtrap-t                   a STANDARD-delivery trap emits an
+                                              RTL `T`; the reference's commit
+                                              log carries no trap information at
+                                              all (RECORD_FORMAT §4), so both
+                                              sides execute the handler and only
+                                              the `T` itself misaligns
+                                              [R-K2b-2 (2)]
+    isa.zfinx       fcsr-split                one RTL `C 003` fcsr write is TWO
+                                              reference records, `C 001` fflags
+                                              + `C 002` frm (k0 oracle probe
+                                              §1.3h)
 
-(The K2b spec's amendments 3-4 -- the TRAPCSR C-record allowlist and the ZIHPM
-WARL allowlist -- land in their own commits and extend the table above.  One
-amendment, one commit, one set of default-config pins.)
+(The K2b spec's amendment 4 -- the ZIHPM WARL allowlist -- lands in its own
+commit and extends the table above.  One amendment, one commit, one set of
+default-config pins.)
 
 WHERE A NEW RULE BELONGS, AND WHY IT MATTERS (the A17 acceptance lesson).
 `--count` measures the RTL window AFTER `rtl_prepass` and its number is fed
@@ -61,6 +78,8 @@ Stdlib only.  Python 3.6 syntax only.
 
 from __future__ import print_function
 
+from records import Rec
+
 
 class AmendError(Exception):
     """An amendment name the comparator does not implement."""
@@ -79,6 +98,15 @@ AMENDMENTS = (
     ("cmjt-load", "isa.zcmt",
      "drop the single `M L` table load of a `cm.jt`/`cm.jalt` retire, bounded "
      "by addr == jvt + 4*index"),
+    ("mret-csr", "priv.trapCsr",
+     "drop the reference-only `C 310` (mstatush) and `C 7a5` (tcontrol) records "
+     "of an `mret` retire"),
+    ("mtrap-t", "priv.trapCsr",
+     "drop the RTL `T` of a STANDARD-delivery trap, bounded by "
+     "pc(next retire) == mtvec tracked from the stream's own `C 305`"),
+    ("fcsr-split", "isa.zfinx",
+     "rewrite the RTL's single `C 003` fcsr write into the reference's "
+     "`C 001` + `C 002` decomposition"),
 )
 
 AMENDMENT_NAMES = tuple(n for (n, _p, _d) in AMENDMENTS)
@@ -171,6 +199,40 @@ def cm_jt_index(insn):
     if (w & CMJT_MASK) != CMJT_MATCH:
         return None
     return (w >> 2) & 0xff
+
+
+# SYSTEM opcode (0x73) with a nonzero funct3 is a CSR instruction.
+def csr_access(insn):
+    """(csr_addr:int, writes:bool) for a 32-bit CSR instruction, else None.
+
+    `writes` follows the architecture: csrrw/csrrwi always write; csrrs/csrrc
+    (and their immediate forms) write only when rs1/uimm is nonzero -- the same
+    rule `csr_unit.vhd`'s `csr_write_en` implements since P3-entry.
+    """
+    w = _word(insn)
+    if w is None or len(insn) != 8:
+        return None
+    if (w & 0x7f) != 0x73:
+        return None
+    f3 = (w >> 12) & 7
+    if f3 == 0:
+        return None                      # ecall/ebreak/mret/wfi/sfence
+    rs1 = (w >> 15) & 0x1f
+    writes = (f3 & 3) == 1 or rs1 != 0
+    return ((w >> 20) & 0xfff, writes)
+
+
+def is_mret(insn):
+    """`mret` = 0x30200073 exactly (funct3=0 SYSTEM, funct12=0x302)."""
+    return _word(insn) == 0x30200073
+
+
+# The A8 legacy trap sentinel.  `mtrap-t` NEVER touches it: it is the ISR
+# bracket delimiter (`mk_inject.py`'s opener) and it means "the legacy vectored
+# path", which the reference cannot model at all and which the bracket channel
+# already owns.  This amendment is only about the STANDARD delivery a TRAPCSR
+# build in `std_mode` uses, where BOTH sides take the architectural exception.
+LEGACY_TRAP_CAUSE = "8000007f"
 
 
 def cboz_shape_ok(stores):
@@ -267,6 +329,7 @@ def rtl_prepass(recs, am):
     i = 0
     fflags = 0                 # the RTL's fflags state, tracked from the stream
     jvt = 0                    # the RTL's jvt, likewise (its own `C 017`)
+    mtvec = 0                  # ... and its mtvec, from its own `C 305`
     while i < n:
         r = recs[i]
         # `fflags` must hold the state BEFORE this record for the candidate
@@ -287,6 +350,83 @@ def rtl_prepass(recs, am):
                 # a drop is checked against is tracked from the stream being
                 # amended, never from the reference and never from a literal.
                 jvt = v
+            elif v is not None and r.f[0] == "305":
+                mtvec = v
+
+        # -- mtrap-t: the `T` of a STANDARD-delivery trap [R-K2b-2 (2)] --------
+        # A TRAPCSR build in std_mode takes an ARCHITECTURAL exception that the
+        # reference takes too, at the same pc, and both then execute the same
+        # handler out of the same memory.  The only misalignment is the RTL `T`
+        # itself, which the reference's commit log has no counterpart for
+        # (RECORD_FORMAT §4).  So the `T` is dropped -- and ONLY when the RTL
+        # really did vector to mtvec, which is the bound.
+        #
+        # WHAT THE BOUND PROTECTS AGAINST, both directions:
+        #   * the LEGACY sentinel is excluded by cause, above: that path is the
+        #     bracket channel's and must keep its meaning;
+        #   * a TERMINAL trap (`vesta_tracer.vhd`: `next_state = ST_TRAP_STATE`)
+        #     also emits a non-legacy `T`, and TRAP_STATE self-loops, so there is
+        #     NO next retire at all -- the bound fails and the `T` is reported.
+        #     That case matters: a terminal trap is a wedged hart, and an
+        #     amendment that swallowed it would hide the loudest failure the
+        #     tracer has.
+        # WHAT IT DOES NOT GIVE AWAY (and it belongs in the record): mcause,
+        # mepc and mtval stay COMPARED -- through the handler's own `csrr`
+        # retires' rdval, which is a stronger check than the uncompared `T`
+        # fields.  And an RTL-only spurious trap still surfaces ONE RECORD LATER
+        # as a pc mismatch, because the reference did not go to the handler.
+        if r.kind == "T" and am.enabled("mtrap-t"):
+            if r.f[0] != LEGACY_TRAP_CAUSE:
+                nxt = None
+                for k in range(i + 1, n):
+                    if recs[k].kind == "R":
+                        nxt = recs[k]
+                        break
+                land = nxt.f[0] if nxt is not None else None
+                # `MTRAP_JUMP` loads mtvec.BASE&"00" (the RTL pins MODE to 00),
+                # and the trace's `C 305` carries the value the write REQUESTED
+                # (csr_unit.vhd:1189-1193's documented approximation), so the
+                # comparison is against the BASE, not the raw word.
+                want = "%08x" % (mtvec & 0xfffffffc)
+                if land is not None and land == want:
+                    am.bump("mtrap-t", r.f[0])
+                    i += 1
+                    continue
+                am.refuse("mtrap-t", r.lineno,
+                          "trap cause=%s epc=%s: the next retire is at pc=%s "
+                          "but mtvec.BASE (from this stream's own `C 305`) is "
+                          "%s -- the T is KEPT and reported"
+                          % (r.f[0], r.f[1], land or "<none: no retire "
+                             "follows, i.e. a TERMINAL trap>", want))
+
+        # -- fcsr-split: one RTL `C 003` becomes the reference's two records ---
+        # Measured (k0 oracle probe §1.3h): `csrw fcsr,t0` with t0=7 logs
+        # `c1_fflags 0x00000007 c2_frm 0x00000000` on the reference and a single
+        # `C 003 00000007` on the RTL side, whose csr_unit write arm is one
+        # assignment (`fp_csr <= csr_new_val(7 downto 0)`).  Architectural state
+        # AGREES; only the record shape differs, so this rule REWRITES rather
+        # than drops -- both halves stay compared, at their reference values.
+        # Bounded by the owning retire being an explicit CSR WRITE to 0x003, so
+        # a `C 003` arriving from anywhere else is left alone and reported.
+        if (r.kind == "C" and r.f[0] == "003" and am.enabled("fcsr-split")
+                and "x" not in r.f[1]):
+            owner = _owning_retire(recs, i)
+            acc = csr_access(owner.f[1]) if owner is not None else None
+            v = _word(r.f[1])
+            if acc is not None and acc[0] == 0x003 and acc[1] and v is not None:
+                out.append(Rec("C", r.hart, r.cycle,
+                               ("001", "%08x" % (v & 0x1f)), r.lineno,
+                               r.source, r.has_x))
+                out.append(Rec("C", r.hart, r.cycle,
+                               ("002", "%08x" % ((v >> 5) & 0x7)), r.lineno,
+                               r.source, r.has_x))
+                am.bump("fcsr-split", "%08x" % v)
+                i += 1
+                continue
+            am.refuse("fcsr-split", r.lineno,
+                      "a `C 003` whose owning retire is %s is not an explicit "
+                      "fcsr write -- left alone"
+                      % (owner.f[1] if owner is not None else "<none>"))
 
         if (r.kind == "C" and r.f[0] == "001" and am.enabled("zfinx-fflags")
                 and "x" not in r.f[1]):
@@ -366,6 +506,59 @@ def _owning_retire(recs, i):
             return None
         k -= 1
     return None
+
+
+# --------------------------------------------------------------------------
+# the REFERENCE-side pre-pass
+# --------------------------------------------------------------------------
+
+def spike_prepass(recs, am):
+    """Apply every reference-side amendment.  Returns a NEW list.
+
+    THIS IS THE ONLY PLACE ANY AMENDMENT TOUCHES THE REFERENCE STREAM, and the
+    asymmetry is deliberate: a rule here removes records the RTL is not
+    expected to have, so it can only ever make the reference SMALLER, never
+    invent one.  It runs after the RTL prepass and never reads the RTL stream,
+    for the same reason `rtl_prepass` never reads this one -- a drop must not be
+    talked into existence by the thing it is checked against.
+
+    Note for `--count`/`--max-records`: the bound is on RTL WINDOW POSITION, so
+    a reference-side drop cannot part the two numbers the way a walk-level rule
+    can (the A17 acceptance defect).  Nothing here needs that machinery.
+    """
+    if not am.names or not am.enabled("mret-csr"):
+        return recs
+    out = []
+    for i, r in enumerate(recs):
+        if r.kind == "C" and r.f[0] in ("310", "7a5"):
+            # THE ADDRESS IS 0x7a5, AND THE FROZEN SPEC SAYS 0x7a1.  The spec
+            # inherited "{0x310 mstatush, 0x7a1 tcontrol}" from the K0 oracle
+            # probe §1.3i's PROSE, which contradicts the MEASUREMENT printed two
+            # lines above it in the same section: `c1957_tcontrol`, and
+            # 1957 = 0x7a5 (0x7a1 is tdata1, a different debug CSR).  Re-measured
+            # on the reference this wave -- an `mret` from reset logs
+            #   c768_mstatus 0x00001880  c784_mstatush 0x0  c1957_tcontrol 0x0
+            # -- and the unit fixture built from that verbatim line is what
+            # caught it.  The datum beats the prose; the spec is corrected by
+            # this measurement, not worked around.
+            #
+            # BOUNDED TO THE `mret` RETIRE, not to the address.  0x310 mstatush
+            # and 0x7a5 tcontrol simply do not exist in the VestaRV CSR map, so
+            # the reference logging them at an `mret` is the measured shape
+            # (k0 §1.3i) -- but a reference `C 310` owned by anything else would
+            # be a record about an instruction the RTL executed too, and it stays
+            # in the comparison where it can be seen.
+            owner = _owning_retire(recs, i)
+            if owner is not None and is_mret(owner.f[1]):
+                am.bump("mret-csr", "C %s" % r.f[0])
+                continue
+            am.refuse("mret-csr", r.lineno,
+                      "a reference `C %s` whose owning retire is %s is NOT an "
+                      "mret -- kept, because the allowlist is bounded to the "
+                      "mret retire and nothing else"
+                      % (r.f[0], owner.f[1] if owner is not None else "<none>"))
+        out.append(r)
+    return out
 
 
 # --------------------------------------------------------------------------

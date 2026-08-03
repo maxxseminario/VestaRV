@@ -1364,6 +1364,10 @@ def main(argv):
     # (zfinx-fflags) only MARKS here and decides in the walk.
     if am.names:
         rtl = amend.rtl_prepass(rtl, am)
+        # The reference side is amended AFTER the RTL side and reads nothing
+        # from it (amend.py explains why the two passes are independent). It
+        # cannot affect `--count`, which reports the RTL window.
+        spk = amend.spike_prepass(spk, am)
     info["amend"] = am
     info["x_post"] = sum(1 for r in rtl if r.has_x)
 
