@@ -27,6 +27,33 @@ if [ "$#" -eq 0 ]; then
 fi
 
 BASE_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
+
+# --- K2/G3: ON-POLARITY DEFINES -----------------------------------------------
+# EXTRA_GCC_DEFINES carries the config's `-DCORE_ENABLE_*` list, derived by
+# platform/common/python/verify_stage.py from ONE resolved config and checked
+# against the staged MemoryMap.vhd before this script is ever called.
+#
+# This closes the defect `tests/rv32ua/extprobe_template.S` names as its FIRST
+# build-order trap, in those words: "build_mp_images.sh hardcodes its own
+# RISCV_GCC_OPTS -- it DROPS any -DCORE_ENABLE_* from an earlier make". It did,
+# and the consequence was that no `make verify` could ever produce an ON-polarity
+# image: a zicboz:true config ran shcboz.S's #else arm and reported PASS.
+#
+# The template's SECOND trap -- "base images FIRST, then the ON suite rebuild on
+# top" -- is handled by the caller ordering GROUPS base-first (verify_stage's
+# test_groups); this script builds the list it is given, in order.
+#
+# NOTE what is deliberately NOT done here: this script does NOT read
+# core_features.h or any make-chip product. The ISA Makefile's refusal to
+# auto-derive the polarity stands; the defines arrive EXPLICITLY, from a caller
+# that has already proven them equal to the staged RTL's own constants.
+EXTRA_GCC_DEFINES="${EXTRA_GCC_DEFINES:-}"
+GCC_OPTS="$BASE_OPTS -DNHARTS=$NH"
+[ -n "$EXTRA_GCC_DEFINES" ] && GCC_OPTS="$GCC_OPTS $EXTRA_GCC_DEFINES"
+# The identity recorded in the image set's `.imgset` stamp. Defaulted here so a
+# hand invocation still leaves a truthful record instead of none.
+IMGSET_IDENTITY="${IMGSET_IDENTITY:-NHARTS=$NH DEFINES=${EXTRA_GCC_DEFINES:-(none)}}"
+
 cd "$(dirname "$0")"
 
 # --- rcf/ TRANSIT PROTECTION (K1, from the K0 harness probe's G4 finding) -----
@@ -66,6 +93,13 @@ if [ "$OUT_OF_TREE" = 1 ]; then
             cp -p rcf/.nharts "$RCF_SNAP"/.nharts
             RCF_PRE_STAMP="$(cat rcf/.nharts)"
         fi
+        # K2/G3: .imgset joins the snapshot for the SAME reason .nharts did.
+        # Nothing in an out-of-tree build writes rcf/.imgset today, so this is
+        # currently belt-and-braces -- but the K1 design note is "stamp and
+        # images move together or not at all", and a polarity record left
+        # behind by images that were restored under it would be the exact
+        # fail-safe inversion that note exists to prevent.
+        [ -f rcf/.imgset ] && cp -p rcf/.imgset "$RCF_SNAP"/.imgset
     fi
     echo "  rcf/ snapshot: $(ls "$RCF_SNAP"/*.rcf 2>/dev/null | wc -l) rcf, .nharts=$RCF_PRE_STAMP -> $RCF_SNAP"
 fi
@@ -74,9 +108,10 @@ restore_rcf() {                     # idempotent; called explicitly AND by trap
     [ -n "$RCF_SNAP" ] || return 0
     if [ -d "$RCF_SNAP" ]; then
         mkdir -p rcf
-        rm -f rcf/*.rcf rcf/.nharts
+        rm -f rcf/*.rcf rcf/.nharts rcf/.imgset
         cp -p "$RCF_SNAP"/*.rcf rcf/ 2>/dev/null || true
         if [ -f "$RCF_SNAP/.nharts" ]; then cp -p "$RCF_SNAP/.nharts" rcf/.nharts; fi
+        if [ -f "$RCF_SNAP/.imgset" ]; then cp -p "$RCF_SNAP/.imgset" rcf/.imgset; fi
         rm -rf "$RCF_SNAP"
     fi
     RCF_SNAP=""
@@ -85,11 +120,13 @@ restore_rcf() {                     # idempotent; called explicitly AND by trap
 trap restore_rcf EXIT
 
 echo "=== build_mp_images: NHARTS=$NH  dest=$DEST  groups=[$*] ==="
+echo "    RISCV_GCC_OPTS=$GCC_OPTS"
+echo "    imgset identity=$IMGSET_IDENTITY"
 rm -rf build/                       # force full rebuild (header-dep gotcha)
 
 for g in "$@"; do
     echo "--- ${g}-flash (NHARTS=$NH) ---"
-    make "${g}-flash" RISCV_GCC_OPTS="$BASE_OPTS -DNHARTS=$NH"
+    make "${g}-flash" RISCV_GCC_OPTS="$GCC_OPTS"
 done
 
 # DEST == rcf/ guard (M19 war story): make already populates rcf/ during the
@@ -115,6 +152,12 @@ if [ "$OUT_OF_TREE" = 1 ]; then
 fi
 # .nharts = the TRUTH of what each dir currently holds (runners guard on it).
 echo "$NH" > "$DEST/.nharts"
+# K2/G3: .imgset = the FULL polarity truth, which .nharts alone never carried.
+# The K0 harness probe's §3.6 named exactly this gap: the image sets are
+# "rebuildable (2-4 min) but ONLY if the exact RISCV_GCC_OPTS polarity is known,
+# which is nowhere recorded". Now it is recorded, next to the images it
+# describes, and verify.sh refuses to reuse a set whose identity disagrees.
+echo "$IMGSET_IDENTITY" > "$DEST/.imgset"
 restore_rcf                         # out-of-tree only; no-op for an in-tree build
 
 # --- READ-BACK ASSERTION -----------------------------------------------------
@@ -138,5 +181,13 @@ if [ "$RB_FAIL" != 0 ]; then
     echo "       ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf" >&2
     exit 2
 fi
+GOT_IMGSET="$(cat "$DEST/.imgset" 2>/dev/null || echo "<absent>")"
+if [ "$GOT_IMGSET" != "$IMGSET_IDENTITY" ]; then
+    echo "FATAL: $DEST/.imgset reads '$GOT_IMGSET', expected '$IMGSET_IDENTITY'" >&2
+    echo "       An image set whose polarity record is wrong is worse than one" >&2
+    echo "       with no record: verify.sh would REUSE it as the wrong polarity." >&2
+    exit 2
+fi
 echo "  read-back OK: $DEST/.nharts=$GOT_DEST  rcf/.nharts=$GOT_RCF"
+echo "                $DEST/.imgset=$GOT_IMGSET"
 echo "=== done: $(ls "$DEST"/*.rcf | wc -l) rcf files in $DEST (NHARTS=$NH) ==="

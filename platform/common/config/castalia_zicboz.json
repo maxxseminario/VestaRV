@@ -1,0 +1,5 @@
+{
+  "_comment": "K2 acceptance-D config: Castalia defaults + Zicboz (cbo.zero) enabled. The K2 harness derives -DCORE_ENABLE_ZICBOZ for this row's images from THIS file, so shcboz.S compiles its ON arm. Prove with: make verify CONFIG=config/castalia_zicboz.json",
+  "chipName": "CastaliaZicboz",
+  "isa": { "zicboz": true }
+}
