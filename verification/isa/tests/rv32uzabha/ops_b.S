@@ -1,7 +1,7 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# amoops_b.S  (X2 Zabha directed suite — all nine byte AMOs)
+# ops_b.S      (X2 Zabha directed suite — all nine byte AMOs)
 #-----------------------------------------------------------------------------
 # Directed functional check of every Zabha byte AMO (funct3=000): rd receives
 # the SIGN-EXTENDED old byte, memory's byte lane gets the truncated result, and

@@ -1,12 +1,12 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# amoops_h.S  (X2 Zabha directed suite — halfword AMOs, both lanes)
+# ops_h.S      (X2 Zabha directed suite — halfword AMOs, both lanes)
 #-----------------------------------------------------------------------------
 # Directed functional check of Zabha halfword AMOs (funct3=001): rd receives the
 # SIGN-EXTENDED old halfword, memory's addressed half gets the truncated result,
 # and the OTHER half stays intact. Exercises half0 (addr+0) and half1 (addr+2).
-# ON-POLARITY ONLY. Encodings via `.insn` (see amoops_b.S header).
+# ON-POLARITY ONLY. Encodings via `.insn` (see ops_b.S header).
 #*****************************************************************************
 
 #include "riscv_test.h"
