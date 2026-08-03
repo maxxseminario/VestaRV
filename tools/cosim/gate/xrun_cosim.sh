@@ -154,9 +154,47 @@ KEEP=${KEEP:-0}
 PY36=/usr/bin/python3.6           # invariant 6: never bare python3 (aoj_cal)
 SPIKE_ENV="$HOME/local/spike_env.sh"
 
-# The frozen Spike recipe (v0_report.md §5-§7). Do not "improve" these.
-SPIKE_ISA="rv32imac_zicsr_zba_zbb_zbs_zbc"
-SPIKE_MEM="0x8000:0x18000"
+# ---------------------------------------------------------------------------
+# K2 ACCEPTANCE B (2026-08-03): THE REFERENCE RECIPE IS NOW DERIVED.
+#
+# These four were the frozen V0 literals (v0_report.md §5-§7), and the comment
+# above them said "Do not improve these". That instruction was RIGHT for the
+# whole V/W/S era -- an unreviewed edit to the reference recipe silently changes
+# what the gate means -- and it is now SUPERSEDED, not ignored: the recipe is
+# derived from ONE resolved config by a tracked, unit-tested function
+# (tools/cosim/oracle_isa.py, 58/58) and every value it produces was compared
+# against the literal it replaces before the switch-on.
+#
+# EXACTLY TWO THINGS MOVE at this switch-on, and BOTH are applied to BOTH sides
+# of the identity gate, so the gate's EQUALITY must still hold:
+#   1. `_zicntr` joins the --isa string.  The RTL admits cycle/time/instret
+#      UNCONDITIONALLY -- there is no ENABLE_COUNTERS generic in vesta.vhd at
+#      all -- so the old string described a chip that does not exist.
+#   2. vesta_ref is given --pmpregions, ending an asymmetry that was already
+#      there: stock spike has been invoked with --pmpregions=0 since V2 while
+#      vesta_ref ran at cfg_t's 16.  Harmless only while nothing compared
+#      touched a PMP CSR; load-bearing the moment a PMP row is compared.
+# SPIKE_MEM and BOOT_MEM are ALSO derived now, and they derive to the SAME
+# literals on this config (the derivation is checked against them by the unit
+# test) -- so they are not a third moving part here, but they stop being wrong
+# on Argus, where the hardcoded SPIKE_MEM was short by 64 KiB.
+#
+# NO SILENT FALLBACK. If the derivation cannot run, this script DIES. A fallback
+# to the old literals would reintroduce exactly the failure this closes: a run
+# that looks like a config's gate while modelling a different chip.
+# ---------------------------------------------------------------------------
+ORACLE_ISA_PY="$ROOT/tools/cosim/oracle_isa.py"
+COSIM_CONFIG="${COSIM_CONFIG:-$ROOT/platform/common/config/ChipConfig.resolved.json}"
+[ -f "$ORACLE_ISA_PY" ] || { echo "FATAL: $ORACLE_ISA_PY missing" >&2; exit 1; }
+[ -f "$COSIM_CONFIG" ] || { echo "FATAL: no resolved config at $COSIM_CONFIG
+       Run \`make -C platform/common generate\` first, or set COSIM_CONFIG." >&2; exit 1; }
+_ORACLE="$("$PY36" "$ORACLE_ISA_PY" "$COSIM_CONFIG" --hdl-root "$ROOT/hdl/common" --shell)" \
+    || { echo "FATAL: oracle derivation failed for $COSIM_CONFIG" >&2; exit 1; }
+eval "$_ORACLE"
+: "${SPIKE_ISA:?oracle derivation produced no SPIKE_ISA}"
+: "${SPIKE_MEM:?oracle derivation produced no SPIKE_MEM}"
+: "${SPIKE_PRIV:?oracle derivation produced no SPIKE_PRIV}"
+: "${SPIKE_PMPREGIONS:?oracle derivation produced no SPIKE_PMPREGIONS}"
 
 # ---------------------------------------------------------------------------
 # V3: THE REFERENCE MODEL IS PLUGGABLE.
@@ -192,6 +230,10 @@ IDENTITY_ELF="${IDENTITY_ELF:-$ISA_DIR/build/rv32ui/rv32ui-p-add}"
 # ---------------------------------------------------------------------------
 COSIM_BOOT=${COSIM_BOOT:-0}
 BOOT_ROM="${BOOT_ROM:-$HOME/vestarv/software/bootrom_mp/bin/rom.rcf}"
+# K2 acceptance B: BOOT_MEM is DERIVED above (from SH_AW) and this `:-` default
+# is therefore dead on any run that reaches here. Kept as the documented shape
+# and as the fallback for an explicit `BOOT_MEM=` override, NOT as a value the
+# script chooses for itself.
 BOOT_MEM=${BOOT_MEM:-0x0:0x20000}
 BOOT_ENTRY=0x00000000
 # Amendment A9 / ruling A2: the two known benign boot X-reads. '*' = the FIRST
@@ -425,6 +467,37 @@ if [ -f "$HERE/../rcf/.nharts" ]; then
     NH="$(cat "$HERE/../rcf/.nharts")"
     [ "$NH" = "4" ] || die "../rcf/.nharts = $NH (expected 4). Rebuild with
        verification/isa/build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
+fi
+# K2 acceptance B: THE RESOLVED CONFIG IS A GLOBAL SLOT WITH NO LOCK.
+# platform/common/config/ChipConfig.resolved.json holds whatever the LAST
+# `make generate` wrote -- a `make verify CONFIG=argus` leaves Argus there, and
+# the K0 inventory probe §6a recorded exactly that state arising by accident.
+# Deriving the reference recipe from it therefore needs the file to be checked
+# against the images this gate actually runs, not trusted. Two cross-checks,
+# both cheap, both fatal:
+CFG_NHARTS="$("$PY36" -c 'import json,sys; print(json.load(open(sys.argv[1]))["numHarts"])' \
+              "$COSIM_CONFIG" 2>/dev/null)" || die "cannot read numHarts from $COSIM_CONFIG"
+[ "$CFG_NHARTS" = "4" ] || die "the resolved config at
+       $COSIM_CONFIG
+       has numHarts=$CFG_NHARTS, but this gate runs the N=4 image set and is
+       nailed to four harts. The reference recipe would describe a DIFFERENT
+       CHIP from the one being simulated. Re-run \`make -C platform/common
+       generate\` (no CONFIG=) to restore the default, or point COSIM_CONFIG at
+       the right resolved config."
+# ...and the IMAGE POLARITY the recipe assumes. rcf/.imgset is written by
+# build_mp_images.sh and seeded by verify.sh (K2/G3). The reference's ELFs are
+# built by ensure_elf at DEFAULT RISCV_GCC_OPTS, so a knobs-on image set here
+# would compare ON-polarity images against OFF-polarity reference ELFs.
+if [ -f "$HERE/../rcf/.imgset" ]; then
+    IMGSET_HAVE="$(cat "$HERE/../rcf/.imgset")"
+    case "$IMGSET_HAVE" in
+        *"DEFINES=(none)"*) ;;
+        *) die "../rcf/.imgset = '$IMGSET_HAVE'
+       This gate's reference ELFs are built by ensure_elf at DEFAULT
+       RISCV_GCC_OPTS, so it can only compare an image set built with NO
+       -DCORE_ENABLE_*. A knobs-on lockstep row needs the G7 ensure_elf
+       threading (K2 item 4, closing commit) before it can run here." ;;
+    esac
 fi
 [ -f "$SPIKE_ENV" ] || die "$SPIKE_ENV missing (V0 deliverable)"
 
@@ -821,7 +894,7 @@ ref_invoke() {
       spike)
         (
             source "$SPIKE_ENV"
-            spike --isa="$SPIKE_ISA" --priv=m --pmpregions=0 -m"$SPIKE_MEM" \
+            spike --isa="$SPIKE_ISA" --priv="$SPIKE_PRIV" --pmpregions="$SPIKE_PMPREGIONS" -m"$SPIKE_MEM" \
                   --disable-dtb --pc="$entry" --log-commits \
                   --instructions="$bound" --log="$clog" "$elf"
         ) > "$olog" 2>&1 ;;
@@ -833,12 +906,12 @@ ref_invoke() {
                 "$VESTA_REF" cosim --rom "$BOOT_ROM" --rom-base 0x0 \
                       --rom-format rcf --pc 0x0 \
                       --mem "$BOOT_MEM" --mmio "$MMIO_WIN" \
-                      --isa "$SPIKE_ISA" --priv m "${hidargs[@]}" \
+                      --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" --pmpregions "$SPIKE_PMPREGIONS" "${hidargs[@]}" \
                       --instructions "$bound" --inject "$inj" "${bkargs[@]}" --log "$clog"
             else
                 "$VESTA_REF" cosim --elf "$elf" --pc "$entry" \
                       --mem "$SPIKE_MEM" --mmio "$MMIO_WIN" \
-                      --isa "$SPIKE_ISA" --priv m "${hidargs[@]}" \
+                      --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" --pmpregions "$SPIKE_PMPREGIONS" "${hidargs[@]}" \
                       --instructions "$bound" --inject "$inj" "${bkargs[@]}" --log "$clog"
             fi
         ) > "$olog" 2>&1 ;;
@@ -899,11 +972,12 @@ identity_gate() {
     local ient; ient="$("$READELF" -h "$IDENTITY_ELF" | awk '/Entry point address:/ {print $NF}')"
     (
         source "$SPIKE_ENV"
-        spike --isa="$SPIKE_ISA" --priv=m --pmpregions=0 -m"$SPIKE_MEM" \
+        spike --isa="$SPIKE_ISA" --priv="$SPIKE_PRIV" --pmpregions="$SPIKE_PMPREGIONS" -m"$SPIKE_MEM" \
               --log-commits --instructions=$(( IDENTITY_N + 5 )) \
               --log="$g/stock.log" "$IDENTITY_ELF"
         "$VESTA_REF" identity --elf "$IDENTITY_ELF" --pc "$ient" \
-              --mem "$SPIKE_MEM" --isa "$SPIKE_ISA" --priv m \
+              --mem "$SPIKE_MEM" --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" \
+              --pmpregions "$SPIKE_PMPREGIONS" \
               --instructions "$IDENTITY_N" --quiet --log "$g/ref.log"
     ) > "$g/gate.out" 2>&1
     tail -n +6 "$g/stock.log" | head -"$IDENTITY_N" > "$g/stock.cut"
@@ -1609,11 +1683,12 @@ echo "==========================================================================
 if [ "$REF_MODE" = vesta_ref ]; then
 echo "  reference : vesta_ref (simif_t harness on pinned UNPATCHED libriscv)"
 echo "              $VESTA_REF"
-echo "              --isa=$SPIKE_ISA --priv=m --mem $SPIKE_MEM --mmio $MMIO_WIN"
+echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS"
+echo "              --mem $SPIKE_MEM --mmio $MMIO_WIN"
 echo "              --pc=<elf entry> --inject <per-test> --instructions=<rtl+$SPIKE_SLACK>"
 else
 echo "  reference : stock spike (V2 A/B control)"
-echo "              --isa=$SPIKE_ISA --priv=m --pmpregions=0 -m$SPIKE_MEM"
+echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS -m$SPIKE_MEM"
 echo "              --disable-dtb --pc=<elf entry> --log-commits --instructions=<rtl+$SPIKE_SLACK>"
 fi
 echo "  injector  : $MK_INJECT (ordered replay, amendment A6)"
@@ -1736,8 +1811,8 @@ SWEEP_T1=$(date +%s)
 # ── collect ───────────────────────────────────────────────────────────────────
 {
   printf '# xrun_cosim.sh results — %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
-  printf '# reference: REF_MODE=%s  isa=%s priv=m mem=%s mmio=%s  instructions=<rtl+%s>\n' \
-         "$REF_MODE" "$SPIKE_ISA" "$SPIKE_MEM" "$MMIO_WIN" "$SPIKE_SLACK"
+  printf '# reference: REF_MODE=%s  isa=%s priv=%s pmpregions=%s mem=%s mmio=%s  instructions=<rtl+%s>\n' \
+         "$REF_MODE" "$SPIKE_ISA" "$SPIKE_PRIV" "$SPIKE_PMPREGIONS" "$SPIKE_MEM" "$MMIO_WIN" "$SPIKE_SLACK"
   printf '# injector : %s (ordered MMIO replay, amendment A6; entry-aligned)\n' "$MK_INJECT"
   printf '# comparator: %s (two-pass: --count --quiet, then --max-records N)\n' "$COMPARE_PY"
   printf '# harts    : COSIM_HARTS=%s  -> ONE ROW PER (test,HART); %d test(s) x %d hart(s) = %d cell(s)\n' \
