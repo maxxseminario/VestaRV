@@ -1,0 +1,9 @@
+../rcf/xxrv32ua-p-privpmp.rcf
+../rcf/rv32ua-p-privpmpmx.rcf
+../rcf/rv32ua-p-privpmpcs.rcf
+../rcf/xxrv32ua-p-privcsr.rcf
+../rcf/rv32ua-p-privumode.rcf
+../rcf/xrv32ua-p-privucsr.rcf
+../rcf/rv32ua-p-privecall.rcf
+../rcf/xxrv32ua-p-privirq.rcf
+../rcf/xxrv32ua-p-privwfi.rcf

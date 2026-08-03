@@ -51,6 +51,18 @@ logo/
 
 # Generic EDA/simulation intermediates (in case tools run elsewhere)
 *.rcf
+# K2 EXCEPTION (2026-08-03), one file: the CANONICAL copy of the boot ROM image
+# under tools/cosim/gate/. It is the exact byte stream both sides of the
+# COSIM_BOOT lockstep execute (the reference from pc=0, the behavioural ROM
+# model by hardcoded path), so a silent change to it is a silent change to the
+# four pinned gate numbers. Its live copy, software/bootrom_mp/bin/rom.rcf, is
+# excluded by the `software/*/bin/` DIRECTORY rule below and STAYS excluded —
+# this negation covers only the record under tools/cosim/gate/.
+# NOTE why a negation is legal HERE and is not for the gate files under
+# xcelium/: git cannot re-include a file whose PARENT DIRECTORY is excluded, and
+# `xcelium/` is a directory rule. `*.rcf` is a file-name rule and tools/cosim/
+# is not excluded, so the negation takes effect normally.
+!tools/cosim/gate/*.rcf
 *.trn
 *.dsn
 *.pak

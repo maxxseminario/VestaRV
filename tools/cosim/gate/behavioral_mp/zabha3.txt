@@ -1,0 +1,3 @@
+../rcf/xxxxzabha-p-amomis.rcf
+../rcf/xxzabha-p-amoops_b.rcf
+../rcf/xxzabha-p-amoops_h.rcf
