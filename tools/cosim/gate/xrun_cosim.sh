@@ -749,6 +749,52 @@ ensure_elf() {
     echo "PRESENT"; return 0
 }
 
+# ── K4 (R-K2b-4 pre-condition 2): THE COMPILED-LIBRARY CONFIG KEY ─────────────
+#
+# F-KBV-3, measured by the K2b blind-validation pass and re-measured here before
+# this guard existed: `NO_COMPILE=1` reuses whatever is in `cosim_work/w<N>/`,
+# and NOTHING in the run record says which RTL that is. Running a Zfinx cell
+# list + Zfinx images against a library compiled from the ZCMT cell list gives a
+# clean identity gate, a CORRECT `polarity: RTL ON = ZFINX (…)` banner, a correct
+# `COMPARE_AMEND` — and divergences that are pure infrastructure. The banner
+# reports the cell list it was GIVEN, not the RTL in the library.
+#
+# A 27-row matrix (R-DK1) cycles configs by construction, so this is not a
+# hypothetical: it is the poison such a matrix would drink. The interlock is the
+# `.imgset` pattern applied to the third half of the row — images and reference
+# ELFs already agree by construction, and now the compiled library does too.
+#
+# THE KEY IS DERIVED FROM THE FILES COMPILED, NEVER FROM `COSIM_CONFIG_KEY`.
+# That is the whole point: in F-KBV-3 every user-supplied label was correct and
+# the library was wrong, so a key made of labels would have agreed with the
+# poison. The key is md5(md5sum of every compiled source + tb_cosim.vhd), so it
+# moves when the cell list moves, when a staged MemoryMap.vhd's polarity moves,
+# and when anyone edits an RTL file under a reused library — all three of which
+# make `NO_COMPILE=1` a lie.
+#
+# FAIL-SAFE DIRECTION (method rule 15): an ABSENT stamp is treated as a MISMATCH,
+# not as consent. A library compiled before this guard existed is exactly as
+# unknown as one compiled from another config.
+LIB_KEY=""
+lib_config_key() {
+    [ -n "$LIB_KEY" ] && { printf '%s' "$LIB_KEY"; return 0; }
+    local f srcs=()
+    for f in $(< "$CELL_LIST"); do
+        case "$f" in \#*) continue ;; esac
+        case "$f" in /*) ;; *) f="$CELL_LIST_DIR/$f" ;; esac
+        case "${f##*.}" in
+            v|vhd|vhdl)
+                [ -f "$f" ] || die "cell list $CELL_LIST names $f, which does not
+       exist — the compiled library cannot be keyed, so NO_COMPILE could not be
+       checked even if it were asked for."
+                srcs+=("$f") ;;
+        esac
+    done
+    [ -f "$COSIM/tb_cosim.vhd" ] && srcs+=("$COSIM/tb_cosim.vhd")
+    LIB_KEY="$(md5sum "${srcs[@]}" | md5sum | cut -d' ' -f1)"
+    printf '%s' "$LIB_KEY"
+}
+
 # ── one worker library: compiled ONCE, then re-elaborated per test ────────────
 # Per-worker libs (rather than one shared lib) keep disk flat — every test
 # overwrites the SAME work.cs_run_w<N> snapshot — and sidestep any question about
@@ -764,8 +810,26 @@ setup_worker_lib() {
 SOFTINCLUDE ${XCELIUM_HOME}/tools/xcelium/files/cds.lib
 DEFINE work ./xcelium.d/work
 LIB
-    [ "$NO_COMPILE" = 1 ] && return 0
+    local key; key="$(lib_config_key)" || return 1
+    local stamp="$wl/.libkey"
+    if [ "$NO_COMPILE" = 1 ]; then
+        local have=""
+        [ -f "$stamp" ] && have="$(cat "$stamp")"
+        [ "$have" = "$key" ] && return 0
+        die "NO_COMPILE=1 REFUSED — worker library $n was not compiled from this row's RTL.
+       library : $wl
+       stamped : ${have:-<none: compiled before the K4 guard existed, or never compiled at all>}
+       this run: $key   (md5 over every source in $CELL_LIST + tb_cosim.vhd)
+       This is F-KBV-3. NO_COMPILE=1 reuses the previous row's compiled RTL and
+       NOTHING ELSE in the run record shows it: the identity gate still passes,
+       the polarity banner still reads correctly (it describes the cell list it
+       was GIVEN, not the library), and the divergences are pure infrastructure.
+       Re-run WITHOUT NO_COMPILE=1. (If MAX_PARALLEL is larger than it was on the
+       compiling run, workers above that count have no library at all and this is
+       the same refusal for that reason.)"
+    fi
     rm -rf "$wl/xcelium.d/work"; mkdir -p "$wl/xcelium.d/work"
+    rm -f "$stamp"
     local vl=() vh=() f
     for f in $(< "$CELL_LIST"); do
         case "$f" in \#*) continue ;; esac
@@ -784,6 +848,9 @@ LIB
     xmvhdl -cdslib "$wl/cds.lib" -V200X -WORK work -CONTROLRELAX nlstex -RELAX \
         "${vh[@]}" "$COSIM/tb_cosim.vhd" \
         > "$LOG_DIR/compile_vhdl_w$n.log" 2>&1 || return 1
+    # Stamped LAST, and only on a compile that returned 0 — a stamp written
+    # before the compile would bless a library that failed to build.
+    printf '%s\n' "$key" > "$stamp"
     return 0
 }
 

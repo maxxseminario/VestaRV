@@ -1649,6 +1649,32 @@ core   0: 3 0x00008400 (0x00000013)
            expect_in_stderr=["mtrap-t                0 application(s)",
                              "VACUOUS"],
            expect_in_stdout=["CONTROL-FLOW DIVERGENCE"])
+    # K4 (R-K2b-4 pre-condition 1) -- THE OFF-BY-ONE WIDENING, from the blind
+    # pass's `MTRAP-LATE-MTVEC` control (k2b_blind_validation.md §2.5(3), §7.3
+    # D-2). The bound is "the NEXT retire is at mtvec.BASE", singular. A version
+    # that scanned ahead a few retires would swallow the shape below: the RTL
+    # takes a trap the reference did not take, executes something at 0x8204,
+    # and only THEN arrives at mtvec -- a landing that is coincidence, not
+    # delivery. Synthetic by construction (no real standard-delivery trace can
+    # produce it, which is exactly why it was missing from this file: the blind
+    # pass measured that mutant M4 passes the committed 147 untouched).
+    MTRAP_LATE_RTL = """\
+R 00 00000100 00008200 30529073 00 00000000
+C 00 00000100 305 00008300
+T 00 00000102 0000000b 00008204 00000000 3
+R 00 00000104 00008204 00000013 00 00000000
+R 00 00000106 00008300 00000013 00 00000000
+""".splitlines(True)
+    MTRAP_LATE_SPIKE = """\
+core   0: 3 0x00008200 (0x30529073) c773_mtvec 0x00008300
+core   0: 3 0x00008204 (0x00000013)
+core   0: 3 0x00008300 (0x00000013)
+""".splitlines(True)
+    h.case("K4 mtrap: NEGATIVE -- mtvec reached TWO retires later is REFUSED",
+           1, MTRAP_LATE_RTL, MTRAP_LATE_SPIKE, extra=["--amend", "mtrap-t"],
+           expect_in_stderr=["the next retire is at pc=00008204",
+                             "is 00008300"],
+           expect_in_stdout=["CONTROL-FLOW DIVERGENCE"])
 
     # -- fcsr-split --------------------------------------------------------
     FCSR_RTL = """\
@@ -1772,6 +1798,44 @@ core   0: 3 0x00008204 (0x00000013)
     h.case("K2b hpm: NEGATIVE -- mhpmcounter5 is NOT in the drop set",
            1, HPM_OTHER_RTL, HPM_OTHER_SPIKE, extra=["--amend", "hpm-warl"],
            expect_in_stdout=["record KIND differs: rtl=C spike=R"])
+    # K4 (R-K2b-4 pre-condition 1) -- THE TWO ALLOWLIST WIDENINGS, from the
+    # blind pass's `HPM-NONHPM-CWRITE` / `HPM-NONHPM-RDVAL` controls
+    # (k2b_blind_validation.md §2.3 M13/M14, §7.3 D-2). Both tiers are NAMED
+    # ADDRESS SETS, and the risk they carry is not that today's entries are
+    # wrong -- the blind pass proved they are not -- but that a later edit adds
+    # a non-HPM CSR and the committed suite says nothing. `mscratch` (0x340) is
+    # the probe: an ordinary read/write M-mode register both models implement
+    # identically, so a disagreement about it is ALWAYS a real defect and must
+    # never be forgiven by an amendment that exists for the HPM WARL asymmetry.
+    #
+    # TIER 1 (`HPM_C_DROP`) drops the write record on BOTH sides, so the shape
+    # that exposes a widening is a write both models LOG and DISAGREE about --
+    # not one where only the RTL logs it (that stays a KIND mismatch and is
+    # caught even by a widened list, so it would prove nothing).
+    HPM_NONHPM_C_RTL = """\
+R 00 00000100 00008200 34029073 00 00000000
+C 00 00000100 340 00000001
+R 00 00000102 00008204 00000013 00 00000000
+""".splitlines(True)
+    HPM_NONHPM_C_SPIKE = """\
+core   0: 3 0x00008200 (0x34029073) c832_mscratch 0x00000002
+core   0: 3 0x00008204 (0x00000013)
+""".splitlines(True)
+    h.case("K4 hpm: NEGATIVE -- a NON-HPM csr write is not in tier 1 (mscratch)",
+           1, HPM_NONHPM_C_RTL, HPM_NONHPM_C_SPIKE, extra=["--amend", "hpm-warl"],
+           expect_in_stdout=["val: rtl=00000001 spike=00000002"])
+    # TIER 2 (`HPM_RDVAL_RELAX`) forgives `rdval` on a read-back. A non-HPM CSR
+    # entering it would forgive a wrong architectural value on a register the
+    # two models agree about completely.
+    HPM_NONHPM_RD_RTL = """\
+R 00 00000100 00008200 34002373 06 00000001
+""".splitlines(True)
+    HPM_NONHPM_RD_SPIKE = """\
+core   0: 3 0x00008200 (0x34002373) x6  0x00000002
+""".splitlines(True)
+    h.case("K4 hpm: NEGATIVE -- a NON-HPM csr read-back is not in tier 2",
+           1, HPM_NONHPM_RD_RTL, HPM_NONHPM_RD_SPIKE, extra=["--amend", "hpm-warl"],
+           expect_in_stdout=["rdval: rtl=00000001 spike=00000002"])
 
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
