@@ -139,6 +139,12 @@ GATE_FILES = [
      None,
      'the K2b amendment-2 lockstep list (extzcmt + shcmt) — the only two tests '
      'in the tree that execute a table jump (extjvt\'s ON arm executes none)'),
+    ('cosim_trapcsr_tests.txt',
+     None,
+     'the K2b amendment-3 lockstep list (rocsrw + privecall) — EXPECTED TO '
+     'DIVERGE, and tracked because the measurement is the deliverable: it is '
+     'the record of F-K2b-2 (the custom CSR mtrapctl is illegal in the '
+     'reference, so no TRAPCSR row can be clean)'),
 
     # ---------------------------------------------------------------------
     # K2 (G10), 2026-08-03. Everything below was named by the K0 harness probe

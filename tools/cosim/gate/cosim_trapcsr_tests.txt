@@ -1,0 +1,50 @@
+# K2b amendment-3 lockstep list -- the KNOB-BEARING TRAPCSR tests.
+#
+# READ THIS BEFORE READING THE ROW'S VERDICT.  This row is EXPECTED TO DIVERGE,
+# and it diverges for a reason that is neither an RTL defect nor a gap in the
+# amendments it was built to exercise.  It is kept, and kept tracked, because
+# the measurement is the deliverable: it is what says a TRAPCSR configuration
+# is not lockstep-judgeable on this reference today, and exactly why.
+#
+# THE BLOCKER (F-K2b-2), measured before this list was written:
+#   Standard trap delivery is OFF at reset -- `mtrapctl.LEGACY` resets to '1'
+#   (csr_unit.vhd) and `std_mode <= '1' when (ENABLE_TRAPCSR and
+#   trap_legacy_mode = '0')` (vesta.vhd).  So NOTHING in a TRAPCSR build takes a
+#   standard trap, and `mret` lands in the terminal TRAP_STATE, until software
+#   CLEARS mtrapctl.LEGACY.  `mtrapctl` is 0x7C0 -- a VestaRV CUSTOM CSR that the
+#   unmodified reference does not implement:
+#       vesta_ref identity ... : `csrw 0x7c0, x0` takes an illegal-instruction
+#       trap and the stream jumps straight to the handler; no retire, no `C`.
+#   A survey of every test in the tree confirms this is structural rather than a
+#   bad test choice: EVERY test containing an `mret` also writes 0x7C0, because
+#   it has to.  So a TRAPCSR row diverges at the ENABLING INSTRUCTION, before any
+#   `mret` or standard-delivery `T` exists for `mret-csr` / `mtrap-t` to
+#   reconcile -- the same STRUCTURAL shape as F-K2b-1, where amendment 1 could
+#   not close its row for a reason outside amendment 1.
+#
+# WHAT THE AMENDMENTS ARE THEREFORE PROVEN BY: unit fixtures in
+# `tools/cosim/test_compare.py`, both polarities, including the two negative
+# controls that matter -- a TERMINAL trap (no retire follows) and the LEGACY
+# sentinel are both REFUSED by `mtrap-t`'s bound.  They are VACUOUS on every
+# real trace in the tree, and the K2b spec's own words are the right ones: an
+# amendment that never fires on its own config is VACUOUS and must be REPORTED
+# as such, not quietly presented as covered.
+#
+# ELIGIBILITY of the two tests, checked rather than assumed: both are single-
+# hart (rocsrw's victims are hart 0's own re-entries; privecall is hart-0
+# directed), TCM-resident, no MMIO, no VestaRV custom OPCODE, normal
+# RVTEST_PASS.  Both are ON-POLARITY-ONLY (`#else` arms FAIL loudly by design),
+# so neither can join the standing `cosim_tests.txt`.
+#   rocsrw    the F10 read-only-CSR-write flow: clears mtrapctl.LEGACY, takes
+#             recoverable traps, asserts mcause/mepc/mtval, 2 mret.  ALSO writes
+#             mhpmevent3 (rocsrw.S:212, raw 0x32329073), so on a zihpm-off
+#             config it additionally carries D-2026-07-29-1's KIND divergence --
+#             a SECOND independent reason this cell cannot be clean here.
+#   privecall the P1 delivery proof: ECALL/EBREAK/illegal-instruction causes and
+#             two full MRET round trips.
+#
+# Built by `make verify CONFIG=config/castalia_trapcsr.json`.  Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_trapcsr_tests.txt
+# which gives the row its own RUN_KEY (`trapcsr__h1__cosim_trapcsr_tests`).
+xxxrv32ua-p-rocsrw.rcf
+rv32ua-p-privecall.rcf

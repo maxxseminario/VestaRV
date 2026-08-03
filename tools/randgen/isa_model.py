@@ -96,8 +96,22 @@ KNOB_ORACLE = (
                       'Spike only when the op RAISES one -- reconciled by K2b '
                       'amendment `zfinx-fflags`',
                       ('zfinx-fflags',)),
-    ('trapCsr',    B, 'k0 §1.3i/n: mret is THREE Spike C records (mstatush, '
-                      'tcontrol have no VestaRV counterpart)'),
+    # trapCsr STAYS B AT K2b AMENDMENT 3, AND THAT IS A DELIBERATE DEPARTURE
+    # from the spec's "each amendment flips its knob B -> eligible".  The two
+    # record-shape differences the spec named ARE reconciled now (`mret-csr`,
+    # `mtrap-t`), but a THIRD, unreconciled one gates them both: reaching
+    # standard delivery at all requires clearing `mtrapctl.LEGACY`, and
+    # `mtrapctl` (0x7C0) is a VestaRV CUSTOM CSR the unmodified reference treats
+    # as an illegal instruction (measured).  Every test in the tree that
+    # contains an `mret` therefore also contains an instruction the reference
+    # traps on.  Marking this knob E would claim a judgeability that does not
+    # exist -- and E is precisely a claim, since it tells the gate to admit the
+    # class.  B is the honest letter until the blocker is ruled on.
+    ('trapCsr',    B, 'k0 §1.3i/n + K2b F-K2b-2: mret/T record shapes are '
+                      'reconciled by `mret-csr` + `mtrap-t`, but standard '
+                      'delivery needs a write to the CUSTOM CSR mtrapctl '
+                      '(0x7C0), which the reference traps on -- so the knob is '
+                      'NOT judgeable end to end'),
     ('umode',      B, 'k0 §1.3j/o: --priv mu changes the reference reset state'),
     ('pmp',        B, 'k0 §1.4: Spike PMP reset state is NOT zero'),
 )

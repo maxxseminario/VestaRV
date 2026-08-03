@@ -1540,6 +1540,158 @@ core   0: 3 0x00008300 (0x00000013)
            1, CMJT_NOJVT_RTL, CMJT_NOJVT_SPIKE, extra=["--amend", "cmjt-load"],
            expect_in_stderr=["at jvt+4*index = 00000014"])
 
+    # ======================================================================
+    # K2b AMENDMENT 3 -- `mret-csr` + `mtrap-t` (priv.trapCsr) and `fcsr-split`
+    # (isa.zfinx).
+    #
+    # MEASURED SHAPES:
+    #   * `mret` logs THREE reference `C` records -- c768_mstatus, c784_mstatush,
+    #     c1957_tcontrol (k0 oracle probe §1.3i) -- and the RTL emits ONE, its
+    #     `C 300` at MTRAP_RET, because 0x310 and 0x7a5 do not exist in the
+    #     VestaRV CSR map at all.
+    #   * a STANDARD-delivery trap emits an RTL `T` from MTRAP_SV; the
+    #     reference's commit log carries no trap information (RECORD_FORMAT §4)
+    #     but DOES take the same architectural exception and execute the same
+    #     handler, so only the `T` misaligns. Ruled in by R-K2b-2 (2).
+    #   * `csrw fcsr,t0` with t0=7 logs `c1_fflags 0x7 c2_frm 0x0` on the
+    #     reference and a single `C 003 00000007` on the RTL side (§1.3h).
+    # ======================================================================
+    MRET_RTL = """\
+R 00 00000100 00008200 30200073 00 00000000
+C 00 00000100 300 00001880
+R 00 00000102 00008300 00000013 00 00000000
+""".splitlines(True)
+    MRET_SPIKE = """\
+core   0: 3 0x00008200 (0x30200073) c768_mstatus 0x00001880 c784_mstatush 0x00000000 c1957_tcontrol 0x00000000
+core   0: 3 0x00008300 (0x00000013)
+""".splitlines(True)
+    h.case("K2b mret: WITHOUT the amendment the reference's extra C diverges",
+           1, MRET_RTL, MRET_SPIKE,
+           expect_in_stdout=["record KIND differs: rtl=R spike=C"])
+    h.case("K2b mret: WITH the amendment mstatush+tcontrol leave the stream",
+           0, MRET_RTL, MRET_SPIKE, extra=["--amend", "mret-csr"],
+           expect_in_stderr=["mret-csr               2 application(s)",
+                             "C 310                    x1",
+                             "C 7a5                    x1"])
+    # THE BOUND: the allowlist is tied to the `mret` RETIRE, not to the address.
+    # A reference `C 310` owned by anything else is about an instruction the RTL
+    # executed too, so it stays in the comparison.
+    MRET_NOTMRET_SPIKE = """\
+core   0: 3 0x00008200 (0x31001073) c784_mstatush 0x00000000
+core   0: 3 0x00008300 (0x00000013)
+""".splitlines(True)
+    MRET_NOTMRET_RTL = """\
+R 00 00000100 00008200 31001073 00 00000000
+R 00 00000102 00008300 00000013 00 00000000
+""".splitlines(True)
+    h.case("K2b mret: NEGATIVE -- a C 310 NOT owned by an mret is kept",
+           1, MRET_NOTMRET_RTL, MRET_NOTMRET_SPIKE,
+           extra=["--amend", "mret-csr"],
+           expect_in_stderr=["is NOT an mret -- kept"],
+           expect_in_stdout=["record KIND differs: rtl=R spike=C"])
+    # ...and the RTL's own `C 300` is NOT dropped: the mstatus pop is compared.
+    MRET_BADSTATUS_RTL = list(MRET_RTL)
+    MRET_BADSTATUS_RTL[1] = "C 00 00000100 300 00001800\n"
+    h.case("K2b mret: NEGATIVE -- a WRONG mstatus pop still diverges",
+           1, MRET_BADSTATUS_RTL, MRET_SPIKE, extra=["--amend", "mret-csr"],
+           expect_in_stdout=["val: rtl=00001800 spike=00001880"])
+
+    # -- mtrap-t -----------------------------------------------------------
+    # mtvec is written first (as every standard-delivery test does), then an
+    # `ecall` traps: neither side retires it, the RTL emits a `T`, and both
+    # sides land on the handler at mtvec.
+    MTRAP_RTL = """\
+R 00 00000100 00008200 30529073 00 00000000
+C 00 00000100 305 00008300
+T 00 00000102 0000000b 00008204 00000000 3
+R 00 00000104 00008300 00000013 00 00000000
+""".splitlines(True)
+    MTRAP_SPIKE = """\
+core   0: 3 0x00008200 (0x30529073) c773_mtvec 0x00008300
+core   0: 3 0x00008300 (0x00000013)
+""".splitlines(True)
+    h.case("K2b mtrap: WITHOUT the amendment the T is a control-flow divergence",
+           1, MTRAP_RTL, MTRAP_SPIKE,
+           expect_in_stdout=["CONTROL-FLOW DIVERGENCE: the RTL took a TRAP"])
+    h.case("K2b mtrap: WITH the amendment the standard-delivery T is dropped",
+           0, MTRAP_RTL, MTRAP_SPIKE, extra=["--amend", "mtrap-t"],
+           expect_in_stderr=["mtrap-t                1 application(s)",
+                             "0000000b                 x1"])
+    # THE BOUND, seen to refuse: a `T` whose next retire is NOT at mtvec is a
+    # trap that went somewhere the stream cannot justify, and it is reported.
+    MTRAP_WRONGLAND_RTL = list(MTRAP_RTL)
+    MTRAP_WRONGLAND_RTL[3] = "R 00 00000104 00008400 00000013 00 00000000\n"
+    MTRAP_WRONGLAND_SPIKE = """\
+core   0: 3 0x00008200 (0x30529073) c773_mtvec 0x00008300
+core   0: 3 0x00008400 (0x00000013)
+""".splitlines(True)
+    h.case("K2b mtrap: NEGATIVE -- a T that did not land on mtvec is REFUSED",
+           1, MTRAP_WRONGLAND_RTL, MTRAP_WRONGLAND_SPIKE,
+           extra=["--amend", "mtrap-t"],
+           expect_in_stderr=["but mtvec.BASE (from this stream's own `C 305`) "
+                             "is 00008300"],
+           expect_in_stdout=["CONTROL-FLOW DIVERGENCE"])
+    # THE TERMINAL-TRAP CONTROL, and it is the one that matters most: a wedged
+    # hart (TRAP_STATE self-loops, so NOTHING retires afterwards) also emits a
+    # non-legacy `T`. The bound must refuse it -- an amendment that swallowed a
+    # terminal trap would hide the loudest failure the tracer has.
+    MTRAP_TERMINAL_RTL = MTRAP_RTL[:3]
+    h.case("K2b mtrap: NEGATIVE -- a TERMINAL trap (no retire after) is REFUSED",
+           1, MTRAP_TERMINAL_RTL, MTRAP_SPIKE, extra=["--amend", "mtrap-t"],
+           expect_in_stderr=["TERMINAL trap"],
+           expect_in_stdout=["CONTROL-FLOW DIVERGENCE"])
+    # The LEGACY sentinel keeps its meaning untouched: it is the ISR bracket
+    # delimiter and belongs to the V3 bracket channel, not to this amendment.
+    MTRAP_LEGACY_RTL = list(MTRAP_RTL)
+    MTRAP_LEGACY_RTL[2] = "T 00 00000102 8000007f 00008204 00008300 3\n"
+    h.case("K2b mtrap: NEGATIVE -- the LEGACY sentinel T is never dropped",
+           1, MTRAP_LEGACY_RTL, MTRAP_SPIKE, extra=["--amend", "mtrap-t"],
+           expect_in_stderr=["mtrap-t                0 application(s)",
+                             "VACUOUS"],
+           expect_in_stdout=["CONTROL-FLOW DIVERGENCE"])
+
+    # -- fcsr-split --------------------------------------------------------
+    FCSR_RTL = """\
+R 00 00000100 00008200 00329073 00 00000000
+C 00 00000100 003 000000e7
+R 00 00000102 00008204 00000013 00 00000000
+""".splitlines(True)
+    FCSR_SPIKE = """\
+core   0: 3 0x00008200 (0x00329073) c1_fflags 0x00000007 c2_frm 0x00000007
+core   0: 3 0x00008204 (0x00000013)
+""".splitlines(True)
+    h.case("K2b fcsr: WITHOUT the amendment the single C 003 diverges",
+           1, FCSR_RTL, FCSR_SPIKE,
+           expect_in_stdout=["csr: rtl=003 spike=001"])
+    h.case("K2b fcsr: WITH the amendment it becomes fflags + frm",
+           0, FCSR_RTL, FCSR_SPIKE, extra=["--amend", "fcsr-split"],
+           expect_in_stderr=["fcsr-split             1 application(s)",
+                             "000000e7                 x1"])
+    # NEGATIVE: the decomposition is a REWRITE, not a drop -- a wrong frm field
+    # must still be caught, so the split has to put the right bits in the right
+    # record rather than merely making two records appear.
+    FCSR_BADFRM_SPIKE = """\
+core   0: 3 0x00008200 (0x00329073) c1_fflags 0x00000007 c2_frm 0x00000003
+core   0: 3 0x00008204 (0x00000013)
+""".splitlines(True)
+    h.case("K2b fcsr: NEGATIVE -- a wrong frm field still diverges",
+           1, FCSR_RTL, FCSR_BADFRM_SPIKE, extra=["--amend", "fcsr-split"],
+           expect_in_stdout=["val: rtl=00000007 spike=00000003"])
+    # ...and the bound: a `C 003` whose owning retire is not an explicit fcsr
+    # WRITE (here a plain `csrr fcsr` read, which writes nothing) is left alone.
+    FCSR_READ_RTL = """\
+R 00 00000100 00008200 003025f3 0b 000000e7
+C 00 00000100 003 000000e7
+R 00 00000102 00008204 00000013 00 00000000
+""".splitlines(True)
+    FCSR_READ_SPIKE = """\
+core   0: 3 0x00008200 (0x003025f3) x11 0x000000e7
+core   0: 3 0x00008204 (0x00000013)
+""".splitlines(True)
+    h.case("K2b fcsr: NEGATIVE -- a C 003 from a plain csrr is NOT split",
+           1, FCSR_READ_RTL, FCSR_READ_SPIKE, extra=["--amend", "fcsr-split"],
+           expect_in_stderr=["is not an explicit fcsr write -- left alone"])
+
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
     h.case("K2b: ungated, an old fixture is bit-identical to pre-K2b",
