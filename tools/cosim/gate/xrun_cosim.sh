@@ -101,15 +101,41 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE" || exit 1
 ROOT="$(cd "$HERE/../../.." && pwd)"
 
+# ---------------------------------------------------------------------------
+# K2 (spec item 5, gap G6): PER-RUN ARTIFACT KEYING.
+#
+# `cosim_work/` used to be ONE flat slot for every sweep, so a later sweep
+# silently destroyed an earlier one's evidence. That is not a hypothetical:
+#   * 2026-08-02 16:23 -- the multi-hart sweep overwrote the single-hart sweep's
+#     summary.txt/results.tsv from 16:20, which is why the K0 harness probe had
+#     to establish the four single-hart pins from the S-series documents plus a
+#     two-commit file-list argument instead of from a surviving artifact;
+#   * 2026-08-03 -- the same class twice more in one K2 session, once by the
+#     harness and once by ME, restoring a snapshot into the live slot.
+# It is the same failure the LEGACY-ARTIFACT QUARANTINE below already guards a
+# different symptom of: a stale artifact parses cleanly and reads as evidence.
+#
+# THE SPLIT. `cosim_work/` (COSIM) keeps what is REUSABLE and is not evidence --
+# the built `vesta_ref`, the per-worker Xcelium libraries, the generated
+# tb_cosim.vhd / check_image.py, the legacy quarantine. Everything a run
+# PRODUCES moves under `cosim_work/runs/<RUN_KEY>/`, so two sweeps of different
+# shape can no longer see each other's files at all.
+#
+# THE KEY is mechanical and self-describing, never a hand-typed name:
+#     <config>__h<harts-in-this-sweep>__<test-list-basename>
+# e.g. `default__h1__cosim_tests` (the standing single-hart gate) and
+#      `default__h4__cosim_sh_tests` (the standing multi-hart gate).
+# COSIM_CONFIG_KEY is the axis the per-config harness fills in (K2 items 2/4);
+# it defaults to `default`, which is exactly what today's runs are.
+#
+# BACKWARD COMPATIBILITY. `cosim_work/{summary.txt,results.tsv,
+# launch_margin.tsv,traces,spike,logs}` still exist -- as SYMLINKS into the
+# run that wrote them last. Every existing reader, document and triage recipe
+# that names those paths keeps working and keeps meaning "the most recent
+# sweep", while the run that produced any given file is now recoverable by key.
+# ---------------------------------------------------------------------------
 COSIM="$HERE/cosim_work"
-TRACE_DIR="$COSIM/traces"
-SPIKE_DIR="$COSIM/spike"
-LOG_DIR="$COSIM/logs"
-STATUS_DIR="$COSIM/.status"
-RESULTS="$COSIM/results.tsv"
-SUMMARY="$COSIM/summary.txt"
-LAUNCH_DIR="$COSIM/.launch"              # one file per test, collected below
-LAUNCH_TSV="$COSIM/launch_margin.tsv"
+COSIM_CONFIG_KEY="${COSIM_CONFIG_KEY:-default}"
 
 TOOLS_COSIM="$ROOT/tools/cosim"
 COMPARE_PY="$TOOLS_COSIM/compare.py"
@@ -314,6 +340,68 @@ NHARTS_SEL=$(set -- $COSIM_HARTS; echo $#)
 # (progress line, banner lists, the --hart/--hartid flags). MULTI=0 <=> V3.
 if [ "$COSIM_HARTS" = "0" ]; then MULTI=0; else MULTI=1; fi
 unset _seen0 _prev _h
+
+# ---------------------------------------------------------------------------
+# K2 item 5 / G6: the RUN KEY and the per-run artifact directory.
+# Declared HERE, not up with COSIM, because two of its three components are only
+# known once COSIM_HARTS is normalised and the test list is resolved.
+# ---------------------------------------------------------------------------
+_LIST_FOR_KEY="${TESTS_FILE:-$TESTS_LIST_DEFAULT}"
+_LIST_BASE="$(basename "$_LIST_FOR_KEY")"; _LIST_BASE="${_LIST_BASE%.txt}"
+# Anything that is not [A-Za-z0-9._-] becomes '_' so the key can never escape the
+# directory or surprise the shell.
+_LIST_BASE="$(printf '%s' "$_LIST_BASE" | tr -c 'A-Za-z0-9._-' '_')"
+_CFG_KEY="$(printf '%s' "$COSIM_CONFIG_KEY" | tr -c 'A-Za-z0-9._-' '_')"
+RUN_KEY="${RUN_KEY:-${_CFG_KEY}__h${NHARTS_SEL}__${_LIST_BASE}}"
+RUN_DIR="$COSIM/runs/$RUN_KEY"
+unset _LIST_FOR_KEY _LIST_BASE _CFG_KEY
+
+TRACE_DIR="$RUN_DIR/traces"
+SPIKE_DIR="$RUN_DIR/spike"
+LOG_DIR="$RUN_DIR/logs"
+STATUS_DIR="$RUN_DIR/.status"
+RESULTS="$RUN_DIR/results.tsv"
+SUMMARY="$RUN_DIR/summary.txt"
+LAUNCH_DIR="$RUN_DIR/.launch"            # one file per test, collected below
+LAUNCH_TSV="$RUN_DIR/launch_margin.tsv"
+INJECT_DIR="$RUN_DIR/inject"
+
+# ONE-TIME MIGRATION of the pre-K2 flat layout. Anything a previous sweep left
+# at the root of cosim_work/ is MOVED (never deleted -- it is someone's evidence
+# until a human says otherwise, the same rule the legacy-log quarantine below
+# follows) into `runs/legacy-flat-pre-K2/`, and the move is announced. Without
+# this the root would carry a mixture of real files from an unknown sweep and
+# symlinks into a known one, which is a worse trap than the one being fixed.
+migrate_flat_layout() {
+    local dst="$COSIM/runs/legacy-flat-pre-K2" n=0 f
+    for f in summary.txt results.tsv launch_margin.tsv traces spike logs inject \
+             .status .launch; do
+        # A symlink at the root is THIS mechanism's own output -- leave it.
+        [ -e "$COSIM/$f" ] && [ ! -L "$COSIM/$f" ] || continue
+        mkdir -p "$dst"
+        mv "$COSIM/$f" "$dst/$f" 2>/dev/null && n=$((n+1))
+    done
+    [ "$n" -gt 0 ] && {
+        echo "  MIGRATED $n pre-K2 flat artifact(s) from $COSIM to $dst"
+        echo "            (K2 item 5: sweeps now write cosim_work/runs/<RUN_KEY>/;"
+        echo "             nothing was deleted -- the old sweep's evidence is intact)"
+    }
+    return 0
+}
+
+# The root-level compatibility symlinks. Every document, triage recipe and
+# reader that names cosim_work/summary.txt (etc.) keeps working and keeps
+# meaning "the sweep that ran last"; the run that produced it is recoverable by
+# key. Relative targets so the tree stays movable.
+link_latest() {
+    local f
+    for f in summary.txt results.tsv launch_margin.tsv traces spike logs inject; do
+        [ -L "$COSIM/$f" ] && rm -f "$COSIM/$f"
+        [ -e "$COSIM/$f" ] && continue      # a real file survived migration: never clobber
+        ln -sfn "runs/$RUN_KEY/$f" "$COSIM/$f"
+    done
+    return 0
+}
 
 # 2-hex-digit hart tag — the tracer's own filename convention (vesta_tracer.vhd
 # writes <TRACE_FILE>_h<HH>.trace and stamps `hart=<HH>` in its header).
@@ -1008,8 +1096,8 @@ compare_hart() {
     spk_log="$SPIKE_DIR/$test.h${HH}.spike.log"
     spk_out="$LOG_DIR/$test.h${HH}.spike.log"
     cmp_log="$LOG_DIR/$test.h${HH}.cmp.log"
-    inj="$COSIM/inject/$test.h${HH}.inject"
-    brk="$COSIM/inject/$test.h${HH}.bracket"
+    inj="$INJECT_DIR/$test.h${HH}.inject"
+    brk="$INJECT_DIR/$test.h${HH}.bracket"
     nR=0; ncmp=0; nspk=0; ncmpr=0; spk_ms=0; cmp_ms=0; status=""; detail="-"
     # V4/C2 reference censuses (A13/A14), scraped from the reference's own
     # summary line. "-" = this run carried no P/F records at all.
@@ -1152,7 +1240,7 @@ compare_hart() {
     # other -- and a tile takes the boot-mode args for the reason in the
     # compare_hart header.
     if [ "$REF_MODE" = vesta_ref ]; then
-        mkdir -p "$COSIM/inject"
+        mkdir -p "$INJECT_DIR"
         local mkargs=()
         if [ "$boot" = 1 ]; then
             mkargs=(--allow-x "$BOOT_ALLOW_X_1" --allow-x "$BOOT_ALLOW_X_2")
@@ -1383,8 +1471,8 @@ emit_result() {
             if [ "$KEEP" != 1 ]; then
                 rm -f "$TRACE_DIR/${test}_h${HH}.trace" \
                       "$SPIKE_DIR/$test.h${HH}.spike.log" \
-                      "$COSIM/inject/$test.h${HH}.inject" \
-                      "$COSIM/inject/$test.h${HH}.bracket" \
+                      "$INJECT_DIR/$test.h${HH}.inject" \
+                      "$INJECT_DIR/$test.h${HH}.bracket" \
                       "$LOG_DIR/$test.h${HH}.inject.log"
             fi ;;
     esac
@@ -1409,9 +1497,12 @@ emit_result_all() {
 # =============================================================================
 # main
 # =============================================================================
-mkdir -p "$TRACE_DIR" "$SPIKE_DIR" "$LOG_DIR" || die "cannot create $COSIM"
+mkdir -p "$COSIM/runs" || die "cannot create $COSIM/runs"
+migrate_flat_layout
+mkdir -p "$TRACE_DIR" "$SPIKE_DIR" "$LOG_DIR" "$INJECT_DIR" || die "cannot create $RUN_DIR"
 rm -rf "$STATUS_DIR"; mkdir -p "$STATUS_DIR"
 rm -rf "$LAUNCH_DIR"; mkdir -p "$LAUNCH_DIR"
+link_latest
 
 # ---------------------------------------------------------------------------
 # LEGACY-ARTIFACT QUARANTINE (V4/C2). Every per-hart artifact this runner writes
@@ -1528,7 +1619,10 @@ fi
 echo "  injector  : $MK_INJECT (ordered replay, amendment A6)"
 echo "  comparator: $COMPARE_PY $( [ -f "$COMPARE_PY" ] && echo '(present)' || echo '(ABSENT -> COMPARE-PENDING)')"
 echo "  workers   : MAX_PARALLEL=$MAX_PARALLEL   per-sim timeout ${TEST_TIMEOUT}s"
-echo "  artifacts : $COSIM"
+echo "  artifacts : $RUN_DIR"
+echo "              run key RUN_KEY=$RUN_KEY  (config__harts__test-list; K2 item 5)"
+echo "              cosim_work/{summary.txt,results.tsv,launch_margin.tsv,traces,"
+echo "              spike,logs,inject} are SYMLINKS to the run that wrote them last"
 probe_capabilities
 if [ "$MULTI" = 1 ]; then
 echo "  harts     : COSIM_HARTS='$COSIM_HARTS'  ->  $TOTAL cell(s) = $NTESTS test(s) x $NHARTS_SEL hart(s)"
