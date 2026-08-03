@@ -1,7 +1,7 @@
 # See LICENSE for license details.
 
 #*****************************************************************************
-# amomis.S  (X2 Zabha — misaligned halfword AMO behaviour)
+# mis.S      (X2 Zabha — misaligned halfword AMO behaviour)
 #-----------------------------------------------------------------------------
 # SPEC-vs-CORE NOTE (flagged in the X2 self-report): the Zabha spec says a
 # misaligned halfword AMO raises a store/AMO-address-misaligned exception. THIS

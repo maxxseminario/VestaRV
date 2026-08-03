@@ -69,3 +69,12 @@ the ON build:
     printf '../rcf/xxxxzabha_amoops_b.rcf\n../rcf/xxxxzabha_amoops_h.rcf\n../rcf/xxxxxxzabha_amomis.rcf\n' > zabha_dir.txt
     TESTS_FILE=zabha_dir.txt MAX_PARALLEL=3 ./xrun_parallel.sh       # EXPECT 3/3 PASS
     #   observed 2026-07-17: tb_zabha_amoops_b / _amoops_h / _amomis all PASS
+
+    K2 NOTE (2026-08-03) — the recipe above is HISTORICAL and no longer needed.
+    The three test basenames were renamed at the SOURCE (amoops_b -> ops_b,
+    amoops_h -> ops_h, amomis -> mis, see tests/rv32uzabha/Makefrag), so the
+    emitted names are rv32uzabha-p-{ops_b,ops_h,mis}.rcf at 22/22/20 characters
+    and fit the padded TEST_FILE contract with no alias at all. The K2 CATALOG
+    selects them directly under the `zabha` tag. Reproduce the ABOVE against a
+    pre-K2 checkout only; against the current tree, drop the ln -sf block and use
+    the real names.

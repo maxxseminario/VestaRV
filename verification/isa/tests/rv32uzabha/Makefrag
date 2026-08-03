@@ -6,10 +6,23 @@
 # simulated against a zabha-ON MCU and is NOT wired into the default runner.
 # Built with the base -march (gas 13.2 has no `zabha' suffix); the encodings
 # are explicit `.insn` R-types.
+#
+# K2 (2026-08-03) RENAME, and the reason is a hard contract, not taste:
+# amoops_b/amoops_h/amomis -> ops_b/ops_h/mis. riscv_tb's TEST_FILE generic is a
+# FIXED 29-char string = "../rcf/" + a 22-char x-padded basename, and
+# `rv32uzabha-p-amoops_b.rcf` is 25 characters. pad_all_rcf CLAMPS a negative pad
+# count to zero, so the over-length name was left in rcf/ and could never be
+# simulated through the padded path -- X2 worked around it with hand-copied
+# `zabha-p-*.rcf` aliases (zabha3.txt), which then break the cosim harness's
+# suite_of() derivation (`zabha` is not a build/ suite directory). The
+# rv32uzicond Makefrag records the same rule ("test basename kept short so the
+# padded rcf path fits"). Renaming the SOURCE makes every name in this suite fit
+# by construction; nothing downstream needs to know about an alias.
+#   old -> new:  amoops_b -> ops_b (22)   amoops_h -> ops_h (22)   amomis -> mis (20)
 #=======================================================================
 
 rv32uzabha_sc_tests = \
-	amoops_b amoops_h amomis \
+	ops_b ops_h mis \
 
 rv32uzabha_p_tests = $(addprefix rv32uzabha-p-, $(rv32uzabha_sc_tests))
 rv32uzabha_v_tests = $(addprefix rv32uzabha-v-, $(rv32uzabha_sc_tests))

@@ -54,9 +54,39 @@ RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
 #   npu        peripherals.npu (shnpu is CASTALIA ONLY -- no NPU, no test)
 #   i2c1/uart1/spi1/timer1  the G1a/G1b droppable second instances (shi2c,
 #              shperiph, shlock and shtimer exercise them by name)
+#   cqAfeStubs peripherals.cqAfeStubs (shafe drives the four AFE stubs + EIS)
+#   zicond zcb zimop zihint zihpm zawrs zabha zacas zicboz zcmp zcmt
+#   zbkb zbkc zbkx zkn zfinx          the 16 X-series isa.* knobs   (K2/G1)
+#   trapCsr umode pmp                 the 3 P-series priv.* knobs   (K2/G1)
 # The ext* probes are ADAPTIVE (misa-driven; double as the stripped-build trap
 # controls) and run on every configuration.
-# smoke=True marks the ~26-test smoke subset `make verify` runs by default.
+#
+# K2 (2026-08-03) — WHICH ROWS CARRY A KNOB TAG, AND WHY IT IS NOT "every row
+# that mentions the knob". Two populations, and conflating them is exactly the
+# defect this CATALOG had:
+#   * BOTH-POLARITY tests (`sh*`, `ext*`, `zbk`) dispatch at BUILD TIME on
+#     `#ifdef CORE_ENABLE_<K>` and carry a real `#else` arm. They must run on
+#     EVERY configuration -- the OFF arm is the trap/no-op control and the ON
+#     arm is the functional check -- so they carry NO knob tag. Which arm gets
+#     compiled is decided by the image build's `-DCORE_ENABLE_*`, not by
+#     selection. All twenty of them are in the standing 136-test suite and were
+#     absent from this CATALOG entirely until K2.
+#   * ON-POLARITY-ONLY suites (rv32uzicond/zabha/zacas/zkne/zknd/zknh/zf) emit
+#     encodings that take an illegal-instruction trap on an OFF build. They have
+#     no OFF arm at all, so each is tagged with the knob that makes it legal and
+#     appears ONLY in a knobs-on row. THIS is what "selection is evidence"
+#     means: a zabha row that does not select rv32uzabha-p-* has not been shown
+#     to exercise Zabha.
+# rv32ua-suite convention, unchanged: every rv32ua row except the adaptive
+# `ext*` family carries `atomics` (the whole group builds -march=rv32imac and
+# is dropped wholesale in an atomics-off world; R-DK1 excludes atomics=false
+# from the supported set in writing).
+# smoke=True marks the smoke subset `make verify` runs by default (31 tests on
+# the default Castalia config, 26 on Argus). The twenty both-polarity additions
+# are deliberately smoke=False -- they join SUITE=full only, so the default
+# smoke number does not move. Every ON-polarity row IS smoke=True: it appears
+# only where its knob is on, and there it is the cheapest proof the knob is on
+# (R-DK2's knobs-on canary).
 # ---------------------------------------------------------------------------
 T = lambda name, tags='', smoke=False: (name, set(tags.split()) if tags else set(), smoke)
 
@@ -76,7 +106,16 @@ CATALOG = [
     T('rv32ui-p-shnpu', 'tiles npu', True),
     T('rv32ui-p-shmutex', 'tiles', True),
     T('rv32ui-p-shexec', 'tiles', True),
+    # K2: the compressed twin of shexec (C3 -- a 32-bit instruction whose two
+    # halves live in different shared words). Needs C on; nothing else.
+    T('rv32ui-p-shexecc', 'tiles compressed'),
     T('rv32ui-p-shpwr', 'tiles', True),
+    # K2: the CQ AFE/EIS digital-stub test. The four AFE stubs at 0x4C00 and the
+    # EIS engine at 0x7C00 exist only when peripherals.cqAfeStubs is true (the
+    # Castalia golden master keeps them; a qspi config takes slot 12 instead).
+    # `harts_le4` because the stub bank is FOUR instances at any numHarts while
+    # the test addresses AFE0 + 0x40*h -- see config_tags.
+    T('rv32ui-p-shafe', 'tiles cqAfeStubs harts_le4'),
     # digperiphs #6: shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
     # dma-enabled configs (castalia_dma NCH=2, wound NCH=4) -> tag 'dma' gates it
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
@@ -153,7 +192,33 @@ CATALOG = [
     T('rv32ua-p-shspin', 'tiles atomics', True),
     T('rv32ua-p-shlock', 'tiles atomics uart1', True),
     T('rv32ua-p-shamo', 'tiles atomics', True),
+    # K2: the X2/X3 both-polarity sh* block, in the standing runner's order.
+    # Each has an ON arm (#ifdef CORE_ENABLE_<K>) and an OFF arm, so NO knob tag
+    # -- see the population note above. shcboz/shcmp/shcmppush/shcmt are hart-0
+    # directed (no MP_LAUNCH_* in the source), so they carry no `tiles` tag.
+    T('rv32ua-p-shzabha', 'tiles atomics'),
+    T('rv32ua-p-shzacas', 'tiles atomics'),
+    T('rv32ua-p-shcaslr', 'tiles atomics'),
+    T('rv32ua-p-shmixw', 'tiles atomics'),
+    T('rv32ua-p-shcboz', 'atomics'),
+    T('rv32ua-p-shcmp', 'atomics'),
+    # shcmppush and shpause HARDCODE the N=4 CLINT layout and say so in their own
+    # headers ("CLINT (NHARTS=4): ... mtime lo=0x5010; mtimecmp0 lo/hi =
+    # 0x5020/0x5024" / "MTIME_LO 0x5010 // CLINT mtime lo (N=4)"). The layout is
+    # N-parameterised -- MTIME = 0x5000 + roundup16(4*NHARTS) -- so at N=18 those
+    # literals are msip[4]/msip[8], i.e. OTHER HARTS' software-interrupt
+    # registers. Measured on Argus: shpause FAILS; shcmppush passes, which is
+    # worse, because its mtip can never have armed. `harts_le4` is exactly the
+    # condition under which 0x5010 IS mtime (4*N <= 16). extzawrs is the model
+    # for how this should be written -- it derives MTIME_OFF from NHARTS -- and
+    # porting these two is Argus-port debt, filed rather than silently tagged
+    # away for good.
+    T('rv32ua-p-shcmppush', 'atomics harts_le4'),
+    T('rv32ua-p-shcmt', 'atomics'),
+    T('rv32ua-p-shpause', 'tiles atomics harts_le4'),
     T('rv32ua-p-amoadd_w', 'atomics'),
+    # K2: AMO address-aliasing directed test (hart-0, no build-time dispatch).
+    T('rv32ua-p-amoalias', 'atomics'),
     T('rv32ua-p-amoand_w', 'atomics'),
     T('rv32ua-p-amomax_w', 'atomics'),
     T('rv32ua-p-shcount', 'tiles atomics', True),
@@ -175,7 +240,11 @@ CATALOG = [
     T('rv32ui-p-sb'), T('rv32ui-p-sh'),
     T('rv32ui-p-sw', '', True),
     T('rv32ui-p-sub'), T('rv32ui-p-sll'), T('rv32ui-p-slt'),
-    T('rv32ui-p-sltu'), T('rv32ui-p-xor'), T('rv32ui-p-srl'),
+    T('rv32ui-p-sltu'), T('rv32ui-p-xor'),
+    # K2: X3 scalar-crypto bit-manip probe. Dispatches on CORE_ENABLE_BITMANIP
+    # and CORE_ENABLE_ZBK{B,C,X}/ZKN -- adaptive in every direction, no tag.
+    T('rv32ui-p-zbk'),
+    T('rv32ui-p-srl'),
     T('rv32ui-p-sra'), T('rv32ui-p-or'), T('rv32ui-p-and'),
     T('rv32ui-p-lui'), T('rv32ui-p-beq'), T('rv32ui-p-bne'),
     T('rv32ui-p-blt'), T('rv32ui-p-bge'), T('rv32ui-p-bltu'),
@@ -208,6 +277,58 @@ CATALOG = [
     # core-features: misa + per-extension ADAPTIVE probes (pass on any build)
     T('rv32ua-p-extprobe'), T('rv32ua-p-extmul'), T('rv32ua-p-extdiv'),
     T('rv32ua-p-extamo'), T('rv32ua-p-extrvc'), T('rv32ua-p-extzb'),
+    # K2: the X-series ext* probes, in the standing runner's order. extzihpm is
+    # RUNTIME-adaptive (it dispatches on whether the counter moves, so one image
+    # serves both polarities); the rest dispatch at build time on
+    # CORE_ENABLE_<K> and carry an OFF arm. None is knob-tagged.
+    T('rv32ua-p-extzihpm'), T('rv32ua-p-extzicond'), T('rv32ua-p-extzcb'),
+    T('rv32ua-p-extzihint'), T('rv32ua-p-extzawrs'),
+    T('rv32ua-p-shwrs', 'tiles atomics'),
+    T('rv32ua-p-extzfinx'),
+
+    # -----------------------------------------------------------------------
+    # K2 (G1) -- THE ON-POLARITY-ONLY SUITES.
+    # Seven suites that have existed in verification/isa/tests/ since the X
+    # series and that NO runner has ever selected (each Makefrag says so in
+    # those words: "NOT wired into the default (off) suite runner"). Every test
+    # here emits an encoding that takes an illegal-instruction trap on a build
+    # without its knob, so each row is tagged with that knob and is selected
+    # ONLY by a knobs-on config -- which is the whole point: it is the
+    # difference between a config that BOOTS with the knob on and a config that
+    # has been shown to EXECUTE the knob's instructions.
+    # These need their image group built (rv32uzicond, rv32uzabha, ...) and the
+    # matching -DCORE_ENABLE_* in RISCV_GCC_OPTS; verify_stage prints GROUPS=
+    # and DEFINES= for verify.sh so both follow the config automatically.
+    # (K2 stages 1-2 emit those two lines; the image build that CONSUMES them is
+    # the G3 commit -- until then a knobs-on row prints them and still uses the
+    # default image set, which is loud rather than silent because the ON-only
+    # images simply are not there.)
+    # -----------------------------------------------------------------------
+    T('rv32uzicond-p-cz', 'zicond', True),
+    # Basenames renamed at K2 (amoops_b/amoops_h/amomis -> ops_b/ops_h/mis):
+    # the old ones were 25/25/23 characters and could not fit the 22-char
+    # padded TEST_FILE contract. See tests/rv32uzabha/Makefrag.
+    T('rv32uzabha-p-ops_b', 'zabha atomics', True),
+    T('rv32uzabha-p-ops_h', 'zabha atomics', True),
+    T('rv32uzabha-p-mis', 'zabha atomics', True),
+    T('rv32uzacas-p-casw', 'zacas atomics', True),
+    # casbh is amocas.b/.h -- sub-word CAS needs Zabha ON as well (its Makefrag
+    # says so); tagging it with both keeps a zacas-only row from selecting a
+    # test whose encodings that row's RTL would trap.
+    T('rv32uzacas-p-casbh', 'zacas zabha atomics', True),
+    T('rv32uzkne-p-aes32e', 'zkn', True),
+    T('rv32uzknd-p-aes32d', 'zkn', True),
+    T('rv32uzknd-p-aeskat', 'zkn', True),
+    T('rv32uzknh-p-sha256', 'zkn', True),
+    T('rv32uzknh-p-sha512', 'zkn', True),
+    T('rv32uzf-p-fadd', 'zfinx', True), T('rv32uzf-p-fdiv', 'zfinx', True),
+    T('rv32uzf-p-fclass', 'zfinx', True), T('rv32uzf-p-fcmp', 'zfinx', True),
+    T('rv32uzf-p-fcvt', 'zfinx', True), T('rv32uzf-p-fcvt_w', 'zfinx', True),
+    T('rv32uzf-p-fmadd', 'zfinx', True), T('rv32uzf-p-fmin', 'zfinx', True),
+    T('rv32uzf-p-dround', 'zfinx', True), T('rv32uzf-p-dsubnrm', 'zfinx', True),
+    T('rv32uzf-p-dnan', 'zfinx', True), T('rv32uzf-p-dpmzero', 'zfinx', True),
+    T('rv32uzf-p-dfcvttab', 'zfinx', True), T('rv32uzf-p-daccum', 'zfinx', True),
+    T('rv32uzf-p-drdx0', 'zfinx', True), T('rv32uzf-p-dsgnj', 'zfinx', True),
 ]
 
 
@@ -230,6 +351,78 @@ def rcf_mapping(nharts):
     return 'r%02d' % nharts, 'rcf_n%02d' % nharts
 
 
+# K2 (G1/G3): the schema keys that reach a `vesta` feature generic and that a
+# test can dispatch on at build time. Order is the CORE_ENABLE_* emission order
+# of ChipGenerator.py; it is also the order of the -DCORE_ENABLE_* list, so an
+# image-set identity is stable across runs.
+ISA_KNOBS = (
+    'mul', 'div', 'atomics', 'compressed', 'bitmanip',
+    'zicond', 'zcb', 'zimop', 'zihint', 'zihpm', 'zawrs',
+    'zabha', 'zacas',
+    'zicboz', 'zcmp', 'zcmt', 'zbkb', 'zbkc', 'zbkx', 'zkn',
+    'zfinx',
+)
+PRIV_KNOBS = ('trapCsr', 'umode', 'pmp')
+
+# The five base-ISA knobs default TRUE and the twenty X/P knobs default FALSE.
+# Only the ON direction needs a -D on the image build: the tests' `#ifdef
+# CORE_ENABLE_<K>` idiom is presence-based (generate.py emits the #define only
+# when the generic is true), so the ON set is exactly the -D set.
+#
+# THE FIVE BASE KNOBS ARE DELIBERATELY EXCLUDED, and the reason is measured, not
+# assumed. Sweeping every test source and the env for a real preprocessor
+# conditional (not a comment) on a base knob --
+#   grep -rnE '^\s*#\s*(if|ifdef|ifndef|elif).*CORE_ENABLE_(MUL|DIV|ATOMICS|COMPRESSED|BITMANIP)\b'
+# -- returns exactly ONE hit in the whole tree: `rv32ua/extzimop.S:93`, whose
+# `#ifdef CORE_ENABLE_COMPRESSED` guards a two-instruction Zcmop tail INSIDE its
+# already-Zimop-gated ON arm. The misa-adaptive probes (extmul/extdiv/extamo/
+# extrvc/extzb) dispatch at RUNTIME and need no define at all, and zbk.S names
+# CORE_ENABLE_BITMANIP only in prose.
+# Admitting COMPRESSED to this set would therefore buy that one tail -- in a
+# test no runner selects today (it is in neither the standing 136 nor this
+# CATALOG) -- at the price of putting `-DCORE_ENABLE_COMPRESSED` on EVERY image
+# of EVERY config (compressed defaults true), i.e. rebuilding the entire
+# canonical 260-image set at a new polarity and re-pinning the lockstep gate.
+# Named and deferred, not overlooked: if extzimop is ever wired in, it needs
+# either that decision taken deliberately or its own explicit -D.
+DEFINE_KNOBS = ISA_KNOBS[5:] + PRIV_KNOBS
+
+
+def image_defines(cfg):
+    """The -DCORE_ENABLE_* list this configuration's images must be built with.
+
+    K2/G3. This is the SOFTWARE half of the switch whose HARDWARE half is the
+    staged MemoryMap.vhd's `CORE_ENABLE_<K> : boolean := true`. The ISA
+    Makefile deliberately refuses to auto-derive these from the gitignored
+    make-chip header (verification/isa/Makefile: "a stale header would silently
+    compile the ON arm against OFF RTL and hang the suite") and that refusal
+    STAYS -- what K2 changes is that the explicit pairing is now produced from
+    ONE resolved config and CHECKED, instead of typed by hand.
+    """
+    isa = cfg.get('isa', {})
+    priv = cfg.get('priv', {})
+    out = []
+    for k in DEFINE_KNOBS:
+        on = priv.get(k) if k in PRIV_KNOBS else isa.get(k)
+        if on:
+            out.append('-DCORE_ENABLE_' + k.upper())
+    return out
+
+
+def test_groups(names):
+    """The verification/isa test groups the selected tests live in, in the
+    order build_mp_images.sh wants them (base groups first, ON-polarity suites
+    after -- the extprobe_template build-order trap: base images FIRST, then
+    the ON suites on top)."""
+    base = ['rv32ui', 'rv32ua', 'rv32um', 'rv32uc',
+            'rv32uzba', 'rv32uzbb', 'rv32uzbc', 'rv32uzbs']
+    need = set(n.split('-p-')[0] for n in names)
+    groups = [g for g in base if g in need]
+    for g in sorted(need - set(base)):
+        groups.append(g)
+    return groups
+
+
 def config_tags(cfg):
     """The tag set this configuration satisfies."""
     tags = set()
@@ -237,6 +430,38 @@ def config_tags(cfg):
     for k in ('mul', 'div', 'atomics', 'compressed', 'bitmanip'):
         if isa.get(k):
             tags.add(k)
+    # K2 (G1): the 16 X-series isa.* knobs and the 3 P-series priv.* knobs. A
+    # tag appears iff the resolved config turns the knob ON, so a knob-tagged
+    # row is selected only by a knobs-on config. Tag name == the schema key's
+    # leaf (isa.zicboz -> 'zicboz', priv.trapCsr -> 'trapCsr').
+    for k in ISA_KNOBS[5:]:
+        if isa.get(k):
+            tags.add(k)
+    priv = cfg.get('priv', {})
+    for k in PRIV_KNOBS:
+        if priv.get(k):
+            tags.add(k)
+    # cqAfeStubs defaults TRUE (the Castalia golden master keeps the AFE/EIS
+    # stubs); a qspi config sets it false and shafe must not be staged there.
+    if cfg.get('peripherals', {}).get('cqAfeStubs', True):
+        tags.add('cqAfeStubs')
+    # K2: `harts_le4` is a STRUCTURAL bound, not a knob -- "this row's addresses
+    # are only correct while 4*numHarts <= 16". Two independent reasons a test
+    # needs it, both measured:
+    #   * the AFE stub bank. mcu_vhd.py emits exactly FOUR afe_stub instances
+    #     (afe0..afe3) whatever numHarts is -- the bank is NOT N-parameterised --
+    #     while shafe.S addresses its own stub as `AFE0 + 0x40*h`. At h=4 that is
+    #     0x4D00, which is GPIO3's slot, so shafe on an 18-hart config would not
+    #     merely fail, it would write another peripheral.
+    #   * the CLINT mtime/mtimecmp offset. MTIME sits at
+    #     `0x5000 + roundup16(4*NHARTS)`, so the familiar 0x5010/0x5020 literals
+    #     are mtime/mtimecmp ONLY at N<=4; at N=18 they are msip[4]/msip[8].
+    #     shpause and shcmppush hardcode them (and say so in their headers).
+    # Deliberately a numeric bound rather than `numHarts == 4`: the predicate
+    # that is actually true is 4*N <= 16, and a hypothetical 2-hart config is
+    # fine for both reasons.
+    if int(cfg['numHarts']) <= 4:
+        tags.add('harts_le4')
     if cfg.get('peripherals', {}).get('npu'):
         tags.add('npu')
     if cfg.get('peripherals', {}).get('i2c1', True):
@@ -449,6 +674,13 @@ def main():
     print('RCF_DEST=%s' % os.path.join(REPO, 'verification', 'isa', dest))
     print('NTESTS_FULL=%d' % len(sel))
     print('NTESTS_SMOKE=%d' % len(smoke_sel))
+    # K2/G3: the image half of the configuration. GROUPS is what
+    # build_mp_images.sh must build for THIS selection (the ON-polarity suites
+    # are not in its default group list); DEFINES is the -DCORE_ENABLE_* set the
+    # config's ON knobs require. Printed unconditionally so a reader of the
+    # verify banner can see the exact polarity the images were asked for.
+    print('GROUPS=%s' % ' '.join(test_groups(name for (name, _s) in sel)))
+    print('DEFINES=%s' % ' '.join(image_defines(cfg)))
 
 
 if __name__ == '__main__':

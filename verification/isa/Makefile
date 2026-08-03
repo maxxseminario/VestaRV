@@ -578,7 +578,13 @@ pad_all_rcf:
 	    stripped="$${f#$${f%%[!x]*}}"; \
 	    slen=$${#stripped}; \
 	    pad_count=$$(( $(TARGET_RCF_NAMELEN) - slen )); \
-	    if [ $$pad_count -lt 0 ]; then pad_count=0; fi; \
+	    if [ $$pad_count -lt 0 ]; then \
+	      echo "WARNING: $$stripped is $$slen chars, over the $(TARGET_RCF_NAMELEN)-char"; \
+	      echo "         TEST_FILE contract -- it is left UNPADDED and CANNOT be simulated"; \
+	      echo "         through riscv_tb's fixed 29-char generic. Shorten the test basename"; \
+	      echo "         in its Makefrag (the rv32uzicond/rv32uzabha precedent)."; \
+	      pad_count=0; \
+	    fi; \
 	    newname="$$(printf '%*s' $$pad_count '' | tr ' ' x)$${stripped}"; \
 	    if [ "$$f" != "$$newname" ]; then mv "$$f" "$$newname"; fi; \
 	  done; \
