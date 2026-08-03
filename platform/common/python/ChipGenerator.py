@@ -107,8 +107,11 @@ class ChipGenerator():
 	ENABLE_ZKN = None			# X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
 	ENABLE_ZFINX = None			# X4: Zfinx single-precision FP in x-registers
 	# P-series privileged-architecture generics (scaffolded P0 2026-07-28, all
-	# default false / 16 entries). NOT IMPLEMENTED yet — generate.py hard-errors
-	# on a true. Drive CORE_ENABLE_TRAPCSR/UMODE/PMP + CORE_PMP_ENTRIES in
+	# default false / 16 entries). IMPLEMENTED — P1 trapCsr and P2 umode
+	# graduated 2026-07-28, P3 pmp 2026-07-29, and generate.py's
+	# _SCAFFOLDED_PRIV is now empty; what it enforces on a true is the priv
+	# ladder (umode requires trapCsr, pmp requires umode), not a hard error.
+	# Drive CORE_ENABLE_TRAPCSR/UMODE/PMP + CORE_PMP_ENTRIES in
 	# MemoryMap.vhd and the C-header/core_features.h defines.
 	ENABLE_TRAPCSR = None		# P1: standard M-mode trap architecture (mstatus/mtvec/mepc/...)
 	ENABLE_UMODE = None			# P2: user mode (privilege register + MPP/MPIE stack)
