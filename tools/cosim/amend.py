@@ -41,10 +41,15 @@ and only on a configuration whose resolved config turns the owning knob on.
                                               reference records, `C 001` fflags
                                               + `C 002` frm (k0 oracle probe
                                               §1.3h)
+    isa.zihpm       hpm-warl                  the HPM WARL allowlist: the RTL
+                                              stores the full 32-bit value and
+                                              the reference WARLs it to zero (or
+                                              logs nothing at all) -- both legal,
+                                              different records
+                                              (D-2026-07-29-1 / k0 §3.3)
 
-(The K2b spec's amendment 4 -- the ZIHPM WARL allowlist -- lands in its own
-commit and extends the table above.  One amendment, one commit, one set of
-default-config pins.)
+(That is the whole K2b spec: four amendments, six rules, one commit each, one
+set of default-config pins each.)
 
 WHERE A NEW RULE BELONGS, AND WHY IT MATTERS (the A17 acceptance lesson).
 `--count` measures the RTL window AFTER `rtl_prepass` and its number is fed
@@ -107,6 +112,10 @@ AMENDMENTS = (
     ("fcsr-split", "isa.zfinx",
      "rewrite the RTL's single `C 003` fcsr write into the reference's "
      "`C 001` + `C 002` decomposition"),
+    ("hpm-warl", "isa.zihpm",
+     "the HPM WARL allowlist: named HPM CSR WRITE records leave the compared "
+     "stream on BOTH sides, and the CONFIGURATION registers' read-backs stop "
+     "comparing rdval -- the COUNTERS' do not"),
 )
 
 AMENDMENT_NAMES = tuple(n for (n, _p, _d) in AMENDMENTS)
@@ -280,6 +289,50 @@ def cboz_shape_ok(stores):
     return True, ""
 
 
+# --------------------------------------------------------------------------
+# the HPM WARL allowlist -- NAMED addresses, two tiers, and the second tier is
+# deliberately SMALLER than the first.
+# --------------------------------------------------------------------------
+#
+# TIER 1 (`HPM_C_DROP`): the CSR-WRITE record leaves the compared stream on BOTH
+# sides.  The two models disagree about whether such a write is loggable at all,
+# and they disagree DIFFERENTLY per address -- measured on the reference this
+# wave:
+#     csrw 0x323 / 0x324  ->  `C 323/324 00000000`   (WARL-masked to zero)
+#     csrw 0xb03/b83/b04/b84 -> NOTHING logged
+#     csrw 0x320          ->  `C 320 fffffffd`       (its own WARL mask)
+# while the RTL with ENABLE_ZIHPM stores and logs the value for every one of
+# them (`csr_unit.vhd:386-388` lists exactly this group under ENABLE_ZIHPM).  So
+# the disagreement is a VALUE mismatch on some addresses and a record-KIND
+# mismatch on others, and dropping BOTH sides is the only rule that covers the
+# class without pretending to know which shape a given address takes.
+#
+# THE SET IS EXACTLY `csr_addr_stores`'s ZIHPM GROUP, and two addresses the
+# handoff draft included are deliberately ABSENT: `0xb05`/`0xb85`
+# (mhpmcounter5/5h) are NOT in that group, so the RTL emits no `C` for them, and
+# the reference logs none either -- a rule arm that cannot fire is decoration,
+# which is worse than absent (method rule 9).
+HPM_C_DROP = frozenset((
+    0x320,                        # mcountinhibit
+    0x323, 0x324,                 # mhpmevent3 / mhpmevent4
+    0xb03, 0xb83, 0xb04, 0xb84,   # mhpmcounter3/3h/4/4h
+))
+
+# TIER 2 (`HPM_RDVAL_RELAX`): the READ-BACK stops comparing `rdval`.  This is the
+# CONFIGURATION registers ONLY.
+#
+# `mhpmcounter*` IS DELIBERATELY ABSENT, AND THAT ABSENCE IS THE POINT OF THE
+# WHOLE AMENDMENT.  The extzihpm disposition (D-2026-07-29-1) records that the
+# predicted F1 divergence -- hpm counter VALUES under the gated clock -- lies
+# further down that test's stream and is MASKED by the first mismatch.  Tier 1
+# unmasks it.  Relaxing the counter read-backs here would re-mask it with the
+# very instrument written to expose it: method rule 11, exactly.  So the
+# counters' read values stay COMPARED, the row is EXPECTED to end in a divergence
+# there, and that divergence is the amendment's deliverable rather than its
+# failure.
+HPM_RDVAL_RELAX = frozenset((0x320, 0x323, 0x324))
+
+
 class Amend(object):
     """The enabled set plus every census the summary has to print."""
 
@@ -398,6 +451,14 @@ def rtl_prepass(recs, am):
                           "%s -- the T is KEPT and reported"
                           % (r.f[0], r.f[1], land or "<none: no retire "
                              "follows, i.e. a TERMINAL trap>", want))
+
+        # -- hpm-warl tier 1, RTL side: the HPM write records leave the stream --
+        if r.kind == "C" and am.enabled("hpm-warl"):
+            a = _word(r.f[0])
+            if a is not None and a in HPM_C_DROP:
+                am.bump("hpm-warl", "rtl C %s" % r.f[0])
+                i += 1
+                continue
 
         # -- fcsr-split: one RTL `C 003` becomes the reference's two records ---
         # Measured (k0 oracle probe §1.3h): `csrw fcsr,t0` with t0=7 logs
@@ -526,11 +587,18 @@ def spike_prepass(recs, am):
     a reference-side drop cannot part the two numbers the way a walk-level rule
     can (the A17 acceptance defect).  Nothing here needs that machinery.
     """
-    if not am.names or not am.enabled("mret-csr"):
+    if not am.names or not (am.enabled("mret-csr") or am.enabled("hpm-warl")):
         return recs
     out = []
     for i, r in enumerate(recs):
-        if r.kind == "C" and r.f[0] in ("310", "7a5"):
+        # -- hpm-warl tier 1, reference side (see HPM_C_DROP) ---------------
+        if r.kind == "C" and am.enabled("hpm-warl"):
+            a = _word(r.f[0])
+            if a is not None and a in HPM_C_DROP:
+                am.bump("hpm-warl", "spike C %s" % r.f[0])
+                continue
+
+        if r.kind == "C" and am.enabled("mret-csr") and r.f[0] in ("310", "7a5"):
             # THE ADDRESS IS 0x7a5, AND THE FROZEN SPEC SAYS 0x7a1.  The spec
             # inherited "{0x310 mstatush, 0x7a1 tcontrol}" from the K0 oracle
             # probe §1.3i's PROSE, which contradicts the MEASUREMENT printed two
@@ -609,6 +677,37 @@ def zfinx_should_skip(am, a, b):
         am.zfinx_kept += 1
         return False
     am.bump("zfinx-fflags", a.f[1])
+    return True
+
+
+def hpm_keys_match(am, a, b):
+    """Tier 2: `rdval` relaxation on a READ-BACK of a tier-2 HPM CSR.
+
+    Called ONLY after `a.key() != b.key()`, so it can never make a matching pair
+    "more matching"; it can only rescue a pair that already disagrees, and only
+    on the ONE field the two models are legally allowed to disagree about.
+
+    Everything else about the record is still compared EXACTLY -- pc, insn and
+    rd must all be equal before the value is forgiven -- so a read that lands on
+    the wrong register, at the wrong pc, or that fails to retire at all is still
+    caught.  And it never advances one stream without the other: the caller
+    treats the pair as compared, so the record COUNT is untouched (this is why
+    tier 2 cannot recreate the A17 `--count`/`--max-records` problem).
+
+    WHAT IS NOT IN `HPM_RDVAL_RELAX`, and why the list is where to look: the
+    COUNTERS.  See the comment on that frozenset -- the divergence at a counter
+    read is F1, and it is the thing this amendment exists to make reachable.
+    """
+    if not am.enabled("hpm-warl"):
+        return False
+    if a.kind != "R" or b.kind != "R":
+        return False
+    if a.f[0] != b.f[0] or a.f[1] != b.f[1] or a.f[2] != b.f[2]:
+        return False
+    acc = csr_access(a.f[1])
+    if acc is None or acc[0] not in HPM_RDVAL_RELAX:
+        return False
+    am.bump("hpm-warl", "rdval %03x" % acc[0])
     return True
 
 

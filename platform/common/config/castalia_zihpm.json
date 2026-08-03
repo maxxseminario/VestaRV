@@ -1,0 +1,5 @@
+{
+  "_comment": "K2b amendment-4 config: Castalia defaults + Zihpm (the hardware performance counters -- mhpmevent3/4, mhpmcounter3/4 and mcountinhibit become writable storage). The R-DK1 tier-B single-knob row, and the one the K0 oracle probe singled out in advance (§3.3): turning ZIHPM ON does not remove the standing rv32ua-p-extzihpm divergence, it makes it WORSE BY DESIGN -- the RTL stores the full 32-bit value where the reference WARLs it to zero, so a record-KIND mismatch becomes a VALUE mismatch that propagates into register state. That is what the comparator's `hpm-warl` amendment reconciles (tools/cosim/oracle_isa.py::derive_amendments), and what it deliberately does NOT reconcile is the COUNTER VALUES: the RTL has real event counters (csr_unit.vhd: bus-stall, grant, sleep, trap-entry) and the reference hardwires them to zero. THIS ROW IS THEREFORE EXPECTED TO DIVERGE at the first counter read -- that is finding F1 becoming measurable for the first time and is the row's PASS condition, not its failure. Prove the RTL side with: SUITE=full make verify CONFIG=config/castalia_zihpm.json",
+  "chipName": "CastaliaZihpm",
+  "isa": { "zihpm": true }
+}
