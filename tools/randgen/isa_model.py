@@ -1,0 +1,274 @@
+#!/usr/bin/python3.6
+"""isa_model.py -- what a given VestaRV configuration may legally be asked to
+execute, and what the ORACLE can be asked to judge about it.
+
+TWO GATES, NOT ONE.  This is the design decision of K3 and it is worth stating
+before the tables:
+
+  1. **Config-legality.**  An encoding the configured RTL would trap is never
+     emitted.  On a default build a trap is TERMINAL (`vesta.vhd`'s TRAP_STATE
+     self-loops with no ENABLE_ term -- K0 oracle probe §1.3n), so an
+     illegal-for-config encoding does not fail loudly, it HANGS until the tb
+     watchdog.  Gate 1 is what k3_spec.md requirement 2 asks for.
+
+  2. **Oracle-judgeability.**  An encoding both sides execute but DESCRIBE
+     DIFFERENTLY is worse than an illegal one, because the resulting divergence
+     looks like an RTL bug.  The K0 oracle probe measured, per knob, whether the
+     reference's record stream can be compared at all:
+
+        verdict A  comparable today
+        verdict B  needs a comparator amendment that DOES NOT EXIST (K2b)
+        verdict C  not modellable; needs a V-series bracket channel
+
+     A random generator that emits a verdict-B class into a lockstep run
+     manufactures a divergence out of the harness.  So every class here carries
+     its oracle status, and `select_classes()` REFUSES to hand a verdict-B class
+     to a stream unless the caller passes `allow_unmodelled=True` and thereby
+     takes responsibility for it in writing.
+
+Neither gate is a substitute for the other.  Gate 1 is about the DUT; gate 2 is
+about the reference.
+
+WHAT THIS MODULE DOES NOT DO
+----------------------------
+It does not encode instructions.  It emits MNEMONIC TEXT and lets `gas` do the
+encoding, so that the census (`census.py`) -- which decodes the built image's
+BYTES back to a mnemonic from its own field table -- is an INDEPENDENT
+instrument rather than a restatement of this file.  R-K2-5's `200f` lesson is
+that a census which shares its author's assumptions confirms them; the unit
+tests assert `census.decode(gas(m)) == m` for every mnemonic below, with
+`objdump -M no-aliases` as the third-party referee.
+
+Python 3.6 compatible.
+"""
+
+# --------------------------------------------------------------------------
+# Oracle verdicts, quoted from k0_oracle_probe.md §1.2's table.  The citation
+# is part of the datum: a status without its measurement is an opinion.
+# --------------------------------------------------------------------------
+A = 'A'      # comparable today
+B = 'B'      # needs a comparator amendment (K2b) -- do not lockstep
+C = 'C'      # not modellable at all; bracket channel only
+
+KNOB_ORACLE = (
+    # (knob, verdict, note)
+    ('mul',        A, 'k0 §1.2: `m`/`zmmul`'),
+    ('div',        A, 'k0 §1.2: `m`; div-without-mul has NO lever (verdict C)'),
+    ('atomics',    A, 'k0 §1.2: `a`, WITNESS lr.w'),
+    ('compressed', A, 'k0 §1.2: `c`, WITNESS c.addi4spn'),
+    ('bitmanip',   A, 'k0 §1.2: `_zba_zbb_zbs_zbc`, WITNESS sh1add'),
+    ('zicond',     A, 'k0 §1.2: `_zicond`, WITNESS czero.eqz'),
+    ('zcb',        A, 'k0 §1.2: `_zca_zcb`'),
+    ('zimop',      A, 'k0 §1.2: `_zimop`(+`_zcmop`)'),
+    ('zihint',     A, 'k0 §1.2/§1.3b: pause retires in BOTH polarities'),
+    ('zihpm',      B, 'k0 §1.2/§3: the --isa string has NO effect on HPM CSRs; '
+                      'D-2026-07-29-1 is the standing divergence'),
+    ('zawrs',      A, 'k0 §1.2/§1.3c: RTL gate is ZAWRS *and* ATOMICS'),
+    ('zabha',      A, 'k0 §1.2: `_zabha`, WITNESS amoadd.b'),
+    ('zacas',      A, 'k0 §1.2: `_zacas`, WITNESS amocas.w'),
+    ('zicboz',     B, 'k0 §1.3d: RTL emits 1 R + SIXTEEN M S, Spike emits 1 + 0'),
+    ('zcmp',       A, 'k0 §1.3l: record counts match exactly on both sides'),
+    ('zcmt',       B, 'k0 §1.3e: cm.jt does a data-port table load the reference '
+                      'never logs, plus the jvt WARL asymmetry'),
+    ('zbkb',       A, 'k0 §1.2: `_zbkb`, WITNESS pack'),
+    ('zbkc',       A, 'k0 §1.2: `_zbkc`, WITNESS clmul'),
+    ('zbkx',       A, 'k0 §1.2: `_zbkx`, WITNESS xperm8'),
+    ('zkn',        A, 'k0 §1.2: `_zknd_zkne_zknh[_zkn]`'),
+    ('zfinx',      B, 'k0 §1.3m: the RTL tracer emits C 001 on EVERY FPU_DONE, '
+                      'Spike only when the flags change'),
+    ('trapCsr',    B, 'k0 §1.3i/n: mret is THREE Spike C records (mstatush, '
+                      'tcontrol have no VestaRV counterpart)'),
+    ('umode',      B, 'k0 §1.3j/o: --priv mu changes the reference reset state'),
+    ('pmp',        B, 'k0 §1.4: Spike PMP reset state is NOT zero'),
+)
+
+KNOB_ORACLE_STATUS = dict((k, v) for (k, v, _n) in KNOB_ORACLE)
+KNOB_ORACLE_NOTE = dict((k, n) for (k, _v, n) in KNOB_ORACLE)
+
+
+# --------------------------------------------------------------------------
+# HARD REFUSALS -- the things k3_spec.md requirement 3 forbids outright, each
+# with the measurement behind it.  These are not weights; nothing may switch
+# them on.  Enforced by `assert_no_forbidden_text()` over the emitted body, so
+# that a future emitter cannot reintroduce one silently.
+# --------------------------------------------------------------------------
+FORBIDDEN = (
+    ('mip write',
+     'k0 §1.3n: `mip` is a READ-ONLY mirror in the RTL and WRITABLE in M-mode '
+     'in Spike -- a stream that writes it diverges by construction.'),
+    ('jvt write',
+     'k0 §1.3e: the RTL pins jvt[5:0] to zero, Spike stores what you wrote. '
+     'Both legal WARL, different values, and C.val is a compared field.'),
+    ('mtvec MODE != 0',
+     'k0 §1.3n: mtvec MODE is WARL "00" in the RTL and vectored-capable in Spike.'),
+    ('opcode 0x0b',
+     'k0 §1.5: iret/extinguish/ignite TRAP in Spike under EVERY --isa string. '
+     'Verdict C for every config; the treatment is the bracket channel.'),
+    ('mutex-bank AMO/LR/SC',
+     'CLAUDE.md: an `lw` of a mutex address is an atomic claim WITH A SIDE '
+     'EFFECT; never AMO or LR/SC one.'),
+    ('mhpmevent write on a non-ZIHPM config',
+     'D-2026-07-29-1, the standing rv32ua-p-extzihpm divergence.'),
+)
+
+
+# --------------------------------------------------------------------------
+# The shape classes.  A class is a set of mnemonics that (a) the census can
+# tell apart from every other class by FIELD DECODE alone, and (b) share a
+# knob requirement.  `needs` is a tuple of resolved-config isa.* keys that must
+# ALL be true.
+#
+# ORDER IS PART OF THE CONTRACT: it is the order weights are consumed in and
+# therefore reaches the emitted bytes.  Never reorder without bumping the
+# generator version.
+# --------------------------------------------------------------------------
+
+# Base-integer R-type.
+M_ALU_REG = ('add', 'sub', 'sll', 'slt', 'sltu', 'xor', 'srl', 'sra', 'or', 'and')
+# Base-integer I-type (register-immediate).  `slli/srli/srai` take a shamt.
+M_ALU_IMM = ('addi', 'slti', 'sltiu', 'xori', 'ori', 'andi')
+M_ALU_SHIMM = ('slli', 'srli', 'srai')
+M_BRANCH = ('beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu')
+M_LOAD = ('lb', 'lh', 'lw', 'lbu', 'lhu')
+M_STORE = ('sb', 'sh', 'sw')
+M_MUL = ('mul', 'mulh', 'mulhsu', 'mulhu')
+M_DIV = ('div', 'divu', 'rem', 'remu')
+M_AMO = ('amoswap.w', 'amoadd.w', 'amoxor.w', 'amoand.w', 'amoor.w',
+         'amomin.w', 'amomax.w', 'amominu.w', 'amomaxu.w')
+M_ZBA = ('sh1add', 'sh2add', 'sh3add')
+M_ZBB_R = ('andn', 'orn', 'xnor', 'max', 'maxu', 'min', 'minu', 'rol', 'ror')
+# `zext.h` is TWO-operand (`zext.h rd, rs1`) even though it is an OP-format
+# encoding with rs2 pinned to zero, so it belongs with the unary group and not
+# with the register-register one.  It was in M_ZBB_R in the first cut and gas
+# rejected `zext.h x31,x15,x22` -- found by the longer unit-test streams, which
+# is the whole reason those run at length 1200 rather than 300.
+M_ZBB_UN = ('clz', 'ctz', 'cpop', 'sext.b', 'sext.h', 'orc.b', 'rev8',
+            'zext.h')
+M_ZBB_IMM = ('rori',)
+M_ZBS_R = ('bclr', 'bext', 'binv', 'bset')
+M_ZBS_IMM = ('bclri', 'bexti', 'binvi', 'bseti')
+M_ZBC = ('clmul', 'clmulh', 'clmulr')
+
+# class name -> (required isa.* knobs, oracle verdict, human description)
+CLASSES = (
+    ('alu_reg', (), A, 'base-I register-register ALU'),
+    ('alu_imm', (), A, 'base-I register-immediate ALU (incl. shift-immediate)'),
+    ('lui', (), A, 'lui'),
+    ('auipc', (), A, 'auipc'),
+    ('branch', (), A, 'conditional branch, FORWARD only'),
+    ('jal', (), A, 'jal (forward, or the subroutine-skip guard)'),
+    ('jalr', (), A, 'jalr (the subroutine return)'),
+    ('load', (), A, 'aligned load from the scratch block'),
+    ('store', (), A, 'aligned store into the scratch block'),
+    ('fence', (), A, 'fence iorw,iorw'),
+    ('mul', ('mul',), A, 'M-extension multiply (multi-cycle sequencer)'),
+    ('div', ('mul', 'div'), A, 'M-extension divide/remainder (DIV_WAIT/DIV_DONE)'),
+    ('amo', ('atomics',), A, 'word AMO on the scratch block (AMO_* sequencer)'),
+    ('lrsc', ('atomics',), A, 'adjacent lr.w/sc.w pair (LR_READ/SC_CHECK)'),
+    ('zba', ('bitmanip',), A, 'Zba address generation'),
+    ('zbb', ('bitmanip',), A, 'Zbb basic bit manipulation'),
+    ('zbs', ('bitmanip',), A, 'Zbs single-bit'),
+    ('zbc', ('bitmanip',), A, 'Zbc carry-less multiply'),
+    ('clint_irq', (), C, 'CLINT msip self-injection (legacy IVT delivery; '
+                         'lockstep needs BRACKET_ISR=1)'),
+)
+
+CLASS_NEEDS = dict((n, need) for (n, need, _o, _d) in CLASSES)
+CLASS_ORACLE = dict((n, o) for (n, _need, o, _d) in CLASSES)
+CLASS_DESC = dict((n, d) for (n, _need, _o, d) in CLASSES)
+CLASS_ORDER = tuple(n for (n, _need, _o, _d) in CLASSES)
+
+# Every mnemonic this module can emit, grouped by the class the census must
+# report it as.  The unit tests walk this map, assemble each mnemonic, and
+# assert census.decode() names it identically -- the instrument validation.
+CLASS_MNEMONICS = (
+    ('alu_reg', M_ALU_REG),
+    ('alu_imm', M_ALU_IMM + M_ALU_SHIMM),
+    ('lui', ('lui',)),
+    ('auipc', ('auipc',)),
+    ('branch', M_BRANCH),
+    ('jal', ('jal',)),
+    ('jalr', ('jalr',)),
+    ('load', M_LOAD),
+    ('store', M_STORE),
+    ('fence', ('fence',)),
+    ('mul', M_MUL),
+    ('div', M_DIV),
+    ('amo', M_AMO),
+    ('lrsc', ('lr.w', 'sc.w')),
+    ('zba', M_ZBA),
+    ('zbb', M_ZBB_R + M_ZBB_UN + M_ZBB_IMM),
+    ('zbs', M_ZBS_R + M_ZBS_IMM),
+    ('zbc', M_ZBC),
+)
+
+MNEMONIC_CLASS = {}
+for _c, _ms in CLASS_MNEMONICS:
+    for _m in _ms:
+        MNEMONIC_CLASS[_m] = _c
+del _c, _ms, _m
+
+
+# The 'clint_irq' class emits base-I loads/stores; its instructions decode as
+# `alu_imm`/`store`/`load` and the census counts them as such.  That is
+# deliberate and is stated in the manifest: a census cannot tell an
+# msip-arming `sw` from any other `sw` by field decode, and pretending it can
+# would be exactly the suffix-matching error R-K2-5 recorded.  The IRQ-site
+# count is therefore a GENERATOR claim carried in the manifest and validated by
+# a different witness (the ISR's own flag word), not by the census.
+CENSUS_OPAQUE_CLASSES = ('clint_irq',)
+
+
+class UnmodellableClass(Exception):
+    """A class the reference model cannot be asked to judge."""
+
+
+def available_classes(cfg_isa, allow_unmodelled=False):
+    """The classes this configuration may legally and judgeably emit.
+
+    Returns `(available, blocked)` where `blocked` is an ordered list of
+    `(class, reason)` -- kept and reported rather than silently dropped, so a
+    manifest can state what a run did NOT cover and why.
+
+    VERDICT C IS ADMITTED AND VERDICT B IS NOT, which looks backwards until the
+    difference is named: a C class has an EXISTING channel (the V3
+    `BRACKET_ISR` machinery, a standing gate since the multi-hart sweep), while
+    a B class needs a comparator amendment that K2 explicitly deferred to K2b
+    and that DOES NOT EXIST.  "Not modellable, but bracketed" is a solved
+    problem; "modelled differently by the two sides" is an open one, and only
+    the second manufactures divergences that look like RTL bugs.
+    """
+    avail, blocked = [], []
+    for name in CLASS_ORDER:
+        need = CLASS_NEEDS[name]
+        missing = [k for k in need if not cfg_isa.get(k)]
+        if missing:
+            blocked.append((name, 'config knob(s) off: ' + ', '.join(missing)))
+            continue
+        verdict = CLASS_ORACLE[name]
+        if verdict == B and not allow_unmodelled:
+            blocked.append((name, 'oracle verdict B (comparator amendment is '
+                                  'K2b and does not exist)'))
+            continue
+        avail.append(name)
+    return avail, blocked
+
+
+def knobs_on_without_emitter(cfg_isa, cfg_priv):
+    """Knobs the config turns ON that this generator has NO emitter for.
+
+    Named rather than ignored.  A knob-on row whose stream contains none of that
+    knob's encodings is a green cell covering nothing -- R-K2-7 (2) ruled that
+    distinction into the residue list, and this is the generator's half of it.
+    """
+    have_emitter = set()
+    for name in CLASS_ORDER:
+        for k in CLASS_NEEDS[name]:
+            have_emitter.add(k)
+    out = []
+    for knob, _v, _n in KNOB_ORACLE:
+        on = cfg_priv.get(knob) if knob in ('trapCsr', 'umode', 'pmp') \
+            else cfg_isa.get(knob)
+        if on and knob not in have_emitter:
+            out.append((knob, KNOB_ORACLE_STATUS[knob], KNOB_ORACLE_NOTE[knob]))
+    return out

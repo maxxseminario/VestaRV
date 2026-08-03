@@ -1,0 +1,39 @@
+#=======================================================================
+# Makefrag for rv32uk tests -- K3 CONSTRAINED-RANDOM STREAMS
+#-----------------------------------------------------------------------
+# EVERY `.S` IN THIS DIRECTORY IS GENERATED.  Do not hand-edit one; edit
+# tools/randgen/ and regenerate:
+#
+#   /usr/bin/python3.6 tools/randgen/randgen.py campaign \
+#       --spec tools/randgen/campaign/campaign_spec.json
+#   /usr/bin/python3.6 tools/randgen/randgen.py verify      # R-DK5
+#
+# Each file's header carries its own reproduction line (generator version +
+# seed + profile + resolved-config digest), and tools/randgen/campaign/ holds
+# the per-stream shape manifest that tools/randgen/census.py validates against
+# the built image.
+#
+# BUILD MARCH: rv32imac_zba_zbb_zbc_zbs -- the DEFAULT Castalia config's ISA.
+# The generator records the march its config needs in each manifest (`march`);
+# a config needing more than this line provides must extend it here in the same
+# change, or gas will reject the stream at build time (which is the intended
+# second gate, not a surprise).
+#
+# k3nc* ARE NEGATIVE CONTROLS AND ARE EXPECTED TO **FAIL**.
+# They exist so the streams' epilogue discipline checks can be SEEN TO FAIL
+# (method rule 1).  They must never appear in xrun_parallel.sh's TEST_FILES,
+# in verify_stage.py's CATALOG, or in either cosim list.
+#=======================================================================
+
+rv32uk_sc_tests = \
+	k3s01 \
+	k3s02 \
+	k3b01 \
+	k3z01 \
+	k3i01 \
+	k3i02 \
+	k3nc1 \
+	k3nc2 \
+
+rv32uk_p_tests = $(addprefix rv32uk-p-, $(rv32uk_sc_tests))
+rv32uk_v_tests = $(addprefix rv32uk-v-, $(rv32uk_sc_tests))

@@ -29,6 +29,7 @@ include $(src_dir)/rv32ui/Makefrag
 include $(src_dir)/rv32uc/Makefrag
 include $(src_dir)/rv32um/Makefrag
 include $(src_dir)/rv32ua/Makefrag
+include $(src_dir)/rv32uk/Makefrag # K3 constrained-random streams (tools/randgen)
 include $(src_dir)/rv32uf/Makefrag
 include $(src_dir)/rv32ud/Makefrag
 include $(src_dir)/rv32uzfh/Makefrag
@@ -275,6 +276,13 @@ $(eval $(call compile_template,rv32um,-march=rv32imc -mabi=ilp32))
 #       -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZICOND"
 # See verification/isa/tests/rv32ua/extzicond.S.
 $(eval $(call compile_template,rv32ua,-march=rv32imac -mabi=ilp32))
+# rv32uk (K3): GENERATED constrained-random streams from tools/randgen. The
+# march is the DEFAULT Castalia config's ISA; each stream's manifest records the
+# march its own resolved config needs, and gas is the second legality gate (the
+# first is the generator's config model). k3nc* are EXPECTED-FAIL negative
+# controls for the streams' own epilogue checks -- never wire them into a
+# standing list. See tests/rv32uk/Makefrag.
+$(eval $(call compile_template,rv32uk,-march=rv32imac_zba_zbb_zbc_zbs -mabi=ilp32))
 $(eval $(call compile_template,rv32uf,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32ud,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32uzfh,-march=rv32g_zfh -mabi=ilp32))
@@ -479,6 +487,16 @@ rv32ziscr-flash: riscv32ziscr-clean rv32ziscr
 	@echo "Flashing: Prepending binary header lines to rv32ziscr .rcf files ..."
 	@echo "Files to flash: " rcf/*rv32ziscr*.rcf
 	@./flash_prepend.sh "rcf/*rv32ziscr*.rcf"
+
+# rv32uk (K3): NO clean prerequisite, deliberately -- these images are ADDITIVE
+# to rcf/ and must not disturb the 260 canonical ones. Build with the same
+# RISCV_GCC_OPTS the image set is stamped with (rcf/.imgset), or xrun_cosim's
+# check_image.py will (correctly) report an image/ELF mismatch.
+.PHONY: rv32uk-flash
+rv32uk-flash: rv32uk
+	@echo "Flashing: Prepending binary header lines to rv32uk .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uk*.rcf
+	@./flash_prepend.sh "rcf/*rv32uk*.rcf"
 
 .PHONY: rv32uzicond-flash
 rv32uzicond-flash: rv32uzicond

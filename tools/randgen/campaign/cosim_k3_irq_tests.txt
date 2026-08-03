@@ -1,0 +1,11 @@
+# K3 lockstep list -- the IRQ axis.  BRACKET_ISR=1 IS REQUIRED.
+#
+#   COSIM_BOOT=1 BRACKET_ISR=1 \
+#     TESTS_FILE=<repo>/tools/randgen/campaign/cosim_k3_irq_tests.txt \
+#     ./xrun_cosim.sh
+#
+# ONLY k3i02 (generated with --no-irq-observe) is here.  k3i01's epilogue reads
+# the handler's count word, and the reference never executes the bracketed
+# handler, so its copy of that word stays zero: k3i01 would diverge on a HARNESS
+# artefact, not on the DUT.  k3i01 is behavioral-only by design.
+xxxxrv32uk-p-k3i02.rcf
