@@ -557,7 +557,7 @@ begin
     -- divergence D-2026-07-29-1 (`csrrw zero, mhpmevent3, t0`, address 0x323)
     -- is NOT in this set and is unaffected.
     --
-    -- WHY IT IS GATED ON ENABLE_TRAPCSR (user ruling D3-bis, 2026-07-31).
+    -- WHY IT IS GATED ON ENABLE_TRAPCSR (D3-bis, 2026-07-31) -- SUPERSEDED:
     -- UNGATED, IN EVERY BUILD (user ruling, 2026-07-31, superseding D3-bis).
     -- An earlier draft gated this on ENABLE_TRAPCSR, on the reasoning that
     -- trapping is only well-defined where a trap architecture exists. That
@@ -888,10 +888,10 @@ begin
                         -- suppression (u_csr_denied) so the trap and the
                         -- side-effect block can never disagree.
                         -- F10 (fix pass W4): a WRITE to a READ-ONLY CSR
-                        --     (imm12(11:10)="11") is likewise illegal, on an
-                        --     ENABLE_TRAPCSR build. Tested AFTER the U-mode
-                        --     denial only because that one is the older rule;
-                        --     both report cause 2, so the order is cosmetic.
+                        --     (imm12(11:10)="11") is likewise illegal, in EVERY
+                        --     build -- csr_ro_denied carries no ENABLE_ term.
+                        --     Tested AFTER the U-mode denial only because that
+                        --     is older; both report cause 2, so order is moot.
                         if u_csr_denied = '1' then
                             valid_funct <= '0';
                         elsif csr_ro_denied = '1' then
