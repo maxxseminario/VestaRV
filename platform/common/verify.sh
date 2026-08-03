@@ -46,6 +46,11 @@ case "$IMG_GROUPS" in
     ''|*[!a-z0-9\ ]*) echo "❌ IMG_GROUPS is empty or malformed: '$IMG_GROUPS'"; exit 1 ;;
 esac
 IMGSET=$(val IMGSET); RTL_ON=$(val RTL_ON)
+# K4 (row C3): the `-march` the images must be built with, or empty for "use
+# the ISA Makefile's per-group march" -- which is every configuration but C3.
+# It is part of the image-set IDENTITY (verify_stage.imgset_identity), so a
+# norvc set can never be reused as, or overwrite, a compressed one.
+IMG_MARCH=$(val MARCH)
 
 # ---------------------------------------------------------------------------
 # K2/G3 -- THE POLARITY GATE. Run BEFORE any image is built or reused.
@@ -126,8 +131,19 @@ fi
 # A fresh stamp is not enough: a test ADDED to the catalog since the set was
 # built has no rcf yet (afselv2 burned this on the Argus set, 2026-07-12) --
 # scan the staged runner/smoke lists and rebuild if any staged rcf is missing.
+#
+# K4 (ledger K4-L8): the pattern used to be `\.\./r[a-z0-9][a-z0-9]/`, i.e. it
+# required the 3-character link to START WITH `r`. That matches the canonical
+# sets (rcf / rca / r18) and NOTHING ELSE -- every knobs-on set is `k<XX>` by
+# construction (verify_stage.rcf_mapping prefixes the digest tag with `k`), so
+# on every knob-bearing configuration MISSING was structurally pinned at 0 and
+# this check could not fire. It stayed latent from K2/G3 until the first
+# CATALOG row landed on a knobs-on config; then A3 and the D2 canary aborted at
+# 40 NS with "Test file not found" while the detector built for exactly that
+# said nothing. The link contract is "exactly 3 characters", so the pattern is
+# now exactly that and no narrower.
 MISSING=0
-for f in $(grep -ho '\.\./r[a-z0-9][a-z0-9]/[^" ]*\.rcf' \
+for f in $(grep -hoE '\.\./[a-z0-9]{3}/[^" ]*\.rcf' \
         "$STAGE_DIR"/smoke.txt "$STAGE_DIR"/xrun_parallel.sh 2>/dev/null \
         | sed 's|.*/||' | sort -u); do
     [ -f "$RCF_DEST/$f" ] || MISSING=$((MISSING+1))
@@ -137,13 +153,14 @@ if [ "$FORCE_IMAGES" = 1 ] || [ "$HAVE" != "$NHARTS" ] || [ "$RCF_COUNT" -eq 0 ]
     echo "  building images: NHARTS=$NHARTS -> $RCF_DEST (have: NHARTS=$HAVE, $RCF_COUNT rcf)"
     echo "    groups : $IMG_GROUPS"
     echo "    defines: ${DEFINES:-(none -- default OFF polarity)}"
+    echo "    march  : ${IMG_MARCH:-(per-group, from verification/isa/Makefile)}"
     command -v riscv-none-elf-gcc >/dev/null || { echo "❌ riscv-none-elf- toolchain not on PATH"; exit 1; }
     # K2/G3: GROUPS follows the selection (the ON-polarity suites are NOT in
     # build_mp_images.sh's default group list, so a knobs-on row would otherwise
     # select tests whose images were never built) and EXTRA_GCC_DEFINES carries
     # the polarity. The build writes BOTH stamps itself; the two lines below are
     # belt-and-braces for the in-tree case and are asserted by the read-back.
-    EXTRA_GCC_DEFINES="$DEFINES" IMGSET_IDENTITY="$IMGSET" \
+    EXTRA_GCC_DEFINES="$DEFINES" EXTRA_GCC_MARCH="$IMG_MARCH" IMGSET_IDENTITY="$IMGSET" \
         ../../verification/isa/build_mp_images.sh "$NHARTS" "$RCF_DEST" $IMG_GROUPS \
         || { echo "❌ image build failed"; exit 1; }
     echo "$NHARTS" > "$STAMP"

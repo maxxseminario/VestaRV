@@ -312,6 +312,23 @@ CATALOG = [
     # RUNTIME-adaptive (it dispatches on whether the counter moves, so one image
     # serves both polarities); the rest dispatch at build time on
     # CORE_ENABLE_<K> and carry an OFF arm. None is knob-tagged.
+    # K4 (row C3): the SHAPE_Q stimulus -- the compressed-off
+    # instruction-address-misaligned arm, whose predicate is statically false
+    # in every previously-built configuration. misa-ADAPTIVE, in the ext*
+    # family's idiom, because this tag vocabulary is POSITIVE-ONLY and "needs
+    # compressed OFF" cannot be written; `trapCsr` because the trap has to be
+    # RECOVERABLE (mtrapctl.LEGACY resets to 1, so a legacy build wedges in the
+    # terminal TRAP_STATE and the cell is a watchdog HANG, not a FAIL).
+    T('rv32ua-p-shapeq', 'atomics trapCsr', True),
+    # K4 (row A3): F5.5, the is_compressed latch's exposed path -- a PMP FETCH
+    # denial at an ODD halfword reached by a JUMP (repeat_if='0'), which is a
+    # different shape from pmprt6's straddle fault. It also drives the D5
+    # load-side arm, which makes it the stimulus for
+    # verification/formal/core_pmp_{props,witness}.psl.
+    # NOTE WHAT THIS ROW'S TAGS FIX: before it, NO catalog row carried `pmp` or
+    # `umode` at all, so rows A2/A3/A3.8 selected exactly the same 142 tests as
+    # each other and the P-ladder's top two rungs exercised neither knob.
+    T('rv32ua-p-pmpfq', 'atomics trapCsr umode pmp', True),
     T('rv32ua-p-extzihpm'), T('rv32ua-p-extzicond'), T('rv32ua-p-extzcb'),
     T('rv32ua-p-extzihint'), T('rv32ua-p-extzawrs'),
     T('rv32ua-p-shwrs', 'tiles atomics'),
@@ -378,7 +395,7 @@ def padded_rcf(name):
     return 'x' * (22 - len(fn)) + fn
 
 
-def rcf_mapping(nharts, defines=()):
+def rcf_mapping(nharts, defines=(), march=None):
     """(3-char link name under xcelium/riscv_test/, dest dir under
     verification/isa/) for an image set built at this NHARTS and this ON-knob
     polarity. rcf/rca are the pre-existing Castalia/Argus sets -- reuse, never
@@ -388,7 +405,8 @@ def rcf_mapping(nharts, defines=()):
     generic is a fixed 29-char string), which is the whole reason the polarity
     cannot simply be spelled out in the path. So:
 
-      defines EMPTY  -> today's mapping, unchanged, bit for bit. Every existing
+      defines EMPTY and march None
+                     -> today's mapping, unchanged, bit for bit. Every existing
                         flow, image set and stamp keeps working and no image is
                         rebuilt. This is the ONLY case any config had before K2.
       defines SET    -> link `k<XX>`, dir `rcf_k<XX>`, where XX is two hex
@@ -399,32 +417,53 @@ def rcf_mapping(nharts, defines=()):
                         verify.sh. A silent collision would be the worst
                         possible failure here (two polarities sharing one image
                         set), so it is checked rather than made unlikely.
+
+    K4: `march is None` joins the `not defines` condition for the canonical
+    sets, and that is a FAIL-SAFE, not a formality -- a config with a norvc
+    march and NO -D flags would otherwise be aimed straight at the canonical
+    `rcf/`, poisoning the 136-test suite and both lockstep gates with images
+    the default RTL cannot execute.
     """
-    if not defines:
+    if not defines and march is None:
         if nharts == 4:
             return 'rcf', 'rcf'
         if nharts == 18:
             return 'rca', 'rcf_argus'
         return 'r%02d' % nharts, 'rcf_n%02d' % nharts
-    tag = imgset_tag(nharts, defines)
+    tag = imgset_tag(nharts, defines, march)
     return 'k' + tag, 'rcf_k' + tag
 
 
-def imgset_identity(nharts, defines):
+def imgset_identity(nharts, defines, march=None):
     """The EXACT string that identifies an image set's polarity. Stored in the
     set's `.imgset` stamp and compared on every reuse: this is the record the
     K0 probes found missing entirely (`rcf/`'s 260 images were rebuildable
     'only if the exact RISCV_GCC_OPTS polarity is known, which is nowhere
-    recorded')."""
-    return 'NHARTS=%d DEFINES=%s' % (nharts, ' '.join(defines) if defines else '(none)')
+    recorded').
+
+    K4: a non-default `-march` (see image_march) is PART of that polarity and
+    joins the identity. It is APPENDED, and only when present, so every image
+    set built before K4 keeps a byte-identical identity string -- and therefore
+    a byte-identical digest, tag and `rcf_k<XX>` directory. No pinned row moves.
+
+    The blindness this closes is specific, and it was predicted before it bit:
+    row C3's `image_defines()` is exactly `['-DCORE_ENABLE_TRAPCSR']`, the SAME
+    list as row A1 (`castalia_trapcsr`), so without the march clause a norvc
+    image set and A1's compressed one would be directed at the SAME `rcf_k17`
+    directory AND would compare EQUAL on reuse -- the collision the `.imgset`
+    check exists to make impossible."""
+    s = 'NHARTS=%d DEFINES=%s' % (nharts, ' '.join(defines) if defines else '(none)')
+    if march:
+        s += ' MARCH=%s' % march
+    return s
 
 
-def imgset_tag(nharts, defines):
+def imgset_tag(nharts, defines, march=None):
     """Two hex digits naming the polarity, from a digest of its identity.
     hashlib, not hash(): Python's str hash is randomised per process, so hash()
     would give a DIFFERENT directory on every run."""
     import hashlib
-    h = hashlib.sha1(imgset_identity(nharts, defines).encode('utf-8')).hexdigest()
+    h = hashlib.sha1(imgset_identity(nharts, defines, march).encode('utf-8')).hexdigest()
     return h[:2]
 
 
@@ -484,6 +523,53 @@ def image_defines(cfg):
         if on:
             out.append('-DCORE_ENABLE_' + k.upper())
     return out
+
+
+# K4 (R-DK1 row C3): THE ONE PLACE WHERE THE IMAGE BUILD'S `-march` IS WRONG
+# FOR THE CONFIGURATION.
+#
+# verification/isa/Makefile fixes a per-GROUP march (`rv32imc`, `rv32imac`,
+# `rv32gc_zba`, ...) and emits `$(RISCV_GCC_OPTS)` AFTER it on the gcc command
+# line, so a `-march=` carried in RISCV_GCC_OPTS wins (last one wins). That is
+# the only lever, and exactly one supported configuration needs it: with
+# `isa.compressed` false the core cannot decode a 16-bit instruction, and gas
+# AUTO-COMPRESSES under a `c` march (measured: `addi a0,a0,1` assembles to the
+# 16-bit `0505`), so the default image set is full of encodings that build's
+# RTL traps on.
+#
+# DELIBERATELY NARROW, and it must not grow into "derive the march from the
+# config":
+#   * the five base knobs stay excluded from DEFINE_KNOBS for the reasons
+#     measured in that comment; this changes none of it;
+#   * a `mul=div=false` row CANNOT drop `m` from the march -- the rv32um
+#     sources would stop assembling -- so C1/C2's images stay byte-identical to
+#     the default set. That is a KNOWN and DIFFERENT gap (ledger K4-L5 names
+#     it) and it is NOT fixed here;
+#   * one global march has to cover every group a selection builds, so it is a
+#     SUPERSET of what any of them asks for. Measured at K4 session 4: all 232
+#     sources across the seven groups a C3 selection needs assemble under it,
+#     and 149 of those 232 images differ from their default-march twins.
+NORVC_MARCH = 'rv32ima_zicsr_zifencei_zba_zbb_zbc_zbs'
+
+
+def image_march(cfg):
+    """The `-march` override this configuration's images need, or None.
+
+    None means "use the ISA Makefile's per-group march", which is every
+    configuration that has ever been built except C3.
+    """
+    isa = cfg.get('isa', {})
+    if isa.get('compressed', True):
+        return None
+    for k in ('mul', 'div', 'atomics', 'bitmanip'):
+        if not isa.get(k, True):
+            raise SystemExit(
+                'compressed=false is combined with %s=false, and ONE global '
+                '-march cannot express that: dropping %s from the march stops '
+                'the matching test sources assembling, while keeping it lets '
+                'the build emit encodings this core will trap on. Refusing '
+                'rather than staging a silently wrong image set.' % (k, k))
+    return NORVC_MARCH
 
 
 def memorymap_on_knobs(path):
@@ -618,7 +704,8 @@ def main():
     nharts = int(cfg['numHarts'])
     have = config_tags(cfg)
     defines = image_defines(cfg)
-    link, dest = rcf_mapping(nharts, defines)
+    march = image_march(cfg)
+    link, dest = rcf_mapping(nharts, defines, march)
 
     sel = [(name, smoke) for (name, need, smoke) in CATALOG if need <= have]
     smoke_sel = [name for (name, smoke) in sel if smoke]
@@ -789,7 +876,12 @@ def main():
     # verify banner can see the exact polarity the images were asked for.
     print('GROUPS=%s' % ' '.join(test_groups(name for (name, _s) in sel)))
     print('DEFINES=%s' % ' '.join(defines))
-    print('IMGSET=%s' % imgset_identity(nharts, defines))
+    # K4: the third half of the polarity (see image_march). Empty for every
+    # configuration but C3; printed unconditionally so the verify banner always
+    # says which march the images were asked for instead of leaving it implicit
+    # in the ISA Makefile.
+    print('MARCH=%s' % (march or ''))
+    print('IMGSET=%s' % imgset_identity(nharts, defines, march))
     # The staged RTL's own ON-knob set, read back out of the file that was just
     # written rather than recomputed from the config. That is the point: the
     # polarity gate must compare the SOFTWARE side against what the HARDWARE
