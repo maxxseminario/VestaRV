@@ -1,0 +1,59 @@
+{
+  "asm_sha1": "bfb74a727a9f9a4a92af4d27dfffdcfcbf8a9dc5",
+  "blocked_classes": [],
+  "census_opaque_classes": [
+    "clint_irq"
+  ],
+  "class_counts": {
+    "alu_imm": 119,
+    "alu_reg": 44,
+    "amo": 43,
+    "branch": 9,
+    "div": 34,
+    "fence": 2,
+    "jal": 7,
+    "jalr": 6,
+    "load": 26,
+    "lrsc": 44,
+    "lui": 12,
+    "mul": 17,
+    "store": 32,
+    "zba": 2,
+    "zbb": 2,
+    "zbc": 3,
+    "zbs": 1
+  },
+  "config": {
+    "chip": "Castalia",
+    "digest": "9ca2e20fb3d2",
+    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2",
+    "image_defines": [],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4",
+    "numHarts": 4,
+    "reference": {
+      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr",
+      "pmpregions": 0,
+      "priv": "m"
+    }
+  },
+  "generator": "k3-randgen",
+  "group": "rv32uk",
+  "irq_observe": true,
+  "irq_sites": 9,
+  "knobs_on_without_emitter": [
+    [
+      "compressed",
+      "A",
+      "k0 \u00a71.2: `c`, WITNESS c.addi4spn"
+    ]
+  ],
+  "length_requested": 400,
+  "march": "rv32imac_zba_zbb_zbc_zbs",
+  "name": "k3i01",
+  "negctrl": null,
+  "profile": "irq",
+  "rcf": "xxxxrv32uk-p-k3i01.rcf",
+  "seed": 44,
+  "total_instructions": 403,
+  "version": "1.2.0"
+}

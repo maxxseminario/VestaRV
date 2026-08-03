@@ -1,0 +1,18 @@
+# K3 lockstep list -- the IRQ-FREE campaign streams.
+# One x-padded rcf basename per line (the cosim_tests.txt contract: NO
+# `../rcf/` prefix, exactly 22 chars, blank/# lines ignored).
+#
+# Run with:
+#   cd xcelium/riscv_test/behavioral_mp
+#   COSIM_BOOT=1 TESTS_FILE=<repo>/tools/randgen/campaign/cosim_k3_tests.txt \
+#       ./xrun_cosim.sh
+# Results land in cosim_work/runs/default__h1__cosim_k3_tests/.
+#
+# k3i01/k3i02 are NOT here.  An IRQ stream needs BRACKET_ISR=1 (legacy IVT
+# delivery on a trapCsr-off build), and k3i01 additionally READS a word the
+# bracketed handler wrote, which the reference never executes -- see
+# cosim_k3_irq_tests.txt.
+xxxxrv32uk-p-k3s01.rcf
+xxxxrv32uk-p-k3s02.rcf
+xxxxrv32uk-p-k3b01.rcf
+xxxxrv32uk-p-k3z01.rcf

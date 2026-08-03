@@ -1,0 +1,86 @@
+{
+  "config": {
+    "chip": "Castalia",
+    "digest": "9ca2e20fb3d2",
+    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2",
+    "image_defines": [],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4",
+    "numHarts": 4,
+    "reference": {
+      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr",
+      "pmpregions": 0,
+      "priv": "m"
+    }
+  },
+  "generator": "k3-randgen",
+  "group": "rv32uk",
+  "streams": [
+    {
+      "asm_sha1": "a8b7f092111efe3a5bc21394fe196d703f59eaf8",
+      "irq_observe": true,
+      "irq_sites": 0,
+      "length_requested": 400,
+      "name": "k3s01",
+      "profile": "seq",
+      "rcf": "xxxxrv32uk-p-k3s01.rcf",
+      "seed": 20260803,
+      "total_instructions": 384
+    },
+    {
+      "asm_sha1": "8f2b58955294902f46184c18685b378e7de88cea",
+      "irq_observe": true,
+      "irq_sites": 0,
+      "length_requested": 400,
+      "name": "k3s02",
+      "profile": "seq",
+      "rcf": "xxxxrv32uk-p-k3s02.rcf",
+      "seed": 11,
+      "total_instructions": 383
+    },
+    {
+      "asm_sha1": "948d289f2faf8bbe9b24549accf3afff8955efec",
+      "irq_observe": true,
+      "irq_sites": 0,
+      "length_requested": 400,
+      "name": "k3b01",
+      "profile": "base",
+      "rcf": "xxxxrv32uk-p-k3b01.rcf",
+      "seed": 22,
+      "total_instructions": 392
+    },
+    {
+      "asm_sha1": "bfb00509d4c686d1d3d99c647cf2c0f3d3ab5ae1",
+      "irq_observe": true,
+      "irq_sites": 0,
+      "length_requested": 400,
+      "name": "k3z01",
+      "profile": "bitm",
+      "rcf": "xxxxrv32uk-p-k3z01.rcf",
+      "seed": 33,
+      "total_instructions": 399
+    },
+    {
+      "asm_sha1": "bfb74a727a9f9a4a92af4d27dfffdcfcbf8a9dc5",
+      "irq_observe": true,
+      "irq_sites": 9,
+      "length_requested": 400,
+      "name": "k3i01",
+      "profile": "irq",
+      "rcf": "xxxxrv32uk-p-k3i01.rcf",
+      "seed": 44,
+      "total_instructions": 403
+    },
+    {
+      "asm_sha1": "e5ff5f74ad756fc7968c71593de07c4d201eb616",
+      "irq_observe": false,
+      "irq_sites": 13,
+      "length_requested": 400,
+      "name": "k3i02",
+      "profile": "irq",
+      "rcf": "xxxxrv32uk-p-k3i02.rcf",
+      "seed": 55,
+      "total_instructions": 398
+    }
+  ],
+  "version": "1.2.0"
+}

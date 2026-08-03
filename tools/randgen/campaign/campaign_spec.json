@@ -1,0 +1,36 @@
+{
+  "_comment": [
+    "K3 fixed-seed demonstration campaign, DEFAULT Castalia config.",
+    "Six streams, chosen so that each one has a job no other one does:",
+    "  k3s01/k3s02  profile 'seq'  -- the roadmap Step 2 sequencer weighting",
+    "                                (div/AMO/LR-SC).  k3s01 is the lockstep",
+    "                                candidate; k3s02 is a second seed so the",
+    "                                behavioral result is not a single sample.",
+    "  k3b01        profile 'base' -- flat weighting, the widest class mix.",
+    "  k3z01        profile 'bitm' -- Zba/Zbb/Zbs/Zbc heavy, the widest decode",
+    "                                surface on this config.",
+    "  k3i01        profile 'irq'  -- CLINT self-injection WITH the epilogue",
+    "                                handler-count assertion.  Behavioral only:",
+    "                                the reference never executes the bracketed",
+    "                                handler, so the count word it would read is",
+    "                                stale on the reference side by design.",
+    "  k3i02        profile 'irq'  -- the same axis WITHOUT the count assertion,",
+    "                                which is what makes it lockstep-eligible",
+    "                                (BRACKET_ISR=1).  Weaker behavioral verdict,",
+    "                                stronger oracle.  The pair is the point.",
+    "Seeds are arbitrary but FIXED and recorded; R-DK5 requires the reproduction",
+    "line, not a particular value.  Regenerate with:",
+    "  /usr/bin/python3.6 tools/randgen/randgen.py campaign --spec <this file>",
+    "and check reproducibility with `randgen.py verify`."
+  ],
+  "streams": [
+    {"name": "k3s01", "seed": 20260803, "profile": "seq",  "length": 400},
+    {"name": "k3s02", "seed": 11,       "profile": "seq",  "length": 400},
+    {"name": "k3b01", "seed": 22,       "profile": "base", "length": 400},
+    {"name": "k3z01", "seed": 33,       "profile": "bitm", "length": 400},
+    {"name": "k3i01", "seed": 44,       "profile": "irq",  "length": 400,
+     "irq_observe": true},
+    {"name": "k3i02", "seed": 55,       "profile": "irq",  "length": 400,
+     "irq_observe": false}
+  ]
+}
