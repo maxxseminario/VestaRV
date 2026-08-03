@@ -301,7 +301,13 @@ public:
   vesta_sim_t(const char *isa_str, const char *priv_str,
               uint64_t mem_base, uint64_t mem_size,
               uint64_t mmio_base, uint64_t mmio_size,
-              FILE *logf, uint32_t hartid)
+              FILE *logf, uint32_t hartid,
+              // K2 item 6.  Defaulted to cfg_t's OWN defaults, so every
+              // existing call site and every run that does not pass the new
+              // flags is bit-identical to before.
+              unsigned pmpregions = 16,
+              unsigned pmpgranularity = 4,
+              unsigned blocksz = 64)
     : mem_base_(mem_base), mem_size_(mem_size),
       mmio_base_(mmio_base), mmio_size_(mmio_size)
   {
@@ -312,8 +318,34 @@ public:
     cfg.hartids          = std::vector<size_t>({(size_t)hartid});
     cfg.explicit_hartids = false;
     cfg.real_time_clint  = false;
-    // pmpregions(16) / pmpgranularity / trigger_count(4) / cache_blocksz(64)
-    // deliberately left at cfg_t's defaults so we match stock spike exactly.
+    // K2 item 6 (2026-08-03).  THIS COMMENT USED TO SAY these were "deliberately
+    // left at cfg_t's defaults so we match stock spike exactly", and that was
+    // true and load-bearing until the flags below existed.  It is now WRONG as a
+    // description and RIGHT as a default, so it is rewritten rather than deleted
+    // (method rule 12: a stale rationale is worse than none).
+    //
+    // WHAT CHANGED AND WHY.  The K0 oracle probe measured three things:
+    //   * PMP_ENTRIES=8 was INEXPRESSIBLE -- pmpaddr0..15 were all live and
+    //     pmpaddr16 READ 0 instead of trapping, so a config whose RTL traps it
+    //     diverged there;
+    //   * Spike's PMP RESET STATE IS NOT ZERO (pmpcfg0=0x1f, pmpaddr0=~0 -- a
+    //     backward-compatibility TOR entry granting unrestricted access) while
+    //     the RTL's bank resets ALL-ZERO with every entry A=OFF.  For a chip
+    //     with no PMP at all the honest request is --pmpregions 0;
+    //   * the identity gate was ALREADY ASYMMETRIC on this axis -- it invoked
+    //     stock spike with --pmpregions=0 while vesta_ref ran with 16.  Harmless
+    //     only while no compared instruction touched a PMP CSR.
+    // The defaults here still equal cfg_t's, so "matches stock spike exactly"
+    // remains TRUE FOR A RUN THAT PASSES NO FLAGS -- which is every run before
+    // the derivation is switched on.  NEVER PATCH SPIKE: this is CLI work on
+    // vesta_ref, and build_vesta_ref.sh's clean-tree-at-a-pinned-commit
+    // assertion is untouched.
+    cfg.pmpregions       = pmpregions;
+    cfg.pmpgranularity   = pmpgranularity;
+    cfg.cache_blocksz    = blocksz;
+    // trigger_count(4) IS still left at cfg_t's default: nothing in the VestaRV
+    // comparison observes debug triggers, and inventing a flag for it would be
+    // a knob with no reader.
 
     ram.assign(mem_size, 0);
 
@@ -832,6 +864,9 @@ struct opts_t {
   bool     mmio_given = false;
   bool     pc_given = false; uint64_t pc = 0;
   uint32_t hartid = 0;                                 // == mhartid
+  // K2 item 6.  cfg_t's own defaults, so an invocation that names none of them
+  // is byte-identical to the pre-K2 binary.
+  unsigned pmpregions = 16, pmpgranularity = 4, blocksz = 64;
   long     instructions = 0;
   bool     log_commits = true, trace = false, quiet = false;
 };
@@ -853,6 +888,9 @@ static void usage(void)
     "  --mem BASE:SIZE (hex, PGSIZE-aligned, default 8000:18000)\n"
     "  --mmio BASE:SIZE (hex, PGSIZE-aligned, default 4000:4000 in cosim)\n"
     "  --isa STR --priv STR --hartid N (mhartid, default 0) --pc HEX\n"
+    "  --pmpregions N (default 16; 0 = no PMP at all, matching a chip built\n"
+    "                  without ENABLE_PMP -- spike's PMP RESET STATE IS NOT ZERO)\n"
+    "  --pmpgranularity N (default 4) --blocksz N (default 64, cbo.zero block)\n"
     "  --instructions N\n"
     "  --inject F (MANDATORY in cosim) --interrupt F --mmio-log F --log F\n"
     "  --bracket F (cosim only: realignment script; B/S/P/G/F records, applied\n"
@@ -905,6 +943,9 @@ int main(int argc, char **argv)
                                         fprintf(stderr, "vesta_ref: --hartid wants a non-negative integer, got '%s'\n", v);
                                         return EXIT_USAGE; }
                                       o.hartid = (uint32_t)h; }
+    else if (a == "--pmpregions")     o.pmpregions = (unsigned)strtoul(need(), NULL, 0);
+    else if (a == "--pmpgranularity") o.pmpgranularity = (unsigned)strtoul(need(), NULL, 0);
+    else if (a == "--blocksz")        o.blocksz = (unsigned)strtoul(need(), NULL, 0);
     else if (a == "--pc")           { o.pc = strtoull(need(), NULL, 0); o.pc_given = true; }
     else if (a == "--instructions")   o.instructions = atol(need());
     else if (a == "--inject")         o.inject_file = need();
@@ -921,7 +962,8 @@ int main(int argc, char **argv)
 
   // ---- selftest: no image, exercises the plumbing incl. RAM at 0x0 --------
   if (o.mode == "selftest") {
-    vesta_sim_t s(o.isa, o.priv, 0x0, 0x20000, 0x4000, 0x4000, stdout, o.hartid);
+    vesta_sim_t s(o.isa, o.priv, 0x0, 0x20000, 0x4000, 0x4000, stdout, o.hartid,
+                  o.pmpregions, o.pmpgranularity, o.blocksz);
     s.proc->enable_log_commits();
     // lui a0,0x4 ; addi a0,a0,0x204 ; lw t0,0(a0) ; j .
     const uint32_t prog[] = { 0x00004537, 0x20450513, 0x00052283, 0x0000006f };
@@ -980,7 +1022,8 @@ int main(int argc, char **argv)
   }
 
   vesta_sim_t s(o.isa, o.priv, o.mem_base, o.mem_size,
-                o.mmio_base, o.mmio_size, logf, o.hartid);
+                o.mmio_base, o.mmio_size, logf, o.hartid,
+                o.pmpregions, o.pmpgranularity, o.blocksz);
   s.mmio_log = (o.mmio_log_file != NULL);
 
   // ---- image -------------------------------------------------------------
