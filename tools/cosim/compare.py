@@ -798,17 +798,24 @@ def build_parser():
                    help="records of context printed either side of a "
                         "divergence (default 8)")
     p.add_argument("--max-records", type=int, default=0, metavar="M",
-                   help="stop after M successfully compared records and "
-                        "report a match (0 = compare to the end of both "
-                        "streams)")
+                   help="stop after M RTL records of the entry-aligned window "
+                        "have been consumed -- compared, or dropped by a "
+                        "config-gated --amend rule -- and report a match "
+                        "(0 = compare to the end of both streams). Feed it "
+                        "--count's number and the walk covers the whole "
+                        "window; the reported figure is still the COMPARED "
+                        "count, which is smaller by exactly the drops")
     p.add_argument("--hart", default=None, metavar="HH",
                    help="2-hex-digit hart id to select from BOTH streams; "
                         "required only if a stream carries more than one hart "
                         "(per-hart streams are compared independently, §6)")
     p.add_argument("--count", action="store_true",
-                   help="informational: print the number of compared records "
-                        "in the entry-aligned RTL window and exit 0 without "
-                        "comparing (feeds --max-records; see README)")
+                   help="informational: print the SIZE of the entry-aligned "
+                        "RTL window and exit 0 without comparing (feeds "
+                        "--max-records; see README). It is a window size, not "
+                        "a prediction of the compared count -- an --amend rule "
+                        "that consults the reference can only be resolved in "
+                        "the walk, and --count never walks")
     p.add_argument("--stop-before-sleep", action="store_true",
                    help="V4 MULTI-HART: truncate the RTL-side compared stream "
                         "immediately before the earliest of (a) the first "
@@ -1383,8 +1390,13 @@ def main(argv):
                              info["sleep_cut"]["why"]))
 
     if args.count:
+        # The WINDOW SIZE. Before K2b this was also the compared count, because
+        # nothing could remove a record after this point; a walk-level --amend
+        # rule can, so the two parted company and the name here follows the
+        # thing that is actually true. `--max-records` bounds on window
+        # position for exactly this reason -- see the comment at the walk.
         out.write("%d\n" % len(rtl))
-        return finish(EXIT_MATCH, "--count: %d compared RTL records in the "
+        return finish(EXIT_MATCH, "--count: %d RTL records in the "
                                   "entry-aligned window" % len(rtl))
 
     # --- ISR-bracket structural gate (before the walk) -------------------
@@ -1475,7 +1487,37 @@ def main(argv):
     n = 0
     while True:
         info["compared"] = n
-        if args.max_records and n >= args.max_records:
+        # THE BOUND IS ON RTL WINDOW POSITION (`i`), NOT ON COMPARED PAIRS
+        # (`n`), and the difference is exactly the records a config-gated
+        # amendment drops during the walk.
+        #
+        # WHY, measured (K2b/A17 acceptance). The runner's recipe is two-pass:
+        # `--count` reports the entry-aligned RTL window size and that number is
+        # fed straight back as `--max-records`, so that the reference's
+        # RVTEST_PASS spin tail (the `<rtl+2000>` instruction bound) is not
+        # reported as "RTL stream exhausted early". That works only if the
+        # bound is reachable. `zfinx-fflags` drops RTL records IN THE WALK --
+        # the drop needs the reference, so `--count`'s reference-free pre-pass
+        # cannot subtract them -- so `n` tops out at `len(rtl) - drops` and can
+        # never reach a bound of `len(rtl)`. Every Zfinx cell with a nonzero
+        # suppression count then ended EXIT_RTL_SHORT: measured 13 of 17, with
+        # `compared == rtl_window - drops` to the record in all 13 and the four
+        # zero-drop cells passing. Not one of them had a semantic divergence.
+        #
+        # `i` is the count of RTL records TAKEN OFF the window (compared, or
+        # amendment-dropped), so bounding on it makes "the walk covers the whole
+        # window" true unconditionally -- with amendments and without. On any
+        # amendment-free run no record is ever dropped, `i == n` at every
+        # iteration, and this line behaves character-for-character as before:
+        # the default gate's four pins are unmoved by construction, not by
+        # measurement (though they were measured too).
+        #
+        # The fail-safe direction is the reason it is `i` and not "make
+        # `--count` walk the streams and report `n`": a counting walk would stop
+        # at the FIRST divergence and hand back a SHORT bound, and the second
+        # pass would then compare only up to that point and report PASS. A
+        # too-large bound is loud (exit 2); a too-small one is a vacuous pass.
+        if args.max_records and i >= args.max_records:
             return finish(EXIT_MATCH,
                           "match: %d records compared (--max-records bound "
                           "reached)" % n)

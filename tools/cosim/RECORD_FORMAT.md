@@ -221,6 +221,19 @@ NON-retire edge as a non-compared diagnostic comment line:
 `# CSRLEAK <hart> <cycle> <state> <csr> <val>`. The comparator ignores `#`
 lines (§0); the runner may grep for CSRLEAK and warn.
 
+**Amendment A17 (2026-08-03, K2b / finding F-K2b-1) — the one committed CSR
+write no CSR instruction performs.** Under Zfinx, a retiring FP op sticky-ORs
+its IEEE exception flags into `fflags` (0x001). Both sides log it — Spike as
+the inline retire field `c1_fflags 0x…` (the ordering trap above already names
+it), the RTL as its own `C 001` line — so it is an ordinary compared `C`
+despite having no `csrrw` behind it. **Spike emits it when the op RAISED a
+flag, not when the VALUE moved** (measured: two `fdiv.s` on the same 0/0
+operands both log `0x00000010`), while the RTL emits it on every FP retire;
+that asymmetry is reconciled by the config-gated comparator amendment
+`zfinx-fflags`, never by ignoring the record. A17 fixes what the RTL record
+CARRIED (it was the pre-op value) and WHEN it was emitted (single-cycle FP ops
+emitted none) — see the amendment log.
+
 **Compared:** `csr`, `val`.
 
 ---
@@ -514,8 +527,8 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
     (§4/§5), so a mask there would be a number nothing can act on.
   * **A clean trace is byte-identical to a pre-A10 one** — the line is emitted
     only when a field is actually tainted.
-  * The header declares `A1-A7,A10,A16`, so a consumer can tell the vintages
-    apart at a glance.
+  * The header declares `A1-A7,A10,A16,A17`, so a consumer can tell the
+    vintages apart at a glance. (It read `A1-A7,A10,A16` until A17 bumped it.)
 
   **The motivation that turned out to matter more than `afsel`.** `mk_inject`'s
   `--allow-x ORD:ADDR:VAL` (ruling A2) was an **unchecked hand-off**: the
@@ -886,3 +899,82 @@ somewhere, which is the one failure mode of the whole design (`v4_design.md`
   A16 changes nothing about that. The M4b "SC premature write" bug would still
   not be caught at the SC itself. A16 makes the trace HONEST; it does not make
   the SC verdict CHECKED.
+
+* **A17 (2026-08-03, K2b / finding F-K2b-1) — the Zfinx `C 001` record now says
+  what §3 says it says: the fflags value that COMMITTED, on every retire that
+  commits one.** §3, and it is the amendment that makes a Zfinx row comparable
+  at all.
+
+  **What `C 001` is, stated here for the first time.** §3 defines `C` as a
+  committed CSR write and fixes the compared fields as `csr`/`val`. The
+  Zfinx sticky-flag update is a committed write to `fflags` (0x001) that no
+  CSR *instruction* performs — Spike logs it as the inline retire field
+  `c1_fflags 0x…` (§3's ordering trap already names it) and the RTL tracer
+  emits it as its own `C 001` line. It was never written down, which is part
+  of how it stayed wrong for two waves.
+
+  **Defect 1 — the value was the state BEFORE the op.** `vesta.vhd` wires the
+  tracer's `fflags_value` to csr_unit's fflags REGISTER, and the sticky OR that
+  accumulates the op's flags (`csr_unit.vhd:670-671`) commits on the very edge
+  the tracer samples. So the record described the state the op started from.
+  Measured on `rv32uzf-p-fadd_h00.trace`: **all 20 `C 001` records read
+  `00000000`**, while the test's own `csrrw a1,fflags,x0` two retires later
+  read back `00000001` — the architectural state was RIGHT the whole time.
+
+  **Defect 2 — half the FP ops emitted no record at all.** `fp_flags_we` has
+  two arms: `FPU_DONE` (multi-cycle) and `EXECUTE` (single-cycle —
+  `fmin`/`fmax`/`fsgnj*`/`fcmp`/`fclass`). The tracer emitted only on
+  `ST_FPU_DONE`. Measured on `rv32uzf-p-fmin_h00.trace`: an `fmin.s` on a
+  signalling NaN raised NV, Spike logged `c1_fflags 0x00000010`, and the trace
+  said nothing.
+
+  **The corroboration that makes this the whole diagnosis, not a hypothesis.**
+  Of the 17 cells in the first Zfinx lockstep row, the only two that PASSED
+  were `fclass` and `dsgnj` — **exactly** the two whose operations cannot raise
+  an IEEE exception. Every cell that can raise a flag diverged.
+
+  **What changed.** `vesta_tracer.vhd` gains two inputs, `fp_flags_we` and
+  `fp_flags_val` (both EXISTING `vesta` signals — no new logic, no new net),
+  and the emission becomes
+
+      if fp_flags_we = '1' then   -- on the retire flush, as before
+          C <hart> <cycle> 001 <fflags_value with bits 4:0 OR'd with fp_flags_val>
+
+  which is a **strict superset** of the pre-A17 emission: at `FPU_DONE` the
+  strobe is unconditionally `'1'` and the state is unconditionally a retire, so
+  no record that used to be emitted stops being emitted.
+
+  **The commit is computed, not read back, and that is deliberate.** Reading
+  the fflags register on the FOLLOWING edge would give the same answer only
+  until an instruction writes fflags in between — and the Zfinx test harness
+  does precisely that (`csrrw a1,fflags,x0` after every tested op,
+  `test_macros_zfinx.h:19-30`). The tracer therefore forms the value from the
+  same two operands the flop captures on the same edge, which is invariant 7
+  ("log what COMMITTED") applied literally rather than approximately.
+
+  **The port defaults are `'0'` / all-zero, and the fail-safe argument is
+  DIFFERENT from A16's.** A16 could honestly claim its default reproduced the
+  pre-amendment tracer. A17's cannot and does not: an unwired instantiation
+  emits **no `C 001` at all**. That is the LOUD direction — on a Zfinx build a
+  missing `C 001` is an immediate record-KIND divergence at the first
+  flag-raising op, and on a zfinx-off build it is exactly correct (`maindec.vhd`
+  gates `is_fp_single` on `ENABLE_ZFINX`, so both arms of the strobe fold to a
+  static `'0'` and the whole record class disappears). The opposite default
+  would fabricate a `C 001` on every retire of every build. **Neither default
+  can reproduce the F-K2b-1 shape — a plausible record carrying a wrong
+  value — which is the failure mode that cost a wave to find.**
+
+  **A new diagnostic, `# FPFLAGSLEAK <hart> <cycle> <state> <flags>`**, applies
+  A1's discipline to the second write path into the same register: a
+  `fp_flags_we` asserted on a NON-retire edge means flags committed outside any
+  retire (the F3/F7 leak class in a different port). It is expected to be
+  silent — the strobe's EXECUTE arm carries the same pmp / compressed /
+  half-fetch guards the tracer's own `is_disp` does — but "expected silent" is
+  the kind of claim that gets instrumented here rather than asserted.
+
+  **What A17 does NOT buy.** It makes the RTL's fflags stream comparable; it
+  does **not** make Zfinx *arithmetic* checked. Whether the two sides agree on
+  results and on WHICH flags an op raises is now measurable for the first time,
+  and measuring it is the point — a disagreement surfaces as an ordinary
+  divergence and is a FINDING (D5), never a reason to widen the K2b
+  `zfinx-fflags` amendment.

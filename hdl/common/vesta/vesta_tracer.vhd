@@ -27,6 +27,15 @@
 --                `M`. Now `# SCGHOST`. This retires the SHAPE that compare.py's
 --                amendment A15 existed to filter; A15 stays as a compatibility
 --                shim for pre-A16 traces.
+--       A17 (K2b, finding F-K2b-1): the Zfinx `C 001` record is emitted on ANY
+--                retire whose `fp_flags_we` is asserted -- not only on
+--                ST_FPU_DONE -- and carries the POST-op value
+--                `fflags_value or fp_flags_val`, not the pre-op CSR register.
+--                Both halves are corrections of a record that violated §3:
+--                the old emission described the state BEFORE the op it belonged
+--                to, and single-cycle FP ops (fmin/fmax/fsgnj/fcmp/fclass,
+--                which retire in EXECUTE) emitted no record at all even when
+--                they raised NV. Statically inert in a zfinx-off build.
 --
 -- INVARIANTS THIS FILE MUST HOLD (kickoff §3):
 --   1. -V200X. No VHDL-2008: no external names, no to_hstring, no 2008
@@ -38,13 +47,18 @@
 --      same edge.
 --   3b. It never drives or muxes anything on the memory path.
 --
--- THE STATE-ORDINAL CONTRACT (read this before touching vesta.vhd:425):
+-- THE STATE-ORDINAL CONTRACT (read this before touching `type cpu_state`):
 --   `cpu_state` is declared inside vesta's architecture, so it cannot cross a
 --   port boundary in VHDL-93. vesta therefore passes `cpu_state'pos(...)` and
 --   the ST_* constants below MUST match the DECLARATION ORDER of that type.
---   If you add, remove or REORDER a state in vesta.vhd:425-493 you MUST update
---   the ST_* block here. A mismatch is silent. The tracer prints the raw
---   ordinal in every diagnostic line so a mismatch is at least visible.
+--   If you add, remove or REORDER a state you MUST update the ST_* block here.
+--   A mismatch is silent. The tracer prints the raw ordinal in every diagnostic
+--   line so a mismatch is at least visible.
+--   FIND IT WITH `grep -n "type cpu_state" vesta.vhd`, NOT with a line number:
+--   this comment used to say ":425-493", which was already stale by two waves
+--   (the declaration was at :509-577 when A17 re-checked the contract, and the
+--   old range now lands inside this component's own port list). Method rule
+--   §3, first line -- a wrong reference is worse than none.
 -- =============================================================================
 
 library IEEE;
@@ -127,7 +141,28 @@ entity vesta_tracer is
         csr_commit_we    : in std_logic;
         csr_commit_val   : in std_logic_vector(XLEN-1 downto 0);
         mstatus_value    : in std_logic_vector(XLEN-1 downto 0); -- for MTRAP_RET's mret pop
-        fflags_value     : in std_logic_vector(XLEN-1 downto 0); -- for FPU_DONE
+        -- A17 (F-K2b-1). `fflags_value` is csr_unit's fflags REGISTER, i.e. the
+        -- value BEFORE this edge's sticky OR commits (csr_unit.vhd:670-671 and
+        -- :1205) -- so on its own it describes the state before the op that owns
+        -- the record. The post-op value is `fflags_value or fp_flags_val`, and
+        -- `fp_flags_we` is the strobe that says an FP op is committing flags on
+        -- THIS edge (vesta.vhd's `fp_flags_we`, both arms: FPU_DONE for the
+        -- multi-cycle ops and EXECUTE for the single-cycle ones).
+        fflags_value     : in std_logic_vector(XLEN-1 downto 0); -- fflags PRE-edge
+        -- DEFAULTS, AND WHY THIS DIRECTION (method rule 15 / R-W4-12). An
+        -- unwired instantiation gets `fp_flags_we = '0'` and emits NO `C 001`
+        -- at all. That is NOT "behaves like the pre-A17 tracer" and is not
+        -- claimed to be: it is the LOUD direction, because a missing `C 001`
+        -- on a Zfinx build is an immediate record-KIND divergence at the first
+        -- flag-raising op (the reference presents `c1_fflags` there and the RTL
+        -- presents nothing), while on a zfinx-off build it is exactly correct.
+        -- The opposite default ('1') would fabricate a `C 001` on EVERY retire
+        -- of EVERY build, destroying traces that are otherwise sound. Neither
+        -- default can produce the F-K2b-1 shape -- a plausible-looking record
+        -- carrying the wrong value -- which is the failure mode that cost a
+        -- wave to find.
+        fp_flags_we      : in std_logic := '0';
+        fp_flags_val     : in std_logic_vector(4 downto 0) := (others => '0');
 
         -- Decode class, for the §3-R0 EXECUTE exclusions
         trap             : in std_logic;
@@ -385,6 +420,11 @@ begin
         variable is_load, is_store, own     : boolean;
         variable sz, lo, k                  : natural;
         variable dat                        : std_logic_vector(XLEN-1 downto 0);
+        -- A17: the POST-op fflags word, = fflags_value with its low 5 bits OR'd
+        -- with the completing op's flags. Held in a variable rather than written
+        -- as an expression twice so the record and its `# XBITS` companion can
+        -- never drift apart, and so an `x` in either operand propagates to both.
+        variable ffpost                     : std_logic_vector(XLEN-1 downto 0);
 
         procedure emit(s : string) is
             variable ll : line;
@@ -489,7 +529,7 @@ begin
                 -- still carries failed-SC ghost stores, filtered by A15) from a
                 -- post-A16 one (which does not). Bump it whenever an amendment
                 -- changes what this file emits.
-                emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7,A10,A16");
+                emit("# spec v1_retire_enumeration.md rev2 ; format RECORD_FORMAT.md A1-A7,A10,A16,A17");
             end if;
 
             if resetn = '1' then
@@ -743,6 +783,24 @@ begin
                     end if;
                 end if;
 
+                -- ---------- A17: the A1 discipline, applied to the fflags strobe
+                -- A1 fixed the compared-`C` discriminator as "a retire happens on
+                -- this edge" and made every OTHER edge's CSR-port activity a loud
+                -- `# CSRLEAK` rather than a silent drop. The sticky-OR strobe is
+                -- a second, independent write path into the same architectural
+                -- register, so it gets the same treatment: `fp_flags_we` on a
+                -- non-retire edge means flags committed outside any retire, which
+                -- is exactly the F3/F7 leak class in a different port.
+                -- This is EXPECTED to be silent -- vesta.vhd's EXECUTE arm
+                -- carries the same pmp/compressed/half-fetch guards that the
+                -- tracer's own `is_disp` does, and FPU_DONE is an unconditional
+                -- retire -- but "expected silent" is precisely the claim that
+                -- has to be instrumented rather than asserted.
+                if fp_flags_we = '1' and not retire then
+                    emit("# FPFLAGSLEAK " & hdr(cyc) & hexnat(state, 2) & " "
+                         & hexstr(fp_flags_val));
+                end if;
+
                 -- ---------- §3-C1 / A1: compared C only on a retire edge
                 if csr_commit_we = '1' then
                     if retire then
@@ -779,9 +837,31 @@ begin
                         emit("C " & hdr(cyc) & "300 " & hexstr(mstatus_value));
                         emit_xbits("val", mstatus_value);
                     end if;
-                    if state = ST_FPU_DONE then
-                        emit("C " & hdr(cyc) & "001 " & hexstr(fflags_value));
-                        emit_xbits("val", fflags_value);
+                    -- A17 (F-K2b-1): TWO corrections in one condition.
+                    --   * WHEN. The strobe, not the state. `fp_flags_we` has two
+                    --     arms (vesta.vhd): FPU_DONE for the multi-cycle ops and
+                    --     EXECUTE for the single-cycle ones (fmin/fmax/fsgnj/
+                    --     fcmp/fclass). Keying on ST_FPU_DONE alone dropped every
+                    --     single-cycle op's record -- measured: an `fmin.s` on a
+                    --     signalling NaN raised NV, the reference logged it, and
+                    --     the trace said nothing.
+                    --   * WHAT. `fflags_value` is the fflags REGISTER read
+                    --     PRE-EDGE, and csr_unit's sticky OR commits on THIS
+                    --     edge, so the old record carried the value from before
+                    --     the op it belonged to. The committed value is the OR,
+                    --     computed here from the same two operands the CSR flop
+                    --     captures (csr_unit.vhd:670-671) -- not re-derived, and
+                    --     not read back a cycle later where an intervening
+                    --     `csrrw fflags` could have moved it.
+                    -- This is a strict superset of the pre-A17 emission: at
+                    -- FPU_DONE `fp_flags_we` is unconditionally '1' and
+                    -- `state = ST_FPU_DONE` is unconditionally a retire, so no
+                    -- record that used to be emitted stops being emitted.
+                    if fp_flags_we = '1' then
+                        ffpost := fflags_value;
+                        ffpost(4 downto 0) := fflags_value(4 downto 0) or fp_flags_val;
+                        emit("C " & hdr(cyc) & "001 " & hexstr(ffpost));
+                        emit_xbits("val", ffpost);
                     end if;
                     if csr_p then
                         emit("C " & hdr(cyc) & hexstr(csr_pa) & " " & hexstr(csr_pv));

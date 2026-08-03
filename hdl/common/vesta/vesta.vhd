@@ -486,7 +486,7 @@ architecture struct of vesta is
             csr_commit_we    : in std_logic;
             csr_commit_val   : in std_logic_vector(XLEN-1 downto 0);
             mstatus_value    : in std_logic_vector(XLEN-1 downto 0); -- for MTRAP_RET's mret pop
-            fflags_value     : in std_logic_vector(XLEN-1 downto 0); -- for FPU_DONE
+            fflags_value     : in std_logic_vector(XLEN-1 downto 0); fp_flags_we : in std_logic := '0'; fp_flags_val : in std_logic_vector(4 downto 0) := (others => '0');  -- fflags PRE-edge + A17's post-op OR operands; THREE PORTS SHARE THIS LINE ON PURPOSE (the A16 rule at :484) -- see the port map
             trap             : in std_logic;
             ecall_op         : in std_logic;
             ebreak_op        : in std_logic;
@@ -5030,6 +5030,26 @@ architecture struct of vesta is
                 csr_commit_val   => csr_commit_val,
                 mstatus_value    => mstatus_value,
                 fflags_value     => fflags_value,
+                -- A17/F-K2b-1: the tracer's two new inputs. Both are EXISTING
+                -- vesta signals (`fp_flags_we` :~1652, `fp_flags_val` :~1660,
+                -- already wired to csr_unit) so this creates no logic and no
+                -- net -- an observer reading wires that are present in every
+                -- build. Their COMPONENT declaration shares :489 with
+                -- `fflags_value` for the reason spelled out above `sc_fail_ext`:
+                -- no new line may appear above the last Genus-named expression.
+                -- Down here the port map is free, which is why this comment can
+                -- exist at all.
+                --
+                -- WHY BOTH, AND WHY NOT READ THE CSR BACK INSTEAD. The committed
+                -- fflags is `fflags_value or fp_flags_val` on THIS edge; reading
+                -- the register on the NEXT edge would give the same answer only
+                -- until an instruction writes fflags in between, and the Zfinx
+                -- test harness does exactly that (`csrrw a1,fflags,x0` after
+                -- every tested op). The tracer therefore computes the commit
+                -- from the same two operands the flop captures, which is
+                -- invariant 7 ("log what COMMITTED") applied literally.
+                fp_flags_we      => fp_flags_we,
+                fp_flags_val     => fp_flags_val,
                 trap             => trap,
                 ecall_op         => ecall_op,
                 ebreak_op        => ebreak_op,
