@@ -151,6 +151,61 @@ GATE_FILES = [
      'the record of F-K2b-2 (the custom CSR mtrapctl is illegal in the '
      'reference, so no TRAPCSR row can be clean)'),
 
+    # K4, 2026-08-03. The R-DK1 matrix's own knob-bearing lists, same
+    # CANONICAL-ONLY treatment and for the same reason. Nine of the sixteen
+    # tier-B rows get one; the seven that do not are recorded with their
+    # reason in pin_table.md rather than with an empty file here (an empty
+    # TESTS_FILE is a trap, not a document): `zawrs` and `zihint` have no
+    # ELIGIBLE single-hart knob-bearing cell (extzawrs reads counter CSRs,
+    # does MMIO and executes `iret`; zihint's only gated test in the tree is
+    # the multi-hart `shpause`), and the other five already have a list above.
+    ('cosim_zabha_tests.txt',
+     None,
+     'the K4 row-B7 lockstep list (extzabha + the three ON-polarity-only '
+     'rv32uzabha rows) — carries `mis`, whose INJECT-EXHAUSTED verdict is '
+     'ledger K4-L1: the reference takes the misaligned-AMO exception this core '
+     'deliberately does not implement. Read the row as 3 compared / 3 PASS / '
+     '1 NOT COMPARABLE, never as 3/4'),
+    ('cosim_zicond_tests.txt',
+     None,
+     'the K4 row-B1 lockstep list (extzicond ON arm + rv32uzicond-p-cz) — '
+     'extzicond is in the standing cosim_tests.txt only in its OFF arm, which '
+     'executes no czero encoding at all'),
+    ('cosim_zcb_tests.txt',
+     None,
+     'the K4 row-B2 lockstep list (extzcb ON arm) — one cell, and that is the '
+     'whole of the knob\'s surface in the tree'),
+    ('cosim_zimop_tests.txt',
+     None,
+     'the K4 row-B3 lockstep list (extzimop) — its OFF arm is a terminal-trap '
+     'POISON, so this list is the only way the ON arm is ever compared'),
+    ('cosim_zacas_tests.txt',
+     None,
+     'the K4 row-B8 lockstep list (extzacas + rv32uzacas-p-casw); casbh is '
+     'absent for a CONFIG reason — its sub-word forms need zabha too'),
+    ('cosim_zcmp_tests.txt',
+     None,
+     'the K4 row-B10 lockstep list (extzcmp) — a real cm.push/cm.pop round '
+     'trip; the sh* siblings are excluded pending an A13 plant audit'),
+    ('cosim_zbkb_tests.txt',
+     None,
+     'the K4 row-B12 lockstep list (extzbkb + rv32ui-p-zbk\'s ZBKB arm) — zbk '
+     'is in the standing list with ALL THREE of its arms preprocessed away, '
+     'i.e. as a green cell covering nothing (R-K2-7 (2))'),
+    ('cosim_zbkc_tests.txt',
+     None,
+     'the K4 row-B13 lockstep list (rv32ui-p-zbk\'s ZBKC arm) — its EXISTENCE '
+     'corrects K4 P4.2, which recorded that zbkc has no knob-bearing test. '
+     'Read its header for what the cell does NOT isolate'),
+    ('cosim_zbkx_tests.txt',
+     None,
+     'the K4 row-B14 lockstep list (extzbkx + rv32ui-p-zbk\'s ZBKX arm)'),
+    ('cosim_zkn_tests.txt',
+     None,
+     'the K4 row-B15 lockstep list — eight cells (three ext-probes whose OFF '
+     'arms are POISONs + the five ON-polarity-only rv32uzkn* rows), the '
+     'largest knob-bearing list in the programme'),
+
     # ---------------------------------------------------------------------
     # K2 (G10), 2026-08-03. Everything below was named by the K0 harness probe
     # §3.6 (tiers A-C) and the K0 inventory probe §5.5 (the six ON-polarity

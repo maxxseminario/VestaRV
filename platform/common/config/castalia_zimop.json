@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zimop+Zcmop may-be-ops (mop.r/mop.rr -> rd<-0, c.mop.n nops). Prove with: SUITE=full make verify CONFIG=config/castalia_zimop.json",
+  "chipName": "CastaliaZimop",
+  "isa": { "zimop": true }
+}

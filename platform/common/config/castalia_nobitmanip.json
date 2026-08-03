@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-C row C1: bitmanip OFF (Zba/Zbb/Zbs/Zbc removed). Subtractive row -- the CATALOG selection loses the rv32uzb* rows. Prove with: SUITE=full make verify CONFIG=config/castalia_nobitmanip.json",
+  "chipName": "CastaliaNobitmanip",
+  "isa": { "bitmanip": false }
+}

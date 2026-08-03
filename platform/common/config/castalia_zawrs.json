@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zawrs wrs.nto/wrs.sto (requires isa.atomics, default true). Prove with: SUITE=full make verify CONFIG=config/castalia_zawrs.json",
+  "chipName": "CastaliaZawrs",
+  "isa": { "zawrs": true }
+}

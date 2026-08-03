@@ -1,0 +1,42 @@
+# K4 (R-DK1 tier B, row B15) lockstep list -- the KNOB-BEARING Zkn tests.
+#
+# EIGHT cells, the largest knob-bearing list in the programme. Three ext-probes
+# whose OFF arms are terminal-trap POISONs (`extzknd` `extzkne` `extzknh`) and
+# five `rv32uzkn*` rows that exist only in the ON polarity (the CATALOG selects
+# them solely on the `zkn` tag): aes32d, aeskat (the AES known-answer test),
+# aes32e, sha256, sha512.
+#
+# ELIGIBILITY, CHECKED PER TEST RATHER THAN ASSUMED (the zicboz list's rule,
+# and the discipline K4-L1 cost when it was skipped once): every cell below was
+# screened on five hazards by reading the source, not by pattern-matching a
+# name -- (1) a counter CSR read (cycle/time/instret/mcycle/minstret), which the
+# two models can never agree on; (2) MMIO; (3) a VestaRV custom opcode
+# (iret/ignite/extinguish); (4) a tile launch or any other master writing the
+# shared window (which would need an A13 plant audit); (5) a deliberate trap.
+# Every cell here scored ZERO on all five. The screen was validated against a
+# known-nonzero: `rv32ua-p-extzawrs` scores 4 counter reads, 6 MMIO sites and
+# one `iret`, and is REFUSED by it -- which is why the zawrs row has NO
+# knob-bearing lockstep list at all (its only other candidate, `shwrs`, is
+# multi-hart). The `zihint` row is in the same position: its ONLY
+# CORE_ENABLE_ZIHINT-gated test in the whole tree is `shpause`, which is
+# multi-hart AND `harts_le4`-tagged. Those two rows are recorded as plumbing
+# controls with the reason, and deliberately have no file here -- an empty
+# TESTS_FILE would be a trap, not a document.
+#
+# EVERY sh* SIBLING IS DELIBERATELY ABSENT, and that is a SCOPE statement, not a
+# coverage claim: the sh* tests launch all three tiles, so hart 0's stream
+# carries shared-window loads written by other masters and the reference can
+# only follow them through A13 plants. This list covers the knob's ENCODINGS on
+# hart 0, and says nothing about their cross-hart behaviour.
+#
+# Built by `make verify CONFIG=config/castalia_zkn.json` into that row's own
+# image set. Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zkn_tests.txt
+xxrv32ua-p-extzknd.rcf
+xxrv32ua-p-extzkne.rcf
+xxrv32ua-p-extzknh.rcf
+rv32uzknd-p-aes32d.rcf
+rv32uzknd-p-aeskat.rcf
+rv32uzkne-p-aes32e.rcf
+rv32uzknh-p-sha256.rcf
+rv32uzknh-p-sha512.rcf

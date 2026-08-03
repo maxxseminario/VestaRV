@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zbkx crossbar permute (xperm8/xperm4). Prove with: SUITE=full make verify CONFIG=config/castalia_zbkx.json",
+  "chipName": "CastaliaZbkx",
+  "isa": { "zbkx": true }
+}

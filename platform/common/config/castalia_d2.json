@@ -1,0 +1,11 @@
+{
+  "_comment": "K4 R-DK1 tier-D row D2: EVERYTHING ON -- all sixteen X knobs plus the full priv ladder, on the five base knobs at their true defaults. First elaboration of this combination in the project. Prove with: SUITE=full make verify CONFIG=config/castalia_d2.json",
+  "chipName": "CastaliaD2",
+  "isa": {
+    "zicond": true, "zcb": true, "zimop": true, "zihint": true,
+    "zihpm": true, "zawrs": true, "zabha": true, "zacas": true,
+    "zicboz": true, "zcmp": true, "zcmt": true, "zbkb": true,
+    "zbkc": true, "zbkx": true, "zkn": true, "zfinx": true
+  },
+  "priv": { "trapCsr": true, "umode": true, "pmp": true }
+}

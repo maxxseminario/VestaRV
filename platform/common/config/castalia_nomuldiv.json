@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-C row C2: mul AND div both OFF. R-DK1 excludes div-without-mul in writing (no Spike lever); this row turns both off together. Prove with: SUITE=full make verify CONFIG=config/castalia_nomuldiv.json",
+  "chipName": "CastaliaNomuldiv",
+  "isa": { "mul": false, "div": false }
+}

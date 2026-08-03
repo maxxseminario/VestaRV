@@ -1,0 +1,38 @@
+# K4 (R-DK1 tier B, row B10) lockstep list -- the KNOB-BEARING Zcmp test.
+#
+# ONE cell. `rv32ua-p-extzcmp`'s OFF arm is a terminal-trap POISON (the
+# `cm.push` encoding executed unconditionally), so it cannot join the standing
+# list; the ON arm is a real cm.push/cm.pop round trip over {ra,s0} with the
+# stack pointer and both restored registers checked.
+#
+# `shcmp` and `shcmppush` are absent for the sh* reason below -- and
+# `shcmppush` additionally carries the R-K2-4 vacuity SUSPICION (an mtip that
+# can never arm), which this row cannot settle and does not claim to.
+#
+# ELIGIBILITY, CHECKED PER TEST RATHER THAN ASSUMED (the zicboz list's rule,
+# and the discipline K4-L1 cost when it was skipped once): every cell below was
+# screened on five hazards by reading the source, not by pattern-matching a
+# name -- (1) a counter CSR read (cycle/time/instret/mcycle/minstret), which the
+# two models can never agree on; (2) MMIO; (3) a VestaRV custom opcode
+# (iret/ignite/extinguish); (4) a tile launch or any other master writing the
+# shared window (which would need an A13 plant audit); (5) a deliberate trap.
+# Every cell here scored ZERO on all five. The screen was validated against a
+# known-nonzero: `rv32ua-p-extzawrs` scores 4 counter reads, 6 MMIO sites and
+# one `iret`, and is REFUSED by it -- which is why the zawrs row has NO
+# knob-bearing lockstep list at all (its only other candidate, `shwrs`, is
+# multi-hart). The `zihint` row is in the same position: its ONLY
+# CORE_ENABLE_ZIHINT-gated test in the whole tree is `shpause`, which is
+# multi-hart AND `harts_le4`-tagged. Those two rows are recorded as plumbing
+# controls with the reason, and deliberately have no file here -- an empty
+# TESTS_FILE would be a trap, not a document.
+#
+# EVERY sh* SIBLING IS DELIBERATELY ABSENT, and that is a SCOPE statement, not a
+# coverage claim: the sh* tests launch all three tiles, so hart 0's stream
+# carries shared-window loads written by other masters and the reference can
+# only follow them through A13 plants. This list covers the knob's ENCODINGS on
+# hart 0, and says nothing about their cross-hart behaviour.
+#
+# Built by `make verify CONFIG=config/castalia_zcmp.json` into that row's own
+# image set. Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zcmp_tests.txt
+xxrv32ua-p-extzcmp.rcf

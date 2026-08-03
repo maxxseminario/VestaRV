@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 R-DK1 tier-B single-knob row: Castalia defaults + Zacas amocas.w (requires isa.atomics; .b/.h would also need zabha -- deliberately NOT set here, this is a single-knob row). Prove with: SUITE=full make verify CONFIG=config/castalia_zacas.json",
+  "chipName": "CastaliaZacas",
+  "isa": { "zacas": true }
+}
