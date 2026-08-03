@@ -75,10 +75,19 @@ KNOB_ORACLE = (
     ('zawrs',      A, 'k0 §1.2/§1.3c: RTL gate is ZAWRS *and* ATOMICS'),
     ('zabha',      A, 'k0 §1.2: `_zabha`, WITNESS amoadd.b'),
     ('zacas',      A, 'k0 §1.2: `_zacas`, WITNESS amocas.w'),
-    ('zicboz',     B, 'k0 §1.3d: RTL emits 1 R + SIXTEEN M S, Spike emits 1 + 0'),
+    ('zicboz',     E, 'k0 §1.3d: RTL emits 1 R + SIXTEEN M S, Spike emits 1 + 0 '
+                      '-- reconciled by K2b amendment `cboz-stores`, which is '
+                      'count- and geometry-checked (a 15-store burst is still '
+                      'caught)',
+                      ('cboz-stores',)),
     ('zcmp',       A, 'k0 §1.3l: record counts match exactly on both sides'),
-    ('zcmt',       B, 'k0 §1.3e: cm.jt does a data-port table load the reference '
-                      'never logs, plus the jvt WARL asymmetry'),
+    ('zcmt',       E, 'k0 §1.3e: cm.jt does a data-port table load the reference '
+                      'never logs -- reconciled by K2b amendment `cmjt-load`, '
+                      'bounded by addr == jvt + 4*index. The jvt WARL asymmetry '
+                      'is NOT amended and does not need to be: it is already a '
+                      'FORBIDDEN below (never write jvt), and every real table '
+                      'base is 64-byte aligned',
+                      ('cmjt-load',)),
     ('zbkb',       A, 'k0 §1.2: `_zbkb`, WITNESS pack'),
     ('zbkc',       A, 'k0 §1.2: `_zbkc`, WITNESS clmul'),
     ('zbkx',       A, 'k0 §1.2: `_zbkx`, WITNESS xperm8'),

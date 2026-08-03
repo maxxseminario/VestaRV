@@ -131,6 +131,14 @@ GATE_FILES = [
      'the K2b amendment-1 lockstep list (16 rv32uzf + extzfinx) — the '
      'ON-POLARITY-ONLY tests that make a Zfinx row COVERAGE and not just a '
      'plumbing control (R-K2-7 (2))'),
+    ('cosim_zicboz_tests.txt',
+     None,
+     'the K2b amendment-2 lockstep list (extzicboz + shcboz) — the two tests '
+     'that actually EXECUTE cbo.zero, incl. shcboz\'s two misaligned-rs1 cases'),
+    ('cosim_zcmt_tests.txt',
+     None,
+     'the K2b amendment-2 lockstep list (extzcmt + shcmt) — the only two tests '
+     'in the tree that execute a table jump (extjvt\'s ON arm executes none)'),
 
     # ---------------------------------------------------------------------
     # K2 (G10), 2026-08-03. Everything below was named by the K0 harness probe

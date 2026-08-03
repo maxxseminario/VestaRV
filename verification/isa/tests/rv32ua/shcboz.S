@@ -26,8 +26,14 @@
 #           address DOWN to the same 64-byte block and zero exactly that block,
 #           leaving the guards untouched.
 #
-# gas 13.2 has no `zicboz' -march and no cbo.zero mnemonic, so cbo.zero is an
-# explicit `.insn' I-type: opcode=0x0f (MISC-MEM), funct3=0x2, rd=x0, imm=0x004.
+# CORRECTED 2026-08-03 (K2b amendment 2), MEASURED. This header used to claim
+# "gas 13.2 has no `zicboz' -march and no cbo.zero mnemonic". That is FALSE on
+# this toolchain: gas 2.41 accepts both `-march=rv32imac_zicsr_zicboz' and
+# `.option arch, +zicboz', assembles `cbo.zero (a1)' to 0x0045a00f, and refuses
+# the mnemonic without the extension. The explicit `.insn' below is KEPT, and
+# deliberately: it is march-INDEPENDENT, so ONE source serves both polarities
+# and no per-polarity -march is needed. objdump on this file's ON build shows
+# `0045a00f' at all FOUR CBO_ZERO sites -- the same word the mnemonic produces.
 #     cbo.zero rs1  ==  .insn i 0x0f, 0x2, x0, rs1, 0x4
 #
 # Shared-window map (N=4; isolation — benign overlap at other N). The block sits

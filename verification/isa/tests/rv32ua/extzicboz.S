@@ -26,8 +26,17 @@
 # trap_flag high), so an in-test recoverable "cbo.clean traps" check is not
 # possible; cbozill.S is the faithful realization (mirrors X2's casill.S).
 #
-# gas 13.2 has no `zicboz' -march / no cbo.zero mnemonic, so cbo.zero is an
-# explicit `.insn' I-type: opcode=0x0f (MISC-MEM), funct3=0x2, rd=x0, imm=0x004.
+# CORRECTED 2026-08-03 (K2b amendment 2), MEASURED. This header used to claim
+# "gas 13.2 has no `zicboz' -march / no cbo.zero mnemonic". That is FALSE on this
+# toolchain: gas 2.41 accepts both `-march=rv32imac_zicsr_zicboz' and
+# `.option arch, +zicboz', assembles `cbo.zero (a1)' to 0x0045a00f, and refuses
+# the mnemonic without the extension ("extension `zicboz' required").
+# The explicit `.insn' below is KEPT, and deliberately: it is march-INDEPENDENT,
+# so ONE source serves both polarities (the OFF arm must emit the encoding on a
+# build whose -march has no zicboz) and no per-polarity -march is needed.
+# It encodes the identical word -- objdump on this file's ON build shows
+# `0045a00f' at the CBO_ZERO site, the same word the mnemonic produces.
+# cbo.zero rs1  ==  .insn i 0x0f (MISC-MEM), funct3=0x2, rd=x0, rs1, imm=0x004.
 #*****************************************************************************
 
 #include "riscv_test.h"

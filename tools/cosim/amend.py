@@ -14,11 +14,30 @@ and only on a configuration whose resolved config turns the owning knob on.
                                               on EVERY FPU_DONE; Spike emits
                                               it only when the op RAISED a
                                               flag (k0 oracle probe §1.3m)
+    isa.zicboz      cboz-stores               one `cbo.zero` is 1 `R` + SIXTEEN
+                                              `M S` on the RTL side and 1 `R` +
+                                              ZERO on the reference's: Spike
+                                              zeroes the block architecturally
+                                              and logs no `mem` field at all
+                                              (k0 oracle probe §1.3d)
+    isa.zcmt        cmjt-load                 `cm.jt` fetches its table entry on
+                                              the DATA port (state ZCM_JT_LD) --
+                                              one `M L` the reference never logs
+                                              (k0 oracle probe §1.3e)
 
-(The K2b spec's amendments 2-4 -- `cbo.zero`/`cm.jt` M-record suppression, the
-TRAPCSR C-record allowlist and the ZIHPM WARL allowlist -- land in their own
-commits and extend the table above.  One amendment, one commit, one set of
-default-config pins.)
+(The K2b spec's amendments 3-4 -- the TRAPCSR C-record allowlist and the ZIHPM
+WARL allowlist -- land in their own commits and extend the table above.  One
+amendment, one commit, one set of default-config pins.)
+
+WHERE A NEW RULE BELONGS, AND WHY IT MATTERS (the A17 acceptance lesson).
+`--count` measures the RTL window AFTER `rtl_prepass` and its number is fed
+back as `--max-records`, which bounds WINDOW POSITION.  So a rule that decides
+from the RTL stream alone costs nothing: its drops are already inside the
+count.  **Only a rule that CONSULTS THE REFERENCE (today, only `zfinx-fflags`)
+can part the window size from the compared count** -- which is exactly what
+made every Zfinx cell with a nonzero drop count exit `2-rtlshort` before the
+bound was fixed.  Prefer the prepass for every new rule; when a rule genuinely
+needs the reference, the window-position bound is what makes it safe.
 
 **THESE ARE SUPPRESSIONS, THE HIGHEST-RISK INSTRUMENT CLASS** (method rule 11:
 an instrument keyed on what it observes reports zero, which reads as success).
@@ -54,6 +73,12 @@ AMENDMENTS = (
     ("zfinx-fflags", "isa.zfinx",
      "drop the RTL's unconditional FPU_DONE `C 001` when it asserts no change "
      "and the reference does not present it"),
+    ("cboz-stores", "isa.zicboz",
+     "drop the 16 `M S` records of a `cbo.zero` retire, count- and "
+     "geometry-checked against the block the RTL actually wrote"),
+    ("cmjt-load", "isa.zcmt",
+     "drop the single `M L` table load of a `cm.jt`/`cm.jalt` retire, bounded "
+     "by addr == jvt + 4*index"),
 )
 
 AMENDMENT_NAMES = tuple(n for (n, _p, _d) in AMENDMENTS)
@@ -110,6 +135,89 @@ def is_fp_op(insn):
     return w is not None and len(insn) == 8 and (w & 0x7f) in FP_OPCODES
 
 
+# `cbo.zero rs1` = MISC-MEM (0x0f) funct3=010, rd=00000, imm12=0x004; rs1 free.
+# FIELD-DECODED, never matched by suffix: R-K2-5 ruled the s5_ledger's "ends
+# 200f" census shorthand WRONG as a detector because it holds only for
+# rs1 in {x0,x1} -- `cbo.zero a1` ends `a00f`.  Measured this wave: gas 2.41
+# assembles `cbo.zero (a1)` to 0x0045a00f.
+CBOZ_MASK, CBOZ_MATCH = 0xfff07fff, 0x0040200f
+
+# constants.vhd:158-159 fixes CBOZ_BLOCK_SIZE=64 / CBOZ_WORDS=16 as PACKAGE
+# CONSTANTS -- there is no per-config override and no generic, so 16 is a hard
+# number rather than something to derive.  Writing it here is the FAIL-SAFE
+# direction: if the RTL's constant ever changed, this rule would REFUSE to drop
+# (the count test below fails) and the stores would stay in the compared stream,
+# i.e. the divergence becomes the report.  The dangerous direction would be to
+# derive the expected count from the trace itself, which would bless any count.
+CBOZ_WORDS = 16
+CBOZ_BLOCK_SIZE = 64
+
+
+def is_cbo_zero(insn):
+    w = _word(insn)
+    return w is not None and len(insn) == 8 and (w & CBOZ_MASK) == CBOZ_MATCH
+
+
+# `cm.jt`/`cm.jalt`: 16-bit, funct3=101, bits[12:10]=000, index in bits[9:2],
+# op=10.  Measured (k0 oracle probe §1.3e): `cm.jt 5` = 0xa016.
+CMJT_MASK, CMJT_MATCH = 0xfc03, 0xa002
+
+
+def cm_jt_index(insn):
+    """The table index of a `cm.jt`/`cm.jalt`, or None if this is not one."""
+    w = _word(insn)
+    if w is None or len(insn) != 4:
+        return None
+    if (w & CMJT_MASK) != CMJT_MATCH:
+        return None
+    return (w >> 2) & 0xff
+
+
+def cboz_shape_ok(stores):
+    """The GEOMETRY bound on a `cbo.zero` drop.  (ok, why-not) -- ALL of:
+
+        exactly CBOZ_WORDS records, every one `size 4` / `data 00000000`,
+        addresses base, base+4, ... base+60 in that order, base 64-B aligned.
+
+    THE BOUND IS STATED OVER THE SIXTEEN STORE ADDRESSES, NEVER OVER `rs1`, and
+    that is not a stylistic choice.  `vesta.vhd` computes
+    `cboz_base <= rs1_value and not (CBOZ_BLOCK_SIZE-1)` -- it ROUNDS DOWN -- and
+    `shcboz.S` deliberately issues `cbo.zero` from `rs1 = block+20` and
+    `rs1 = block+44` to prove exactly that.  A bound written as "the first store
+    is at rs1" would pass `extzicboz` (whose only `cbo.zero` is aligned) and
+    REFUSE two legitimate `shcboz` cases -- a test calibrated on the one shape
+    it was developed against, which is method rule 7 arrived at from the other
+    direction.  `rs1` is not consulted here at all; the trace does not carry it.
+
+    What the bound buys: the K2b spec requires the suppression to stay
+    COUNT-AWARE -- "a sequencer that stores 15 words instead of 16 must still be
+    caught" (`verification/isa/negctrl/x3_zicboz_partial.patch` is that mutant).
+    A 15-store burst fails the FIRST test here, nothing is dropped, and the
+    stores meet the reference's next record and diverge.  The amendment DECLINES
+    and says so; it never converts a wrong burst into a pass.
+    """
+    if len(stores) != CBOZ_WORDS:
+        return False, ("expected exactly %d store records, saw %d"
+                       % (CBOZ_WORDS, len(stores)))
+    base = _word(stores[0].f[1])
+    if base is None:
+        return False, "the first store's address is x-tainted"
+    if base % CBOZ_BLOCK_SIZE:
+        return False, ("the first store's address %s is not %d-byte aligned"
+                       % (stores[0].f[1], CBOZ_BLOCK_SIZE))
+    for k, s in enumerate(stores):
+        if s.f[2] != "4":
+            return False, ("store %d has size %s, expected 4" % (k, s.f[2]))
+        if s.f[3] != "00000000":
+            return False, ("store %d writes %s, expected 00000000"
+                           % (k, s.f[3]))
+        want = "%08x" % (base + 4 * k)
+        if s.f[1] != want:
+            return False, ("store %d is at %s, expected %s (base+4*%d)"
+                           % (k, s.f[1], want, k))
+    return True, ""
+
+
 class Amend(object):
     """The enabled set plus every census the summary has to print."""
 
@@ -155,8 +263,12 @@ def rtl_prepass(recs, am):
         return recs
 
     out = []
+    n = len(recs)
+    i = 0
     fflags = 0                 # the RTL's fflags state, tracked from the stream
-    for i, r in enumerate(recs):
+    jvt = 0                    # the RTL's jvt, likewise (its own `C 017`)
+    while i < n:
+        r = recs[i]
         # `fflags` must hold the state BEFORE this record for the candidate
         # test below to mean "asserts no change"; the state update happens
         # after it, never before.  (Updating first made every `C 001` trivially
@@ -170,6 +282,11 @@ def rtl_prepass(recs, am):
                 # fcsr is {frm, fflags} and its low 5 bits are the same field
                 # (csr_unit.vhd's CSR_FFLAGS / CSR_FCSR write arms).
                 fflags = v & 0x1f
+            elif v is not None and r.f[0] == "017":
+                # jvt, from the RTL's OWN record -- the A3 discipline: the bound
+                # a drop is checked against is tracked from the stream being
+                # amended, never from the reference and never from a literal.
+                jvt = v
 
         if (r.kind == "C" and r.f[0] == "001" and am.enabled("zfinx-fflags")
                 and "x" not in r.f[1]):
@@ -180,6 +297,56 @@ def rtl_prepass(recs, am):
                     am.zfinx_cand.add(id(r))
 
         out.append(r)
+
+        # -- cboz-stores: the 16 stores that belong to a `cbo.zero` retire ----
+        # RECORD_FORMAT §0 fixes the per-retire emission order (R, then every
+        # `M L`, then every `M S`, then every `C`), and the tracer flushes the
+        # `cbo.zero` group in one go -- one `R` with rd=0 plus 16 `M S`
+        # (`vesta_tracer.vhd`'s retire flush).  So the stores are exactly the
+        # run of `M S` records immediately after this retire.
+        if (r.kind == "R" and am.enabled("cboz-stores")
+                and is_cbo_zero(r.f[1])):
+            j, stores = i + 1, []
+            while j < n and recs[j].kind == "M" and recs[j].f[0] == "S":
+                stores.append(recs[j])
+                j += 1
+            ok, why = cboz_shape_ok(stores)
+            if ok:
+                am.bump("cboz-stores", "%s@%s" % (r.f[0], stores[0].f[1]),
+                        len(stores))
+                i = j
+                continue
+            am.refuse("cboz-stores", r.lineno,
+                      "cbo.zero at pc %s: %s -- NOTHING was dropped, so the "
+                      "stores stay in the compared stream and the divergence "
+                      "is the report" % (r.f[0], why))
+
+        # -- cmjt-load: the one table load that belongs to a `cm.jt` retire ---
+        if r.kind == "R" and am.enabled("cmjt-load"):
+            idx = cm_jt_index(r.f[1])
+            if idx is not None:
+                j, loads = i + 1, []
+                while j < n and recs[j].kind == "M" and recs[j].f[0] == "L":
+                    loads.append(recs[j])
+                    j += 1
+                want = "%08x" % ((jvt + 4 * idx) & 0xffffffff)
+                if len(loads) == 1 and loads[0].f[1] == want:
+                    am.bump("cmjt-load", "%s->%s" % (r.f[0], want))
+                    i = j
+                    continue
+                # The equality is the whole bound: a table fetch from anywhere
+                # other than `jvt + 4*index` is precisely what a broken ZCM_JT_LD
+                # would produce, and it must reach the comparison.  Note this
+                # also fails loudly on a `jvt` the RTL never announced -- jvt
+                # starts at 0 here and only a `C 017` moves it.
+                am.refuse("cmjt-load", r.lineno,
+                          "cm.jt index %d at pc %s: expected exactly one `M L` "
+                          "at jvt+4*index = %s, saw %d load(s)%s -- NOTHING was "
+                          "dropped"
+                          % (idx, r.f[0], want, len(loads),
+                             (" at " + " ".join(x.f[1] for x in loads))
+                             if loads else ""))
+        i += 1
     return out
 
 

@@ -1,0 +1,43 @@
+# K2b amendment-2 lockstep list -- the KNOB-BEARING Zicboz tests.
+#
+# WHY A SEPARATE LIST, AND WHY THESE TWO TESTS.
+# R-K2-7 (2) ruled that a knobs-on lockstep ROW is not knobs-on lockstep
+# COVERAGE: K2's zicboz row ran with all 105 images byte-identical to the
+# default set, so its unmoved pins were a control on the plumbing and nothing
+# more.  Real coverage means putting tests that EXECUTE the knob's encodings
+# into a lockstep list.  These are the two that do.
+#
+# ELIGIBILITY, checked per test rather than assumed: single-hart (both are
+# hart-0 directed -- `shcboz` gates every tile out at its `csrr mhartid`),
+# normal `RVTEST_PASS` spin, no VestaRV custom opcode (iret/ignite/extinguish),
+# no MMIO, no tile launch, no other master writing the shared window (so no
+# A13 plants are needed even though `shcboz` uses shared RAM at 0x11400 --
+# hart 0 writes every word it later reads, and the reference models that RAM
+# itself under BOOT_MEM).
+#
+# NEITHER can join the standing `cosim_tests.txt`.  Both dispatch on
+# `-DCORE_ENABLE_ZICBOZ` at build time: `extzicboz`'s OFF arm is a
+# terminal-trap POISON (run_extoff.sh only), and `shcboz`'s OFF arm is a
+# base-ISA stub that executes no `cbo.zero` at all -- a green cell covering
+# nothing, which is exactly what this list exists to avoid.
+#
+# WHAT THE ROW EXERCISES (source-surveyed, not assumed):
+#   extzicboz  ON arm -- ONE cbo.zero on a .align 6 block, from an ALIGNED rs1,
+#                        with 0x11111111 / 0x22222222 boundary guards at -4 and
+#                        +64 checked afterwards.
+#   shcboz     ON arm -- FOUR cbo.zero: private TCM aligned (:72) and from
+#                        rs1 = base+20 (:79), shared RAM 0x11400 aligned (:86)
+#                        and from rs1 = base+44 (:93).  The two MISALIGNED
+#                        cases are the reason the `cboz-stores` bound is stated
+#                        over the SIXTEEN STORE ADDRESSES and never over rs1:
+#                        vesta.vhd rounds the base down, so the stores still
+#                        start at the aligned block base.
+#
+# Built by `make verify CONFIG=config/castalia_zicboz.json` into that row's own
+# image set (rcf_k70, stamped `.imgset NHARTS=4 DEFINES=-DCORE_ENABLE_ZICBOZ`);
+# the reference ELFs follow the same polarity through G7's `ensure_elf`
+# threading.  Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zicboz_tests.txt
+# which gives the row its own RUN_KEY (`zicboz__h1__cosim_zicboz_tests`).
+rv32ua-p-extzicboz.rcf
+xxxrv32ua-p-shcboz.rcf

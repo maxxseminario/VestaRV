@@ -1,0 +1,61 @@
+# K2b amendment-2 lockstep list -- the KNOB-BEARING Zcmt tests.
+#
+# TWO tests, and the selection is a source survey rather than a preference.
+# `extjvt.S`'s ON arm executes ZERO `cm.jt`: it is a `jvt` WARL read-back probe
+# only (`:24-28`), so it would exercise the config plumbing and nothing of the
+# `cmjt-load` amendment -- a green cell covering nothing, which is exactly what
+# R-K2-7 (2) put on the residue list.  It is therefore NOT here.
+# `extzcmt.S` executes one `cm.jt`; `shcmt.S` executes FOUR table jumps
+# including both `cm.jalt` forms and both sides of the index-31/32 boundary,
+# which is the stronger half of the row.
+#
+# ELIGIBILITY, checked rather than assumed: single-hart, TCM-resident, normal
+# `RVTEST_PASS` spin, no custom opcode, no MMIO, no shared-window traffic.
+# `extzcmt.S:32`'s `fence.i` retires on the reference under this row's derived
+# ISA string with or without `_zifencei` (measured this wave), so it is not an
+# eligibility problem.
+#
+# NEITHER can join the standing `cosim_tests.txt`: `extzcmt`'s OFF arm is a bare
+# `.short 0xA016` terminal-trap POISON (`run_extoff.sh` only), and `shcmt`'s OFF
+# arm is a base-ISA stub that emits no table jump at all.
+#
+# WHAT THE ROW EXERCISES:
+#   extzcmt  `csrw jvt` from `la t0, ezt_jvt` (a `.align 6` table, so the `jvt`
+#            WARL asymmetry -- the RTL pins bits 5:0, Spike stores them -- cannot
+#            bite: the low six bits are already zero on both sides), then ONE
+#            `cm.jt 5` (`.short 0xA016`), whose data-port table load at jvt+0x14
+#            is the single `M L` record the reference never logs.
+#   shcmt    FOUR table jumps: `cm.jt 3` (0xA00E) and `cm.jt 31` (0xA07E), which
+#            do NOT link, and `cm.jalt 40` (0xA0A2) and `cm.jalt 32` (0xA082),
+#            which DO -- so the row covers the linking form and both sides of the
+#            index-31/32 boundary, and the amendment's index decode (insn bits
+#            [9:2]) is exercised at four different values instead of one.
+#
+# EXPECTED VERDICT OF THIS ROW: 1 PASS + 1 TRIAGE-EXPECTED DIVERGE, in the shape
+# the standing `cosim_tests.txt` already uses (104 eligible + 1 dispositioned).
+# `shcmt` DIVERGES at compared record #37828, and the cause is architectural
+# rather than an amendment gap:
+#     ori   t3, t0, 63          ; t3 = table_base | 0x3f
+#     csrrw zero, jvt, t3       ; BOTH sides log `C 017 0000847f`
+#     csrrs t2, jvt, zero       ; RTL rdval 00008440, reference rdval 0000847f
+# The RTL pins `jvt[5:0]` to zero (`csr_unit.vhd`: `jvt <= csr_new_val(31 downto
+# 6) & "000000"`); the reference stores what you wrote.  BOTH ARE LEGAL WARL --
+# the same MODEL-CONFIG class as D-2026-07-29-1 -- and `shcmt` writes those low
+# bits ON PURPOSE, to prove the pinning.  k0 oracle probe §1.3e predicted exactly
+# this ("benign for 64-byte-aligned table bases, fatal for a random stream that
+# writes jvt freely"), which is why K3's FORBIDDEN list already bars a jvt write.
+# It is NOT in scope for amendment 2 (which reconciles M records), and widening
+# `cmjt-load` to cover it would be the wrong instrument: the fix, if it is ever
+# wanted, is a `jvt` WARL read-back relaxation of exactly the shape amendment 4's
+# `hpm-warl` tier 2 has -- a SPEC ADDITION, proposed with its evidence, never an
+# implementer's unilateral widening.
+# NOTE what the divergence also proves: the four `cmjt-load` drops all happened
+# BEFORE it, and the comparison still caught a real disagreement four records
+# later.  The amendment did not hide anything.
+#
+# Built by `make verify CONFIG=config/castalia_zcmt.json` into that row's own
+# image set (`.imgset NHARTS=4 DEFINES=-DCORE_ENABLE_ZCMT`).  Selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zcmt_tests.txt
+# which gives the row its own RUN_KEY (`zcmt__h1__cosim_zcmt_tests`).
+xxrv32ua-p-extzcmt.rcf
+xxxxrv32ua-p-shcmt.rcf
