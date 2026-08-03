@@ -1,0 +1,5 @@
+{
+  "_comment": "K4 session-3 MATRIX INPUT (not an R-DK1 row): Castalia defaults + Zihpm + Zacas, the pair the K4-L4 / D-2026-08-03-2 discriminator needs. R-K4-2 (3) rules that discriminator into K4 -- did the arbiter grant TWICE on a failing amocas.w? -- and answering it needs the CAS (isa.zacas) and the shared-bus grant counter that observes it (isa.zihpm) in ONE build. rv32ua-p-casgrant is CATALOG-tagged with both knobs and is selected only here and on D2. Expect this row's lockstep leg to diverge on rv32ua-p-extzihpm exactly as the B10 zihpm row does (F1): the RTL has real event counters and the reference hardwires them to zero. Prove with: SUITE=full make verify CONFIG=config/castalia_zihpm_zacas.json",
+  "chipName": "CastaliaZihpmZacas",
+  "isa": { "zihpm": true, "zacas": true }
+}
