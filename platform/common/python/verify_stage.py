@@ -340,15 +340,54 @@ def padded_rcf(name):
     return 'x' * (22 - len(fn)) + fn
 
 
-def rcf_mapping(nharts):
+def rcf_mapping(nharts, defines=()):
     """(3-char link name under xcelium/riscv_test/, dest dir under
-    verification/isa/) for an image set built at this NHARTS. rcf/rca are the
-    pre-existing Castalia/Argus sets -- reuse, never rebuild their symlinks."""
-    if nharts == 4:
-        return 'rcf', 'rcf'
-    if nharts == 18:
-        return 'rca', 'rcf_argus'
-    return 'r%02d' % nharts, 'rcf_n%02d' % nharts
+    verification/isa/) for an image set built at this NHARTS and this ON-knob
+    polarity. rcf/rca are the pre-existing Castalia/Argus sets -- reuse, never
+    rebuild their symlinks.
+
+    K2/G3. The link name MUST be exactly 3 characters (the riscv_tb TEST_FILE
+    generic is a fixed 29-char string), which is the whole reason the polarity
+    cannot simply be spelled out in the path. So:
+
+      defines EMPTY  -> today's mapping, unchanged, bit for bit. Every existing
+                        flow, image set and stamp keeps working and no image is
+                        rebuilt. This is the ONLY case any config had before K2.
+      defines SET    -> link `k<XX>`, dir `rcf_k<XX>`, where XX is two hex
+                        digits of a digest of the FULL identity (NHARTS + the
+                        sorted -D list). 256 slots, 1:1 with the directory, so a
+                        digest collision is a collision of BOTH and is caught by
+                        the `.imgset` identity stored in the directory -- see
+                        verify.sh. A silent collision would be the worst
+                        possible failure here (two polarities sharing one image
+                        set), so it is checked rather than made unlikely.
+    """
+    if not defines:
+        if nharts == 4:
+            return 'rcf', 'rcf'
+        if nharts == 18:
+            return 'rca', 'rcf_argus'
+        return 'r%02d' % nharts, 'rcf_n%02d' % nharts
+    tag = imgset_tag(nharts, defines)
+    return 'k' + tag, 'rcf_k' + tag
+
+
+def imgset_identity(nharts, defines):
+    """The EXACT string that identifies an image set's polarity. Stored in the
+    set's `.imgset` stamp and compared on every reuse: this is the record the
+    K0 probes found missing entirely (`rcf/`'s 260 images were rebuildable
+    'only if the exact RISCV_GCC_OPTS polarity is known, which is nowhere
+    recorded')."""
+    return 'NHARTS=%d DEFINES=%s' % (nharts, ' '.join(defines) if defines else '(none)')
+
+
+def imgset_tag(nharts, defines):
+    """Two hex digits naming the polarity, from a digest of its identity.
+    hashlib, not hash(): Python's str hash is randomised per process, so hash()
+    would give a DIFFERENT directory on every run."""
+    import hashlib
+    h = hashlib.sha1(imgset_identity(nharts, defines).encode('utf-8')).hexdigest()
+    return h[:2]
 
 
 # K2 (G1/G3): the schema keys that reach a `vesta` feature generic and that a
@@ -407,6 +446,36 @@ def image_defines(cfg):
         if on:
             out.append('-DCORE_ENABLE_' + k.upper())
     return out
+
+
+def memorymap_on_knobs(path):
+    """The CORE_ENABLE_* knobs a MemoryMap.vhd actually declares TRUE.
+
+    K2/G3, the HARDWARE half of the polarity pair. The K0 harness probe's §3.4
+    is the reason this is a one-file read: every knob that changes core
+    behaviour reaches the RTL as a VHDL constant in MemoryMap.vhd -- NOT as a
+    generic -- so a per-config simulation needs exactly one substituted file,
+    and that file is the whole truth about the build's polarity.
+
+    Read from the STAGED file, never recomputed from the config, so that a
+    generator that failed to emit a constant is caught rather than agreed with.
+    Deliberately literal: `constant CORE_ENABLE_<K> : boolean := true;` with any
+    spacing. VHDL is case-insensitive, hence the lowercasing.
+    """
+    import re
+    pat = re.compile(r'constant\s+CORE_ENABLE_([A-Z0-9_]+)\s*:\s*boolean\s*:=\s*(\w+)',
+                     re.IGNORECASE)
+    on = set()
+    with open(path) as f:
+        for line in f:
+            line = line.split('--', 1)[0]        # strip VHDL comments
+            m = pat.search(line)
+            if m and m.group(2).lower() == 'true':
+                on.add(m.group(1).upper())
+    # Only the knobs a test can dispatch on at build time are comparable; the
+    # five base-ISA constants are true in almost every build and no test
+    # #ifdefs on them (see DEFINE_KNOBS).
+    return sorted(on & set(k.upper() for k in DEFINE_KNOBS))
 
 
 def test_groups(names):
@@ -510,7 +579,8 @@ def main():
     chip = cfg['chipName'].strip().lower().replace(' ', '_') or 'chip'
     nharts = int(cfg['numHarts'])
     have = config_tags(cfg)
-    link, dest = rcf_mapping(nharts)
+    defines = image_defines(cfg)
+    link, dest = rcf_mapping(nharts, defines)
 
     sel = [(name, smoke) for (name, need, smoke) in CATALOG if need <= have]
     smoke_sel = [name for (name, smoke) in sel if smoke]
@@ -680,7 +750,15 @@ def main():
     # config's ON knobs require. Printed unconditionally so a reader of the
     # verify banner can see the exact polarity the images were asked for.
     print('GROUPS=%s' % ' '.join(test_groups(name for (name, _s) in sel)))
-    print('DEFINES=%s' % ' '.join(image_defines(cfg)))
+    print('DEFINES=%s' % ' '.join(defines))
+    print('IMGSET=%s' % imgset_identity(nharts, defines))
+    # The staged RTL's own ON-knob set, read back out of the file that was just
+    # written rather than recomputed from the config. That is the point: the
+    # polarity gate must compare the SOFTWARE side against what the HARDWARE
+    # side actually says, so that a generator bug which fails to emit a
+    # CORE_ENABLE_* constant is caught instead of being agreed with.
+    print('RTL_ON=%s' % ' '.join(memorymap_on_knobs(
+        os.path.join(stage, 'hdl', 'MemoryMap.vhd'))))
 
 
 if __name__ == '__main__':
