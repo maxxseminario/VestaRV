@@ -662,6 +662,17 @@ if _isa['zabha'] and not _isa['atomics']:
 if _isa['zacas'] and not _isa['atomics']:
 	raise Exception('isa.zacas requires isa.atomics (compare-and-swap builds on the A extension)')
 
+# X1 (Zawrs): wrs.nto/wrs.sto wait on the LR reservation set, so maindec gates
+# is_wrs_instr on ENABLE_ZAWRS *and* ENABLE_ATOMICS -- without A the RTL raises
+# illegal-instruction on both encodings. HARD-ERROR so no config advertises
+# Zawrs on a chip that lacks LR/SC/AMO. (Added K1, 2026-08-03: the schema help
+# text and the RTL both carried this dependency; the validator did not, so
+# {zawrs:true, atomics:false} generated an isaString ending _zawrs -- a lie the
+# Spike oracle would retire and the core would trap. K0 inventory probe 2.3 /
+# oracle probe 1.3(k).)
+if _isa['zawrs'] and not _isa['atomics']:
+	raise Exception('isa.zawrs requires isa.atomics (wrs.nto/wrs.sto wait on the A extension reservation set)')
+
 # X3 (Zcmp): compressed push/pop + reg-moves are C-quadrant encodings -- they
 # only exist with the C extension. HARD-ERROR so no config advertises Zcmp on a
 # chip without compressed decode.
