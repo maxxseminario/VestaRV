@@ -1,0 +1,5 @@
+{
+  "_comment": "K2 acceptance-C config (R-K1-2 test 2): Castalia defaults + the P1/P2 privileged pair. priv.umode REQUIRES priv.trapCsr (generate.py raises otherwise). The harness derives -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE for this row's images from THIS file, so rv32ua-p-rocsrw compiles its ON arm and runs against RTL that has the standard trap architecture. Prove with: SUITE=full make verify CONFIG=config/castalia_umode.json",
+  "chipName": "CastaliaUmode",
+  "priv": { "trapCsr": true, "umode": true }
+}
