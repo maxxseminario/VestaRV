@@ -50,9 +50,21 @@ BASE_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
 EXTRA_GCC_DEFINES="${EXTRA_GCC_DEFINES:-}"
 GCC_OPTS="$BASE_OPTS -DNHARTS=$NH"
 [ -n "$EXTRA_GCC_DEFINES" ] && GCC_OPTS="$GCC_OPTS $EXTRA_GCC_DEFINES"
+
+# --- K4: THE `-march` OVERRIDE (R-DK1 row C3) ---------------------------------
+# The Makefile fixes a per-GROUP march and emits $(RISCV_GCC_OPTS) AFTER it, so
+# a -march carried here WINS (last one wins). Exactly one supported
+# configuration needs that lever -- `isa.compressed` false, where gas would
+# otherwise auto-compress and fill the images with encodings the core cannot
+# decode. Derived by platform/common/python/verify_stage.py's image_march(),
+# never guessed here, and it is part of the image set's IDENTITY below: a norvc
+# set and a compressed set can share neither a directory nor a stamp.
+EXTRA_GCC_MARCH="${EXTRA_GCC_MARCH:-}"
+[ -n "$EXTRA_GCC_MARCH" ] && GCC_OPTS="$GCC_OPTS -march=$EXTRA_GCC_MARCH"
+
 # The identity recorded in the image set's `.imgset` stamp. Defaulted here so a
 # hand invocation still leaves a truthful record instead of none.
-IMGSET_IDENTITY="${IMGSET_IDENTITY:-NHARTS=$NH DEFINES=${EXTRA_GCC_DEFINES:-(none)}}"
+IMGSET_IDENTITY="${IMGSET_IDENTITY:-NHARTS=$NH DEFINES=${EXTRA_GCC_DEFINES:-(none)}${EXTRA_GCC_MARCH:+ MARCH=$EXTRA_GCC_MARCH}}"
 
 cd "$(dirname "$0")"
 

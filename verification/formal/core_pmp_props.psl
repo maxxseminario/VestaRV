@@ -1,0 +1,58 @@
+-- verification/formal/core_pmp_props.psl
+-- K4: the D5 SUPPRESSION property, at the level where it actually lives.
+--
+-- PROVENANCE.  R-S4-1 ruled that "a denied access issues no bus transaction"
+-- is UNSTATABLE at the leaf -- pmp_unit is a pure combinational grant function
+-- with no clock and no bus -- and re-scoped it to the CORE FSM, "the EXECUTE
+-- D5 arm forcing mem_access_instr '0'".  It was deliberately NOT authored in
+-- S4 because it needs an ENABLE_PMP=true elaboration of the core, which did
+-- not exist until the K4 matrix built `castalia_pmp`.  This file is that
+-- deferred item.
+--
+-- A vunit is an OBSERVER: `vesta.vhd` is not edited, and this is not an RTL
+-- change (the same reasoning R-K2b-1 (2) applied to vesta_tracer.vhd).
+-- Binding must NOT be library-qualified (S4 probe finding).
+--
+-- Run:  verification/formal/run_core_pmp_props.sh
+--       (xrun ... -assert_vhdl -propfile_vhdl <this file>)
+-- Fire: xmsim: *E,ASRTST (<file>,<line>): Assertion :<NAME> has failed
+-- A clean run has NO ASRTST lines -- AND is uninterpretable on its own:
+-- read it only beside core_pmp_witness.psl, whose every witness must FIRE
+-- (R-S4-2's standing rule: "a no-fire result is uninterpretable until the
+-- matching witness separates 'property insensitive' from 'stimulus never
+-- arrived'").
+--
+-- CLOCK.  `clk`, the free-running input port, NOT the gated `clk_cpu`.  Every
+-- clk_cpu edge is a clk edge, so sampling on clk is a strict superset, and clk
+-- is an `in` port (reading the `out` port clk_cpu from a property would rely
+-- on the same -RELAX the design itself needs).
+--
+-- SCOPE, stated so the green is not over-read.  These two properties say that
+-- the FSM does not ASSERT the data-access strobe in the EXECUTE cycle in which
+-- a PMP denial is live.  `mem_access_instr` is the pre-issue qualifier for the
+-- whole data path -- data_addr's mux, hart_tile's sh_sel, the private-RAM lane
+-- strobes and amo_lock are all downstream of it -- which is precisely why the
+-- RTL's own comment calls this "THE PRE-ISSUE GUARANTEE".  They do NOT say
+-- anything about the FETCH transaction (a denied fetch is re-aimed at
+-- PC_RST_VAL by pmp_if_park and DOES read the ROM), and they do not observe
+-- the arbiter directly.
+
+vunit core_pmp_props (vesta(struct)) {
+
+    default clock is rising_edge(clk);
+
+    -- D5, DATA SIDE.  The load/store access-fault arm sits above every memory
+    -- dispatch arm in all four EXECUTE shapes and drives mem_access_instr '0'.
+    -- If any shape were missing its copy, this fires.
+    P_D5_DATA_DENY_NO_TXN : assert always (
+        ((resetn = '1') and (current_state = EXECUTE) and (pmp_d_deny = '1'))
+        -> (mem_access_instr = '0'));
+
+    -- D5's fetch-side sibling (SHAPE_P, the hoisted instruction-access-fault
+    -- arm).  Same claim, different antecedent: an instruction whose FETCH was
+    -- denied must not go on to issue its DATA access.
+    P_D5_FETCH_DENY_NO_TXN : assert always (
+        ((resetn = '1') and (current_state = EXECUTE) and (pmp_f_deny_r = '1'))
+        -> (mem_access_instr = '0'));
+
+}

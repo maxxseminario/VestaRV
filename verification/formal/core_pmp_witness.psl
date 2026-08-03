@@ -1,0 +1,43 @@
+-- verification/formal/core_pmp_witness.psl
+-- The witnesses for core_pmp_props.psl.  EVERY ONE MUST FIRE.
+--
+-- WHY THIS AND NOT `cover`: measured on this flow (xrun 20.09, -assert_vhdl,
+-- no covdb) PSL cover directives produce NO output whether they hit or not --
+-- an impossible cover compiled and reported exactly like the ones that do hit.
+-- Covers are therefore decorative here.  Assertion FIRES are the one channel
+-- this flow reports, so each witness below asserts that a trigger NEVER
+-- happens: every one MUST FIRE, and the fire is the evidence that the
+-- corresponding real property was actually evaluated, not vacuous.
+--
+-- EXPECTED RESULT: every witness fires.  A SILENT witness is a finding against
+-- the STIMULUS, not against the property -- and on this set it is a very
+-- specific finding, because the three antecedents are exactly the three things
+-- rv32ua-p-pmpfq is built to produce.
+
+vunit core_pmp_witness (vesta(struct)) {
+
+    default clock is rising_edge(clk);
+
+    -- The data-side D5 antecedent: pmpfq's `lw t3, 4(s2)` into the fenced word.
+    W_D5_DATA_DENY  : assert never {resetn = '1' and current_state = EXECUTE and
+                                    pmp_d_deny = '1'};
+
+    -- The fetch-side antecedent: pmpfq's jump into the fenced word.
+    W_D5_FETCH_DENY : assert never {resetn = '1' and current_state = EXECUTE and
+                                    pmp_f_deny_r = '1'};
+
+    -- F5.5, THE FOUR-CONDITION LATCH-EXPOSURE PATH, MEASURED RATHER THAN
+    -- ARGUED.  vesta.vhd's own declaration comment says the held is_compressed
+    -- is observable on exactly one path: the hoisted PMP fetch-fault arm
+    -- running with pc(1)='1', repeat_if='0' and quadrant_upper /= "11".  Three
+    -- of those four conjuncts rv32ua-p-pmpfq constructs by layout; the fourth
+    -- (quadrant_upper) is a property of the word a PARKED fetch returns
+    -- (pmp_if_park re-aims at PC_RST_VAL, so it is boot-ROM word 0 =
+    -- 0xF14022F3, bits 17:16 = "00").  This witness is how that derivation is
+    -- CHECKED instead of believed: if it is silent, the test did not enter the
+    -- exposed path and no claim about F5.5 may be made from that run.
+    W_F55_EXPOSED   : assert never {resetn = '1' and current_state = EXECUTE and
+                                    pmp_f_deny_r = '1' and pc(1) = '1' and
+                                    repeat_if = '0' and quadrant_upper /= "11"};
+
+}
