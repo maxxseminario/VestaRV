@@ -246,6 +246,31 @@ def derive_pmpregions(cfg):
     return int(p.get('pmpEntries', 16))
 
 
+def derive_amendments(cfg):
+    """The K2b comparator amendments this configuration turns on.
+
+    THE GATE IS THE CONFIG, NOT AN ENVIRONMENT VARIABLE.  Every amendment in
+    `amend.AMENDMENTS` carries the resolved-config predicate that owns it
+    ('isa.zfinx', 'priv.trapCsr', ...), so the knob -> amendment mapping has
+    exactly ONE home and this function is a lookup rather than a second table
+    that can drift from the first.  The default Castalia config satisfies none
+    of the predicates and therefore derives the EMPTY list -- which is what
+    keeps the four standing gate pins unmoved while the amendments exist.
+
+    A suppression that could be switched on by hand, on a config that does not
+    ask for it, would be the R-K2-7(2) failure in its purest form: a green cell
+    covering nothing, obtained by turning off the thing that was watching.
+    """
+    _require(cfg)
+    import amend                     # same directory; single source of truth
+    out = []
+    for name, pred, _desc in amend.AMENDMENTS:
+        section, key = pred.split('.', 1)
+        if cfg[section].get(key):
+            out.append(name)
+    return out
+
+
 def _vhdl_natural(path, name, decl='constant'):
     """Read a `natural` constant (or generic default) out of a VHDL file.
 
@@ -326,6 +351,7 @@ def derive(cfg, hdl_root=None):
         'isa': derive_isa_string(cfg),
         'priv': derive_priv(cfg),
         'pmpregions': derive_pmpregions(cfg),
+        'amendments': derive_amendments(cfg),
     }
     if hdl_root:
         out['spike_mem'], out['boot_mem'] = derive_memory(hdl_root)
@@ -359,6 +385,12 @@ def main(argv):
         print('SPIKE_ISA=%s' % d['isa'])
         print('SPIKE_PRIV=%s' % d['priv'])
         print('SPIKE_PMPREGIONS=%d' % d['pmpregions'])
+        # The comparator's config-gated amendments (K2b). EMPTY on the default
+        # config, and the consumer must treat a NON-empty value it cannot honour
+        # as a hard failure -- a comparator without --amend would silently run
+        # the row with the amendment absent, which reads as a divergence in the
+        # DUT rather than as a missing capability.
+        print('COMPARE_AMEND=%s' % ','.join(d['amendments']))
         if 'spike_mem' in d:
             print('SPIKE_MEM=%s' % d['spike_mem'])
             print('BOOT_MEM=%s' % d['boot_mem'])

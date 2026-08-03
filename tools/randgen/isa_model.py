@@ -47,11 +47,20 @@ Python 3.6 compatible.
 # is part of the datum: a status without its measurement is an opinion.
 # --------------------------------------------------------------------------
 A = 'A'      # comparable today
-B = 'B'      # needs a comparator amendment (K2b) -- do not lockstep
+B = 'B'      # needs a comparator amendment that DOES NOT EXIST -- do not lockstep
 C = 'C'      # not modellable at all; bracket channel only
+E = 'E'      # ELIGIBLE VIA A NAMED, CONFIG-GATED K2b COMPARATOR AMENDMENT
+             # (K2b): the record-shape difference is real and MEASURED, and a
+             # tracked amendment in tools/cosim/amend.py reconciles it -- but
+             # ONLY when the comparator runs with that amendment enabled, which
+             # tools/cosim/oracle_isa.py derives from this same resolved config.
+             # An E class is therefore emittable AND carries a REQUIREMENT: its
+             # streams must be compared with the named amendment, and the
+             # manifest records that requirement so a run cannot quietly drop
+             # it.  E is NOT a promotion to A: A needs nothing.
 
 KNOB_ORACLE = (
-    # (knob, verdict, note)
+    # (knob, verdict, note[, amendments])
     ('mul',        A, 'k0 §1.2: `m`/`zmmul`'),
     ('div',        A, 'k0 §1.2: `m`; div-without-mul has NO lever (verdict C)'),
     ('atomics',    A, 'k0 §1.2: `a`, WITNESS lr.w'),
@@ -74,16 +83,22 @@ KNOB_ORACLE = (
     ('zbkc',       A, 'k0 §1.2: `_zbkc`, WITNESS clmul'),
     ('zbkx',       A, 'k0 §1.2: `_zbkx`, WITNESS xperm8'),
     ('zkn',        A, 'k0 §1.2: `_zknd_zkne_zknh[_zkn]`'),
-    ('zfinx',      B, 'k0 §1.3m: the RTL tracer emits C 001 on EVERY FPU_DONE, '
-                      'Spike only when the flags change'),
+    ('zfinx',      E, 'k0 §1.3m: the RTL tracer emits C 001 on EVERY FPU_DONE, '
+                      'Spike only when the op RAISES one -- reconciled by K2b '
+                      'amendment `zfinx-fflags`',
+                      ('zfinx-fflags',)),
     ('trapCsr',    B, 'k0 §1.3i/n: mret is THREE Spike C records (mstatush, '
                       'tcontrol have no VestaRV counterpart)'),
     ('umode',      B, 'k0 §1.3j/o: --priv mu changes the reference reset state'),
     ('pmp',        B, 'k0 §1.4: Spike PMP reset state is NOT zero'),
 )
 
-KNOB_ORACLE_STATUS = dict((k, v) for (k, v, _n) in KNOB_ORACLE)
-KNOB_ORACLE_NOTE = dict((k, n) for (k, _v, n) in KNOB_ORACLE)
+KNOB_ORACLE_STATUS = dict((r[0], r[1]) for r in KNOB_ORACLE)
+KNOB_ORACLE_NOTE = dict((r[0], r[2]) for r in KNOB_ORACLE)
+# knob -> the K2b comparator amendment(s) its judgeability DEPENDS ON.  Empty
+# for every A and C row; non-empty exactly on the E rows.
+KNOB_AMENDMENTS = dict((r[0], tuple(r[3]) if len(r) > 3 else ()) 
+                       for r in KNOB_ORACLE)
 
 
 # --------------------------------------------------------------------------
@@ -148,6 +163,18 @@ M_ZBB_IMM = ('rori',)
 M_ZBS_R = ('bclr', 'bext', 'binv', 'bset')
 M_ZBS_IMM = ('bclri', 'bexti', 'binvi', 'bseti')
 M_ZBC = ('clmul', 'clmulh', 'clmulr')
+# Zfinx single-precision, x-register operands.  gas 2.41 accepts every one of
+# these under an `_zfinx` arch (measured: `fadd.s x10,x11,x12` assembles to
+# 0x00c5f553), so the "gas encodes it, census.py decodes it independently"
+# contract holds here exactly as it does for the base ISA -- no `.insn` or raw
+# `.short` fallback, which is why Zcmt gets no class and this does.
+# THREE-OPERAND and TWO-OPERAND forms are separate tuples because the emitter
+# has to know the arity; `fsqrt.s` in the register-register group is exactly the
+# `zext.h` mistake M_ZBB_UN was split out for.
+M_ZFINX_R = ('fadd.s', 'fsub.s', 'fmul.s', 'fdiv.s', 'fmin.s', 'fmax.s',
+             'fsgnj.s', 'fsgnjn.s', 'fsgnjx.s', 'feq.s', 'flt.s', 'fle.s')
+M_ZFINX_UN = ('fsqrt.s', 'fclass.s', 'fcvt.w.s', 'fcvt.wu.s', 'fcvt.s.w',
+              'fcvt.s.wu')
 
 # class name -> (required isa.* knobs, oracle verdict, human description)
 CLASSES = (
@@ -169,12 +196,46 @@ CLASSES = (
     ('zbb', ('bitmanip',), A, 'Zbb basic bit manipulation'),
     ('zbs', ('bitmanip',), A, 'Zbs single-bit'),
     ('zbc', ('bitmanip',), A, 'Zbc carry-less multiply'),
+    ('zfinx', ('zfinx',), A, 'Zfinx single-precision FP in the x-registers '
+                             '(FPU_WAIT/FPU_DONE, the fflags sticky-OR)'),
     ('clint_irq', (), C, 'CLINT msip self-injection (legacy IVT delivery; '
                          'lockstep needs BRACKET_ISR=1)'),
 )
 
 CLASS_NEEDS = dict((n, need) for (n, need, _o, _d) in CLASSES)
-CLASS_ORACLE = dict((n, o) for (n, _need, o, _d) in CLASSES)
+CLASS_OWN_ORACLE = dict((n, o) for (n, _need, o, _d) in CLASSES)
+
+
+def class_oracle(name):
+    """A class's oracle verdict = its OWN verdict combined with the verdicts of
+    every knob it needs.
+
+    DERIVED RATHER THAN TABULATED, and that is a K2b correction to K3's shape.
+    Before this, `CLASSES` carried a hand-written verdict beside `KNOB_ORACLE`'s
+    hand-written verdict, with nothing tying them together: a class needing a
+    verdict-B knob could have been written down as A and the refusal arm would
+    never have noticed.  (It could not happen in K3 only because no class
+    needed a B knob at all -- which is exactly why R-K3-2's D-3 records that
+    the refusal arm had never fired.)
+
+    The combination is NOT a total order on 'badness', because C and B are
+    treated oppositely on purpose:
+        any B  -> B   REFUSED: modelled DIFFERENTLY by the two sides, and the
+                      amendment that would reconcile it does not exist
+        any C  -> C   ADMITTED via the existing V3 bracket channel
+        any E  -> E   ADMITTED, and the run must carry the named amendment
+        else      A
+    """
+    vs = [CLASS_OWN_ORACLE[name]] + [KNOB_ORACLE_STATUS[k]
+                                     for k in CLASS_NEEDS[name]
+                                     if k in KNOB_ORACLE_STATUS]
+    for want in (B, C, E):
+        if want in vs:
+            return want
+    return A
+
+
+CLASS_ORACLE = dict((n, class_oracle(n)) for (n, _need, _o, _d) in CLASSES)
 CLASS_DESC = dict((n, d) for (n, _need, _o, d) in CLASSES)
 CLASS_ORDER = tuple(n for (n, _need, _o, _d) in CLASSES)
 
@@ -200,6 +261,7 @@ CLASS_MNEMONICS = (
     ('zbb', M_ZBB_R + M_ZBB_UN + M_ZBB_IMM),
     ('zbs', M_ZBS_R + M_ZBS_IMM),
     ('zbc', M_ZBC),
+    ('zfinx', M_ZFINX_R + M_ZFINX_UN),
 )
 
 MNEMONIC_CLASS = {}
@@ -254,6 +316,26 @@ def available_classes(cfg_isa, allow_unmodelled=False):
     return avail, blocked
 
 
+def required_amendments(class_names):
+    """The K2b comparator amendments a stream containing these classes NEEDS.
+
+    A stream that carries an E class and is compared WITHOUT its amendment
+    diverges on record SHAPE, which reads exactly like a DUT defect -- so the
+    requirement is written into the manifest rather than left as folklore.
+    The comparator is fed the same set independently, derived from the same
+    resolved config by `tools/cosim/oracle_isa.py::derive_amendments`; this is
+    the generator's half of that agreement, and the two are checked against
+    each other by the unit tests.
+    """
+    out = []
+    for name in class_names:
+        for knob in CLASS_NEEDS[name]:
+            for a in KNOB_AMENDMENTS.get(knob, ()):
+                if a not in out:
+                    out.append(a)
+    return out
+
+
 def knobs_on_without_emitter(cfg_isa, cfg_priv):
     """Knobs the config turns ON that this generator has NO emitter for.
 
@@ -266,7 +348,7 @@ def knobs_on_without_emitter(cfg_isa, cfg_priv):
         for k in CLASS_NEEDS[name]:
             have_emitter.add(k)
     out = []
-    for knob, _v, _n in KNOB_ORACLE:
+    for knob in (r[0] for r in KNOB_ORACLE):
         on = cfg_priv.get(knob) if knob in ('trapCsr', 'umode', 'pmp') \
             else cfg_isa.get(knob)
         if on and knob not in have_emitter:

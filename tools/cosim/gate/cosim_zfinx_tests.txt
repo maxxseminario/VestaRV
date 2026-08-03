@@ -1,0 +1,52 @@
+# K2b amendment-1 lockstep list -- the KNOB-BEARING Zfinx tests.
+#
+# WHY A SEPARATE LIST, AND WHY THESE TESTS.
+# R-K2-7 (2) ruled that a knobs-on lockstep ROW is not knobs-on lockstep
+# COVERAGE: K2's zicboz and umode rows ran with all 105 images byte-identical
+# to the default set (measured 105/105, twice), so their unmoved pins were a
+# control on the plumbing and nothing more.  Real coverage means putting
+# KNOB-BEARING tests into a lockstep list, and that needs an eligibility
+# analysis rather than a copy-paste.  This is that list for isa.zfinx.
+#
+# These tests CANNOT join the standing `cosim_tests.txt`: the whole rv32uzf
+# suite is ON-POLARITY ONLY (tests/rv32uzf/Makefrag: "NOT wired into the
+# default (Zfinx-off) suite runner"), and on a Zfinx-off build every one of its
+# encodings takes an illegal-instruction trap, which on a default build is
+# TERMINAL.  So the list is per-config by construction, selected with
+#   TESTS_FILE=tools/cosim/gate/cosim_zfinx_tests.txt
+# and the RUN_KEY it produces (`zfinx__h1__cosim_zfinx_tests`) keeps its
+# artifacts apart from every other row (K2 spec item 5).
+#
+# ELIGIBILITY, checked per test rather than assumed: single-hart, TCM-resident,
+# normal RVTEST_PASS spin (`TEST_PASSFAIL`), no VestaRV custom opcode
+# (iret/ignite/extinguish), no MMIO, no tile launch, no shared-window traffic.
+# The suite's own harness reads fflags with an EXPLICIT `csrrw a1, fflags, x0`
+# (tests/rv32uzf/test_macros_zfinx.h), which the `zfinx-fflags` amendment is
+# deliberately blind to -- it only ever suppresses the tracer's unconditional
+# FPU_DONE emission, never an architectural CSR access.
+#
+# Built by `make verify CONFIG=config/castalia_zfinx.json` into the row's own
+# image set (rcf_k<XX>, stamped `.imgset`); the reference ELFs follow the same
+# polarity through G7's `ensure_elf` threading.
+#
+# 8 CONVERTED (mechanically from tests/rv64uf by tools/zfinx_convert.py):
+xxxxrv32uzf-p-fadd.rcf
+xxxxrv32uzf-p-fdiv.rcf
+xxrv32uzf-p-fclass.rcf
+xxxxrv32uzf-p-fcmp.rcf
+xxxxrv32uzf-p-fcvt.rcf
+xxrv32uzf-p-fcvt_w.rcf
+xxxrv32uzf-p-fmadd.rcf
+xxxxrv32uzf-p-fmin.rcf
+# 8 DIRECTED (corner vectors from tools/gen_directed.py, softfloat-referenced):
+xxrv32uzf-p-dround.rcf
+xrv32uzf-p-dsubnrm.rcf
+xxxxrv32uzf-p-dnan.rcf
+xrv32uzf-p-dpmzero.rcf
+rv32uzf-p-dfcvttab.rcf
+xxrv32uzf-p-daccum.rcf
+xxxrv32uzf-p-drdx0.rcf
+xxxrv32uzf-p-dsgnj.rcf
+# and the adaptive ext probe, which is ALREADY in the standing list and is
+# repeated here so this list stands alone as "the Zfinx row":
+xrv32ua-p-extzfinx.rcf

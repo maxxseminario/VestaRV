@@ -264,6 +264,40 @@ def test_sparse_config_is_refused():
     check('a complete config is still accepted', O.derive_isa_string(cfg()).startswith('rv32imac'))
 
 
+def test_amendments_are_config_gated():
+    """K2b: the comparator amendment set is DERIVED, and the default is EMPTY.
+
+    The default-empty check is the one that matters: it is what keeps the four
+    standing gate pins unmoved while the amendments exist in the tree.
+    """
+    import amend
+    check('default config derives NO amendment',
+          O.derive_amendments(cfg()) == [])
+    check('isa.zfinx derives zfinx-fflags',
+          O.derive_amendments(cfg(isa={'zfinx': True})) == ['zfinx-fflags'])
+    # Every amendment's gate predicate must name a key the resolved config
+    # actually has -- a typo would silently make the amendment underivable,
+    # i.e. permanently off, which reads exactly like "it never fires".
+    base = cfg()
+    for name, pred, _d in amend.AMENDMENTS:
+        section, key = pred.split('.', 1)
+        check('%s gate %s exists in a resolved config' % (name, pred),
+              key in base[section],
+              '-- %r is not a resolved-config key' % pred)
+        on = cfg(**{section: dict(base[section], **{key: True})})
+        check('%s is derived when %s is on' % (name, pred),
+              name in O.derive_amendments(on))
+    # And the CLI the derivation feeds must accept every name it can emit.
+    everything = dict(base['isa'])
+    everything.update(dict((k.split('.', 1)[1], True)
+                           for (_n, k, _d) in amend.AMENDMENTS
+                           if k.startswith('isa.')))
+    names = O.derive_amendments(cfg(isa=everything))
+    check('every derived name parses in the comparator',
+          list(amend.parse_names([','.join(names)])) == names,
+          '-- derived %r' % (names,))
+
+
 def main():
     print('test_oracle_isa: K2 item 4, the oracle derivation')
     for fn in (test_default_reproduces_todays_spike_isa,
@@ -279,7 +313,8 @@ def main():
                test_composites,
                test_memory_windows_reproduce_todays_literals,
                test_against_the_real_resolved_config,
-               test_sparse_config_is_refused):
+               test_sparse_config_is_refused,
+               test_amendments_are_config_gated):
         print('%s:' % fn.__name__)
         fn()
     print('')

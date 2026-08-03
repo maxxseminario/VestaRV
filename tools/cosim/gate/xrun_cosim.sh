@@ -229,6 +229,17 @@ _ORACLE="$("$PY36" "$ORACLE_ISA_PY" "$COSIM_CONFIG" --hdl-root "$ROOT/hdl/common
     || { echo "FATAL: oracle derivation failed for $COSIM_CONFIG" >&2; exit 1; }
 eval "$_ORACLE"
 : "${SPIKE_ISA:?oracle derivation produced no SPIKE_ISA}"
+# K2b: the comparator's config-gated amendment set. The LINE must be present
+# even when its value is EMPTY (which is what the default config derives) --
+# an absent line means an oracle_isa.py that predates K2b, and running a
+# knobs-on row against a comparator that was never told about the amendments
+# produces a DIVERGENCE THAT LOOKS LIKE AN RTL BUG. Refuse instead.
+printf '%s\n' "$_ORACLE" | grep -q '^COMPARE_AMEND=' \
+    || { echo "FATAL: the oracle derivation emitted no COMPARE_AMEND line.
+       $ORACLE_ISA_PY predates K2b (the config-gated comparator amendments).
+       A knobs-on row run without them diverges on record SHAPE, which reads
+       as a DUT defect. Refusing rather than guessing." >&2; exit 1; }
+COMPARE_AMEND="${COMPARE_AMEND-}"
 : "${SPIKE_MEM:?oracle derivation produced no SPIKE_MEM}"
 : "${SPIKE_PRIV:?oracle derivation produced no SPIKE_PRIV}"
 : "${SPIKE_PMPREGIONS:?oracle derivation produced no SPIKE_PMPREGIONS}"
@@ -889,7 +900,8 @@ launch_margin_audit() {
 # and both are the same `--plant` token in --help. If the token is absent the
 # runner does NOT fall back to "no plants" — it fails the cell and says which
 # flag it wanted.
-CAP_CMP_HART=0; CAP_CMP_STOPSLEEP=0; CAP_CMP_BRACKET=0; CAP_REF_HARTID=0
+CAP_CMP_HART=0; CAP_CMP_STOPSLEEP=0; CAP_CMP_BRACKET=0; CAP_CMP_AMEND=0
+CAP_REF_HARTID=0
 CAP_REF_BRACKET=0; CAP_MK_PLANT=0; CAP_MK_BRACKETOUT=0; CAP_MK_HDLROOT=0
 probe_capabilities() {
     # compare.py --bracket-isr and the mk_inject/vesta_ref bracket channel are
@@ -900,6 +912,7 @@ probe_capabilities() {
     printf '%s' "$h" | grep -q -- '--hart HH' && CAP_CMP_HART=1
     printf '%s' "$h" | grep -q -- '--stop-before-sleep' && CAP_CMP_STOPSLEEP=1
     printf '%s' "$h" | grep -q -- '--bracket-isr' && CAP_CMP_BRACKET=1
+    printf '%s' "$h" | grep -q -- '--amend' && CAP_CMP_AMEND=1
     local m=""
     [ -f "$MK_INJECT" ] && m="$("$PY36" "$MK_INJECT" --help 2>&1)"
     printf '%s' "$m" | grep -q -- '--plant' && CAP_MK_PLANT=1
@@ -942,6 +955,10 @@ run_compare() {
     # than to a silent pass.
     local xa=()
     [ -f "$XALLOW" ] && xa=(--x-allow "$XALLOW")
+    # K2b: the config-gated amendments, DERIVED from the resolved config by
+    # oracle_isa.py. Empty on the default config, so the default gate's command
+    # line is unchanged character for character.
+    [ -n "$COMPARE_AMEND" ] && xa+=(--amend "$COMPARE_AMEND")
     # V4: forced on for a tile (see bracket_on) — Amendment A11's sleep window is
     # in a tile's stream by construction, not by configuration.
     bracket_on "$hh" && xa+=(--bracket-isr)
@@ -1374,6 +1391,16 @@ compare_hart() {
     # the dangerous ones because their absence is SILENT — mk_inject exits 0 and
     # emits a well-formed list with no P records in it, so the reference reads
     # stale RAM for every shared load and the cell "passes" vacuously.
+    # K2b: the config asked for comparator amendments and the comparator does
+    # not have them. Refuse, never degrade -- the absence is not silent (the row
+    # would DIVERGE on record shape) but the verdict would be wrong, and a
+    # record-shape divergence on a knobs-on row is exactly the shape a real DUT
+    # defect takes.
+    if [ -n "$COMPARE_AMEND" ] && [ -f "$COMPARE_PY" ] && [ "$CAP_CMP_AMEND" != 1 ]; then
+        status="INFRA-FAIL(compare-no-amend)"
+        detail="this config derives COMPARE_AMEND='$COMPARE_AMEND' and $COMPARE_PY has no '--amend' flag; refusing to compare a knobs-on row with the amendments absent"
+        emit_result; return
+    fi
     if bracket_on "$HH" && [ -f "$COMPARE_PY" ] && [ "$CAP_CMP_BRACKET" != 1 ]; then
         status="INFRA-FAIL(compare-no-bracket-isr)"
         detail="$COMPARE_PY has no '--bracket-isr' flag; refusing to compare hart $HH without it (Amendment A11: its stream contains an un-modellable sleep window by construction)"
@@ -1823,6 +1850,7 @@ echo "  reference : stock spike (V2 A/B control)"
 echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS -m$SPIKE_MEM"
 echo "              --disable-dtb --pc=<elf entry> --log-commits --instructions=<rtl+$SPIKE_SLACK>"
 fi
+echo "  amendments: ${COMPARE_AMEND:-(none — the default config gates them all off)}"
 echo "  polarity  : RTL ON = ${RTL_ON_CMP:-(none)}   ($MEMMAP_VHD)"
 echo "              IMG ON = ${IMG_ON_CMP:-(none)}   ($COSIM_RCF_LINK/.imgset = '$IMGSET_HAVE')"
 echo "              ref ELFs built at RISCV_GCC_OPTS=$REF_GCC_OPTS"
@@ -1851,7 +1879,8 @@ fi
 if [ "$MULTI" = 1 ] || [ "$BRACKET_ISR" = 1 ]; then
 echo "  brackets  : hart 0 BRACKET_ISR=$BRACKET_ISR; harts != 0 forced ON (A11)"
 echo "              plant win: PLANT_WIN=$PLANT_WIN$( [ "$PLANT_WIN" = auto ] && echo "  (derived from $HDL_ROOT/MemoryMap.vhd)")"
-echo "              flags: compare.py --bracket-isr $( [ "$CAP_CMP_BRACKET" = 1 ] && echo ok || echo MISSING)" \
+echo "              flags: compare.py --amend $( [ "$CAP_CMP_AMEND" = 1 ] && echo ok || echo MISSING)" \
+     "compare.py --bracket-isr $( [ "$CAP_CMP_BRACKET" = 1 ] && echo ok || echo MISSING)" \
      " mk_inject --bracket-out $( [ "$CAP_MK_BRACKETOUT" = 1 ] && echo ok || echo MISSING)" \
      "--plant $( [ "$CAP_MK_PLANT" = 1 ] && echo ok || echo MISSING)" \
      " vesta_ref --bracket $( [ "$CAP_REF_BRACKET" = 1 ] && echo ok || echo MISSING)"
@@ -1960,6 +1989,7 @@ SWEEP_T1=$(date +%s)
   printf '# xrun_cosim.sh results — %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
   printf '# reference: REF_MODE=%s  isa=%s priv=%s pmpregions=%s mem=%s mmio=%s  instructions=<rtl+%s>\n' \
          "$REF_MODE" "$SPIKE_ISA" "$SPIKE_PRIV" "$SPIKE_PMPREGIONS" "$SPIKE_MEM" "$MMIO_WIN" "$SPIKE_SLACK"
+  printf '# amendments: %s\n' "${COMPARE_AMEND:-(none)}"
   printf '# injector : %s (ordered MMIO replay, amendment A6; entry-aligned)\n' "$MK_INJECT"
   printf '# comparator: %s (two-pass: --count --quiet, then --max-records N)\n' "$COMPARE_PY"
   printf '# harts    : COSIM_HARTS=%s  -> ONE ROW PER (test,HART); %d test(s) x %d hart(s) = %d cell(s)\n' \

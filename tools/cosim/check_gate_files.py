@@ -121,6 +121,17 @@ GATE_FILES = [
      None,
      'the V4 missing-plant negative control — runs from the tracked copy'),
 
+    # K2b, 2026-08-03. The per-config KNOB-BEARING lockstep lists. They are
+    # CANONICAL-ONLY on purpose: a live gitignored copy is what put the other
+    # lists at risk in the first place, and nothing needs one here — the
+    # runner takes an absolute TESTS_FILE, so these are read from the tracked
+    # path directly and cannot drift from it.
+    ('cosim_zfinx_tests.txt',
+     None,
+     'the K2b amendment-1 lockstep list (16 rv32uzf + extzfinx) — the '
+     'ON-POLARITY-ONLY tests that make a Zfinx row COVERAGE and not just a '
+     'plumbing control (R-K2-7 (2))'),
+
     # ---------------------------------------------------------------------
     # K2 (G10), 2026-08-03. Everything below was named by the K0 harness probe
     # §3.6 (tiers A-C) and the K0 inventory probe §5.5 (the six ON-polarity
