@@ -230,6 +230,37 @@ CATALOG = [
     T('rv32ua-p-amoor_w', 'atomics'),
     T('rv32ua-p-shlrsc', 'tiles atomics', True),
     T('rv32ua-p-lrsc', 'atomics'),
+    # K2 acceptance C (R-K1-2 (2)) -- THE F10 PAIR, and the two rows are tagged
+    # DIFFERENTLY on purpose, because they cover the two POLARITIES of one
+    # ruling ("a write form aimed at a read-only CSR traps in EVERY build").
+    #
+    #   rocsrw    ON-POLARITY-ONLY. Its `#else` arm is `li a1, 0x5E10BAD0; j
+    #             roc_fail` -- it FAILs loudly on a build without the knob, by
+    #             design, because it needs a RECOVERABLE trap to assert
+    #             mcause/mepc/mtval. So it carries `trapCsr` and is selected
+    #             only by a trapCsr row. It also writes `mtrapctl` (0x7C0) to 0
+    #             and asserts the read-back, so its PASS is a statement about
+    #             STANDARD delivery (vesta.vhd: std_mode <= '1' when
+    #             (ENABLE_TRAPCSR and trap_legacy_mode = '0')), not merely about
+    #             a trap having happened.
+    #   rocsrwmp  DEFAULT-BUILD, and therefore UNTAGGED and in the smoke set.
+    #             This is the row that retires the F-series residue item "F10's
+    #             trap has no standing regression coverage" (fixpass w5_report
+    #             §4): the ruling changes the DEFAULT build, so the standing
+    #             coverage has to be on the default build. It has no build-time
+    #             dispatch at all (no CORE_ENABLE_* outside its comments), so it
+    #             is polarity-neutral and runs on every configuration.
+    #             Its victims (harts 1 and 2) wedge in the terminal TRAP_STATE
+    #             by design and never write a0_1/a0_2, so riscv_tb reports
+    #             "tile hart(s) silent/parked" -- a NOTE, not a failure; hart 0
+    #             is the observer and the a0 gate, the trapstor.S (W1) pattern.
+    #             ITS OWN HEADER SAYS "keep this file OUT of xrun_parallel.sh's
+    #             TEST_FILES array (floor stays 136)" and that instruction is
+    #             HONOURED: this CATALOG is a different list, the hand-built
+    #             standing runner is untouched, and the 136/136 floor does not
+    #             move. What moves is `make verify`'s selection (140 -> 141).
+    T('rv32ua-p-rocsrw', 'atomics trapCsr', True),
+    T('rv32ua-p-rocsrwmp', 'atomics', True),
     T('rv32ui-p-add', '', True),
     T('rv32ui-p-lb'), T('rv32ui-p-lh'),
     T('rv32ui-p-lw', '', True),
