@@ -142,6 +142,43 @@ COMPARE_PY="$TOOLS_COSIM/compare.py"
 ISA_DIR="$ROOT/verification/isa"
 TESTS_LIST_DEFAULT="$HERE/cosim_tests.txt"
 
+# ---------------------------------------------------------------------------
+# K2/G7 (2026-08-03): THE TWO HALVES OF A ROW'S POLARITY ARE NOW SELECTABLE.
+#
+# Until G7 this gate was nailed to one image set (`../rcf`) and one RTL
+# (`cell_list_behavioral.txt`, i.e. hdl/common at whatever polarity is checked
+# in), and acceptance B had to REFUSE any knobs-on image set outright, because
+# `ensure_elf` built the reference ELFs at the Makefile's default
+# RISCV_GCC_OPTS -- so an ON image set would have been compared against OFF-arm
+# reference code. G7 makes all three halves selectable AND checked:
+#
+#   COSIM_RCF_LINK   the 3-char link under xcelium/riscv_test/ naming the DUT
+#                    image set. Default `rcf`. MUST be 3 characters: the
+#                    riscv_tb TEST_FILE generic is a FIXED 29-char string
+#                    ("../" + 3 + "/" + a 22-char padded basename), which is
+#                    also why per-polarity image sets are named `k<XX>` rather
+#                    than spelled out (verify_stage.rcf_mapping).
+#   COSIM_CELL_LIST  the flow's compile list. Default this flow's own. A
+#                    per-config row points it at its `verify_<chip>/`
+#                    cell list, whose staged MemoryMap.vhd carries that row's
+#                    CORE_ENABLE_* constants. Relative paths inside an
+#                    overriding list are resolved against the LIST's OWN
+#                    directory (the staged lists say `hdl/MemoryMap.vhd`),
+#                    never against this flow's.
+#   the reference    ELF polarity is NOT a third free variable: it is derived
+#                    FROM the image set's `.imgset` stamp, so it agrees with
+#                    the images by construction rather than by agreement.
+#
+# The check that ties them together is `polarity_of_*` + the guard below.
+# ---------------------------------------------------------------------------
+COSIM_RCF_LINK="${COSIM_RCF_LINK:-rcf}"
+[ ${#COSIM_RCF_LINK} -eq 3 ] || { echo "FATAL: COSIM_RCF_LINK='$COSIM_RCF_LINK' is ${#COSIM_RCF_LINK} chars.
+       It must be exactly 3 -- the riscv_tb TEST_FILE generic is a FIXED
+       29-char string and this link is 3 of them." >&2; exit 1; }
+RCF_DIR="$HERE/../$COSIM_RCF_LINK"
+CELL_LIST="${COSIM_CELL_LIST:-$HERE/cell_list_behavioral.txt}"
+CELL_LIST_DIR="$(cd "$(dirname "$CELL_LIST")" 2>/dev/null && pwd)" || CELL_LIST_DIR="$HERE"
+
 MAX_PARALLEL=${MAX_PARALLEL:-4}
 TEST_TIMEOUT=${TEST_TIMEOUT:-180}
 SPIKE_SLACK=${SPIKE_SLACK:-2000}
@@ -459,13 +496,13 @@ fi
 [ -x "$READELF" ] || die "riscv-none-elf-readelf not found (source cdspaths.sh?)"
 
 # ── guards ────────────────────────────────────────────────────────────────────
-[ -f "$HERE/cell_list_behavioral.txt" ] || die "no cell_list_behavioral.txt in $HERE"
-grep -q 'vesta_tracer.vhd' "$HERE/cell_list_behavioral.txt" \
-    || die "cell_list_behavioral.txt has no vesta_tracer.vhd — the V1 tracer is
+[ -f "$CELL_LIST" ] || die "no cell list at $CELL_LIST"
+grep -q 'vesta_tracer.vhd' "$CELL_LIST" \
+    || die "$CELL_LIST has no vesta_tracer.vhd — the V1 tracer is
        not staged in this flow, so TRACE_ENABLE would silently do nothing."
-if [ -f "$HERE/../rcf/.nharts" ]; then
-    NH="$(cat "$HERE/../rcf/.nharts")"
-    [ "$NH" = "4" ] || die "../rcf/.nharts = $NH (expected 4). Rebuild with
+if [ -f "$RCF_DIR/.nharts" ]; then
+    NH="$(cat "$RCF_DIR/.nharts")"
+    [ "$NH" = "4" ] || die "$COSIM_RCF_LINK/.nharts = $NH (expected 4). Rebuild with
        verification/isa/build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
 fi
 # K2 acceptance B: THE RESOLVED CONFIG IS A GLOBAL SLOT WITH NO LOCK.
@@ -484,20 +521,73 @@ CFG_NHARTS="$("$PY36" -c 'import json,sys; print(json.load(open(sys.argv[1]))["n
        CHIP from the one being simulated. Re-run \`make -C platform/common
        generate\` (no CONFIG=) to restore the default, or point COSIM_CONFIG at
        the right resolved config."
-# ...and the IMAGE POLARITY the recipe assumes. rcf/.imgset is written by
-# build_mp_images.sh and seeded by verify.sh (K2/G3). The reference's ELFs are
-# built by ensure_elf at DEFAULT RISCV_GCC_OPTS, so a knobs-on image set here
-# would compare ON-polarity images against OFF-polarity reference ELFs.
-if [ -f "$HERE/../rcf/.imgset" ]; then
-    IMGSET_HAVE="$(cat "$HERE/../rcf/.imgset")"
-    case "$IMGSET_HAVE" in
-        *"DEFINES=(none)"*) ;;
-        *) die "../rcf/.imgset = '$IMGSET_HAVE'
-       This gate's reference ELFs are built by ensure_elf at DEFAULT
-       RISCV_GCC_OPTS, so it can only compare an image set built with NO
-       -DCORE_ENABLE_*. A knobs-on lockstep row needs the G7 ensure_elf
-       threading (K2 item 4, closing commit) before it can run here." ;;
-    esac
+# ...and the IMAGE POLARITY, which G7 turns from a BLANKET REFUSAL into a MATCH
+# TEST. The acceptance-B guard read: "this gate's reference ELFs are built at
+# DEFAULT RISCV_GCC_OPTS, so it can only compare an image set built with NO
+# -DCORE_ENABLE_*", and it refused every knobs-on row. That was the correct
+# guard for a gate whose reference half could not follow the images. It can now:
+# IMG_DEFINES below is read from the image set's own `.imgset` stamp and handed
+# to `ensure_elf`, so the reference ELFs are built at the images' polarity BY
+# CONSTRUCTION. What remains genuinely checkable -- and what the blanket refusal
+# was standing in for -- is the OTHER pair:
+#
+#     the RTL this flow compiles   vs   the polarity the images were built at
+#
+# Those two are independent (one comes from CELL_LIST's MemoryMap.vhd, the other
+# from the image build's -D list) and disagreeing is exactly the "OFF-arm
+# software against ON-polarity hardware, and the failure mode is a PASS" defect
+# that verify.sh's polarity gate closes for the suite. This is the same gate for
+# the lockstep flow, with the same two sources of truth, and it is deliberately
+# a READ-BACK of the staged file rather than a recomputation from the config: a
+# generator that failed to emit a constant must be caught, not agreed with.
+#
+# NOTE the asymmetry that is NOT a defect: `.imgset` is absent from image sets
+# built before K2/G3 (rcf_argus today). An absent stamp is treated as "no
+# -DCORE_ENABLE_*", which is an ASSERTION about those sets, labelled as one
+# here and measured for rcf/ at acceptance D (its shcboz image contains zero
+# cbo.zero encodings).
+IMG_DEFINES=""
+IMG_ON=""
+if [ -f "$RCF_DIR/.imgset" ]; then
+    IMGSET_HAVE="$(cat "$RCF_DIR/.imgset")"
+    IMG_DEFINES="${IMGSET_HAVE#*DEFINES=}"
+    [ "$IMG_DEFINES" = "(none)" ] && IMG_DEFINES=""
+else
+    IMGSET_HAVE="NHARTS=4 DEFINES=(none)   [ASSERTED: no .imgset stamp in $COSIM_RCF_LINK/]"
+fi
+# knob-name view of the image side: "-DCORE_ENABLE_ZICBOZ" -> "ZICBOZ"
+for _d in $IMG_DEFINES; do
+    case "$_d" in -DCORE_ENABLE_*) IMG_ON="$IMG_ON ${_d#-DCORE_ENABLE_}" ;; esac
+done
+# ...and of the RTL side, read out of the MemoryMap.vhd this flow will compile.
+MEMMAP_VHD="$(awk '/MemoryMap\.vhd[[:space:]]*$/ {print $0; exit}' "$CELL_LIST")"
+[ -n "$MEMMAP_VHD" ] || die "no MemoryMap.vhd line in $CELL_LIST — cannot read the
+       RTL's CORE_ENABLE_* polarity, so the image/RTL match cannot be checked."
+case "$MEMMAP_VHD" in /*) ;; *) MEMMAP_VHD="$CELL_LIST_DIR/$MEMMAP_VHD" ;; esac
+[ -f "$MEMMAP_VHD" ] || die "cell list names $MEMMAP_VHD, which does not exist"
+# Same predicate as verify_stage.memorymap_on_knobs: `constant CORE_ENABLE_<K> :
+# boolean := true`, VHDL comments stripped first, case-insensitive.
+RTL_ON="$(sed 's/--.*//' "$MEMMAP_VHD" \
+          | grep -ioE 'constant[[:space:]]+CORE_ENABLE_[A-Z0-9_]+[[:space:]]*:[[:space:]]*boolean[[:space:]]*:=[[:space:]]*true' \
+          | sed -E 's/.*CORE_ENABLE_([A-Za-z0-9_]+).*/\1/' | tr 'a-z' 'A-Z' | sort -u | tr '\n' ' ')"
+# The five base-ISA knobs are true in almost every build and no test #ifdefs on
+# them (verify_stage.DEFINE_KNOBS says so, and says why): comparing them would
+# make every row mismatch on MUL/DIV/ATOMICS/COMPRESSED/BITMANIP.
+RTL_ON_CMP="$(for k in $RTL_ON; do
+        case "$k" in MUL|DIV|ATOMICS|COMPRESSED|BITMANIP) ;; *) echo "$k" ;; esac
+    done | sort -u | tr '\n' ' ')"
+IMG_ON_CMP="$(for k in $IMG_ON; do echo "$k"; done | sort -u | tr '\n' ' ')"
+if [ "$RTL_ON_CMP" != "$IMG_ON_CMP" ]; then
+    die "POLARITY MISMATCH between the RTL this flow compiles and the images it runs.
+       RTL   ($MEMMAP_VHD)
+             ON = ${RTL_ON_CMP:-(none)}
+       IMAGE ($COSIM_RCF_LINK/.imgset = '$IMGSET_HAVE')
+             ON = ${IMG_ON_CMP:-(none)}
+       These are the two halves of one switch. Comparing them apart means the
+       DUT executes one arm of every #ifdef while the reference ELFs -- which
+       are built at the IMAGE polarity -- execute the other. Refusing.
+       A knobs-on lockstep row sets BOTH: COSIM_CELL_LIST=<verify_<chip>>/
+       cell_list_behavioral.txt and COSIM_RCF_LINK=<that row's 3-char link>."
 fi
 [ -f "$SPIKE_ENV" ] || die "$SPIKE_ENV missing (V0 deliverable)"
 
@@ -517,7 +607,7 @@ suite_of() { local s; s="$(strip_pad "$1")"; echo "${s%%-p-*}"; }
 resolve_rcf() {
     local pat="$1" m
     pat="${pat##*/}"; pat="${pat%.rcf}"
-    mapfile -t m < <(cd "$HERE/../rcf" && ls *"$pat"*.rcf 2>/dev/null)
+    mapfile -t m < <(cd "$RCF_DIR" && ls *"$pat"*.rcf 2>/dev/null)
     case ${#m[@]} in
         0) echo "NOMATCH"; return 1 ;;
         1) echo "${m[0]}"; return 0 ;;
@@ -579,6 +669,45 @@ if __name__=='__main__':
 PY
 }
 
+# ── K2/G7: the reference ELF build polarity, and the cache that is blind to it
+#
+# `ensure_elf` used to invoke `make build/<suite>/<test>` with no
+# RISCV_GCC_OPTS, i.e. the Makefile's default: no -DNHARTS, no -DCORE_ENABLE_*.
+# For the default N=4 no-knob row that is right by accident. For any other row
+# it means the reference executes the OTHER arm of every #ifdef from the DUT.
+# The authority for the polarity is the IMAGE SET'S OWN STAMP -- not a
+# re-derivation from a config -- because the images' stamp is the truth about
+# the images, and the reference must follow the images.
+REF_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4"
+[ -n "$IMG_DEFINES" ] && REF_GCC_OPTS="$REF_GCC_OPTS $IMG_DEFINES"
+REF_IMGSET="NHARTS=4 DEFINES=${IMG_DEFINES:-(none)}"
+#
+# THE ELF CACHE IS POLARITY-BLIND, and that is a hazard with teeth. All ELFs
+# live in ONE `verification/isa/build/` with no per-polarity keying, and
+# `ensure_elf` rebuilds only what is MISSING -- so a build/ left behind by an
+# ON-polarity `make verify` would be silently reused by an OFF-polarity gate.
+# (Observed live: after `make verify CONFIG=castalia_umode.json`, build/ held
+# ELFs compiled with -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE.) So the cache
+# now carries a stamp, `build/.imgset`, written both here and by
+# build_mp_images.sh (which rm -rf's build/ and refills it wholesale, so its
+# stamp is exactly true). A stamp that disagrees -- or is ABSENT, which means
+# the polarity is unknown -- forces a full rebuild. Fail-safe direction
+# (method rule 15): an unknown cache is treated as a wrong one.
+ELF_CACHE_STAMP="$ISA_DIR/build/.imgset"
+sync_elf_cache() {
+    local have=""
+    [ -f "$ELF_CACHE_STAMP" ] && have="$(cat "$ELF_CACHE_STAMP")"
+    if [ "$have" != "$REF_IMGSET" ]; then
+        if [ -d "$ISA_DIR/build" ]; then
+            echo "  ELF cache polarity: have '${have:-<unstamped>}' want '$REF_IMGSET'"
+            echo "                      -> rm -rf verification/isa/build (full reference rebuild)"
+            rm -rf "$ISA_DIR/build"
+        fi
+        mkdir -p "$ISA_DIR/build"
+        printf '%s\n' "$REF_IMGSET" > "$ELF_CACHE_STAMP"
+    fi
+}
+
 # ── ELF (and its raw rcf) for one test, built if missing ──────────────────────
 # ONLY the single-target `make build/<suite>/<test>` form: `make <suite>-flash`
 # riscv32-cleans and rebuilds all 80 images AND rewrites ../rcf (CLAUDE.md).
@@ -589,7 +718,7 @@ ensure_elf() {
     local mlog="$LOG_DIR/$test.make.log"
     if [ ! -f "$elf" ]; then
         [ "$NO_BUILD" = 1 ] && { echo "MISSING"; return 1; }
-        out="$(cd "$ISA_DIR" && make "build/$suite/$test" 2>&1)"
+        out="$(cd "$ISA_DIR" && make "build/$suite/$test" RISCV_GCC_OPTS="$REF_GCC_OPTS" 2>&1)"
         printf '%s\n' "$out" > "$mlog"
         [ -f "$elf" ] || { echo "BUILDFAIL"; return 1; }
         built=1
@@ -600,7 +729,7 @@ ensure_elf() {
     # with an ELF and no raw image. Ask for it explicitly.
     if [ "$want_rcf" = 1 ] && [ ! -f "$raw" ]; then
         [ "$NO_BUILD" = 1 ] && { echo "MISSING-RCF"; return 1; }
-        out="$(cd "$ISA_DIR" && make "build/$suite/$test.rcf" 2>&1)"
+        out="$(cd "$ISA_DIR" && make "build/$suite/$test.rcf" RISCV_GCC_OPTS="$REF_GCC_OPTS" 2>&1)"
         printf '%s\n' "$out" >> "$mlog"
         [ -f "$raw" ] || { echo "RCFFAIL"; return 1; }
         built=1
@@ -627,8 +756,11 @@ LIB
     [ "$NO_COMPILE" = 1 ] && return 0
     rm -rf "$wl/xcelium.d/work"; mkdir -p "$wl/xcelium.d/work"
     local vl=() vh=() f
-    for f in $(< "$HERE/cell_list_behavioral.txt"); do
+    for f in $(< "$CELL_LIST"); do
         case "$f" in \#*) continue ;; esac
+        # K2/G7: a relative entry belongs to the LIST'S directory, not to this
+        # flow's. The staged verify_<chip> lists say `hdl/MemoryMap.vhd`.
+        case "$f" in /*) ;; *) f="$CELL_LIST_DIR/$f" ;; esac
         case "${f##*.}" in
             v)        vl+=("$f") ;;
             vhd|vhdl) vh+=("$f") ;;
@@ -1010,7 +1142,7 @@ run_one() {
     local name="${rcf_base%.rcf}"
     local test; test="$(strip_pad "$name")"
     local suite; suite="$(suite_of "$name")"
-    local rcfpath="../rcf/$rcf_base"
+    local rcfpath="../$COSIM_RCF_LINK/$rcf_base"
     local elab_log="$LOG_DIR/$test.elab.log"
     local sim_log="$LOG_DIR/$test.sim.log"
     local trace_base="cosim_work/traces/$test"     # relative to CWD ($HERE)
@@ -1031,7 +1163,7 @@ run_one() {
         detail="TEST_FILE must be exactly 29 chars"
         emit_result_all; return
     fi
-    [ -f "$HERE/../rcf/$rcf_base" ] || {
+    [ -f "$RCF_DIR/$rcf_base" ] || {
         status="INFRA-FAIL(no-rcf)"; emit_result_all; return; }
 
     # -- 1. ELF ----------------------------------------------------------------
@@ -1060,7 +1192,7 @@ run_one() {
             detail="make build/$suite/$test.rcf produced nothing"
             emit_result_all; return
         fi
-        ci="$("$PY36" "$COSIM/check_image.py" "$HERE/../rcf/$rcf_base" \
+        ci="$("$PY36" "$COSIM/check_image.py" "$RCF_DIR/$rcf_base" \
                 "$ISA_DIR/build/$suite/$test.rcf" 2>&1)"
         if [ $? -ne 0 ]; then
             printf '%s\n' "$ci" > "$LOG_DIR/$test.image.log"
@@ -1655,7 +1787,7 @@ if [ $# -gt 0 ]; then
     MODE="single"
     for pat in "$@"; do
         r="$(resolve_rcf "$pat")" || die "pattern '$pat' -> $r
-       (the glob is ../rcf/*PAT*.rcf — use FULL basenames, e.g. xxxxxxrv32ui-p-add)"
+       (the glob is ../$COSIM_RCF_LINK/*PAT*.rcf — use FULL basenames, e.g. xxxxxxrv32ui-p-add)"
         TESTS+=("$r")
     done
 else
@@ -1691,6 +1823,10 @@ echo "  reference : stock spike (V2 A/B control)"
 echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS -m$SPIKE_MEM"
 echo "              --disable-dtb --pc=<elf entry> --log-commits --instructions=<rtl+$SPIKE_SLACK>"
 fi
+echo "  polarity  : RTL ON = ${RTL_ON_CMP:-(none)}   ($MEMMAP_VHD)"
+echo "              IMG ON = ${IMG_ON_CMP:-(none)}   ($COSIM_RCF_LINK/.imgset = '$IMGSET_HAVE')"
+echo "              ref ELFs built at RISCV_GCC_OPTS=$REF_GCC_OPTS"
+echo "  images    : ../$COSIM_RCF_LINK   cell list: $CELL_LIST"
 echo "  injector  : $MK_INJECT (ordered replay, amendment A6)"
 echo "  comparator: $COMPARE_PY $( [ -f "$COMPARE_PY" ] && echo '(present)' || echo '(ABSENT -> COMPARE-PENDING)')"
 echo "  workers   : MAX_PARALLEL=$MAX_PARALLEL   per-sim timeout ${TEST_TIMEOUT}s"
@@ -1727,6 +1863,17 @@ echo ""
 # The whole D1 argument is that the harness adds no ISA semantics; this is what
 # keeps that claim honest, so a failure aborts the sweep rather than warning.
 mkdir -p "$LOG_DIR"
+# K2/G7: the cache sync runs BEFORE the identity gate, not with the test
+# staging, because the identity gate reads an ELF out of that same cache
+# ($IDENTITY_ELF = build/rv32ui/rv32ui-p-add by default). Syncing afterwards
+# would let the gate certify a reference binary against an ELF built at some
+# other row's polarity -- the very confusion this stamp exists to end.
+sync_elf_cache
+if [ ! -f "$IDENTITY_ELF" ] && [ "$NO_BUILD" != 1 ]; then
+    _ie_b="$(basename "$IDENTITY_ELF")"
+    echo "  identity ELF absent after cache sync -> building it at this row's polarity"
+    ensure_elf "$(suite_of "$_ie_b")" "$_ie_b" 0 >/dev/null
+fi
 if ! identity_gate; then
     echo ""
     echo "ABORTING: the reference model failed its identity gate. Nothing was run."

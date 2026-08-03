@@ -128,6 +128,14 @@ for g in "$@"; do
     echo "--- ${g}-flash (NHARTS=$NH) ---"
     make "${g}-flash" RISCV_GCC_OPTS="$GCC_OPTS"
 done
+# K2/G7: STAMP THE ELF CACHE ITSELF, not just the image set.
+# build/ is shared with xrun_cosim.sh's `ensure_elf`, which rebuilds only what
+# is MISSING and so will happily reuse whatever polarity it finds. We have just
+# rm -rf'd build/ and refilled it wholesale at $GCC_OPTS, so this stamp is
+# exactly true at this instant. The lockstep gate compares it against the
+# polarity IT needs and wipes the cache when they disagree -- an unknown
+# (unstamped) cache counts as a disagreement, which is the fail-safe direction.
+echo "NHARTS=$NH DEFINES=${EXTRA_GCC_DEFINES:-(none)}" > build/.imgset
 
 # DEST == rcf/ guard (M19 war story): make already populates rcf/ during the
 # build; the rm/cp below would DELETE the fresh set and then fail to copy it
