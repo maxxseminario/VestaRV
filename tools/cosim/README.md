@@ -109,9 +109,9 @@ Stdlib only — no external dependencies, no network, no Xcelium, no Cadence env
 | `--spike <log>` | **required.** Spike `--log-commits` log. |
 | `--entry <hexpc>` | **required.** The entry PC both streams are aligned at (decision D3). `0x8200` or `8200`, any case. |
 | `--context N` | records of context printed either side of a divergence, from **both** streams. Default **8**. |
-| `--max-records M` | stop after M successfully compared records and report a match. `0` (default) = compare to the end of both streams. |
+| `--max-records M` | stop after M RTL records of the entry-aligned window have been **consumed** — compared, or dropped by a config-gated `--amend` rule — and report a match. `0` (default) = compare to the end of both streams. The reported figure is still the **compared** count, which is smaller by exactly the drops. (Before K2b the two were the same number; a walk-level amendment parted them, and bounding on window position is what keeps `--count`'s number reachable — see *The exit-2 question*.) |
 | `--hart HH` | 2-hex-digit hart id to select from both streams. Required only if a stream carries more than one hart (per-hart streams are compared independently — `RECORD_FORMAT.md` §6). V2 is single-hart. |
-| `--count` | informational: print the number of compared records in the entry-aligned RTL window to stdout and exit 0 **without comparing**. Feeds `--max-records`; see the runner recipe. |
+| `--count` | informational: print the **size of the entry-aligned RTL window** to stdout and exit 0 **without comparing**. Feeds `--max-records`; see the runner recipe. It is a window size, **not** a prediction of the compared count: an `--amend` rule that consults the reference can only be resolved in the walk, and `--count` never walks. |
 | `--quiet` | suppress the stderr summary. Divergence output and exit codes are unaffected. |
 
 ### Output streams
@@ -169,6 +169,20 @@ Two supported ways to get an unambiguous verdict:
    window matched Spike", exit 3 means the RTL out-ran Spike (raise
    `--instructions`), and exit 2 cannot occur. Give Spike a generous
    `--instructions` so it is never the shorter stream.
+
+   **"exit 2 cannot occur" is a claim about the BOUND being reachable, and it
+   stopped being true for one wave.** `--count` reports the window SIZE; before
+   K2b nothing could remove a record after that point, so the size and the
+   compared count were the same number and the bound was trivially reachable. A
+   config-gated `--amend` rule drops records *in the walk* — the drop consults
+   the reference, which `--count` cannot — so the compared count fell below the
+   window size and a bound expressed in compared pairs became unreachable.
+   Measured on the K2b Zfinx row: **13 of 17 cells exited 2 with
+   `compared == window − drops` to the record**, and the only four that passed
+   were the four with zero drops. Not one had a divergence. `--max-records`
+   therefore bounds **window position**, not compared pairs, and the claim above
+   holds again — with amendments and without. If you add a mechanism that can
+   remove an RTL record after `--count` has run, re-read this paragraph first.
 2. **Accept exit 2 and correlate with the testbench verdict.** Exit 2 + `TEST
    PASSED` is benign; exit 2 + a `riscv_tb` FAIL/watchdog means the RTL died or
    hung early, which is exactly the failure exit 2 exists to surface. This is

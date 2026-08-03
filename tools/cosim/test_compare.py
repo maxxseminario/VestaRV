@@ -699,7 +699,7 @@ def main():
            "--entry", "0x8200"], 5, ["cannot read --spike"])
     h.raw("exit0 --count prints the RTL window size",
           [PY, COMPARE, "--rtl", rtl_ok, "--spike", spk_ok, "--entry",
-           "0x8200", "--count"], 0, ["--count: 20 compared RTL records"])
+           "0x8200", "--count"], 0, ["--count: 20 RTL records"])
     h.raw("exit0 --quiet suppresses the summary",
           [PY, COMPARE, "--rtl", rtl_ok, "--spike", spk_ok, "--entry",
            "0x8200", "--quiet"], 0)
@@ -1326,6 +1326,76 @@ core   0: 3 0x00008200 (0x00c5f553) c1_fflags 0x00000000 x10 0x00000000
     h.case("K2b --amend: an unknown name is EXIT_USAGE, not a silent no-op",
            5, ZF_RTL, ZF_SPIKE, extra=["--amend", "zfinx-fflags,zfnix-typo"],
            expect_in_stderr=["unknown amendment 'zfnix-typo'"])
+
+    # ======================================================================
+    # A17 acceptance fallout: --count feeds --max-records, and a WALK-LEVEL
+    # amendment breaks the identity the two used to share.
+    #
+    # THE HARNESS RECIPE (xrun_cosim.sh, both passes carry the same flags):
+    #     m = compare.py ... --count --quiet
+    #         compare.py ... --max-records "$m"
+    # `--count` reports the entry-aligned RTL WINDOW SIZE. `zfinx-fflags` drops
+    # records IN THE WALK -- the drop consults the reference, which --count's
+    # pre-pass cannot do -- so the number of COMPARED pairs is smaller than the
+    # window by exactly the drop count and a bound expressed in compared pairs
+    # is unreachable. Measured on the real row before the fix: 13 of 17 Zfinx
+    # cells ended EXIT_RTL_SHORT with `compared == window - drops` to the
+    # record, and the only four that passed were the four with zero drops.
+    #
+    # ZF_RTL is a 6-record window from which the amendment drops exactly 1.
+    #
+    # THE REFERENCE TAIL IS PART OF THE FIXTURE, NOT DECORATION. Without it
+    # both streams end together and the walk exits 0 EVEN PRE-FIX -- measured,
+    # and it is how the first cut of this case passed against the unfixed
+    # comparator and proved nothing (method rule 1: a detector never seen to
+    # fail proves nothing). The real rows always carry the tail, because the
+    # runner runs the reference for `<rtl retires> + 2000` instructions and it
+    # spins in RVTEST_PASS for the remainder. ZF_TAIL_SPIKE reproduces exactly
+    # that: two extra retires past the end of the RTL window.
+    # ======================================================================
+    ZF_TAIL_SPIKE = ZF_SPIKE + """\
+core   0: 3 0x0000820c (0x0000a001)
+core   0: 3 0x0000820c (0x0000a001)
+""".splitlines(True)
+
+    h.case("A17: --count reports the WINDOW size (6), not the compared count",
+           0, ZF_RTL, ZF_TAIL_SPIKE,
+           extra=["--amend", "zfinx-fflags", "--count"],
+           expect_in_stdout=["6"])
+    # THE DETECTOR, and it is seen to fail: against HEAD's comparator this same
+    # command exits 2 ("RTL stream exhausted early after 5 matching records"),
+    # because n tops out at 5 and can never reach a bound of 6. Post-fix the
+    # bound is on window position, the walk covers all 6, and the reported
+    # figure is still the honest compared count of 5.
+    h.case("A17: the harness bound (--count's number) is REACHABLE with a drop",
+           0, ZF_RTL, ZF_TAIL_SPIKE,
+           extra=["--amend", "zfinx-fflags", "--max-records", "6"],
+           expect_in_stderr=["zfinx-fflags           1 application(s)",
+                             "5 records compared"])
+    # THE CONTROL THAT KEEPS EXIT 2 ALIVE. A bound LARGER than the window (7 on
+    # a 6-record window) is the shape of a genuinely short RTL stream -- an RTL
+    # that died before the reference did -- and it must still be reported.
+    # Without this case the fix would be indistinguishable from deleting the
+    # detector: "the bound is now always reachable" and "exhaustion is never
+    # reported" produce the same green.
+    h.case("A17: NEGATIVE -- a bound past the window still reports RTL-short",
+           2, ZF_RTL, ZF_TAIL_SPIKE,
+           extra=["--amend", "zfinx-fflags", "--max-records", "7"],
+           expect_in_stdout=["RTL STREAM EXHAUSTED"])
+    # ...and the bound must still be a BOUND, or "reachable" would just mean
+    # "ignored". Window positions 0..3 of ZF_RTL are R, C(dropped), R, C, so a
+    # bound of 4 consumes four records and compares three -- and the reported
+    # figure is the COMPARED one, which is how the drop stays visible in the
+    # number rather than being quietly folded into it.
+    h.case("A17: a SMALLER bound still stops the walk early (still a bound)",
+           0, ZF_RTL, ZF_SPIKE,
+           extra=["--amend", "zfinx-fflags", "--max-records", "4"],
+           expect_in_stderr=["3 records compared"])
+    # The amendment-free polarity: window size == compared count, so the same
+    # bound behaves exactly as it did before this change. This is the case that
+    # says the 105-test default gate could not have moved.
+    h.case("A17: ungated, --count's number as the bound is unchanged (exit 0)",
+           0, MEM_RTL, MEM_SPIKE, extra=["--max-records", "4"])
 
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
