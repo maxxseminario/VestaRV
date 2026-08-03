@@ -1397,6 +1397,149 @@ core   0: 3 0x0000820c (0x0000a001)
     h.case("A17: ungated, --count's number as the bound is unchanged (exit 0)",
            0, MEM_RTL, MEM_SPIKE, extra=["--max-records", "4"])
 
+    # ======================================================================
+    # K2b AMENDMENT 2 -- `cboz-stores` (isa.zicboz) and `cmjt-load` (isa.zcmt)
+    #
+    # MEASURED SHAPE (k0 oracle probe §1.3d/§1.3e):
+    #   * `cbo.zero (a1)` -- the REFERENCE zeroes the block architecturally and
+    #     its commit line carries NO `mem` field at all; the RTL sequencer runs
+    #     (CBOZ_WRITE, CBOZ_GAP) x 16 and the tracer flushes one `R` (rd=0) plus
+    #     SIXTEEN `M S`.  So the RTL side has 16 records the reference does not.
+    #   * `cm.jt 5` (0xa016) -- the reference logs the retire with no `mem`
+    #     field; the RTL fetches the table entry on the DATA port (ZCM_JT_LD),
+    #     which is one `M L` at jvt + 4*index.
+    # Both rules are REFERENCE-FREE and live in the prepass, so `--count`'s
+    # number already excludes their drops (see the header of amend.py).
+    #
+    # The `cbo.zero` fixture uses the SHARED-window block `shcboz.S` actually
+    # zeroes (0x11400) and gas 2.41's real encoding of `cbo.zero (a1)`
+    # (0x0045a00f -- measured this wave; note it does NOT end `200f`, R-K2-5).
+    # ======================================================================
+    CBOZ_RTL = ["R 00 00000100 00008200 0045a00f 00 00000000\n"] + [
+        "M 00 %08x S %08x 4 00000000\n" % (0x101 + k, 0x11400 + 4 * k)
+        for k in range(16)] + ["R 00 00000120 00008204 00000013 00 00000000\n"]
+    CBOZ_SPIKE = """\
+core   0: 3 0x00008200 (0x0045a00f)
+core   0: 3 0x00008204 (0x00000013)
+""".splitlines(True)
+
+    h.case("K2b cboz: WITHOUT the amendment the first store diverges",
+           1, CBOZ_RTL, CBOZ_SPIKE,
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+    h.case("K2b cboz: WITH the amendment all 16 stores are dropped",
+           0, CBOZ_RTL, CBOZ_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["cboz-stores            16 application(s)",
+                             "00008200@00011400        x16"])
+
+    # THE COUNT-AWARE BOUND, and the shape it exists for: the K2b spec names
+    # `negctrl/x3_zicboz_partial.patch` (a sequencer that stops one word early)
+    # as the acceptance control for exactly this.  The BLIND agent owns that
+    # control; this is the synthetic 15-store form of it, proving the refusal
+    # fires and that the refusal is LOUD (the stores stay in the stream, so the
+    # comparison diverges rather than passing).
+    CBOZ_SHORT_RTL = CBOZ_RTL[:16] + [CBOZ_RTL[-1]]
+    h.case("K2b cboz: NEGATIVE -- a 15-store burst is REFUSED, not dropped",
+           1, CBOZ_SHORT_RTL, CBOZ_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["cboz-stores            0 application(s)",
+                             "VACUOUS",
+                             "expected exactly 16 store records, saw 15"],
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+    # ...and the other three geometry properties, one mutation each, because
+    # "16 stores" alone would bless a burst that wrote the wrong data, the wrong
+    # width, or the wrong block.
+    CBOZ_DATA_RTL = list(CBOZ_RTL)
+    CBOZ_DATA_RTL[9] = CBOZ_DATA_RTL[9].replace("4 00000000", "4 000000ff")
+    h.case("K2b cboz: NEGATIVE -- a store of nonzero DATA is REFUSED",
+           1, CBOZ_DATA_RTL, CBOZ_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["store 8 writes 000000ff, expected 00000000"])
+    CBOZ_SIZE_RTL = list(CBOZ_RTL)
+    CBOZ_SIZE_RTL[3] = CBOZ_SIZE_RTL[3].replace(" 4 ", " 1 ")
+    h.case("K2b cboz: NEGATIVE -- a sub-word store SIZE is REFUSED",
+           1, CBOZ_SIZE_RTL, CBOZ_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["store 2 has size 1, expected 4"])
+    CBOZ_GAP_RTL = list(CBOZ_RTL)
+    CBOZ_GAP_RTL[12] = "M 00 0000010c S 00011440 4 00000000\n"
+    h.case("K2b cboz: NEGATIVE -- a store outside the block is REFUSED",
+           1, CBOZ_GAP_RTL, CBOZ_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["store 11 is at 00011440, expected 0001142c"])
+    # The MISALIGNED-rs1 case, which is the reason the bound is stated over the
+    # STORE ADDRESSES and never over rs1: `shcboz.S` issues `cbo.zero` from
+    # `rs1 = block+20` and `rs1 = block+44`, and `vesta.vhd` rounds down
+    # (`cboz_base <= rs1_value and not (CBOZ_BLOCK_SIZE-1)`), so the sixteen
+    # stores still start at the aligned base.  The encoding below is
+    # `cbo.zero (a1)` with a DIFFERENT rs1 register (x11 -> x12, 0x0046200f) to
+    # show the rule does not care which register carried the address either.
+    CBOZ_MIS_RTL = ["R 00 00000100 00008200 0046200f 00 00000000\n"] + \
+        CBOZ_RTL[1:]
+    CBOZ_MIS_SPIKE = [CBOZ_SPIKE[0].replace("0x0045a00f", "0x0046200f")] + \
+        CBOZ_SPIKE[1:]
+    h.case("K2b cboz: a MISALIGNED-rs1 cbo.zero drops on the same bound",
+           0, CBOZ_MIS_RTL, CBOZ_MIS_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["cboz-stores            16 application(s)"])
+    # An UNALIGNED first store is a different thing entirely -- that is the RTL
+    # having failed to round down -- and it must be refused.
+    CBOZ_UNAL_RTL = ["R 00 00000100 00008200 0045a00f 00 00000000\n"] + [
+        "M 00 %08x S %08x 4 00000000\n" % (0x101 + k, 0x11414 + 4 * k)
+        for k in range(16)] + ["R 00 00000120 00008204 00000013 00 00000000\n"]
+    h.case("K2b cboz: NEGATIVE -- an unaligned block base is REFUSED",
+           1, CBOZ_UNAL_RTL, CBOZ_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stderr=["00011414 is not 64-byte aligned"])
+    # The GATE: the same trace with the OTHER amendment enabled must be
+    # untouched -- an amendment is keyed to its knob, never to the stream.
+    h.case("K2b cboz: NEGATIVE -- cmjt-load does not drop cbo.zero stores",
+           1, CBOZ_RTL, CBOZ_SPIKE, extra=["--amend", "cmjt-load"],
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+
+    # -- cmjt-load ---------------------------------------------------------
+    # jvt is tracked from the stream's OWN `C 017` record (the A3 discipline),
+    # so the fixture writes it first, exactly as `extzcmt.S:23-28` does.
+    CMJT_RTL = """\
+R 00 00000100 00008200 01729073 00 00000000
+C 00 00000100 017 00011400
+R 00 00000102 00008204 a016 00 00000000
+M 00 00000103 L 00011414 4 00008300
+R 00 00000104 00008300 00000013 00 00000000
+""".splitlines(True)
+    CMJT_SPIKE = """\
+core   0: 3 0x00008200 (0x01729073) c23_jvt 0x00011400
+core   0: 3 0x00008204 (0xa016)
+core   0: 3 0x00008300 (0x00000013)
+""".splitlines(True)
+    h.case("K2b cmjt: WITHOUT the amendment the table load diverges",
+           1, CMJT_RTL, CMJT_SPIKE,
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+    h.case("K2b cmjt: WITH the amendment the jvt+4*index load is dropped",
+           0, CMJT_RTL, CMJT_SPIKE, extra=["--amend", "cmjt-load"],
+           expect_in_stderr=["cmjt-load              1 application(s)",
+                             "00008204->00011414       x1"])
+    # THE EQUALITY BOUND, seen to refuse: a table fetch from anywhere other than
+    # jvt+4*index is what a broken ZCM_JT_LD looks like, and it must reach the
+    # comparison.  Index 5 (0xa016) demands +0x14; this one reads +0x10.
+    CMJT_WRONG_RTL = list(CMJT_RTL)
+    CMJT_WRONG_RTL[3] = "M 00 00000103 L 00011410 4 00008300\n"
+    h.case("K2b cmjt: NEGATIVE -- a load off the table index is REFUSED",
+           1, CMJT_WRONG_RTL, CMJT_SPIKE, extra=["--amend", "cmjt-load"],
+           expect_in_stderr=["expected exactly one `M L` at jvt+4*index = "
+                             "00011414, saw 1 load(s) at 00011410"])
+    # ...and the same bound with the jvt record REMOVED: jvt starts at 0 here,
+    # so the expected address moves and the drop is refused.  That is the
+    # fail-safe direction -- a `cm.jt` whose jvt the stream never announced is
+    # not something to guess at.
+    CMJT_NOJVT_RTL = """\
+R 00 00000100 00008200 00000013 00 00000000
+R 00 00000102 00008204 a016 00 00000000
+M 00 00000103 L 00011414 4 00008300
+R 00 00000104 00008300 00000013 00 00000000
+""".splitlines(True)
+    CMJT_NOJVT_SPIKE = """\
+core   0: 3 0x00008200 (0x00000013)
+core   0: 3 0x00008204 (0xa016)
+core   0: 3 0x00008300 (0x00000013)
+""".splitlines(True)
+    h.case("K2b cmjt: NEGATIVE -- no `C 017` in the stream means no drop",
+           1, CMJT_NOJVT_RTL, CMJT_NOJVT_SPIKE, extra=["--amend", "cmjt-load"],
+           expect_in_stderr=["at jvt+4*index = 00000014"])
+
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
     h.case("K2b: ungated, an old fixture is bit-identical to pre-K2b",

@@ -307,10 +307,22 @@ def test_oracle_gate_blocks_verdict_b():
     below run it for real, on a synthetic B knob, and the K2b implementation
     report quotes the same transition on the live table.
     """
-    for k in ('zicboz', 'zcmt', 'zihpm', 'trapCsr', 'umode', 'pmp'):
+    for k in ('zihpm', 'trapCsr', 'umode', 'pmp'):
         eq(isa_model.KNOB_ORACLE_STATUS[k], isa_model.B, '%s is verdict B' % k)
     eq(isa_model.KNOB_ORACLE_STATUS['zfinx'], isa_model.E,
        'zfinx is verdict E -- eligible via the K2b `zfinx-fflags` amendment')
+    # K2b amendment 2: zicboz and zcmt leave B for E. They have NO emitter class
+    # (see the end of this test), so the flip buys JUDGEABILITY, not coverage --
+    # what it means is that a stream or test carrying those encodings may now be
+    # lockstepped, provided the named amendment is on.
+    eq(isa_model.KNOB_ORACLE_STATUS['zicboz'], isa_model.E,
+       'zicboz is verdict E -- eligible via `cboz-stores`')
+    eq(isa_model.KNOB_ORACLE_STATUS['zcmt'], isa_model.E,
+       'zcmt is verdict E -- eligible via `cmjt-load`')
+    eq(isa_model.KNOB_AMENDMENTS['zicboz'], ('cboz-stores',),
+       'and it names the amendment it depends on')
+    eq(isa_model.KNOB_AMENDMENTS['zcmt'], ('cmjt-load',),
+       'and so does zcmt')
     eq(isa_model.CLASS_ORACLE['zfinx'], isa_model.E,
        'and the CLASS verdict DERIVES from it')
     eq(isa_model.required_amendments(['zfinx']), ['zfinx-fflags'],

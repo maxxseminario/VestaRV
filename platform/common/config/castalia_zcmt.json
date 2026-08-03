@@ -1,0 +1,5 @@
+{
+  "_comment": "K2b amendment-2 config: Castalia defaults + Zcmt (cm.jt/cm.jalt table jump + the jvt CSR). isa.zcmt requires isa.compressed, which is a Castalia default, so this row is the R-DK1 tier-B single knob and needs no companion (measured: the reference retires cm.jt under `--isa rv32imac_zicsr_zicntr_zcmt` with no `_zcmp`). The K2 harness derives -DCORE_ENABLE_ZCMT for this row's images from THIS file, so extzcmt.S/shcmt.S compile their ON arms. It is also the config that gates the comparator's `cmjt-load` amendment on (tools/cosim/oracle_isa.py::derive_amendments), without which the RTL's data-port table load -- an `M L` the reference never logs -- diverges. Prove with: SUITE=full make verify CONFIG=config/castalia_zcmt.json",
+  "chipName": "CastaliaZcmt",
+  "isa": { "zcmt": true }
+}
