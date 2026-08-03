@@ -282,7 +282,18 @@ $(eval $(call compile_template,rv32ua,-march=rv32imac -mabi=ilp32))
 # first is the generator's config model). k3nc* are EXPECTED-FAIL negative
 # controls for the streams' own epilogue checks -- never wire them into a
 # standing list. See tests/rv32uk/Makefrag.
-$(eval $(call compile_template,rv32uk,-march=rv32imac_zba_zbb_zbc_zbs -mabi=ilp32))
+#
+# K4 (2026-08-03): `_zfinx` ADDED, and the Makefrag's own instruction is what
+# sanctions it -- "a config needing more than this line provides must extend it
+# here in the same change, or gas will reject the stream at build time". The
+# K4 R-DK5 campaign's Zfinx phase hit exactly that, and it hit it at a site the
+# image build cannot reach: `xrun_cosim.sh`'s `ensure_elf` rebuilds the
+# REFERENCE ELF with `REF_GCC_OPTS`, which carries the config's -DCORE_ENABLE_*
+# but NO -march, so the group's march here is the only lever. Twelve Zfinx
+# streams came back INFRA-FAIL(elf-BUILDFAIL) until this line grew. Adding a
+# march fragment is emission-neutral for a source that contains none of its
+# encodings, so every existing stream builds byte-identically.
+$(eval $(call compile_template,rv32uk,-march=rv32imac_zba_zbb_zbc_zbs_zfinx -mabi=ilp32))
 $(eval $(call compile_template,rv32uf,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32ud,-march=rv32imc -mabi=ilp32))
 $(eval $(call compile_template,rv32uzfh,-march=rv32g_zfh -mabi=ilp32))

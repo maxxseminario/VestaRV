@@ -316,6 +316,13 @@ CATALOG = [
     T('rv32ua-p-extzihint'), T('rv32ua-p-extzawrs'),
     T('rv32ua-p-shwrs', 'tiles atomics'),
     T('rv32ua-p-extzfinx'),
+    # K4 session 3: the K4-L4 / D-2026-08-03-2 discriminator. NOT an adaptive
+    # probe and NOT a both-polarity test -- it reads `mhpmcounter4` (needs
+    # ENABLE_ZIHPM) around a shared-window `amocas.w` (needs ENABLE_ZACAS), so
+    # it is tagged with BOTH knobs and is selected only by a config that sets
+    # both. Its answer is read off the RTL trace, not off `a0`; see the test
+    # header. `atomics` rides along per the rv32ua-group convention.
+    T('rv32ua-p-casgrant', 'zacas zihpm atomics', True),
 
     # -----------------------------------------------------------------------
     # K2 (G1) -- THE ON-POLARITY-ONLY SUITES.
