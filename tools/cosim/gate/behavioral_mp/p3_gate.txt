@@ -1,0 +1,16 @@
+../rcf/rv32ua-p-privpmpcs.rcf
+../rcf/xxrv32ua-p-privcsr.rcf
+../rcf/rv32ua-p-privumode.rcf
+../rcf/xrv32ua-p-privucsr.rcf
+../rcf/rv32ua-p-privecall.rcf
+../rcf/xxrv32ua-p-privirq.rcf
+../rcf/xxrv32ua-p-privwfi.rcf
+../rcf/xxxxxxrv32ui-p-add.rcf
+../rcf/xxxrv32ui-p-simple.rcf
+../rcf/xxxrv32ua-p-shspin.rcf
+../rcf/xxxxxrv32ua-p-lrsc.rcf
+../rcf/xxrv32ua-p-shzacas.rcf
+../rcf/xxxrv32ui-p-shexec.rcf
+../rcf/xxxxrv32ui-p-shirq.rcf
+../rcf/xxrv32ui-p-shmutex.rcf
+../rcf/xxxrv32ua-p-shlrsc.rcf

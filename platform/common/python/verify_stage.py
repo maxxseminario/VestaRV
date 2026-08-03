@@ -310,7 +310,17 @@ def main():
 
     # --- cell list: behavioral_mp's, with the generated files swapped -------
     if not os.path.isfile(BASE_CELL_LIST):
-        raise SystemExit('base cell list missing: %s (tracked in git -- checkout?)' % BASE_CELL_LIST)
+        # K2 TRUTH FIX. This message used to read "(tracked in git -- checkout?)"
+        # and that was FALSE: `.gitignore:312`'s bare `xcelium/` covers this file,
+        # so a fresh clone has never had it and `git checkout` cannot produce it.
+        # A wrong rationale is worse than none -- the next reader trusts it.
+        raise SystemExit(
+            'base cell list missing: %s\n'
+            '  This file is NOT tracked in git (.gitignore:312, the bare `xcelium/`\n'
+            '  rule), so `git checkout` will not bring it back. Restore it from the\n'
+            '  canonical copy instead:\n'
+            '      /usr/bin/python3.6 tools/cosim/check_gate_files.py --restore'
+            % BASE_CELL_LIST)
     swaps = {
         'hdl/common/MemoryMap.vhd': 'hdl/MemoryMap.vhd',
         'hdl/common/MCU.vhd': 'hdl/MCU.vhd',

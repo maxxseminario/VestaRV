@@ -805,6 +805,26 @@ class LatexUserGuide():
 			'peripherals.eventFabric',
 			'package.model', 'package.preliminary']
 
+		# K2 (inventory probe §1.3): the list above is HAND-MAINTAINED and had
+		# already silently drifted once -- it stayed frozen at the pre-X-series
+		# key set, so the whole X-series ISA block, the priv block, the newer
+		# peripherals and the package knobs were absent from the TRM's own
+		# configuration table while the schema advertised them. It was corrected
+		# by hand on 2026-07-29 and nothing stopped it happening again.
+		# ConfigSchemaDoc is `dict((k, _CONFIG_SCHEMA[k][0]) for k in
+		# _CONFIG_SCHEMA)` (generate.py), i.e. exactly the schema key set, so
+		# this is the whole check: a knob added to the schema and forgotten here
+		# now fails `make generate` instead of quietly vanishing from the manual.
+		missing = sorted(set(doc) - set(keyOrder))
+		extra = sorted(set(keyOrder) - set(doc))
+		if missing or extra:
+			raise Exception(
+				'TRM chip-configuration table is out of sync with _CONFIG_SCHEMA.\n'
+				'  in the schema but NOT in keyOrder (would be absent from the TRM): %s\n'
+				'  in keyOrder but NOT in the schema (would render an empty row): %s\n'
+				'  Fix: edit keyOrder in LatexUserGuide.GenerateChipConfigurationSection.'
+				% (missing, extra))
+
 		s = '% Generated: the make chip CONFIG= schema + the values of THIS build\n'
 		s += '\\begin{longtable}[c]{ l l p{7.2cm} }\n'
 		s += '\\caption{Chip configuration knobs (\\texttt{make chip CONFIG=config.json}) and the values of this build} \\label{t:chip-config} \\\\\n'
