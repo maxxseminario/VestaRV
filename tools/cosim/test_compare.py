@@ -1203,6 +1203,135 @@ def main():
     else:
         print("SKIP  A13/A6 sub-word plant lane select (no built vesta_ref)")
 
+
+    # ======================================================================
+    # K2b AMENDMENT 1 -- `zfinx-fflags` (isa.zfinx)
+    #
+    # MEASURED SHAPE (k0 oracle probe §1.3m + this wave's own re-measurement on
+    # `vesta_ref identity --isa rv32imac_zicsr_zfinx`):
+    #   * `fadd.s` of 0+0 raises nothing -> Spike logs NO c1_fflags; the RTL
+    #     tracer emits `C 001` unconditionally at FPU_DONE.  EXTRA RTL RECORD.
+    #   * two `fdiv.s` on 0/0 BOTH log `c1_fflags 0x00000010` -- the second
+    #     raises a flag that is already set, so the value is UNCHANGED and the
+    #     reference logs it anyway.  A value-only rule would drop that one and
+    #     manufacture a divergence, which is why the amendment also requires
+    #     that the reference is not presenting the record here.
+    # The one fixture below carries all three shapes in order, so a single
+    # stream exercises the DROP arm, the ordinary-compare arm and the KEPT arm.
+    # ======================================================================
+    ZF_RTL = """\
+R 00 00000100 00008200 00c5f553 0a 00000000
+C 00 00000100 001 00000000
+R 00 00000102 00008204 18c5f6d3 0d 7fc00000
+C 00 00000102 001 00000010
+R 00 00000104 00008208 18c5f753 0e 7fc00000
+C 00 00000104 001 00000010
+""".splitlines(True)
+
+    ZF_SPIKE = """\
+core   0: 3 0x00008200 (0x00c5f553) x10 0x00000000
+core   0: 3 0x00008204 (0x18c5f6d3) c1_fflags 0x00000010 x13 0x7fc00000
+core   0: 3 0x00008208 (0x18c5f753) c1_fflags 0x00000010 x14 0x7fc00000
+""".splitlines(True)
+
+    h.case("K2b zfinx: WITHOUT the amendment the extra C 001 diverges",
+           1, ZF_RTL, ZF_SPIKE,
+           expect_in_stdout=["record KIND differs: rtl=C spike=R"])
+    h.case("K2b zfinx: WITH the amendment the stream matches",
+           0, ZF_RTL, ZF_SPIKE, extra=["--amend", "zfinx-fflags"],
+           expect_in_stderr=["zfinx-fflags           1 application(s)",
+                             "zfinx-fflags kept      1 marked"])
+
+    # The KEPT arm on its own, isolated so its failure cannot hide behind the
+    # DROP arm above: a sticky re-raise where BOTH sides emit the same record.
+    # If the amendment dropped this the RTL would be one record short and the
+    # comparison would end with the Spike stream unconsumed (exit 3).
+    ZF_STICKY_RTL = """\
+R 00 00000100 00008200 18c5f553 0a 7fc00000
+C 00 00000100 001 00000010
+R 00 00000102 00008204 18c5f6d3 0d 7fc00000
+C 00 00000102 001 00000010
+""".splitlines(True)
+    ZF_STICKY_SPIKE = """\
+core   0: 3 0x00008200 (0x18c5f553) c1_fflags 0x00000010 x10 0x7fc00000
+core   0: 3 0x00008204 (0x18c5f6d3) c1_fflags 0x00000010 x13 0x7fc00000
+""".splitlines(True)
+    h.case("K2b zfinx: a STICKY re-raise both sides log is NOT dropped",
+           0, ZF_STICKY_RTL, ZF_STICKY_SPIKE,
+           extra=["--amend", "zfinx-fflags"],
+           expect_in_stderr=["zfinx-fflags           0 application(s)",
+                             "VACUOUS",
+                             "zfinx-fflags kept      1 marked"])
+
+    # An EXPLICIT `csrrw x0, fflags, x0` (fsflags zero, 0x00101073) writes the
+    # same value the state already holds, and BOTH sides log it.  The candidate
+    # test is keyed on the owning retire being an FP OPCODE precisely so this
+    # record is never eligible -- proven here by removing the reference's copy
+    # and requiring the divergence to survive the amendment.
+    ZF_CSR_RTL = """\
+R 00 00000100 00008200 00101073 00 00000000
+C 00 00000100 001 00000000
+R 00 00000102 00008204 00c5f553 0a 00000000
+""".splitlines(True)
+    ZF_CSR_SPIKE_OK = """\
+core   0: 3 0x00008200 (0x00101073) c1_fflags 0x00000000
+core   0: 3 0x00008204 (0x00c5f553) x10 0x00000000
+""".splitlines(True)
+    ZF_CSR_SPIKE_MISSING = """\
+core   0: 3 0x00008200 (0x00101073)
+core   0: 3 0x00008204 (0x00c5f553) x10 0x00000000
+""".splitlines(True)
+    h.case("K2b zfinx: an explicit csrw fflags is compared normally",
+           0, ZF_CSR_RTL, ZF_CSR_SPIKE_OK,
+           extra=["--amend", "zfinx-fflags"],
+           expect_in_stderr=["zfinx-fflags           0 application(s)"])
+    h.case("K2b zfinx: NEGATIVE -- a csrw fflags record is never rescued",
+           1, ZF_CSR_RTL, ZF_CSR_SPIKE_MISSING,
+           extra=["--amend", "zfinx-fflags"],
+           expect_in_stdout=["record KIND differs: rtl=C spike=R"])
+
+    # An RTL `C 001` that asserts a CHANGE the reference does not have is a real
+    # divergence and must survive the amendment untouched.
+    ZF_INVENT_RTL = """\
+R 00 00000100 00008200 00c5f553 0a 00000000
+C 00 00000100 001 00000010
+""".splitlines(True)
+    ZF_INVENT_SPIKE = """\
+core   0: 3 0x00008200 (0x00c5f553) x10 0x00000000
+""".splitlines(True)
+    h.case("K2b zfinx: NEGATIVE -- an INVENTED flag change still diverges",
+           3, ZF_INVENT_RTL, ZF_INVENT_SPIKE,
+           extra=["--amend", "zfinx-fflags"],
+           expect_in_stdout=["SPIKE STREAM EXHAUSTED"])
+
+    # A5 is untouched: an x-tainted `C 001` is never a candidate, so the
+    # x-corrupted verdict (exit 4) survives the amendment.
+    ZF_X_RTL = """\
+R 00 00000100 00008200 00c5f553 0a 00000000
+C 00 00000100 001 0000000x
+""".splitlines(True)
+    # (The reference is given its own `C 001` so the walk REACHES the tainted
+    # record; without one the stream simply ends and the verdict is exit 3 --
+    # measured while writing this case, and a reminder that the exhaustion
+    # checks come before the per-record ones.)
+    ZF_X_SPIKE = """\
+core   0: 3 0x00008200 (0x00c5f553) c1_fflags 0x00000000 x10 0x00000000
+""".splitlines(True)
+    h.case("K2b zfinx: an x-tainted C 001 keeps its A5 exit-4 verdict",
+           4, ZF_X_RTL, ZF_X_SPIKE, extra=["--amend", "zfinx-fflags"],
+           expect_in_stdout=["X-CORRUPTED RECORD"])
+
+    # The CLI contract: an unknown name is a usage error, never a silently
+    # disabled amendment (method rule 15, fail-safe direction).
+    h.case("K2b --amend: an unknown name is EXIT_USAGE, not a silent no-op",
+           5, ZF_RTL, ZF_SPIKE, extra=["--amend", "zfinx-fflags,zfnix-typo"],
+           expect_in_stderr=["unknown amendment 'zfnix-typo'"])
+
+    # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
+    # --amend the comparator must behave EXACTLY as it did before K2b.
+    h.case("K2b: ungated, an old fixture is bit-identical to pre-K2b",
+           0, MEM_RTL, MEM_SPIKE)
+
     h.cleanup()
     print("")
     print("%d/%d cases passed" % (h.passed, h.passed + h.failed))

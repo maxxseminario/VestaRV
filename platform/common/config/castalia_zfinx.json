@@ -1,0 +1,5 @@
+{
+  "_comment": "K2b amendment-1 config: Castalia defaults + Zfinx (single-precision FP in the x-registers). The K2 harness derives -DCORE_ENABLE_ZFINX for this row's images from THIS file, so extzfinx.S compiles its ON arm and the 16 ON-polarity rv32uzf tests are selected. It is also the config that gates the comparator's `zfinx-fflags` amendment on (tools/cosim/oracle_isa.py::derive_amendments), without which the RTL tracer's unconditional FPU_DONE `C 001` diverges against a reference that logs fflags only when an op raises one. Prove with: SUITE=full make verify CONFIG=config/castalia_zfinx.json",
+  "chipName": "CastaliaZfinx",
+  "isa": { "zfinx": true }
+}

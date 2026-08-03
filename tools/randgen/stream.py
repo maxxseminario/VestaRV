@@ -145,28 +145,32 @@ PROFILES = {
         ('alu_reg', 20), ('alu_imm', 20), ('lui', 4), ('auipc', 3),
         ('branch', 8), ('jal', 3), ('load', 10), ('store', 10),
         ('fence', 1), ('mul', 4), ('div', 4), ('amo', 4), ('lrsc', 3),
-        ('zba', 3), ('zbb', 6), ('zbs', 4), ('zbc', 2), ('clint_irq', 0),
+        ('zba', 3), ('zbb', 6), ('zbs', 4), ('zbc', 2), ('zfinx', 6),
+        ('clint_irq', 0),
     ),
     # 'seq' -- the roadmap Step 2 weighting: the multi-cycle sequencers.
     'seq': (
         ('alu_reg', 8), ('alu_imm', 8), ('lui', 2), ('auipc', 2),
         ('branch', 5), ('jal', 2), ('load', 6), ('store', 6),
         ('fence', 1), ('mul', 10), ('div', 22), ('amo', 20), ('lrsc', 14),
-        ('zba', 1), ('zbb', 2), ('zbs', 1), ('zbc', 1), ('clint_irq', 0),
+        ('zba', 1), ('zbb', 2), ('zbs', 1), ('zbc', 1), ('zfinx', 14),
+        ('clint_irq', 0),
     ),
     # 'irq' -- 'seq' plus CLINT self-injection immediately ahead of a sequencer.
     'irq': (
         ('alu_reg', 8), ('alu_imm', 8), ('lui', 2), ('auipc', 2),
         ('branch', 5), ('jal', 2), ('load', 6), ('store', 6),
         ('fence', 1), ('mul', 8), ('div', 18), ('amo', 16), ('lrsc', 12),
-        ('zba', 1), ('zbb', 2), ('zbs', 1), ('zbc', 1), ('clint_irq', 9),
+        ('zba', 1), ('zbb', 2), ('zbs', 1), ('zbc', 1), ('zfinx', 10),
+        ('clint_irq', 9),
     ),
     # 'bitm' -- Zb-heavy, the widest single-cycle decode surface.
     'bitm': (
         ('alu_reg', 8), ('alu_imm', 8), ('lui', 3), ('auipc', 2),
         ('branch', 5), ('jal', 2), ('load', 5), ('store', 5),
         ('fence', 1), ('mul', 3), ('div', 3), ('amo', 3), ('lrsc', 2),
-        ('zba', 12), ('zbb', 24), ('zbs', 16), ('zbc', 10), ('clint_irq', 0),
+        ('zba', 12), ('zbb', 24), ('zbs', 16), ('zbc', 10), ('zfinx', 0),
+        ('clint_irq', 0),
     ),
 }
 PROFILE_ORDER = ('base', 'seq', 'irq', 'bitm')
@@ -438,6 +442,32 @@ class StreamBuilder(object):
         self._emit('zbc', '%-8s x%d, x%d, x%d'
                    % (m, self._r(), self._r(), self._r()))
 
+    def _e_zfinx(self):
+        """One Zfinx single-precision op on pool registers.
+
+        Zfinx puts the FP operands and results in the INTEGER registers, so
+        this needs no new register discipline: the pool's seeded values are
+        reinterpreted as float bit patterns, which is precisely the point --
+        the interesting inputs (NaNs, subnormals, +-0, huge exponents) arrive
+        for free from the same 32-bit words `div` and `zbb` are fed.
+
+        Nothing here can trap: an IEEE exception sets a sticky `fflags` bit, it
+        does not raise.  So a Zfinx stream stays trap-free by construction on a
+        non-TRAPCSR config, which is the k3_spec requirement-4 rule.
+
+        The class is ORACLE VERDICT E: its record stream is only judgeable when
+        the comparator runs with the K2b `zfinx-fflags` amendment, and
+        `isa_model.required_amendments()` puts that requirement in the
+        manifest.
+        """
+        if self.rng.bool_with(1, 3):
+            m = self.rng.choice(isa_model.M_ZFINX_UN)
+            self._emit('zfinx', '%-8s x%d, x%d' % (m, self._r(), self._r()))
+        else:
+            m = self.rng.choice(isa_model.M_ZFINX_R)
+            self._emit('zfinx', '%-8s x%d, x%d, x%d'
+                       % (m, self._r(), self._r(), self._r()))
+
     def _e_clint_irq(self):
         """Raise msip[0] -- a LEVEL interrupt on IVT slot 83 (M19: the CLINT
         slots are hardwire-enabled on every hart, so there is no unmask step).
@@ -490,7 +520,7 @@ class StreamBuilder(object):
         'load': '_e_load', 'store': '_e_store', 'fence': '_e_fence',
         'mul': '_e_mul', 'div': '_e_div', 'amo': '_e_amo', 'lrsc': '_e_lrsc',
         'zba': '_e_zba', 'zbb': '_e_zbb', 'zbs': '_e_zbs', 'zbc': '_e_zbc',
-        'clint_irq': '_e_clint_irq',
+        'zfinx': '_e_zfinx', 'clint_irq': '_e_clint_irq',
     }
 
     # -- construction ------------------------------------------------------

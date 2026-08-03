@@ -39,6 +39,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import amend                                                    # noqa: E402
 from disasm import disasm                                       # noqa: E402
 from records import (ParseError, parse_rtl_trace, parse_rtl_diags,  # noqa: E402
                      keys_match_x)
@@ -854,6 +855,19 @@ def build_parser():
                         "replayed-into-reference-RAM vs excluded in the "
                         "--bracket-isr summary; it must match mk_inject.py's "
                         "--mmio.")
+    p.add_argument("--amend", action="append", default=[], metavar="NAME[,..]",
+                   help="K2b CONFIG-GATED comparator amendment(s). Repeatable "
+                        "and comma-separable; an unknown name is a usage "
+                        "error, never a silently-disabled amendment. Each one "
+                        "reconciles a MEASURED record-shape difference between "
+                        "a knobs-on VestaRV build and the reference, is "
+                        "bounded by an equality rather than by a state, and is "
+                        "counted and printed (including its zero form -- an "
+                        "amendment that never fires on its own config is "
+                        "VACUOUS). The enabled set is DERIVED from the "
+                        "resolved chip config by tools/cosim/oracle_isa.py; "
+                        "the default Castalia config enables none. "
+                        "Implemented: " + ", ".join(amend.AMENDMENT_NAMES))
     p.add_argument("--quiet", action="store_true",
                    help="suppress the stderr summary (divergence output and "
                         "exit codes are unaffected)")
@@ -1130,6 +1144,8 @@ def summarise(err, info):
         else:
             err.write("  %-22s none fired\n" % "x-wildcard applied")
     summarise_a15(err, info)
+    if info.get("amend") is not None:
+        amend.summarise(err, info["amend"])
     if info["bracket_isr"]:
         summarise_brackets(err, info)
     if info["sleep_cut"] is not None:
@@ -1169,6 +1185,11 @@ def main(argv):
     except Exception:
         err.write("compare.py: usage error: --bracket-mmio %r is not "
                   "<basehex>:<sizehex>\n" % args.bracket_mmio)
+        return EXIT_USAGE
+    try:
+        am = amend.Amend(amend.parse_names(args.amend))
+    except amend.AmendError as exc:
+        err.write("compare.py: usage error: --amend: %s\n" % exc)
         return EXIT_USAGE
     hart = args.hart.lower() if args.hart else None
     if hart is not None and (len(hart) != 2 or
@@ -1237,6 +1258,8 @@ def main(argv):
         # V4/A15: None only when --no-a15 disabled the pass, so an absent block
         # means "deliberately off", never "there was nothing to say".
         "a15": None,
+        # K2b: the config-gated amendment set (empty on the default config).
+        "amend": am,
     }
 
     x_allow_idents = set()
@@ -1328,6 +1351,13 @@ def main(argv):
         rtl, a15 = drop_scfail_ghost_stores(rtl)
         info["a15"] = a15
     spk = canonicalise_a2(compared_stream(spk_all[si:]))
+    # K2b: the config-gated amendments, applied LAST so that every census above
+    # counts the stream as the earlier mechanisms saw it. The RTL side decides
+    # from its own contents only; the ONE rule that consults the reference
+    # (zfinx-fflags) only MARKS here and decides in the walk.
+    if am.names:
+        rtl = amend.rtl_prepass(rtl, am)
+    info["amend"] = am
     info["x_post"] = sum(1 for r in rtl if r.has_x)
 
     if info["sleep_cut"] is not None:
@@ -1451,6 +1481,15 @@ def main(argv):
                           "reached)" % n)
         rtl_done = i >= len(rtl)
         spk_done = j >= len(spk)
+        # K2b amendment `zfinx-fflags`: a MARKED `C 001` is dropped only when
+        # the reference does not present that exact record here (amend.py
+        # explains why the value test alone is too wide). Checked before the
+        # exhaustion reports so that a marked record at the very end of the RTL
+        # stream is not reported as "Spike exhausted while RTL continues".
+        if not rtl_done and amend.zfinx_should_skip(
+                am, rtl[i], None if spk_done else spk[j]):
+            i += 1
+            continue
         if rtl_done and spk_done:
             return finish(EXIT_MATCH,
                           "match: %d records compared, both streams ended "

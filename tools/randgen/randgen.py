@@ -107,6 +107,11 @@ def manifest_for(b, cfg, name, seed, profile, length, irq_observe, text):
         'class_counts': counts,
         'total_instructions': sum(counts.values()),
         'blocked_classes': [list(x) for x in b.blocked],
+        # K2b: the comparator amendments this stream's classes DEPEND ON. A
+        # lockstep run of this stream without them diverges on record SHAPE,
+        # which reads exactly like a DUT defect -- so the requirement travels
+        # with the stream instead of living in someone's memory.
+        'required_amendments': isa_model.required_amendments(b.available),
         'knobs_on_without_emitter': [list(x) for x in b.no_emitter],
         'census_opaque_classes': list(isa_model.CENSUS_OPAQUE_CLASSES),
         'asm_sha1': hashlib.sha1(text.encode('utf-8')).hexdigest(),
@@ -254,6 +259,14 @@ def cmd_classes(a):
     print('BLOCKED classes (%d):' % len(blocked))
     for c, why in blocked:
         print('  %-10s %s' % (c, why))
+    req = isa_model.required_amendments(avail)
+    print('')
+    print('REQUIRED COMPARATOR AMENDMENTS (%d):' % len(req))
+    if not req:
+        print('  (none -- every emittable class is oracle verdict A or C)')
+    for a in req:
+        print('  %-14s compare.py --amend %s   [K2b, gated by the same '
+              'resolved config]' % (a, a))
     ne = isa_model.knobs_on_without_emitter(cfg.isa, cfg.priv)
     print('')
     print('KNOBS ON WITH NO EMITTER (%d):' % len(ne))

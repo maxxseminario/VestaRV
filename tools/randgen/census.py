@@ -62,6 +62,20 @@ _OP_F24 = {1: 'bclr', 5: 'bext'}
 _OP_F34 = {1: 'binv'}
 _OP_F14 = {1: 'bset'}
 _ZBB_UNARY = {0: 'clz', 1: 'ctz', 2: 'cpop', 4: 'sext.b', 5: 'sext.h'}
+# OP-FP (0x53) single-precision, fmt=00.  Keyed on funct7; the ones that also
+# need funct3 (sign-inject, min/max, compare) or rs2 (the fcvt pairs, fclass)
+# get their own sub-tables.  Written from the RISC-V encodings and asserted
+# against `objdump -M no-aliases` by the same unit test as everything else --
+# never copied from isa_model.py, which is the whole reason this file exists.
+_FP_SGNJ = {0: 'fsgnj.s', 1: 'fsgnjn.s', 2: 'fsgnjx.s'}
+_FP_MINMAX = {0: 'fmin.s', 1: 'fmax.s'}
+_FP_CMP = {0: 'fle.s', 1: 'flt.s', 2: 'feq.s'}
+_FP_CVT_W = {0: 'fcvt.w.s', 1: 'fcvt.wu.s'}     # FP -> int, rs2 selects
+_FP_CVT_S = {0: 'fcvt.s.w', 1: 'fcvt.s.wu'}     # int -> FP, rs2 selects
+_FP_F7 = {0x00: 'fadd.s', 0x04: 'fsub.s', 0x08: 'fmul.s', 0x0C: 'fdiv.s'}
+# The four fused opcodes; fmt (bits 26:25) must be 00 for single precision.
+_FMA_OP = {0x43: 'fmadd.s', 0x47: 'fmsub.s', 0x4B: 'fnmsub.s', 0x4F: 'fnmadd.s'}
+
 _AMO_F5 = {0x00: 'amoadd.w', 0x01: 'amoswap.w', 0x02: 'lr.w', 0x03: 'sc.w',
            0x04: 'amoxor.w', 0x08: 'amoor.w', 0x0C: 'amoand.w',
            0x10: 'amomin.w', 0x14: 'amomax.w', 0x18: 'amominu.w',
@@ -151,6 +165,31 @@ def decode(w):
         if f3 != 2:
             return None            # RV32A is .w only
         return _AMO_F5.get(f7 >> 2)
+    if op == 0x53:
+        if f7 & 0x03:
+            return None            # fmt != 00: not single precision
+        if f7 in _FP_F7:
+            return _FP_F7[f7]
+        if f7 == 0x2C:
+            return 'fsqrt.s' if rs2 == 0 else None
+        if f7 == 0x10:
+            return _FP_SGNJ.get(f3)
+        if f7 == 0x14:
+            return _FP_MINMAX.get(f3)
+        if f7 == 0x50:
+            return _FP_CMP.get(f3)
+        if f7 == 0x60:
+            return _FP_CVT_W.get(rs2)
+        if f7 == 0x68:
+            return _FP_CVT_S.get(rs2)
+        if f7 == 0x70:
+            # rs2 must be 0; f3 1 = fclass.s. f3 0 would be fmv.x.w, which
+            # Zfinx does NOT have (it traps on both sides -- k0 §1.3m), so it
+            # is deliberately NOT named here.
+            return 'fclass.s' if (rs2 == 0 and f3 == 1) else None
+        return None
+    if op in _FMA_OP:
+        return _FMA_OP[op] if (f7 & 0x03) == 0 else None
     del rd
     return None
 
@@ -171,6 +210,10 @@ for _cls, _ms in (
     ('div', ['div', 'divu', 'rem', 'remu']),
     ('amo', [m for m in _AMO_F5.values() if m not in ('lr.w', 'sc.w')]),
     ('lrsc', ['lr.w', 'sc.w']),
+    ('zfinx', list(_FP_F7.values()) + ['fsqrt.s', 'fclass.s']
+              + list(_FP_SGNJ.values()) + list(_FP_MINMAX.values())
+              + list(_FP_CMP.values()) + list(_FP_CVT_W.values())
+              + list(_FP_CVT_S.values()) + list(_FMA_OP.values())),
     ('zba', _OP_F10.values()),
     ('zbb', ['andn', 'orn', 'xnor', 'min', 'minu', 'max', 'maxu', 'rol', 'ror',
              'zext.h', 'clz', 'ctz', 'cpop', 'sext.b', 'sext.h', 'orc.b',

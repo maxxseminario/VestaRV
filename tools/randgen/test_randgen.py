@@ -84,7 +84,7 @@ def _fake_cfg(**over):
     return k3config.ResolvedConfig(cfg)
 
 
-def _assemble(lines, march='rv32imac_zba_zbb_zbc_zbs'):
+def _assemble(lines, march='rv32imac_zba_zbb_zbc_zbs_zfinx'):
     """Assemble bare instruction lines; return the list of 32-bit words."""
     src = '.option norvc\n.option norelax\n' + '\n'.join(lines) + '\n'
     d = tempfile.mkdtemp(prefix='k3t')
@@ -164,7 +164,7 @@ def _build(seed=7, profile='seq', length=200, cfg=None, irq_observe=True):
     return randgen.build_stream(cfg, 'k3u', seed, profile, length, irq_observe)
 
 
-def _compile_stream(text, march='rv32imac_zba_zbb_zbc_zbs'):
+def _compile_stream(text, march='rv32imac_zba_zbb_zbc_zbs_zfinx'):
     repo = randgen.REPO
     isadir = os.path.join(repo, 'verification', 'isa')
     d = tempfile.mkdtemp(prefix='k3s')
@@ -287,17 +287,53 @@ def test_config_gate_removes_classes():
     avail3, _ = isa_model.available_classes(_fake_cfg(bitmanip=False).isa)
     for c in ('zba', 'zbb', 'zbs', 'zbc'):
         ok(c not in avail3, 'bitmanip off removes %s' % c)
-    eq(blocked, [], 'nothing blocked on the default-shaped config')
+    # `zfinx` is blocked on the default-shaped config because its KNOB is off,
+    # which is gate 1 (config-legality), not gate 2 (oracle-judgeability). The
+    # distinction is the point: the reason string has to name the knob.
+    eq([c for (c, _w) in blocked], ['zfinx'],
+       'only the knob-off zfinx class is blocked on the default-shaped config')
+    ok('config knob(s) off: zfinx' in dict(blocked)['zfinx'],
+       'and the reason is the KNOB, not the oracle: %r' % (blocked,))
 
 
 @test
 def test_oracle_gate_blocks_verdict_b():
-    """A verdict-B knob's class must not reach a stream by default."""
-    # zicboz/zcmt/zfinx have no emitter class of their own in v1, so the gate is
-    # tested where it is observable: the KNOB table must mark them B, and the
-    # generator must name them rather than pass over them.
-    for k in ('zicboz', 'zcmt', 'zfinx', 'zihpm', 'trapCsr', 'umode', 'pmp'):
+    """A verdict-B knob's class must not reach a stream by default.
+
+    K2b UPDATE. In K3 this could only be tested INDIRECTLY -- no class needed a
+    verdict-B knob, so the refusal arm in `available_classes` had never
+    executed (R-K3-2 D-3). K2b adds a `zfinx` CLASS and DERIVES the class
+    verdict from the knob verdicts, so the arm is now reachable: the assertions
+    below run it for real, on a synthetic B knob, and the K2b implementation
+    report quotes the same transition on the live table.
+    """
+    for k in ('zicboz', 'zcmt', 'zihpm', 'trapCsr', 'umode', 'pmp'):
         eq(isa_model.KNOB_ORACLE_STATUS[k], isa_model.B, '%s is verdict B' % k)
+    eq(isa_model.KNOB_ORACLE_STATUS['zfinx'], isa_model.E,
+       'zfinx is verdict E -- eligible via the K2b `zfinx-fflags` amendment')
+    eq(isa_model.CLASS_ORACLE['zfinx'], isa_model.E,
+       'and the CLASS verdict DERIVES from it')
+    eq(isa_model.required_amendments(['zfinx']), ['zfinx-fflags'],
+       'the class names the amendment it depends on')
+    # THE REFUSAL ARM, executed. A knob forced back to B must take its class
+    # out of the emittable set with the ORACLE reason, not the knob reason --
+    # and `allow_unmodelled` must put it back.
+    saved = isa_model.KNOB_ORACLE_STATUS['zfinx']
+    saved_cls = isa_model.CLASS_ORACLE['zfinx']
+    try:
+        isa_model.KNOB_ORACLE_STATUS['zfinx'] = isa_model.B
+        isa_model.CLASS_ORACLE['zfinx'] = isa_model.class_oracle('zfinx')
+        avail, blocked = isa_model.available_classes(_fake_cfg(zfinx=True).isa)
+        ok('zfinx' not in avail, 'a verdict-B class is REFUSED')
+        ok('oracle verdict B' in dict(blocked)['zfinx'],
+           'and the reason is the ORACLE: %r' % (blocked,))
+        avail2, _ = isa_model.available_classes(_fake_cfg(zfinx=True).isa,
+                                                allow_unmodelled=True)
+        ok('zfinx' in avail2,
+           '--allow-unmodelled admits it, in writing')
+    finally:
+        isa_model.KNOB_ORACLE_STATUS['zfinx'] = saved
+        isa_model.CLASS_ORACLE['zfinx'] = saved_cls
     ne = isa_model.knobs_on_without_emitter(_fake_cfg(zicboz=True).isa,
                                             _fake_cfg().priv)
     names = [k for (k, _v, _n) in ne]

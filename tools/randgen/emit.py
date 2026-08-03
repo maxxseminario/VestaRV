@@ -107,6 +107,8 @@ def required_march(cfg):
         s += 'c'
     if cfg.isa.get('bitmanip'):
         s += '_zba_zbb_zbc_zbs'
+    if cfg.isa.get('zfinx'):
+        s += '_zfinx'
     return s
 
 
