@@ -249,6 +249,7 @@ architecture struct of vesta is
             mask         : in  std_logic_vector(1 downto 0);
             alu_control  : in  std_logic_vector(6 downto 0);
             div_start    : in  std_logic;
+            div_dispatch : in  std_logic;
             amo_phase    : in  std_logic_vector(2 downto 0);  -- 000: normal, 001: AMO_READ, 010: AMO_COMPUTE, 011: AMO_WRITE, 100: SC fail, 101: SC success
             cas_op       : in  std_logic;  -- X2 Zacas: current AMO is an amocas
             -- X3 Zcmp/Zcmt sequencer regfile steering (all default inactive)
@@ -774,6 +775,7 @@ architecture struct of vesta is
     signal alu_done               : std_logic;
     signal is_div_op              : std_logic;
     signal div_start              : std_logic;
+    signal div_dispatch           : std_logic;  -- K5 defect B; derived at :4710-ish
 
     -- ==========================================
     -- X4 Zfinx FP control/status signals
@@ -4707,7 +4709,41 @@ architecture struct of vesta is
 
 
 
-    alu_control_dp <=   "0001011" when (current_state = AMO_READ or current_state = AMO_WRITE) else 
+    -- ==========================================
+    -- K5 DEFECT B: the divide dispatch qualification
+    -- ==========================================
+    -- The ALU's divide FSM used to arm itself off `div_start_rq`, a bare
+    -- combinational decode of `alu_control` (alu.vhd).  `alu_control` decodes
+    -- `instr_curr`, and there are cycles in which instr_curr is NOT the
+    -- instruction the hart is dispatching -- exactly the class :2307 names:
+    --   * SHAPE E, the 32-bit split-fetch bubble (:1777): instr_curr is HELD at
+    --     the PREVIOUS instruction.  MEASURED as the live trigger.
+    --   * IRQ_SV (:1775): the RAW BUS WORD.
+    --   * IRQ_JUMP / TRAP_STATE: they fall through this mux's tail to
+    --     `instr_decomp`, a decode of the live bus word.
+    -- In any of those, a divide-looking encoding armed the FSM, which latched
+    -- the PREVIOUS divide's sel_signed/sel_rem and then STUCK in ALU_DIV_WAIT
+    -- (only div_complete leaves it), so the next divide executed under the
+    -- wrong opcode's selects.
+    --
+    -- The fix is a POSITIVE qualification, not a state blacklist -- :2307's own
+    -- text records why a blacklist is only ever as good as the list, and that
+    -- list had already missed six states once.  `next_state = DIV_WAIT` IS the
+    -- dispatch: DIV_WAIT is reachable only from EXECUTE's is_div_op arms (the
+    -- four shapes at :3021/:3164/:3323/:3434), so this term is exact BY
+    -- CONSTRUCTION and cannot drift out of step with those guards the way a
+    -- copy of their trap/shape predicates would.  Qualifying with
+    -- `current_state = EXECUTE` narrows it to the dispatch cycle itself (during
+    -- DIV_WAIT next_state is DIV_WAIT again while alu_done is low).
+    --
+    -- NOT a loop: div_dispatch feeds only the ALU FSM's CLOCKED arm, so nothing
+    -- combinational returns from it to next_state.
+    -- Timing is UNCHANGED on the correct path: the old arm also fired in this
+    -- same EXECUTE cycle, so alu_state is still ALU_DIV_WAIT by the time the
+    -- core reaches DIV_WAIT and alu_done's ALU_IDLE term still holds.
+    div_dispatch <= '1' when (current_state = EXECUTE and next_state = DIV_WAIT) else '0';
+
+    alu_control_dp <=   "0001011" when (current_state = AMO_READ or current_state = AMO_WRITE) else
                         "0001010" when (current_state = SC_CHECK) else -- ALU passes b
                         alu_control;
 
@@ -4743,6 +4779,7 @@ architecture struct of vesta is
             mask        => mask,
             alu_control => alu_control_dp,
             div_start   => div_start,
+            div_dispatch => div_dispatch,
             amo_phase   => amo_phase,
             cas_op      => cas_op,
             zcm_rs_addr    => zcm_rs_addr,

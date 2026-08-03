@@ -29,7 +29,15 @@ entity alu is
         alu_control : in  std_logic_vector(6 downto 0);
         bs          : in  std_logic_vector(1 downto 0);   -- X3 Zknd/Zkne AES byte-select (instr[31:30]); only used by the aes32* arms
         div_start   : in  std_logic;  -- Start signal from CPU to initiate division
-        ALU_result  : out std_logic_vector(XLEN-1 downto 0); 
+        -- K5 defect B: the ONE cycle in which the core is really dispatching a
+        -- DIV/DIVU/REM/REMU.  This is a POSITIVE qualification supplied by the
+        -- core FSM, and it replaces the local combinational decode that used to
+        -- arm the divide FSM below.  It must NOT be re-derived from alu_control:
+        -- alu_control is a decode of instr_curr, which in the compressed
+        -- split-fetch bubble (and in IRQ_SV / IRQ_JUMP / TRAP_STATE) is NOT the
+        -- instruction the hart is dispatching.  See vesta.vhd's div_dispatch.
+        div_dispatch : in  std_logic;
+        ALU_result  : out std_logic_vector(XLEN-1 downto 0);
         alu_done    : out std_logic;
         Zero        : out std_logic
     );
@@ -268,7 +276,11 @@ architecture behav of alu is
     signal div_result       : std_logic_vector(XLEN-1 downto 0);
     signal div_complete     : std_logic;
     signal div_rdy          : std_logic;
-    signal div_start_rq     : std_logic;
+    -- K5 defect B: `div_start_rq` is DELETED.  Its only consumer was the
+    -- ALU_IDLE arm above, and it was that arm's unqualified decode that WAS the
+    -- defect; the core's div_dispatch replaces it.  (`div_operation`, `div_rq`
+    -- and `clr_div_start_rq` in this file were already dead before this change
+    -- and are deliberately left alone -- not this finding.)
 
     signal div_rq : std_logic;
 
@@ -305,7 +317,22 @@ begin
         elsif rising_edge(clk) then
             case alu_state is
                 when ALU_IDLE =>
-                    if div_start_rq = '1' and div_rdy = '1' then
+                    -- K5 defect B, THE FIX SITE.  This guard was
+                    -- `div_start_rq = '1'`, a pure combinational decode of
+                    -- alu_control with no dispatch qualification, so it also
+                    -- fired in the shape-E split-fetch bubble -- the EXECUTE
+                    -- cycle where instr_curr is HELD at the PREVIOUS
+                    -- instruction (vesta.vhd:1777).  When that held encoding
+                    -- was a divide, the FSM latched the PREVIOUS divide's
+                    -- selects and then STUCK in ALU_DIV_WAIT (the arm below is
+                    -- suppressed there and only div_complete leaves the state),
+                    -- so the NEXT divide -- at any distance, and whatever its
+                    -- own alignment -- ran under the wrong opcode's selects.
+                    -- div_dispatch is asserted only in the real dispatch cycle,
+                    -- which is also the cycle this arm always fired in on the
+                    -- correct path, so the timing of the latch is UNCHANGED and
+                    -- alu_done's ALU_IDLE term still holds off DIV_WAIT.
+                    if div_dispatch = '1' and div_rdy = '1' then
                         div_rq <= '1';
                         case alu_control is
                             when "0010000" => -- DIV
@@ -349,11 +376,9 @@ begin
     begin
         if resetn = '0' then
             ResultSignal <= (others => '0');
-            div_start_rq <= '0';
             mult_result := (others => '0');
         else
             mult_result := (others => '0');
-            div_start_rq <= '0';
             ResultSignal <= (others => '0');
 
             case alu_control is
@@ -414,12 +439,13 @@ begin
                     end if;
                 when "0010000" | "0010001" | "0010010" | "0010011" => -- Division operations
                     if ENABLE_DIV then
-                        div_start_rq <= '1';
+                        -- Result capture only.  The dispatch request that used
+                        -- to be raised here is gone (see div_dispatch); this arm
+                        -- now does exactly one thing, which is hand the
+                        -- divider's answer to the writeback at DIV_DONE.
                         if alu_state = ALU_DIV_WAIT or alu_state = ALU_DIV_DONE then
-                            div_start_rq <= '0';
                             if div_complete = '1' then
                                 ResultSignal <= div_result;
-                                div_start_rq <= '0';
                             end if;
                         end if;
                     end if;

@@ -47,6 +47,7 @@ entity datapath is
         mask         : in  std_logic_vector(1 downto 0);       -- Byte/halfword position for loads/stores
         alu_control  : in  std_logic_vector(6 downto 0);       -- ALU operation selector
         div_start    : in  std_logic;                          -- Start signal for division operation
+        div_dispatch : in  std_logic;                          -- K5 defect B: the real DIV dispatch cycle (arms the ALU divide FSM)
         
         -- ==========================================
         -- Atomic operation control signals
@@ -198,6 +199,7 @@ architecture struct of datapath is
             alu_control : in  std_logic_vector(6 downto 0);
             bs          : in  std_logic_vector(1 downto 0);
             div_start   : in  std_logic;
+            div_dispatch : in  std_logic;
             ALU_result  : out std_logic_vector(XLEN-1 downto 0);
             alu_done    : out std_logic;
             Zero        : out std_logic
@@ -516,6 +518,7 @@ begin
             alu_control => alu_control,               -- Operation selector
             bs          => instr(31 downto 30),       -- X3 AES byte-select (aes32* only)
             div_start   => div_start,                 -- Start division
+            div_dispatch => div_dispatch,             -- K5 defect B: the real dispatch cycle
             ALU_result  => ALU_result_internal,       -- Operation result
             alu_done    => alu_done,                  -- Multi-cycle operation complete
             Zero        => Zero                       -- Zero flag for branches
