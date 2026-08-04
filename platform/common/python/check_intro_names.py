@@ -139,6 +139,12 @@ def main():
         # model only substitutes digits).
         'mstatus', 'mstatush', 'mtvec', 'mie', 'mip', 'mscratch', 'mepc',
         'mcause', 'mtval', 'mtrapctl', 'mcounteren', 'misa',
+        # ID-series (2026-08-04): the machine INFORMATION registers, same
+        # reason as the block above -- core CSRs, not memory-mapped ones.
+        # mhartid (0xF14) is already listed with the CSR group at the top;
+        # these are its four neighbours, 0xF11-0xF13 and 0xF15, which ID3
+        # admitted to the decode map (they read zero and never trap).
+        'mvendorid', 'marchid', 'mimpid', 'mconfigptr',
         'pmpcfg', 'pmpcfg0', 'pmpcfg1', 'pmpcfg2', 'pmpcfg3',
         'pmpaddr', 'pmpaddr0', 'pmpaddr1', 'pmpaddr2', 'pmpaddr3',
         'pmpaddr4', 'pmpaddr5', 'pmpaddr6', 'pmpaddr7', 'pmpaddr8',
