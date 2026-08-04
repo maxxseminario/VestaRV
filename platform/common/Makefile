@@ -95,6 +95,8 @@ help:
 # ---------------------------------------------------------------------------
 # Chip artifact generation (memory map -> headers, linker scripts, HDL, JSON, TRM LaTeX)
 # ---------------------------------------------------------------------------
+SYNC_MODE ?= --strict
+
 generate:
 	@echo "Generating chip artifacts from python/generate.py..."
 	@if [ -n "$(CONFIG)" ]; then echo "  • using config file: $(CONFIG)"; fi
@@ -106,7 +108,7 @@ generate:
 	@python3 python/check_memorymap_h.py out/software/include/MemoryMap.h
 	@echo ""
 	@echo "Checking docs/chip_configurator.html against the schema/pad-ring/geometry..."
-	@python3 python/check_configurator_sync.py --strict
+	@python3 python/check_configurator_sync.py $(SYNC_MODE)
 	@echo ""
 	@echo "Checking intro-chapter register names against the generated memory map..."
 	@python3 python/check_intro_names.py
@@ -182,7 +184,16 @@ trm-lint:
 # (golden rule). 'web-copy' is the copy-only step the 'chip' chain reuses so a
 # full 'make chip' doesn't regenerate twice.
 # ---------------------------------------------------------------------------
-web: generate
+# K7/F-K7-2 (2026-08-04): `web` USED TO DEPEND ON A STRICT `generate`, so the
+# moment the schema moved, `make web` failed on the very drift it exists to
+# repair -- and there was no documented way forward. That is the F-K5-2 class: a
+# gate that cannot be satisfied by the tool the project tells you to run. Now the
+# inner generate runs NON-strict (SYNC_MODE empty -> WARN), the splice happens,
+# and the strict check runs AFTER it, so `make web` still ends red if the splice
+# did not actually fix the drift. The default `make generate` is unchanged and
+# still a hard gate.
+web:
+	@$(MAKE) --no-print-directory generate SYNC_MODE=
 	@$(MAKE) --no-print-directory web-copy
 	@if [ -z "$(CONFIG)" ]; then \
 		python3 python/splice_web_data.py ../../docs/chip_configurator.html && \
@@ -190,6 +201,9 @@ web: generate
 	else \
 		echo "  • CONFIG build — skipping the docs/ splice (the page carries the default bundle)"; \
 	fi
+	@echo ""
+	@echo "Re-checking the splice under the STRICT gate..."
+	@python3 python/check_configurator_sync.py --strict
 
 web-copy:
 	@echo "Exporting machine-readable chip data to out/web/..."

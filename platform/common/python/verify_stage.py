@@ -38,6 +38,9 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 PC_ROOT = os.path.dirname(HERE)                    # platform/common/
 REPO = os.path.dirname(os.path.dirname(PC_ROOT))    # vestarv/
 RISCV_TEST = os.path.join(REPO, 'xcelium', 'riscv_test')
+# Where image sets live. rcf_mapping() reads the `.imgset` stamps under here to
+# probe past a slot collision (K7/F-K7-5).
+ISA_ROOT = os.path.join(REPO, 'verification', 'isa')
 BASE_CELL_LIST = os.path.join(RISCV_TEST, 'behavioral_mp', 'cell_list_behavioral.txt')
 TEMPLATE = os.path.join(PC_ROOT, 'verify', 'xrun_parallel.template.sh')
 RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
@@ -351,6 +354,44 @@ CATALOG = [
     T('rv32ua-p-casgrant', 'zacas zihpm atomics', True),
 
     # -----------------------------------------------------------------------
+    # K7 (R-K7-2(4)) -- THE FIVE STANDING DETECTORS.
+    # These joined the standing 141-test suite at K7 item 2 and had NO CATALOG
+    # row, which meant the per-config matrix never selected them -- and after
+    # the F-K7-4 supersession the standing ARGUS gate IS this CATALOG, so they
+    # would not have run on Argus at all. Each is the regression form of a real
+    # finding; none is polarity-sensitive at build time (measured: byte-identical
+    # images across the trapCsr polarities), so they carry only the tags their
+    # ARCHITECTURE requires.
+    #   trapstor  -- the S-series residue item; it had never run in ANY gate
+    #                until K7. `atomics` per the rv32ua-group convention.
+    #   packalias -- F-BV1: the zext.h decode was not qualified on rs2=0, so the
+    #                Zbkb `pack` space aliased onto it and RETIRED on every
+    #                shipped config. `bitmanip` because zext.h IS a Zbb
+    #                instruction: on a bitmanip-off build the whole encoding is
+    #                illegal and the test's own pass-control cannot run.
+    #                MEASURED, not reasoned: it FAILED on the C1 row (113/115)
+    #                before this tag existed.
+    #   fk51mp    -- F-K5-1 half (b): RV32 reserves shamt[5]. Its victims are
+    #                OP-IMM shift forms decoded under ENABLE_BITMANIP, so it is
+    #                `bitmanip`-tagged and correctly drops on the C1 row. It
+    #                ALSO needs `nozkn` -- Zknh allocates encodings in exactly
+    #                the reserved space this test polices (see config_tags).
+    #   dvintmin  -- K4-L6 defect A (the signed-magnitude wrap). `div` for the
+    #                same reason every rv32um divide row carries it: the C2
+    #                divider-off row must drop it by set-diff, not fail it.
+    #   dvbubble  -- K4-L6 defect B (the split-fetch bubble re-arming the
+    #                previous divide's selects). `div` likewise -- AND
+    #                `compressed`, because the bubble only exists at a divide
+    #                sitting at pc = 2 (mod 4), which a no-C build cannot
+    #                construct. MEASURED: it FAILED on the C3 row (144/146)
+    #                before this tag existed.
+    T('rv32ua-p-trapstor', 'atomics', True),
+    T('rv32ua-p-packalias', 'atomics bitmanip', True),
+    T('rv32ua-p-fk51mp', 'atomics bitmanip nozkn', True),
+    T('rv32um-p-dvintmin', 'div', True),
+    T('rv32um-p-dvbubble', 'div compressed', True),
+
+    # -----------------------------------------------------------------------
     # K2 (G1) -- THE ON-POLARITY-ONLY SUITES.
     # Seven suites that have existed in verification/isa/tests/ since the X
     # series and that NO runner has ever selected (each Makefrag says so in
@@ -439,8 +480,42 @@ def rcf_mapping(nharts, defines=(), march=None):
         if nharts == 18:
             return 'rca', 'rcf_argus'
         return 'r%02d' % nharts, 'rcf_n%02d' % nharts
+    # K7/F-K7-5 (2026-08-04, R-K7-2(1)): the 2-hex tag COLLIDES in practice, and
+    # the collision is not hypothetical -- R-DK3 added -DCORE_ENABLE_TRAPCSR to
+    # nineteen configurations at once, re-rolling every identity, and three rows
+    # aborted on the `.imgset` guard. Two of those were STALE pre-flip
+    # directories squatting on slots (fixed by garbage collection); the third,
+    # `zimop` vs `zihint` at `k04`, is a TRUE sha1-prefix collision between two
+    # LIVE configurations, which no amount of cleanup can resolve.
+    #
+    # The tag cannot simply widen: the link name must be exactly 3 characters
+    # (the riscv_tb TEST_FILE generic is a fixed 29-char string), and 'k' costs
+    # one of them.
+    #
+    # So: DETERMINISTIC LINEAR PROBING over the 256 slots. The primary slot is
+    # the digest as before -- every existing directory keeps its name and no
+    # image set is rebuilt -- and a config whose primary slot is held by a
+    # DIFFERENT identity walks forward until it finds its own identity (reuse)
+    # or a free slot. That makes a collision impossible rather than unlikely,
+    # which is the property the `.imgset` check was written to police and could
+    # only ever report on.
+    #
+    # The `.imgset` guard STAYS and is still the authority: probing chooses a
+    # directory, the stamp proves it is the right one. A probe that landed
+    # wrongly would still be caught.
     tag = imgset_tag(nharts, defines, march)
-    return 'k' + tag, 'rcf_k' + tag
+    want = imgset_identity(nharts, defines, march)
+    base = int(tag, 16)
+    for step in range(256):
+        t = '%02x' % ((base + step) % 256)
+        stamp = os.path.join(ISA_ROOT, 'rcf_k' + t, '.imgset')
+        if not os.path.isfile(stamp):
+            return 'k' + t, 'rcf_k' + t          # free (or not yet built)
+        if open(stamp).read().strip() == want:
+            return 'k' + t, 'rcf_k' + t          # ours -- reuse
+    raise SystemExit(
+        'rcf_mapping: all 256 image-set slots are occupied by other identities.\n'
+        '  Garbage-collect the sets no configuration claims before adding more.')
 
 
 def imgset_identity(nharts, defines, march=None):
@@ -643,6 +718,21 @@ def config_tags(cfg):
     for k in PRIV_KNOBS:
         if priv.get(k):
             tags.add(k)
+    # K7 (R-K7-2(4)) -- `nozkn` is a NEGATIVE structural predicate, and the only
+    # one in this table. It exists because Zknh ALLOCATES ENCODINGS IN THE SPACE
+    # RV32 RESERVES for shamt[5]=1, which is exactly the space `fk51mp` exists to
+    # prove still traps. `fk51mp`'s own control encoding is annotated in its
+    # source as "funct7=SHA256_FN7, ZKN off": with Zkn ON that word is a legal
+    # `sha256sum0` and the control hart correctly walks past it, so the test
+    # reports FAIL for a reason that is not a defect. Measured on the B15 and D2
+    # rows before this tag existed (152/153 and 176/177, both failing exactly
+    # fk51mp).
+    #
+    # This is NOT the R-K2-4 "tag a real constraint away" anti-pattern: the
+    # constraint is architectural and unfixable inside the test, and the tag
+    # states it rather than hiding it. If Zkn's encodings ever move, delete this.
+    if not isa.get('zkn'):
+        tags.add('nozkn')
     # cqAfeStubs defaults TRUE (the Castalia golden master keeps the AFE/EIS
     # stubs); a qspi config sets it false and shafe must not be staged there.
     if cfg.get('peripherals', {}).get('cqAfeStubs', True):
