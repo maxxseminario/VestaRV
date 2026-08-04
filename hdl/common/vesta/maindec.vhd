@@ -124,6 +124,26 @@ entity maindec is
         -- The two defaults differ on purpose; neither is a typo.)
         csr_rs1_zero     : in  STD_LOGIC := '1';
 
+        -- F-BV1 (K5): the R-type rs2 FIELD is zero. Same convention as
+        -- csr_rs1_zero above -- maindec decodes no register fields, so the one
+        -- bit it needs arrives as a port. It qualifies EXACTLY ONE decode row:
+        -- Zbb `zext.h rd,rs1` (funct7=0000100, funct3=100), which is not a
+        -- neighbour of Zbkb `pack rd,rs1,rs2` but IS its rs2=x0 point
+        -- (pack rd,rs1,x0 == zext16(rs1); `zext.h t3,t4` and `pack x28,x29,x0`
+        -- are the SAME 32 bits, 0x080ece33). Without this term the whole pack
+        -- encoding space aliased onto the ZEXT.H row on every Zbkb-off build --
+        -- 31 of 32 rs2 values RETIRED as zext.h instead of taking the
+        -- illegal-instruction trap, with rs2 unread (alu.vhd's ZEXT.H arm does
+        -- not read operand b). Same class as pre-F10 `unimp`: a reserved
+        -- encoding retiring as something else, silently.
+        -- DEFAULT '0' = "rs2 is NOT zero", and that is a FAIL-SAFE choice, not
+        -- an identity (method rule 15). An unwired instantiation makes zext.h
+        -- illegal in every build -- loud, and caught by the first bitmanip test.
+        -- Defaulting '1' would make an unwired instantiation silently reinstate
+        -- the alias this port exists to close, which is the worse failure.
+        -- The only instantiation (controller -> vesta) drives it.
+        rs2_zero         : in  STD_LOGIC := '0';
+
         -- X1 Zawrs: wrs_op = decoded wrs.nto or wrs.sto (illegal unless
         -- ENABLE_ZAWRS and ENABLE_ATOMICS); wrs_sto = the timeout variant.
         wrs_op           : out STD_LOGIC;
@@ -292,8 +312,15 @@ begin
         (funct7 = MIN_FN7 and (funct3 = "100" or funct3 = "101" or funct3 = "110" or funct3 = "111")) or
         -- ROL, ROR
         (funct7 = ROL_FN7 and (funct3 = "001" or funct3 = "101")) or
-        -- ZEXT.H 
-        (funct7 = ZEXT_FN7 and funct3 = "100")
+        -- ZEXT.H -- F-BV1 (K5): rs2 MUST be x0. ZEXT_FN7/PACK_FN7 are the same
+        -- seven bits and `zext.h rd,rs1` IS `pack rd,rs1,x0`, so without the
+        -- rs2 term this row legalised the entire Zbkb pack space on a Zbkb-off
+        -- build. rs2 != 0 now falls through to the ENABLE_ZBKB arm below
+        -- (:is_zbkb_new_r_instr), which is where pack belongs: legal there,
+        -- illegal here. Narrowing this row cannot shadow that arm -- the
+        -- valid_funct chain reaches this row FIRST, so the narrowing is what
+        -- lets the Zbkb arm see the encoding at all.
+        (funct7 = ZEXT_FN7 and funct3 = "100" and rs2_zero = '1')
     )) else '0';
 
 
