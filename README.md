@@ -10,7 +10,17 @@
   </tr>
 </table>
 
-VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. The core supports **RV32I base ISA** with **M** (multiply/divide), **C** (compressed), **A** (atomic), and **Zb*** (bit manipulation) extensions, and features **stack-based recursive interrupt handling**. This repository provides both the VestaRV core and a configurable MCU System on Chip (SoC) implementation, enabling rapid integration into embedded systems and ASIC designs.
+VestaRV is a custom 32-bit RISC-V processor core designed as an independent personal project, built from the ground up using the official RISC-V instruction set specification without deriving from any existing core implementations. The core implements **RV32IMAC** with the **Zba/Zbb/Zbc/Zbs** bit-manipulation extensions and the standard **M-mode trap architecture**, and features **stack-based recursive interrupt handling**.
+
+Beyond the single core, this repository is a **chip generator**: a family of SoCs emitted from one configuration source. A config file selects the hart count, the ISA extensions, and which peripherals exist; `make chip` then produces the RTL, the C headers, the linker scripts and the Technical Reference Manual together, and `make verify` proves that configuration boots.
+
+Three chips have been built from it:
+
+| Chip | Harts | Status |
+|------|-------|--------|
+| **Myshkin** | 1 | **Taped out** — TSMC 65nm, November 2025; silicon validated |
+| **Castalia** | 4 | Tape-out-ready — shared-memory multiprocessor |
+| **Argus** | 18 | Tape-out-ready — teaching chip |
 
 > 📄 **[Technical Reference Manual — Castalia (revised August 4, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
 > Complete peripheral register reference, system architecture, and programming guide for the Castalia SoC — the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
@@ -88,10 +98,22 @@ This repository is organized into the following directories:
 
 ## Core Specifications
 
-- **ISA:** RV32I Base + M, C, A, ZBA, ZBB, ZBC, ZBS, ZICNTR (partial)
+**Always built** (the default configuration of every chip):
+
+- **ISA:** RV32I base + **M** (multiply/divide, fast multiplier) + **A** (atomics, incl. LR/SC) + **C** (compressed) + **Zba/Zbb/Zbc/Zbs** (bit manipulation)
+- **Privilege:** M-mode trap architecture — `mstatus`/`mtvec`/`mie`/`mip`/`mscratch`/`mepc`/`mcause`/`mtval`, MRET/ECALL/EBREAK, vectored exceptions and interrupts
 - **Interrupts:** Stack-based recursive interrupt handling
-- **Verification:** Post-physical verified
-- **Extensions:** Bit manipulation, atomic ops, compressed, and multiply/divide instructions
+
+**Selectable per configuration** (each generates its hardware away when off, and traps as an illegal instruction; a read-only `misa` advertises the built set):
+
+- **Compute:** `Zfinx` single-precision FPU in the x-registers · `Zicond` conditional ops
+- **Crypto:** `Zkn` (AES + SHA) · `Zbkb` · `Zbkc` · `Zbkx`
+- **Code size:** `Zcmp` · `Zcmt` · `Zcb`
+- **Memory / atomics:** `Zicboz` cache-block zero · `Zabha` · `Zacas` · `Zawrs`
+- **Privilege:** **U-mode** · **PMP** (Smpmp, configurable entry count)
+- **Counters:** `Zicntr` · `Zihpm` · 64-bit counters · `Zihint` · `Zimop`
+
+**Verification:** post-physical (gate-level, SDF-annotated) verified; a per-instruction **Spike lockstep co-simulation**; a 28-row configuration matrix that builds and simulates every shipped knob combination; and formal PSL properties on the core's leaf units. See the [changelog](CHANGELOG.md) for what each programme added.
 
 ---
 

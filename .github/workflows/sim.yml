@@ -27,9 +27,13 @@ permissions:
   contents: read
 
 jobs:
-  # PR smoke: opt-in via the `run-sim` label (27-test smoke set, ~10 min).
+  # PR smoke: opt-in via the `run-sim` label (the smoke.txt subset, ~10 min).
   sim-smoke:
-    name: MP smoke suite (27 tests)
+    # Deliberately no test count in the name: the suite size is whatever the
+    # list holds at this commit, and a hardcoded literal has gone stale twice
+    # (this one said 27 against a 29-entry smoke.txt; the full job said 117
+    # against a standing 141). Name the source, not the number.
+    name: MP smoke suite (smoke.txt)
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-sim')
     runs-on: [self-hosted, cadence]
     concurrency:
@@ -97,7 +101,7 @@ jobs:
         working-directory: verification/isa
         run: ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf
 
-      - name: Run full MP ISA regression (117 tests)
+      - name: Run full MP ISA regression
         run: |
           source ./cdspaths.sh
           cd xcelium/riscv_test/behavioral_mp
