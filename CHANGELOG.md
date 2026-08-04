@@ -412,3 +412,30 @@ First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November
 ## Repository History
 
 Prior to the 1.0.0 release, VestaRV was developed as a private personal project. The initial public release coincides with the Myshkin tape-out submission via the University of Nebraska-Lincoln (IC Design Group).
+
+Every release from `1.0.1` onward carries an annotated git tag, and the version
+headings above link to the diff that release introduced. **`1.0.0` has no tag**
+— the Myshkin tape-out predates this repository's first commit, so no commit
+honestly represents it.
+
+<!-- Release comparison links. Generated from the tag list; regenerate if tags change. -->
+[2.10.1]: https://github.com/maxxseminario/VestaRV/compare/v2.10.0...v2.10.1
+[2.10.0]: https://github.com/maxxseminario/VestaRV/compare/v2.9.0...v2.10.0
+[2.9.0]: https://github.com/maxxseminario/VestaRV/compare/v2.8.0...v2.9.0
+[2.8.0]: https://github.com/maxxseminario/VestaRV/compare/v2.7.0...v2.8.0
+[2.7.0]: https://github.com/maxxseminario/VestaRV/compare/v2.6.0...v2.7.0
+[2.6.0]: https://github.com/maxxseminario/VestaRV/compare/v2.5.0...v2.6.0
+[2.5.0]: https://github.com/maxxseminario/VestaRV/compare/v2.4.0...v2.5.0
+[2.4.0]: https://github.com/maxxseminario/VestaRV/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/maxxseminario/VestaRV/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/maxxseminario/VestaRV/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/maxxseminario/VestaRV/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/maxxseminario/VestaRV/compare/v1.1.5...v2.0.0
+[1.1.5]: https://github.com/maxxseminario/VestaRV/compare/v1.1.4...v1.1.5
+[1.1.4]: https://github.com/maxxseminario/VestaRV/compare/v1.1.3...v1.1.4
+[1.1.3]: https://github.com/maxxseminario/VestaRV/compare/v1.1.2...v1.1.3
+[1.1.2]: https://github.com/maxxseminario/VestaRV/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/maxxseminario/VestaRV/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/maxxseminario/VestaRV/compare/v1.0.2...v1.1.0
+[1.0.2]: https://github.com/maxxseminario/VestaRV/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/maxxseminario/VestaRV/releases/tag/v1.0.1
