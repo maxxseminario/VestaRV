@@ -177,6 +177,33 @@ TEST_FILES=(
     # compiles the OFF arm (base-ISA sanity + PASS); the ON arm + trap proofs
     # (extzfinx* poisons) run on staged builds (see the X4-2c self-report).
     "../rcf/xrv32ua-p-extzfinx.rcf"
+    # ---------------------------------------------------------------------
+    # K7 item 2 (2026-08-04, R-K7-1(4)): the standing-list batch. Until now
+    # every one of these detectors had ZERO standing coverage -- each was run
+    # once, by the wave that authored it, and never again. 136 -> 141.
+    #
+    # All five are POLARITY-INSENSITIVE (measured: byte-identical images in
+    # rcf/ and rcf_k17/), which is why they are safe in a suite that reads the
+    # DEFINES=(none) image set after the R-DK3 flip -- see F-K7-3.
+    #
+    # trapstor: the S-SERIES RESIDUE ITEM, retired here. It had never run in
+    #   any gate.
+    # packalias: the F-BV1 detector (zext.h decode not qualified on rs2=0, so
+    #   the Zbkb `pack` space aliased onto it). Without this row F-BV1's fix
+    #   has no standing coverage at all (R-K5-5(4)).
+    # fk51mp: F-K5-1 half (b) -- RV32 reserves shamt[5]. Committed in
+    #   R-K5-8(3)'s REGRESSION polarity: a reserved encoding that TRAPS is
+    #   PASS, one that retires is FAIL, so it is green on correct RTL.
+    # dvintmin / dvbubble: the two BLIND detectors for the K5 divide family
+    #   (defect A, the signed-magnitude wrap; defect B, the split-fetch bubble
+    #   re-arming the previous divide's selects). Both also join the lockstep
+    #   list -- their eligibility is DERIVED in k7_report.md section 2.0, not
+    #   inherited.
+    "../rcf/xrv32ua-p-trapstor.rcf"
+    "../rcf/rv32ua-p-packalias.rcf"
+    "../rcf/xxxrv32ua-p-fk51mp.rcf"
+    "../rcf/xrv32um-p-dvintmin.rcf"
+    "../rcf/xrv32um-p-dvbubble.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the
