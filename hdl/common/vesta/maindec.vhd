@@ -431,6 +431,16 @@ begin
     -- unknown CSR -> illegal instruction. hpm ranges use unsigned compares.
     csr_addr_valid <= '1' when (
         imm12 = CSR_MHARTID   or imm12 = CSR_MISA      or
+        -- ID3 (R-DID1): the rest of the machine-information block, 0xF11-0xF15.
+        -- REQUIRED read-only M-mode CSRs -- a read must RETIRE, never trap. Their
+        -- VALUE is all-zeros and it comes from csr_unit.vhd's
+        -- `when others => CSR_ZERO_X` read arm: there is deliberately NO explicit
+        -- read arm for these four, so anyone adding an arm above that `others`
+        -- must know they ride it. Writes still trap in every build via the
+        -- UNGATED csr_ro_denied (imm12(11:10) = "11"). FOUR EXPLICIT EQUALITIES,
+        -- not a range -- 0xF10 and 0xF16 bracket the block and must keep trapping.
+        imm12 = CSR_MVENDORID or imm12 = CSR_MARCHID   or
+        imm12 = CSR_MIMPID    or imm12 = CSR_MCONFIGPTR or
         imm12 = CSR_MCYCLE    or imm12 = CSR_MINSTRET  or
         imm12 = CSR_MCYCLEH   or imm12 = CSR_MINSTRETH or
         imm12 = CSR_CYCLE     or imm12 = CSR_TIME      or imm12 = CSR_INSTRET or
