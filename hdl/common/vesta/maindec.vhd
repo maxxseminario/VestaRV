@@ -822,6 +822,21 @@ begin
                     elsif funct3 = SRL_FN3 then
                         if ENABLE_BITMANIP and funct7 = RORI_FN7 then
                             valid_funct <= '1';
+                        elsif funct7(0) = '1' then
+                            -- K5 (F-K5-1 half b): imm12(5) IS shamt[5], and
+                            -- RV32 RESERVES shamt[5] = 1 for the OP-IMM shifts.
+                            -- The tests below decide on funct7(6:5) alone, so
+                            -- `srli/srai x, x, 35` reached them with (6:5) = "00"
+                            -- / "01" and was ADMITTED, then executed as the
+                            -- shamt[4:0] form -- a reserved encoding retiring
+                            -- silently, which is the F10 / pack-alias class
+                            -- (loud beats silent).  Measured first by
+                            -- tests/rv32ua/fk51mp.S, which predates this fix.
+                            -- RORI is checked ABOVE and its funct7(0) is 0, so
+                            -- this cannot shadow it; every Zbb/Zbs/Zbkb
+                            -- immediate form in this space reaches its own arm
+                            -- earlier still.
+                            valid_funct <= '0';
                         elsif (not ENABLE_BITMANIP) and not (funct7 = "0000000" or funct7 = "0100000") then
                             -- Without Zb*, only exact SRLI/SRAI encodings are
                             -- legal (RORI etc. must trap, not alias to SRAI).
@@ -832,6 +847,12 @@ begin
                     elsif funct3 = SLL_FN3 then
                         if is_sha256_instr = '1' then
                             valid_funct <= '1';  -- X3 Zknh sha256sig0/sig1/sum0/sum1 (enabled)
+                        elsif funct7(0) = '1' and funct7 /= SHA256_FN7 then
+                            -- K5 (F-K5-1 half b), the SLLI half of the same
+                            -- reservation.  Placed BEFORE the SHA-256 hole so
+                            -- that hole keeps its own explicit refusal and its
+                            -- comment stays true.
+                            valid_funct <= '0';
                         elsif funct7 = SHA256_FN7 then
                             -- SHA-256 funct7 hole (bits[31:25]=0001000): legal ONLY
                             -- as an enabled sha256* op above. Otherwise (ENABLE_ZKN
