@@ -76,6 +76,11 @@ _FP_F7 = {0x00: 'fadd.s', 0x04: 'fsub.s', 0x08: 'fmul.s', 0x0C: 'fdiv.s'}
 # The four fused opcodes; fmt (bits 26:25) must be 00 for single precision.
 _FMA_OP = {0x43: 'fmadd.s', 0x47: 'fmsub.s', 0x4B: 'fnmsub.s', 0x4F: 'fnmadd.s'}
 
+# K5.  Zawrs: SYSTEM funct12 0x00D/0x01D with rd=rs1=x0.
+_WRS_F12 = {0x00D: 'wrs.nto', 0x01D: 'wrs.sto'}
+# K5.  Zihintntl: the hint is the rs2 specifier of `add x0, x0, rs2`.
+_NTL_RS2 = {2: 'ntl.p1', 3: 'ntl.pall', 4: 'ntl.s1', 5: 'ntl.all'}
+
 _AMO_F5 = {0x00: 'amoadd.w', 0x01: 'amoswap.w', 0x02: 'lr.w', 0x03: 'sc.w',
            0x04: 'amoxor.w', 0x08: 'amoor.w', 0x0C: 'amoand.w',
            0x10: 'amomin.w', 0x14: 'amomax.w', 0x18: 'amominu.w',
@@ -108,7 +113,27 @@ def decode(w):
     if op == 0x23:
         return _STORE.get(f3)
     if op == 0x0F:
-        return 'fence' if f3 == 0 else None
+        # K5 Zicboz: MISC-MEM funct3=010, rd=x0, imm[11:0]=0x004, rs1 free.
+        # rs1 IS free, which is the entire content of R-K2-5's correction: the
+        # S5 ledger's "ends 200f" shorthand is true only for rs1 in {x0,x1}
+        # because rs1 sits in bits 19:15, inside the low sixteen.  This decode
+        # reads the fields and does not care.  cbo.clean/flush/inval (imm 1/2/0)
+        # are deliberately NOT named: the RTL traps them (cbozill.S is the
+        # standing proof), so an encoding of one inside a stream is a finding,
+        # and an unnamed encoding is a census FAILURE rather than a silent skip.
+        if f3 == 2:
+            return 'cbo.zero' if (rd == 0 and ((w >> 20) & 0xFFF) == 0x004) \
+                else None
+        if f3 != 0:
+            return None
+        # K5: `pause` IS a FENCE encoding -- fm=0, pred=W, succ=0, rd=rs1=0,
+        # i.e. the whole word 0x0100000F.  A decoder that stopped at
+        # `op == 0x0F and f3 == 0` would count it as `fence` and put it in the
+        # wrong class, which is R-K2-5's lesson one field deeper: the
+        # discriminator is in the fields, so read the fields.
+        if w == 0x0100000F:
+            return 'pause'
+        return 'fence'
     if op == 0x13:
         if f3 in _OPIMM:
             return _OPIMM[f3]
@@ -141,6 +166,15 @@ def decode(w):
         return None
     if op == 0x33:
         if f7 == 0x00:
+            # K5 Zihintntl: `add x0, x0, rs2` with rs2 in {x2,x3,x4,x5} IS the
+            # hint encoding -- the architecture says so, so this is a correct
+            # decode of anyone's bytes and not a generator-specific reading.
+            # objdump 2.41 has no `ntl.*` mnemonic and prints `add zero,zero,sp`;
+            # the unit test therefore referees the ENCODING against objdump and
+            # owns the MNEMONIC here, which is the honest split.
+            if f3 == 0 and rd == 0 and ((w >> 15) & 0x1F) == 0 \
+                    and rs2 in _NTL_RS2:
+                return _NTL_RS2[rs2]
             return _OP_F0.get(f3)
         if f7 == 0x20:
             return _OP_F20.get(f3)
@@ -188,10 +222,74 @@ def decode(w):
             # is deliberately NOT named here.
             return 'fclass.s' if (rs2 == 0 and f3 == 1) else None
         return None
+    if op == 0x73:
+        # SYSTEM.  The ONLY encodings named here are the two Zawrs ones
+        # (funct3=000, rd=x0, rs1=x0, funct12 = 0x00D / 0x01D).  Everything else
+        # in this opcode -- every CSR access, ecall, ebreak, mret, wfi -- stays
+        # UNNAMED on purpose: the generator emits no SYSTEM instruction inside
+        # the census range other than these two, so an unnamed one appearing
+        # there is a real finding and must surface as a census failure.
+        if f3 == 0 and rd == 0 and ((w >> 15) & 0x1F) == 0:
+            return _WRS_F12.get((w >> 20) & 0xFFF)
+        return None
     if op in _FMA_OP:
         return _FMA_OP[op] if (f7 & 0x03) == 0 else None
     del rd
     return None
+
+
+# --------------------------------------------------------------------------
+# K5: the 16-bit half of the decoder.
+#
+# gas 2.41 cannot assemble `cm.*` and objdump 2.41 cannot disassemble it
+# (measured), so this table has NO third-party referee of its own.  What it has
+# instead is a known-NONZERO cross-check (method rule 4): the X3 wave's directed
+# tests carry hand-verified literals -- extzcmp.S 0xB852 / 0xBA52 and
+# extzcmt.S 0xA016 -- and `test_randgen.py` asserts this decoder names all three
+# correctly AND that `stream.zcmp_push_pop_word`/`zcmt_word` reproduce them.
+# The generator's encoder and this decoder are written from the spec
+# independently, exactly as the 32-bit halves are.
+#
+# Scope is deliberately narrow: ONLY the C2/funct3=101 shapes the generator can
+# emit.  Every other 16-bit encoding -- `c.addi`, `c.lw`, all of Zcb -- returns
+# None, and `stream_words` turns that into the same hard CensusError it has
+# always raised, so `.option norvc` keeps precisely the guarantee it had before
+# this file learned to read 16 bits at all.
+# --------------------------------------------------------------------------
+def decode16(h):
+    """16-bit encoding -> mnemonic, or None if this decoder does not name it."""
+    if (h & 0x3) != 0x2:
+        return None                       # not quadrant C2
+    if (h >> 13) & 0x7 != 0x5:
+        return None                       # not funct3 101
+    if (h >> 12) & 1 == 0:
+        if (h >> 10) & 0x3 == 0:
+            # cm.jt / cm.jalt; index = bits 9:2.  The mnemonic is decided by the
+            # index, exactly as `vesta.vhd`'s `zcm_jt_link <= '1' when
+            # unsigned(zcm_index) >= 32` decides whether ra is written.
+            idx = (h >> 2) & 0xFF
+            return 'cm.jalt' if idx >= 32 else 'cm.jt'
+        return None                       # moves / reserved: not emitted here
+    # bit12 = 1: the push/pop family.  bit11 must be 1 and bit8 must be 0, and
+    # rlist (bits 7:4) must be >= 4 -- c_dec.vhd refuses otherwise and leaves
+    # `dec` all-zero, i.e. illegal-instruction.  A word that fails those tests
+    # is NOT a cm.push this instrument may count.
+    if (h >> 11) & 1 != 1 or (h >> 8) & 1 != 0:
+        return None
+    if ((h >> 4) & 0xF) < 4:
+        return None
+    sub = (h >> 9) & 0x3
+    return {0: 'cm.push', 1: 'cm.pop'}.get(sub)   # 2/3 = popretz/popret
+
+
+def zcmp_fields(h):
+    """(rlist, spimm) of a cm.push/cm.pop word -- for the unit tests."""
+    return ((h >> 4) & 0xF, (h >> 2) & 0x3)
+
+
+def zcmt_index(h):
+    """The table index of a cm.jt/cm.jalt word -- for the unit tests."""
+    return (h >> 2) & 0xFF
 
 
 # The class each decoded mnemonic belongs to.  Kept HERE, not imported from
@@ -221,6 +319,15 @@ for _cls, _ms in (
     ('zbs', ['bclr', 'bext', 'binv', 'bset',
              'bclri', 'bexti', 'binvi', 'bseti']),
     ('zbc', ['clmul', 'clmulh', 'clmulr']),
+    # K5 queue item 4.  Written here from the decode table's own names, never
+    # imported from isa_model -- a mnemonic this file can decode but forgets to
+    # class shows up as `unclassed`, which is a census failure, rather than
+    # being silently agreed with.
+    ('zicboz', ['cbo.zero']),
+    ('zawrs', list(_WRS_F12.values())),
+    ('zihint', ['pause'] + list(_NTL_RS2.values())),
+    ('zcmp', ['cm.push', 'cm.pop']),
+    ('zcmt', ['cm.jt', 'cm.jalt']),
 ):
     for _m in _ms:
         MNEMONIC_CLASS[_m] = _cls
@@ -303,19 +410,41 @@ def stream_words(elf, section='.text.init',
             'stream range [0x%x,0x%x) is not inside %s [0x%x,0x%x)'
             % (lo, hi, section, vma, vma + size))
     blob = data[lo - vma:hi - vma]
-    if len(blob) % 4:
+    if len(blob) % 2:
         raise CensusError('stream range is %d bytes -- not a whole number of '
-                          '32-bit instructions.  `.option norvc` is supposed to '
-                          'make that impossible; a 16-bit encoding in the range '
-                          'is a real finding, not a rounding error.' % len(blob))
+                          'RISC-V instructions (every encoding is a multiple '
+                          'of 2 bytes).' % len(blob))
+    # K5: the range is walked by ENCODING LENGTH, not in fixed 4-byte steps.
+    # Until v1.3.0 every instruction here was 32-bit and a 16-bit word was, by
+    # itself, the finding.  Zcmp/Zcmt are 16-bit by construction and gas has no
+    # mnemonic for them, so the generator emits them as `.short` -- which means
+    # the instrument has to be able to READ 16 bits without losing the
+    # protection the old hard refusal gave.  It does not lose it: a 16-bit word
+    # `decode16` cannot NAME still raises exactly the CensusError it always did,
+    # so `c.addi` (or anything else `.option norvc` was supposed to prevent) is
+    # still a hard stop.  What changed is that four deliberately-emitted
+    # encodings are now nameable, not that unknown ones are tolerated.
     out = []
-    for i in range(0, len(blob), 4):
-        (w,) = struct.unpack('<I', blob[i:i + 4])
-        if (w & 3) != 3:
-            raise CensusError(
-                'word at 0x%x is a 16-bit (compressed) encoding (0x%04x) -- '
-                '`.option norvc` did not hold' % (lo + i, w & 0xFFFF))
-        out.append((lo + i, w))
+    i = 0
+    while i < len(blob):
+        (h,) = struct.unpack('<H', blob[i:i + 2])
+        if (h & 3) == 3:
+            if i + 4 > len(blob):
+                raise CensusError(
+                    'truncated 32-bit encoding at 0x%x -- the range ends '
+                    'mid-instruction' % (lo + i))
+            (w,) = struct.unpack('<I', blob[i:i + 4])
+            out.append((lo + i, w))
+            i += 4
+        else:
+            if decode16(h) is None:
+                raise CensusError(
+                    'word at 0x%x is a 16-bit (compressed) encoding (0x%04x) '
+                    'that this instrument does not name -- `.option norvc` did '
+                    'not hold, or a Zcmp/Zcmt shape outside the four the '
+                    'generator emits reached the range' % (lo + i, h))
+            out.append((lo + i, h))
+            i += 2
     return out
 
 
@@ -326,7 +455,10 @@ def census(elf, **kw):
     undec, uncls = [], []
     words = stream_words(elf, **kw)
     for addr, w in words:
-        m = decode(w)
+        # The low two bits are the RISC-V length encoding, so which decoder
+        # applies is a property of the WORD and not of anything the generator
+        # told us.
+        m = decode(w) if (w & 3) == 3 else decode16(w)
         if m is None:
             undec.append((addr, w))
             continue

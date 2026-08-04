@@ -1,6 +1,31 @@
 {
-  "asm_sha1": "66920a5e999aef9072fd0b333a312ff6400fc390",
-  "blocked_classes": [],
+  "asm_sha1": "f517c7008ffc66aad96f4aba88f7cf76157a16f4",
+  "blocked_classes": [
+    [
+      "zfinx",
+      "config knob(s) off: zfinx"
+    ],
+    [
+      "zicboz",
+      "config knob(s) off: zicboz"
+    ],
+    [
+      "zawrs",
+      "config knob(s) off: zawrs"
+    ],
+    [
+      "zihint",
+      "config knob(s) off: zihint"
+    ],
+    [
+      "zcmp",
+      "config knob(s) off: zcmp"
+    ],
+    [
+      "zcmt",
+      "config knob(s) off: zcmt"
+    ]
+  ],
   "census_opaque_classes": [
     "clint_irq"
   ],
@@ -53,7 +78,8 @@
   "negctrl": "escape-store",
   "profile": "base",
   "rcf": "xxxxrv32uk-p-k3nc1.rcf",
+  "required_amendments": [],
   "seed": 901,
   "total_instructions": 195,
-  "version": "1.2.0"
+  "version": "1.3.0"
 }

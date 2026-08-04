@@ -42,6 +42,8 @@ tests assert `census.decode(gas(m)) == m` for every mnemonic below, with
 Python 3.6 compatible.
 """
 
+import re
+
 # --------------------------------------------------------------------------
 # Oracle verdicts, quoted from k0_oracle_probe.md §1.2's table.  The citation
 # is part of the datum: a status without its measurement is an opinion.
@@ -83,7 +85,10 @@ KNOB_ORACLE = (
                       'a COUNTER read diverges by construction (real RTL event '
                       'counters vs a hardwired zero -- finding F1), so the knob '
                       'is judgeable only for streams that never read one'),
-    ('zawrs',      A, 'k0 §1.2/§1.3c: RTL gate is ZAWRS *and* ATOMICS'),
+    ('zawrs',      A, 'k0 §1.2/§1.3c: RTL gate is ZAWRS *and* ATOMICS. K5: a '
+                      'generated wrs is judgeable, but the CLASS is emitted '
+                      'suite-only under the standing screen -- see the '
+                      '`zawrs` CLASSES row'),
     ('zabha',      A, 'k0 §1.2: `_zabha`, WITNESS amoadd.b'),
     ('zacas',      A, 'k0 §1.2: `_zacas`, WITNESS amocas.w'),
     ('zicboz',     E, 'k0 §1.3d: RTL emits 1 R + SIXTEEN M S, Spike emits 1 + 0 '
@@ -91,7 +96,39 @@ KNOB_ORACLE = (
                       'count- and geometry-checked (a 15-store burst is still '
                       'caught)',
                       ('cboz-stores',)),
-    ('zcmp',       A, 'k0 §1.3l: record counts match exactly on both sides'),
+    # zcmp: A (K0) -> B (K4-L3) -> E (K5 queue item 2).  THE HISTORY IS THE
+    # DATUM.  K0 §1.3l measured only that the record COUNTS match, and wrote A.
+    # K4-L3 then measured the record ORDER and found the two sides emit ONE
+    # frame's memory records in different orders -- so the counts matched and
+    # the stream still could not be compared positionally.  A was therefore a
+    # judgeability claim the measurement did not support, and it was live in
+    # this table for the whole of K4.  K5 queue item 2 landed the
+    # `zcmp-frame-order` amendment (canonicalise ONE frame retire's memory
+    # records into ascending address order, INDEPENDENTLY on each side; nothing
+    # is dropped), which is exactly the E contract: emittable, and the run must
+    # carry the named amendment.
+    #
+    # THE PRE-FLIP REFUSAL WAS MEASURED, NOT ASSUMED (K5 item 4).  With this row
+    # at B, `available_classes` on a zcmp-ON config blocked EXACTLY ONE class --
+    # zcmp -- with the reason "oracle verdict B (comparator amendment is K2b and
+    # does not exist)", and `allow_unmodelled=True` re-admitted exactly that one
+    # and nothing else.  That is the FIRST FIRING of the refusal arm in this
+    # programme: R-K3-2's D-3 recorded it had never fired, and R-K4-3 (4)
+    # measured that no CONFIGURATION could make it fire and named it a K5
+    # emitter question.  It was, and this is the answer.  R-K4-3 (4)'s
+    # accompanying instruction -- do not "prove" a new class by making the arm
+    # fire -- is honoured: B is not a pose, it is this knob's honest state
+    # between K4-L3's measurement and K5 queue item 2's amendment, and the flip
+    # below is the amendment landing, not the demonstration ending.
+    ('zcmp',       E, 'k0 §1.3l counted the records and said A; K4-L3 MEASURED '
+                      'the frame store ORDER and the two sides differ, so A was '
+                      'a judgeability claim the measurement did not support. '
+                      'K5 queue item 2 landed `zcmp-frame-order`, which '
+                      'canonicalises ONE frame retire\'s memory records into '
+                      'ascending address order INDEPENDENTLY on each side -- '
+                      'nothing is dropped, the full window survives, and cm.pop '
+                      '(recorded UNVERIFIED at K4-L3) is inside it',
+                      ('zcmp-frame-order',)),
     ('zcmt',       E, 'k0 §1.3e: cm.jt does a data-port table load the reference '
                       'never logs -- reconciled by K2b amendment `cmjt-load`, '
                       'bounded by addr == jvt + 4*index. The jvt WARL asymmetry '
@@ -138,21 +175,59 @@ KNOB_AMENDMENTS = dict((r[0], tuple(r[3]) if len(r) > 3 else ())
 # --------------------------------------------------------------------------
 # HARD REFUSALS -- the things k3_spec.md requirement 3 forbids outright, each
 # with the measurement behind it.  These are not weights; nothing may switch
-# them on.  Enforced by `assert_no_forbidden_text()` over the emitted body, so
-# that a future emitter cannot reintroduce one silently.
+# them on.
+#
+# K5 CORRECTION (method rule 12: a wrong rationale is worse than none).  This
+# header said, from K3 until now, "Enforced by `assert_no_forbidden_text()`
+# over the emitted body, so that a future emitter cannot reintroduce one
+# silently."  THAT FUNCTION DID NOT EXIST -- anywhere in the tree.  The table
+# was a comment claiming an enforcement it did not have, for two waves, while
+# every emitter that could have violated it happened not to.  K5 queue item 4
+# adds five emitters, one of which writes a CSR for the first time in the
+# generator's life, so the claim is now made true instead of edited away:
+# `assert_no_forbidden_text()` is below, it is called from
+# `randgen.build_stream`, and the unit tests see it FAIL before its silence
+# means anything (method rule 1).  Its limits are documented AT the function --
+# it is a TEXT scan, not a semantic one, and it says so.
 # --------------------------------------------------------------------------
 FORBIDDEN = (
     ('mip write',
      'k0 §1.3n: `mip` is a READ-ONLY mirror in the RTL and WRITABLE in M-mode '
      'in Spike -- a stream that writes it diverges by construction.'),
-    ('jvt write',
+    # K5 REFINEMENT, and it is a refinement rather than a relaxation.  The
+    # hazard is not "writing jvt", it is writing a jvt value whose low six bits
+    # are nonzero: the RTL pins jvt[5:0] to zero, Spike stores what you wrote,
+    # and `C.val` is a compared field.  A 64-byte-aligned base makes the two
+    # sides agree by construction, which is what `isa_model`'s own zcmt note
+    # has said since K2b ("every real table base is 64-byte aligned") while
+    # this entry still read as an absolute ban.  The Zcmt emitter writes jvt
+    # exactly once, in the PROLOGUE, from a `.align 6` table symbol.
+    ('jvt write with a nonzero low 6 bits',
      'k0 §1.3e: the RTL pins jvt[5:0] to zero, Spike stores what you wrote. '
-     'Both legal WARL, different values, and C.val is a compared field.'),
+     'Both legal WARL, different values, and C.val is a compared field. A '
+     '64-byte-aligned base is SAFE and is what the Zcmt emitter writes.'),
     ('mtvec MODE != 0',
      'k0 §1.3n: mtvec MODE is WARL "00" in the RTL and vectored-capable in Spike.'),
-    ('opcode 0x0b',
+    # K5 CORRECTION, and the correction is the interesting half.  Read
+    # literally, this row said "no opcode 0x0b anywhere", and EVERY irq-profile
+    # stream since K3 v1.0.0 has emitted an `iret` -- in the CLINT ISR that
+    # `emit.render` writes.  Nothing caught it, because the enforcement the
+    # FORBIDDEN header claimed did not exist (see the header).  When the check
+    # was finally implemented, in K5, it fired on `k3i01` immediately.
+    #
+    # The EMISSION is correct and the ROW was wrong.  `clint_irq` is oracle
+    # verdict C, admitted precisely because the V3 `BRACKET_ISR` channel exists;
+    # the reference never executes the bracketed handler, so the `iret` inside
+    # it is never a compared record.  What the row actually forbids is opcode
+    # 0x0b in the COMPARED stream -- i.e. inside the census range -- and that is
+    # the scope `assert_no_forbidden_text` now enforces.  A missing instrument
+    # hid a wrong rule rather than a wrong emission, which is method rule 12
+    # measured rather than quoted.
+    ('opcode 0x0b in the census range',
      'k0 §1.5: iret/extinguish/ignite TRAP in Spike under EVERY --isa string. '
-     'Verdict C for every config; the treatment is the bracket channel.'),
+     'Verdict C for every config. The ONE sanctioned site is the CLINT ISR, '
+     'which the V3 BRACKET_ISR channel excises from the comparison; anywhere '
+     'the reference actually executes, it is fatal.'),
     ('mutex-bank AMO/LR/SC',
      'CLAUDE.md: an `lw` of a mutex address is an atomic claim WITH A SIDE '
      'EFFECT; never AMO or LR/SC one.'),
@@ -210,6 +285,51 @@ M_ZFINX_R = ('fadd.s', 'fsub.s', 'fmul.s', 'fdiv.s', 'fmin.s', 'fmax.s',
 M_ZFINX_UN = ('fsqrt.s', 'fclass.s', 'fcvt.w.s', 'fcvt.wu.s', 'fcvt.s.w',
               'fcvt.s.wu')
 
+# --------------------------------------------------------------------------
+# K5 queue item 4 -- the five emitter-less state-bearing Z rows R-K4-2 (2)
+# dropped from the campaign with "write the emitters" filed for K5.
+#
+# THE TOOLCHAIN SPLITS THEM IN TWO, AND THE SPLIT DECIDES WHAT CAN BE TRUSTED.
+# Measured on this tree's gas/objdump 2.41, not assumed:
+#   * `zicboz`, `zawrs`, `zihint`(pause) have BOTH a mnemonic and a `.option
+#     arch, +<ext>` fragment, and `objdump -M no-aliases` names them back.  The
+#     K3 contract is intact for them: the generator emits TEXT, gas encodes,
+#     census decodes the BYTES, objdump referees.
+#   * `zcmp` and `zcmt` have NEITHER.  gas 2.41 rejects `_zcmp`, `_zcmt` and
+#     `_zca` outright ("unknown prefixed ISA extension") and objdump prints
+#     `.word`/`.short` for their encodings.  So for exactly these two classes
+#     the generator must ENCODE the 16-bit words itself and BOTH third parties
+#     are gone.  The substitute referee is a known-NONZERO one (method rule 4):
+#     the X3 wave's directed tests carry hand-verified literals -- `0xB852`
+#     (`cm.push {ra,s0},-16`), `0xBA52` (`cm.pop {ra,s0},16`), `0xA016`
+#     (`cm.jt 5`) -- and the unit tests assert this encoder reproduces all
+#     three.  A third, independent referee arrives at run time: Spike decodes
+#     the same bytes, so a clean lockstep cell is itself a decode check.
+#     This weakening is stated rather than papered over.
+# `zihint`'s ntl group is a THIRD case: gas has no `_zihintntl` and no `ntl.*`
+# mnemonic, but the encodings ARE plain `add x0, x0, x{2,3,4,5}` which gas
+# assembles under the base ISA and objdump names as `add`.  So gas and objdump
+# both survive for ntl at the ENCODING level and only the MNEMONIC is ours.
+# --------------------------------------------------------------------------
+M_ZICBOZ = ('cbo.zero',)
+M_ZAWRS = ('wrs.nto', 'wrs.sto')
+# `pause` is `fence w,0` -- opcode 0x0F funct3 0 -- so a decoder that keys on
+# the opcode alone CONFLATES it with the generator's `fence iorw,iorw`.  That is
+# the R-K2-5 lesson one field deeper, and census.py decodes the full imm/rd/rs1
+# to keep them apart.
+M_ZIHINT = ('pause', 'ntl.p1', 'ntl.pall', 'ntl.s1', 'ntl.all')
+# Zcmp: push/pop ONLY.  cm.popret/cm.popretz are deliberately absent -- both
+# END with a jump to `ra`, which would put a backward-capable transfer inside
+# the census range and break the DAG termination invariant.  cm.mva01s/cm.mvsa01
+# are absent because their operands are a0/a1 and s0/s1, every one of which is a
+# RESERVED register here (a0 is the riscv_tb verdict register).
+M_ZCMP = ('cm.push', 'cm.pop')
+# Zcmt: cm.jt (index < 32, no link) and cm.jalt (index >= 32, links ra).  Both
+# are real control transfers, and the emitter keeps the DAG by aiming cm.jt's
+# table entry at the address of the NEXT instruction and cm.jalt's at a
+# returning subroutine -- see stream._e_zcmt.
+M_ZCMT = ('cm.jt', 'cm.jalt')
+
 # class name -> (required isa.* knobs, oracle verdict, human description)
 CLASSES = (
     ('alu_reg', (), A, 'base-I register-register ALU'),
@@ -232,9 +352,37 @@ CLASSES = (
     ('zbc', ('bitmanip',), A, 'Zbc carry-less multiply'),
     ('zfinx', ('zfinx',), A, 'Zfinx single-precision FP in the x-registers '
                              '(FPU_WAIT/FPU_DONE, the fflags sticky-OR)'),
+    ('zicboz', ('zicboz',), A, 'Zicboz cbo.zero 64-byte block zero '
+                               '(CBOZ_WRITE/CBOZ_GAP burst sequencer)'),
+    # The RTL gates wrs on ZAWRS *and* ATOMICS (k0 §1.3c), so BOTH knobs are
+    # required -- config.py already inherits oracle_isa's refusal of the
+    # zawrs-without-atomics combination, and this row is the generator's half.
+    ('zawrs', ('zawrs', 'atomics'), A, 'Zawrs wrs.nto/wrs.sto '
+                                       '(WRS_WAIT, no-reservation wake)'),
+    ('zihint', ('zihint',), A, 'Zihint pause + the four ntl hints'),
+    ('zcmp', ('zcmp',), A, 'Zcmp cm.push/cm.pop frame pair (ZCM_* sequencer)'),
+    ('zcmt', ('zcmt',), A, 'Zcmt cm.jt/cm.jalt table jump (ZCM_JT_LD)'),
     ('clint_irq', (), C, 'CLINT msip self-injection (legacy IVT delivery; '
                          'lockstep needs BRACKET_ISR=1)'),
 )
+
+# Classes whose streams this generator declines to hand to the LOCKSTEP gate
+# even though nothing in the oracle table refuses them -- the reason is not
+# judgeability but a STANDING SCREEN, and it is recorded here so a future run
+# cannot quietly promote one.
+#
+# `zawrs`: R-K5 carries the standing screen forward -- the class is suite-only.
+# The screen's original subject was the DIRECTED test (`rv32ua-p-extzawrs`
+# scores 4 counter-CSR reads, 6 MMIO sites and an `iret`, which is why B6 has
+# no gate list at all), and a GENERATED wrs stream has none of those; so the
+# honest statement is that the screen is inherited, not re-derived, and the
+# class's lockstep eligibility is an OPEN question this wave did not settle.
+# `zihint`: pause retires in BOTH polarities (k0 §1.3b), so a zihint stream is
+# byte-identical content whether the knob is on or off.  A lockstep cell over
+# it would be judging the base ISA with a config label attached -- R-K2-7(2)'s
+# plumbing-control shape -- so the demonstration is the SUITE, where the claim
+# "the encoding retires and touches nothing" is exactly what is checked.
+SUITE_ONLY_CLASSES = ('zawrs', 'zihint')
 
 CLASS_NEEDS = dict((n, need) for (n, need, _o, _d) in CLASSES)
 CLASS_OWN_ORACLE = dict((n, o) for (n, _need, o, _d) in CLASSES)
@@ -296,6 +444,11 @@ CLASS_MNEMONICS = (
     ('zbs', M_ZBS_R + M_ZBS_IMM),
     ('zbc', M_ZBC),
     ('zfinx', M_ZFINX_R + M_ZFINX_UN),
+    ('zicboz', M_ZICBOZ),
+    ('zawrs', M_ZAWRS),
+    ('zihint', M_ZIHINT),
+    ('zcmp', M_ZCMP),
+    ('zcmt', M_ZCMT),
 )
 
 MNEMONIC_CLASS = {}
@@ -317,6 +470,107 @@ CENSUS_OPAQUE_CLASSES = ('clint_irq',)
 
 class UnmodellableClass(Exception):
     """A class the reference model cannot be asked to judge."""
+
+
+class ForbiddenEmission(Exception):
+    """The emitted text contains something the FORBIDDEN table bans."""
+
+
+# The `.option arch, +<frag>` fragments a config's emitted classes need, for
+# the extensions gas 2.41 KNOWS.  Deliberately march-INDEPENDENT: the rv32uk
+# group's `-march` is fixed in verification/isa/Makefile and cannot follow a
+# config, so the arch a stream needs travels inside the stream (the pattern
+# `tests/rv32ua/extzawrs.S` and friends already use).  Zcmp/Zcmt are absent
+# because gas 2.41 has no `_zcmp`/`_zcmt`/`_zca` at all -- their encodings are
+# emitted as raw `.short`, which needs no arch.
+ARCH_FRAGMENTS = (
+    ('zicboz', 'zicboz'),
+    ('zawrs', 'zawrs'),
+    ('zihint', 'zihintpause'),
+)
+
+
+def arch_fragments(cfg_isa, class_names):
+    """The `.option arch, +X` fragments the census range needs, in table order."""
+    out = []
+    for knob, frag in ARCH_FRAGMENTS:
+        if not cfg_isa.get(knob):
+            continue
+        for name in class_names:
+            if knob in CLASS_NEEDS[name]:
+                out.append(frag)
+                break
+    return out
+
+
+# The textual signatures a FORBIDDEN item leaves in the emitted assembly.  Each
+# entry is (regex, the FORBIDDEN row it enforces).  Kept as raw text rather than
+# as a re-implementation of the encoders, because the thing being defended
+# against is an EMITTER that writes one of these lines -- and an emitter writes
+# text.  Rule 16: a proof that needs a shell one-liner beats one that needs a
+# bespoke decoder.
+# scope: 'file' = the whole emitted `.S`; 'range' = between k3_stream_begin and
+# k3_stream_end only.  The scope is part of the rule, not an optimisation --
+# see the `opcode 0x0b` FORBIDDEN row for the case that forced the distinction.
+_FORBIDDEN_PATTERNS = (
+    (r'\bcsr[rw][wsci]*\s+[^,;#]*\b(mip|0x344)\b', 'file', 'mip write'),
+    (r'\bcsr[rw][wsci]*\s+[^,;#]*\bmhpmevent\d*\b', 'file', 'mhpmevent write'),
+    (r'\bcsr[rw][wsci]*\s+[^,;#]*\b(mtvec|0x305)\b', 'file', 'mtvec MODE != 0'),
+    (r'\b(iret|extinguish|ignite)\b', 'range',
+     'opcode 0x0b in the census range'),
+)
+
+RANGE_BEGIN = 'k3_stream_begin:'
+RANGE_END = 'k3_stream_end:'
+
+
+def assert_no_forbidden_text(text, allow=()):
+    """Raise `ForbiddenEmission` if the emitted text trips a FORBIDDEN row.
+
+    WHAT THIS IS AND IS NOT, stated at the site so no future reader over-reads
+    it (the defect this function replaces was exactly an over-read comment):
+
+      * It IS a text scan of the WHOLE emitted `.S`, prologue and epilogue
+        included -- the reference executes those too, so a forbidden encoding
+        is just as fatal there as in the census range.
+      * It is NOT semantic.  It cannot see a `csrw` whose CSR number arrives in
+        a register, it cannot evaluate a `jvt` value that comes from `la`, and
+        it cannot tell a mutex address from any other address held in a
+        register.  Those three are structural properties of the emitters
+        instead: v1.3.0 emits exactly ONE CSR write in the whole generator
+        (`csrw 0x017, <reg>` from a `.align 6` table symbol, Zcmt only), and no
+        emitter can construct an address outside the scratch block.
+      * `allow` is the ESCAPE for a caller that owns the exception in writing.
+        The Zcmt prologue's `mtvec`-free `csrw 0x017` needs no escape; the
+        parameter exists so that a future emitter with a measured argument
+        writes the argument down rather than deleting a pattern.
+
+    A scan that has never rejected anything is worth nothing (method rule 1),
+    so `test_randgen.py` feeds it each pattern and asserts it fires.
+    """
+    lines = text.splitlines()
+    lo = hi = None
+    for n, line in enumerate(lines):
+        if line.strip() == RANGE_BEGIN:
+            lo = n
+        elif line.strip() == RANGE_END:
+            hi = n
+    bad = []
+    for pat, scope, row in _FORBIDDEN_PATTERNS:
+        if row in allow:
+            continue
+        for n, line in enumerate(lines, 1):
+            if scope == 'range':
+                if lo is None or hi is None or not (lo + 1 < n <= hi):
+                    continue
+            code = line.split('#', 1)[0]
+            if re.search(pat, code):
+                bad.append('line %d trips FORBIDDEN row %r (scope %s): %s'
+                           % (n, row, scope, line.strip()))
+    if bad:
+        raise ForbiddenEmission(
+            'the emitted stream contains %d forbidden encoding(s):\n  %s'
+            % (len(bad), '\n  '.join(bad)))
 
 
 def available_classes(cfg_isa, allow_unmodelled=False):

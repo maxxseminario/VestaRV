@@ -19,6 +19,22 @@
 # change, or gas will reject the stream at build time (which is the intended
 # second gate, not a surprise).
 #
+# K5 queue item 4: the k5* streams are the DEMONSTRATIONS for the five emitters
+# R-K4-2 (2) filed for this wave (zicboz / zcmp / zcmt / zawrs / zihint), one
+# per class, each generated on ITS OWN config's resolved.json -- the digest in
+# each header is that config's, not the default's, and a stream will NOT
+# reproduce against the default config (`randgen verify` refuses on the digest,
+# by design).  They are BUILT by this Makefrag on every config, and they are
+# only MEANINGFUL on the config they were generated for; nothing selects them
+# on any other, because they are in no standing list.
+#
+# THEY CARRY THEIR OWN `-march` REQUIREMENTS INSIDE THE FILE.  gas 2.41 has a
+# `_zicboz`/`_zawrs`/`_zihintpause` fragment and the streams enable it with
+# `.option arch, +X` around the census range; it has NO `_zcmp`/`_zcmt` at all,
+# so those two classes are emitted as raw 16-bit `.short`.  Neither needs the
+# group march below to change, which is deliberate: the group march cannot
+# follow a config and a per-config march here would be a second place to drift.
+#
 # k3nc* ARE NEGATIVE CONTROLS AND ARE EXPECTED TO **FAIL**.
 # They exist so the streams' epilogue discipline checks can be SEEN TO FAIL
 # (method rule 1).  They must never appear in xrun_parallel.sh's TEST_FILES,
@@ -34,6 +50,11 @@ rv32uk_sc_tests = \
 	k3i02 \
 	k3nc1 \
 	k3nc2 \
+	k5cbz \
+	k5cmp \
+	k5cmt \
+	k5wrs \
+	k5hnt \
 
 rv32uk_p_tests = $(addprefix rv32uk-p-, $(rv32uk_sc_tests))
 rv32uk_v_tests = $(addprefix rv32uk-v-, $(rv32uk_sc_tests))
