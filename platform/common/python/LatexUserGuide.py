@@ -178,8 +178,50 @@ class LatexUserGuide():
 		return
 
 	def GenerateDefinesFile(self):
-		# Generate revision date string
-		dt = datetime.datetime.now()
+		# Generate revision date string.
+		#
+		# K5 (F-K5-2).  This was `datetime.datetime.now()`, and that ONE call
+		# made `make check-publish` structurally unpassable on any day after
+		# the day the TRM was last published -- with ZERO content change.  The
+		# Makefile has `verify: generate`, so every `make verify` silently
+		# restamped the published-vs-rebuilt comparison, and the pre-commit
+		# hook that runs check-publish therefore failed for a reason that had
+		# nothing to do with what it guards.  It trained three waves to bypass
+		# it with `--no-verify`.  A hook whose signal is not about the thing it
+		# is guarding is worse than no hook: it spends the credibility that
+		# makes the NEXT real failure get read.
+		#
+		# Measured at K5 queue item 6: the "stale" published TRM and a fresh
+		# rebuild had 12,012 identical text lines and 609 of 613 byte-identical
+		# content streams; the entire difference was `Revised July 31st` vs
+		# `Revised August 3rd`.
+		#
+		# THE FIX IS CONTENT-DERIVED, and deliberately NOT the Makefile's
+		# SOURCE_DATE_EPOCH.  That variable is documented in the Makefile as
+		# "an ARBITRARY FIXED instant (2025-01-01 UTC), not the build time",
+		# chosen so identical TRM.tex gives a byte-identical TRM.pdf.  Reusing
+		# it for the VISIBLE revision date would make every TRM say "Revised
+		# January 1st, 2025" forever -- a reproducible gate bought with a false
+		# statement on the title page, which is method rule 12 with a wider
+		# audience than usual.
+		#
+		# `VESTA_TRM_DATE_EPOCH` is set by the Makefile from the newest COMMIT
+		# DATE of the TRM's own input set, so the date means what it says --
+		# when the TRM's inputs last changed -- AND is identical for everyone
+		# who checks out the same tree on any day.  That is what makes
+		# check-publish a gate about content again.
+		#
+		# Precedence, and each fallback is a real case: the content-derived
+		# epoch; then SOURCE_DATE_EPOCH, for a caller that has pinned time
+		# deliberately; then `now()`, so a bare `python3 generate.py` outside
+		# the Makefile still produces a dated document rather than a
+		# mysterious fixed one.
+		_ep = os.environ.get('VESTA_TRM_DATE_EPOCH') \
+			or os.environ.get('SOURCE_DATE_EPOCH')
+		if _ep and _ep.strip().isdigit():
+			dt = datetime.datetime.utcfromtimestamp(int(_ep.strip()))
+		else:
+			dt = datetime.datetime.now()
 		dts1 = dt.strftime('%B %d')
 		if dts1.endswith('11') or dts1.endswith('12') or dts1.endswith('13'):
 			dts1 += '$^\\textrm{th'

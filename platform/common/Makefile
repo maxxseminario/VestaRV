@@ -22,6 +22,24 @@ PDFLATEX := $(shell command -v pdflatex 2>/dev/null || ls $(HOME)/texlive/*/bin/
 # content date is config-driven, so this only affects otherwise-nondeterministic PDF
 # metadata. Do not derive it from HEAD/now, or rebuilds stop being reproducible.
 SOURCE_DATE_EPOCH ?= 1735689600
+# K5 (F-K5-2). The TRM's VISIBLE revision date, derived from the newest commit
+# date of the TRM's own input set instead of from the wall clock.
+#
+# It used to be `datetime.now()` inside LatexUserGuide.py, and because
+# `verify: generate` below, EVERY `make verify` restamped it. `check-publish`
+# -- a byte-diff of a deterministic rebuild against the published PDF, and a
+# pre-commit hook -- therefore could not pass on any day but the publish day,
+# with zero content change. It trained three waves to bypass it.
+#
+# Deliberately NOT SOURCE_DATE_EPOCH above: that is an arbitrary fixed instant
+# for PDF byte-reproducibility, and putting it on the title page would print
+# "Revised January 1st, 2025" on every TRM forever. This one MEANS something
+# and is still identical for every checkout of the same tree.
+# The `?=` lets a caller override it; the fallback keeps a git-less export
+# building (LatexUserGuide.py then falls through to SOURCE_DATE_EPOCH/now()).
+VESTA_TRM_DATE_EPOCH ?= $(shell git -C $(CURDIR) log -1 --format=%ct -- \
+    python latex config 2>/dev/null)
+export VESTA_TRM_DATE_EPOCH
 
 # Optional chip-name override for the whole configuration (TRM title page/prose,
 # generated file headers): make chip CHIP_NAME=MyChip
