@@ -1,6 +1,31 @@
 {
-  "asm_sha1": "bfb74a727a9f9a4a92af4d27dfffdcfcbf8a9dc5",
-  "blocked_classes": [],
+  "asm_sha1": "ba855ce0c50a8fcaa8fdef1bb38aceeae176ea33",
+  "blocked_classes": [
+    [
+      "zfinx",
+      "config knob(s) off: zfinx"
+    ],
+    [
+      "zicboz",
+      "config knob(s) off: zicboz"
+    ],
+    [
+      "zawrs",
+      "config knob(s) off: zawrs"
+    ],
+    [
+      "zihint",
+      "config knob(s) off: zihint"
+    ],
+    [
+      "zcmp",
+      "config knob(s) off: zcmp"
+    ],
+    [
+      "zcmt",
+      "config knob(s) off: zcmt"
+    ]
+  ],
   "census_opaque_classes": [
     "clint_irq"
   ],
@@ -53,7 +78,8 @@
   "negctrl": null,
   "profile": "irq",
   "rcf": "xxxxrv32uk-p-k3i01.rcf",
+  "required_amendments": [],
   "seed": 44,
   "total_instructions": 403,
-  "version": "1.2.0"
+  "version": "1.3.0"
 }

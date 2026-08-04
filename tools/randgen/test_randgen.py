@@ -23,6 +23,8 @@ The load-bearing tests, named so a reader knows which ones matter:
 
 from __future__ import print_function
 
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -290,10 +292,20 @@ def test_config_gate_removes_classes():
     # `zfinx` is blocked on the default-shaped config because its KNOB is off,
     # which is gate 1 (config-legality), not gate 2 (oracle-judgeability). The
     # distinction is the point: the reason string has to name the knob.
-    eq([c for (c, _w) in blocked], ['zfinx'],
-       'only the knob-off zfinx class is blocked on the default-shaped config')
-    ok('config knob(s) off: zfinx' in dict(blocked)['zfinx'],
-       'and the reason is the KNOB, not the oracle: %r' % (blocked,))
+    # K5: five more knob-off classes joined the table (the emitters R-K4-2 (2)
+    # filed for this wave), so the list grew.  What is asserted is unchanged in
+    # substance and is deliberately stated as a SET plus a property, not as a
+    # literal that has to be re-typed every time a class is added: on a
+    # default-shaped config EVERY blocked class is blocked for the CONFIG
+    # reason and none for the oracle one.
+    eq(sorted(c for (c, _w) in blocked),
+       ['zawrs', 'zcmp', 'zcmt', 'zfinx', 'zicboz', 'zihint'],
+       'the knob-off classes on the default-shaped config')
+    for c, w in blocked:
+        ok('config knob(s) off: %s' % c in w or 'config knob(s) off' in w,
+           'the reason for %s is the KNOB, not the oracle: %r' % (c, w))
+    ok(not [w for _c, w in blocked if 'oracle verdict' in w],
+       'nothing on a default-shaped config is refused by the ORACLE gate')
 
 
 @test
@@ -311,10 +323,13 @@ def test_oracle_gate_blocks_verdict_b():
         eq(isa_model.KNOB_ORACLE_STATUS[k], isa_model.B, '%s is verdict B' % k)
     eq(isa_model.KNOB_ORACLE_STATUS['zfinx'], isa_model.E,
        'zfinx is verdict E -- eligible via the K2b `zfinx-fflags` amendment')
-    # K2b amendment 2: zicboz and zcmt leave B for E. They have NO emitter class
-    # (see the end of this test), so the flip buys JUDGEABILITY, not coverage --
-    # what it means is that a stream or test carrying those encodings may now be
-    # lockstepped, provided the named amendment is on.
+    # K2b amendment 2: zicboz and zcmt leave B for E.
+    # K5 CORRECTION to this comment (method rule 12 -- a wrong rationale is
+    # worse than none, and this one would have read as current): at K2b these
+    # two had NO emitter class, so the flip bought JUDGEABILITY and not
+    # coverage.  K5 queue item 4 adds the emitters, so from v1.3.0 the flip
+    # buys both, and the tail of this test now asserts the OPPOSITE of what it
+    # asserted at K2b.  The change is recorded here rather than made silently.
     eq(isa_model.KNOB_ORACLE_STATUS['zicboz'], isa_model.E,
        'zicboz is verdict E -- eligible via `cboz-stores`')
     eq(isa_model.KNOB_ORACLE_STATUS['zcmt'], isa_model.E,
@@ -346,10 +361,19 @@ def test_oracle_gate_blocks_verdict_b():
     finally:
         isa_model.KNOB_ORACLE_STATUS['zfinx'] = saved
         isa_model.CLASS_ORACLE['zfinx'] = saved_cls
-    ne = isa_model.knobs_on_without_emitter(_fake_cfg(zicboz=True).isa,
+    # The knob-on-with-no-emitter report still works, and the class that
+    # DEMONSTRATES it changed: `zicboz` had no emitter at K2b and has one now,
+    # so the standing example is `zihpm` -- verdict B, no emitter, and R-K4-2
+    # (2)'s reason for that (a stream that reads an HPM counter diverges by
+    # construction) is unchanged.
+    ne = isa_model.knobs_on_without_emitter(_fake_cfg(zihpm=True).isa,
                                             _fake_cfg().priv)
     names = [k for (k, _v, _n) in ne]
-    ok('zicboz' in names, 'a knob-on-with-no-emitter is NAMED: %r' % names)
+    ok('zihpm' in names, 'a knob-on-with-no-emitter is NAMED: %r' % names)
+    ne2 = isa_model.knobs_on_without_emitter(_fake_cfg(zicboz=True).isa,
+                                             _fake_cfg().priv)
+    ok('zicboz' not in [k for (k, _v, _n) in ne2],
+       'zicboz has an emitter from v1.3.0 and must NOT be reported as lacking one')
 
 
 @test
@@ -604,9 +628,21 @@ def test_every_emittable_mnemonic_has_a_class():
 @test
 def test_decoder_rejects_what_it_cannot_name():
     """`None`, never a guess.  0x0000000b is the VestaRV custom opcode -- the
-    one family k3_spec.md forbids outright -- and it must NOT decode."""
-    for w in (0x0000000b, 0x0000100b, 0x0200100b, 0x00000073, 0x0045a00f):
+    one family k3_spec.md forbids outright -- and it must NOT decode.
+
+    K5 UPDATE, and the reason is recorded rather than the list quietly edited:
+    `0x0045a00f` (`cbo.zero a1`) was in this list because until v1.3.0 nothing
+    could emit it, so naming it would have been a decoder guessing beyond the
+    generator.  v1.3.0 has a Zicboz emitter, the decode is a full field decode
+    (funct3=010, rd=x0, imm=0x004) and objdump referees it, so it MOVES from
+    this list to `test_zicboz_and_zawrs_round_trip_through_gas_and_objdump`.
+    `0x00000073` (`ecall`) stays: the SYSTEM arm added for Zawrs names the two
+    wrs encodings and nothing else.
+    """
+    for w in (0x0000000b, 0x0000100b, 0x0200100b, 0x00000073):
         eq(census.decode(w), None, 'refuses to name 0x%08x' % w)
+    eq(census.decode(0x0045a00f), 'cbo.zero',
+       '0x0045a00f is now a NAMED encoding -- see the docstring')
 
 
 @test
@@ -739,6 +775,386 @@ def test_negative_controls_are_constructible():
                                        negctrl=kind)
         ok('K3 NEGATIVE CONTROL' in text, 'the file announces itself: %s' % kind)
         _compile_stream(text)
+
+
+# ==========================================================================
+# K5 queue item 4 -- the five emitter-less state-bearing Z rows.
+#
+# The ORDER of these tests is the order of the argument they make: first that
+# the two instruments (encoder, decoder) agree with a third party that is not
+# either of them; then that each emitter's SAFETY claim holds on real streams;
+# then that the oracle bookkeeping says what the manifests will carry.
+# ==========================================================================
+def _cfg_knob(knob):
+    """A complete synthetic resolved config with `knob` (and its dependants) on."""
+    over = {knob: True}
+    return _fake_cfg(**over)
+
+
+# The literals two X3-wave directed tests carry, hand-verified against the RTL
+# and against Spike long before this generator existed.  gas 2.41 cannot
+# assemble a `cm.*` mnemonic and objdump 2.41 cannot name one, so for Zcmp and
+# Zcmt these five words are the ONLY third-party referee available -- method
+# rule 4's "validate against a known NONZERO value", with the nonzero values
+# supplied by somebody else's wave.
+_ZCM_KNOWN_GOOD = (
+    # (word, mnemonic, source, kwargs for the encoder)
+    (0xB852, 'cm.push', 'tests/rv32ua/extzcmp.S', ('push', 5, 0)),
+    (0xBA52, 'cm.pop', 'tests/rv32ua/extzcmp.S', ('pop', 5, 0)),
+    (0xA016, 'cm.jt', 'tests/rv32ua/extzcmt.S', ('jt', 5, None)),
+    (0xA00E, 'cm.jt', 'tests/rv32ua/shcmt.S', ('jt', 3, None)),
+    (0xA07E, 'cm.jt', 'tests/rv32ua/shcmt.S', ('jt', 31, None)),
+    (0xA082, 'cm.jalt', 'tests/rv32ua/shcmt.S', ('jt', 32, None)),
+    (0xA0A2, 'cm.jalt', 'tests/rv32ua/shcmt.S', ('jt', 40, None)),
+)
+
+
+@test
+def test_zcm_encoder_reproduces_the_directed_tests_literals():
+    for word, mnem, src, (kind, a, b) in _ZCM_KNOWN_GOOD:
+        if kind == 'push':
+            got = k3stream.zcmp_push_pop_word(True, a, b)
+        elif kind == 'pop':
+            got = k3stream.zcmp_push_pop_word(False, a, b)
+        else:
+            got = k3stream.zcmt_word(a)
+        eq('0x%04X' % got, '0x%04X' % word,
+           'encoder vs %s (%s)' % (src, mnem))
+        eq(census.decode16(word), mnem, 'decoder vs %s' % src)
+
+
+@test
+def test_zcm_decoder_refuses_what_it_must_not_name():
+    """The 16-bit decoder's scope is four encodings, and everything else in the
+    C2/funct3=101 space must come back None -- including the two pop variants
+    that END IN A JUMP (cm.popret/cm.popretz) and would break the DAG."""
+    ok(census.decode16(0x0505) is None, 'c.addi is not named')
+    ok(census.decode16(0x4108) is None, 'c.lw is not named')
+    # push/pop family with the sub-field set to popretz (10) and popret (11).
+    base = k3stream.zcmp_push_pop_word(True, 8, 1)
+    for sub, what in ((2, 'cm.popretz'), (3, 'cm.popret')):
+        w = (base & ~(0x3 << 9)) | (sub << 9)
+        ok(census.decode16(w) is None, '%s must not be named' % what)
+    # rlist 0-3 are illegal and c_dec.vhd refuses them.
+    for rl in range(4):
+        w = (base & ~(0xF << 4)) | (rl << 4)
+        ok(census.decode16(w) is None, 'rlist %d must not be named' % rl)
+    # bit8 must be 0 and bit11 must be 1 -- both are encoding requirements the
+    # RTL enforces, so a word violating either is not a cm.push.
+    ok(census.decode16(base | (1 << 8)) is None, 'bit8=1 must not be named')
+    ok(census.decode16(base & ~(1 << 11)) is None, 'bit11=0 must not be named')
+
+
+@test
+def test_pause_is_not_fence_and_ntl_is_not_add():
+    """Both are the R-K2-5 lesson one field deeper: the opcode alone conflates
+    them, and the discriminator is in the fields."""
+    words, obj = _assemble(['pause', 'fence iorw, iorw',
+                            'add x0, x0, x2', 'add x0, x0, x5',
+                            'add x10, x11, x12'],
+                           march='rv32imac_zihintpause')
+    eq(census.decode(words[0]), 'pause', 'pause')
+    eq(census.decode(words[1]), 'fence', 'fence')
+    eq(census.decode(words[2]), 'ntl.p1', 'ntl.p1')
+    eq(census.decode(words[3]), 'ntl.all', 'ntl.all')
+    eq(census.decode(words[4]), 'add', 'an ordinary add stays an add')
+    eq(census.MNEMONIC_CLASS['pause'], 'zihint')
+    eq(census.MNEMONIC_CLASS['fence'], 'fence')
+    eq(census.MNEMONIC_CLASS['ntl.p1'], 'zihint')
+    # objdump 2.41 has no `ntl.*` mnemonic, so the third party referees the
+    # ENCODING and this module owns the NAME.  Stated, not glossed.
+    ms = _objdump_mnemonics(obj)
+    eq(ms[0], 'pause', 'objdump names pause')
+    eq(ms[2], 'add', 'objdump sees ntl as a plain add -- referee limit')
+
+
+@test
+def test_zicboz_and_zawrs_round_trip_through_gas_and_objdump():
+    words, obj = _assemble(['cbo.zero (x31)', 'cbo.zero (x4)',
+                            'wrs.nto', 'wrs.sto'],
+                           march='rv32imac_zicboz_zawrs')
+    eq([census.decode(w) for w in words],
+       ['cbo.zero', 'cbo.zero', 'wrs.nto', 'wrs.sto'])
+    eq(_objdump_mnemonics(obj), ['cbo.zero', 'cbo.zero', 'wrs.nto', 'wrs.sto'],
+       'objdump is the third party for these three classes')
+    # The sibling cbo.* operations TRAP on this core (cbozill.S is the standing
+    # proof), so the instrument must refuse to name them rather than count them.
+    for imm in (0, 1, 2):
+        w = (imm << 20) | (2 << 12) | 0x0F
+        ok(census.decode(w) is None, 'cbo imm=%d must not be named' % imm)
+
+
+@test
+def test_each_new_emitter_builds_and_censuses_clean():
+    """One dense stream per class, on that class's config, built with gas and
+    counted from its own decoded image."""
+    want = {'zicboz': 'cbo.zero', 'zawrs': 'wrs.nto', 'zihint': 'pause',
+            'zcmp': 'cm.push', 'zcmt': 'cm.jt'}
+    for knob in ('zicboz', 'zawrs', 'zihint', 'zcmp', 'zcmt'):
+        cfg = _cfg_knob(knob)
+        b, text = randgen.build_stream(cfg, 'k3u', 11, 'zext', 240, True)
+        man = randgen.manifest_for(b, cfg, 'k3u', 11, 'zext', 240, True, text)
+        e = _compile_stream(text)
+        cen = census.census(e)
+        bad = census.check_against_manifest(cen, man)
+        eq(bad, [], 'census vs manifest for %s' % knob)
+        ok(cen['counts'].get(knob, 0) > 0,
+           '%s stream actually contains %s encodings' % (knob, knob))
+        ok(cen['mnemonics'].get(want[knob], 0) > 0,
+           '%s stream contains at least one %s' % (knob, want[knob]))
+
+
+@test
+def test_zicboz_blocks_never_escape_the_scratch_window():
+    """The RTL rounds the block base DOWN to 64, so containment is a property
+    of the OFFSET, not of the address the instruction names."""
+    cfg = _cfg_knob('zicboz')
+    b, text = randgen.build_stream(cfg, 'k3u', 3, 'zext', 400, True)
+    # Scope matters here, and the first cut of this test got it wrong in a way
+    # worth keeping: it matched EVERY `addi xN, x8, imm`, which also catches
+    # `_amo_addr_reg`'s address setup -- whose offsets legitimately run to 247.
+    # The claim is about the addi that FEEDS A cbo.zero, so pair them.
+    seq = [it for it in b.items if not isinstance(it, k3stream.Label)]
+    offs = []
+    for i, it in enumerate(seq):
+        if it.cls != 'zicboz':
+            continue
+        prev = seq[i - 1].text.strip()
+        m = re.match(r'addi\s+x(\d+), x%d, (-?\d+)$' % k3stream.R_BASE_A, prev)
+        ok(m is not None, 'cbo.zero is fed by an addi off base A: %s' % prev)
+        rt = re.match(r'cbo\.zero\s+\(x(\d+)\)$', it.text.strip())
+        ok(rt is not None and rt.group(1) == m.group(1),
+           'and by the SAME register it was just given')
+        offs.append(int(m.group(2)))
+    ok(offs, 'the stream materialised at least one cbo.zero address')
+    top = k3stream.SCRATCH_BYTES - k3stream.RESERVED_TAIL
+    for off in offs:
+        base = off & ~(k3stream.CBOZ_BLOCK_BYTES - 1)
+        ok(0 <= base and base + k3stream.CBOZ_BLOCK_BYTES <= top,
+           'block [%d,%d) from offset %d is inside [0,%d)'
+           % (base, base + k3stream.CBOZ_BLOCK_BYTES, off, top))
+
+
+@test
+def test_zcmp_frames_are_balanced_and_unbranchable():
+    """`sp` survives because push and pop carry the same rlist and spimm and
+    nothing can be placed between them -- the `lr.w`/`sc.w` argument, reused."""
+    cfg = _cfg_knob('zcmp')
+    b, _text = randgen.build_stream(cfg, 'k3u', 5, 'zext', 400, True)
+    seq = [it for it in b.items if not isinstance(it, k3stream.Label)]
+    labels_at = set(at for at, _n in b.labels)
+    npair = 0
+    for i, it in enumerate(seq):
+        if it.cls != 'zcmp' or 'cm.push' not in it.text:
+            continue
+        npair += 1
+        j = i + 1
+        while j < len(seq) and seq[j].cls != 'zcmp':
+            # only pool-register arithmetic may sit inside a frame
+            m = re.match(r'addi\s+x(\d+), x\1, ', seq[j].text.strip())
+            ok(m is not None, 'inside a frame: %s' % seq[j].text)
+            r = int(m.group(1))
+            ok(r in k3stream.POOL, 'x%d clobbered inside a frame is in POOL' % r)
+            ok(r not in k3stream.RESERVED, 'x%d is not reserved' % r)
+            j += 1
+        ok(j < len(seq) and 'cm.pop' in seq[j].text, 'every push has its pop')
+        pw = int(re.search(r'0x([0-9A-F]{4})', seq[i].text).group(1), 16)
+        qw = int(re.search(r'0x([0-9A-F]{4})', seq[j].text).group(1), 16)
+        eq(census.zcmp_fields(pw), census.zcmp_fields(qw),
+           'push and pop carry the same (rlist, spimm)')
+    ok(npair > 0, 'the stream contains at least one frame')
+    for at in labels_at:
+        ok(at <= len(b.items), 'label index is in range')
+
+
+@test
+def test_zcmt_indices_and_table_agree():
+    """Every emitted index has a table entry, cm.jt indices are < 32 and
+    cm.jalt indices are >= 32 -- the split the RTL's `zcm_jt_link` makes."""
+    cfg = _cfg_knob('zcmt')
+    b, text = randgen.build_stream(cfg, 'k3u', 9, 'zext', 400, True)
+    used = dict(b.jt_entries)
+    n_jt = n_jalt = 0
+    for it in b.items:
+        if isinstance(it, k3stream.Label) or it.cls != 'zcmt':
+            continue
+        w = int(re.search(r'0x([0-9A-F]{4})', it.text).group(1), 16)
+        idx = census.zcmt_index(w)
+        ok(idx in used, 'index %d has a table entry' % idx)
+        if census.decode16(w) == 'cm.jt':
+            ok(idx < 32, 'cm.jt index %d < 32' % idx)
+            n_jt += 1
+        else:
+            ok(idx >= 32, 'cm.jalt index %d >= 32' % idx)
+            n_jalt += 1
+    ok(n_jt > 0 and n_jalt > 0, 'both shapes are exercised (%d/%d)'
+       % (n_jt, n_jalt))
+    ok('k3_jvt:' in text and '.align 6' in text, 'the table is 64-byte aligned')
+    ok('csrw 0x017' in text, 'jvt is installed in the prologue')
+    # Every index below the largest one used must appear in the table, and the
+    # ones no instruction names must point at `k3_bad` -- fail-safe, method
+    # rule 15.  Whether any gap EXISTS depends on the draw (a stream that uses
+    # all 32 cm.jt slots has none), so the gap is constructed rather than hoped
+    # for: this checks the rendering directly.
+    tbl = text.split('k3_jvt:')[1].splitlines()
+    words = [l.strip() for l in tbl if l.strip().startswith('.word')]
+    eq(len(words), max(used) + 1, 'the table covers every index up to the max')
+    for i, w in enumerate(words):
+        if i in used:
+            ok(used[i] in w, 'entry %d names its target' % i)
+        else:
+            ok('k3_bad' in w, 'unused entry %d fails loudly' % i)
+
+
+@test
+def test_zawrs_is_never_emitted_with_a_live_reservation():
+    """The wake this relies on is `resv_valid_ext = '0'`; the structural claim
+    is that no `wrs` can sit between an `lr.w` and its `sc.w`."""
+    cfg = _cfg_knob('zawrs')
+    b, _text = randgen.build_stream(cfg, 'k3u', 13, 'zext', 400, True)
+    seq = [it for it in b.items if not isinstance(it, k3stream.Label)]
+    live = False
+    nwrs = 0
+    for it in seq:
+        if it.cls == 'lrsc' and it.text.strip().startswith('lr.w'):
+            live = True
+        elif it.cls == 'lrsc' and it.text.strip().startswith('sc.w'):
+            live = False
+        elif it.cls == 'zawrs':
+            nwrs += 1
+            ok(not live, 'a wrs was emitted with a live reservation')
+    ok(nwrs > 0, 'the stream contains at least one wrs (%d)' % nwrs)
+
+
+@test
+def test_forbidden_text_check_is_seen_to_fail():
+    """A scan that has never rejected anything is worth nothing (method rule 1).
+
+    One synthetic violation per FORBIDDEN pattern, each placed in the scope the
+    row is enforced over, plus the case that FOUND the row's own defect: an
+    `iret` in the ISR is LEGAL (bracket channel) and an `iret` in the census
+    range is not."""
+    head = 'k3_stream_begin:\n'
+    tail = 'k3_stream_end:\n'
+    cases = [
+        ('csrw mip, x5\n' + head + tail, 'mip write'),
+        ('csrw mhpmevent3, x5\n' + head + tail, 'mhpmevent write'),
+        ('csrw mtvec, x5\n' + head + tail, 'mtvec MODE != 0'),
+        (head + '    iret\n' + tail, 'opcode 0x0b in the census range'),
+    ]
+    for text, row in cases:
+        try:
+            isa_model.assert_no_forbidden_text(text)
+        except isa_model.ForbiddenEmission as ex:
+            ok(row in str(ex), 'the right row fired: %r vs %s' % (row, ex))
+        else:
+            raise AssertionError('FORBIDDEN row %r did not fire' % row)
+    # ...and the legal shape passes: an `iret` OUTSIDE the census range is the
+    # CLINT ISR, which the V3 bracket channel excises from the comparison.
+    isa_model.assert_no_forbidden_text(head + tail + '\nk3_msip_isr:\n    iret\n')
+    # every real stream this generator makes passes, IRQ profile included.
+    for prof in ('base', 'seq', 'irq', 'bitm'):
+        _b, text = _build(seed=21, profile=prof, length=160)
+        isa_model.assert_no_forbidden_text(text)
+
+
+@test
+def test_the_verdict_b_refusal_arm_fires_for_a_real_class():
+    """R-K3-2's D-3 recorded that this arm had never fired; R-K4-3 (4) measured
+    that no CONFIGURATION could make it fire and named it an emitter question.
+    With a class whose knob is verdict B, it fires -- and re-admits exactly that
+    class under `allow_unmodelled`, and nothing else."""
+    saved = isa_model.KNOB_ORACLE_STATUS['zcmp']
+    savedc = dict(isa_model.CLASS_ORACLE)
+    try:
+        isa_model.KNOB_ORACLE_STATUS['zcmp'] = isa_model.B
+        isa_model.CLASS_ORACLE['zcmp'] = isa_model.class_oracle('zcmp')
+        cfg = _cfg_knob('zcmp')
+        avail, blocked = isa_model.available_classes(cfg.isa)
+        hits = [(c, w) for c, w in blocked if 'verdict B' in w]
+        eq([c for c, _w in hits], ['zcmp'], 'exactly one class refused')
+        ok('zcmp' not in avail, 'and it is not emittable')
+        a2, _b2 = isa_model.available_classes(cfg.isa, allow_unmodelled=True)
+        eq(sorted(set(a2) - set(avail)), ['zcmp'],
+           'the written-permission escape re-admits exactly that class')
+    finally:
+        isa_model.KNOB_ORACLE_STATUS['zcmp'] = saved
+        isa_model.CLASS_ORACLE.clear()
+        isa_model.CLASS_ORACLE.update(savedc)
+
+
+@test
+def test_new_classes_declare_their_amendments_and_match_the_comparator():
+    """The generator's half of the K2b agreement, checked against the
+    comparator's half derived from the SAME resolved config."""
+    sys.path.insert(0, os.path.join(randgen.REPO, 'tools', 'cosim'))
+    import oracle_isa
+    expect = {'zicboz': ['cboz-stores'], 'zcmp': ['zcmp-frame-order'],
+              'zcmt': ['cmjt-load'], 'zawrs': [], 'zihint': []}
+    for knob, want in sorted(expect.items()):
+        cfg = _cfg_knob(knob)
+        avail, _bl = isa_model.available_classes(cfg.isa)
+        ok(knob in avail, '%s is emittable' % knob)
+        eq(isa_model.required_amendments(avail), want,
+           'manifest amendments for %s' % knob)
+        eq(oracle_isa.derive_amendments(cfg.raw), want,
+           'comparator amendments for %s' % knob)
+        ne = [k for k, _v, _n in
+              isa_model.knobs_on_without_emitter(cfg.isa, cfg.priv)]
+        ok(knob not in ne, '%s is no longer an emitter-less knob' % knob)
+
+
+@test
+def test_suite_only_classes_are_named_with_a_reason():
+    """`zawrs` and `zihint` are demonstrated on the suite and not on lockstep.
+    That is a decision, so it lives in the source with its reason attached
+    rather than in a report."""
+    eq(sorted(isa_model.SUITE_ONLY_CLASSES), ['zawrs', 'zihint'])
+    for c in isa_model.SUITE_ONLY_CLASSES:
+        ok(c in isa_model.CLASS_ORDER, '%s is a real class' % c)
+        eq(isa_model.CLASS_ORACLE[c], isa_model.A,
+           '%s is judgeable -- the screen is a policy, not a verdict' % c)
+
+
+@test
+def test_arch_fragments_follow_the_config_not_the_group_march():
+    """The rv32uk group's -march is fixed in verification/isa/Makefile and
+    cannot follow a config, so the arch travels inside the stream."""
+    for knob, frag in (('zicboz', 'zicboz'), ('zawrs', 'zawrs'),
+                       ('zihint', 'zihintpause')):
+        cfg = _cfg_knob(knob)
+        avail, _bl = isa_model.available_classes(cfg.isa)
+        eq(isa_model.arch_fragments(cfg.isa, avail), [frag],
+           'arch fragment for %s' % knob)
+    # Zcmp/Zcmt have NO gas fragment (measured: `unknown prefixed ISA
+    # extension`), so they must contribute none and rely on `.short`.
+    for knob in ('zcmp', 'zcmt'):
+        cfg = _cfg_knob(knob)
+        avail, _bl = isa_model.available_classes(cfg.isa)
+        eq(isa_model.arch_fragments(cfg.isa, avail), [],
+           '%s contributes no arch fragment' % knob)
+
+
+@test
+def test_default_config_streams_are_unmoved_by_the_new_classes():
+    """The five classes are APPENDED to the profile tuples, and every one of
+    them is filtered out by `available_classes` on a config whose knob is off --
+    so the weight list `weighted_choice` consumes on the DEFAULT config is the
+    v1.2.0 one and the emitted BODY cannot move.  Checked against the tracked
+    campaign, not asserted."""
+    cfg = _cfg()
+    idx = json.load(open(os.path.join(randgen.CAMPAIGN_INDEX)))
+    for row in idx['streams']:
+        _b, text = randgen.build_stream(
+            cfg, row['name'], row['seed'], row['profile'],
+            row['length_requested'], row['irq_observe'])
+        eq(hashlib.sha1(text.encode('utf-8')).hexdigest(), row['asm_sha1'],
+           'default-config stream %s reproduces' % row['name'])
+    avail, blocked = isa_model.available_classes(cfg.isa)
+    for c in ('zicboz', 'zawrs', 'zihint', 'zcmp', 'zcmt'):
+        ok(c not in avail, '%s is not emittable on the default config' % c)
+        ok(any(n == c and 'knob(s) off' in w for n, w in blocked),
+           '%s is blocked for the CONFIG reason, not the oracle one' % c)
 
 
 def main():

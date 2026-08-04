@@ -28,7 +28,7 @@ Python 3.6 compatible.
 
 import stream as _stream
 
-VERSION = '1.2.0'
+VERSION = '1.3.0'
 GENERATOR = 'k3-randgen'
 
 _HDR = '''\
@@ -109,6 +109,19 @@ def required_march(cfg):
         s += '_zba_zbb_zbc_zbs'
     if cfg.isa.get('zfinx'):
         s += '_zfinx'
+    # K5 v1.3.0.  These three have a gas 2.41 march fragment; `zcmp` and `zcmt`
+    # do NOT (`unknown prefixed ISA extension`, measured), so they never appear
+    # here and their encodings are raw `.short` instead.  The stream also
+    # carries `.option arch, +<frag>` around its census range, which is what
+    # actually makes the build work when the GROUP march (fixed in
+    # verification/isa/Makefile) does not follow the config; this string is the
+    # manifest's honest record of what the config needs, not the build lever.
+    if cfg.isa.get('zicboz'):
+        s += '_zicboz'
+    if cfg.isa.get('zawrs'):
+        s += '_zawrs'
+    if cfg.isa.get('zihint'):
+        s += '_zihintpause'
     return s
 
 
@@ -182,6 +195,19 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
     if builder.irq_sites:
         L.append('    la   t0, k3_irq_count')
         L.append('    sw   x0, 0(t0)')
+    if builder.jt_entries:
+        # K5 Zcmt: point jvt at the stream's own jump-vector table.  The table
+        # symbol is `.align 6`, so jvt[5:0] is zero in the value WRITTEN -- the
+        # RTL's WARL pin and the reference's store-what-you-wrote then agree,
+        # which is what makes the refined FORBIDDEN row ("a jvt write with a
+        # nonzero low 6 bits") satisfied by construction rather than by luck.
+        # gas 2.41 has no `jvt` CSR name; the numeric address 0x017 is what the
+        # X3 directed tests use.
+        L.append('    la   t0, k3_jvt')
+        L.append('    .option push')
+        L.append('    .option arch, +zicsr')
+        L.append('    csrw 0x017, t0                # jvt <- &k3_jvt (64B aligned)')
+        L.append('    .option pop')
     L.append('')
     L.append('    # ---- deterministic seed values for the general pool')
     vals = _init_values(rng, len(_stream.POOL))
@@ -196,10 +222,21 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
     L.append('    # relaxation.  tools/randgen/census.py decodes exactly this')
     L.append('    # byte range out of the built ELF and must reproduce the')
     L.append('    # manifest counts exactly.')
+    L.append('    # K5 v1.3.0: a `.short 0x....` line is ALSO exactly one')
+    L.append('    # instruction -- a 16-bit Zcmp/Zcmt encoding gas 2.41 has no')
+    L.append('    # mnemonic for.  The census walks the range by encoding')
+    L.append('    # length and names those from its own field table; any OTHER')
+    L.append('    # 16-bit word in the range is still a hard census error, so')
+    L.append('    # `.option norvc` keeps exactly the guarantee it had.')
     L.append('    # ===================================================================')
     L.append('    .option push')
     L.append('    .option norvc')
     L.append('    .option norelax')
+    for frag in builder.arch_frags:
+        # K5: march-INDEPENDENT extension enable, the pattern the X1/X3
+        # directed tests already use.  Emits no bytes, so the census range's
+        # one-line-one-instruction rule is untouched.
+        L.append('    .option arch, +%s' % frag)
     L.append('    .globl k3_stream_begin')
     L.append('k3_stream_begin:')
     for it in builder.items:
@@ -333,5 +370,26 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
         L.append('    .align 2')
         L.append('k3_irq_count:')
         L.append('    .word 0')
+    if builder.jt_entries:
+        # The Zcmt jump-vector table.  `.align 6` is load-bearing twice over:
+        # the RTL pins jvt[5:0] to zero, so a misaligned base would make the
+        # table the hardware reads differ from the one the reference reads; and
+        # `cmjt-load`'s bound is `addr == jvt + 4*index`, which is only checkable
+        # against the value that was actually installed.
+        #
+        # UNUSED ENTRIES POINT AT `k3_bad`, and that is a fail-safe choice
+        # (method rule 15) rather than a tidy one: an unused entry can only be
+        # reached if something has gone wrong with the index, and the wrong
+        # thing to do then is to land on a plausible address and carry on.
+        # k3_bad is RVTEST_FAIL.
+        used = dict(builder.jt_entries)
+        n = max(used) + 1
+        L.append('    .align 6')
+        L.append('k3_jvt:')
+        for i in range(n):
+            if i in used:
+                L.append('    .word %s' % used[i])
+            else:
+                L.append('    .word k3_bad            # unused index %d' % i)
     L.append('')
     return '\n'.join(L) + '\n'

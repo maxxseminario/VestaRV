@@ -1,0 +1,83 @@
+{
+  "asm_sha1": "868b8802d43cd80e4fafa2ba58ed38265ea4d6fa",
+  "blocked_classes": [
+    [
+      "zfinx",
+      "config knob(s) off: zfinx"
+    ],
+    [
+      "zicboz",
+      "config knob(s) off: zicboz"
+    ],
+    [
+      "zawrs",
+      "config knob(s) off: zawrs"
+    ],
+    [
+      "zcmp",
+      "config knob(s) off: zcmp"
+    ],
+    [
+      "zcmt",
+      "config knob(s) off: zcmt"
+    ]
+  ],
+  "census_opaque_classes": [
+    "clint_irq"
+  ],
+  "class_counts": {
+    "alu_imm": 70,
+    "alu_reg": 37,
+    "amo": 18,
+    "auipc": 4,
+    "branch": 22,
+    "div": 18,
+    "fence": 5,
+    "load": 22,
+    "lrsc": 24,
+    "lui": 6,
+    "mul": 7,
+    "store": 19,
+    "zba": 7,
+    "zbb": 4,
+    "zbc": 2,
+    "zbs": 3,
+    "zihint": 88
+  },
+  "config": {
+    "chip": "CastaliaZihint",
+    "digest": "9920812334f7",
+    "identity": "CastaliaZihint [isa=atomics+bitmanip+compressed+div+mul+zihint priv=(none) harts=4] cfg=9920812334f7",
+    "image_defines": [
+      "-DCORE_ENABLE_ZIHINT"
+    ],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul+zihint priv=(none) harts=4",
+    "numHarts": 4,
+    "reference": {
+      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr_zihintpause_zihintntl",
+      "pmpregions": 0,
+      "priv": "m"
+    }
+  },
+  "generator": "k3-randgen",
+  "group": "rv32uk",
+  "irq_observe": true,
+  "irq_sites": 0,
+  "knobs_on_without_emitter": [
+    [
+      "compressed",
+      "A",
+      "k0 \u00a71.2: `c`, WITNESS c.addi4spn"
+    ]
+  ],
+  "length_requested": 400,
+  "march": "rv32imac_zba_zbb_zbc_zbs_zihintpause",
+  "name": "k5hnt",
+  "negctrl": null,
+  "profile": "zext",
+  "rcf": "xxxxrv32uk-p-k5hnt.rcf",
+  "required_amendments": [],
+  "seed": 405,
+  "total_instructions": 356,
+  "version": "1.3.0"
+}

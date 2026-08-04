@@ -73,6 +73,12 @@ def build_stream(cfg, name, seed, profile, length, irq_observe,
                                negctrl=negctrl)
     b.build()
     text = emit.render(b, cfg, name, seed, profile, length, irq_observe)
+    # K5: the FORBIDDEN table stops being a comment.  Its header claimed this
+    # enforcement from K3 onward and the function did not exist; v1.3.0 adds the
+    # first emitter that writes a CSR at all, so the claim is made true rather
+    # than deleted.  Checked over the WHOLE file, not just the census range --
+    # the reference executes the prologue and epilogue too.
+    isa_model.assert_no_forbidden_text(text)
     return b, text
 
 

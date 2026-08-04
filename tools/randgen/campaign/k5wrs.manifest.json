@@ -1,5 +1,5 @@
 {
-  "asm_sha1": "3e7ade9fb2dc471ac45e17c3f7073c6a9f3d403d",
+  "asm_sha1": "50cd5cdacab22c16078e905b212a47231be4e98f",
   "blocked_classes": [
     [
       "zfinx",
@@ -8,10 +8,6 @@
     [
       "zicboz",
       "config knob(s) off: zicboz"
-    ],
-    [
-      "zawrs",
-      "config knob(s) off: zawrs"
     ],
     [
       "zihint",
@@ -30,34 +26,37 @@
     "clint_irq"
   ],
   "class_counts": {
-    "alu_imm": 94,
-    "alu_reg": 87,
-    "amo": 14,
-    "auipc": 8,
-    "branch": 24,
-    "div": 14,
-    "fence": 2,
-    "jal": 8,
-    "jalr": 7,
-    "load": 32,
-    "lrsc": 12,
+    "alu_imm": 63,
+    "alu_reg": 57,
+    "amo": 13,
+    "auipc": 4,
+    "branch": 14,
+    "div": 21,
+    "fence": 1,
+    "jal": 6,
+    "jalr": 5,
+    "load": 17,
+    "lrsc": 24,
     "lui": 10,
-    "mul": 16,
+    "mul": 13,
     "store": 28,
+    "zawrs": 87,
     "zba": 6,
-    "zbb": 14,
-    "zbc": 3,
-    "zbs": 13
+    "zbb": 12,
+    "zbc": 5,
+    "zbs": 2
   },
   "config": {
-    "chip": "Castalia",
-    "digest": "9ca2e20fb3d2",
-    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2",
-    "image_defines": [],
-    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4",
+    "chip": "CastaliaZawrs",
+    "digest": "ba24713283a3",
+    "identity": "CastaliaZawrs [isa=atomics+bitmanip+compressed+div+mul+zawrs priv=(none) harts=4] cfg=ba24713283a3",
+    "image_defines": [
+      "-DCORE_ENABLE_ZAWRS"
+    ],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul+zawrs priv=(none) harts=4",
     "numHarts": 4,
     "reference": {
-      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr",
+      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr_zawrs",
       "pmpregions": 0,
       "priv": "m"
     }
@@ -74,13 +73,13 @@
     ]
   ],
   "length_requested": 400,
-  "march": "rv32imac_zba_zbb_zbc_zbs",
-  "name": "k3b01",
+  "march": "rv32imac_zba_zbb_zbc_zbs_zawrs",
+  "name": "k5wrs",
   "negctrl": null,
-  "profile": "base",
-  "rcf": "xxxxrv32uk-p-k3b01.rcf",
+  "profile": "zext",
+  "rcf": "xxxxrv32uk-p-k5wrs.rcf",
   "required_amendments": [],
-  "seed": 22,
-  "total_instructions": 392,
+  "seed": 404,
+  "total_instructions": 388,
   "version": "1.3.0"
 }

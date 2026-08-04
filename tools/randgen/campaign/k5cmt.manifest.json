@@ -1,5 +1,5 @@
 {
-  "asm_sha1": "3e592e8964838788d7dc79cfe4e2b03a0e1edb07",
+  "asm_sha1": "9c3d33b37b65c2439f6bd5a0cbfe1b33359b99ea",
   "blocked_classes": [
     [
       "zfinx",
@@ -20,44 +20,43 @@
     [
       "zcmp",
       "config knob(s) off: zcmp"
-    ],
-    [
-      "zcmt",
-      "config knob(s) off: zcmt"
     ]
   ],
   "census_opaque_classes": [
     "clint_irq"
   ],
   "class_counts": {
-    "alu_imm": 100,
-    "alu_reg": 26,
-    "amo": 47,
+    "alu_imm": 56,
+    "alu_reg": 255,
+    "amo": 10,
     "auipc": 4,
-    "branch": 20,
-    "div": 51,
-    "fence": 2,
-    "jal": 2,
-    "jalr": 1,
-    "load": 16,
-    "lrsc": 54,
-    "lui": 11,
-    "mul": 22,
-    "store": 14,
-    "zba": 3,
-    "zbb": 5,
+    "branch": 13,
+    "div": 9,
+    "fence": 5,
+    "jal": 6,
+    "jalr": 74,
+    "load": 22,
+    "lrsc": 18,
+    "lui": 10,
+    "mul": 11,
+    "store": 19,
+    "zba": 2,
+    "zbb": 3,
     "zbc": 4,
-    "zbs": 2
+    "zbs": 6,
+    "zcmt": 101
   },
   "config": {
-    "chip": "Castalia",
-    "digest": "9ca2e20fb3d2",
-    "identity": "Castalia [isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4] cfg=9ca2e20fb3d2",
-    "image_defines": [],
-    "knobs": "isa=atomics+bitmanip+compressed+div+mul priv=(none) harts=4",
+    "chip": "CastaliaZcmt",
+    "digest": "dbf4c217caf8",
+    "identity": "CastaliaZcmt [isa=atomics+bitmanip+compressed+div+mul+zcmt priv=(none) harts=4] cfg=dbf4c217caf8",
+    "image_defines": [
+      "-DCORE_ENABLE_ZCMT"
+    ],
+    "knobs": "isa=atomics+bitmanip+compressed+div+mul+zcmt priv=(none) harts=4",
     "numHarts": 4,
     "reference": {
-      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr",
+      "isa": "rv32imac_zicsr_zba_zbb_zbs_zbc_zicntr_zcmt",
       "pmpregions": 0,
       "priv": "m"
     }
@@ -75,12 +74,14 @@
   ],
   "length_requested": 400,
   "march": "rv32imac_zba_zbb_zbc_zbs",
-  "name": "k3s01",
+  "name": "k5cmt",
   "negctrl": null,
-  "profile": "seq",
-  "rcf": "xxxxrv32uk-p-k3s01.rcf",
-  "required_amendments": [],
-  "seed": 20260803,
-  "total_instructions": 384,
+  "profile": "zext",
+  "rcf": "xxxxrv32uk-p-k5cmt.rcf",
+  "required_amendments": [
+    "cmjt-load"
+  ],
+  "seed": 403,
+  "total_instructions": 628,
   "version": "1.3.0"
 }

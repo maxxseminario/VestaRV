@@ -95,6 +95,118 @@ IRQ_MIN_GAP = 12
 BRANCH_TARGET_WINDOW = 2
 
 
+# --------------------------------------------------------------------------
+# K5 queue item 4 -- geometry and encoders for the five new classes.
+#
+# EVERY NUMBER BELOW IS DERIVED FROM SOMETHING, and the derivation is written
+# next to it.  The one that matters most is CBOZ_MAX_OFF: it is not a tuned
+# value, it is the largest offset for which the RTL's rounded-down 64-byte
+# block is still a subset of the scratch window.
+# --------------------------------------------------------------------------
+CBOZ_BLOCK_BYTES = 64                       # constants.vhd CBOZ_BLOCK_SIZE
+# The block base is `rs1 and not 63` and the block runs 64 bytes from there, so
+# an offset `off` writes scratch bytes [off & ~63, (off & ~63) + 64).  The
+# largest `off` whose block stays inside [0, SCRATCH_BYTES - RESERVED_TAIL) is
+# the last byte of the last WHOLE block below the reserved tail.  With
+# SCRATCH_BYTES = 256 and RESERVED_TAIL = 8 that is block 2, i.e. offsets up to
+# 191.  Computed rather than written as 191 so a scratch-geometry change moves
+# it automatically instead of silently invalidating the argument.
+CBOZ_MAX_OFF = (((SCRATCH_BYTES - RESERVED_TAIL) // CBOZ_BLOCK_BYTES)
+                * CBOZ_BLOCK_BYTES) - 1
+
+# Zihintntl: the hint IS the rs2 specifier of `add x0, x0, rs2`.
+ZIHINT_NTL_RS2 = {'ntl.p1': 2, 'ntl.pall': 3, 'ntl.s1': 4, 'ntl.all': 5}
+
+# Zcmp rlist: 4 = {ra}, 5 = {ra,s0}, ... 14 = {ra,s0-s9}, 15 = {ra,s0-s11}.
+# Values 0-3 are illegal and c_dec.vhd refuses them explicitly.  The generator
+# starts at 7 = {ra,s0-s2} so that at least ONE pushed register (s2 = x18) is an
+# ordinary POOL register the template can clobber between push and pop -- with a
+# smaller list the pop would restore only reserved registers and would be
+# unobservable, which is exactly the K4-L3 "cm.pop UNVERIFIED" hole.
+ZCMP_RLIST_MIN = 7
+ZCMP_RLIST_MAX = 15
+# cm.jt takes index 0..31 (no link); cm.jalt takes 32..255 (links ra).
+ZCMT_JT_LINK_BASE = 32
+ZCMT_JT_ENTRIES = 64                        # table words emitted; 0..63
+
+
+def zcmp_pushed_regs(rlist):
+    """The x-numbers `cm.push rlist` saves, in spec order.
+
+    Mirrors `vesta.vhd`'s `zcm_reg_at`: position 0 = x1 (ra), 1 = x8 (s0),
+    2 = x9 (s1), p >= 3 = x(15+p) (x18..x27).  Written from the spec here and
+    checked against the RTL function by eye AND against the directed tests'
+    literals by `test_randgen.py`.
+    """
+    n = 13 if rlist == 15 else rlist - 3
+    out = []
+    for p in range(n):
+        if p == 0:
+            out.append(1)
+        elif p == 1:
+            out.append(8)
+        elif p == 2:
+            out.append(9)
+        else:
+            out.append(15 + p)
+    return out
+
+
+def zcmp_stack_adj(rlist, spimm):
+    """RV32 stack_adj = base(rlist) + 16*spimm.  Mirrors `zcm_stackadj`."""
+    if rlist <= 7:
+        base = 16
+    elif rlist <= 11:
+        base = 32
+    elif rlist <= 14:
+        base = 48
+    else:
+        base = 64
+    return base + 16 * spimm
+
+
+def zcmp_rlist_text(rlist):
+    regs = zcmp_pushed_regs(rlist)
+    return '{%s}' % ','.join('x%d' % r for r in regs)
+
+
+def zcmp_push_pop_word(is_push, rlist, spimm):
+    """The 16-bit `cm.push`/`cm.pop` encoding.
+
+    C2 quadrant (bits 1:0 = 10), funct3 = 101 (bits 15:13), bit 12 = 1 selects
+    the push/pop family, bit 11 = 1 and bit 8 = 0 are required by the encoding
+    (and by `c_dec.vhd`, which refuses otherwise), bits 10:9 select
+    push/pop/popretz/popret, bits 7:4 are rlist and bits 3:2 are spimm[5:4].
+
+    KNOWN-NONZERO VALIDATION (method rule 4): this function must return
+    0xB852 for (push, rlist=5, spimm=0) and 0xBA52 for (pop, rlist=5, spimm=0),
+    the literals `verification/isa/tests/rv32ua/extzcmp.S` carries.  gas 2.41
+    cannot assemble these and objdump 2.41 cannot name them, so those two
+    literals are the only third party available and the unit tests assert
+    against them.
+    """
+    if not 4 <= rlist <= 15:
+        raise StreamBuildError('rlist %d is illegal (c_dec refuses 0-3)' % rlist)
+    if not 0 <= spimm <= 3:
+        raise StreamBuildError('spimm %d does not fit 2 bits' % spimm)
+    w = 0x2                       # bits 1:0 = 10 (C2)
+    w |= 0x5 << 13                # funct3 = 101
+    w |= 1 << 12                  # push/pop family
+    w |= 1 << 11                  # required
+    w |= (0 if is_push else 1) << 9   # 00 push / 01 pop
+    w |= (rlist & 0xF) << 4
+    w |= (spimm & 0x3) << 2
+    return w
+
+
+def zcmt_word(index):
+    """The 16-bit `cm.jt`/`cm.jalt` encoding: C2, funct3 101, 12:10 = 000,
+    index at bits 9:2.  Validated against `extzcmt.S`'s 0xA016 (index 5)."""
+    if not 0 <= index <= 255:
+        raise StreamBuildError('cm.jt index %d does not fit 8 bits' % index)
+    return 0x2 | (0x5 << 13) | ((index & 0xFF) << 2)
+
+
 class Insn(object):
     __slots__ = ('cls', 'text')
 
@@ -147,6 +259,13 @@ PROFILES = {
         ('fence', 1), ('mul', 4), ('div', 4), ('amo', 4), ('lrsc', 3),
         ('zba', 3), ('zbb', 6), ('zbs', 4), ('zbc', 2), ('zfinx', 6),
         ('clint_irq', 0),
+        # K5 v1.3.0: APPENDED, never interleaved.  On a config whose knob is
+        # off each of these is dropped by `available_classes` before
+        # `weighted_choice` ever sees it, so the weight list this profile
+        # consumes on the DEFAULT config is character-for-character the v1.2.0
+        # one and every default-config stream regenerates with a byte-identical
+        # BODY.  That is checked, not asserted -- see the item-4 report.
+        ('zicboz', 3), ('zawrs', 3), ('zihint', 3), ('zcmp', 3), ('zcmt', 3),
     ),
     # 'seq' -- the roadmap Step 2 weighting: the multi-cycle sequencers.
     'seq': (
@@ -155,6 +274,12 @@ PROFILES = {
         ('fence', 1), ('mul', 10), ('div', 22), ('amo', 20), ('lrsc', 14),
         ('zba', 1), ('zbb', 2), ('zbs', 1), ('zbc', 1), ('zfinx', 14),
         ('clint_irq', 0),
+        # K5 v1.3.0, appended (see 'base').  `zicboz`, `zcmp` and `zcmt` are
+        # MULTI-CYCLE SEQUENCERS -- a 16-store burst, a 13-register frame pair
+        # and a table-load redirect -- so they belong in the sequencer profile
+        # on the same argument that put `div`/`amo`/`lrsc` here.  `zawrs` and
+        # `zihint` are single-decode and get the base weight.
+        ('zicboz', 10), ('zawrs', 4), ('zihint', 4), ('zcmp', 12), ('zcmt', 8),
     ),
     # 'irq' -- 'seq' plus CLINT self-injection immediately ahead of a sequencer.
     'irq': (
@@ -172,8 +297,34 @@ PROFILES = {
         ('zba', 12), ('zbb', 24), ('zbs', 16), ('zbc', 10), ('zfinx', 0),
         ('clint_irq', 0),
     ),
+    # 'zext' -- K5 v1.3.0.  The DEMONSTRATION profile for the five classes
+    # R-K4-2 (2) dropped from the campaign: dense enough that one stream of a
+    # few hundred instructions carries tens of sites of its config's class, and
+    # a base-ISA spine so the stream is still a stream (branches, loads, stores,
+    # a subroutine) rather than a straight run of one encoding.
+    #
+    # `clint_irq` is 0 ON PURPOSE and the reason is measured, not stylistic:
+    # `cbo.zero`'s 16-store burst is UNINTERRUPTIBLE in the RTL (CBOZ_WRITE has
+    # no irq_save term), and `cm.push`/`cm.pop` walk the stack that IRQ_SV
+    # pushes onto.  Mixing self-injected interrupts into the first stream that
+    # ever exercises either sequencer would confound two new things at once.
+    # That combination is a K7 candidate, named here rather than left implicit.
+    #
+    # On a config with none of the five knobs on, this profile degrades to its
+    # base-ISA spine and the manifest's `blocked_classes` says exactly which
+    # five were dropped and why -- a legal stream that covers none of what it
+    # was aimed at, and says so.
+    'zext': (
+        ('alu_reg', 10), ('alu_imm', 10), ('lui', 2), ('auipc', 2),
+        ('branch', 5), ('jal', 2), ('load', 6), ('store', 6),
+        ('fence', 1), ('mul', 3), ('div', 3), ('amo', 3), ('lrsc', 3),
+        ('zba', 1), ('zbb', 2), ('zbs', 1), ('zbc', 1), ('zfinx', 2),
+        ('clint_irq', 0),
+        ('zicboz', 24), ('zawrs', 24), ('zihint', 24), ('zcmp', 24),
+        ('zcmt', 24),
+    ),
 }
-PROFILE_ORDER = ('base', 'seq', 'irq', 'bitm')
+PROFILE_ORDER = ('base', 'seq', 'irq', 'bitm', 'zext')
 
 # The classes an IRQ arm may be placed immediately in front of.  `lrsc` is
 # EXCLUDED and the exclusion is the interesting part: the reference's ISR window
@@ -229,6 +380,19 @@ class StreamBuilder(object):
         self.last_irq_at = -10 ** 9
         self._nlab = 0
         self._nsub = 0
+        # K5: the Zcmt jump-vector table this stream needs.  (index, label)
+        # pairs, filled by `_e_zcmt` and rendered by `emit.render`.  Kept on the
+        # builder rather than in the emitter so the ONE place that knows what a
+        # stream contains stays one place -- the same correction §4 of the K3
+        # report records for the subroutine block.
+        self.jt_entries = []
+        self._njt = 0
+        self._njalt = 0
+        # The `.option arch, +X` fragments the census range needs for the
+        # classes this config can actually emit.  Derived, never guessed: the
+        # rv32uk group's -march is fixed in verification/isa/Makefile and cannot
+        # follow a config, so the arch travels inside the stream.
+        self.arch_frags = isa_model.arch_fragments(cfg.isa, self.available)
         weights = [(c, w) for (c, w) in PROFILES[profile]
                    if c in self.available and w > 0]
         if not weights:
@@ -468,6 +632,206 @@ class StreamBuilder(object):
             self._emit('zfinx', '%-8s x%d, x%d, x%d'
                        % (m, self._r(), self._r(), self._r()))
 
+    # ----------------------------------------------------------------------
+    # K5 queue item 4 -- the five emitter-less state-bearing Z rows.
+    # Each one's SAFETY argument is structural, in the sense the module
+    # docstring means: the trap/hang source is removed by construction rather
+    # than checked afterwards, because a trap is TERMINAL on a default build.
+    # ----------------------------------------------------------------------
+    def _e_zicboz(self):
+        """One `cbo.zero` on a block that is a SUBSET of the scratch window.
+
+        THE ROUNDING IS THE WHOLE DIFFICULTY.  The RTL latches
+        `cboz_base = rs1 and not (CBOZ_BLOCK_SIZE-1)` once at dispatch
+        (vesta.vhd's cboz_seq_proc), so the block a `cbo.zero rs1` writes need
+        not START at rs1 -- it starts at rs1 rounded DOWN to 64.  A generator
+        that drew rs1 anywhere in the 256-byte scratch block would therefore
+        zero bytes BELOW its own window whenever it drew an offset in the first
+        64 bytes of... no: it would zero bytes ABOVE the window whenever it drew
+        an offset in the LAST block, because the block extends 63 bytes past
+        rs1.  Either way the guard words are one draw away.
+
+        The bound is taken on the OFFSET rather than on the address: `k3_scratch`
+        is `.align 6` (emit.py), so scratch + off has block base
+        scratch + (off and not 63); restricting off to [0, CBOZ_MAX_OFF] with
+        CBOZ_MAX_OFF = 191 puts every block inside scratch bytes [0,192) --
+        clear of both guard bands AND of the reserved tail at offset 248, which
+        holds the dynamic IRQ-arm counter the epilogue compares.  Nothing is
+        calibrated (method rule 7): the edge is structural arithmetic on the
+        block size and the scratch geometry, both of which are constants here.
+
+        THE BURST IS UNINTERRUPTIBLE in the RTL (CBOZ_WRITE has no irq_save
+        check), which is real sequencer coverage and is why this class is worth
+        having at all rather than being a decode-surface tick.
+
+        ORACLE VERDICT E: the RTL emits 1 R + SIXTEEN `M S` and the reference
+        emits 1 + 0, reconciled by the K2b `cboz-stores` amendment, which is
+        count- AND geometry-checked.  `required_amendments()` puts that in the
+        manifest so a lockstep run cannot quietly drop it.
+        """
+        off = self.rng.between(0, CBOZ_MAX_OFF)
+        rt = self._r()
+        self._emit('alu_imm', '%-8s x%d, x%d, %d' % ('addi', rt, R_BASE_A, off))
+        self._emit('zicboz', '%-8s (x%d)' % ('cbo.zero', rt))
+
+    def _e_zawrs(self):
+        """One `wrs.nto` or `wrs.sto`, at a site where it CANNOT park.
+
+        The K0 oracle probe §2.2 records the trap plainly: a `wrs.nto` with no
+        wake never retires, and on a default build that is a watchdog hang, not
+        a FAIL.  The RTL's wake is
+        `wrs_wake <= '1' when (resv_valid_ext = '0' or wrs_int_pending = '1' or
+        wrs_timeout = '1')`, and `wrs.nto` has no timeout arm -- so the ONLY
+        structural guarantee available is the first term.
+
+        It holds here, and it holds for a reason that is a property of the
+        GENERATOR rather than of any particular stream: the only instruction
+        this generator emits that can set a reservation is `lr.w`; `_e_lrsc`
+        emits it ONLY as an immediately-adjacent `lr.w`/`sc.w` pair; a label may
+        be placed only at a template boundary, so no branch can land between
+        them; and `sc.w` clears the reservation whether it succeeds or fails.
+        Therefore at every point OUTSIDE that two-instruction template -- which
+        is every point a `wrs` can be emitted -- `resv_valid_ext` is '0', the
+        wake is already asserted when the wrs dispatches, and it retires.
+
+        `wrs.sto` is emitted too and needs no such argument (it has the
+        timeout), but it is drawn less often because the interesting state is
+        the one with no escape hatch.
+        """
+        m = 'wrs.sto' if self.rng.bool_with(1, 3) else 'wrs.nto'
+        self._emit('zawrs', '%s' % m)
+
+    def _e_zihint(self):
+        """`pause`, or one of the four `ntl` hints.
+
+        Both are architectural NOPs and both retire in EITHER polarity of the
+        knob (k0 §1.3b), which is precisely why the class is SUITE-ONLY here
+        (`isa_model.SUITE_ONLY_CLASSES` carries the reason).  What it buys is
+        decode-surface coverage of two encodings that sit inside spaces the core
+        decodes for other purposes: `pause` is a FENCE encoding and `ntl.*` are
+        `add x0, x0, x{2..5}` -- an OP-format instruction with rd = x0.
+
+        The `ntl` rs2 MUST be x2/x3/x4/x5; that IS the hint encoding, and x2 is
+        `sp`.  Reading `sp` is harmless (RESERVED means never WRITTEN), and
+        `add x0, ...` discards its result by definition, so no register
+        discipline is touched.
+        """
+        if self.rng.bool_with(1, 2):
+            self._emit('zihint', 'pause')
+        else:
+            hint = self.rng.choice(('ntl.p1', 'ntl.pall', 'ntl.s1', 'ntl.all'))
+            self._emit('zihint', '%-8s x%d, x%d, x%d   # %s'
+                       % ('add', R_ZERO, R_ZERO, ZIHINT_NTL_RS2[hint], hint))
+
+    def _e_zcmp(self):
+        """One BALANCED `cm.push` / `cm.pop` frame, emitted as ONE template.
+
+        gas 2.41 has no `cm.*` mnemonic and no `_zcmp` march (measured), so the
+        16-bit words are encoded here and emitted as `.short`.  The encoder is
+        `zcmp_push_pop_word()` below and it is validated against the X3 directed
+        tests' hand-verified literals.
+
+        THREE THINGS THIS TEMPLATE GUARANTEES, each of them a hazard §H.2 named:
+
+        * `sp` survives.  push and pop carry the SAME rlist and the SAME spimm,
+          so the stack adjustment is exactly undone, and they are emitted
+          together so no branch can separate them (labels sit at template
+          boundaries only, exactly as for `lr.w`/`sc.w`).
+        * the frame cannot collide with the stream's scratch band.  The frame
+          lives at `sp` (0xBFF0 downward, TCM stack); the scratch block is a
+          `.data` object.  Different objects, and neither emitter can address
+          the other's.
+        * no RESERVED register is written, even transiently.  The pushed list is
+          {ra, s0, s1, s2..s11} = {x1, x8, x9, x18..x27}; x1/x8/x9 are reserved
+          and are RESTORED by the pop, but the intermediate clobber -- which is
+          what makes the pop's loads verifiable instead of a copy of what was
+          already in the registers -- is drawn ONLY from x18..x27, which are
+          ordinary POOL registers.
+
+        The clobber matters more than it looks.  K4-L3 recorded `cm.pop` as
+        UNVERIFIED: with nothing writing the saved registers between push and
+        pop, a `cm.pop` that loaded nothing at all would leave identical
+        architectural state and no comparator could tell.  With the clobber the
+        pop's loads are the only thing that can restore the pre-push values, so
+        a lockstep cell over this template observes them.
+        """
+        rlist = self.rng.between(ZCMP_RLIST_MIN, ZCMP_RLIST_MAX)
+        spimm = self.rng.below(4)
+        self._emit('zcmp', '.short 0x%04X   # cm.push %s, -%d'
+                   % (zcmp_push_pop_word(True, rlist, spimm),
+                      zcmp_rlist_text(rlist), zcmp_stack_adj(rlist, spimm)))
+        pushed = [r for r in zcmp_pushed_regs(rlist) if r in POOL]
+        for _ in range(self.rng.between(1, 2)):
+            if not pushed:
+                break
+            r = self.rng.choice(pushed)
+            self._emit('alu_imm', '%-8s x%d, x%d, %d'
+                       % ('addi', r, r, self.rng.between(-2048, 2047)))
+        self._emit('zcmp', '.short 0x%04X   # cm.pop %s, %d'
+                   % (zcmp_push_pop_word(False, rlist, spimm),
+                      zcmp_rlist_text(rlist), zcmp_stack_adj(rlist, spimm)))
+
+    def _e_zcmt(self):
+        """One `cm.jt` or `cm.jalt` through the jump-vector table.
+
+        Both are REAL control transfers -- `zcm_jt_addr = jvt + 4*index`, load
+        the word, redirect to it -- so the DAG invariant has to be preserved by
+        where the table POINTS, not by anything about the instruction.  Two
+        shapes, and the emitter picks between them:
+
+        * `cm.jt` (index < 32, no link): the table entry is made to hold the
+          address of the instruction IMMEDIATELY AFTER the cm.jt.  The transfer
+          therefore lands exactly where a fall-through would, and the control
+          flow of the stream is unchanged while the table load, the redirect and
+          the no-link property are all exercised.  The landing label is NOT
+          registered in `self.labels`, so no branch can target it.
+        * `cm.jalt` (index >= 32, links ra): the table entry holds a subroutine
+          that ends in `jalr x0, 0(ra)`, which is the `_e_jal` shape exactly --
+          the one backward transfer the module docstring already allows.
+
+        jvt is written ONCE, in the prologue, from a `.align 6` table symbol, so
+        the FORBIDDEN row is satisfied by construction: the RTL pins jvt[5:0] to
+        zero and the reference stores what it is given, and for a 64-byte
+        aligned base those are the same 32 bits.
+
+        ORACLE VERDICT E via `cmjt-load`: the RTL logs the table load as an
+        `M L` record and the reference logs nothing, and the amendment drops it
+        bounded by `addr == jvt + 4*index`.
+        """
+        if self.rng.bool_with(1, 2) and self._njt < ZCMT_JT_LINK_BASE:
+            # cm.jt: aim the entry at the next instruction.  The index counter
+            # is SEPARATE from the jalt one -- a shared counter would have let a
+            # jalt site push a later cm.jt past index 31 and turn it into a
+            # linking jump, changing the instruction the manifest claims.
+            idx = self._njt
+            self._njt += 1
+            lab = '.Lk3_jt%d' % idx
+            self.jt_entries.append((idx, lab))
+            self._emit('zcmt', '.short 0x%04X   # cm.jt %d -> %s'
+                       % (zcmt_word(idx), idx, lab))
+            self.items.append(Label(lab))     # NOT in self.labels: unbranchable
+        else:
+            self._nsub += 1
+            sub = '.Lk3_jsub%d' % self._nsub
+            idx = ZCMT_JT_LINK_BASE + self._njalt
+            if idx > 255:
+                raise StreamBuildError(
+                    'cm.jalt index %d exceeds the 8-bit table index; this '
+                    'stream asks for more than %d linking table jumps'
+                    % (idx, 255 - ZCMT_JT_LINK_BASE))
+            self._njalt += 1
+            self.jt_entries.append((idx, sub))
+            self._emit('zcmt', '.short 0x%04X   # cm.jalt %d -> %s'
+                       % (zcmt_word(idx), idx, sub))
+            body = []
+            for _ in range(self.rng.between(2, 4)):
+                m = self.rng.choice(isa_model.M_ALU_REG)
+                body.append(Insn('alu_reg', '%-8s x%d, x%d, x%d'
+                                 % (m, self._r(), self._r(), self._r())))
+            body.append(Insn('jalr', '%-8s x%d, 0(x%d)'
+                             % ('jalr', R_ZERO, R_RA)))
+            self.subs.append((sub, body))
+
     def _e_clint_irq(self):
         """Raise msip[0] -- a LEVEL interrupt on IVT slot 83 (M19: the CLINT
         slots are hardwire-enabled on every hart, so there is no unmask step).
@@ -521,6 +885,8 @@ class StreamBuilder(object):
         'mul': '_e_mul', 'div': '_e_div', 'amo': '_e_amo', 'lrsc': '_e_lrsc',
         'zba': '_e_zba', 'zbb': '_e_zbb', 'zbs': '_e_zbs', 'zbc': '_e_zbc',
         'zfinx': '_e_zfinx', 'clint_irq': '_e_clint_irq',
+        'zicboz': '_e_zicboz', 'zawrs': '_e_zawrs', 'zihint': '_e_zihint',
+        'zcmp': '_e_zcmp', 'zcmt': '_e_zcmt',
     }
 
     # -- construction ------------------------------------------------------
