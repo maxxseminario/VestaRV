@@ -29,6 +29,23 @@ names the commit it is anchored to.
 
 ---
 
+## [Unreleased]
+
+### Changed
+- The README now describes the chip *generator* and its three chips rather than
+  a single core, and the Core Specifications section separates what is always
+  built from what is selectable per configuration (Zfinx, the crypto set,
+  code-size extensions, U-mode, PMP, counters).
+- `sim.yml` job names no longer carry hardcoded test counts. Both had gone
+  stale — the smoke job claimed 27 against a 29-entry list, the full job 117
+  against a standing 141 — so they name their source list instead of a number
+  that rots.
+
+### Added
+- This changelog's version history, and annotated tags for all 20 releases.
+
+---
+
 ## [2.10.1] — 2026-08-04 — Lineage merge + CI provenance fix
 
 Anchor: `9e104b8`
