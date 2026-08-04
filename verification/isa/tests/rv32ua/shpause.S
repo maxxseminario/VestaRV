@@ -6,8 +6,9 @@
 // THE observable evidence that ENABLE_ZIHINT's PAUSE side-effect is live: the
 // ANTAGONIST (hart 1) runs a FIXED bus-work burst (NITER iterations of a
 // shared store + load), and the MEASURER (hart 0) times the burst with the
-// FREE-RUNNING CLINT mtime (0x5010, +1 per mclk -- advances even while a hart
-// is stalled, so it is a true wall-clock). The burst is run twice:
+// FREE-RUNNING CLINT mtime (0x5000 + roundup16(4*NHARTS), +1 per mclk --
+// advances even while a hart is stalled, so it is a true wall-clock). The burst
+// is run twice:
 //   Phase 1 CONTROL : antagonist runs the burst with NO pause      -> RCTL
 //   Phase 2 PAUSE   : antagonist adds PAUSE each iteration (16-cycle bus
 //                     yield, D6)                                    -> RPAU
@@ -54,7 +55,14 @@
 #define RPAU    0x10310        // pause-phase   burst time (readback)
 #define DONEB   0x1031C        // DONE[h] base: DONE[h] = DONEB + 4*h (h=1..3)
 
-#define MTIME_LO 0x5010        // CLINT mtime lo (N=4): free-running, +1/mclk
+// CLINT mtime lo: free-running, +1 per mclk. N-PARAMETERISED -- the msip array
+// is 4*NHARTS bytes and mtime follows it at the next 16-byte boundary, so this
+// is 0x5010 at N=4 and 0x5050 at N=18. It was the LITERAL 0x5010 until K5, which
+// made this test read `msip[4]` on an 18-hart build: the timer read back 0, the
+// elapsed-time check `beqz s4` fired, and the row FAILED (R-K2-4's measurement).
+// `extzawrs.S` is the pattern this now follows.
+#define MTIME_OFF ((4*NHARTS + 15) & ~15)
+#define MTIME_LO  (0x5000 + MTIME_OFF)
 #define NITER   256            // antagonist bus-work iterations per phase
 #define MARGIN  2000           // required RPAU-over-RCTL mtime gap on the ON build
                                // (window=16 gap ~4400 mclk; window=0 gap ~0 --

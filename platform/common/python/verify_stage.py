@@ -202,20 +202,29 @@ CATALOG = [
     T('rv32ua-p-shmixw', 'tiles atomics'),
     T('rv32ua-p-shcboz', 'atomics'),
     T('rv32ua-p-shcmp', 'atomics'),
-    # shcmppush and shpause HARDCODE the N=4 CLINT layout and say so in their own
-    # headers ("CLINT (NHARTS=4): ... mtime lo=0x5010; mtimecmp0 lo/hi =
-    # 0x5020/0x5024" / "MTIME_LO 0x5010 // CLINT mtime lo (N=4)"). The layout is
-    # N-parameterised -- MTIME = 0x5000 + roundup16(4*NHARTS) -- so at N=18 those
-    # literals are msip[4]/msip[8], i.e. OTHER HARTS' software-interrupt
-    # registers. Measured on Argus: shpause FAILS; shcmppush passes, which is
-    # worse, because its mtip can never have armed. `harts_le4` is exactly the
-    # condition under which 0x5010 IS mtime (4*N <= 16). extzawrs is the model
-    # for how this should be written -- it derives MTIME_OFF from NHARTS -- and
-    # porting these two is Argus-port debt, filed rather than silently tagged
-    # away for good.
-    T('rv32ua-p-shcmppush', 'atomics harts_le4'),
+    # K5: THE ARGUS-PORT DEBT IS PAID (R-K2-4). shcmppush and shpause used to
+    # hardcode the N=4 CLINT layout ("mtime lo=0x5010; mtimecmp0 lo/hi =
+    # 0x5020/0x5024"), which at N=18 addresses msip[4] and msip[8]/msip[9] --
+    # OTHER HARTS' software-interrupt registers -- because the layout is
+    # N-parameterised: MTIME = 0x5000 + roundup16(4*NHARTS). Both now DERIVE the
+    # offset from NHARTS exactly as `extzawrs.S` does, so `harts_le4` is gone
+    # from both rows and neither is deselected on Argus any more.
+    #
+    # WHAT EACH ROW IS ON ARGUS AFTER THE FIX, stated because they differ and
+    # because R-K2-4's reason for shcmppush was measured WRONG at K5:
+    #   * shpause -- REAL coverage. Argus has `zihint` off, so it runs the #else
+    #     forward-progress arm: both bursts timed against real mtime, every one
+    #     of the 17 tiles reporting DONE. That arm was what FAILED at N=18 (the
+    #     bogus mtime read back 0 and `beqz s4` fired).
+    #   * shcmppush -- an OFF-ARM cell, and it always was. Argus has `zcmp` off,
+    #     so `CORE_ENABLE_ZCMP` is undefined and the whole ON body -- timer arm
+    #     included -- is preprocessed away. Its Argus pass was NEVER "an mtip
+    #     that can never have armed"; no mtip code was compiled at all. The CLINT
+    #     literal was real debt but INERT on this config. It joins shcboz/shcmp/
+    #     shcmt, which are untagged and OFF-arm on Argus for the same reason.
+    T('rv32ua-p-shcmppush', 'atomics'),
     T('rv32ua-p-shcmt', 'atomics'),
-    T('rv32ua-p-shpause', 'tiles atomics harts_le4'),
+    T('rv32ua-p-shpause', 'tiles atomics'),
     T('rv32ua-p-amoadd_w', 'atomics'),
     # K2: AMO address-aliasing directed test (hart-0, no build-time dispatch).
     T('rv32ua-p-amoalias', 'atomics'),
@@ -639,20 +648,22 @@ def config_tags(cfg):
     if cfg.get('peripherals', {}).get('cqAfeStubs', True):
         tags.add('cqAfeStubs')
     # K2: `harts_le4` is a STRUCTURAL bound, not a knob -- "this row's addresses
-    # are only correct while 4*numHarts <= 16". Two independent reasons a test
-    # needs it, both measured:
+    # are only correct while 4*numHarts <= 16". ONE test needs it now:
     #   * the AFE stub bank. mcu_vhd.py emits exactly FOUR afe_stub instances
     #     (afe0..afe3) whatever numHarts is -- the bank is NOT N-parameterised --
     #     while shafe.S addresses its own stub as `AFE0 + 0x40*h`. At h=4 that is
     #     0x4D00, which is GPIO3's slot, so shafe on an 18-hart config would not
     #     merely fail, it would write another peripheral.
-    #   * the CLINT mtime/mtimecmp offset. MTIME sits at
-    #     `0x5000 + roundup16(4*NHARTS)`, so the familiar 0x5010/0x5020 literals
-    #     are mtime/mtimecmp ONLY at N<=4; at N=18 they are msip[4]/msip[8].
-    #     shpause and shcmppush hardcode them (and say so in their headers).
+    # The SECOND reason this tag used to carry -- the CLINT mtime/mtimecmp
+    # offset, which sits at `0x5000 + roundup16(4*NHARTS)` and is only 0x5010/
+    # 0x5020 at N<=4 -- is GONE at K5: shpause and shcmppush now derive it from
+    # NHARTS (R-K2-4's Argus-port debt, paid; see their rows above). If a future
+    # test hardcodes 0x5010 again, PORT IT rather than tagging it away -- the tag
+    # is for structure the GENERATOR does not parameterise, not for a literal a
+    # test could simply compute.
     # Deliberately a numeric bound rather than `numHarts == 4`: the predicate
     # that is actually true is 4*N <= 16, and a hypothetical 2-hart config is
-    # fine for both reasons.
+    # fine for the reason above.
     if int(cfg['numHarts']) <= 4:
         tags.add('harts_le4')
     if cfg.get('peripherals', {}).get('npu'):
