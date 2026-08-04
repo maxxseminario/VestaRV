@@ -204,6 +204,30 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-fk51mp.rcf"
     "../rcf/xrv32um-p-dvintmin.rcf"
     "../rcf/xrv32um-p-dvbubble.rcf"
+    # ---------------------------------------------------------------------
+    # ID4 (2026-08-04, R-ID0-3): the ID-series detector. 141 -> 142.
+    #
+    # idcsrmp: the BLIND detector for the identity-CSR hole (ID2 authored it
+    #   before the fix existed; ID3 fixed the hole at 5d7e2cc). mvendorid
+    #   0xF11 / marchid 0xF12 / mimpid 0xF13 / mconfigptr 0xF15 were absent
+    #   from maindec.vhd's csr_addr_valid map, so a plain csrr of a REQUIRED
+    #   read-only M-mode CSR raised illegal-instruction and wedged the hart in
+    #   the TERMINAL TrapState. Post-fix the four retire and read zero
+    #   (R-DID1); the same file also guards the fix from being over-wide
+    #   (0xF10 / 0xF16 must keep trapping) and over-narrow (a legal 0xF14 read
+    #   must not trap), and re-asserts that a write form aimed at the
+    #   read-only quadrant still traps in every build.
+    #
+    # POLARITY-INSENSITIVE like the five above, and for a stronger reason: it
+    # has no CORE_ENABLE_* dispatch at all (its only #ifdef is its own
+    # PASS_CONTROL rehearsal arm), so its rcf/ and rcf_k17/ images are
+    # byte-identical -- checked by tools/cosim/check_image_polarity.py, which
+    # now counts it.
+    #
+    # Its three tile victims all end in the terminal TrapState by design and
+    # never write a0_1/a0_2/a0_3, so riscv_tb reports "tile hart(s)
+    # silent/parked" -- a NOTE, not a failure (the trapstor precedent).
+    "../rcf/xxrv32ua-p-idcsrmp.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

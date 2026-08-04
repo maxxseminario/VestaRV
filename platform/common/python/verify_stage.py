@@ -273,6 +273,25 @@ CATALOG = [
     #             move. What moves is `make verify`'s selection (140 -> 141).
     T('rv32ua-p-rocsrw', 'atomics trapCsr', True),
     T('rv32ua-p-rocsrwmp', 'atomics', True),
+    # ID4 (R-ID0-3): the ID-series detector for the identity-CSR hole, which
+    # ID3 fixed at 5d7e2cc (mvendorid/marchid/mimpid/mconfigptr were absent
+    # from csr_addr_valid, so reading a REQUIRED read-only M-mode CSR wedged
+    # the hart in the terminal TrapState). It joins BOTH standing lists --
+    # xrun_parallel.sh's TEST_FILES (141 -> 142) AND this CATALOG -- because
+    # unlike rocsrwmp its own header asks for exactly that.
+    #
+    # UNTAGGED in the knob sense and therefore in the smoke set: the file has
+    # no CORE_ENABLE_* dispatch at all, every encoding hart 0 executes is
+    # unconditionally legal on all 28 matrix rows, and it must run on
+    # castalia_notrapcsr -- the ONE row exercising the trapCsr-OFF arm.
+    #
+    # `atomics` is a GROUP tag here, not a claim that the test executes an
+    # AMO: it executes none, and neither do rocsrwmp, trapstor or packalias,
+    # which all carry it. On an rv32ua-p-* row the tag says "this row's image
+    # comes from the rv32ua group" (test_groups() derives the build set from
+    # the selected names). isa.atomics defaults true and no matrix config
+    # turns it off, so the row is selected on every row either way.
+    T('rv32ua-p-idcsrmp', 'atomics', True),
     T('rv32ui-p-add', '', True),
     T('rv32ui-p-lb'), T('rv32ui-p-lh'),
     T('rv32ui-p-lw', '', True),
