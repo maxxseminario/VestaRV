@@ -1837,6 +1837,215 @@ core   0: 3 0x00008200 (0x34002373) x6  0x00000002
            1, HPM_NONHPM_RD_RTL, HPM_NONHPM_RD_SPIKE, extra=["--amend", "hpm-warl"],
            expect_in_stdout=["rdval: rtl=00000001 spike=00000002"])
 
+    # ======================================================================
+    # K5 AMENDMENT 5 -- `zacas-failwrite` (isa.zacas), from ledger K4-L4a.
+    #
+    # MEASURED SHAPE (K4 session 3, `rv32ua-p-casgrant` + the two B8 cells).
+    # A `amocas.w` whose compare SUCCEEDS is `L` then `S` on both sides and
+    # already matches.  One whose compare FAILS issues a SECOND, LANE-LESS bus
+    # transaction -- deliberate (`vesta.vhd:2024`: "the FSM still issues the
+    # identical AMO_WRITE transaction ... Mirrors the SC-fail wen"), and REAL
+    # (the arbiter granted TWICE, five-delta counter measurement) -- which the
+    # tracer prints as a second `M L` because `is_load` is
+    # `mem_access_instr='1' and wen="1111"`.  The reference has no bus and
+    # models the failing CAS as ONE access, so the RTL carries a record it
+    # cannot.
+    #
+    # A PROPERTY OF THE RECORD FORMAT, STATED HERE BECAUSE IT BOUNDS WHAT THESE
+    # CASES CAN PROVE: an `M L` compares on ADDRESS ONLY (RECORD_FORMAT §8) and
+    # the two loads are at the SAME address, so a mutation that dropped the
+    # FIRST load instead of the second would be INVISIBLE to the comparison.
+    # That mutation is therefore NOT offered as a control; the discriminating
+    # ones are the ones below, which change WHICH RECORDS SURVIVE.
+    # ======================================================================
+    ZCAS_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    ZCAS_SPIKE = """\
+core   0: 3 0x00008200 (0x28d5a62f) x12 0x0000cafe mem 0x00008410
+core   0: 3 0x00008204 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+
+    h.case("K5 zacas: WITHOUT the amendment the second load diverges",
+           1, ZCAS_RTL, ZCAS_SPIKE,
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+    h.case("K5 zacas: WITH the amendment the stream matches",
+           0, ZCAS_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["zacas-failwrite        1 application(s)",
+                             "00008200@00008410"])
+
+    # THE SUCCESS SHAPE IS UNTOUCHED, and this case is the control for the
+    # over-wide mutation "drop the second M record whatever it is": that version
+    # would delete the committed store and the reference's own `M S` would meet
+    # the next RTL retire.
+    ZCAS_OK_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 S 00008410 4 f00dbabe
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    ZCAS_OK_SPIKE = """\
+core   0: 3 0x00008200 (0x28d5a62f) x12 0x0000cafe mem 0x00008410 mem 0x00008410 0xf00dbabe
+core   0: 3 0x00008204 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zacas: a SUCCEEDING CAS (L,S) is left alone -- and VACUOUS",
+           0, ZCAS_OK_RTL, ZCAS_OK_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["zacas-failwrite        0 application(s)",
+                             "VACUOUS"])
+
+    # THE ATOMICITY CONTROL. A FAILING CAS that nevertheless WROTE is the defect
+    # this amendment must never hide. Its group is L,S -- the success shape --
+    # so the rule leaves it alone and the reference (which has only the load,
+    # because its compare failed too) diverges at the store.
+    h.case("K5 zacas: NEGATIVE -- a failing CAS that WROTE is still caught",
+           1, ZCAS_OK_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"],
+           expect_in_stderr=["zacas-failwrite        0 application(s)"])
+
+    # THE CASE WHERE EVERY SHAPE BOUND COLLAPSES, and the reason it exists.
+    # A SUCCESSFUL CAS that swaps in ZERO has a group [L, S] whose second record
+    # is at the same address, the same size, and carries data 00000000 -- i.e. it
+    # satisfies every bound in `amocas_failwrite_ok` EXCEPT the direction test.
+    # Wrong-version controls W2/W2b/W2c measured this the hard way: with an
+    # ordinary nonzero swap value the L,S shape is guarded THREE times over
+    # (short-circuit, direction test, fill-lost test), so no mutation of any one
+    # of them is detectable. Only THIS stream separates them, and it is not a
+    # contrived one -- swapping zero into a word is an ordinary thing to do.
+    ZCAS_ZEROSWAP_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 S 00008410 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    ZCAS_ZEROSWAP_SPIKE = """\
+core   0: 3 0x00008200 (0x28d5a62f) x12 0x0000cafe mem 0x00008410 mem 0x00008410 0x00000000
+core   0: 3 0x00008204 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zacas: a SUCCEEDING CAS that swaps in ZERO keeps its store",
+           0, ZCAS_ZEROSWAP_RTL, ZCAS_ZEROSWAP_SPIKE,
+           extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["zacas-failwrite        0 application(s)"])
+
+    # The SAME-ADDRESS bound. A second access at a different address is a
+    # sequencer addressing the wrong word and must reach the comparison.
+    ZCAS_ADDR_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008414 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zacas: NEGATIVE -- a second load at ANOTHER address is refused",
+           1, ZCAS_ADDR_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["REFUSED", "DIFFERENT addresses 00008410 and 00008414",
+                             "zacas-failwrite        0 application(s)"])
+
+    # The COUNT bound: three accesses is not one read plus one lane-less write.
+    ZCAS_THREE_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 4 00000000
+M 00 00000100 L 00008410 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zacas: NEGATIVE -- THREE accesses are refused, not trimmed to one",
+           1, ZCAS_THREE_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["expected exactly 2 memory records"])
+
+    # The SIZE bound (Zabha gives `.b`/`.h` their own lane geometry).
+    ZCAS_SIZE_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 2 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zacas: NEGATIVE -- two loads of DIFFERENT sizes are refused",
+           1, ZCAS_SIZE_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["DIFFERENT sizes 4 and 2"])
+
+    # The FILL-LOST bound: a nonzero payload means data DID land, so the record
+    # is not the lane-less write this rule describes.
+    ZCAS_DATA_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 4 deadbeef
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zacas: NEGATIVE -- a nonzero second payload is refused",
+           1, ZCAS_DATA_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["carries data deadbeef"])
+
+    # The ARCHITECTURAL bound, and the only one that is not about record shape:
+    # Zacas puts the OLD MEMORY WORD in rd. A retire whose rd disagrees with the
+    # word its own first load returned is not a CAS that read what it reports.
+    ZCAS_RDVAL_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 00001234
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    ZCAS_RDVAL_SPIKE = """\
+core   0: 3 0x00008200 (0x28d5a62f) x12 0x00001234 mem 0x00008410
+core   0: 3 0x00008204 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zacas: NEGATIVE -- rd not carrying the old word is refused",
+           1, ZCAS_RDVAL_RTL, ZCAS_RDVAL_SPIKE,
+           extra=["--amend", "zacas-failwrite"],
+           expect_in_stderr=["does not carry the old memory word"])
+
+    # The OPCODE bound. `amoadd.w` (funct5 00000) has the identical record shape
+    # here and must NOT be forgiven: only the CAS path has the documented
+    # lane-less write.
+    ZCAS_AMOADD_RTL = """\
+R 00 00000100 00008200 00d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    ZCAS_AMOADD_SPIKE = """\
+core   0: 3 0x00008200 (0x00d5a62f) x12 0x0000cafe mem 0x00008410
+core   0: 3 0x00008204 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zacas: NEGATIVE -- a non-CAS AMO is never a candidate",
+           1, ZCAS_AMOADD_RTL, ZCAS_AMOADD_SPIKE,
+           extra=["--amend", "zacas-failwrite"],
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"],
+           expect_in_stderr=["zacas-failwrite        0 application(s)"])
+
+    # A5 is untouched: an x-tainted record is never dropped, so the exit-4
+    # verdict survives the amendment.  TWO cases, because only the second one
+    # DISCRIMINATES -- a wrong-version control (W7) showed that an `x` inside
+    # `data` is refused by the fill-lost bound anyway, so removing the A5 test
+    # changed nothing.  An `x` in the tracer's own CYCLE field sets `has_x` while
+    # every field this rule bounds stays well-formed, and that is the case the
+    # A5 test is the only thing standing in front of.
+    ZCAS_X_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 00000100 L 00008410 4 000000x0
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zacas: an x-tainted PAYLOAD keeps its A5 exit-4 verdict",
+           4, ZCAS_X_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stdout=["X-CORRUPTED RECORD"])
+    ZCAS_XCYC_RTL = """\
+R 00 00000100 00008200 28d5a62f 0c 0000cafe
+M 00 00000100 L 00008410 4 0000cafe
+M 00 0000010x L 00008410 4 00000000
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zacas: an x-tainted CYCLE field is not dropped either (A5)",
+           4, ZCAS_XCYC_RTL, ZCAS_SPIKE, extra=["--amend", "zacas-failwrite"],
+           expect_in_stdout=["X-CORRUPTED RECORD"],
+           expect_in_stderr=["never dropped (Amendment A5)"])
+
+    # Cross-amendment: a DIFFERENT amendment must not do this rule's job.
+    h.case("K5 zacas: NEGATIVE -- cboz-stores does not drop the CAS record",
+           1, ZCAS_RTL, ZCAS_SPIKE, extra=["--amend", "cboz-stores"],
+           expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
     h.case("K2b: ungated, an old fixture is bit-identical to pre-K2b",

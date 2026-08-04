@@ -47,9 +47,18 @@ and only on a configuration whose resolved config turns the owning knob on.
                                               logs nothing at all) -- both legal,
                                               different records
                                               (D-2026-07-29-1 / k0 §3.3)
+    isa.zacas       zacas-failwrite           a FAILING `amocas` issues a
+                                              deliberate SECOND, LANE-LESS bus
+                                              transaction (the SC-fail wen
+                                              mirror) which the tracer prints as
+                                              a second `M L`; the reference has
+                                              no bus and models the failing CAS
+                                              as ONE access
+                                              (K4-L4a / R-K4-3 (1))
 
-(That is the whole K2b spec: four amendments, six rules, one commit each, one
-set of default-config pins each.)
+(K2b's own spec was four amendments, six rules.  `zacas-failwrite` is the FIFTH
+amendment, added at K5 from K4's ledger; the discipline below governs it
+identically.)
 
 WHERE A NEW RULE BELONGS, AND WHY IT MATTERS (the A17 acceptance lesson).
 `--count` measures the RTL window AFTER `rtl_prepass` and its number is fed
@@ -116,6 +125,10 @@ AMENDMENTS = (
      "the HPM WARL allowlist: named HPM CSR WRITE records leave the compared "
      "stream on BOTH sides, and the CONFIGURATION registers' read-backs stop "
      "comparing rdval -- the COUNTERS' do not"),
+    ("zacas-failwrite", "isa.zacas",
+     "drop the SECOND `M L` of a FAILED `amocas` retire -- the lane-less "
+     "AMO_WRITE transaction -- bounded by exactly two loads at ONE address, no "
+     "store, and rd carrying the first load's data"),
 )
 
 AMENDMENT_NAMES = tuple(n for (n, _p, _d) in AMENDMENTS)
@@ -234,6 +247,117 @@ def csr_access(insn):
 def is_mret(insn):
     """`mret` = 0x30200073 exactly (funct3=0 SYSTEM, funct12=0x302)."""
     return _word(insn) == 0x30200073
+
+
+# `amocas.w/.b/.h` = AMO_OPCODE ("0101111" = 0x2f) with funct5 = CAS_FN5
+# ("00101", `hdl/common/constants.vhd:138`).  FIELD-DECODED from the two fields
+# the RTL's own `cas_op` term reads (`vesta.vhd:2010-2011`:
+# `instr_curr(6 downto 0) = AMO_OPCODE and instr_curr(31 downto 27) = CAS_FN5`),
+# so the predicate here IS the decode predicate rather than a re-derivation of
+# it.  aq/rl (bits 26:25) and funct3 (the .w/.b/.h width) are deliberately
+# OUTSIDE the mask: the width does not change the record shape this rule is
+# about, and the size equality below covers it.
+AMOCAS_MASK, AMOCAS_MATCH = 0xf800007f, 0x2800002f
+
+
+def is_amocas(insn):
+    w = _word(insn)
+    return w is not None and len(insn) == 8 and (w & AMOCAS_MASK) == AMOCAS_MATCH
+
+
+def amocas_failwrite_ok(retire, mem):
+    """The bound on a `zacas-failwrite` drop.  (ok, why-not) -- ALL of:
+
+        exactly TWO `M` records in the retire's memory group, BOTH `L`,
+        at the SAME address, with the SAME size, the second's data all-zero,
+        neither x-tainted, and (when rd != x0) the retire's rdval EQUAL to the
+        FIRST load's data.
+
+    WHY THIS SHAPE IS THE FAILED CAS AND NOTHING ELSE (K4-L4a, measured).  On a
+    SUCCESSFUL compare the retire's group is `L` then `S` -- the read and the
+    committed write -- and it already matches the reference, so this rule never
+    sees it and never touches it.  On a FAILED compare `amo_wen` is `"1111"`,
+    i.e. NO byte lane (`vesta.vhd:2024`, whose own comment states the intent:
+    *"write-enable gating ONLY, so the FSM still issues the identical AMO_WRITE
+    transaction (same LOCKED trajectory) ... Mirrors the SC-fail wen"*).  The
+    transaction is issued, the arbiter GRANTS IT -- measured, two grants on a
+    failing shared CAS, `rv32ua-p-casgrant` -- and `vesta_tracer.vhd` labels it
+    `L` because its `is_load` term is `mem_access_instr='1' and wen="1111"`,
+    which is a CORRECT description of a lane-less access.  The reference has no
+    bus at all and models the failing CAS as one access, so the RTL stream
+    carries one record it cannot.
+
+    THE BOUNDS, and what each one refuses:
+      * TWO records, BOTH `L`.  Three loads, or a load plus a store, is not this
+        shape; the drop is refused and the divergence is the report.  In
+        particular a failing CAS that WROTE (an `S` in the group) is exactly the
+        atomicity defect this amendment must never hide, and it fails here.
+      * SAME ADDRESS.  A second access at a DIFFERENT address is the signature of
+        a sequencer addressing the wrong word (the M8 `rs1_value`-vs-ALU class),
+        and it must reach the comparison.
+      * SAME SIZE.  Under Zabha the `.b`/`.h` forms have their own lane geometry;
+        two accesses of different widths are not one CAS's read+lane-less-write.
+      * THE SECOND DATA IS ZERO.  The back-fill for that record can never land
+        (`AMO_WRITE` IS the retire edge and the buffer flushes on it), which is
+        what the tracer's own `# NODATA ... fill-lost` marker records.  A nonzero
+        payload means data DID land, i.e. the record is not the one described
+        here.
+      * rdval == the FIRST load's data.  This is the ARCHITECTURAL statement --
+        Zacas puts the old memory word in rd -- and it is the one bound that is
+        not about record shape at all.  It ties the drop to the CAS having
+        actually read what it reports.  Skipped only when rd is x0, which cannot
+        carry a value.
+      * NEITHER RECORD x-TAINTED.  A5 keeps its meaning: an x in the compared
+        window is exit 4, never a silently dropped record.
+
+    WHAT THE DROP DOES NOT GIVE AWAY.  The FIRST load stays compared in full, so
+    the address the CAS read is still checked against the reference.  The retire
+    itself (pc, insn, rd, rdval) is untouched.  And if a future RTL change made
+    the failing CAS stop issuing the second transaction, this rule would simply
+    stop firing -- and the summary would print `0 application(s) <-- VACUOUS`,
+    which is the visible form of that change rather than a silent one.
+    """
+    if len(mem) != 2:
+        return False, ("expected exactly 2 memory records in the retire group, "
+                       "saw %d (%s)"
+                       % (len(mem), " ".join(m.f[0] + m.f[1] for m in mem)
+                          if mem else "none"))
+    a, b = mem
+    # THE DIRECTION BOUND -- the test that keeps a COMMITTED STORE out of the
+    # candidate set.  It is one of TWO redundant guards on the L,S success shape
+    # (the other is the caller's `success` short-circuit), and the redundancy was
+    # MEASURED rather than assumed: wrong-version controls W2 and W2b removed
+    # each guard on its own and NEITHER changed a verdict.  Only W2c -- both gone
+    # at once -- is detectable, and it is detectable on exactly one stream: a
+    # SUCCESSFUL CAS THAT SWAPS IN ZERO, whose store satisfies every other bound
+    # here (same address, same size, data 00000000).  Keep both guards.
+    if a.f[0] != "L" or b.f[0] != "L":
+        return False, ("the group is %s,%s -- a FAILED CAS emits L,L; L,S is the "
+                       "SUCCESS shape and is never a candidate"
+                       % (a.f[0], b.f[0]))
+    # A5.  NOT redundant with the field bounds below, and the discriminating case
+    # is the one a wrong-version control (W7) had to be rewritten to find: `x` in
+    # a record's HART or CYCLE field sets `has_x` while every field this rule
+    # bounds stays well-formed (`records.py`: an x on the tracer's own counter
+    # means the trace is not trustworthy, even though neither field is compared).
+    # An x inside addr/size/data is caught twice over -- by this and by the
+    # equality bounds -- and that overlap is deliberate, not accidental.
+    if a.has_x or b.has_x:
+        return False, "an x-tainted record is never dropped (Amendment A5)"
+    if a.f[1] != b.f[1]:
+        return False, ("the two loads are at DIFFERENT addresses %s and %s"
+                       % (a.f[1], b.f[1]))
+    if a.f[2] != b.f[2]:
+        return False, ("the two loads have DIFFERENT sizes %s and %s"
+                       % (a.f[2], b.f[2]))
+    if b.f[3] != "00000000":
+        return False, ("the second load carries data %s, expected 00000000 (the "
+                       "fill-lost signature)" % b.f[3])
+    if retire.f[2] != "00" and retire.f[3] != a.f[3]:
+        return False, ("rd=%s retired %s but the first load returned %s -- rd "
+                       "does not carry the old memory word"
+                       % (retire.f[2], retire.f[3], a.f[3]))
+    return True, ""
 
 
 # The A8 legacy trap sentinel.  `mtrap-t` NEVER touches it: it is the ISR
@@ -547,6 +671,39 @@ def rtl_prepass(recs, am):
                           % (idx, r.f[0], want, len(loads),
                              (" at " + " ".join(x.f[1] for x in loads))
                              if loads else ""))
+
+        # -- zacas-failwrite: the lane-less AMO_WRITE record of a FAILED CAS --
+        # RECORD_FORMAT §0 fixes the per-retire order (R, then every `M L`, then
+        # every `M S`), so an `amocas` retire's memory group is the run of `M`
+        # records immediately after it.  THE SUCCESS SHAPE IS EXACTLY [L, S] and
+        # is skipped here WITHOUT a refusal line -- it already matches the
+        # reference, and a refusal printed at every successful CAS would bury the
+        # real ones.  IT IS ALSO ONE OF TWO REDUNDANT GUARDS on that shape -- the
+        # other is the direction test inside `amocas_failwrite_ok` -- and neither
+        # is detectable alone (wrong-version controls W2/W2b); only removing both
+        # is, and only on a CAS that swaps in ZERO.  Keep both.
+        # Every other shape is JUDGED, including the empty one: an `amocas` with
+        # no memory group at all is not something this rule should pass over in
+        # silence.
+        if (r.kind == "R" and am.enabled("zacas-failwrite")
+                and is_amocas(r.f[1])):
+            j, mem = i + 1, []
+            while j < n and recs[j].kind == "M":
+                mem.append(recs[j])
+                j += 1
+            success = (len(mem) == 2 and mem[0].f[0] == "L"
+                       and mem[1].f[0] == "S")
+            if not success:
+                ok, why = amocas_failwrite_ok(r, mem)
+                if ok:
+                    am.bump("zacas-failwrite", "%s@%s" % (r.f[0], mem[0].f[1]))
+                    out.append(mem[0])
+                    i = j
+                    continue
+                am.refuse("zacas-failwrite", r.lineno,
+                          "amocas at pc %s: %s -- NOTHING was dropped, so the "
+                          "record stays in the compared stream and the "
+                          "divergence is the report" % (r.f[0], why))
         i += 1
     return out
 
