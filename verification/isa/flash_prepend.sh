@@ -90,6 +90,28 @@ for file in $filter; do
     fi
     # -------------------------------------------------------------------------
 
+    # ---- K5: IDEMPOTENCY GUARD (the header, not just the name) --------------
+    # The rename above has been idempotent since it was written; the PREPEND
+    # never was, and the header docstring's "so re-running is idempotent"
+    # covers only step 1. That gap became active corruption, measured at K5:
+    # `<group>-flash` in the ISA Makefile globs `rcf/*<group>*.rcf` and runs
+    # this script over EVERY match, including images whose `.S` no longer
+    # exists -- which `make <group>` therefore cannot rebuild, so the file that
+    # arrives here is the ALREADY-FLASHED one. Measured on a single staged
+    # build: the orphaned `xxxxrv32uk-p-a4b01.rcf` went 873 -> 885 lines, one
+    # extra header, and it grew again on every subsequent build.
+    #
+    # The guard is CONTENT-based and exact: `$line1` is the 0x10adbeef command
+    # word, which cannot be the first word of an un-flashed image (an rcf
+    # begins with the program's own first word). Deliberately not an mtime, a
+    # marker file or a name convention -- what is being detected is "this file
+    # already carries the header", and that is a property of the bytes.
+    if [ "$(sed -n '1p' "$file")" = "$line1" ]; then
+        echo "Already flashed, skipping: $file"
+        continue
+    fi
+    # -------------------------------------------------------------------------
+
     echo "Formatting: $file ..."
 
 
