@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/07/28 at 15:55:00 with the generate.py chip generator
+-- Generated on 2026/08/04 at 01:10:23 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip

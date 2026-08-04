@@ -863,9 +863,9 @@ const VESTA_DATA = {
       "default": false
     },
     "priv.trapCsr": {
-      "description": "bool \u2014 P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery \u2014 MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. Default false: all ten addresses and the three encodings stay illegal, bit-identical to a pre-P1 chip",
+      "description": "bool \u2014 P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery \u2014 MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. DEFAULT TRUE since K7/R-DK3 (2026-08-04) on both Castalia and Argus: the CSR file and standard delivery are present, boot is bit-identical, and a hart enters standard delivery only when its own firmware writes mtrapctl (csrw 0x7C0, x0). Cost, measured at K6: +144 flops per tile (genus sequential 2251 -> 2395), +3.85% standard-cell area, +1.29% tile area, timing neutral. Set false to get a pre-P1 chip back: all ten addresses and the three encodings stay illegal. HAZARD any firmware policy must respect: clearing LEGACY on a hart that then EXTINGUISHes makes it unwakeable (the legacy IVT slot-83 msip path is what the bootrom park/wake contract uses) -- per-hart only, never before park",
       "type": "bool",
-      "default": false
+      "default": true
     },
     "priv.umode": {
       "description": "bool \u2014 P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate \u2014 every machine/custom CSR (csr_addr(9:8)/=\"00\"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero \u2014 bit-identical to a P1 chip",
@@ -1062,7 +1062,7 @@ const VESTA_DATA = {
     "isa.zbkx": false,
     "isa.zkn": false,
     "isa.zfinx": false,
-    "priv.trapCsr": false,
+    "priv.trapCsr": true,
     "priv.umode": false,
     "priv.pmp": false,
     "priv.pmpEntries": 16,

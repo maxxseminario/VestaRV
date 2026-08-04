@@ -98,6 +98,8 @@ help:
 generate:
 	@echo "Generating chip artifacts from python/generate.py..."
 	@if [ -n "$(CONFIG)" ]; then echo "  • using config file: $(CONFIG)"; fi
+	@echo "Checking every knob's two default literals agree (schema <-> _cfg)..."
+	@python3 python/check_config_defaults.py
 	@cd python && CHIP_NAME='$(CHIP_NAME)' CHIP_CONFIG='$(if $(CONFIG),$(abspath $(CONFIG)),)' python3 generate.py
 	@echo ""
 	@echo "C-compiling the emitted MemoryMap.h (riscv-none-elf-gcc -fsyntax-only)..."

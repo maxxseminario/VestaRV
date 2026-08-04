@@ -1,7 +1,7 @@
 -- MemoryMap.vhd
 -- Memory map VHDL package
 -- Defines the memory map of the MCU, including which RAM and peripheral slots are activated, as well as which slot each peripheral is allocated to, and the slot each register within each peripheral is allocated to
--- Generated on 2026/07/28 at 13:23:48 with the MemoryMap.py memory map generator
+-- Generated on 2026/08/04 at 01:10:23 with the MemoryMap.py memory map generator
 -- WARNING: Do not edit or modify this file!
 -- 	If you need to change it, use the MemoryMap.py memory map generator tool
 
@@ -1206,7 +1206,7 @@ package MemoryMap is
 	constant CORE_ENABLE_ZBKX		: boolean := false;						-- X3: Zbkx crossbar permute
 	constant CORE_ENABLE_ZKN		: boolean := false;						-- X3: Zkn AES+SHA (Zknd+Zkne+Zknh)
 	constant CORE_ENABLE_ZFINX		: boolean := false;						-- X4: Zfinx single-prec FP in x-regs
-	constant CORE_ENABLE_TRAPCSR	: boolean := false;						-- P1: standard M-mode trap CSRs + MRET
+	constant CORE_ENABLE_TRAPCSR	: boolean := true;						-- P1: standard M-mode trap CSRs + MRET
 	constant CORE_ENABLE_UMODE		: boolean := false;						-- P2: U-mode (needs TRAPCSR)
 	constant CORE_ENABLE_PMP		: boolean := false;						-- P3: PMP / Smpmp (needs UMODE)
 	constant CORE_PMP_ENTRIES		: natural := 16;						-- P3: PMP entry count {8,16} (only with PMP)
