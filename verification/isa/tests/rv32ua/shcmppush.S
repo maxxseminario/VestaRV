@@ -44,13 +44,24 @@
 # gas 13.2 has no cm.* mnemonics; cm.push/pop are raw 16-bit `.short's (verified
 # shcmp.S encodings): cm.push {ra,s0-s11},-112 = 0xB8FE ; cm.pop {..},112 = 0xBAFE.
 #
-# CLINT (NHARTS=4): base 0x5000; MSIP[0]=0x5000; mtime lo=0x5010; mtimecmp0
-# lo/hi = 0x5020/0x5024 (reset all-ones = quiet). Reserved regs (never in an
+# CLINT: base 0x5000; MSIP[h]=0x5000+4h; the msip array is 4*NHARTS bytes and
+# mtime follows it at the next 16-byte boundary, so mtime lo = 0x5000 +
+# roundup16(4*NHARTS) and mtimecmp0 lo/hi = that + 0x10/0x14 (reset all-ones =
+# quiet). The offsets below are DERIVED from NHARTS; they were the N=4 literals
+# 0x10/0x20/0x24 until K5, which on an 18-hart build would have addressed
+# msip[4] and msip[8]/msip[9] -- OTHER HARTS' software-interrupt registers.
+# `extzawrs.S` is the pattern this now follows. Reserved regs (never in an
 # rlist, never touched by the ISR): gp(x3)=&cpp_cursp, tp(x4)=entry sp.
 #*****************************************************************************
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"                 /* NHARTS (defaults to 4) */
+
+#define MTIME_OFF     ((4*NHARTS + 15) & ~15)
+#define MTIME_LO      (MTIME_OFF)
+#define MTIMECMP0_LO  (MTIME_OFF + 0x10)
+#define MTIMECMP0_HI  (MTIME_OFF + 0x14)
 
 .option norvc
 .option norelax
@@ -103,11 +114,11 @@ RVTEST_CODE_BEGIN
     # arm mtip a tuned delta ahead of mtime (lo while hi still all-ones = quiet,
     # then hi=0 arms), then IMMEDIATELY cm.push so mtip rises mid-burst
     li   t3, 0x5000
-    lw   t4, 0x10(t3)           # mtime lo
+    lw   t4, MTIME_LO(t3)       # mtime lo
     li   t5, MTIP_DELTA
     add  t4, t4, t5
-    sw   t4, 0x20(t3)           # mtimecmp0 lo (hi still all-ones: quiet)
-    sw   x0, 0x24(t3)           # mtimecmp0 hi = 0 : ARMED
+    sw   t4, MTIMECMP0_LO(t3)   # mtimecmp0 lo (hi still all-ones: quiet)
+    sw   x0, MTIMECMP0_HI(t3)   # mtimecmp0 hi = 0 : ARMED
     .short 0xB8FE              # cm.push {ra,s0-s11},-112   <-- must retire first
 
     # wait for the (held) interrupt to be taken now that the push retired
@@ -165,11 +176,11 @@ RVTEST_CODE_BEGIN
     sw   x0, 0(t0)            # clear isr_ran
     # arm mtip mid-pop-burst
     li   t3, 0x5000
-    lw   t4, 0x10(t3)
+    lw   t4, MTIME_LO(t3)
     li   t5, MTIP_DELTA
     add  t4, t4, t5
-    sw   t4, 0x20(t3)
-    sw   x0, 0x24(t3)         # ARMED
+    sw   t4, MTIMECMP0_LO(t3)
+    sw   x0, MTIMECMP0_HI(t3)  # ARMED
     .short 0xBAFE              # cm.pop {ra,s0-s11},112   <-- must retire first
 
     la   t0, cpp_isr_ran
@@ -205,7 +216,7 @@ mtip_isr:
     sw   t2, 8(sp)
     li   t0, 0x5000
     li   t1, -1
-    sw   t1, 0x24(t0)          # mtimecmp0 hi = all-ones : level drops
+    sw   t1, MTIMECMP0_HI(t0)  # mtimecmp0 hi = all-ones : level drops
     la   t1, cpp_isr_ran
     li   t2, 1
     sw   t2, 0(t1)
