@@ -3,12 +3,30 @@
 #*****************************************************************************
 # fk51mp.S   (K5 queue item 5 -- the DEFAULT-BUILD MEASUREMENT detector for F-K5-1)
 #-----------------------------------------------------------------------------
-# THIS FILE MEASURES. IT FIXES NOTHING, AND IT ASSERTS WHAT THE RTL DOES TODAY.
-# R-K5-5 (2) banked F-K5-1 and ruled the fix decision the orchestrator's; this
-# detector exists so that decision is taken against numbers instead of a
-# reading.  It therefore PASSES on the unfixed tree by design.  A future fix
-# will make it FAIL, and that is the point: the assertions below are a
-# machine-readable statement of the present behaviour.
+# THE VERDICT POLARITY IS FIXED-BEHAVIOUR = PASS, and R-K5-8 (3) is why.
+# This file began life as a MEASUREMENT instrument: it asserted what the RTL did
+# BEFORE the fix, so it passed on the defective tree and failed on the corrected
+# one.  That form did its job -- it is what measured F-K5-1 and what showed the
+# two halves are not mechanically coupled -- but it must not be the form that
+# gets committed.  A detector that goes RED on correct RTL is a standing trap
+# the day anybody wires it into a list: the next reader sees a failing test on a
+# healthy tree and learns to ignore it.  So the committed form is the REGRESSION
+# form, and its verdicts are inverted:
+#
+#     reserved shamt[5]=1 encoding TRAPS   -> PASS   (correct, post-fix)
+#     reserved shamt[5]=1 encoding RETIRES -> FAIL   (the defect, pre-fix)
+#
+# Both polarities are proven, and neither is a claim: the file FAILS against the
+# parent commit's RTL and PASSES against the fixed RTL, with the half-(a) and
+# control rows identical in both runs.  This is the packalias construction's own
+# design point (R-K5-4), reused deliberately.
+#
+# HALF (a) IS NOT FIXED and this file asserts it UNCHANGED.  R-K5-7 (2) ruled it
+# INERT-AS-MEASURED: the funct3=001 ORC.B/REV8 rows in is_zbb_i_instr are dead,
+# shadowed by is_zbs_i_instr, and real orc.b/rev8 work through the fall-through.
+# The two rows below therefore keep RETIRING and keep computing their Zbs
+# results, in both polarities -- which is what makes them the control that says
+# a half-(b) verdict moved for the half-(b) reason.
 #
 # THE FINDING, IN ITS OWN TERMS (maindec.vhd + constants.vhd)
 #   half (a)  `is_zbb_i_instr` groups ORC.B and REV8 under funct3 = "001".
@@ -162,42 +180,46 @@ fk_arm_next:
 
 fk_armed:
     # ==================================================================
-    # wait (bounded) for victims 1 and 2 to run THROUGH their encodings.
-    # PROGRESS1 ends at 3 (two encodings), PROGRESS2 ends at 4 (three).
+    # HALF (a) MUST RUN THROUGH.  Victim 1 executes the two funct3=001
+    # ORC.B/REV8 forms and reaches PROGRESS1 = 3; they are ruled inert and
+    # must keep retiring in BOTH polarities.  A stall here is not a half-(b)
+    # verdict and must not be reported as one.
     # ==================================================================
-    li   t6, WATCH_ITERS
+    li   t6, ARM_BUDGET
+    li   t5, 3
 fk_run_wait:
     lw   t2, 0(s1)
-    li   t5, 3
-    blt  t2, t5, fk_run_next
-    lw   t3, 0(s2)
-    li   t5, 4
-    bge  t3, t5, fk_ran
-fk_run_next:
+    bge  t2, t5, fk_ran
     addi t6, t6, -1
     bnez t6, fk_run_wait
-    # A suspect encoding TRAPPED.  That REFUTES the prediction for whichever
-    # victim is short, and the two progress words say which one and how far it
-    # got -- a1 carries the pair so a failing run is diagnosable from a0/a1
-    # alone.
-    lw   t2, 0(s1)
-    lw   t3, 0(s2)
-    slli t2, t2, 8
-    or   a1, t2, t3
-    li   t4, 0xF5100002
-    or   a1, a1, t4
+    li   a1, 0xF5100004                 # half (a) did NOT retire -- see above
     j    fk_fail
 
 fk_ran:
     # ==================================================================
-    # THE CONTROL.  Hart 3's genuinely-illegal encoding must STILL be stuck at
-    # 1.  If it advanced, this build traps nothing in that space and the two
-    # verdicts above are worthless.
+    # THE OBSERVATION WINDOW.  Every reserved encoding must STAY trapped for
+    # the whole window; if any victim ever advances past its encoding, the
+    # reserved form retired and that is the defect.
+    #   PROGRESS1 must never reach 4  -- victim 1's trailing `srai x,x,35`
+    #                                    (SRL arm, funct7(6:5) = "01")
+    #   PROGRESS2 must never reach 2  -- victim 2's `slli x,x,35`
+    #                                    (SLL arm, funct7(6:5) = "00")
+    #   PROGRESS3 must never reach 2  -- THE CONTROL
+    # The two reserved forms are deliberately drawn from the two DIFFERENT
+    # decode arms the fix touches, so one passing run exercises both.
     # ==================================================================
+    li   t6, WATCH_ITERS
+fk_watch:
+    lw   t2, 0(s1)
+    li   t5, 4
+    bge  t2, t5, fk_h1_ran
+    lw   t3, 0(s2)
+    li   t5, 2
+    bge  t3, t5, fk_h2_ran
     lw   t4, 0(s3)
-    li   t5, 1
-    li   a1, 0xF5100003                 # the control encoding did NOT trap
-    bne  t4, t5, fk_fail
+    bge  t4, t5, fk_h3_ran
+    addi t6, t6, -1
+    bnez t6, fk_watch
 
     # ==================================================================
     # half (a): the wrong-funct3 ORC.B/REV8 forms are ordinary Zbs ops
@@ -223,37 +245,28 @@ fk_ran:
     bne  t0, t1, fk_fail
     .option pop
 
-    # ==================================================================
-    # half (b): shamt[5] is ignored -- shamt 35 behaves as shamt 3
-    # ==================================================================
-    slli t0, s4, 3
-    li   s5, SH_VAL2A
-    lw   t1, 0(s5)
-    li   a1, 0xF5100021                 # reserved slli != slli by shamt[4:0]
-    bne  t0, t1, fk_fail
-
-    srli t0, s4, 3
-    li   s5, SH_VAL2B
-    lw   t1, 0(s5)
-    li   a1, 0xF5100022                 # reserved srli != srli by shamt[4:0]
-    bne  t0, t1, fk_fail
-
-    srai t0, s4, 3
-    li   s5, SH_VAL2C
-    lw   t1, 0(s5)
-    li   a1, 0xF5100023                 # reserved srai != srai by shamt[4:0]
-    bne  t0, t1, fk_fail
-
-    # A non-vacuity guard: srai and srli of a bit-31-set seed MUST differ, so a
-    # build in which every result word were accidentally equal cannot pass the
-    # three comparisons above by coincidence.
-    srli t0, s4, 3
-    srai t1, s4, 3
-    li   a1, 0xF5100024
-    beq  t0, t1, fk_fail
+    # A non-vacuity guard on the half-(a) comparisons above: `bseti x,x,7` and
+    # `binvi x,x,24` of this seed MUST differ from each other and from the seed,
+    # so a build in which every observation word read back the same value could
+    # not have satisfied both.
+    li   a1, 0xF5100013
+    beq  t0, s4, fk_fail
 
     RVTEST_PASS
 
+    # ---- the three ways a reserved encoding can betray itself ---------------
+    # Each is a DISTINCT a1, so a failing run is diagnosable from a0/a1 alone
+    # without a waveform.
+fk_h1_ran:
+    li   a1, 0xF5100021                 # victim 1's `srai x,x,35` RETIRED
+    j    fk_fail                        #   (SRL arm, funct7(6:5) = "01")
+fk_h2_ran:
+    li   a1, 0xF5100022                 # victim 2's `slli x,x,35` RETIRED
+    j    fk_fail                        #   (SLL arm, funct7(6:5) = "00")
+fk_h3_ran:
+    li   a1, 0xF5100003                 # THE CONTROL retired -- this build
+                                        # traps nothing in that space, so the
+                                        # two verdicts above are worthless
 fk_fail:
     RVTEST_FAIL
 
@@ -290,6 +303,13 @@ fk_h1:
     addi t2, x0, 3                      # never a store
     li   s5, SH_VAL1B
     sw   x6, 0(s5)
+    sw   t2, 0(s1)                      # PROGRESS1 = 3: half (a) both retired
+    # ...and now the half-(b) form from the OTHER decode arm the fix touches.
+    # Post-fix this traps and PROGRESS1 stays at 3, which is what the observer
+    # requires; pre-fix it retired and PROGRESS1 reached 4.
+    li   x5, SEED
+    .word 0x4232D313                    # srai x6, x5, 35   (RV32-reserved)
+    addi t2, x0, 4                      # never a store: F8 cannot fire here
     sw   t2, 0(s1)
 fk_h1_park:
     j    fk_h1_park
