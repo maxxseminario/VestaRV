@@ -32,7 +32,7 @@
     "zfinx": false
   },
   "priv": {
-    "trapCsr": false,
+    "trapCsr": true,
     "umode": false,
     "pmp": false,
     "pmpEntries": 16

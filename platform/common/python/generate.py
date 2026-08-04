@@ -113,7 +113,7 @@ _CONFIG_SCHEMA = {
 	# (2026-07-29) -- _SCAFFOLDED_PRIV below is now EMPTY, so none of them
 	# hard-errors any more. The dependency validations (umode => trapCsr,
 	# pmp => umode) stay LIVE and are the only gate left.
-	'priv.trapCsr':         ('bool — P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. Default false: all ten addresses and the three encodings stay illegal, bit-identical to a pre-P1 chip', _isBool),
+	'priv.trapCsr':         ('bool — P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. DEFAULT TRUE since K7/R-DK3 (2026-08-04) on both Castalia and Argus: the CSR file and standard delivery are present, boot is bit-identical, and a hart enters standard delivery only when its own firmware writes mtrapctl (csrw 0x7C0, x0). Cost, measured at K6: +144 flops per tile (genus sequential 2251 -> 2395), +3.85% standard-cell area, +1.29% tile area, timing neutral. Set false to get a pre-P1 chip back: all ten addresses and the three encodings stay illegal. HAZARD any firmware policy must respect: clearing LEGACY on a hart that then EXTINGUISHes makes it unwakeable (the legacy IVT slot-83 msip path is what the bootrom park/wake contract uses) -- per-hart only, never before park', _isBool),
 	'priv.umode':           ('bool — P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate — every machine/custom CSR (csr_addr(9:8)/="00"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero — bit-identical to a P1 chip', _isBool),
 	'priv.pmp':             ('bool — P3: physical memory protection (Smpmp), IMPLEMENTED (P3, 2026-07-29): the pmpcfg0-3 / pmpaddr0-15 CSR bank (packed 4x8-bit cfg, R/W/X/A(4:3)/L with bits 6:5 WARL 0, W pinned 0 when R=0, pmpaddr bits 31:30 WARL 0), the full lock semantics (a locked entry\'s cfg AND address are immutable until reset, a TOR-locked entry also write-locks its predecessor address, per-byte lock filtering inside a pmpcfg word), and the combinational match unit (OFF/TOR/NA4/NAPOT at G=0, lowest-numbered match decides alone, locked entries enforce on M-mode, no-match grants M and faults U). The pre-issue fetch/load/store CHECK INTEGRATION with its access-fault causes 1/5/7 lands with the vesta diff of the same phase. Requires priv.umode. Default false: all twenty addresses stay illegal CSRs and the match unit is not instantiated — bit-identical to a P2 chip', _isBool),
 	'priv.pmpEntries':      ('int — PMP entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is true; the CSR map is the 16-entry superset regardless (entries above the count are WARL all-zero). Default 16',
@@ -215,8 +215,15 @@ _CONFIG_META = {
 	'isa.zbkx':             {'type': 'bool', 'default': False},
 	'isa.zkn':              {'type': 'bool', 'default': False},
 	'isa.zfinx':            {'type': 'bool', 'default': False},
-	# P-series privileged architecture (P0 scaffolding; all inert by default)
-	'priv.trapCsr':         {'type': 'bool', 'default': False},
+	# P-series privileged architecture. trapCsr DEFAULTS TRUE since K7/R-DK3
+	# (2026-08-04, USER decision on k6_trap_default_pack.md): both Castalia and
+	# Argus ship the standard M-mode trap architecture. Boot behaviour is
+	# bit-identical -- mtrapctl.LEGACY resets 1 -- so standard delivery is a
+	# per-hart firmware opt-in, never a boot-time change. umode/pmp stay false.
+	# NOTE: this literal is the SCHEMA default (configurator + TRM + validation);
+	# the OPERATIVE default is the _cfg() fallback in _priv below. They are two
+	# separate literals and nothing checks they agree -- change both together.
+	'priv.trapCsr':         {'type': 'bool', 'default': True},
 	'priv.umode':           {'type': 'bool', 'default': False},
 	'priv.pmp':             {'type': 'bool', 'default': False},
 	'priv.pmpEntries':      {'type': 'int', 'default': 16, 'min': 8, 'max': 16, 'step': 8},
@@ -687,7 +694,11 @@ if _isa['zcmt'] and not _isa['compressed']:
 # _isa so the ChipGenerator(...) call and the resolved-config record at the
 # bottom share ONE value per knob.
 _priv = {
-	'trapCsr':    _cfg('priv.trapCsr', False),
+	# K7/R-DK3 (2026-08-04): TRUE. This is the OPERATIVE default -- _cfg()
+	# returns THIS value for a config with no priv key, not the SCHEMA's.
+	# The schema entry at 'priv.trapCsr' must carry the same value; nothing
+	# enforces that, so the two are marked at both sites.
+	'trapCsr':    _cfg('priv.trapCsr', True),
 	'umode':      _cfg('priv.umode', False),
 	'pmp':        _cfg('priv.pmp', False),
 	'pmpEntries': _cfg('priv.pmpEntries', 16),

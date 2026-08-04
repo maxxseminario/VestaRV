@@ -96,11 +96,11 @@ entity hart_tile is
                                          -- flash from 0x40000)
 
         -- Core ISA feature switches, passed straight down to vesta (see
-        -- vesta.vhd). Config-driven from generate.py via the MemoryMap
-        -- package constants in the hartN generic maps; defaults keep every
-        -- existing instantiation (testbenches, genus tile hardening) on the
-        -- full RV32IMAC+Zb* core. NOTE: all four tile instances must get the
-        -- SAME values — the tile is hardened once (M14, one netlist).
+        -- vesta.vhd). Config-driven from generate.py via the MemoryMap package
+        -- constants in the hartN generic maps. THE DEFAULTS BELOW ARE LOAD-
+        -- BEARING: the genus tile hardening (a bare `elaborate hart_tile`) and
+        -- hdl/argus/MCU.vhd's 18 tiles pass no priv generics and take them.
+        -- NOTE: all four tile instances must get the SAME values (M14).
         ENABLE_MUL        : boolean := true;
         ENABLE_DIV        : boolean := true;
         ENABLE_ATOMICS    : boolean := true;
@@ -124,11 +124,11 @@ entity hart_tile is
         ENABLE_ZBKX       : boolean := false;  -- X3 (Zbkx)
         ENABLE_ZKN        : boolean := false;  -- X3 (Zkn = Zknd+Zkne+Zknh)
         ENABLE_ZFINX      : boolean := false;  -- X4 (Zfinx)
-        -- P0 privileged-architecture scaffolding: all default false / 16
-        -- entries, routed straight to the vesta core. No trap-CSR / U-mode /
-        -- PMP logic consumes them yet (generate.py hard-errors if a config
-        -- sets one true); each is consumed from its phase on.
-        ENABLE_TRAPCSR    : boolean := false;  -- P1 (standard M-mode trap CSRs + MRET)
+        -- P-series privileged architecture, routed straight to the vesta core.
+        -- All three are IMPLEMENTED (P1/P2/P3, 2026-07-28/29). K7/R-DK3
+        -- (2026-08-04) makes TRAPCSR the SHIPPED default on both chips, so the
+        -- default below tracks it -- see the LOAD-BEARING note above.
+        ENABLE_TRAPCSR    : boolean := true;   -- P1 (standard M-mode trap CSRs + MRET)
         ENABLE_UMODE      : boolean := false;  -- P2 (U-mode; requires TRAPCSR)
         ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp; requires UMODE)
         PMP_ENTRIES       : integer := 16      -- P3 (PMP entry count {8,16})
