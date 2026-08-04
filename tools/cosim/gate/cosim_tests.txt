@@ -107,3 +107,13 @@ xxxxxxxrv32ui-p-sh.rcf
 xxxxxxxrv32ui-p-sw.rcf
 # --- TRIAGE-EXPECTED (v2_test_set.md section 6) ---
 xrv32ua-p-extzihpm.rcf
+# K7 item 2 (2026-08-04, R-K7-1(4)): the two K5 divide-family blind detectors.
+# ELIGIBILITY DERIVED against v2_test_set.md section 1, not inherited: single-hart
+# (no MP_LAUNCH_HART), no custom instruction, no MMIO below 0x8000 (dvintmin's
+# 0x4xxxxxxx-looking constants are `li` IMMEDIATES, not addresses), no CSR access,
+# no interrupt. rv32um is already an established-eligible suite (rem/mul are in
+# this list). These are the two tests that catch the defects the a0 gate could not
+# see -- 16.1% of campaign divide retires were architecturally wrong and every
+# suite stayed green. 105 -> 107.
+xrv32um-p-dvintmin.rcf
+xrv32um-p-dvbubble.rcf
