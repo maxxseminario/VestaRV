@@ -329,6 +329,11 @@ package constants is
     -- Minimal CSR addresses - only performance counters
     -- Machine Information Registers (Read-only)
     constant CSR_MHARTID    : std_logic_vector(11 downto 0) := x"F14"; -- Hart ID (0 in single-core; unique per hart in MCU_MP)
+    -- ID3: the rest of the machine-information block; all four read ZERO (R-DID1).
+    constant CSR_MVENDORID  : std_logic_vector(11 downto 0) := x"F11"; -- Vendor ID (0 = non-commercial implementation)
+    constant CSR_MARCHID    : std_logic_vector(11 downto 0) := x"F12"; -- Architecture ID (0 = not assigned)
+    constant CSR_MIMPID     : std_logic_vector(11 downto 0) := x"F13"; -- Implementation ID (0 = not implemented)
+    constant CSR_MCONFIGPTR : std_logic_vector(11 downto 0) := x"F15"; -- Config-structure pointer (0 = no structure)
     constant CSR_MISA       : std_logic_vector(11 downto 0) := x"301"; -- ISA and extensions (read-only; reflects the ENABLE_* generics)
     -- Machine Counter/Timers (Read/Write)
     constant CSR_MCYCLE     : std_logic_vector(11 downto 0) := x"B00"; -- Machine cycle counter low
