@@ -97,6 +97,15 @@ entity controller is
         -- read of a read-only CSR. It does not preserve pre-fix behaviour.
         csr_rs1_zero     : in  std_logic := '1';
 
+        -- F-BV1 (K5): the R-type rs2 FIELD is zero. Straight through to
+        -- maindec, where it qualifies the Zbb ZEXT.H decode row -- `zext.h
+        -- rd,rs1` IS the rs2=x0 point of Zbkb `pack rd,rs1,rs2`, and without
+        -- this bit the whole pack space aliased onto zext.h on every Zbkb-off
+        -- build. Default '0' (= NOT zero) is a fail-safe: an unconnected
+        -- instantiation makes zext.h illegal (loud) rather than silently
+        -- reinstating the alias. It does not preserve pre-fix behaviour.
+        rs2_zero         : in  std_logic := '0';
+
         -- ==========================================
         -- Atomic Memory Operation Outputs
         -- ==========================================
@@ -198,6 +207,8 @@ architecture struct of controller is
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
             -- F10 (fix pass W4): rs1/uimm-field-is-zero, straight through
             csr_rs1_zero     : in  std_logic := '1';
+            -- F-BV1 (K5): R-type rs2-field-is-zero, straight through
+            rs2_zero         : in  std_logic := '0';
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
@@ -304,6 +315,7 @@ begin
             status_tw        => status_tw,
             mcounteren_bits  => mcounteren_bits,
             csr_rs1_zero     => csr_rs1_zero,
+            rs2_zero         => rs2_zero,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
                    

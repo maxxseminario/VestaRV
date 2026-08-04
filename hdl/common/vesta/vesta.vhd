@@ -193,6 +193,8 @@ architecture struct of vesta is
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
             -- F10 (fix pass W4): CSR rs1/uimm-field-is-zero (read-only form)
             csr_rs1_zero     : in  std_logic := '1';
+            -- F-BV1 (K5): R-type rs2-field-is-zero (qualifies the ZEXT.H row)
+            rs2_zero         : in  std_logic := '0';
             wrs_op           : out std_logic;
             wrs_sto          : out std_logic;
 
@@ -920,6 +922,9 @@ architecture struct of vesta is
     -- P3-entry: the CSR instruction's rs1/uimm FIELD is zero (csr_unit
     -- write-form rule -- CSRRS/C[I] with rs1/uimm = 0 must not write).
     signal csr_rs1_zero           : std_logic;
+    -- F-BV1 (K5): the R-type rs2 FIELD is zero (decode legality only -- never
+    -- the register's VALUE). Feeds maindec's ZEXT.H row via controller.
+    signal rs2_zero               : std_logic;
     -- P3-entry: effective DATA-access privilege from csr_unit (mstatus.MPRV
     -- redirection). CONSUMER = the P3 PMP data-side check (Agent B); carried
     -- unconsumed until then.
@@ -4673,6 +4678,10 @@ architecture struct of vesta is
             -- read-only-CSR trap and the write path can never disagree about
             -- what counts as a write.
             csr_rs1_zero     => csr_rs1_zero,
+            -- F-BV1 (K5): the R-type rs2 field is zero -- the one bit maindec
+            -- needs to tell Zbb `zext.h rd,rs1` apart from Zbkb
+            -- `pack rd,rs1,rs2`, which are the SAME funct7/funct3/opcode.
+            rs2_zero         => rs2_zero,
             wrs_op           => wrs_op,
             wrs_sto          => wrs_sto,
             mem_access_instr => mem_access_controller,
@@ -4877,6 +4886,16 @@ architecture struct of vesta is
     -- Feeds csr_unit's write-form rule: CSRRS/CSRRC with rs1=x0 and
     -- CSRRSI/CSRRCI with uimm=0 must not assert the write enable.
     csr_rs1_zero <= '1' when instr_curr(19 downto 15) = "00000" else '0';
+    -- F-BV1 (K5): the R-type rs2 FIELD (instr[24:20]) is zero. SAME instruction
+    -- source as csr_addr/csr_rs1_zero, so the decode can never disagree with
+    -- itself about which instruction it is looking at. Consumed ONLY by
+    -- maindec's Zbb ZEXT.H legality row: `zext.h rd,rs1` and Zbkb
+    -- `pack rd,rs1,x0` are one encoding (0x080ece33 for x28,x29), so rs2 is the
+    -- only field that separates a legal zext.h from an unimplemented pack.
+    -- A decompressed C.ZEXT.H arrives here with instr[24:20] = "00000"
+    -- (c_dec.vhd's Zcb expansion writes that field explicitly), so the
+    -- compressed form stays legal.
+    rs2_zero <= '1' when instr_curr(24 downto 20) = "00000" else '0';
 
     -- X1 Zihpm event levels (see signal declarations). mem_ready is the arbiter
     -- back-pressure: '0' = pending shared request not yet granted/completed.
