@@ -55,10 +55,17 @@ and only on a configuration whose resolved config turns the owning knob on.
                                               no bus and models the failing CAS
                                               as ONE access
                                               (K4-L4a / R-K4-3 (1))
+    isa.zcmp        zcmp-frame-order          the two models emit the memory
+                                              records of ONE `cm.push`/`cm.pop`
+                                              frame in OPPOSITE ORDER; the spec
+                                              orders neither, and the comparator
+                                              matches `M` records positionally
+                                              (K4-L3 / R-K4-2 (4))
 
-(K2b's own spec was four amendments, six rules.  `zacas-failwrite` is the FIFTH
-amendment, added at K5 from K4's ledger; the discipline below governs it
-identically.)
+(K2b's own spec was four amendments, six rules.  `zacas-failwrite` and
+`zcmp-frame-order` are the FIFTH and SIXTH, added at K5 from K4's ledger; the
+discipline below governs them identically.  `zcmp-frame-order` is the first rule
+that SUPPRESSES NOTHING -- see its own section.)
 
 WHERE A NEW RULE BELONGS, AND WHY IT MATTERS (the A17 acceptance lesson).
 `--count` measures the RTL window AFTER `rtl_prepass` and its number is fed
@@ -129,6 +136,10 @@ AMENDMENTS = (
      "drop the SECOND `M L` of a FAILED `amocas` retire -- the lane-less "
      "AMO_WRITE transaction -- bounded by exactly two loads at ONE address, no "
      "store, and rd carrying the first load's data"),
+    ("zcmp-frame-order", "isa.zcmp",
+     "canonicalise the memory records of ONE Zcmp frame retire into ascending "
+     "address order, INDEPENDENTLY on each side -- nothing is dropped; a "
+     "positional compare becomes a set compare"),
 )
 
 AMENDMENT_NAMES = tuple(n for (n, _p, _d) in AMENDMENTS)
@@ -368,6 +379,164 @@ def amocas_failwrite_ok(retire, mem):
 LEGACY_TRAP_CAUSE = "8000007f"
 
 
+# The Zcmp PUSH/POP FRAME family: `cm.push` / `cm.pop` / `cm.popretz` /
+# `cm.popret`.  Field-decoded from EXACTLY the terms `c_dec.vhd:761-769` tests
+# before it synthesises the sentinel -- quadrant bits(1:0)="10", funct3
+# bits(15:13)="101", bit12='1' (the push/pop half of the slot), bit11='1',
+# bit8='0', and rlist = bits(7:4) >= 4 (0-3 are reserved and c_dec emits
+# illegal).  bits(10:9) select push/pop/popretz/popret and are deliberately
+# OUTSIDE the mask: all four move a contiguous register frame and all four have
+# the record shape this rule canonicalises.
+#
+# `cm.jt`/`cm.jalt` (Zcmt) live in the SAME funct3 slot with bit12='0', so they
+# cannot collide -- and they are `cmjt-load`'s business, not this rule's.
+# `cm.mvsa01`/`cm.mva01s` also have bit12='0' and touch no memory at all.
+ZCMFRAME_MASK, ZCMFRAME_MATCH = 0xf903, 0xb802
+
+
+def is_zcm_frame(insn):
+    w = _word(insn)
+    if w is None or len(insn) != 4:
+        return False
+    if (w & ZCMFRAME_MASK) != ZCMFRAME_MATCH:
+        return False
+    return ((w >> 4) & 0xf) >= 4          # rlist 0-3 are reserved
+
+
+def zcm_frame_ok(mem):
+    """The bound on canonicalising ONE Zcmp frame's memory group.  (ok, why-not).
+
+    ALL of: every record the SAME direction (a `cm.push` only stores, a
+    `cm.pop*` only loads), every record the SAME size, and the addresses a
+    CONTIGUOUS ascending run of XLEN-spaced words with no repeat.
+
+    THE CONTIGUITY BOUND IS THE POINT.  A Zcmp frame saves/restores its register
+    list into ADJACENT stack slots -- that is what makes the instruction one
+    instruction -- so a group whose addresses are not `base, base+4, ...` is not
+    a frame, and sorting it would be inventing an order rather than recovering
+    one.  It also makes the rule COUNT-AWARE in the cboz sense: a sequencer that
+    stores 3 of 4 registers produces a group that is still contiguous but SHORT,
+    and the missing record is then caught by the walk against the reference,
+    while a sequencer that stores the same slot twice fails the no-repeat test
+    here and is REFUSED.
+
+    TWO OF THESE BOUNDS HAVE NO VERDICT-SEPARATING STIMULUS, AND SAYING SO IS
+    PART OF THE RECORD (method rule 9).  The DIRECTION test cannot change a
+    verdict: both `spike_log.py` and the tracer emit a retire's `M L` records
+    before its `M S` ones (RECORD_FORMAT §0), so a mixed group is already
+    positionally aligned on the two sides and sorting it identically on both
+    changes nothing.  The DISTINCTNESS test is shadowed by contiguity (two
+    records at one address also fail the 4-byte-run test) and would in any case
+    be inert under Python's stable sort.  Both are kept as PRECONDITIONS OF THE
+    SORT rather than as detectors -- a sort key must be unique for its result to
+    be canonical at all, which is the same reason `canonicalise_a2` requires
+    distinct `rd` before it sorts a same-pc run -- and both are exercised
+    directly at the function in `test_compare.py` rather than through a
+    fixture that could not fail.
+    """
+    if len(mem) < 2:
+        return False, "fewer than two records -- nothing to canonicalise"
+    d = mem[0].f[0]
+    if any(m.f[0] != d for m in mem):
+        return False, ("mixed directions %s -- a Zcmp frame is all loads or all "
+                       "stores" % "".join(m.f[0] for m in mem))
+    sz = mem[0].f[2]
+    if any(m.f[2] != sz for m in mem):
+        return False, ("mixed sizes %s"
+                       % " ".join(str(m.f[2]) for m in mem))
+    if any(m.has_x for m in mem):
+        return False, "an x-tainted record is never reordered (Amendment A5)"
+    addrs = [_word(m.f[1]) for m in mem]
+    if any(a is None for a in addrs):
+        return False, "an address is x-tainted or malformed"
+    if len(set(addrs)) != len(addrs):
+        return False, ("repeated address in the frame (%s) -- there is no "
+                       "canonical order for two records at one address"
+                       % " ".join(m.f[1] for m in mem))
+    want = sorted(addrs)
+    if any(want[k] != want[0] + 4 * k for k in range(len(want))):
+        return False, ("the frame addresses are not a contiguous 4-byte run "
+                       "(%s)" % " ".join("%08x" % a for a in want))
+    return True, ""
+
+
+def zcm_frame_canon(recs, am, side):
+    """K5 amendment 6 -- `zcmp-frame-order`.  Returns a NEW list.
+
+    THIS RULE SUPPRESSES NOTHING, and it is the first one here that does not.
+    Every record stays in the compared stream with every field intact; only the
+    ORDER of the memory records WITHIN ONE Zcmp frame retire changes, and the new
+    order (ascending address) is computed on each side FROM THAT SIDE ALONE.
+    Two independent canonicalisations onto one total order are exactly a SET
+    COMPARE of the two groups -- which is what R-K4-2 (4) filed -- but obtained
+    without giving up a single compared field.
+
+    WHY IT IS NEEDED (K4-L3, measured on `rv32ua-p-extzcmp`).  For
+    `cm.push {ra,s0},-16` with ra=0x1234ABCD and s0=0x0F0F0F0F:
+
+        RTL     M S 000083c8 4 1234abcd    M S 000083cc 4 0f0f0f0f
+        spike   mem 0x000083cc 0x0f0f0f0f  mem 0x000083c8 0x1234abcd
+
+    **The same two values reach the same two addresses on both sides.**  The Zcmp
+    specification does not order the individual accesses of one `cm.push`
+    relative to one another -- they are the effects of a single instruction --
+    so neither emission order is wrong, and the comparator's positional match is
+    what manufactures the divergence.  `cm.pop` has the identical asymmetry, so
+    a rule aimed only at push would diverge again one instruction later.
+
+    WHAT IT DOES NOT WEAKEN.  A store to the WRONG ADDRESS still diverges (the
+    sorted sequences differ).  A store of the WRONG VALUE still diverges (`M S`
+    compares addr, size AND data).  A MISSING store still diverges (the groups
+    have different lengths and the walk meets the mismatch).  A frame that is not
+    a contiguous distinct run is REFUSED and reordered by nobody.  And the census
+    counts only the retires whose order this rule ACTUALLY CHANGED, so the
+    summary says which SIDE was out of order rather than merely that the rule
+    ran.
+    """
+    if not am.enabled("zcmp-frame-order"):
+        return recs
+    out = []
+    i, n = 0, len(recs)
+    while i < n:
+        r = recs[i]
+        out.append(r)
+        if r.kind == "R" and is_zcm_frame(r.f[1]):
+            j, mem = i + 1, []
+            while j < n and recs[j].kind == "M":
+                mem.append(recs[j])
+                j += 1
+            # A one-record frame (`rlist`=4 saves ra alone) is legitimate and
+            # common; there is nothing to canonicalise and a refusal line for
+            # every one of them would be noise, not a finding.
+            if len(mem) >= 2:
+                ok, why = zcm_frame_ok(mem)
+                if ok:
+                    # ASCENDING, and the direction is NOT arbitrary even though
+                    # any total order would do when BOTH sides canonicalise.
+                    # They do not always: a side whose group is x-tainted or
+                    # non-contiguous REFUSES and keeps its emitted order, and the
+                    # tracer's emitted order is ascending (measured, every frame
+                    # on `rv32ua-p-extzcmp`). Ascending therefore leaves a
+                    # refused RTL group still aligned against a canonicalised
+                    # reference; descending would manufacture a divergence there.
+                    # Found by a wrong-version control (V7), which was predicted
+                    # to be undetectable and was not.
+                    srt = sorted(mem, key=lambda m: m.f[1])
+                    if [id(x) for x in srt] != [id(x) for x in mem]:
+                        am.bump("zcmp-frame-order",
+                                "%s %s %s%s" % (side, r.f[0], mem[0].f[0],
+                                                srt[0].f[1]))
+                    out.extend(srt)
+                    i = j
+                    continue
+                am.refuse("zcmp-frame-order", r.lineno,
+                          "Zcmp frame at pc %s: %s -- NOTHING was reordered, so "
+                          "the group is compared exactly as emitted and the "
+                          "divergence is the report" % (r.f[0], why))
+        i += 1
+    return out
+
+
 def cboz_shape_ok(stores):
     """The GEOMETRY bound on a `cbo.zero` drop.  (ok, why-not) -- ALL of:
 
@@ -500,6 +669,13 @@ def rtl_prepass(recs, am):
     """
     if not am.names:
         return recs
+
+    # `zcmp-frame-order` runs FIRST and as its own pass, on both sides, because
+    # it is a canonicalisation rather than a rule about this stream's contents:
+    # every later rule should see one order.  It touches only `M` records inside
+    # a Zcmp frame retire, which no other rule here looks at, so the two passes
+    # cannot interfere.
+    recs = zcm_frame_canon(recs, am, "rtl")
 
     out = []
     n = len(recs)
@@ -744,7 +920,14 @@ def spike_prepass(recs, am):
     a reference-side drop cannot part the two numbers the way a walk-level rule
     can (the A17 acceptance defect).  Nothing here needs that machinery.
     """
-    if not am.names or not (am.enabled("mret-csr") or am.enabled("hpm-warl")):
+    if not am.names:
+        return recs
+    # The ONE rule here that removes nothing (see `zcm_frame_canon`): it puts the
+    # reference's Zcmp frame group into the same canonical order the RTL side was
+    # put into, computed from THIS stream alone.  Applied before the drops below
+    # for the same reason it is applied first on the RTL side.
+    recs = zcm_frame_canon(recs, am, "spike")
+    if not (am.enabled("mret-csr") or am.enabled("hpm-warl")):
         return recs
     out = []
     for i, r in enumerate(recs):

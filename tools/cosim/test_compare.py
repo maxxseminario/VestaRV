@@ -52,6 +52,7 @@ sys.path.insert(0, HERE)
 from records import parse_rtl_line                     # noqa: E402
 from spike_log import parse_spike_line                 # noqa: E402
 from compare import canonicalise_a2, compared_stream   # noqa: E402
+import amend as _amend                                # noqa: E402
 
 HEADER = "# vesta_tracer TRACE_ENABLE=true vesta_trace hart=00\n"
 
@@ -2045,6 +2046,208 @@ R 00 00000102 00008204 0000d337 06 0000d000
     h.case("K5 zacas: NEGATIVE -- cboz-stores does not drop the CAS record",
            1, ZCAS_RTL, ZCAS_SPIKE, extra=["--amend", "cboz-stores"],
            expect_in_stdout=["record KIND differs: rtl=M spike=R"])
+
+    # ======================================================================
+    # K5 AMENDMENT 6 -- `zcmp-frame-order` (isa.zcmp), from ledger K4-L3.
+    #
+    # MEASURED SHAPE (`rv32ua-p-extzcmp`, K4 row B10).  For
+    # `cm.push {ra,s0},-16` the two models write the SAME TWO VALUES to the SAME
+    # TWO ADDRESSES and emit them in OPPOSITE ORDER inside one retire; `cm.pop`
+    # has the identical asymmetry.  The Zcmp spec orders neither.
+    #
+    # THIS RULE SUPPRESSES NOTHING -- it canonicalises each side's frame group
+    # into ascending address order, independently, which IS the set compare
+    # R-K4-2 (4) filed, obtained without giving up a compared field.  The
+    # negative cases below are therefore about what an ORDER-BLIND compare must
+    # still catch: a wrong address, a wrong value, a missing record.
+    # ======================================================================
+    ZCMP_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083c8 4 1234abcd
+M 00 00000100 S 000083cc 4 0f0f0f0f
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    ZCMP_SPIKE = """\
+core   0: 3 0x00008200 (0xb852) x2  0x000083c0 mem 0x000083cc 0x0f0f0f0f mem 0x000083c8 0x1234abcd
+core   0: 3 0x00008202 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+
+    h.case("K5 zcmp: WITHOUT the amendment the frame order diverges",
+           1, ZCMP_RTL, ZCMP_SPIKE,
+           expect_in_stdout=["addr: rtl=000083c8 spike=000083cc"])
+    h.case("K5 zcmp: WITH the amendment the frame matches, nothing dropped",
+           0, ZCMP_RTL, ZCMP_SPIKE, extra=["--amend", "zcmp-frame-order"],
+           expect_in_stderr=["zcmp-frame-order       1 application(s)",
+                             "spike 00008200 S000083c8"])
+
+    # THE MIRROR CASE, and it is why the canonicalisation runs on BOTH sides.
+    # On the measured row it is the REFERENCE that is out of order, so a rule
+    # applied to the reference alone would pass every real cell -- and would be
+    # a rule that assumed which side emits ascending. Here the RTL is the
+    # descending side; the pass is carried by the RTL-side call.
+    ZCMP_RTLDESC_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083cc 4 0f0f0f0f
+M 00 00000100 S 000083c8 4 1234abcd
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    ZCMP_ASC_SPIKE = """\
+core   0: 3 0x00008200 (0xb852) x2  0x000083c0 mem 0x000083c8 0x1234abcd mem 0x000083cc 0x0f0f0f0f
+core   0: 3 0x00008202 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zcmp: the RTL side is canonicalised too (the mirror case)",
+           0, ZCMP_RTLDESC_RTL, ZCMP_ASC_SPIKE,
+           extra=["--amend", "zcmp-frame-order"],
+           expect_in_stderr=["zcmp-frame-order       1 application(s)",
+                             "rtl 00008200 S000083c8"])
+
+    # `cm.pop` -- the sibling K4-L3 named as the reason a push-only fix would
+    # diverge one instruction later. Three register writes (A2 canonicalises the
+    # R run) plus two loads in the opposite order.
+    ZCMP_POP_RTL = """\
+R 00 00000100 00008200 ba52 01 1234abcd
+R 00 00000100 00008200 ba52 08 0f0f0f0f
+R 00 00000100 00008200 ba52 02 000083d0
+M 00 00000100 L 000083c8 2 1234abcd
+M 00 00000100 L 000083cc 2 0f0f0f0f
+""".splitlines(True)
+    ZCMP_POP_SPIKE = """\
+core   0: 3 0x00008200 (0xba52) x1  0x1234abcd x2  0x000083d0 x8  0x0f0f0f0f mem 0x000083cc mem 0x000083c8
+""".splitlines(True)
+    h.case("K5 zcmp: `cm.pop`'s loads are canonicalised too",
+           0, ZCMP_POP_RTL, ZCMP_POP_SPIKE,
+           extra=["--amend", "zcmp-frame-order"],
+           expect_in_stderr=["zcmp-frame-order       1 application(s)",
+                             "spike 00008200 L000083c8"])
+
+    # NEGATIVE: an order-blind compare must still catch a WRONG ADDRESS.
+    ZCMP_BADADDR_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083c8 4 1234abcd
+M 00 00000100 S 000083d0 4 0f0f0f0f
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zcmp: NEGATIVE -- a WRONG frame address still diverges",
+           1, ZCMP_BADADDR_RTL, ZCMP_SPIKE,
+           extra=["--amend", "zcmp-frame-order"])
+
+    # NEGATIVE: ... and a WRONG VALUE at the right address.
+    ZCMP_BADVAL_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083c8 4 1234abcd
+M 00 00000100 S 000083cc 4 deadbeef
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zcmp: NEGATIVE -- a WRONG frame value still diverges",
+           1, ZCMP_BADVAL_RTL, ZCMP_SPIKE,
+           extra=["--amend", "zcmp-frame-order"],
+           expect_in_stdout=["data: rtl=deadbeef spike=0f0f0f0f"])
+
+    # NEGATIVE: ... and a MISSING record. The group is then a one-record frame,
+    # which the rule leaves alone, and the walk meets the mismatch.
+    ZCMP_SHORT_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083c8 4 1234abcd
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    h.case("K5 zcmp: NEGATIVE -- a MISSING frame store still diverges",
+           1, ZCMP_SHORT_RTL, ZCMP_SPIKE,
+           extra=["--amend", "zcmp-frame-order"])
+
+    # THE CONTIGUITY BOUND. A group whose addresses are not an adjacent run is
+    # not a frame; sorting it would invent an order rather than recover one.
+    ZCMP_GAP_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083d0 4 0f0f0f0f
+M 00 00000100 S 000083c8 4 1234abcd
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    ZCMP_GAP_SPIKE = """\
+core   0: 3 0x00008200 (0xb852) x2  0x000083c0 mem 0x000083c8 0x1234abcd mem 0x000083d0 0x0f0f0f0f
+core   0: 3 0x00008202 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zcmp: NEGATIVE -- a NON-CONTIGUOUS group is refused, not sorted",
+           1, ZCMP_GAP_RTL, ZCMP_GAP_SPIKE,
+           extra=["--amend", "zcmp-frame-order"],
+           expect_in_stderr=["REFUSED", "not a contiguous 4-byte run",
+                             "zcmp-frame-order       0 application(s)"])
+
+    # THE TWO BOUNDS WITH NO VERDICT-SEPARATING STIMULUS, checked at the FUNCTION
+    # rather than pretended to be end-to-end cases.
+    #
+    # Both `spike_log.py` and the RTL tracer emit a retire's `M L` records before
+    # its `M S` ones (RECORD_FORMAT §0), so a MIXED group is already positionally
+    # aligned on the two sides and no stream separates "direction bound present"
+    # from "absent". The DISTINCTNESS bound is likewise shadowed: two records at
+    # one address also fail the contiguity test, and Python's sort is stable so
+    # it would not have moved them anyway. Both are kept as PRECONDITIONS OF THE
+    # SORT -- the sort key must be unique for the result to be canonical, and a
+    # group that is not all-one-direction is not a frame -- and both are checked
+    # here directly, which is the honest form for a bound whose absence no
+    # end-to-end fixture can show (method rule 9: a case that cannot fail is not
+    # evidence).
+    def _mrec(direction, addr, size, data, cyc="00000100"):
+        return parse_rtl_line("M 00 %s %s %s %s %s"
+                              % (cyc, direction, addr, size, data))
+
+    ok, why = _amend.zcm_frame_ok([_mrec("L", "000083cc", "4", "0f0f0f0f"),
+                                   _mrec("S", "000083c8", "4", "1234abcd")])
+    h.check("K5 zcmp: zcm_frame_ok REFUSES a mixed load/store group",
+            (not ok) and "mixed directions" in why, "got ok=%r why=%r" % (ok, why))
+    ok, why = _amend.zcm_frame_ok([_mrec("S", "000083c8", "4", "1234abcd"),
+                                   _mrec("S", "000083c8", "4", "0f0f0f0f")])
+    h.check("K5 zcmp: zcm_frame_ok REFUSES a repeated frame address",
+            (not ok) and "repeated address" in why, "got ok=%r why=%r" % (ok, why))
+    ok, why = _amend.zcm_frame_ok([_mrec("S", "000083c8", "4", "1234abcd"),
+                                   _mrec("S", "000083cc", "2", "0f0f0f0f")])
+    h.check("K5 zcmp: zcm_frame_ok REFUSES mixed sizes",
+            (not ok) and "mixed sizes" in why, "got ok=%r why=%r" % (ok, why))
+    ok, why = _amend.zcm_frame_ok([_mrec("S", "000083cc", "4", "0f0f0f0f"),
+                                   _mrec("S", "000083c8", "4", "1234abcd")])
+    h.check("K5 zcmp: zcm_frame_ok ADMITS a real descending frame (the pass side)",
+            ok, "the rule refused a legitimate frame: %r" % why)
+
+    # THE OPCODE BOUND. Only a Zcmp FRAME retire is canonicalised; an ordinary
+    # multi-store retire keeps its positional compare.
+    ZCMP_NOTFRAME_RTL = """\
+R 00 00000100 00008200 0055a023 00 00000000
+M 00 00000100 S 000083cc 4 0f0f0f0f
+M 00 00000100 S 000083c8 4 1234abcd
+R 00 00000102 00008204 0000d337 06 0000d000
+""".splitlines(True)
+    ZCMP_NOTFRAME_SPIKE = """\
+core   0: 3 0x00008200 (0x0055a023) mem 0x000083c8 0x1234abcd mem 0x000083cc 0x0f0f0f0f
+core   0: 3 0x00008204 (0x0000d337) x6  0x0000d000
+""".splitlines(True)
+    h.case("K5 zcmp: NEGATIVE -- a NON-frame retire keeps its positional compare",
+           1, ZCMP_NOTFRAME_RTL, ZCMP_NOTFRAME_SPIKE,
+           extra=["--amend", "zcmp-frame-order"],
+           expect_in_stderr=["zcmp-frame-order       0 application(s)"])
+
+    # `cm.jt` (Zcmt) sits in the SAME funct3 slot with bit12=0 and must not be
+    # mistaken for a frame -- it is `cmjt-load`'s business.
+    h.check("K5 zcmp: cm.jt/cm.jalt are NOT frame instructions",
+            not any(_amend.is_zcm_frame(i) for i in ("a002", "a016", "a0fe")),
+            "a cm.jt encoding matched is_zcm_frame")
+    h.check("K5 zcmp: a RESERVED rlist (0-3) is not a frame",
+            not _amend.is_zcm_frame("b802") and _amend.is_zcm_frame("b842"),
+            "rlist<4 must be refused and rlist=4 admitted")
+
+    # A5: an x-tainted frame record is never reordered.
+    ZCMP_X_RTL = """\
+R 00 00000100 00008200 b852 02 000083c0
+M 00 00000100 S 000083c8 4 1234abcd
+M 00 0000010x S 000083cc 4 0f0f0f0f
+R 00 00000102 00008202 0000d337 06 0000d000
+""".splitlines(True)
+    # The RTL side REFUSES (so its group keeps its emitted order) while the
+    # reference side, which carries no x, IS canonicalised -- and the tainted
+    # record therefore reaches the walk and takes A5's exit 4, which is the
+    # whole point: an x-tainted record is never silently blessed.
+    h.case("K5 zcmp: an x-tainted frame record is not reordered (A5, exit 4)",
+           4, ZCMP_X_RTL, ZCMP_SPIKE, extra=["--amend", "zcmp-frame-order"],
+           expect_in_stdout=["X-CORRUPTED RECORD"],
+           expect_in_stderr=["never reordered (Amendment A5)"])
 
     # THE UNGATED CONTROL, and it is the one the whole design rests on: with no
     # --amend the comparator must behave EXACTLY as it did before K2b.
