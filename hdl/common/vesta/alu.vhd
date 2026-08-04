@@ -499,12 +499,16 @@ begin
 
                 when "0011001" => -- SH2ADD: rd = (rs1 << 2) + rs2
                     if ENABLE_BITMANIP then
-                        ResultSignal <= std_logic_vector(unsigned(a(XLEN-3 downto 0) & "00") + unsigned(b));
+                        -- std_logic_vector' qualification: the bare string literal made the
+                        -- "&" overload ambiguous under GHDL --std=08 once aes_sbox_t (X3) and
+                        -- word_array/halfword_array became visible. No logic change.
+                        ResultSignal <= std_logic_vector(unsigned(std_logic_vector'(a(XLEN-3 downto 0) & "00")) + unsigned(b));
                     end if;
 
                 when "0011010" => -- SH3ADD: rd = (rs1 << 3) + rs2
                     if ENABLE_BITMANIP then
-                        ResultSignal <= std_logic_vector(unsigned(a(XLEN-4 downto 0) & "000") + unsigned(b));
+                        -- std_logic_vector' qualification: same GHDL --std=08 ambiguity as SH2ADD.
+                        ResultSignal <= std_logic_vector(unsigned(std_logic_vector'(a(XLEN-4 downto 0) & "000")) + unsigned(b));
                     end if;
 
                 -- ==========================================
