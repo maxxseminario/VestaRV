@@ -39,7 +39,13 @@ entity maindec is
         -- pmpcfg/pmpaddr CSR addresses.
         ENABLE_TRAPCSR  : boolean := false;  -- P1 (trap CSRs + MRET): consumed from phase P1 on; scaffolded P0
         ENABLE_UMODE    : boolean := false;  -- P2 (U-mode): consumed from phase P2 on; scaffolded P0
-        ENABLE_PMP      : boolean := false   -- P3 (PMP/Smpmp): consumed from phase P3 on; scaffolded P0
+        ENABLE_PMP      : boolean := false;  -- P3 (PMP/Smpmp): consumed from phase P3 on; scaffolded P0
+        -- D1 (2026-08-05): core-side debug mode. Admits the four Debug-Mode CSR
+        -- addresses (0x7B0-0x7B3) and the DRET encoding; both are additionally
+        -- qualified by the LIVE debug_mode input below, so this generic alone
+        -- never opens anything. DEFAULT FALSE at every declaration site --
+        -- policed by tools/python/check_entity_defaults.py.
+        ENABLE_DEBUG    : boolean := false   -- D1 (debug mode): consumed from phase D1 on
     );
     port (
         resetn           : in  STD_LOGIC;
@@ -92,6 +98,28 @@ entity maindec is
         -- Consumed ONLY by vesta's FSM (enter SLEEPING with the standard wake
         -- rule); never feeds valid_funct/trap.
         wfi_op           : out STD_LOGIC;
+
+        -- D1 DRET (SYSTEM PRIV imm12 = 0x7B2). LEGAL iff ENABLE_DEBUG **and the
+        -- hart is in debug mode**; outside debug mode the encoding falls to the
+        -- PRIV arm's `else valid_funct <= '0'` and raises illegal-instruction
+        -- (d1_spec.md 2, detector dbgdenymp.S hart 2). Statically '0' when
+        -- ENABLE_DEBUG is off. Consumed ONLY by vesta's FSM.
+        dret_op          : out STD_LOGIC;
+
+        -- ------------------------------------------------------------------
+        -- D1 debug-mode decode input (from csr_unit via controller, the P2
+        -- pass-through pattern). DEFAULT '0' AND THAT DIRECTION IS THE POINT
+        -- (method rule 15, D0/P2 1.4 polarity argument): the affirmative
+        -- "in debug mode" is carried, and the DENIAL is derived from its
+        -- absence, so an unconnected or forgotten port means NOT in debug mode
+        -- => the 0x7Bx block stays DENIED and DRET stays illegal. The opposite
+        -- shape (a dbg_allow input defaulting '1') would make a forgotten
+        -- connection open the debug CSRs to ordinary M-mode software.
+        -- Note this is the OPPOSITE convention to priv_m above, which defaults
+        -- to the LESS restrictive mode; that is safe there only because u_gate
+        -- also requires ENABLE_UMODE, and it must NOT be copied here.
+        -- ------------------------------------------------------------------
+        debug_mode       : in  STD_LOGIC := '0';                       -- '1' = executing in debug mode
 
         -- ------------------------------------------------------------------
         -- P2 U-mode decode inputs (from csr_unit via controller, the P1
@@ -270,6 +298,15 @@ architecture behave of maindec is
     -- Like u_csr_denied it drives BOTH the illegal-instruction trap and the
     -- csr_valid write-enable suppression, and for the same reason.
     signal csr_ro_denied   : STD_LOGIC;
+    -- D1: '1' when a CSR instruction names the Debug-Mode block (imm12(11:4) =
+    -- 0x7B) from OUTSIDE debug mode. THE THIRD DENY SIGNAL, and it is a third
+    -- signal rather than an extension of either existing one for a correctness
+    -- reason (D0/P2 1.4): u_csr_denied is gated by u_gate, which folds to a
+    -- constant '0' on the shipping default (ENABLE_UMODE false), so anything
+    -- merged into it would be SILENTLY ABSENT from the shipping configuration.
+    -- Like the other two it drives BOTH the illegal-instruction trap and the
+    -- csr_valid write-enable suppression.
+    signal dbg_csr_denied  : STD_LOGIC;
 
 
 begin
@@ -461,6 +498,16 @@ begin
                              imm12 = CSR_MIP      or imm12 = CSR_MSCRATCH or
                              imm12 = CSR_MEPC     or imm12 = CSR_MCAUSE   or
                              imm12 = CSR_MTVAL    or imm12 = CSR_MTRAPCTL)) or
+        -- D1 Debug-Mode CSRs: dcsr/dpc/dscratch0/dscratch1 are KNOWN CSRs only
+        -- when ENABLE_DEBUG (else all four are unknown CSRs -> illegal
+        -- instruction, the OFF polarity pinned by dbgdenymp.S hart 1).
+        -- FOUR EXPLICIT EQUALITIES, not an imm12(11:4) = 0x7B range -- 0x7B4
+        -- and 0x7AF bracket the block and must keep trapping in EVERY build
+        -- (the ID3 argument verbatim; dbgdenymp.S carries both guards).
+        -- ADMISSION IS NOT ACCESS: dbg_csr_denied below still traps every one
+        -- of them outside debug mode, in every build.
+        (ENABLE_DEBUG and (imm12 = CSR_DCSR      or imm12 = CSR_DPC or
+                           imm12 = CSR_DSCRATCH0 or imm12 = CSR_DSCRATCH1)) or
         -- P3 PMP bank: pmpcfg0-3 (0x3A0-0x3A3) + pmpaddr0-15 (0x3B0-0x3BF) are
         -- KNOWN CSRs only when ENABLE_PMP (else all twenty are unknown CSRs ->
         -- illegal instruction, the both-polarity gate). RANGE compares are
@@ -563,8 +610,50 @@ begin
     -- read-only-CSR write traps, so it must commit nothing. Belt and braces
     -- here (no csr_unit write arm matches a read-only address today), exactly
     -- as the csr_addr_valid term above is.
+    -- D1: and by dbg_csr_denied, third of the three, for the same reason -- a
+    -- 0x7Bx access from M-mode traps, so it must commit nothing.
     csr_valid <= is_csr_instr and csr_addr_valid
-                 and (not u_csr_denied) and (not csr_ro_denied);
+                 and (not u_csr_denied) and (not csr_ro_denied)
+                 and (not dbg_csr_denied);
+
+    -- ==========================================================================
+    -- D1 -- THE DEBUG-MODE CSR BLOCK IS UNREACHABLE OUTSIDE DEBUG MODE
+    -- ==========================================================================
+    -- THE RULE (RISC-V debug spec): dcsr/dpc/dscratch0/dscratch1 are accessible
+    -- ONLY in debug mode; from M or U they raise illegal-instruction. This is
+    -- the FIRST access rule in this core keyed on a privilege ABOVE M --
+    -- u_csr_denied already denies 0x7Bx from U for free via
+    -- imm12(9:8) /= "00", and csr_ro_denied never fires there (the block is in
+    -- the WRITABLE quadrant, imm12(11:10) = "01").
+    --
+    -- WIDE BY DESIGN, and DELIBERATELY ASYMMETRIC with csr_addr_valid's four
+    -- explicit equalities: the admission side names exactly what exists, the
+    -- DENIAL side blocks the whole imm12(11:4) = 0x7B nibble, so a later phase
+    -- that admits a fifth debug CSR cannot forget to deny it. A four-equality
+    -- denial could UNDER-deny; a block compare cannot. It also makes the
+    -- invariant "no debug CSR is reachable outside debug mode" checkable with
+    -- one grep instead of a diff of two enumerations (method rule 16).
+    --
+    -- THE BLOCK BOUNDARY IS x"7B", NOT 0x7A0-0x7BF, and that is load-bearing
+    -- for D6: the TRIGGER CSRs at 0x7A0-0x7AF are M-mode-VISIBLE (Sdtrig), a
+    -- different rule entirely. Widening this compare to swallow them would be
+    -- a nonconformance.
+    --
+    -- UNGATED BY ENABLE_DEBUG -- the csr_ro_denied precedent, and the argument
+    -- is the same one measurement settled there. What the knob-OFF inertness
+    -- claim pins is genus `sequential`, a FLOP count; this term is purely
+    -- combinational and adds no state, so it cannot move that pin in either
+    -- polarity. Behaviourally it changes nothing OFF either: with ENABLE_DEBUG
+    -- false csr_addr_valid already rejects 0x7B0-0x7B3, so csr_valid and
+    -- valid_funct are already '0' for every address this can fire on. What
+    -- ungating BUYS is that removing or mis-setting the ENABLE_DEBUG gate on
+    -- the admission side cannot open the CSRs. Gating it would be a gate
+    -- justified by "nothing reaches it under the other gate" -- exactly the
+    -- rule-15 shape that becomes a behaviour when a gate is removed.
+    dbg_csr_denied <= '1' when (is_csr_instr = '1' and
+                                imm12(11 downto 4) = x"7B" and
+                                debug_mode = '0')
+                      else '0';
 
     -- ==========================================================================
     -- F10 (fix pass W4) -- A WRITE TO A READ-ONLY CSR IS AN ILLEGAL INSTRUCTION
@@ -950,16 +1039,30 @@ begin
                         --     build -- csr_ro_denied carries no ENABLE_ term.
                         --     Tested AFTER the U-mode denial only because that
                         --     is older; both report cause 2, so order is moot.
+                        -- D1: a Debug-Mode CSR (0x7B0-0x7BF) accessed from
+                        --     outside debug mode is likewise illegal, in EVERY
+                        --     build -- dbg_csr_denied carries no ENABLE_ term.
+                        --     Order is moot for the same reason as above (all
+                        --     three report cause 2, and csr_valid ANDs them).
                         if u_csr_denied = '1' then
                             valid_funct <= '0';
                         elsif csr_ro_denied = '1' then
+                            valid_funct <= '0';
+                        elsif dbg_csr_denied = '1' then
                             valid_funct <= '0';
                         else
                             valid_funct <= csr_addr_valid;
                         end if;
                     elsif is_zimop_instr = '1' then
+                        -- N7 (D0/P1 2.6, D0/P2 N7; rule-12 rider approved for
+                        -- this commit by d1_spec.md 6): the second, duplicate
+                        -- `valid_funct <= '1'` here carried the comment "All
+                        -- CSR instructions are valid" -- the ORIGINAL CSR arm's
+                        -- line, left behind when the Zimop arm was inserted at
+                        -- 199365a. Behaviourally inert (same process, same
+                        -- value, last-wins) but a wrong rationale on a live
+                        -- line, four lines from where D1 must edit. Deleted.
                         valid_funct <= '1';  -- Zimop mop.r.N / mop.rr.N (rd<-0)
-                        valid_funct <= '1';  -- All CSR instructions are valid
                     elsif is_wrs_instr = '1' then
                         valid_funct <= '1';  -- X1 Zawrs wrs.nto/wrs.sto (legal when enabled)
                     elsif ENABLE_TRAPCSR and funct3 = PRIV_FN3 then
@@ -986,6 +1089,26 @@ begin
                                 valid_funct <= '0';
                             else
                                 valid_funct <= '1';
+                            end if;
+                        elsif ENABLE_DEBUG and imm12 = DRET_IMM12 then
+                            -- D1: DRET (0x7B2) is a FIFTH legal funct12 on this
+                            -- arm, and ONLY in debug mode. Outside it the
+                            -- encoding must raise illegal-instruction -- which
+                            -- is what the `else` below would do anyway, so the
+                            -- explicit '0' here is written out rather than left
+                            -- to fall through, because a reader must be able to
+                            -- see that the denial is DELIBERATE and keyed on
+                            -- the LIVE mode, not on the generic.
+                            -- NOTE this arm is reachable only because the whole
+                            -- PRIV_FN3 block is gated on ENABLE_TRAPCSR, and
+                            -- generate.py's `debug => trapCsr` validator (R-DD1)
+                            -- makes that implication hold for every config;
+                            -- vesta carries a concurrent assert for anyone who
+                            -- instantiates the core directly.
+                            if debug_mode = '1' then
+                                valid_funct <= '1';
+                            else
+                                valid_funct <= '0';
                             end if;
                         else
                             valid_funct <= '0';
@@ -1113,6 +1236,15 @@ begin
     wfi_op    <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
                            funct3 = PRIV_FN3 and imm12 = WFI_IMM12 and
                            not (u_gate = '1' and status_tw = '1')) else '0';
+
+    -- D1 DRET. Carries the SAME debug_mode qualifier valid_funct's arm carries,
+    -- so the dispatch strobe can never be high for an encoding just declared
+    -- illegal (the mret_op / wfi_op belt-and-braces convention). Statically '0'
+    -- when ENABLE_DEBUG is off, so vesta's DBG_RET dispatch arms constant-fold
+    -- and the OFF netlist is unchanged.
+    dret_op   <= '1' when (ENABLE_DEBUG and op = SYSTEM_OPCODE and
+                           funct3 = PRIV_FN3 and imm12 = DRET_IMM12 and
+                           debug_mode = '1')                          else '0';
 
     -- X1 Zawrs decode outputs (both '0' unless the extension is enabled).
     wrs_op  <= is_wrs_instr;

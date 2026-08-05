@@ -32,6 +32,14 @@ entity csr_unit is
         ENABLE_UMODE      : boolean := false;  -- P2 (U-mode): consumed from phase P2 on; scaffolded P0
         ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp): consumed from phase P3 on; scaffolded P0
         PMP_ENTRIES       : integer := 16;     -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
+        -- D1 debug mode (2026-08-05). THE DEBUG-MODE CSR FILE LIVES HERE, beside
+        -- priv_m and for the same four reasons (D0/P1 1f): entry must set
+        -- debug_mode, save priv into dcsr.prv and force M in ONE action, and
+        -- `dret` must undo all three; this file is on the FREE-RUNNING clk, which
+        -- is what makes the mtrap_*_lvl one-shot idiom work at all; the
+        -- priv_mode -> maindec export route already exists for debug_mode to
+        -- follow; and the OFF-build fold is the house pattern. Default false.
+        ENABLE_DEBUG      : boolean := false;  -- D1 (dcsr/dpc/dscratch0/1 + debug_mode)
         -- V1 lockstep tracer: gates the read-only export block at the end of
         -- this architecture. Default FALSE so the OFF netlist is identical BY
         -- CONSTRUCTION rather than by unloaded-logic removal.
@@ -142,6 +150,30 @@ entity csr_unit is
         -- U escapes its X-permission (the F1 escape). Constant '1' when
         -- ENABLE_UMODE is off (MPP pinned M).
         mret_priv_m      : out std_logic;
+
+        -- ------------------------------------------------------------------
+        -- D1 DEBUG-MODE interface (inert when ENABLE_DEBUG = false).
+        -- Structurally the trap_entry_we / mret_we pair, one level up: vesta
+        -- owns the FSM and the decision, this file owns the state.
+        --   dbg_entry_we : DBG_SV strobe -- dpc <= dbg_pc (same IALIGN-WARL mask
+        --                  a software write gets), dcsr.cause <= dbg_cause,
+        --                  dcsr.prv <= the interrupted privilege, debug_mode <= 1
+        --                  and (with U-mode) priv <= M. ONE action, one strobe.
+        --   dbg_ret_we   : DBG_RET strobe -- debug_mode <= 0 and priv <= dcsr.prv.
+        -- Every export below is a reset constant on an OFF build: debug_mode '0'
+        -- (so maindec keeps the 0x7Bx block denied and DRET illegal), ebreakm/
+        -- ebreaku/step '0' (so vesta's dbg_ebreak_take and the step machinery
+        -- fold), dpc_value zero.
+        -- ------------------------------------------------------------------
+        dbg_entry_we     : in  std_logic := '0';
+        dbg_pc           : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
+        dbg_cause        : in  std_logic_vector(2 downto 0) := (others => '0');
+        dbg_ret_we       : in  std_logic := '0';
+        debug_mode       : out std_logic;                     -- '1' = executing in debug mode
+        dcsr_ebreakm     : out std_logic;                     -- dcsr(15)
+        dcsr_ebreaku     : out std_logic;                     -- dcsr(12); RO-0 without U-mode
+        dcsr_step        : out std_logic;                     -- dcsr(2)
+        dpc_value        : out std_logic_vector(XLEN-1 downto 0); -- DRET jump target (bit0 always '0')
 
         -- ------------------------------------------------------------------
         -- P3 PMP interface (inert when ENABLE_PMP = false).
@@ -272,6 +304,31 @@ architecture behave of csr_unit is
     signal mtrapctl_legacy : std_logic;                      -- mtrapctl.LEGACY (0), reset '1'
 
     -- ----------------------------------------------------------------------
+    -- D1 DEBUG-MODE STATE (d1_spec.md 1). Written only under `if ENABLE_DEBUG`
+    -- (software writes) or by the two debug strobes (also generic-gated), so
+    -- with the generic off every one holds its reset value forever and the
+    -- exports are compile-time constants.
+    --   * debug_mode_r resets '0'. maindec reads it as the affirmative
+    --     "in debug mode"; '0' therefore means DENIED, which is the direction
+    --     an unconnected/OFF build must have.
+    --   * dcsr.cause is READ-ONLY to software -- hardware writes it on entry.
+    --   * dcsr.prv resets to "11" (M) and STAYS there on a non-U build, which
+    --     is what makes a read of dcsr report prv = M without a U-mode
+    --     privilege register to consult.
+    --   * xdebugver is a CONSTANT 4 in the read assembly, not a flop.
+    --   * dpc_r is 31 bits: bit 0 is hardwired '0', exactly as mepc_r is.
+    -- ----------------------------------------------------------------------
+    signal dcsr_ebreakm_r  : std_logic;                      -- dcsr(15)
+    signal dcsr_ebreaku_r  : std_logic;                      -- dcsr(12), WARL {0} without U-mode
+    signal dcsr_step_r     : std_logic;                      -- dcsr(2)
+    signal dcsr_cause_r    : std_logic_vector(2 downto 0);   -- dcsr(8:6), READ-ONLY to software
+    signal dcsr_prv_r      : std_logic_vector(1 downto 0);   -- dcsr(1:0), WARL to implemented modes
+    signal dpc_r           : std_logic_vector(31 downto 1);  -- dpc, bit0 hardwired '0'
+    signal dscratch0_r     : std_logic_vector(XLEN-1 downto 0);
+    signal dscratch1_r     : std_logic_vector(XLEN-1 downto 0);
+    signal debug_mode_r    : std_logic;                      -- '1' = executing in debug mode (reset '0')
+
+    -- ----------------------------------------------------------------------
     -- P2 U-mode state (p0_specs.md 3/3.1). Every one of these is written ONLY
     -- under `if ENABLE_UMODE`, so with the generic off they hold their RESET
     -- values forever:
@@ -396,6 +453,13 @@ architecture behave of csr_unit is
                 return ENABLE_TRAPCSR;
             when CSR_MCOUNTEREN =>
                 return ENABLE_UMODE;
+            -- D1: all four Debug-Mode CSRs have STORING write arms under
+            -- ENABLE_DEBUG (dcsr stores four writable fields, dpc/dscratch0/1
+            -- store outright), so the tracer must export their commits. Note
+            -- dcsr.cause is read-only to software; the arm still stores the
+            -- other fields, so the address stores.
+            when CSR_DCSR | CSR_DPC | CSR_DSCRATCH0 | CSR_DSCRATCH1 =>
+                return ENABLE_DEBUG;
             when CSR_PMPCFG0  | CSR_PMPCFG1  | CSR_PMPCFG2  | CSR_PMPCFG3  |
                  CSR_PMPADDR0 | CSR_PMPADDR1 | CSR_PMPADDR2 | CSR_PMPADDR3 |
                  CSR_PMPADDR4 | CSR_PMPADDR5 | CSR_PMPADDR6 | CSR_PMPADDR7 |
@@ -463,6 +527,8 @@ begin
             mscratch, mepc_r, mcause_int, mcause_code, mtval_r, mtrapctl_legacy,
             irq_msip, irq_mtip, irq_meip,
             mst_tw, mcounteren_r, mst_mprv,
+            dcsr_ebreakm_r, dcsr_ebreaku_r, dcsr_step_r, dcsr_cause_r,
+            dcsr_prv_r, dpc_r, dscratch0_r, dscratch1_r,
             pmp_cfg, pmp_addr)
     begin
         case csr_addr is
@@ -558,6 +624,34 @@ begin
             when CSR_MTRAPCTL  => csr_read_val <= x"0000000" & "000" & mtrapctl_legacy;
 
             -- ==============================================================
+            -- D1 Debug-Mode CSRs (d1_spec.md 1). Read arms are UNCONDITIONAL
+            -- (the P1/jvt/fcsr precedent): the state is held at reset when
+            -- ENABLE_DEBUG is off and all four addresses are illegal CSRs
+            -- there, so nothing can observe them. Even with the generic ON,
+            -- maindec's dbg_csr_denied traps every access from outside debug
+            -- mode, so these arms are reachable only from debug code.
+            -- CLASS-4 (readback completeness): every reserved/unimplemented
+            -- dcsr bit is driven HERE, not left to the `others` arm.
+            --   dcsr = xdebugver(31:28) CONSTANT 4 (a literal, not a flop),
+            --          ebreakm(15), ebreaku(12), cause(8:6), step(2), prv(1:0).
+            --          stepie(11)/stopcount(10)/stoptime(9)/ebreakvs/ebreakvu/
+            --          ebreaks/nmip/mprven/pelp/v are all read-zero WARL.
+            when CSR_DCSR      => csr_read_val <= (30 => '1',
+                                                  15 => dcsr_ebreakm_r,
+                                                  12 => dcsr_ebreaku_r,
+                                                   8 => dcsr_cause_r(2),
+                                                   7 => dcsr_cause_r(1),
+                                                   6 => dcsr_cause_r(0),
+                                                   2 => dcsr_step_r,
+                                                   1 => dcsr_prv_r(1),
+                                                   0 => dcsr_prv_r(0),
+                                                  others => '0');
+            -- dpc: bit0 hardwired 0 (bit1 too on a no-C build — see the write).
+            when CSR_DPC       => csr_read_val <= dpc_r & '0';
+            when CSR_DSCRATCH0 => csr_read_val <= dscratch0_r;
+            when CSR_DSCRATCH1 => csr_read_val <= dscratch1_r;
+
+            -- ==============================================================
             -- P3 PMP bank (p0_specs.md 4.1). Read arms are UNCONDITIONAL (the
             -- jvt/fcsr/P1 precedent): the bank is held at reset when ENABLE_PMP
             -- is off and all twenty addresses are illegal CSRs there, so
@@ -646,6 +740,23 @@ begin
             mcause_code     <= (others => '0');
             mtval_r         <= (others => '0');
             mtrapctl_legacy <= '1';
+
+            -- D1 debug-mode state. debug_mode resets '0' (NOT in debug mode --
+            -- the restrictive direction, which is what keeps the 0x7Bx block
+            -- denied and DRET illegal out of reset). dcsr.prv resets "11" (M)
+            -- and never moves on a non-U build, so a dcsr read reports M.
+            -- dcsr.step/ebreakm/ebreaku reset '0': a chip out of reset takes no
+            -- ebreak to debug mode and single-steps nothing, so nothing can
+            -- enter debug mode without an explicit external request.
+            dcsr_ebreakm_r  <= '0';
+            dcsr_ebreaku_r  <= '0';
+            dcsr_step_r     <= '0';
+            dcsr_cause_r    <= (others => '0');
+            dcsr_prv_r      <= MPP_M;
+            dpc_r           <= (others => '0');
+            dscratch0_r     <= (others => '0');
+            dscratch1_r     <= (others => '0');
+            debug_mode_r    <= '0';
 
             -- P2 U-mode state. priv resets to M ('1') -- REQUIRED to read '1'
             -- forever on an ENABLE_UMODE=false build (freeze 3.1).
@@ -856,6 +967,61 @@ begin
                         -- bit0 LEGACY R/W; bits 31:1 WARL 0 (no storage).
                         if ENABLE_TRAPCSR then
                             mtrapctl_legacy <= csr_new_val(0);
+                        end if;
+
+                    -- ======================================================
+                    -- D1 Debug-Mode CSR writes (d1_spec.md 1). All gated on
+                    -- ENABLE_DEBUG so the file stays at reset for the OFF
+                    -- polarity (where the addresses are illegal anyway).
+                    -- A SECOND gate is already in force and is the one that
+                    -- matters at run time: maindec kills csr_valid for any
+                    -- 0x7Bx access from outside debug mode, so these arms are
+                    -- reachable ONLY from debug code even on an ON build.
+                    -- ======================================================
+                    when CSR_DCSR =>
+                        if ENABLE_DEBUG then
+                            dcsr_ebreakm_r <= csr_new_val(15);
+                            -- ebreaku exists only where U-mode does; WARL 0
+                            -- otherwise (there is no U-mode to break from).
+                            if ENABLE_UMODE then
+                                dcsr_ebreaku_r <= csr_new_val(12);
+                            end if;
+                            dcsr_step_r <= csr_new_val(2);
+                            -- prv is WARL to the IMPLEMENTED modes. Same
+                            -- conservative direction as mstatus.MPP: only an
+                            -- explicit "00" on a U-mode build selects U;
+                            -- everything else reads back M. A dret therefore
+                            -- never returns to a mode the writer did not ask
+                            -- for, and on a non-U build prv is pinned M.
+                            if ENABLE_UMODE and csr_new_val(1 downto 0) = MPP_U then
+                                dcsr_prv_r <= MPP_U;
+                            else
+                                dcsr_prv_r <= MPP_M;
+                            end if;
+                            -- cause(8:6) and xdebugver(31:28) are READ-ONLY:
+                            -- no storage here, deliberately.
+                        end if;
+
+                    when CSR_DPC =>
+                        -- The mepc WARL mask, verbatim: bit0 is not stored
+                        -- (hardwired '0'); bit1 is writable only on a C build.
+                        if ENABLE_DEBUG then
+                            dpc_r(31 downto 2) <= csr_new_val(31 downto 2);
+                            if ENABLE_COMPRESSED then
+                                dpc_r(1) <= csr_new_val(1);
+                            else
+                                dpc_r(1) <= '0';
+                            end if;
+                        end if;
+
+                    when CSR_DSCRATCH0 =>
+                        if ENABLE_DEBUG then
+                            dscratch0_r <= csr_new_val;
+                        end if;
+
+                    when CSR_DSCRATCH1 =>
+                        if ENABLE_DEBUG then
+                            dscratch1_r <= csr_new_val;
                         end if;
 
                     -- ======================================================
@@ -1094,6 +1260,62 @@ begin
                     end if;
                 end if;
             end if;
+
+            -- ==============================================================
+            -- D1 DEBUG ENTRY / DRET SIDE EFFECTS (d1_spec.md 2).
+            -- ASSIGNED AFTER the P1 block for the same reason it is assigned
+            -- after the write case: a later assignment in the same process
+            -- wins, so a debug entry takes precedence over both a same-cycle
+            -- CSR write and a same-cycle trap entry. They cannot in fact
+            -- coincide BY CONSTRUCTION -- dbg_entry_we is driven only from
+            -- DBG_SV and dbg_ret_we only from DBG_RET, dedicated FSM states in
+            -- which no CSR instruction retires and no MTRAP_* state is
+            -- current -- but the ordering is defined anyway so it can never
+            -- become a silent hazard. The whole block prunes when ENABLE_DEBUG
+            -- is false (constant-false condition, ports tied inert).
+            --
+            -- ENTRY IS ONE ACTION. dpc, cause, prv, the privilege force and
+            -- debug_mode all move on ONE strobe -- the D0/P1 1f atomicity
+            -- argument: two flops in two domains updated by two mechanisms is
+            -- the F1+ defect class.
+            -- ==============================================================
+            if ENABLE_DEBUG then
+                if dbg_entry_we = '1' then
+                    -- dpc <= the interrupted PC, under the SAME IALIGN-WARL
+                    -- mask a software write gets (bit0 dropped, bit1 only on a
+                    -- C build). vesta picks the value: pc for a synchronous
+                    -- ebreak, pc_next_reg for a halt/step (the resume PC).
+                    dpc_r(31 downto 2) <= dbg_pc(31 downto 2);
+                    if ENABLE_COMPRESSED then
+                        dpc_r(1) <= dbg_pc(1);
+                    else
+                        dpc_r(1) <= '0';
+                    end if;
+                    dcsr_cause_r <= dbg_cause;
+                    -- prv <= the interrupted privilege, and debug code then
+                    -- executes at M. Without U-mode both are already M, so the
+                    -- else arm is a constant and the priv force is pure P2 cost.
+                    if ENABLE_UMODE then
+                        dcsr_prv_r <= priv_m & priv_m;   -- '1'->"11" (M), '0'->"00" (U)
+                        priv_m     <= '1';
+                    else
+                        dcsr_prv_r <= MPP_M;
+                    end if;
+                    debug_mode_r <= '1';
+                elsif dbg_ret_we = '1' then
+                    -- DRET: leave debug mode and restore the privilege dcsr.prv
+                    -- names. dcsr.prv is WARL to implemented modes, so MPP_M is
+                    -- the only M encoding it can hold.
+                    debug_mode_r <= '0';
+                    if ENABLE_UMODE then
+                        if dcsr_prv_r = MPP_M then
+                            priv_m <= '1';
+                        else
+                            priv_m <= '0';
+                        end if;
+                    end if;
+                end if;
+            end if;
         end if;
     end process;
 
@@ -1137,6 +1359,21 @@ begin
     priv_mode       <= priv_m;
     status_tw       <= mst_tw;
     mcounteren_bits <= mcounteren_r;
+
+    -- ----------------------------------------------------------------------
+    -- D1 debug-mode exports (d1_spec.md 1). All STATE, never policy: the
+    -- entry/exit decisions and the halt/step/ebreak recognition all live in
+    -- vesta's FSM, and the CSR access rule lives in maindec. With ENABLE_DEBUG
+    -- false these are the reset constants for all time -- debug_mode '0',
+    -- ebreakm/ebreaku/step '0', dpc zero -- so maindec's dbg_csr_denied is a
+    -- constant deny, its DRET arm folds away, and every vesta debug arm is
+    -- statically unreachable.
+    -- ----------------------------------------------------------------------
+    debug_mode      <= debug_mode_r;
+    dcsr_ebreakm    <= dcsr_ebreakm_r;
+    dcsr_ebreaku    <= dcsr_ebreaku_r;
+    dcsr_step       <= dcsr_step_r;
+    dpc_value       <= dpc_r & '0';     -- bit0 always '0'
 
     -- ----------------------------------------------------------------------
     -- P3-entry: effective DATA-access privilege (p3_kickoff.md 3 item 1).

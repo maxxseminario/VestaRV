@@ -79,7 +79,17 @@ entity vesta_tracer is
         ENABLE_COMPRESSED : boolean := true;
         -- Rate limit for the unbounded #TRAPSTORE diagnostic (finding F8:
         -- TRAP_STATE self-loops forever and can commit a store every cycle).
-        TRAPSTORE_LIMIT   : natural := 8
+        TRAPSTORE_LIMIT   : natural := 8;
+        -- D1 (R-D0-3(1)): THE ORDINAL-COUNT TRIPWIRE. vesta passes
+        -- `cpu_state'pos(cpu_state'high) + 1` here; the concurrent assert at
+        -- the end of this architecture compares it against ST_COUNT and FAILS
+        -- AT ELABORATION on a mismatch. Until D1 the contract below had ZERO
+        -- mechanical enforcement -- ST_COUNT was declared and never read, so
+        -- the constant that LOOKS like a tripwire was not one.
+        -- DEFAULT 0 IS THE FAIL-SAFE DIRECTION, not an "unspecified" sentinel:
+        -- an instantiation that forgets this generic fails the assert loudly
+        -- rather than silently opting out of the check.
+        STATE_COUNT       : natural := 0
     );
     port (
         -- ---------------------------------------------------------------------
@@ -227,7 +237,11 @@ architecture behav of vesta_tracer is
     constant ST_ZCM_MV2       : natural := 36;
     constant ST_ZCM_JT_LD     : natural := 37;
     constant ST_ZCM_JT_WB     : natural := 38;
-    constant ST_COUNT         : natural := 39;
+    -- D1 debug-mode states, TAIL-APPENDED exactly as they are in vesta.vhd.
+    constant ST_DBG_SV        : natural := 39;
+    constant ST_DBG_JUMP      : natural := 40;
+    constant ST_DBG_RET       : natural := 41;
+    constant ST_COUNT         : natural := 42;
 
     -- Buffer depths. A Zcmp cm.pop commits up to 13 rd writes (+1 sp) for ONE
     -- architectural instruction, and a cbo.zero commits CBOZ_WORDS stores; both
@@ -548,14 +562,28 @@ begin
                             and trap = '0' and ecall_op = '0' and ebreak_op = '0'
                             and mret_op = '0'
                             and not (ENABLE_PMP and pmp_d_deny = '1')
+                            -- D1: DBG_SV joins the whitelist, mirroring
+                            -- vesta.vhd's retire_now. A halt or step divert out
+                            -- of EXECUTE withdraws only pc_en, so the diverted
+                            -- instruction still retires -- and for single-step
+                            -- that retire IS the step. THE TWO COPIES OF THIS
+                            -- CONDITION DIFFER ON PURPOSE ELSEWHERE (the
+                            -- MEMORY_WAIT isr_ret term below); this addition is
+                            -- NOT one of the deliberate differences and a
+                            -- mismatch here would be as silent as an ordinal one.
                             and (next_state = ST_EXECUTE  or next_state = ST_IRQ_SV or
-                                 next_state = ST_MTRAP_SV or next_state = ST_FENCE_WAIT);
+                                 next_state = ST_MTRAP_SV or next_state = ST_FENCE_WAIT or
+                                 next_state = ST_DBG_SV);
                 retire := ret_exec
                        or (state = ST_MEMORY_WAIT and isr_ret = '0')
                        or (state = ST_SLEEPING and next_state /= ST_SLEEPING and wfi_armed)
                        or state = ST_DIV_DONE  or state = ST_FPU_DONE
                        or state = ST_LR_READ   or state = ST_SC_CHECK
                        or state = ST_AMO_WRITE or state = ST_MTRAP_RET
+                       -- D1: DRET retires, beside MRET and for the same reason
+                       -- (and unlike `iret` it is a STANDARD encoding the
+                       -- reference knows, so the retire is comparable).
+                       or state = ST_DBG_RET
                        or state = ST_ZCM_RET   or state = ST_ZCM_JT_WB
                        or (state = ST_PAUSE_WAIT and next_state = ST_EXECUTE)
                        or (state = ST_WRS_WAIT  and next_state = ST_EXECUTE);
@@ -920,5 +948,23 @@ begin
             cyc := cyc + 1;
         end if;
     end process trace_proc;
+
+    -- ==========================================================
+    -- D1 (R-D0-3(1)): THE STATE-ORDINAL COUNT ASSERT
+    -- ==========================================================
+    -- The contract above is enforced by prose in two files and by nothing else;
+    -- this closes the ADD and REMOVE halves of it at ELABORATION time, in every
+    -- configuration that instantiates the tracer at all. `cpu_state` cannot
+    -- cross a port boundary in VHDL-93 but its CARDINALITY is a `natural` and
+    -- can, which is the whole trick.
+    -- WHAT IT DOES NOT CATCH, stated plainly rather than left to be assumed: a
+    -- pure REORDER at constant count. No cheap VHDL-93 construct catches that,
+    -- and presenting this as complete coverage would be worse than the gap.
+    assert STATE_COUNT = ST_COUNT
+        report "TRACER ORDINAL CONTRACT BROKEN: vesta declares "
+             & integer'image(STATE_COUNT) & " cpu_state values, this tracer's "
+             & "ST_* table has " & integer'image(ST_COUNT)
+             & ". Update the ST_* block AND ST_COUNT in vesta_tracer.vhd."
+        severity failure;
 
 end architecture behav;

@@ -28,7 +28,8 @@ entity controller is
         -- maindec (default false; no decode consumes them yet)
         ENABLE_TRAPCSR  : boolean := false;  -- P1 (trap CSRs + MRET/ECALL/EBREAK/WFI)
         ENABLE_UMODE    : boolean := false;  -- P2 (U-mode privileged-access gating)
-        ENABLE_PMP      : boolean := false   -- P3 (PMP/Smpmp)
+        ENABLE_PMP      : boolean := false;  -- P3 (PMP/Smpmp)
+        ENABLE_DEBUG    : boolean := false   -- D1 (debug mode: 0x7Bx CSRs + DRET)
     );
     port(
         -- ==========================================
@@ -79,6 +80,13 @@ entity controller is
         ebreak_op        : out std_logic;                      -- EBREAK (SYSTEM f3=000 funct12=0x001)
         mret_op          : out std_logic;                      -- MRET   (SYSTEM f3=000 funct12=0x302)
         wfi_op           : out std_logic;                      -- P2 WFI (SYSTEM f3=000 funct12=0x105)
+        dret_op          : out std_logic;                      -- D1 DRET (SYSTEM f3=000 funct12=0x7B2)
+
+        -- D1 debug-mode decode input, straight through to maindec. Default '0'
+        -- is the RESTRICTIVE direction on purpose (see maindec's port comment):
+        -- an unconnected instantiation is "not in debug mode", so the 0x7Bx
+        -- block stays denied and DRET stays illegal.
+        debug_mode       : in  std_logic := '0';
 
         -- P2 U-mode decode inputs, straight through to maindec (inert defaults:
         -- M-mode / TW=0 / no counter enables — an ENABLE_UMODE=false build and
@@ -169,7 +177,8 @@ architecture struct of controller is
             -- P0 privileged-architecture scaffolding (default false)
             ENABLE_TRAPCSR  : boolean := false;
             ENABLE_UMODE    : boolean := false;
-            ENABLE_PMP      : boolean := false
+            ENABLE_PMP      : boolean := false;
+            ENABLE_DEBUG    : boolean := false
         );
         port(
             resetn           : in  std_logic;
@@ -202,6 +211,9 @@ architecture struct of controller is
             mret_op          : out std_logic;
             -- P2 WFI decode + the U-mode decode inputs
             wfi_op           : out std_logic;
+            -- D1 DRET decode + the debug-mode decode input (default '0' = denied)
+            dret_op          : out std_logic;
+            debug_mode       : in  std_logic := '0';
             priv_m           : in  std_logic := '1';
             status_tw        : in  std_logic := '0';
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
@@ -280,7 +292,8 @@ begin
             ENABLE_ZFINX    => ENABLE_ZFINX,
             ENABLE_TRAPCSR  => ENABLE_TRAPCSR,
             ENABLE_UMODE    => ENABLE_UMODE,
-            ENABLE_PMP      => ENABLE_PMP
+            ENABLE_PMP      => ENABLE_PMP,
+            ENABLE_DEBUG    => ENABLE_DEBUG
         )
         port map(
             resetn           => resetn,
@@ -311,6 +324,8 @@ begin
             ebreak_op        => ebreak_op,
             mret_op          => mret_op,
             wfi_op           => wfi_op,
+            dret_op          => dret_op,
+            debug_mode       => debug_mode,
             priv_m           => priv_m,
             status_tw        => status_tw,
             mcounteren_bits  => mcounteren_bits,
