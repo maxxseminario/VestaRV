@@ -85,6 +85,12 @@ platform/*/config/MemoryMap.json
 
 # Build artifacts
 verification/isa/build/
+# D1 (2026-08-05): the one-off ELF/rcf scratch tree of
+# verification/isa/tools/build_one_rcf.sh. It exists precisely so that
+# building a single test does NOT touch verification/isa/build/, whose
+# .imgset identity change wipes the whole shared build tree -- so it is a
+# build artifact by the same argument as the line above it.
+verification/isa/build_oneoff/
 verification/isa/rcf/
 # per-NHARTS image sets built by platform/common `make verify` / A3
 # (rcf_argus etc. -- *.rcf contents are already ignored globally; this also
