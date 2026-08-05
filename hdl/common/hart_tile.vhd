@@ -131,7 +131,20 @@ entity hart_tile is
         ENABLE_TRAPCSR    : boolean := true;   -- P1 (standard M-mode trap CSRs + MRET)
         ENABLE_UMODE      : boolean := false;  -- P2 (U-mode; requires TRAPCSR)
         ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp; requires UMODE)
-        PMP_ENTRIES       : integer := 16      -- P3 (PMP entry count {8,16})
+        PMP_ENTRIES       : integer := 16;     -- P3 (PMP entry count {8,16})
+        -- D1 core-side debug mode, routed straight to the vesta core.
+        -- DEFAULT FALSE, DELIBERATELY UNLIKE ENABLE_TRAPCSR ABOVE. That knob's
+        -- default tracks the shipped chip; this one must NOT, because the
+        -- frozen hdl/argus/ snapshot instantiates hart_tile WITHOUT naming the
+        -- priv generics and therefore inherits whatever this entity says --
+        -- which is exactly how the Argus suite ran TRAPCSR-ON for two days with
+        -- no way to say so (F-K7-4). A debug interface silently present on a
+        -- snapshot is an area and attack-surface surprise, not a convenience
+        -- (method rule 15). tools/python/check_entity_defaults.py polices this.
+        ENABLE_DEBUG      : boolean := false;  -- D1 (debug mode; requires TRAPCSR)
+        -- Frozen debug entry vector (d1_spec.md 1). Passed through unchanged;
+        -- see the vesta entity for the memory-map argument for 0xBE00.
+        DEBUG_ENTRY_ADDR  : std_logic_vector(31 downto 0) := x"0000BE00"
     );
     port (
         clk       : in  std_logic;   -- free-running mclk
@@ -159,6 +172,18 @@ entity hart_tile is
         -- ports are RETIRED — ~255 boundary flops and the per-tile 85-bit
         -- priority bank with them).
         meip_in   : in  std_logic := '0';
+
+        -- D1 core-side debug interface (mclk domain, boundary-registered at
+        -- the SAME depth 1 as the req/gnt set -- the M13 one-depth skew rule).
+        -- BOTH INPUTS DEFAULT '0' and that is the fail-safe direction: at D1 no
+        -- Debug Module exists, so MCU.vhd leaves all three unconnected and
+        -- every tile boots and runs exactly as it did. A '1' default would halt
+        -- the chip out of reset. NOT exempted from boundary registration the
+        -- way `sleep` and the flash/XIP ports are -- that exception exists for
+        -- a gated-clock race and must not be copied.
+        dbg_haltreq      : in  std_logic := '0';
+        dbg_resethaltreq : in  std_logic := '0';
+        dbg_halted       : out std_logic;
 
         -- M13: extended-flash / XIP port (adddec's >=0x20000 decode, enabled
         -- in every tile). Hart 0 wires SPI0 here; tiles leave outputs open,
@@ -262,7 +287,9 @@ architecture behav of hart_tile is
             ENABLE_TRAPCSR    : boolean := false;
             ENABLE_UMODE      : boolean := false;
             ENABLE_PMP        : boolean := false;
-            PMP_ENTRIES       : integer := 16
+            PMP_ENTRIES       : integer := 16;
+            ENABLE_DEBUG      : boolean := false;
+            DEBUG_ENTRY_ADDR  : std_logic_vector(31 downto 0) := x"0000BE00"
         );
         port (
             clk              : in  std_logic;
@@ -288,6 +315,11 @@ architecture behav of hart_tile is
             irq_en          : in  std_logic_vector(NUM_IRQS-1 downto 0);
             irq_recursion_en: in  std_logic;
             isr_ret         : out std_logic;
+
+            -- D1 debug interface (inert defaults; see the vesta entity)
+            dbg_haltreq      : in  std_logic := '0';
+            dbg_resethaltreq : in  std_logic := '0';
+            dbg_halted       : out std_logic;
 
             trap_flag        : out  std_logic;
 
@@ -445,6 +477,12 @@ architecture behav of hart_tile is
     signal bnd_msip_r     : std_logic := '0';
     signal bnd_mtip_r     : std_logic := '0';
     signal bnd_meip_r     : std_logic := '0';
+    -- D1 debug interface, same depth-1 boundary. Inbound requests reset '0'
+    -- (fail-safe: no halt is being asked for), outbound halted resets '0'.
+    signal bnd_haltreq_r  : std_logic := '0';
+    signal bnd_rsthalt_r  : std_logic := '0';
+    signal dbg_halted_int : std_logic;
+    signal bnd_halted_r   : std_logic := '0';
 
 begin
 
@@ -476,6 +514,7 @@ begin
     sh_wdata <= bnd_wdata_r;
     sh_lrsc <= bnd_lrsc_r;
     sh_lock <= bnd_lock_r;
+    dbg_halted <= bnd_halted_r;
 
     bnd_in: process(clk, resetn)
     begin
@@ -499,6 +538,50 @@ begin
             bnd_meip_r     <= meip_in;
         end if;
     end process;
+
+    -- =========================================================================
+    -- D1 debug boundary stage (ENABLE_DEBUG). SAME clock, SAME reset, SAME
+    -- depth 1 as bnd_in/bnd_out above -- the M13 one-depth rule is about SKEW
+    -- between signals in one transaction set, and these three are their own
+    -- set, unrelated to req/gnt.
+    --
+    -- IN ITS OWN GENERATE PAIR, and that is the whole reason it is not simply
+    -- three more lines inside bnd_in/bnd_out: the three flops are the ONLY part
+    -- of D1 that a knob-OFF build would otherwise still pay for, because a
+    -- boundary register has no ENABLE_ term to fold it away. MEASURED, not
+    -- argued: with them ungated the OFF build's genus `sequential` read 2398
+    -- against a 2395 pin -- exactly +3, exactly these. The pin did its job; the
+    -- fix is to make them structurally absent, the gen_trapcsr_wb pattern.
+    -- OFF, dbg_halted is a hard constant '0': a chip with no debug interface
+    -- never reports itself halted.
+    -- =========================================================================
+    gen_dbg_bnd: if ENABLE_DEBUG generate
+        -- NOTE dbg_resethaltreq crosses this flop too, so it is one mclk late
+        -- at the chip reset edge. That is why the core-side arming
+        -- LEVEL-FOLLOWS the request until the first debug entry instead of
+        -- sampling it once (see vesta's dbg_rsthalt_proc): the core's own reset
+        -- release is further delayed by the M12 wait-for-boot-fetch stretch, so
+        -- "the first core-clk edge after release" is not a sampling point
+        -- either side can name.
+        bnd_dbg: process(clk, resetn)
+        begin
+            if resetn = '0' then
+                bnd_haltreq_r <= '0';
+                bnd_rsthalt_r <= '0';
+                bnd_halted_r  <= '0';
+            elsif rising_edge(clk) then
+                bnd_haltreq_r <= dbg_haltreq;
+                bnd_rsthalt_r <= dbg_resethaltreq;
+                bnd_halted_r  <= dbg_halted_int;
+            end if;
+        end process;
+    end generate;
+
+    gen_dbg_bnd_off: if not ENABLE_DEBUG generate
+        bnd_haltreq_r <= '0';
+        bnd_rsthalt_r <= '0';
+        bnd_halted_r  <= '0';
+    end generate;
 
     -- M19: three live slots — meip (router claim/complete stage) + this
     -- hart's own CLINT pair. Everything else is constant '0'; the enables
@@ -565,7 +648,9 @@ begin
             ENABLE_TRAPCSR    => ENABLE_TRAPCSR,
             ENABLE_UMODE      => ENABLE_UMODE,
             ENABLE_PMP        => ENABLE_PMP,
-            PMP_ENTRIES       => PMP_ENTRIES
+            PMP_ENTRIES       => PMP_ENTRIES,
+            ENABLE_DEBUG      => ENABLE_DEBUG,
+            DEBUG_ENTRY_ADDR  => DEBUG_ENTRY_ADDR
         )
         port map (
             clk         => clk,
@@ -591,6 +676,12 @@ begin
             irq_en           => TILE_IRQ_EN,
             irq_recursion_en => '0',
             isr_ret          => open,
+
+            -- D1: the boundary-registered request levels in, the halted level
+            -- out (registered on the way out, same depth).
+            dbg_haltreq      => bnd_haltreq_r,
+            dbg_resethaltreq => bnd_rsthalt_r,
+            dbg_halted       => dbg_halted_int,
 
             trap_flag    => trap_flag,
             a0           => a0

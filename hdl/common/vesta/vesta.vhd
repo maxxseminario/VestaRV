@@ -55,6 +55,29 @@ entity vesta is
         ENABLE_UMODE      : boolean := false;  -- P2 (U-mode, requires TRAPCSR): consumed from phase P2 on; scaffolded P0
         ENABLE_PMP        : boolean := false;  -- P3 (PMP/Smpmp, requires UMODE): consumed from phase P3 on; scaffolded P0
         PMP_ENTRIES       : integer := 16;     -- P3 (PMP entry count {8,16}): consumed from phase P3 on; scaffolded P0
+        -- D1 (2026-08-05) core-side DEBUG MODE: dcsr/dpc/dscratch0/1, DRET,
+        -- halt request + halt-on-reset, ebreak-to-debug and single-step.
+        -- DEFAULT FALSE, and it must stay false at EVERY declaration site --
+        -- policed by tools/python/check_entity_defaults.py, because the
+        -- hart_tile-vs-vesta default DISAGREEMENT that already exists for
+        -- ENABLE_TRAPCSR is exactly how the frozen Argus snapshot ran
+        -- TRAPCSR-ON for two days with no way to say so (F-K7-4). A debug port
+        -- silently enabled on a snapshot is an area and attack-surface
+        -- surprise, not a convenience (method rule 15).
+        -- REQUIRES ENABLE_TRAPCSR -- see the concurrent assert below.
+        ENABLE_DEBUG      : boolean := false;
+        -- Where a debug entry lands. FROZEN at 0xBE00 (d1_spec.md 1, amended
+        -- R-D1-1(2)): the first free 256-byte slot in the TCM ISR bank above
+        -- .isr_eis @0xBD00, below the 0xBF00-0xBFEF headroom and the stack top
+        -- at 0xBFF0, and inside the MP_STAGE_IMAGE window so a tile gets its
+        -- debug stub from the ordinary image copy. 0xBB00 was REJECTED on
+        -- purpose: it is the parking target of every unused IVT slot, so a stub
+        -- there would also be entered by a stray interrupt, and a tripwire two
+        -- mechanisms can trip is not a tripwire. It is a GENERIC and not a
+        -- constant so a bench can re-aim it (hdl/common/tb/dbg_iface_tb.vhd
+        -- points it into its own responder window); the shipped chips take
+        -- this default, so MCU.vhd does not name it.
+        DEBUG_ENTRY_ADDR  : std_logic_vector(XLEN-1 downto 0) := x"0000BE00";
         -- V1 (Spike lockstep co-simulation): instantiate the read-only
         -- vesta_tracer. Following the ENABLE_* scaffolding idiom exactly --
         -- default FALSE, so `gen_trace` elaborates nothing and the netlist,
@@ -119,6 +142,31 @@ entity vesta is
         irq_recursion_en : in std_logic;
         isr_ret      : out std_logic;
 
+        -- ------------------------------------------------------------------
+        -- D1 DEBUG INTERFACE (all inert when ENABLE_DEBUG = false).
+        -- Three LEVELS, no handshake, no resumereq: resume at D1 is the
+        -- exclusive job of `dret` executed by debug code, and DM-side
+        -- sequencing is D2's.
+        --   dbg_haltreq      : raise to halt. UNMASKABLE -- neither
+        --                      mstatus.MIE nor mtrapctl.LEGACY qualifies it.
+        --                      A debugger drops it once dbg_halted reads '1';
+        --                      leaving it high would re-halt the hart the
+        --                      instant its `dret` retired, forever.
+        --   dbg_resethaltreq : hold across reset release to halt before the
+        --                      hart runs anything.
+        --   dbg_halted       : '1' while the hart is IN DEBUG MODE. It is a
+        --                      STATE, not a level follower -- it stays high
+        --                      after dbg_haltreq drops.
+        -- BOTH INPUTS DEFAULT '0', and that direction is the fail-safe one
+        -- (method rule 15): an unconnected instantiation -- which is every
+        -- MCU-level tile at D1, since no Debug Module exists yet to drive
+        -- them -- requests nothing and halts nothing. A '1' default would halt
+        -- the whole chip out of reset.
+        -- ------------------------------------------------------------------
+        dbg_haltreq      : in  std_logic := '0';
+        dbg_resethaltreq : in  std_logic := '0';
+        dbg_halted       : out std_logic;
+
         -- Trap Output
         trap_flag      : out std_logic;
 
@@ -157,7 +205,8 @@ architecture struct of vesta is
             -- P0 scaffolding: the subset maindec will consume (default false)
             ENABLE_TRAPCSR  : boolean := false;
             ENABLE_UMODE    : boolean := false;
-            ENABLE_PMP      : boolean := false
+            ENABLE_PMP      : boolean := false;
+            ENABLE_DEBUG    : boolean := false
         );
         port (
             resetn           : in  std_logic;
@@ -188,6 +237,9 @@ architecture struct of vesta is
             mret_op          : out std_logic;
             -- P2 WFI decode + the U-mode decode inputs (inert defaults)
             wfi_op           : out std_logic;
+            -- D1 DRET decode + the debug-mode decode input (default '0' = denied)
+            dret_op          : out std_logic;
+            debug_mode       : in  std_logic := '0';
             priv_m           : in  std_logic := '1';
             status_tw        : in  std_logic := '0';
             mcounteren_bits  : in  std_logic_vector(4 downto 0) := "00000";
@@ -350,6 +402,8 @@ architecture struct of vesta is
             ENABLE_UMODE      : boolean := false;
             ENABLE_PMP        : boolean := false;
             PMP_ENTRIES       : integer := 16;
+            -- D1 debug-mode CSR file (dcsr/dpc/dscratch0/1 + debug_mode)
+            ENABLE_DEBUG      : boolean := false;
             TRACE_ENABLE      : boolean := false
         );
         port (
@@ -408,6 +462,17 @@ architecture struct of vesta is
             -- P3 red-team F1: the MRET return privilege (MPP mapped)
             mret_priv_m    : out std_logic;
 
+            -- D1 debug-mode interface (inert defaults; see csr_unit.vhd)
+            dbg_entry_we   : in  std_logic := '0';
+            dbg_pc         : in  std_logic_vector(XLEN-1 downto 0) := (others => '0');
+            dbg_cause      : in  std_logic_vector(2 downto 0) := (others => '0');
+            dbg_ret_we     : in  std_logic := '0';
+            debug_mode     : out std_logic;
+            dcsr_ebreakm   : out std_logic;
+            dcsr_ebreaku   : out std_logic;
+            dcsr_step      : out std_logic;
+            dpc_value      : out std_logic_vector(XLEN-1 downto 0);
+
             -- P3 PMP bank exports (p0_specs.md §4.1); all-zero when ENABLE_PMP
             -- is false.
             pmp_cfg_flat   : out std_logic_vector(127 downto 0);
@@ -459,7 +524,9 @@ architecture struct of vesta is
             TRACE_FILE        : string  := "vesta_trace";
             ENABLE_PMP        : boolean := false;
             ENABLE_COMPRESSED : boolean := true;
-            TRAPSTORE_LIMIT   : natural := 8
+            TRAPSTORE_LIMIT   : natural := 8;
+            -- D1: cpu_state'pos(cpu_state'high)+1, checked against ST_COUNT
+            STATE_COUNT       : natural := 0
         );
         port (
             clk_cpu          : in std_logic;                       -- the GATED core clock
@@ -576,7 +643,31 @@ architecture struct of vesta is
         ZCM_MV1,      -- cm.mvsa01/mva01s : first of the two reg-reg moves
         ZCM_MV2,      -- cm.mvsa01/mva01s : second move; retire
         ZCM_JT_LD,    -- cm.jt/jalt : issue the load of the jvt table entry
-        ZCM_JT_WB     -- capture target; cm.jalt writes ra=pc+2; redirect PC
+        ZCM_JT_WB,    -- capture target; cm.jalt writes ra=pc+2; redirect PC
+        -- D1 debug mode (ENABLE_DEBUG). **TAIL-APPENDED, AND THAT IS A HARD
+        -- REQUIREMENT, NOT A STYLE CHOICE** (D0/P1 1a): vesta_tracer.vhd's ST_*
+        -- table mirrors this declaration ORDER positionally and a mismatch is
+        -- SILENT. Appending leaves all 39 existing ordinals valid, so the
+        -- tracer diff is purely additive; inserting a DBG_SV beside MTRAP_SV --
+        -- which reads as the tidy choice -- would renumber 26 states and
+        -- invalidate every lockstep record. The S-series permission tables are
+        -- keyed by NAME (commit_perm_t is array (cpu_state)), so they are
+        -- insertion-safe; the tracer is the ONLY positional consumer, which is
+        -- exactly what makes the trap asymmetric and easy to walk into. Since
+        -- D1 there is also an ELABORATION-TIME COUNT ASSERT (the STATE_COUNT
+        -- generic on vesta_tracer) -- it catches an ADD or a REMOVE, and it
+        -- does NOT catch a reorder at constant count. Nothing cheap does.
+        --
+        -- All three are UNREACHABLE when ENABLE_DEBUG is false: every
+        -- transition into them is qualified by dbg_halt_take / dbg_ebreak_take
+        -- / dret_op, each statically '0' there -- so the OFF build's state
+        -- encoding is bit-identical. None of them declares ANY commit intent
+        -- beyond ci_pc_advance, so the permission tables' `others => '0'`
+        -- denial makes them inert by construction (verified, not assumed:
+        -- rd/sp/lanes are all absent from their arms).
+        DBG_SV,       -- debug ENTRY: dpc/dcsr.cause/prv/debug_mode <- ... ; PC <- DEBUG_ENTRY_ADDR
+        DBG_JUMP,     -- debug RE-ENTRY (ebreak in debug mode): PC <- DEBUG_ENTRY_ADDR, no CSR write
+        DBG_RET       -- DRET: PC <- dpc, debug_mode <- 0, priv <- dcsr.prv
     );
 
     signal current_state, next_state : cpu_state;
@@ -1055,6 +1146,72 @@ architecture struct of vesta is
     signal std_wfi_wake           : std_logic;
 
     -- ------------------------------------------------------------------
+    -- D1 DEBUG MODE (ENABLE_DEBUG)
+    -- ------------------------------------------------------------------
+    -- csr_unit's exports. All are reset constants on an OFF build
+    -- (debug_mode '0', the three dcsr bits '0', dpc zero), which is what makes
+    -- every take signal below statically '0' and every FSM arm fold.
+    signal debug_mode             : std_logic;
+    signal dcsr_ebreakm           : std_logic;
+    signal dcsr_ebreaku           : std_logic;
+    signal dcsr_step              : std_logic;
+    signal dbg_dpc_value          : std_logic_vector(XLEN-1 downto 0);
+    -- maindec's DRET decode ('0' unless ENABLE_DEBUG **and** in debug mode).
+    signal dret_op                : std_logic;
+    -- THE THREE TAKES. Separate signals with different qualifier sets, the
+    -- std_irq_take / std_wfi_pend precedent: one decides whether an
+    -- ASYNCHRONOUS halt is recognised, one whether a SYNCHRONOUS ebreak
+    -- diverts, and they are tested at different points in the decode tree.
+    signal dbg_halt_take          : std_logic;   -- haltreq | resethaltreq | step, and not already halted
+    signal dbg_step_take          : std_logic;   -- the step re-entry alone (feeds the cause mux)
+    signal dbg_ebreak_take        : std_logic;   -- ebreak diverts to debug rather than to the trap path
+    -- The en_clk_cpu ungate (F-D0P1-3). Same expression as dbg_halt_take; a
+    -- separate name because it is consumed in a DIFFERENT domain question
+    -- (does this hart get a clock at all) and conflating the two is how a
+    -- future edit to one silently changes the other.
+    signal dbg_halt_pend          : std_logic;
+    -- WAIT-FOR-RELEASE on the halt request (the mp_arbiter `need_release`
+    -- idiom, and the same hazard it exists for). See the assignment below.
+    signal dbg_req_mask           : std_logic;
+    signal dbg_haltreq_eff        : std_logic;
+    -- Halt-on-reset. dbg_rsthalt_r level-follows dbg_resethaltreq from reset
+    -- release until the FIRST debug entry, then is disarmed forever by
+    -- dbg_rst_armed. Level-following rather than a single sample at the reset
+    -- edge is deliberate: hart_tile registers the request at the tile boundary
+    -- AND holds the core in reset until its boot fetch lands, so "the first
+    -- core-clk edge after release" is not a well-defined sampling point from
+    -- inside this file.
+    signal dbg_rsthalt_r          : std_logic;
+    signal dbg_rst_armed          : std_logic;
+    -- SINGLE-STEP. Armed at the DRET that carried dcsr.step, consumed by the
+    -- next entry. THE STEP DIVERTS AT THE STEPPED INSTRUCTION'S OWN DISPATCH
+    -- CYCLE, not at the next one -- exactly like an interrupt divert, so the
+    -- stepped instruction RETIRES (ci_rd_commit/ci_st_lanes are declared) and
+    -- dpc becomes pc_next_reg = the address of the following instruction.
+    -- Diverting at the NEXT instruction's dispatch instead would retire TWO
+    -- instructions per step, which is the natural wrong implementation.
+    signal dbg_step_armed         : std_logic;
+    -- Dispatch-cycle cause classification + its latch (the mtrap_cause_proc
+    -- idiom): read ONLY at the clk_cpu edge that ENTERS DBG_SV, so the value
+    -- is stable for the whole state and for the free-clk strobe that consumes
+    -- it. Codes: 1 ebreak, 3 haltreq, 4 step, 5 resethaltreq.
+    signal dbg_disp_cause         : std_logic_vector(2 downto 0);
+    signal dbg_cause_r            : std_logic_vector(2 downto 0);
+    -- The dpc value, selected by the LATCHED cause: a synchronous ebreak
+    -- records its OWN pc; a halt or a step records pc_next_reg, the resume PC
+    -- (provably the same word the legacy IRQ_SV pushes at sp-4).
+    signal dbg_pc_val             : std_logic_vector(XLEN-1 downto 0);
+    -- The two one-shots, generated on the csr_unit clock domain exactly as
+    -- mtrap_sv_lvl / mtrap_ret_lvl are -- the ONLY mechanism in this core for
+    -- a gated-clk state to commit a free-clk CSR side effect exactly once.
+    signal dbg_sv_lvl             : std_logic;
+    signal dbg_sv_d               : std_logic;
+    signal dbg_ret_lvl            : std_logic;
+    signal dbg_ret_d              : std_logic;
+    signal dbg_entry_we_sig       : std_logic;
+    signal dbg_ret_we_sig         : std_logic;
+
+    -- ------------------------------------------------------------------
     -- P3 PMP CHECK INTEGRATION (ENABLE_PMP) -- the D5 strict-pre-issue diff
     -- ------------------------------------------------------------------
     -- EVERY signal below is statically '0'/'1'/zero when ENABLE_PMP is false
@@ -1235,10 +1392,27 @@ architecture struct of vesta is
     -- evaluating the SLEEPING arm. std_wfi_wake is qualified by wfi_slept, so an
     -- extinguish-entered sleep is untouched, and it is statically '0' when
     -- ENABLE_TRAPCSR is off, so the OFF build's en_clk_cpu is bit-identical.
+    -- D1 (F-D0P1-3): THE PARKED-HART UNGATE, and on this chip it is not a
+    -- corner case -- it is the DEFAULT BOOT STATE OF EVERY HART BUT HART 0.
+    -- Harts 1..N-1 park in SLEEPING via `extinguish` (bootrom_mp start.S), with
+    -- clk_cpu GATED OFF: the FSM gets no edge, so it cannot evaluate the
+    -- SLEEPING arm and cannot sample a halt request at all. Without this term
+    -- "attach a debugger and halt hart 2" is impossible by construction on
+    -- three quarters of the harts, at N=4 and at N=18 alike -- and every
+    -- knob-OFF gate stays green while it is missing, which is what makes it the
+    -- single most likely D1 omission. Same precedence and the same shape as the
+    -- P1/P2 terms above it, and statically '0' when ENABLE_DEBUG is off (via
+    -- dbg_halt_take), so the OFF build's en_clk_cpu is bit-identical.
+    -- COROLLARY, and it must not be "optimised": the DEBUG-HALTED state is
+    -- deliberately NOT added to the gating list below. A halted core keeps
+    -- clk_cpu running -- that is what lets it execute debug-ROM / program-buffer
+    -- instructions at all. Gating it would look like a power win and would make
+    -- the feature non-functional.
     en_clk_cpu <= '0' when mem_ready = '0' else
                   '1' when irq_active = '1' else
                   '1' when std_irq_take = '1' else
                   '1' when std_wfi_wake = '1' else
+                  '1' when dbg_halt_pend = '1' else
                   '0' when sleep = '1' else
                   '0' when current_state = SLEEPING else
                   '1';
@@ -1360,8 +1534,23 @@ architecture struct of vesta is
                   and trap = '0' and ecall_op = '0' and ebreak_op = '0'  -- trap sub-arms
                   and mret_op = '0'                                      -- retires at MTRAP_RET
                   and not (ENABLE_PMP and pmp_d_deny = '1')              -- the P3 D5 arm
+                  -- D1: DBG_SV joins this CLOSED whitelist, and it MUST
+                  -- (D0/P1 F-D0P1-2). A halt or step divert out of EXECUTE
+                  -- takes away only pc_en, exactly as an interrupt divert
+                  -- does, so the diverted instruction still retires -- and for
+                  -- SINGLE-STEP that retire IS the step: the one instruction
+                  -- the step is defined to execute. Omitting it here would
+                  -- silently drop one minstret and one lockstep retire record
+                  -- PER HALT AND PER STEP, a bug whose signature is "the
+                  -- counters are one low, sometimes". vesta_tracer.vhd carries
+                  -- the SAME addition to its own copy of this condition; the
+                  -- two copies differ ON PURPOSE elsewhere (the MEMORY_WAIT
+                  -- isr_ret term) and a mismatch here is as silent as the
+                  -- ordinal one. Unreachable knob-OFF (DBG_SV has no reachable
+                  -- transition there), so the OFF retire stream is unchanged.
                   and (next_state = EXECUTE  or next_state = IRQ_SV or
-                       next_state = MTRAP_SV or next_state = FENCE_WAIT)) else
+                       next_state = MTRAP_SV or next_state = FENCE_WAIT or
+                       next_state = DBG_SV)) else
         -- 2. MEMORY_WAIT -- §3-R0 rule 2 WITHOUT its `isr_ret = '0'` qualifier;
         --    that omission is the one documented deviation (see above).
         '1' when (current_state = MEMORY_WAIT) else
@@ -1369,9 +1558,15 @@ architecture struct of vesta is
         '1' when (current_state = SLEEPING and next_state /= SLEEPING
                   and retire_wfi_armed = '1') else
         -- 4..11. Unconditional in the state -- no arm can suppress the commit.
+        -- D1: DBG_RET joins the unconditional list beside MTRAP_RET -- the
+        -- same shape, the same argument, and `dret` is a STANDARD encoding the
+        -- reference knows (unlike `iret`), so its retire is comparable.
+        -- DBG_SV and DBG_JUMP do NOT retire: an entry executes nothing (the
+        -- retire that accompanies a halt belongs to the DIVERTING state, above).
         '1' when (current_state = DIV_DONE  or current_state = FPU_DONE  or
                   current_state = LR_READ   or current_state = SC_CHECK  or
                   current_state = AMO_WRITE or current_state = MTRAP_RET or
+                  current_state = DBG_RET   or
                   current_state = ZCM_RET   or current_state = ZCM_JT_WB) else
         -- 12. PAUSE_WAIT retires on the window-close cycle only.
         '1' when (current_state = PAUSE_WAIT and pause_cnt = 0) else
@@ -1870,7 +2065,16 @@ architecture struct of vesta is
     -- from the new PC). MTRAP_SV holds pc_next_reg like IRQ_SV, which is what
     -- makes pc_next_reg the interrupt RESUME PC (identical to the word the legacy
     -- IRQ_SV pushes at sp-4) for the whole entry pair.
+    -- D1: the debug states use the same idiom. DEBUG_ENTRY_ADDR is a GENERIC,
+    -- not a CSR -- there is no dm-programmable entry vector at D1 -- so both
+    -- entry arms load a constant and DBG_RET loads dpc, which is the MTRAP_RET
+    -- arm one line above with a different CSR. All three carry pc_en='1' from
+    -- their FSM arms, so data_addr falls through to pc_next and the fetch from
+    -- the new PC issues in the SAME cycle.
     pc_next <= ivt_entry   when (current_state = IRQ_JUMP) else
+               DEBUG_ENTRY_ADDR when (current_state = DBG_SV or
+                                      current_state = DBG_JUMP) else
+               dbg_dpc_value    when (current_state = DBG_RET) else
                trap_mtvec_value when (current_state = MTRAP_JUMP) else
                trap_mepc_value  when (current_state = MTRAP_RET) else
                pc_next_reg when (current_state = MTRAP_SV) else
@@ -2280,6 +2484,220 @@ architecture struct of vesta is
                     else '0';
 
     -- ==========================================
+    -- D1 DEBUG-MODE GLUE (ENABLE_DEBUG)
+    -- ==========================================
+    -- ENABLE_DEBUG REQUIRES ENABLE_TRAPCSR, and the coupling is real, not
+    -- tidiness: `ebreak_op` and the whole SYSTEM PRIV_FN3 legality arm are
+    -- ENABLE_TRAPCSR-gated in maindec, so on a trapCsr-OFF build `ebreak` does
+    -- not decode at all and dcsr.ebreakm would have nothing to interpose on --
+    -- a chip with a Debug Module that cannot recognise a software breakpoint
+    -- (D0/P2 N8). generate.py's validator enforces the implication for every
+    -- config; this assert catches anyone instantiating the core directly.
+    assert not (ENABLE_DEBUG and not ENABLE_TRAPCSR)
+        report "vesta: ENABLE_DEBUG requires ENABLE_TRAPCSR (ebreak and the "
+             & "SYSTEM PRIV arm do not decode without it)"
+        severity failure;
+
+    -- THE HALT TAKE. Qualified by NEITHER mstatus.MIE NOR mtrapctl.LEGACY: a
+    -- halt request is unmaskable and must fire in a legacy-mode build exactly
+    -- as in a standard-delivery one. The only qualifier is `not debug_mode` --
+    -- a hart already in debug mode must not re-enter and overwrite its own dpc.
+    -- Three sources, one signal, because all three land on the same 14 FSM
+    -- recognition points; the CAUSE mux below is what tells them apart.
+    -- WAIT-FOR-RELEASE: ONE ENTRY PER ASSERTION OF dbg_haltreq.
+    -- THE HAZARD, measured 2026-08-05 before this term existed. dbg_haltreq is
+    -- a LEVEL, and a debugger cannot drop it until it has SEEN dbg_halted --
+    -- an observation that costs a JTAG round trip in silicon and a polling
+    -- interval in a testbench. Without this mask the hart re-entered debug the
+    -- instant each `dret` retired, walking forward exactly one instruction per
+    -- round trip and rewriting its own dpc/dcsr every time. Measured: the
+    -- halt-reachability instrument's running victim never reached the store
+    -- that proves it resumed, because it was still bouncing in and out of the
+    -- stub when the orchestrating hart read the result; and single-step is
+    -- outright IMPOSSIBLE that way, because the second entry reports cause
+    -- haltreq instead of cause step and the dpc ledger never advances by 4.
+    -- THE FIX IS THE ARBITER'S, VERBATIM. mp_arbiter masks a served master via
+    -- WAIT-FOR-RELEASE -- eligible again only after its req is OBSERVED low --
+    -- because the M5a one-pick mask leaked ghost transactions from exactly this
+    -- shape: a request line that is legitimately still high after it has been
+    -- served. A halt request is the same object. One flop, on the FREE-RUNNING
+    -- clk so a hart whose clk_cpu is gated cannot miss the release.
+    -- RELEASE WINS over set, so a debugger that drops and re-raises the line
+    -- gets a second halt immediately; only a CONTINUOUS assertion is collapsed
+    -- to one entry.
+    -- The other two entry sources need no mask: dbg_rsthalt_r is disarmed by
+    -- the first entry (once per reset), and dbg_step_armed is cleared by the
+    -- entry it causes.
+    -- NOT PINNED BY d1_spec.md, which says only "dbg_haltreq (in, level)" --
+    -- recorded here as a DESIGN DECISION, not as a reading of the spec.
+    dbg_haltreq_eff <= dbg_haltreq and not dbg_req_mask;
+
+    dbg_halt_take <= '1' when (ENABLE_DEBUG and debug_mode = '0' and
+                               (dbg_haltreq_eff = '1' or dbg_rsthalt_r = '1' or
+                                dbg_step_armed = '1'))
+                     else '0';
+    dbg_step_take <= '1' when (ENABLE_DEBUG and debug_mode = '0' and
+                               dbg_step_armed = '1')
+                     else '0';
+    dbg_halt_pend <= dbg_halt_take;
+
+    -- THE EBREAK TAKE. dcsr.ebreakm RESETS 0 and is writable only from debug
+    -- mode, so no M-mode software can ever arm it -- which is what makes
+    -- "ebreak takes an ordinary breakpoint exception" the standing behaviour
+    -- and dbgdenymp.S's hart 3 a real detector rather than a tautology.
+    -- ebreaku rides ENABLE_UMODE (dcsr_ebreaku is stuck '0' without it).
+    -- The debug_mode term is the re-entry clause (d1_spec.md 2): an ebreak
+    -- executed BY debug code always re-enters, regardless of ebreakm.
+    dbg_ebreak_take <= '1' when (ENABLE_DEBUG and
+                                 (debug_mode = '1' or
+                                  dcsr_ebreakm = '1' or
+                                  (ENABLE_UMODE and trap_priv_mode = '0' and
+                                   dcsr_ebreaku = '1')))
+                       else '0';
+
+    -- Dispatch-cycle cause classification. PRIORITY MIRRORS THE FSM ARM ORDER
+    -- EXACTLY -- the ebreak arm sits above the halt arm in the EXECUTE decode
+    -- tree, so ebreak is first here. A cause mux that disagrees with the arm
+    -- order silently mislabels entries (the mtrap_disp_code lesson).
+    dbg_disp_cause <=
+        "001" when (current_state = EXECUTE and ebreak_op = '1' and
+                    dbg_ebreak_take = '1') else                 -- 1 ebreak
+        "101" when (dbg_rsthalt_r = '1') else                   -- 5 resethaltreq
+        "011" when (dbg_haltreq_eff = '1') else                 -- 3 haltreq
+        "100" when (dbg_step_take = '1') else                   -- 4 step
+        "011";                                                  -- default: haltreq
+
+    -- The cause LATCH lives inside gen_debug below, not here. Its write
+    -- condition is statically false on an OFF build, so Genus would very
+    -- likely constant-propagate it away -- but "very likely pruned" is not the
+    -- standard this file holds itself to. gen_trapcsr_wb/gen_trapcsr_wb_off is
+    -- the house pattern precisely because it makes the OFF netlist identical BY
+    -- CONSTRUCTION rather than by unloaded-logic removal, and the D1 inertness
+    -- claim is the programme's crown jewel. Same for every other debug flop.
+
+    -- dpc, valid throughout DBG_SV. A SYNCHRONOUS ebreak reports its OWN
+    -- address (pc; pc_en is '0' from the dispatch edge on, so pc still holds
+    -- it) -- NOT the instruction after, which is why debug code that wants to
+    -- resume past an ebreak must add 4 itself. Every other cause is taken
+    -- BETWEEN instructions, so the resume PC is pc_next_reg -- the same word
+    -- MTRAP_SV uses as mepc for an interrupt.
+    dbg_pc_val <= pc when dbg_cause_r = "001" else pc_next_reg;
+
+    -- The one-shots, and the halt-on-reset / single-step state. All inside the
+    -- generate pair so an OFF netlist carries no extra flops at all and every
+    -- strobe is hard-tied '0' -- the gen_trapcsr_wb pattern, verbatim.
+    dbg_sv_lvl  <= '1' when current_state = DBG_SV  else '0';
+    dbg_ret_lvl <= '1' when current_state = DBG_RET else '0';
+
+    gen_debug: if ENABLE_DEBUG generate
+        -- The dispatch-cycle cause latch. 3 flops on clk_cpu; the 32-bit dpc
+        -- value is NOT registered -- it is re-derived from pc / pc_next_reg,
+        -- both provably held through DBG_SV.
+        dbg_cause_proc: process(clk_cpu, resetn)
+        begin
+            if resetn = '0' then
+                dbg_cause_r <= (others => '0');
+            elsif rising_edge(clk_cpu) then
+                if next_state = DBG_SV and current_state /= DBG_SV then
+                    dbg_cause_r <= dbg_disp_cause;
+                end if;
+            end if;
+        end process;
+
+        dbg_we_proc: process(clk, resetn)
+        begin
+            if resetn = '0' then
+                dbg_sv_d  <= '0';
+                dbg_ret_d <= '0';
+            elsif rising_edge(clk) then
+                dbg_sv_d  <= dbg_sv_lvl;
+                dbg_ret_d <= dbg_ret_lvl;
+            end if;
+        end process;
+        dbg_entry_we_sig <= dbg_sv_lvl  and not dbg_sv_d;
+        dbg_ret_we_sig   <= dbg_ret_lvl and not dbg_ret_d;
+
+        -- HALT ON RESET. Armed by reset, disarmed by the first debug entry.
+        -- While armed, dbg_rsthalt_r simply follows the (boundary-registered)
+        -- request line, so the halt is taken at the first recognition site the
+        -- hart reaches -- i.e. before it retires anything of its own. It is
+        -- held stable across the entry, which is what lets the cause mux report
+        -- 5 rather than 3. On the free-running clk, so a hart whose clk_cpu is
+        -- still gated cannot miss the arming.
+        -- The wait-for-release flop. Clear (release observed) has PRIORITY.
+        dbg_reqmask_proc: process(clk, resetn)
+        begin
+            if resetn = '0' then
+                dbg_req_mask <= '0';
+            elsif rising_edge(clk) then
+                if dbg_haltreq = '0' then
+                    dbg_req_mask <= '0';
+                elsif dbg_entry_we_sig = '1' then
+                    dbg_req_mask <= '1';
+                end if;
+            end if;
+        end process;
+
+        dbg_rsthalt_proc: process(clk, resetn)
+        begin
+            if resetn = '0' then
+                dbg_rsthalt_r <= '0';
+                dbg_rst_armed <= '1';
+            elsif rising_edge(clk) then
+                if dbg_rst_armed = '1' then
+                    if dbg_entry_we_sig = '1' then
+                        dbg_rst_armed <= '0';
+                        dbg_rsthalt_r <= '0';
+                    else
+                        dbg_rsthalt_r <= dbg_resethaltreq;
+                    end if;
+                end if;
+            end if;
+        end process;
+
+        -- SINGLE-STEP ARMING. Set on the DRET cycle iff dcsr.step is set --
+        -- read at that edge, so debug code that CLEARS step before its dret
+        -- (entry 5 of dbgstepmp.S) resumes free-running. Cleared by the entry
+        -- it causes. The two conditions cannot coincide: one needs
+        -- current_state = DBG_RET, the other next_state = DBG_SV from another
+        -- state. On clk_cpu, because it is sampled by the FSM.
+        -- NOTE step is NOT active in debug mode: dbg_step_take carries
+        -- `not debug_mode`, so the several instructions the debug stub
+        -- executes after `csrsi dcsr, 4` do not step.
+        dbg_step_proc: process(clk_cpu, resetn)
+        begin
+            if resetn = '0' then
+                dbg_step_armed <= '0';
+            elsif rising_edge(clk_cpu) then
+                if current_state = DBG_RET then
+                    dbg_step_armed <= dcsr_step;
+                elsif next_state = DBG_SV and current_state /= DBG_SV then
+                    dbg_step_armed <= '0';
+                end if;
+            end if;
+        end process;
+    end generate;
+
+    gen_debug_off: if not ENABLE_DEBUG generate
+        dbg_sv_d         <= '0';
+        dbg_ret_d        <= '0';
+        dbg_entry_we_sig <= '0';
+        dbg_ret_we_sig   <= '0';
+        dbg_rsthalt_r    <= '0';
+        dbg_rst_armed    <= '0';
+        dbg_step_armed   <= '0';
+        dbg_cause_r      <= (others => '0');
+        dbg_req_mask     <= '0';
+    end generate;
+
+    -- HALTED IS A STATE, NOT A LEVEL FOLLOWER. It is simply "this hart is in
+    -- debug mode", so it rises with the entry edge and stays high after the
+    -- debugger drops dbg_haltreq -- only a `dret` lowers it. A build that
+    -- wired dbg_halted <= dbg_haltreq would pass an entry test and fail
+    -- exactly here (dbg_iface_tb check C).
+    dbg_halted <= debug_mode;
+
+    -- ==========================================
     -- P2 TRAP-ENTRY SIDE-EFFECT BLOCK (ENABLE_TRAPCSR)
     -- ==========================================
     -- MTRAP_SV/MTRAP_JUMP already suppress every side effect the FSM OWNS
@@ -2627,6 +3045,23 @@ architecture struct of vesta is
                              std_mode, std_irq_take, ecall_op, ebreak_op, mret_op,
                              wfi_op, std_wfi_wake,
                              pmp_f_deny_r, pmp_d_deny,
+                             -- D1: THE FOUR DEBUG DECISION SIGNALS, and leaving
+                             -- them out is a SIMULATION-ONLY defect that hides
+                             -- in exactly the two states debug exists to reach.
+                             -- MEASURED (2026-08-05): with these absent, a halt
+                             -- request diverted a RUNNING hart correctly --
+                             -- EXECUTE re-evaluates this process every cycle
+                             -- anyway, because pc/instr/... are in the list --
+                             -- while a hart parked in SLEEPING or wedged in
+                             -- TRAP_STATE sat with dbg_halt_take = '1',
+                             -- en_clk_cpu ungated to '1', and next_state stuck
+                             -- at its own value FOREVER. Nothing else in the
+                             -- list moves in an absorbing state, so the process
+                             -- never re-ran to see the request. Synthesis
+                             -- ignores sensitivity lists entirely, so the
+                             -- netlist would have been RIGHT and every
+                             -- behavioural gate WRONG -- the worst direction.
+                             dbg_halt_take, dbg_ebreak_take, dret_op, debug_mode,
                              -- R-S2-2: THE COMMIT TAIL READS THESE FOUR.  A
                              -- same-process signal read returns the PREVIOUS
                              -- delta's value, so without these entries the
@@ -2842,6 +3277,28 @@ architecture struct of vesta is
                                         ci_rd_commit <= reg_write_ctrl;
                                         ci_st_lanes  <= not wen_controller;
                                     end if;
+                                -- D1 EBREAK -> DEBUG MODE. Tested ABOVE the shared ecall/ebreak arm
+                                -- because that disjunction currently absorbs ebreak_op; the cause mux
+                                -- at :2174 already distinguishes the two, so only the FSM arm splits.
+                                -- Two destinations, and the difference is the whole of the spec's
+                                -- "ebreak in debug mode re-enters" clause:
+                                --   NOT in debug mode -> DBG_SV, a full entry (dpc <- this ebreak's OWN
+                                --     pc -- a synchronous exception reports its own address, not the
+                                --     next one -- cause 1, prv, debug_mode).
+                                --   ALREADY in debug mode -> DBG_JUMP, which reloads the PC and writes
+                                --     NOTHING: dpc and dcsr.cause must survive an ebreak taken by debug
+                                --     code itself, or the debugger loses its own return address.
+                                -- dbg_ebreak_take is statically '0' when ENABLE_DEBUG is off, so both
+                                -- arms constant-fold and the ecall/ebreak behaviour below is untouched
+                                -- in every shipped build (dcsr.ebreakm RESETS 0 and no M-mode software
+                                -- can set it -- dbgdenymp.S hart 3 is the standing detector for that).
+                                elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
+                                    mem_access_instr <= '0';
+                                    if debug_mode = '1' then
+                                        next_state <= DBG_JUMP;
+                                    else
+                                        next_state <= DBG_SV;
+                                    end if;
                                 elsif ecall_op = '1' or ebreak_op = '1' then
                                     -- P1 ECALL (cause 11) / EBREAK (cause 3), both
                                     -- with mtval = 0 and mepc = the instruction's
@@ -2855,6 +3312,17 @@ architecture struct of vesta is
                                     else
                                         next_state <= TRAP_STATE;
                                     end if;
+                                -- D1 DRET: the MRET shape exactly (D0/P1 1d) -- a CSR-based restore in
+                                -- ONE state, no memory transaction, PC <- dpc. dret_op already carries
+                                -- its own debug_mode qualifier from maindec, so this arm cannot fire
+                                -- outside debug mode; outside it the encoding is an illegal instruction
+                                -- and takes the `trap` arm above. Statically '0' when ENABLE_DEBUG is
+                                -- off. NOTE there is no std_mode branch here: debug mode is not a
+                                -- delivery mode, and `debug => trapCsr` makes std_mode's machinery
+                                -- present in every build that can reach this arm at all.
+                                elsif dret_op = '1' then
+                                    mem_access_instr <= '0';
+                                    next_state <= DBG_RET;
                                 elsif mret_op = '1' then
                                     -- P1 MRET: PC <- mepc + the mstatus pop, in the
                                     -- dedicated MTRAP_RET state (JALR shape, no
@@ -3059,6 +3527,19 @@ architecture struct of vesta is
                                 elsif is_fp_multicycle = '1' then
                                     next_state <= FPU_WAIT;
                                     ci_st_lanes <= not wen_controller;
+                                -- D1: THE HALT/STEP RECOGNITION SITE, above BOTH delivery takes. A halt
+                                -- request is UNMASKABLE -- neither mstatus.MIE nor mtrapctl.LEGACY
+                                -- qualifies it -- so it must be tested before irq_save and std_irq_take,
+                                -- and it rides the SAME 13 points an interrupt already diverts from
+                                -- (d1_spec.md 2). The commit declarations are copied from the irq_save
+                                -- arm verbatim: a halt is taken BETWEEN instructions, so the in-flight
+                                -- instruction still retires and dpc becomes the address of the NEXT one.
+                                -- dbg_halt_take is statically '0' when ENABLE_DEBUG is off, so every one
+                                -- of these arms constant-folds and the OFF FSM is bit-identical.
+                                elsif dbg_halt_take = '1' then
+                                    next_state <= DBG_SV;
+                                    ci_rd_commit <= reg_write_ctrl;
+                                    ci_st_lanes  <= not wen_controller;
                                 elsif irq_save = '1' then
                                     next_state <= IRQ_SV;
                                     ci_rd_commit <= reg_write_ctrl;
@@ -3118,6 +3599,15 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 end if;
+                            -- D1 ebreak -> debug entry, above the shared ecall/ebreak arm (see the
+                            -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                            elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
+                                mem_access_instr <= '0';
+                                if debug_mode = '1' then
+                                    next_state <= DBG_JUMP;
+                                else
+                                    next_state <= DBG_SV;
+                                end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1: c.ebreak DECOMPRESSES to EBREAK (c_dec:~676),
                                 -- so this compressed arm really can see ebreak_op.
@@ -3130,6 +3620,10 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
+                            -- D1 DRET (see the first site, in EXECUTE shape STRADDLE).
+                            elsif dret_op = '1' then
+                                mem_access_instr <= '0';
+                                next_state <= DBG_RET;
                             elsif mret_op = '1' then
                                 mem_access_instr <= '0';
                                 if std_mode = '1' then
@@ -3186,6 +3680,12 @@ architecture struct of vesta is
                                 -- suppression is STRUCTURAL here now -- this arm
                                 -- declares no rd commit, so the block drives '0'.
                                 ci_st_lanes <= not wen_controller;
+                            -- D1 halt/step recognition, above both delivery takes (see the
+                            -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                            elsif dbg_halt_take = '1' then
+                                next_state <= DBG_SV;
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 ci_rd_commit <= reg_write_ctrl;
@@ -3236,6 +3736,15 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 end if;
+                            -- D1 ebreak -> debug entry, above the shared ecall/ebreak arm (see the
+                            -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                            elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
+                                mem_access_instr <= '0';
+                                if debug_mode = '1' then
+                                    next_state <= DBG_JUMP;
+                                else
+                                    next_state <= DBG_SV;
+                                end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1 ECALL (11) / EBREAK (3); see the split-fetch
                                 -- arm above for the full rationale.
@@ -3245,6 +3754,10 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
+                            -- D1 DRET (see the first site, in EXECUTE shape STRADDLE).
+                            elsif dret_op = '1' then
+                                mem_access_instr <= '0';
+                                next_state <= DBG_RET;
                             elsif mret_op = '1' then
                                 -- P1 MRET; see the split-fetch arm above.
                                 mem_access_instr <= '0';
@@ -3353,6 +3866,12 @@ architecture struct of vesta is
                             elsif is_fp_multicycle = '1' then
                                 next_state <= FPU_WAIT;
                                 ci_st_lanes <= not wen_controller;
+                            -- D1 halt/step recognition, above both delivery takes (see the
+                            -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                            elsif dbg_halt_take = '1' then
+                                next_state <= DBG_SV;
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 ci_rd_commit <= reg_write_ctrl;
@@ -3396,6 +3915,15 @@ architecture struct of vesta is
                                     ci_rd_commit <= reg_write_ctrl;
                                     ci_st_lanes  <= not wen_controller;
                                 end if;
+                            -- D1 ebreak -> debug entry, above the shared ecall/ebreak arm (see the
+                            -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                            elsif ebreak_op = '1' and dbg_ebreak_take = '1' then
+                                mem_access_instr <= '0';
+                                if debug_mode = '1' then
+                                    next_state <= DBG_JUMP;
+                                else
+                                    next_state <= DBG_SV;
+                                end if;
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1: c.ebreak decompresses to EBREAK (c_dec:~676).
                                 mem_access_instr <= '0';
@@ -3404,6 +3932,10 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
+                            -- D1 DRET (see the first site, in EXECUTE shape STRADDLE).
+                            elsif dret_op = '1' then
+                                mem_access_instr <= '0';
+                                next_state <= DBG_RET;
                             elsif mret_op = '1' then
                                 mem_access_instr <= '0';
                                 if std_mode = '1' then
@@ -3456,6 +3988,12 @@ architecture struct of vesta is
                                 -- suppression is STRUCTURAL here now -- this arm
                                 -- declares no rd commit, so the block drives '0'.
                                 ci_st_lanes <= not wen_controller;
+                            -- D1 halt/step recognition, above both delivery takes (see the
+                            -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                            elsif dbg_halt_take = '1' then
+                                next_state <= DBG_SV;
+                                ci_rd_commit <= reg_write_ctrl;
+                                ci_st_lanes  <= not wen_controller;
                             elsif irq_save = '1' then
                                 next_state <= IRQ_SV;
                                 ci_rd_commit <= reg_write_ctrl;
@@ -3550,7 +4088,12 @@ architecture struct of vesta is
                     ci_pc_advance <= '1';
                     ci_st_lanes   <= not amo_wen;
                     
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                        ci_pc_advance <= '0';
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
@@ -3576,7 +4119,12 @@ architecture struct of vesta is
                     -- commit, PC advances unless an interrupt is taken here.
                     mem_access_instr <= '0';
                     ci_pc_advance <= '1';
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                        ci_pc_advance <= '0';
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
@@ -3607,7 +4155,12 @@ architecture struct of vesta is
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= '1';
                     
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                        ci_pc_advance <= '0';
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
@@ -3684,7 +4237,12 @@ architecture struct of vesta is
                         mem_access_instr <= '0';  -- F2: and no READ either
                     end if;
                     
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                        ci_pc_advance <= '0';
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
@@ -3972,7 +4530,11 @@ architecture struct of vesta is
                     -- is unaffected: it reads the net, which still evaluates to
                     -- reg_write_ctrl on every cycle.
                     ci_rd_commit <= reg_write_ctrl;
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -4025,7 +4587,12 @@ architecture struct of vesta is
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= reg_write_ctrl;
 
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                        ci_pc_advance <= '0';
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
@@ -4098,7 +4665,12 @@ architecture struct of vesta is
                     ci_pc_advance <= '1';
                     ci_rd_commit  <= reg_write_ctrl;
 
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                        ci_pc_advance <= '0';
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                         ci_pc_advance <= '0';
                     elsif std_irq_take = '1' then
@@ -4210,6 +4782,49 @@ architecture struct of vesta is
                     next_state       <= EXECUTE;
 
                 -- ==========================================
+                -- D1 DEBUG-MODE STATES (ENABLE_DEBUG)
+                -- ==========================================
+                -- All three are the MTRAP_RET / IRQ_JUMP shape: declare
+                -- ci_pc_advance, hold mem_access_instr low so data_addr falls
+                -- through to pc_next and the SAME cycle issues the fetch from
+                -- the new PC, and declare NOTHING else. That is the entire
+                -- commit interface a halt, a re-entry and a resume need
+                -- (D0/P1 1b) -- zero new suppression terms.
+                --
+                -- WHY DBG_SV IS ONE STATE AND MTRAP_SV IS TWO. The CSR write
+                -- rides the dbg_entry_we one-shot, which fires on the FIRST
+                -- free-clk edge of the state, and csr_unit samples dbg_pc at
+                -- that same edge -- i.e. the PRE-edge value of pc/pc_next_reg,
+                -- which is what the entry must record. pc_en is '1' in the
+                -- same cycle, so debug_mode and pc <- DEBUG_ENTRY_ADDR land on
+                -- ONE edge. That simultaneity is load-bearing for the
+                -- halt-on-reset instrument, which reads pc at the moment
+                -- dbg_halted rises and requires it to be DEBUG_ENTRY_ADDR.
+                -- If clk_cpu is gated here (a DEBUG_ENTRY_ADDR in the shared
+                -- window stalls its own fetch) the state simply holds; the
+                -- one-shot is on the free clk and still fires exactly once.
+                when DBG_SV =>
+                    ci_pc_advance    <= '1';
+                    mem_access_instr <= '0';
+                    next_state       <= EXECUTE;
+
+                -- Re-entry from an ebreak taken BY DEBUG CODE. Identical to
+                -- DBG_SV minus the strobe: dpc and dcsr.cause must survive, or
+                -- the debugger loses its own return address.
+                when DBG_JUMP =>
+                    ci_pc_advance    <= '1';
+                    mem_access_instr <= '0';
+                    next_state       <= EXECUTE;
+
+                -- DRET. PC <- dpc via the pc_next mux arm, plus the debug_mode
+                -- clear and the privilege pop in csr_unit via the dbg_ret_we
+                -- one-shot. Retires, exactly as MTRAP_RET does.
+                when DBG_RET =>
+                    ci_pc_advance    <= '1';
+                    mem_access_instr <= '0';
+                    next_state       <= EXECUTE;
+
+                -- ==========================================
                 -- IRQ_REST State - Restore context from interrupt
                 -- ==========================================
                 when IRQ_REST =>
@@ -4229,7 +4844,11 @@ architecture struct of vesta is
                     -- S2 c14: MIGRATED.  The rd suppression above is now
                     -- STRUCTURAL -- this arm declares no rd commit, so the block
                     -- drives '0'; the coincidence is closed, not relied on.
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                    elsif irq_save = '1' then
                         -- Nested interrupt
                         next_state <= IRQ_SV;
                         -- N1 / R-S1-2 CLOSED HERE BY c14: this path has no wen
@@ -4306,7 +4925,11 @@ architecture struct of vesta is
                     -- the irq_save leg and must NOT advance the PC, since it is the
                     -- return address IRQ_SV is about to push.
 
-                    if irq_save = '1' then
+                    -- D1 halt/step recognition, above both delivery takes (see the
+                    -- first site, in EXECUTE shape STRADDLE, for the full argument).
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                    elsif irq_save = '1' then
                         next_state <= IRQ_SV;
                     elsif std_irq_take = '1' then
                         -- P1 standard delivery: the SAME check point, no new one. In
@@ -4370,7 +4993,28 @@ architecture struct of vesta is
                     -- mem_access_instr is at its '0' default and the state is
                     -- terminal, so nothing downstream consumes an access from it.
                     -- Detector: rv32ua-p-trapstor.
-                    next_state <= TRAP_STATE;
+                    --
+                    -- D1 (R-D0-3(6), d1_spec.md 2): THE 14TH RECOGNITION SITE,
+                    -- and the only one that is not also an interrupt site. A
+                    -- WEDGED HART IS THE HIGHEST-VALUE HALT TARGET a debugger
+                    -- has, and until now it was the one state a halt could not
+                    -- reach. This is an addition to the RECOGNITION set, not a
+                    -- suppression term: it declares no commit, so the state's
+                    -- fail-safe drives are untouched on the halt cycle too.
+                    -- IT IS A REAL SEMANTIC MOVE, ruled deliberately: a
+                    -- terminal state becomes non-terminal WHEN A DEBUGGER IS
+                    -- ATTACHED AND THE KNOB IS ON. Knob-OFF, dbg_halt_take is
+                    -- statically '0' and this collapses to the unconditional
+                    -- self-loop it has always been -- bit-identical, which is
+                    -- what the standing sweeps pin. Do NOT read this as
+                    -- "TRAP_STATE is diagnosable now": in the reset
+                    -- configuration nothing raises dbg_haltreq, so the wedge is
+                    -- exactly as terminal as it was.
+                    if dbg_halt_take = '1' then
+                        next_state <= DBG_SV;
+                    else
+                        next_state <= TRAP_STATE;
+                    end if;
                     trap_flag <= '1';
 
                 -- ==========================================
@@ -4648,7 +5292,8 @@ architecture struct of vesta is
             ENABLE_ZFINX    => ENABLE_ZFINX,
             ENABLE_TRAPCSR  => ENABLE_TRAPCSR,
             ENABLE_UMODE    => ENABLE_UMODE,
-            ENABLE_PMP      => ENABLE_PMP
+            ENABLE_PMP      => ENABLE_PMP,
+            ENABLE_DEBUG    => ENABLE_DEBUG
         )
         port map (
             resetn           => resetn,
@@ -4677,6 +5322,10 @@ architecture struct of vesta is
             -- P2: the standard WFI decode out, and the three U-mode decode
             -- inputs straight from csr_unit's frozen 3.1 exports.
             wfi_op           => wfi_op,
+            -- D1: the DRET decode out, and the debug-mode decode input from
+            -- csr_unit -- the same route priv_m takes, for the same reason.
+            dret_op          => dret_op,
+            debug_mode       => debug_mode,
             priv_m           => trap_priv_mode,
             status_tw        => trap_status_tw,
             mcounteren_bits  => trap_mcounteren,
@@ -4945,6 +5594,7 @@ architecture struct of vesta is
             ENABLE_UMODE      => ENABLE_UMODE,
             ENABLE_PMP        => ENABLE_PMP,
             PMP_ENTRIES       => PMP_ENTRIES,
+            ENABLE_DEBUG      => ENABLE_DEBUG,
             TRACE_ENABLE      => TRACE_ENABLE
         )
         port map (
@@ -4998,6 +5648,19 @@ architecture struct of vesta is
             data_priv_m    => eff_data_priv_m,
             mret_priv_m    => mret_priv_m,   -- P3 red-team F1
 
+            -- D1 debug-mode interface. The two strobes are the gen_debug
+            -- one-shots; everything coming back is STATE that vesta's FSM,
+            -- clock gate and (via controller) maindec consume.
+            dbg_entry_we   => dbg_entry_we_sig,
+            dbg_pc         => dbg_pc_val,
+            dbg_cause      => dbg_cause_r,
+            dbg_ret_we     => dbg_ret_we_sig,
+            debug_mode     => debug_mode,
+            dcsr_ebreakm   => dcsr_ebreakm,
+            dcsr_ebreaku   => dcsr_ebreaku,
+            dcsr_step      => dcsr_step,
+            dpc_value      => dbg_dpc_value,
+
             -- P3 (p0_specs.md §4.1): the pmpcfg0-3 / pmpaddr0-15 bank,
             -- flattened. Both are all-zero when ENABLE_PMP is false (nothing
             -- ever writes the flops), which is the second half of the OFF fold
@@ -5040,7 +5703,16 @@ architecture struct of vesta is
             generic map (
                 TRACE_FILE        => TRACE_FILE,
                 ENABLE_PMP        => ENABLE_PMP,
-                ENABLE_COMPRESSED => ENABLE_COMPRESSED
+                ENABLE_COMPRESSED => ENABLE_COMPRESSED,
+                -- D1 (R-D0-3(1)): THE ORDINAL-COUNT ASSERT. `cpu_state` cannot
+                -- cross a port boundary in VHDL-93, but its CARDINALITY is a
+                -- natural and can. vesta_tracer compares this against its own
+                -- ST_COUNT and FAILS AT ELABORATION on a mismatch, closing the
+                -- add/remove half of a contract that had ZERO mechanical
+                -- enforcement before (ST_COUNT was declared and never read).
+                -- It does NOT catch a reorder at constant count; nothing cheap
+                -- does, and saying so is better than implying the gap is shut.
+                STATE_COUNT       => cpu_state'pos(cpu_state'high) + 1
             )
             port map (
                 clk_cpu          => clk_cpu,

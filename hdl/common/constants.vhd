@@ -394,6 +394,24 @@ package constants is
     constant CSR_MTRAPCTL  : std_logic_vector(11 downto 0) := x"7C0"; -- custom: bit0 LEGACY (reset 1); bits 31:1 WARL 0
 
     -- ==========================================================================
+    -- D1 debug mode: the Debug-Mode CSR block 0x7B0-0x7B3 (ENABLE_DEBUG)
+    -- ==========================================================================
+    -- ACCESSIBLE ONLY IN DEBUG MODE. Two asymmetric rules implement that, and
+    -- the asymmetry is deliberate (d1_spec.md 1, D0/P2 1.4):
+    --   ADMIT NARROW -- maindec's csr_addr_valid names these FOUR addresses as
+    --     explicit equalities under ENABLE_DEBUG, so 0x7B4-0x7BF keep trapping
+    --     in every build (the ID3 identity-CSR precedent).
+    --   DENY WIDE -- maindec's dbg_csr_denied blocks the WHOLE imm12(11:4)=0x7B
+    --     nibble whenever debug_mode = '0', UNGATED by ENABLE_DEBUG, so a
+    --     future fifth debug CSR cannot be admitted without also being denied.
+    -- The denial is purely combinational: it adds no state and therefore cannot
+    -- move the genus `sequential` pin in either knob polarity.
+    constant CSR_DCSR      : std_logic_vector(11 downto 0) := x"7B0"; -- xdebugver(31:28)=4 RO, ebreakm(15), ebreaku(12), cause(8:6) RO, step(2), prv(1:0)
+    constant CSR_DPC       : std_logic_vector(11 downto 0) := x"7B1"; -- bit0 always 0; bit1 writable iff ENABLE_COMPRESSED (the mepc WARL shape)
+    constant CSR_DSCRATCH0 : std_logic_vector(11 downto 0) := x"7B2"; -- full 32-bit R/W scratch (debug mode only)
+    constant CSR_DSCRATCH1 : std_logic_vector(11 downto 0) := x"7B3"; -- full 32-bit R/W scratch (debug mode only)
+
+    -- ==========================================================================
     -- P3 privileged architecture: PMP (Smpmp) CSR bank (ENABLE_PMP)
     -- ==========================================================================
     -- LEGAL only when ENABLE_PMP (maindec csr_addr_valid admits 0x3A0-0x3A3 and
@@ -457,6 +475,13 @@ package constants is
     constant EBREAK_IMM12  : std_logic_vector(11 downto 0) := x"001"; -- EBREAK (0x00100073)
     constant MRET_IMM12    : std_logic_vector(11 downto 0) := x"302"; -- MRET   (0x30200073)
     constant WFI_IMM12     : std_logic_vector(11 downto 0) := x"105"; -- WFI    (0x10500073)
+    -- D1 (2026-08-05): DRET (0x7B200073) joins the legal set when ENABLE_DEBUG,
+    -- and ONLY in debug mode -- outside it the encoding falls to the PRIV arm's
+    -- `else valid_funct <= '0'` and is an illegal instruction, which is what
+    -- dbgdenymp.S's hart 2 pins. NOTE the funct12 0x7B2 collides numerically
+    -- with the dscratch0 CSR ADDRESS above: the two never meet, because a CSR
+    -- instruction has funct3 /= PRIV_FN3 by construction (is_csr_instr).
+    constant DRET_IMM12    : std_logic_vector(11 downto 0) := x"7B2"; -- DRET   (0x7B200073)
 
     -- ==========================================================================
     -- X4 Zfinx (single-precision FP in x-registers) constants
