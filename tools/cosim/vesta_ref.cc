@@ -307,7 +307,11 @@ public:
               // flags is bit-identical to before.
               unsigned pmpregions = 16,
               unsigned pmpgranularity = 4,
-              unsigned blocksz = 64)
+              unsigned blocksz = 64,
+              // D1 / DD9-4 (2026-08-05).  Defaulted to cfg_t's OWN default (4),
+              // so every existing call site and every run that does not name
+              // --triggers is bit-identical to before.
+              unsigned triggers = 4)
     : mem_base_(mem_base), mem_size_(mem_size),
       mmio_base_(mmio_base), mmio_size_(mmio_size)
   {
@@ -343,9 +347,27 @@ public:
     cfg.pmpregions       = pmpregions;
     cfg.pmpgranularity   = pmpgranularity;
     cfg.cache_blocksz    = blocksz;
-    // trigger_count(4) IS still left at cfg_t's default: nothing in the VestaRV
-    // comparison observes debug triggers, and inventing a flag for it would be
-    // a knob with no reader.
+    // D1 / DD9-4 (2026-08-05).  THIS COMMENT USED TO SAY trigger_count was
+    // "still left at cfg_t's default ... inventing a flag for it would be a
+    // knob with no reader", and that was true until the D-series began.  It is
+    // now WRONG as a description and would be wrong as a policy, so it is
+    // rewritten rather than deleted (method rule 12).
+    //
+    // WHAT CHANGED.  The D-series makes debug hardware a configurable part of
+    // this chip, so "what does the REFERENCE think this hart has" acquires a
+    // reader.  The RTL implements NO hardware triggers -- 0x7A0-0x7AF is
+    // absent from maindec's csr_addr_valid in every build, and stays absent
+    // until D6 -- while cfg_t's default gives the reference FOUR, with live
+    // tselect/tdata1/tdata2/tinfo CSRs where the RTL raises
+    // illegal-instruction.  Nothing in the standing comparison touches those
+    // addresses today, so the misalignment is latent; the moment a D-series
+    // test reads one it becomes a divergence manufactured by the reference.
+    // The honest request for a chip with no triggers is --triggers 0.
+    // The default here still equals cfg_t's, so "matches stock spike exactly"
+    // remains TRUE FOR A RUN THAT PASSES NO FLAGS.  NEVER PATCH SPIKE: this is
+    // CLI work on vesta_ref, and build_vesta_ref.sh's clean-tree-at-a-pinned-
+    // commit assertion is untouched.
+    cfg.trigger_count    = triggers;
 
     ram.assign(mem_size, 0);
 
@@ -867,6 +889,9 @@ struct opts_t {
   // K2 item 6.  cfg_t's own defaults, so an invocation that names none of them
   // is byte-identical to the pre-K2 binary.
   unsigned pmpregions = 16, pmpgranularity = 4, blocksz = 64;
+  // D1/DD9-4: cfg_t's own default, so an invocation that does not name it is
+  // byte-identical to the pre-D1 binary.
+  unsigned triggers = 4;
   long     instructions = 0;
   bool     log_commits = true, trace = false, quiet = false;
 };
@@ -891,6 +916,8 @@ static void usage(void)
     "  --pmpregions N (default 16; 0 = no PMP at all, matching a chip built\n"
     "                  without ENABLE_PMP -- spike's PMP RESET STATE IS NOT ZERO)\n"
     "  --pmpgranularity N (default 4) --blocksz N (default 64, cbo.zero block)\n"
+    "  --triggers N (default 4 = spike's own; 0 = no hardware triggers, which\n"
+    "                is what this RTL has until D6 -- 0x7A0-0x7AF all trap)\n"
     "  --instructions N\n"
     "  --inject F (MANDATORY in cosim) --interrupt F --mmio-log F --log F\n"
     "  --bracket F (cosim only: realignment script; B/S/P/G/F records, applied\n"
@@ -944,6 +971,7 @@ int main(int argc, char **argv)
                                         return EXIT_USAGE; }
                                       o.hartid = (uint32_t)h; }
     else if (a == "--pmpregions")     o.pmpregions = (unsigned)strtoul(need(), NULL, 0);
+    else if (a == "--triggers")       o.triggers = (unsigned)strtoul(need(), NULL, 0);
     else if (a == "--pmpgranularity") o.pmpgranularity = (unsigned)strtoul(need(), NULL, 0);
     else if (a == "--blocksz")        o.blocksz = (unsigned)strtoul(need(), NULL, 0);
     else if (a == "--pc")           { o.pc = strtoull(need(), NULL, 0); o.pc_given = true; }
@@ -963,7 +991,7 @@ int main(int argc, char **argv)
   // ---- selftest: no image, exercises the plumbing incl. RAM at 0x0 --------
   if (o.mode == "selftest") {
     vesta_sim_t s(o.isa, o.priv, 0x0, 0x20000, 0x4000, 0x4000, stdout, o.hartid,
-                  o.pmpregions, o.pmpgranularity, o.blocksz);
+                  o.pmpregions, o.pmpgranularity, o.blocksz, o.triggers);
     s.proc->enable_log_commits();
     // lui a0,0x4 ; addi a0,a0,0x204 ; lw t0,0(a0) ; j .
     const uint32_t prog[] = { 0x00004537, 0x20450513, 0x00052283, 0x0000006f };
@@ -1023,7 +1051,7 @@ int main(int argc, char **argv)
 
   vesta_sim_t s(o.isa, o.priv, o.mem_base, o.mem_size,
                 o.mmio_base, o.mmio_size, logf, o.hartid,
-                o.pmpregions, o.pmpgranularity, o.blocksz);
+                o.pmpregions, o.pmpgranularity, o.blocksz, o.triggers);
   s.mmio_log = (o.mmio_log_file != NULL);
 
   // ---- image -------------------------------------------------------------

@@ -243,6 +243,13 @@ COMPARE_AMEND="${COMPARE_AMEND-}"
 : "${SPIKE_MEM:?oracle derivation produced no SPIKE_MEM}"
 : "${SPIKE_PRIV:?oracle derivation produced no SPIKE_PRIV}"
 : "${SPIKE_PMPREGIONS:?oracle derivation produced no SPIKE_PMPREGIONS}"
+# D1/DD9-4: the reference-side hardware-trigger count. The RTL has NONE
+# (0x7A0-0x7AF is absent from csr_addr_valid in every build, until D6),
+# while spike defaults to FOUR -- so an un-flagged reference carries live
+# tselect/tdata CSRs where the DUT raises illegal-instruction. Passed to
+# BOTH sides: leaving stock spike un-flagged would recreate on this axis
+# exactly the asymmetry the --pmpregions note above records closing.
+: "${SPIKE_TRIGGERS:?oracle derivation produced no SPIKE_TRIGGERS}"
 
 # ---------------------------------------------------------------------------
 # V3: THE REFERENCE MODEL IS PLUGGABLE.
@@ -1110,7 +1117,8 @@ ref_invoke() {
       spike)
         (
             source "$SPIKE_ENV"
-            spike --isa="$SPIKE_ISA" --priv="$SPIKE_PRIV" --pmpregions="$SPIKE_PMPREGIONS" -m"$SPIKE_MEM" \
+            spike --isa="$SPIKE_ISA" --priv="$SPIKE_PRIV" --pmpregions="$SPIKE_PMPREGIONS" \
+                  --triggers="$SPIKE_TRIGGERS" -m"$SPIKE_MEM" \
                   --disable-dtb --pc="$entry" --log-commits \
                   --instructions="$bound" --log="$clog" "$elf"
         ) > "$olog" 2>&1 ;;
@@ -1122,12 +1130,14 @@ ref_invoke() {
                 "$VESTA_REF" cosim --rom "$BOOT_ROM" --rom-base 0x0 \
                       --rom-format rcf --pc 0x0 \
                       --mem "$BOOT_MEM" --mmio "$MMIO_WIN" \
-                      --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" --pmpregions "$SPIKE_PMPREGIONS" "${hidargs[@]}" \
+                      --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" --pmpregions "$SPIKE_PMPREGIONS" \
+                      --triggers "$SPIKE_TRIGGERS" "${hidargs[@]}" \
                       --instructions "$bound" --inject "$inj" "${bkargs[@]}" --log "$clog"
             else
                 "$VESTA_REF" cosim --elf "$elf" --pc "$entry" \
                       --mem "$SPIKE_MEM" --mmio "$MMIO_WIN" \
-                      --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" --pmpregions "$SPIKE_PMPREGIONS" "${hidargs[@]}" \
+                      --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" --pmpregions "$SPIKE_PMPREGIONS" \
+                      --triggers "$SPIKE_TRIGGERS" "${hidargs[@]}" \
                       --instructions "$bound" --inject "$inj" "${bkargs[@]}" --log "$clog"
             fi
         ) > "$olog" 2>&1 ;;
@@ -1188,12 +1198,13 @@ identity_gate() {
     local ient; ient="$("$READELF" -h "$IDENTITY_ELF" | awk '/Entry point address:/ {print $NF}')"
     (
         source "$SPIKE_ENV"
-        spike --isa="$SPIKE_ISA" --priv="$SPIKE_PRIV" --pmpregions="$SPIKE_PMPREGIONS" -m"$SPIKE_MEM" \
+        spike --isa="$SPIKE_ISA" --priv="$SPIKE_PRIV" --pmpregions="$SPIKE_PMPREGIONS" \
+                  --triggers="$SPIKE_TRIGGERS" -m"$SPIKE_MEM" \
               --log-commits --instructions=$(( IDENTITY_N + 5 )) \
               --log="$g/stock.log" "$IDENTITY_ELF"
         "$VESTA_REF" identity --elf "$IDENTITY_ELF" --pc "$ient" \
               --mem "$SPIKE_MEM" --isa "$SPIKE_ISA" --priv "$SPIKE_PRIV" \
-              --pmpregions "$SPIKE_PMPREGIONS" \
+              --pmpregions "$SPIKE_PMPREGIONS" --triggers "$SPIKE_TRIGGERS" \
               --instructions "$IDENTITY_N" --quiet --log "$g/ref.log"
     ) > "$g/gate.out" 2>&1
     tail -n +6 "$g/stock.log" | head -"$IDENTITY_N" > "$g/stock.cut"
@@ -1909,12 +1920,12 @@ echo "==========================================================================
 if [ "$REF_MODE" = vesta_ref ]; then
 echo "  reference : vesta_ref (simif_t harness on pinned UNPATCHED libriscv)"
 echo "              $VESTA_REF"
-echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS"
+echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS --triggers=$SPIKE_TRIGGERS"
 echo "              --mem $SPIKE_MEM --mmio $MMIO_WIN"
 echo "              --pc=<elf entry> --inject <per-test> --instructions=<rtl+$SPIKE_SLACK>"
 else
 echo "  reference : stock spike (V2 A/B control)"
-echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS -m$SPIKE_MEM"
+echo "              --isa=$SPIKE_ISA --priv=$SPIKE_PRIV --pmpregions=$SPIKE_PMPREGIONS --triggers=$SPIKE_TRIGGERS -m$SPIKE_MEM"
 echo "              --disable-dtb --pc=<elf entry> --log-commits --instructions=<rtl+$SPIKE_SLACK>"
 fi
 echo "  amendments: ${COMPARE_AMEND:-(none — the default config gates them all off)}"
@@ -2054,8 +2065,8 @@ SWEEP_T1=$(date +%s)
 # ── collect ───────────────────────────────────────────────────────────────────
 {
   printf '# xrun_cosim.sh results — %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
-  printf '# reference: REF_MODE=%s  isa=%s priv=%s pmpregions=%s mem=%s mmio=%s  instructions=<rtl+%s>\n' \
-         "$REF_MODE" "$SPIKE_ISA" "$SPIKE_PRIV" "$SPIKE_PMPREGIONS" "$SPIKE_MEM" "$MMIO_WIN" "$SPIKE_SLACK"
+  printf '# reference: REF_MODE=%s  isa=%s priv=%s pmpregions=%s triggers=%s mem=%s mmio=%s  instructions=<rtl+%s>\n' \
+         "$REF_MODE" "$SPIKE_ISA" "$SPIKE_PRIV" "$SPIKE_PMPREGIONS" "$SPIKE_TRIGGERS" "$SPIKE_MEM" "$MMIO_WIN" "$SPIKE_SLACK"
   printf '# amendments: %s\n' "${COMPARE_AMEND:-(none)}"
   printf '# injector : %s (ordered MMIO replay, amendment A6; entry-aligned)\n' "$MK_INJECT"
   printf '# comparator: %s (two-pass: --count --quiet, then --max-records N)\n' "$COMPARE_PY"
