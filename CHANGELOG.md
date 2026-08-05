@@ -31,18 +31,50 @@ names the commit it is anchored to.
 
 ## [Unreleased]
 
+### Fixed
+- The site's "Connect" card linked to a placeholder LinkedIn URL. `pages.yml`
+  gates only on the relative-link checker, which classifies external URLs as
+  unverified, so nothing caught it.
+
+---
+
+## [2.11.0] — 2026-08-05 — Machine identity CSRs
+
+Anchor: `2f98999`
+
+### Fixed
+- **Four required read-only M-mode CSRs were absent from the decode map.**
+  `mvendorid` (0xF11), `marchid` (0xF12), `mimpid` (0xF13) and `mconfigptr`
+  (0xF15) were missing from `csr_addr_valid`, so a plain `csrr` of a CSR the
+  specification *requires* every RISC-V core to implement raised an
+  illegal-instruction exception — and because the reset configuration's
+  `TRAP_STATE` is terminal, the hart wedged there forever. They now retire and
+  read zero, which is a **defined** answer ("not implemented" / "not
+  assigned"), not a missing one: discovery software must read these registers
+  and interpret zero rather than infer absence. Writing any of them remains an
+  illegal instruction in every build.
+
+### Added
+- A blind detector (`idcsrmp`) that guards the *shape* of the fix rather than
+  just its outcome — it fails if the fix is over-wide (0xF10/0xF16 must keep
+  trapping) or over-narrow (a legal 0xF14 read must succeed). It joins both
+  standing lists, moving four counts on purpose: suite 141 → 142, default
+  `SUITE=full` 148 → 149, Argus N=18 142 → 143, knobs-on canary 67 → 68.
+- A "Machine Information Registers" section in the TRM's privileged-architecture
+  chapter, deliberately outside the `trapCsr` guard because — unlike every
+  register in the trap-CSR table — these five exist in *every* configuration.
+- This changelog's retroactive version history, and annotated tags for all
+  20 prior releases.
+
 ### Changed
 - The README now describes the chip *generator* and its three chips rather than
-  a single core, and the Core Specifications section separates what is always
-  built from what is selectable per configuration (Zfinx, the crypto set,
-  code-size extensions, U-mode, PMP, counters).
+  a single core, and Core Specifications separates what is always built from
+  what is selectable per configuration (Zfinx, the crypto set, code-size
+  extensions, U-mode, PMP, counters).
 - `sim.yml` job names no longer carry hardcoded test counts. Both had gone
   stale — the smoke job claimed 27 against a 29-entry list, the full job 117
   against a standing 141 — so they name their source list instead of a number
   that rots.
-
-### Added
-- This changelog's version history, and annotated tags for all 20 releases.
 
 ---
 
@@ -436,6 +468,7 @@ headings above link to the diff that release introduced. **`1.0.0` has no tag**
 honestly represents it.
 
 <!-- Release comparison links. Generated from the tag list; regenerate if tags change. -->
+[2.11.0]: https://github.com/maxxseminario/VestaRV/compare/v2.10.1...v2.11.0
 [2.10.1]: https://github.com/maxxseminario/VestaRV/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/maxxseminario/VestaRV/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/maxxseminario/VestaRV/compare/v2.8.0...v2.9.0
