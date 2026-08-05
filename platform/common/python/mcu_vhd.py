@@ -3005,7 +3005,14 @@ class McuVhdEmitter():
 		lines.append('            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,')
 		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')
 		lines.append('            ENABLE_PMP        => CORE_ENABLE_PMP,')
-		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES')
+		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES,')
+		# D1 core-side debug mode. DEBUG_ENTRY_ADDR is deliberately NOT named:
+		# it is frozen at the hart_tile/vesta entity default (0xBE00) and there
+		# is no config knob for it. The three dbg_* PORTS are likewise left
+		# unconnected at chip level -- at D1 no Debug Module exists to drive
+		# them, so they sit at their '0' entity defaults and a testbench force
+		# is the only way to raise a halt request.
+		lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -3867,7 +3874,14 @@ class McuVhdEmitter():
 		lines.append('            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,')
 		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')
 		lines.append('            ENABLE_PMP        => CORE_ENABLE_PMP,')
-		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES')
+		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES,')
+		# D1 core-side debug mode. DEBUG_ENTRY_ADDR is deliberately NOT named:
+		# it is frozen at the hart_tile/vesta entity default (0xBE00) and there
+		# is no config knob for it. The three dbg_* PORTS are likewise left
+		# unconnected at chip level -- at D1 no Debug Module exists to drive
+		# them, so they sit at their '0' entity defaults and a testbench force
+		# is the only way to raise a halt request.
+		lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')

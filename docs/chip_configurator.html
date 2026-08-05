@@ -867,6 +867,11 @@ const VESTA_DATA = {
       "type": "bool",
       "default": true
     },
+    "debug.enable": {
+      "description": "bool \u2014 D1: CORE-SIDE DEBUG MODE (2026-08-05). Debug mode as a privilege state: the Debug-Mode CSRs dcsr/dpc/dscratch0/dscratch1 (0x7B0-0x7B3, accessible ONLY in debug mode -- from M or U they raise illegal-instruction), the DRET encoding, an unmaskable halt request sampled at the same fourteen FSM points an interrupt is (including the terminal TRAP_STATE, so a debugger can rescue a wedged hart), halt-on-reset, ebreak-to-debug under dcsr.ebreakm, and single-step. Debug entry vectors to 0xBE00 in the hart's private TCM. REQUIRES priv.trapCsr: ebreak and the whole SYSTEM PRIV decode arm are trapCsr-gated, so a debug-without-trapCsr chip could not recognise a software breakpoint at all. Default false: the four CSR addresses and the DRET encoding stay illegal, the three tile debug ports fold away, and the core is bit-identical to a chip built before D1. OUT OF SCOPE at D1 and arriving later in the D-series: the Debug Module, the JTAG DTM, hardware triggers, and any external bus or pad -- with the knob on, a chip has the CORE half of a debug implementation and nothing to drive it but a testbench force",
+      "type": "bool",
+      "default": false
+    },
     "priv.umode": {
       "description": "bool \u2014 P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate \u2014 every machine/custom CSR (csr_addr(9:8)/=\"00\"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero \u2014 bit-identical to a P1 chip",
       "type": "bool",
@@ -1066,6 +1071,7 @@ const VESTA_DATA = {
     "priv.umode": false,
     "priv.pmp": false,
     "priv.pmpEntries": 16,
+    "debug.enable": false,
     "memory.romSize": 16384,
     "memory.tcmSizePerHart": 16384,
     "memory.sharedBulkRamSize": 65536,
@@ -4074,6 +4080,11 @@ const SCHEMA_TO_CFG = {
   // configObject() always exports a legal config.
   "priv.trapCsr":"ENABLE_TRAPCSR", "priv.umode":"ENABLE_UMODE",
   "priv.pmp":"ENABLE_PMP", "priv.pmpEntries":"PMP_ENTRIES",
+  // D-series core-side debug mode (D1, 2026-08-05) — implemented in the RTL
+  // and OFF by default. No UI toggle: DEFAULTS seeds it false from
+  // VESTA_DATA.defaults; Import can set it true. It requires priv.trapCsr,
+  // which the generator enforces (and which is true at the defaults anyway).
+  "debug.enable":"ENABLE_DEBUG",
   "memory.romSize":"romSize", "memory.tcmSizePerHart":"tcmSize",
   "memory.sharedBulkRamSize":"sharedRamSize", "memory.npuStagingRamSize":"npuRamSize",
   "peripherals.npu":"npu", "peripherals.i2c1":"i2c1",
@@ -4822,6 +4833,13 @@ function configObject(){
       // advertise unimplemented hardware.
       trapCsr: cfg.ENABLE_TRAPCSR, umode: cfg.ENABLE_UMODE,
       pmp: cfg.ENABLE_PMP, pmpEntries: cfg.PMP_ENTRIES,
+    },
+    debug: {
+      // D-series core-side debug mode (D1): the Debug-Mode CSRs, dret, an
+      // unmaskable halt request, halt-on-reset, ebreak-to-debug and
+      // single-step. Real hardware, default OFF, and it requires
+      // priv.trapCsr. No interactive toggle yet — exported at its cfg value.
+      enable: cfg.ENABLE_DEBUG,
     },
     memory: {
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,

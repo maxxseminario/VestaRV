@@ -3,7 +3,7 @@
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/08/04 at 01:10:23 with the generate.py chip generator
+-- Generated on 2026/08/05 at 15:30:24 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -2568,7 +2568,8 @@ begin
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
-            PMP_ENTRIES       => CORE_PMP_ENTRIES
+            PMP_ENTRIES       => CORE_PMP_ENTRIES,
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
         )
         port map (
             clk       => mclk,
@@ -3250,7 +3251,8 @@ begin
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
-            PMP_ENTRIES       => CORE_PMP_ENTRIES
+            PMP_ENTRIES       => CORE_PMP_ENTRIES,
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
         )
         port map (
             clk       => mclk,
@@ -3322,7 +3324,8 @@ begin
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
-            PMP_ENTRIES       => CORE_PMP_ENTRIES
+            PMP_ENTRIES       => CORE_PMP_ENTRIES,
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
         )
         port map (
             clk       => mclk,
@@ -3391,7 +3394,8 @@ begin
             ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
             ENABLE_UMODE      => CORE_ENABLE_UMODE,
             ENABLE_PMP        => CORE_ENABLE_PMP,
-            PMP_ENTRIES       => CORE_PMP_ENTRIES
+            PMP_ENTRIES       => CORE_PMP_ENTRIES,
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
         )
         port map (
             clk       => mclk,
