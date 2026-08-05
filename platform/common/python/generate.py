@@ -114,6 +114,7 @@ _CONFIG_SCHEMA = {
 	# hard-errors any more. The dependency validations (umode => trapCsr,
 	# pmp => umode) stay LIVE and are the only gate left.
 	'priv.trapCsr':         ('bool — P1: standard M-mode trap architecture, IMPLEMENTED in full (P1, 2026-07-28): the CSR file (mstatus/mstatush/mtvec/mie/mip/mscratch/mepc/mcause/mtval + the custom mtrapctl @0x7C0 legacy-select bit) AND standard delivery — MRET/ECALL/EBREAK decode, mtvec-vectored exceptions and interrupts (MEI>MSI>MTI), the mstatus MPIE/MIE stack. mtrapctl.LEGACY resets 1, so even an ON chip boots on the legacy irq_handler/IVT path and is suite-identical until software clears the bit. DEFAULT TRUE since K7/R-DK3 (2026-08-04) on both Castalia and Argus: the CSR file and standard delivery are present, boot is bit-identical, and a hart enters standard delivery only when its own firmware writes mtrapctl (csrw 0x7C0, x0). Cost, measured at K6: +144 flops per tile (genus sequential 2251 -> 2395), +3.85% standard-cell area, +1.29% tile area, timing neutral. Set false to get a pre-P1 chip back: all ten addresses and the three encodings stay illegal. HAZARD any firmware policy must respect: clearing LEGACY on a hart that then EXTINGUISHes makes it unwakeable (the legacy IVT slot-83 msip path is what the bootrom park/wake contract uses) -- per-hart only, never before park', _isBool),
+	'debug.enable':         ('bool — D1: CORE-SIDE DEBUG MODE (2026-08-05). Debug mode as a privilege state: the Debug-Mode CSRs dcsr/dpc/dscratch0/dscratch1 (0x7B0-0x7B3, accessible ONLY in debug mode -- from M or U they raise illegal-instruction), the DRET encoding, an unmaskable halt request sampled at the same fourteen FSM points an interrupt is (including the terminal TRAP_STATE, so a debugger can rescue a wedged hart), halt-on-reset, ebreak-to-debug under dcsr.ebreakm, and single-step. Debug entry vectors to 0xBE00 in the hart\'s private TCM. REQUIRES priv.trapCsr: ebreak and the whole SYSTEM PRIV decode arm are trapCsr-gated, so a debug-without-trapCsr chip could not recognise a software breakpoint at all. Default false: the four CSR addresses and the DRET encoding stay illegal, the three tile debug ports fold away, and the core is bit-identical to a chip built before D1. OUT OF SCOPE at D1 and arriving later in the D-series: the Debug Module, the JTAG DTM, hardware triggers, and any external bus or pad -- with the knob on, a chip has the CORE half of a debug implementation and nothing to drive it but a testbench force', _isBool),
 	'priv.umode':           ('bool — P2: user mode, IMPLEMENTED in full (P2, 2026-07-28): the 1-bit privilege register (reset M) with the MPP push/pop riding trap entry and MRET, mstatus.MPP WARL widened to {00,11} (unsupported 01/10 map to M), mstatus.TW, a real mcounteren (CY/TM/IR/HPM3/HPM4), misa.U, ECALL-from-U cause 8, the standard WFI encoding with its wake-on-(mip&mie) rule, and the U-mode decode gate — every machine/custom CSR (csr_addr(9:8)/="00"), MRET, the three custom Vesta instructions and a TW-denied WFI trap illegal-instruction, and a denied CSR access commits no write. Requires priv.trapCsr. Default false: no privilege register, misa.U clear, MPP WARL {11}, mcounteren read-zero — bit-identical to a P1 chip', _isBool),
 	'priv.pmp':             ('bool — P3: physical memory protection (Smpmp), IMPLEMENTED (P3, 2026-07-29): the pmpcfg0-3 / pmpaddr0-15 CSR bank (packed 4x8-bit cfg, R/W/X/A(4:3)/L with bits 6:5 WARL 0, W pinned 0 when R=0, pmpaddr bits 31:30 WARL 0), the full lock semantics (a locked entry\'s cfg AND address are immutable until reset, a TOR-locked entry also write-locks its predecessor address, per-byte lock filtering inside a pmpcfg word), and the combinational match unit (OFF/TOR/NA4/NAPOT at G=0, lowest-numbered match decides alone, locked entries enforce on M-mode, no-match grants M and faults U). The pre-issue fetch/load/store CHECK INTEGRATION with its access-fault causes 1/5/7 lands with the vesta diff of the same phase. Requires priv.umode. Default false: all twenty addresses stay illegal CSRs and the match unit is not instantiated — bit-identical to a P2 chip', _isBool),
 	'priv.pmpEntries':      ('int — PMP entry count, {8, 16} ONLY (the PMP_ENTRIES generic). Consulted only when priv.pmp is true; the CSR map is the 16-entry superset regardless (entries above the count are WARL all-zero). Default 16',
@@ -227,6 +228,12 @@ _CONFIG_META = {
 	'priv.umode':           {'type': 'bool', 'default': False},
 	'priv.pmp':             {'type': 'bool', 'default': False},
 	'priv.pmpEntries':      {'type': 'int', 'default': 16, 'min': 8, 'max': 16, 'step': 8},
+	# D-series core-side debug (D1, 2026-08-05). Default FALSE -- the whole
+	# programme's inertness claim is that a knob-OFF build is bit-identical to
+	# a pre-D1 chip. NOTE, as above: this literal is the SCHEMA default; the
+	# OPERATIVE one is the _cfg() fallback in _debug below, and
+	# check_config_defaults.py is what keeps the two in step.
+	'debug.enable':         {'type': 'bool', 'default': False},
 	'memory.romSize':            {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.tcmSizePerHart':     {'type': 'int', 'default': 16384, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0x10000, 'min': 0x4000, 'step': 0x4000},
@@ -735,6 +742,28 @@ if _priv['umode'] and not _priv['trapCsr']:
 if _priv['pmp'] and not _priv['umode']:
 	raise Exception('priv.pmp requires priv.umode (PMP protects U-mode; its access faults are standard-mode exceptions)')
 
+# D-series core-side debug (D1, 2026-08-05). Hoisted like _isa/_priv so the
+# ChipGenerator(...) call and the resolved-config record share ONE value.
+_debug = {
+	'enable': _cfg('debug.enable', False),
+}
+
+# D1 REQUIRES P1 (R-DD1). The coupling is not tidiness, it is decode: maindec
+# gates `ebreak_op` AND the whole SYSTEM PRIV_FN3 legality arm on
+# ENABLE_TRAPCSR, so on a trapCsr-OFF build `ebreak` does not decode at all and
+# dcsr.ebreakm would have nothing to interpose on -- the chip would carry a
+# debug interface that cannot recognise a software breakpoint (D0/P2 N8). The
+# alternative (widen ebreak_op's gate) was rejected: it needs TWO sites moved in
+# lockstep and leaves DRET's legality arm behind. Same shape and same placement
+# as the umode/pmp ladder above; vesta.vhd carries a concurrent assert for
+# anyone instantiating the core outside the generator.
+# CONSEQUENCE, verified rather than assumed: config/castalia_notrapcsr.json --
+# the 28th matrix row and the ONLY one exercising the trapCsr-OFF RTL arm --
+# names no `debug` key, so it takes this default (false) and is a debug-OFF row
+# by construction. It does not need editing and must not be given a debug key.
+if _debug['enable'] and not _priv['trapCsr']:
+	raise Exception('debug.enable requires priv.trapCsr (ebreak and the SYSTEM PRIV decode arm do not exist without it, so a software breakpoint could never be recognised)')
+
 _regsDualPort = _cfg('registerFileDualPort', True)
 _romSize = _cfg('memory.romSize', 16384)
 _tcmSize = _cfg('memory.tcmSizePerHart', 16384)
@@ -940,6 +969,9 @@ m = ChipGenerator(
 	ENABLE_UMODE=_priv['umode'],
 	ENABLE_PMP=_priv['pmp'],
 	PMP_ENTRIES=_priv['pmpEntries'],
+	# D1 core-side debug mode (default false; drives the vesta/hart_tile
+	# ENABLE_DEBUG generic through MemoryMap.vhd's CORE_ENABLE_DEBUG).
+	ENABLE_DEBUG=_debug['enable'],
 	ENABLE_IRQ_FAST_CONTEXT_SWITCHING=False,	# Using fast context switching saves 31.042 us @ 24 MHz (745 cycles) per interrupt, but doubles the size of the CPU register file
 	ENABLE_IRQ_QREGS=False,	# Evidently the ARM register file IPs are called "two-port", but one port is read-only and the other is write-only. This means you need to write your own register file definition in HDL (remember that register x0 is always all '0's!)
 	ENABLE_IRQ_TIMER=False,

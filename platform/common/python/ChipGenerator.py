@@ -117,6 +117,10 @@ class ChipGenerator():
 	ENABLE_UMODE = None			# P2: user mode (privilege register + MPP/MPIE stack)
 	ENABLE_PMP = None			# P3: physical memory protection (Smpmp)
 	PMP_ENTRIES = None			# P3: PMP entry count {8, 16} (consulted only when ENABLE_PMP)
+	# D-series core-side debug (D1, 2026-08-05). Drives CORE_ENABLE_DEBUG in
+	# MemoryMap.vhd and the C-header/core_features.h define. REQUIRES
+	# ENABLE_TRAPCSR -- generate.py raises, and the vesta entity asserts.
+	ENABLE_DEBUG = None			# D1: debug mode (dcsr/dpc/dscratch0-1, dret, halt, single-step)
 	ENABLE_IRQ_QREGS = None		# Enables/disables the four IRQ registers, which help speed IRQ calls
 	ENABLE_IRQ_TIMER = None		# Enables/disables the "timer" custom instruction. For chips up to pingora2, this was always True
 	MASKED_IRQ = None			# Any '1' bit corresponds to a permenantely disabled IRQ
@@ -193,7 +197,10 @@ class ChipGenerator():
 		ENABLE_TRAPCSR:bool=False,
 		ENABLE_UMODE:bool=False,
 		ENABLE_PMP:bool=False,
-		PMP_ENTRIES:int=16):
+		PMP_ENTRIES:int=16,
+		# D1 core-side debug mode — default False so every existing caller
+		# (and testbench) keeps a chip with no debug interface at all.
+		ENABLE_DEBUG:bool=False):
 		# Initialize lists
 		self.PeripheralTemplates = []
 		self.Peripherals = []
@@ -458,6 +465,7 @@ class ChipGenerator():
 		self.ENABLE_ZKN = ENABLE_ZKN
 		self.ENABLE_ZFINX = ENABLE_ZFINX
 		# P0 scaffolded privileged architecture (default false / 16 entries)
+		self.ENABLE_DEBUG = ENABLE_DEBUG
 		self.ENABLE_TRAPCSR = ENABLE_TRAPCSR
 		self.ENABLE_UMODE = ENABLE_UMODE
 		self.ENABLE_PMP = ENABLE_PMP
@@ -1142,6 +1150,10 @@ class ChipGenerator():
 		if self.ENABLE_PMP:
 			t.AddRow(['#define CORE_ENABLE_PMP'])
 			t.AddRow(['#define CORE_PMP_ENTRIES', str(self.PMP_ENTRIES)])
+		# D1 core-side debug mode (the dbg* tests dispatch on this; absent =
+		# no dcsr/dpc/dscratch, no dret, no halt request).
+		if self.ENABLE_DEBUG:
+			t.AddRow(['#define CORE_ENABLE_DEBUG'])
 
 		t.AddBlankLines(3)
 		
@@ -1587,7 +1599,9 @@ class ChipGenerator():
 			('ZKN', self.ENABLE_ZKN), ('ZFINX', self.ENABLE_ZFINX),
 			# P0 privileged-architecture scaffolding (P1/P2/P3)
 			('TRAPCSR', self.ENABLE_TRAPCSR), ('UMODE', self.ENABLE_UMODE),
-			('PMP', self.ENABLE_PMP)]:
+			('PMP', self.ENABLE_PMP),
+			# D1 core-side debug mode
+			('DEBUG', self.ENABLE_DEBUG)]:
 			if _flag:
 				cf += '#define CORE_ENABLE_' + _name + '\n'
 		if self.ENABLE_PMP:
@@ -2378,6 +2392,8 @@ class ChipGenerator():
 		t.AddRow(['constant CORE_ENABLE_UMODE', ': boolean := ' + str(bool(self.ENABLE_UMODE)).lower() + ';', '-- P2: U-mode (needs TRAPCSR)'], prefixTabs=1)
 		t.AddRow(['constant CORE_ENABLE_PMP', ': boolean := ' + str(bool(self.ENABLE_PMP)).lower() + ';', '-- P3: PMP / Smpmp (needs UMODE)'], prefixTabs=1)
 		t.AddRow(['constant CORE_PMP_ENTRIES', ': natural := ' + str(int(self.PMP_ENTRIES)) + ';', '-- P3: PMP entry count {8,16} (only with PMP)'], prefixTabs=1)
+		# D1 core-side debug mode (needs TRAPCSR; generate.py enforces)
+		t.AddRow(['constant CORE_ENABLE_DEBUG', ': boolean := ' + str(bool(self.ENABLE_DEBUG)).lower() + ';', '-- D1: debug mode (dcsr/dpc/dscratch, dret, halt)'], prefixTabs=1)
 		t.AddBlankLine()
 
 		# GPIO pin-number constants in the RTL's pnum_* spelling. AF-plane names
@@ -2741,6 +2757,7 @@ class ChipGenerator():
 		chip['ENABLE_UMODE'] = self.ENABLE_UMODE
 		chip['ENABLE_PMP'] = self.ENABLE_PMP
 		chip['PMP_ENTRIES'] = self.PMP_ENTRIES
+		chip['ENABLE_DEBUG'] = self.ENABLE_DEBUG
 		chip['ENABLE_IRQ_QREGS'] = self.ENABLE_IRQ_QREGS
 		chip['MASKED_IRQ'] = self.MASKED_IRQ
 		chip['PROGADDR_IRQ'] = self.PROGADDR_IRQ

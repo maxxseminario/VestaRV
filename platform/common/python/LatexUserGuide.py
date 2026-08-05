@@ -836,6 +836,7 @@ class LatexUserGuide():
 			'isa.zawrs', 'isa.zabha', 'isa.zacas', 'isa.zicboz', 'isa.zcmp',
 			'isa.zcmt', 'isa.zbkb', 'isa.zbkc', 'isa.zbkx', 'isa.zkn', 'isa.zfinx',
 			'priv.trapCsr', 'priv.umode', 'priv.pmp', 'priv.pmpEntries',
+			'debug.enable',
 			'memory.romSize', 'memory.tcmSizePerHart', 'memory.sharedBulkRamSize',
 			'memory.npuStagingRamSize',
 			'peripherals.npu', 'peripherals.i2c1', 'peripherals.uart1',
