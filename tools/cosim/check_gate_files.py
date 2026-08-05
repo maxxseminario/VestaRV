@@ -328,6 +328,57 @@ GATE_FILES = [
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '
      'model both execute (.gitignore:83)'),
+
+    # ---------------------------------------------------------------------
+    # D1, 2026-08-05 (R-D1-2 (4), confirmed by R-D1-3 (3)). The debug-mode
+    # acceptance instruments. They are gate files by the same argument as
+    # everything above -- they are the standing acceptance of a shipped
+    # feature, they live in the gitignored `xcelium/` tree, and a
+    # `git clean -xdf` deletes every one of them -- with one difference worth
+    # stating: they were written BLIND, before the RTL existed, by an agent
+    # barred from ever reading it. That provenance is not reproducible, so a
+    # lost copy could not be honestly rewritten, only re-derived from the
+    # implementation it is supposed to be independent of.
+    #
+    # They are filed under `behavioral_mp/` per the K2 convention (flow-owned
+    # files go in a directory named for their flow); the flat names above are
+    # the pre-K2 originals and files that belong to no single flow.
+    #
+    # DELIBERATELY NOT HERE: `behavioral_mp/dbg_forcecheck.tcl`. It is not an
+    # acceptance instrument -- its own header says so -- but the one-time
+    # method validation that a `force` on a tile input tied to a literal in
+    # MCU.vhd actually reaches the logic inside the tile (measured on `sleep`,
+    # which has a large understood effect, because dbg_haltreq did not exist
+    # yet). It remains on disk only. Named here rather than left silent: the
+    # ruling's wording was the `dbg_*.tcl` glob, and this is the member of that
+    # glob the approved commit-4 file set does not contain.
+    ('behavioral_mp/xrun_dbg.sh',
+     'xcelium/riscv_test/behavioral_mp/xrun_dbg.sh',
+     'the D1 acceptance runner -- the ONLY runner elaborated `-access +rwc`, '
+     'which is what lets a tcl harness FORCE the core-side debug request '
+     'ports. Deliberately not xrun.sh: widening the standing suite\'s '
+     'elaboration access would change its optimisation and its run-to-run '
+     'identity for no benefit'),
+    ('behavioral_mp/dbg_halt.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_halt.tcl',
+     'instrument I4 -- halt entry/exit against three victims (SLEEPING, '
+     'TRAP_STATE, EXECUTE), waiting on each victim\'s own cpu_state rather '
+     'than on a calibrated delay'),
+    ('behavioral_mp/dbg_step.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_step.tcl',
+     'instrument I5 -- single-step, whose fine checks (STEP_ERR, '
+     'SUBJ_COUNTER) are ordered ahead of the coarse liveness check per '
+     'R-D1-3 (1)'),
+    ('behavioral_mp/dbg_rst.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_rst.tcl',
+     'instrument I6 -- halt-on-reset, checked STRUCTURALLY because a hart '
+     'halted at reset would execute an uninitialised TCM; it carries no image '
+     'of its own and rides whatever test hart 0 is running'),
+    ('behavioral_mp/dbg_verdict.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_verdict.tcl',
+     'the shared verdict reader -- riscv_tb reports only a0, and every D1 '
+     'instrument encodes WHICH assertion failed in a1/a2/a3, so a FAIL that '
+     'cannot be read is a FAIL that cannot be diagnosed'),
 ]
 
 
