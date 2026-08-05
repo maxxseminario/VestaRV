@@ -246,6 +246,26 @@ def derive_pmpregions(cfg):
     return int(p.get('pmpEntries', 16))
 
 
+def derive_triggers(cfg):
+    """`--triggers` (D1 / DD9-4, 2026-08-05).
+
+    Spike's cfg_t defaults to FOUR hardware triggers, so an un-flagged
+    reference carries live tselect/tdata1/tdata2/tinfo CSRs.  This RTL
+    implements NONE: 0x7A0-0x7AF is absent from maindec's csr_addr_valid in
+    EVERY build and every access raises illegal-instruction, and that stays
+    true until D6 adds them.  The reference-side count must match the RTL, so
+    the derived answer is 0 -- unconditionally, for now.
+
+    IT IS A FUNCTION, NOT A CONSTANT, ON PURPOSE.  D6 will give the chip a
+    trigger count and this is where the config will be read; a literal 0 at the
+    call site would be one more place to forget.  It is deliberately NOT keyed
+    on `debug.enable`: the debug knob adds the 0x7Bx CSRs and dret, not
+    triggers, so a debug-ON chip still has zero of them.
+    """
+    _require(cfg)
+    return 0
+
+
 def derive_amendments(cfg):
     """The K2b comparator amendments this configuration turns on.
 
@@ -351,6 +371,7 @@ def derive(cfg, hdl_root=None):
         'isa': derive_isa_string(cfg),
         'priv': derive_priv(cfg),
         'pmpregions': derive_pmpregions(cfg),
+        'triggers': derive_triggers(cfg),
         'amendments': derive_amendments(cfg),
     }
     if hdl_root:
@@ -385,6 +406,7 @@ def main(argv):
         print('SPIKE_ISA=%s' % d['isa'])
         print('SPIKE_PRIV=%s' % d['priv'])
         print('SPIKE_PMPREGIONS=%d' % d['pmpregions'])
+        print('SPIKE_TRIGGERS=%d' % d['triggers'])
         # The comparator's config-gated amendments (K2b). EMPTY on the default
         # config, and the consumer must treat a NON-empty value it cannot honour
         # as a hard failure -- a comparator without --amend would silently run
