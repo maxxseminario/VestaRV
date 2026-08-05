@@ -14,19 +14,13 @@ VestaRV is a custom 32-bit RISC-V processor core designed as an independent pers
 
 Beyond the single core, this repository is a **chip generator**: a family of SoCs emitted from one configuration source. A config file selects the hart count, the ISA extensions, and which peripherals exist; `make chip` then produces the RTL, the C headers, the linker scripts and the Technical Reference Manual together, and `make verify` proves that configuration boots.
 
-Three chips have been built from it:
-
-| Chip | Harts | Status |
-|------|-------|--------|
-| **Myshkin** | 1 | **Taped out** — TSMC 65nm, November 2025; silicon validated |
-| **Castalia** | 4 | Tape-out-ready — shared-memory multiprocessor |
-| **Argus** | 18 | Tape-out-ready — teaching chip |
+**One chip exists in silicon: Myshkin**, a single-core MCU taped out on TSMC 65nm in November 2025. Two further configurations exist as designs only — **Castalia** (4 harts) and **Argus** (18 harts, a teaching chip). Neither has been fabricated.
 
 > 📄 **[Technical Reference Manual — Castalia (revised August 4, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
 > Complete peripheral register reference, system architecture, and programming guide for the Castalia SoC — the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
 > Also available: the [Myshkin TRM v1.0.0](implementations/asic/myshkin-2025-11/docs/TRM.pdf), documenting the first VestaRV tape-out (TSMC 65nm, November 2025).
 
-> 🏷️ **Current version: v2.10.1** — the multi-core Castalia line, tape-out-ready.  
+> 🏷️ **Current version: v2.11.0** — the multi-core line.  
 > Silicon to date is **v1.0.0** (Myshkin, TSMC 65nm, November 2025); the `2.x` line has not been fabricated. Full history in the [changelog](CHANGELOG.md).
 
 **Namesake:**  
