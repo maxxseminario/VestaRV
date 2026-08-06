@@ -292,6 +292,28 @@ CATALOG = [
     # the selected names). isa.atomics defaults true and no matrix config
     # turns it off, so the row is selected on every row either way.
     T('rv32ua-p-idcsrmp', 'atomics', True),
+    # DD11-N1 (R-D3-1(2)): the D-series detector for the `time` CSR hole.
+    # 0xC01/0xC81 were admitted by csr_addr_valid with no read arm behind
+    # them, so `rdtime` retired a constant zero -- a stopped clock software
+    # could not detect. DD11-N1 drops both from the map and they now raise
+    # illegal-instruction in every build; the file also guards the fix
+    # against being over-wide (0xC00/0xC02/0xC03 and, because 0xC81 shared a
+    # source line with them, 0xC80/0xC82 must all still retire). Like
+    # idcsrmp it joins BOTH standing lists -- TEST_FILES (142 -> 143) and
+    # this CATALOG (143 -> 144) -- because its own header asks for that.
+    #
+    # UNTAGGED, for the idcsrmp reason verbatim: no CORE_ENABLE_* dispatch
+    # anywhere in the file, and the only encodings hart 0 (the observer and
+    # a0 gate) executes are base ISA plus `csrr mhartid`, which is the first
+    # ungated term of csr_addr_valid. So it is valid on all 28+ matrix rows
+    # including castalia_notrapcsr and the debug-OFF rows. `atomics` is the
+    # GROUP tag (rv32ua image set), not an AMO claim -- it executes none.
+    #
+    # Its three victims wedge in the terminal TrapState BY DESIGN (correct
+    # RTL = the read traps), so "tile hart(s) silent/parked" is the expected
+    # NOTE. Deliberately NOT in either cosim list: trap-poison class, and the
+    # oracle --isa always carries _zicntr, so Spike retires what must trap.
+    T('rv32ua-p-rdtimemp', 'atomics', True),
     T('rv32ui-p-add', '', True),
     T('rv32ui-p-lb'), T('rv32ui-p-lh'),
     T('rv32ui-p-lw', '', True),

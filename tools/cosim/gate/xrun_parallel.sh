@@ -228,6 +228,33 @@ TEST_FILES=(
     # never write a0_1/a0_2/a0_3, so riscv_tb reports "tile hart(s)
     # silent/parked" -- a NOTE, not a failure (the trapstor precedent).
     "../rcf/xxrv32ua-p-idcsrmp.rcf"
+    # ---------------------------------------------------------------------
+    # DD11-N1 (2026-08-06, R-D3-1(2)): the D-series detector. 142 -> 143.
+    #
+    # rdtimemp: the BLIND detector for the `time` CSR hole (authored before
+    #   the RTL change existed). time 0xC01 / timeh 0xC81 were admitted by
+    #   maindec.vhd's csr_addr_valid with no read arm behind them, so `rdtime`
+    #   RETIRED and returned a constant zero forever -- a stopped clock
+    #   software could not detect. DD11-N1 drops both from the map, so they
+    #   now raise illegal-instruction in every build of both chips. The same
+    #   file guards the fix from being over-wide: cycle 0xC00, instret 0xC02,
+    #   hpmcounter3 0xC03 and -- because maindec admitted 0xC81 on a SHARED
+    #   LINE with them -- cycleh 0xC80 and instreth 0xC82 must all still
+    #   retire, and a wrongly-trapped one names itself in a1 (0x0BAD0Cxx).
+    #
+    # Its polarity is trapstor's, NOT idcsrmp's: correct RTL = the victim
+    # WEDGES. Tile harts 1/2/3 are the subjects and end in the terminal
+    # TrapState by design, so riscv_tb reports "tile hart(s) silent/parked"
+    # -- a NOTE, not a failure. Hart 0 executes no 0xCxx encoding at all,
+    # which is what keeps the a0 verdict path alive under an over-wide change.
+    #
+    # POLARITY-INSENSITIVE (no CORE_ENABLE_* dispatch anywhere in the file;
+    # its only #ifdef is its own PASS_CONTROL rehearsal arm), so rcf/ and
+    # rcf_k17/ images are byte-identical -- counted by
+    # tools/cosim/check_image_polarity.py. OUT of both cosim lists by
+    # construction: trap-poison class, and the oracle --isa always carries
+    # _zicntr so Spike would retire the very reads that must trap here.
+    "../rcf/xrv32ua-p-rdtimemp.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

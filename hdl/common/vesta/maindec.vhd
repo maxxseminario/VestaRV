@@ -466,6 +466,8 @@ begin
     -- KNOWN = every CSR the csr_unit implements + the full hpm ranges (legal
     -- read-zero/write-ignore) + mcountinhibit/mcounteren. Everything else is an
     -- unknown CSR -> illegal instruction. hpm ranges use unsigned compares.
+    -- time/timeh (0xC01/0xC81) are NOT known CSRs since DD11-N1 -- see the
+    -- user-view counter block below for why, before adding them back.
     csr_addr_valid <= '1' when (
         imm12 = CSR_MHARTID   or imm12 = CSR_MISA      or
         -- ID3 (R-DID1): the rest of the machine-information block, 0xF11-0xF15.
@@ -480,8 +482,19 @@ begin
         imm12 = CSR_MIMPID    or imm12 = CSR_MCONFIGPTR or
         imm12 = CSR_MCYCLE    or imm12 = CSR_MINSTRET  or
         imm12 = CSR_MCYCLEH   or imm12 = CSR_MINSTRETH or
-        imm12 = CSR_CYCLE     or imm12 = CSR_TIME      or imm12 = CSR_INSTRET or
-        imm12 = CSR_CYCLEH    or imm12 = CSR_TIMEH     or imm12 = CSR_INSTRETH or
+        -- DD11-N1: the USER-VIEW counter block admitted here is cycle/instret and
+        -- their h-forms ONLY. time (0xC01) and timeh (0xC81) are DELIBERATELY
+        -- ABSENT: no real time source is wired to the core, so admitting them
+        -- returned ZERO -- a wrong answer to a legal question, and one software
+        -- cannot distinguish from a stopped clock. Unknown-CSR is the honest
+        -- answer: a read of 0xC01/0xC81 raises illegal-instruction (cause 2) in
+        -- EVERY build of both chips, M-mode and U-mode alike, regardless of
+        -- mcounteren.TM. Do NOT re-admit them without a real time source behind
+        -- them (routing CLINT mtime here was considered and REJECTED, R-DD2(3)).
+        -- Blind detector: rv32ua-p-rdtimemp (both traps + the five must-retire
+        -- anti-overkill reads 0xC00/0xC02/0xC03/0xC80/0xC82).
+        imm12 = CSR_CYCLE     or imm12 = CSR_INSTRET   or
+        imm12 = CSR_CYCLEH    or imm12 = CSR_INSTRETH  or
         imm12 = CSR_MCOUNTINHIBIT or imm12 = CSR_MCOUNTEREN or
         -- X3 Zcmt jvt: a KNOWN CSR only when ENABLE_ZCMT (else read/write to 0x017
         -- is an unknown CSR -> illegal instruction, the both-polarity gate).
@@ -536,8 +549,15 @@ begin
 
     -- mcounteren gating of the USER-VIEW counters. A U-mode read traps illegal
     -- (cause 2) unless the matching mcounteren bit is set:
-    --   CY(0)->cycle/cycleh  TM(1)->time/timeh  IR(2)->instret/instreth
+    --   CY(0)->cycle/cycleh  IR(2)->instret/instreth
     --   HPM3(3)->hpmcounter3/3h  HPM4(4)->hpmcounter4/4h
+    -- TM(1) HAS NO TERM HERE AND IS DEAD AT THIS CONSUMER since DD11-N1: time and
+    -- timeh are no longer KNOWN CSRs, so csr_addr_valid kills the instruction
+    -- before this mcounteren gate is ever consulted, in M-mode and U-mode alike.
+    -- The BIT keeps its storage, write and readback shape in mcounteren (no WARL
+    -- change, no port re-plumb -- minimal scope, readback-shape tests unaffected);
+    -- it simply enables nothing. Re-adding a TM term without first re-admitting
+    -- 0xC01/0xC81 above would be dead code twice over.
     -- CONTRACT-SILENT POINT, ruled here and flagged at the gate: mcounteren bits
     -- 5-31 are WARL 0 (only 4:0 have storage), so the REST of the legal user
     -- ranges -- hpmcounter5-31 (0xC05-0xC1F) and their h-forms (0xC85-0xC9F) --
@@ -548,7 +568,6 @@ begin
     -- by the csr_addr(9:8) /= "00" comparator in the SYSTEM arm below.
     ucnt_denied <= '1' when (
         ((imm12 = CSR_CYCLE       or imm12 = CSR_CYCLEH)       and mcounteren_bits(0) = '0') or
-        ((imm12 = CSR_TIME        or imm12 = CSR_TIMEH)        and mcounteren_bits(1) = '0') or
         ((imm12 = CSR_INSTRET     or imm12 = CSR_INSTRETH)     and mcounteren_bits(2) = '0') or
         ((imm12 = CSR_HPMCOUNTER3 or imm12 = CSR_HPMCOUNTER3H) and mcounteren_bits(3) = '0') or
         ((imm12 = CSR_HPMCOUNTER4 or imm12 = CSR_HPMCOUNTER4H) and mcounteren_bits(4) = '0') or
