@@ -371,9 +371,19 @@ architecture rtl of debug_module is
     -- cycle ready stays high -- issuing several responses for one request and
     -- sliding the master's request/response pairing by one for the rest of the
     -- run.  The symptom is not a wrong answer, it is the PREVIOUS answer, which
-    -- is far worse to read.  req_busy makes ready fall after the transfer cycle
-    -- and stay low until valid is OBSERVED low -- the same observed-low
-    -- discipline mp_arbiter needs from its masters, for the same reason.
+    -- is far worse to read.
+    -- WHAT ACTUALLY IMPLEMENTS THE LOCKOUT, corrected at D3 (d3_spec 3; the
+    -- text this replaces described an observed-low discipline through a signal
+    -- name THAT DOES NOT EXIST IN THIS FILE).  The guard is a TIMER:
+    -- `rsp_hold = 0 and rsp_arm = '0'` on the accept below.  ready_r pulses for
+    -- one cycle at the capture; rsp_arm blocks the next cycle; rsp_hold blocks
+    -- the following RSP_HOLD_CYCLES.  So the accept window RE-OPENS 9 mclk
+    -- after a capture, and NOTHING here depends on dmi_req_valid having been
+    -- seen low.  A master that holds valid high for >= 9 mclk after the
+    -- acknowledge therefore earns a DUPLICATE ACCEPT of the same request --
+    -- which is precisely why d3_cdc_spec 2 makes the DTM's mclk-side master a
+    -- ONE-SHOT that retires on ready (jtag_dtm.vhd), and why both tcl and VHDL
+    -- BFMs drop valid the instant they sample the acknowledge.
     -- How long the response is HELD. See the ready/rsp comment below: the
     -- masters that drive this port sample at 10 ns against an mclk period of
     -- 41.667 ns and drop their request the instant they see the acknowledge, so
@@ -1336,8 +1346,13 @@ begin
 
                     elsif a = A_DATA0 or a = A_PROGBUF0 or a = A_PROGBUF1 then
                         -- PROXIED to the backing word through a master access.
-                        -- Multi-cycle: ready drops (it is combinational from
-                        -- s_state) and the response is issued by S_PROXY_RSP.
+                        -- Multi-cycle: ready is a REGISTERED one-cycle pulse
+                        -- (dmi_req_ready <= ready_r) that has already fired for
+                        -- this request, the accept guard above excludes S_PROXY
+                        -- / S_PROXY_RSP so no further request is taken, and the
+                        -- response is issued by S_PROXY_RSP.  (Corrected at D3,
+                        -- d3_spec 3: this comment used to call ready
+                        -- "combinational from s_state".  It never was.)
                         if mst_free = '0' then
                             -- Touching data0/progbuf while the master engine is
                             -- busy is an ERROR the debug spec already names:
