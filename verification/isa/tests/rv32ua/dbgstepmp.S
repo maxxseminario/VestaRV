@@ -124,6 +124,10 @@
 #     0x10070 LAST_DPC     the most recent dpc (diagnosis only)
 #     0x10074 DPC_WARL     dpc read back after writing (&step_zone | 3)
 #     0x10078-0x1007C      unused by this file
+#   Plus, since the 2026-08-05 migration, the SHARED DEBUG ENTRY PAGE at
+#   0x10780-0x1087F (64 words since R-D2-2(3), enlarged from 32 precisely
+#   because this file's stub is a measured 60).  See the STUB SIZE note at
+#   ds_stub_start.
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -143,7 +147,10 @@
 
 #define PROG_DONE     0x0D57ED0E
 
-#define DBG_ENTRY     0xBE00
+/* R-D2-1(3): MIGRATED 2026-08-05 from TCM 0xBE00 to the SHARED debug entry
+   page.  See dbgdenymp.S's header for the argument, and the STUB SIZE note
+   below for the one place where this file does not fit the frozen page.   */
+#define DBG_ENTRY     0x10780
 #define TILE_WORDS    1024
 #define ARM_BUDGET    40000
 #define DRET_INSN     0x7B200073
@@ -181,6 +188,9 @@ ds_clr:
     add  t2, t0, t1
     li   t3, 5555
     bne  t2, t3, ds_fail
+
+    jal  ra, ds_plant               # THE plant: the entry page is SHARED, so
+                                    # hart 0 does it once, before the launch
 
     MP_STAGE_IMAGE(TILE_WORDS)
     MP_LAUNCH_HART(1, tile_entry, TILE_WORDS)
@@ -298,7 +308,9 @@ ds_fail:
     RVTEST_FAIL                     # a0 = 0xDEADBEEF
 
     # =====================================================================
-    # ds_plant -- copy the debug stub to DEBUG_ENTRY_ADDR.  Clobbers t0-t3.
+    # ds_plant -- copy the debug stub to DEBUG_ENTRY_ADDR in the SHARED
+    # window.  Clobbers t0-t3.  Called ONCE, by hart 0, before the subject is
+    # launched: since the 2026-08-05 migration the entry page is global.
     # =====================================================================
 ds_plant:
     la   t0, ds_stub_start
@@ -312,12 +324,32 @@ ds_plant:
     ret
 
     # =====================================================================
-    # THE DEBUG STUB.  Copied verbatim to DEBUG_ENTRY_ADDR (0xBE00).  It is
-    # entered SIX times and must behave differently each time, so it is the
-    # longest of the three D1 stubs -- about 60 words, which is why the
-    # region reserved for it is 0xBE00-0xBEFF (64 words) with 0xBF00-0xBFEF
-    # left clear below the stack at 0xBFF0.  If it ever outgrows that, move
-    # DEBUG_ENTRY_ADDR down, do not creep toward the stack.
+    # THE DEBUG STUB.  Copied verbatim to DEBUG_ENTRY_ADDR (0x10780).  It is
+    # entered SIX times and must behave differently each time, so it is by far
+    # the longest of the three D-series D1 stubs.
+    #
+    # *** STUB SIZE vs THE ENTRY PAGE -- RULED, R-D2-2(3): THE PAGE ENLARGED.
+    # *** (This block recorded the conflict; the ruling adopted option (a).)
+    #   d2_spec section 1 ORIGINALLY froze the entry page at 0x10780-0x107FF,
+    #   THIRTY-TWO words, while section 8 required this file to migrate onto
+    #   it.  This stub is SIXTY -- measured off objdump, not estimated:
+    #   ds_stub_start 0x84F8 to ds_stub_end 0x85E8 = 0xF0 bytes.  (dbgdenymp's
+    #   is 7 words and dbghaltmp's is 25; both fit anything.)  The two could
+    #   not both hold, and shrinking an instrument that two validated D1
+    #   mutants (M2, M3) grade was never on the table.
+    #   RULED R-D2-2(3): the page ENLARGES to 64 words, 0x10780-0x1087F, which
+    #   also gives the DM's own trampoline the headroom it lacked.  Planted at
+    #   0x10780 this stub runs to 0x1086C and fits with four words to spare.  The same spec section 8 REQUIRES this
+    #   file to migrate onto that page.  The two cannot both hold, and the
+    #   author has no authority to shrink an instrument that a validated
+    #   mutant already grades (M2/M3 both land here).
+    #   THE ONE PROPERTY THAT COMES WITH THE UPPER HALF: 0x10800-0x1087F is
+    #   ABOVE the bootrom's zero range (which ends at 0x107FF), so it is NOT
+    #   zeroed at boot.  That is fine for CODE and only for code -- the plant
+    #   writes every word before anything reads it -- and it is why no DM
+    #   *data* word may be put there.  A literal-constant sweep of every test
+    #   and env header found nothing else claiming 0x10800-0x10FFF at either
+    #   N; the next claim above is shlock's JOURNAL at 0x11000.
     #
     # Relocation rules as in the other two stubs: no `la`, no `auipc`, no
     # branch or jump leaving the block; every internal branch is
@@ -441,7 +473,8 @@ ds_stub_end:
     # ---- tile harts enter here (loader ABI: only sp is defined) ----------
 tile_entry:
     li   sp, 0xBFF0
-    jal  ra, ds_plant
+    # No plant here since the migration: hart 0 planted the SHARED entry page
+    # before this hart was launched.
     .option push
     .option arch, +zicsr
     csrr t3, mhartid

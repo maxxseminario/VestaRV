@@ -379,6 +379,57 @@ GATE_FILES = [
      'the shared verdict reader -- riscv_tb reports only a0, and every D1 '
      'instrument encodes WHICH assertion failed in a1/a2/a3, so a FAIL that '
      'cannot be read is a FAIL that cannot be diagnosed'),
+    # ---- D2 acceptance instruments (R-D1-2(4) extended by R-D2-2(6)) ----
+    ('behavioral_mp/dbg_bfm.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_bfm.tcl',
+     'the DMI bus-functional master library every D2 harness sources -- '
+     'dm_read/dm_write/dm_poll_status(hold)/the trampoline force-plant; the '
+     'ack-style handshake shape lives here'),
+    ('behavioral_mp/dbg_dmi.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_dmi.tcl',
+     'J2, the headline -- halt hart 2 through DMI while 0/1/3 run, resume, '
+     'PHASE 4 = the re-armed-wire ordering (R1-R4); M7 flips its R3'),
+    ('behavioral_mp/dbg_abs.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_abs.tcl',
+     'J3 -- abstract GPR/CSR read+write incl. the dscratch-serviced pair, '
+     'progbuf lw/sw (DD5 exercised), postexec, cmderr=EXCEPTION with the '
+     'hart still halted'),
+    ('behavioral_mp/dbg_grp.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_grp.tcl',
+     'J4 -- halt groups: membership, broadcast to not-yet-halted members, '
+     'non-members untouched; round clocked on the NON-member (a duration is '
+     'not a discriminator)'),
+    ('behavioral_mp/dbg_prv.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_prv.tcl',
+     'J5 -- dcsr.prv under a U-mode victim (needs the castalia_debug row: '
+     'debug.enable AND priv.umode, R-D2-2(2))'),
+    ('behavioral_mp/dbg_dark.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_dark.tcl',
+     'J6 -- the dark hart: unavail truth-telling against PWRCTRL, DM '
+     'reachable while a tile is gated, power-up + held resethaltreq halts '
+     'before first retire; both directions handshook (validation wave)'),
+    ('behavioral_mp/dbg_conf.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_conf.tcl',
+     'J1b -- the DMI register-map conformance list on the proven riscv_tb '
+     'flow, 38 checks incl. K21a/b (no command starts while cmderr set)'),
+    ('behavioral_mp/dbg_exc.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_exc.tcl',
+     'D-A, the F-D2-0 detector -- a debug-mode synchronous exception '
+     're-enters at DEBUG_ENTRY_ADDR, both delivery polarities, TRAP_STATE '
+     'never entered, dpc/dcsr unchanged'),
+    ('behavioral_mp/dbg_irq.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_irq.tcl',
+     'D-B, the F-D2-1 detector -- no interrupt taken in debug mode, with a '
+     'known-nonzero deliverability control on both polarities'),
+    ('mp_test/run_dbg_dmi.sh',
+     'xcelium/mp_test/run_dbg_dmi.sh',
+     'J1 runner -- dbg_dmi_tb (the DMI port bench) on the real debug-ON '
+     'MCU; rc-124 wall-clock arm separates complete-and-clean from '
+     'mid-sequence (the bench line is the verdict, not the exit code)'),
+    ('mp_test/run_dbg_iface.sh',
+     'xcelium/mp_test/run_dbg_iface.sh',
+     'I2 runner -- the D1 dbg_iface_tb port bench; was the one unprotected '
+     'unit-bench runner (d2_probe finding 11), retro-registered at D2 C5'),
 ]
 
 

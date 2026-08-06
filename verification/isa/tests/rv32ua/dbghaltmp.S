@@ -62,16 +62,16 @@
 #   the assertion for why that value is the only reading of "interrupted pc"
 #   for a hart in SLEEPING, and why it is robust to being halted one
 #   instruction later.
-#   PUBLISHED but NOT asserted: dpc for hart 2 ONLY.  d1_spec.md does not
-#   define the interrupted pc of a hart wedged in the terminal TRAP_STATE, and
+#   PUBLISHED but NOT asserted: dpc for hart 2 ONLY.  d1_spec.md leaves the
+#   interrupted pc of a hart wedged in the terminal TRAP_STATE undefined, and
 #   unlike hart 1 there is no label to anchor one to -- the hart is not about
 #   to execute anything.  Asserting there would be inventing a requirement and
 #   then testing the invention (method rule 9).  DPC[2] is published at 0x10068
 #   on every run; R-D1-3(2) revisits it at D2.
 #
 # THE STUB, and why it is copied rather than linked
-#   Same construction as dbgdenymp.S: a position-independent block copied into
-#   this hart's private TCM at DEBUG_ENTRY_ADDR, so no new link.ld section and
+#   Same construction as dbgdenymp.S: a position-independent block copied to
+#   DEBUG_ENTRY_ADDR in the SHARED window, so no new link.ld section and
 #   therefore no build/.imgset wipe.  No `la`, no `auipc`, no branch leaving
 #   the block.  It reads mhartid, so ONE source serves all three victims.
 #   It clobbers t0-t2 and a2-a5; hart 3's spin loop deliberately uses only
@@ -81,9 +81,18 @@
 #   would no longer be inside the loop -- the assertion would then be measuring
 #   the harness's arrival order instead of the RTL.
 #
-# DEBUG_ENTRY_ADDR = 0xBE00 -- proposed, with the memory-map argument, in
-#   dbgdenymp.S's header.  If the implementer's ruling differs, change the one
-#   #define below.
+# DEBUG_ENTRY_ADDR = 0x10780 -- MIGRATED 2026-08-05 from TCM 0xBE00 under
+#   R-DD3 / R-D2-1(3): a tile's TCM is unreachable from the shared bus (four
+#   proofs in d2_probe P5), so a Debug Module can never place code at 0xBE00
+#   and the debug entry page moved into the shared window.  The full argument
+#   is in dbgdenymp.S's header; the mechanics here are unchanged -- an
+#   ordinary store loop plants the stub, after boot, inside the bootrom's
+#   zero range -- except that the page is now GLOBAL, so hart 0 plants it
+#   ONCE before it launches anybody and the victims plant nothing.
+#   This file's stub is 25 words and fits inside the 64-word entry page
+#   0x10780-0x1087F (R-D2-2(3)).
+#   If the ruling moves again: one #define below, one in dbgdenymp.S, one in
+#   dbgstepmp.S and one `set DBG_ENTRY` in dbg_rst.tcl.
 #
 # ---------------------------------------------------------------------------
 # VERDICT.  a0 = 0xCAFEBABE => all three classes of hart are halt-reachable,
@@ -142,6 +151,8 @@
 #   launched at any NHARTS.  At N=4 the band is free (shlrsc's tile hammer tops
 #   out at 0x1004C below, shcount's atomic counter is at 0x10080 above); at
 #   N=18 it overlaps shlrsc's hammer, benign by the ledger's isolation rule.
+#   Plus, since the 2026-08-05 migration, the SHARED DEBUG ENTRY PAGE at
+#   0x10780 (d2_spec section 1), where hart 0 plants the 25-word stub.
 #*****************************************************************************
 
 #include "riscv_test.h"
@@ -157,7 +168,7 @@
 #define HALT_MAGIC   0x0DB60000     /* the stub adds mhartid */
 #define RESUME_MAGIC 0x0DB6DEE0
 
-#define DBG_ENTRY    0xBE00
+#define DBG_ENTRY    0x10780
 #define TILE_WORDS   1024
 #define ARM_BUDGET   40000          /* ~ 40000 * 3 shared loads; see the note */
 #define BADOP        0x0000007F     /* absent from valid_opcode on every build */
@@ -199,7 +210,9 @@ dh_clr:
     li   a1, 0x0DB10009
     bne  t2, t3, dh_fail
 
-    jal  ra, dh_plant               # hart 0 plants too, for symmetry only
+    jal  ra, dh_plant               # THE plant: the page is shared, so this
+                                    # one call covers every victim, and it
+                                    # happens before any of them is launched
 
     MP_STAGE_IMAGE(TILE_WORDS)
     MP_LAUNCH_HART(1, tile_entry, TILE_WORDS)
@@ -343,8 +356,10 @@ dh_fail:
     RVTEST_FAIL                     # a0 = 0xDEADBEEF
 
     # =====================================================================
-    # dh_plant -- copy the debug stub to DEBUG_ENTRY_ADDR in THIS hart's
-    # private TCM.  No arguments; clobbers t0-t3.
+    # dh_plant -- copy the debug stub to DEBUG_ENTRY_ADDR in the SHARED
+    # window.  No arguments; clobbers t0-t3.  Called ONCE, by hart 0, before
+    # any victim is launched (the page is global since the 2026-08-05
+    # migration).
     # =====================================================================
 dh_plant:
     la   t0, dh_stub_start
@@ -404,7 +419,8 @@ dh_stub_end:
     # ---- tile harts enter here (loader ABI: only sp is defined) ----------
 tile_entry:
     li   sp, 0xBFF0
-    jal  ra, dh_plant               # plant the stub BEFORE parking
+    # No plant here since the migration: hart 0 planted the SHARED entry page
+    # before this hart existed.
     .option push
     .option arch, +zicsr
     csrr t3, mhartid
