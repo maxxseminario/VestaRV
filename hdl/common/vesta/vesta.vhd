@@ -1165,6 +1165,13 @@ architecture struct of vesta is
     signal dbg_halt_take          : std_logic;   -- haltreq | resethaltreq | step, and not already halted
     signal dbg_step_take          : std_logic;   -- the step re-entry alone (feeds the cause mux)
     signal dbg_ebreak_take        : std_logic;   -- ebreak diverts to debug rather than to the trap path
+    -- D2 / F-D2-0 (R-D2-3(1)). A SYNCHRONOUS exception taken while ALREADY in
+    -- debug mode re-enters at DEBUG_ENTRY_ADDR instead of taking the trap
+    -- path. Fourth "take" in the same family and named the same way, because
+    -- it is tested at the same dispatch points as dbg_ebreak_take but answers
+    -- a different question: not "does this ebreak divert" but "is this hart
+    -- allowed to leave debug mode through a trap at all".
+    signal dbg_exc_take           : std_logic;
     -- The en_clk_cpu ungate (F-D0P1-3). Same expression as dbg_halt_take; a
     -- separate name because it is consumed in a DIFFERENT domain question
     -- (does this hart get a clock at all) and conflating the two is how a
@@ -2541,6 +2548,38 @@ architecture struct of vesta is
                      else '0';
     dbg_halt_pend <= dbg_halt_take;
 
+    -- THE EXCEPTION TAKE (D2, F-D2-0, ruled R-D2-3(1)).
+    -- MEASURED at abf9fac, both delivery polarities, before this existed: a
+    -- non-ebreak synchronous exception taken in debug mode did NOT re-enter.
+    -- Legacy polarity it wedged in the terminal TRAP_STATE with dbg_halted
+    -- still asserted and trap_flag latched; standard polarity it vectored to
+    -- mtvec -- whose RESET VALUE is 0, i.e. the shared boot ROM -- re-ran the
+    -- ROM's not-hart-0 park sequence and extinguished, all with debug_mode
+    -- still '1'. That second outcome is UNRECOVERABLE: dbg_halt_take is
+    -- qualified by debug_mode = '0', so no fresh halt request can reach a
+    -- hart that has left its debug code this way, and only a dret nothing
+    -- will ever execute clears the mode.
+    -- The fix redirects every synchronous-exception dispatch to DBG_JUMP --
+    -- the state that ALREADY means "re-enter, dpc and dcsr survive" (see its
+    -- arm below). So this adds no state, no flop and no commit interface: the
+    -- 18 new arms declare mem_access_instr only, exactly as the
+    -- ebreak-in-debug-mode arm beside them does, and inherit the fail-safe
+    -- commit defaults from the S2 structural block.
+    -- WHY NOT INTERCEPT IN THE SINK STATES. TRAP_STATE unconditionally drives
+    -- trap_flag <= '1' (a hart_tile output the testbench monitors), so a
+    -- debug-mode fault must never ENTER it; and MTRAP_SV's CSR writeback
+    -- rides trap_entry_we, a one-shot of that state, so mepc/mcause/mtval
+    -- would already be corrupted before any redirect. Both were rejected on
+    -- those measurements, not on taste.
+    -- NOT REDIRECTED, and ruled so rather than left silent (R-D2-3(2)): the
+    -- four mret_op blocks, whose legacy arm also lands in TRAP_STATE. mret is
+    -- not an exception -- in debug mode it executes architecturally with
+    -- debug_mode unchanged, which is Spike-consistent, and the trampoline
+    -- never executes one.
+    -- Statically '0' when ENABLE_DEBUG is off, so every new arm constant-
+    -- folds and the OFF FSM is bit-identical -- the dbg_halt_take argument.
+    dbg_exc_take <= '1' when (ENABLE_DEBUG and debug_mode = '1') else '0';
+
     -- THE EBREAK TAKE. dcsr.ebreakm RESETS 0 and is writable only from debug
     -- mode, so no M-mode software can ever arm it -- which is what makes
     -- "ebreak takes an ordinary breakpoint exception" the standing behaviour
@@ -3061,7 +3100,7 @@ architecture struct of vesta is
                              -- ignores sensitivity lists entirely, so the
                              -- netlist would have been RIGHT and every
                              -- behavioural gate WRONG -- the worst direction.
-                             dbg_halt_take, dbg_ebreak_take, dret_op, debug_mode,
+                             dbg_halt_take, dbg_ebreak_take, dbg_exc_take, dret_op, debug_mode,
                              -- R-S2-2: THE COMMIT TAIL READS THESE FOUR.  A
                              -- same-process signal read returns the PREVIOUS
                              -- delta's value, so without these entries the
@@ -3208,7 +3247,11 @@ architecture struct of vesta is
                         -- Harmless when repeat_if was already 0 (the clear is a
                         -- no-op via the repeat_if_req-precedence in its flop).
                         clr_repeat_if    <= '1';
-                        if std_mode = '1' then
+                        if dbg_exc_take = '1' then
+                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            mem_access_instr <= '0';
+                            next_state <= DBG_JUMP;
+                        elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
                             next_state <= TRAP_STATE;
@@ -3239,7 +3282,11 @@ architecture struct of vesta is
                         -- false wherever ENABLE_COMPRESSED is true, which is every
                         -- shipped config (MemoryMap CORE_ENABLE_COMPRESSED = true,
                         -- Castalia and Argus alike), so no gate can observe it.
-                        if std_mode = '1' then
+                        if dbg_exc_take = '1' then
+                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            mem_access_instr <= '0';
+                            next_state <= DBG_JUMP;
+                        elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
                             next_state <= TRAP_STATE;
@@ -3263,7 +3310,11 @@ architecture struct of vesta is
                                 
                                 -- Determine next state based on instruction type
                                 if trap = '1' then
-                                    if std_mode = '1' then
+                                    if dbg_exc_take = '1' then
+                                        -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                        mem_access_instr <= '0';
+                                        next_state <= DBG_JUMP;
+                                    elsif std_mode = '1' then
                                         -- P1: RECOVERABLE illegal-instruction
                                         -- exception (cause 2, mtval = the faulting
                                         -- encoding). Zero memory transactions.
@@ -3307,7 +3358,10 @@ architecture struct of vesta is
                                     -- terminal TRAP_STATE -- exactly where the OFF
                                     -- build's illegal-instruction path puts them.
                                     mem_access_instr <= '0';
-                                    if std_mode = '1' then
+                                    if dbg_exc_take = '1' then
+                                        -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                        next_state <= DBG_JUMP;
+                                    elsif std_mode = '1' then
                                         next_state <= MTRAP_SV;
                                     else
                                         next_state <= TRAP_STATE;
@@ -3353,7 +3407,10 @@ architecture struct of vesta is
                                     -- and amo_lock -- qualified by mem_access_instr --
                                     -- never pins the grant.
                                     mem_access_instr <= '0';
-                                    if std_mode = '1' then
+                                    if dbg_exc_take = '1' then
+                                        -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                        next_state <= DBG_JUMP;
+                                    elsif std_mode = '1' then
                                         next_state <= MTRAP_SV;
                                     else
                                         next_state <= TRAP_STATE;
@@ -3590,7 +3647,11 @@ architecture struct of vesta is
                             -- exception the way STRADDLE and WA32 do.
                             is_compressed <= '1';
                             if trap = '1' then
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    mem_access_instr <= '0';
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     -- P1: recoverable illegal-instruction exception
                                     next_state <= MTRAP_SV;
                                     mem_access_instr <= '0';
@@ -3615,7 +3676,10 @@ architecture struct of vesta is
                                 -- no compressed form; the term costs nothing and
                                 -- keeps the four decode arms uniform.)
                                 mem_access_instr <= '0';
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
@@ -3639,7 +3703,10 @@ architecture struct of vesta is
                                 -- cm.* sequencer steps are checked in their OWN
                                 -- states, so pmp_d_active is '0' at a zcm dispatch.)
                                 mem_access_instr <= '0';
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
@@ -3726,7 +3793,11 @@ architecture struct of vesta is
                             is_compressed <= '0';
                             
                             if trap = '1' then
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    mem_access_instr <= '0';
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     -- P1: recoverable illegal-instruction exception
                                     -- (cause 2, mtval = the faulting encoding).
                                     next_state <= MTRAP_SV;
@@ -3749,7 +3820,10 @@ architecture struct of vesta is
                                 -- P1 ECALL (11) / EBREAK (3); see the split-fetch
                                 -- arm above for the full rationale.
                                 mem_access_instr <= '0';
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
@@ -3770,7 +3844,10 @@ architecture struct of vesta is
                                 -- P3 PMP load/store access fault -- the D5 arm; see
                                 -- the split-fetch arm above for the full rationale.
                                 mem_access_instr <= '0';
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
@@ -3906,7 +3983,11 @@ architecture struct of vesta is
                             -- direct drive of the four owned nets at all.
                             is_compressed <= '1';
                             if trap = '1' then
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    mem_access_instr <= '0';
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     -- P1: recoverable illegal-instruction exception
                                     next_state <= MTRAP_SV;
                                     mem_access_instr <= '0';
@@ -3927,7 +4008,10 @@ architecture struct of vesta is
                             elsif ecall_op = '1' or ebreak_op = '1' then
                                 -- P1: c.ebreak decompresses to EBREAK (c_dec:~676).
                                 mem_access_instr <= '0';
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
@@ -3951,7 +4035,10 @@ architecture struct of vesta is
                                 -- cm.* sequencer steps are checked in their OWN
                                 -- states, so pmp_d_active is '0' at a zcm dispatch.)
                                 mem_access_instr <= '0';
-                                if std_mode = '1' then
+                                if dbg_exc_take = '1' then
+                                    -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                                    next_state <= DBG_JUMP;
+                                elsif std_mode = '1' then
                                     next_state <= MTRAP_SV;
                                 else
                                     next_state <= TRAP_STATE;
@@ -4292,7 +4379,10 @@ architecture struct of vesta is
                     -- protocol values.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
-                        if std_mode = '1' then
+                        if dbg_exc_take = '1' then
+                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            next_state <= DBG_JUMP;
+                        elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
                             next_state <= TRAP_STATE;
@@ -4343,7 +4433,10 @@ architecture struct of vesta is
                     -- no strobe), the store path declares the FULL-WORD "1111".
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
-                        if std_mode = '1' then
+                        if dbg_exc_take = '1' then
+                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            next_state <= DBG_JUMP;
+                        elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
                             next_state <= TRAP_STATE;
@@ -4371,7 +4464,10 @@ architecture struct of vesta is
                     -- writeback is ZCM_POP_WB's, so this cycle declares nothing.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
-                        if std_mode = '1' then
+                        if dbg_exc_take = '1' then
+                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            next_state <= DBG_JUMP;
+                        elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
                             next_state <= TRAP_STATE;
@@ -4451,7 +4547,10 @@ architecture struct of vesta is
                     -- capture and the ra link both land in ZCM_JT_WB.
                     if ENABLE_PMP and pmp_d_deny = '1' then
                         mem_access_instr <= '0';
-                        if std_mode = '1' then
+                        if dbg_exc_take = '1' then
+                            -- D2/F-D2-0 re-entry (see dbg_exc_take): debug mode never traps out.
+                            next_state <= DBG_JUMP;
+                        elsif std_mode = '1' then
                             next_state <= MTRAP_SV;
                         else
                             next_state <= TRAP_STATE;
