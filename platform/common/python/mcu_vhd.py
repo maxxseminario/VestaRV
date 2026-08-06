@@ -875,7 +875,14 @@ class McuVhdEmitter():
 		# default).
 		# D2: the Debug Module. Assembly level, always-on mclk, knob-gated by
 		# debug.enable -- and the SECOND new arbiter MASTER after the DMA.
+		# D3 adds the JTAG DTM (dtm0) behind the SAME knob: no debug.jtag
+		# sub-knob exists, because the OR-merge keeps the raw-DMI drive path
+		# alive with the DTM present-and-inert (d3_cdc_spec 7).
 		self.debug = geo.get('debug', False)
+		# D3: the CONFIG FILE's chipName (never the CHIP_NAME env override,
+		# which is documentation-only) -- one half of the IDCODE chip-identity
+		# discriminator in jtagIdcode().
+		self.chipNameConfigured = geo.get('chipNameConfigured', '')
 		self.trng = geo.get('trng', False)
 		self.trngRings = geo.get('trngRings', 8)
 		if self.trng and self.trngRings not in (4, 8):
@@ -3092,8 +3099,10 @@ class McuVhdEmitter():
 		module at all, which is what check_mcu_vhd.py STRICT enforces.
 
 		The port shape is FROZEN at D2 and D3's JTAG DTM inherits it unchanged:
-		the DTM will drive exactly these eight nets from TCK through its own
-		toggle handshake, so the port is designed once (d2_spec 2).
+		the DTM drives exactly these eight nets from TCK through its own toggle
+		handshake, so the port is designed once (d2_spec 2). D3 does NOT take
+		the ports away from the outside world -- see emitJtagPorts and the
+		OR-merge in emitDebugInstance.
 
 		Every INPUT carries a VHDL default. That is not tidiness: MCU.vhd's
 		entity is instantiated by riscv_tb.vhd (itself a make-chip product),
@@ -3106,11 +3115,16 @@ class McuVhdEmitter():
 		return [
 			'',
 			' ' * 8 + '-- D2 DEBUG MODULE INTERFACE (debug.enable only). abits=7, data=32,',
-			' ' * 8 + '-- op: request 01=read 10=write, response 00=success 10=failed 11=busy',
+			' ' * 8 + '-- op: request 01=read 10=write, response 00=success 10=failed',
 			' ' * 8 + '-- -- the DTM 41-bit DR arithmetic (2+32+7). One request in flight;',
 			' ' * 8 + '-- the handshake is ACK-STYLE (R-D2-4(2)): dmi_req_ready idles LOW and',
 			' ' * 8 + '-- pulses for one cycle in response to a presented request -- one accept',
 			' ' * 8 + '-- per request -- and exactly one rsp_valid follows each accepted request.',
+			' ' * 8 + '-- THERE IS NO "busy" RESPONSE OP. The DM has exactly two op constants',
+			' ' * 8 + '-- (00 ok, 10 failed); busy is DTM-LOCAL state -- the 41-bit dmi DR',
+			' ' * 8 + '-- captures literal 3 while a transaction is in flight. Corrected at D3',
+			' ' * 8 + '-- (d3_spec 3): this comment used to promise a third response op the',
+			' ' * 8 + '-- RTL cannot produce, which makes an acceptance check unsatisfiable.',
 			' ' * 8 + "dmi_req_valid : in  std_logic := '0';",
 			' ' * 8 + 'dmi_req_op    : in  std_logic_vector(1 downto 0) := "00";',
 			' ' * 8 + "dmi_req_addr  : in  std_logic_vector(6 downto 0) := (others => '0');",
@@ -3118,7 +3132,39 @@ class McuVhdEmitter():
 			' ' * 8 + 'dmi_req_ready : out std_logic;',
 			' ' * 8 + 'dmi_rsp_valid : out std_logic;',
 			' ' * 8 + 'dmi_rsp_data  : out std_logic_vector(31 downto 0);',
-			' ' * 8 + 'dmi_rsp_op    : out std_logic_vector(1 downto 0)',
+			' ' * 8 + 'dmi_rsp_op    : out std_logic_vector(1 downto 0);',
+		]
+
+	def emitJtagPorts(self):
+		'''D3: the five JTAG pins on the MCU entity. Same knob, same emission
+		rule, same defaulting trick as emitDmiPorts -- and this group is now
+		the LAST entity port group, so it carries the no-trailing-`;`
+		responsibility that emitDmiPorts used to (probe P1.1: emitA0Ports puts
+		a `;` after the last a0_N iff self.debug, and emitDmiPorts now ends in
+		one too). A missing or extra separator here is a syntax error in a
+		4000-line generated file; it is named in d3_spec 4 for that reason.
+
+		trstn defaults '0' -- TAP HELD IN RESET. That is the fail-safe
+		direction (rule 15) and it is what makes the DTM INERT in every bench
+		and netlist that does not name these pins: no TCK edges, no requests,
+		and the OR-merge below sees a permanently-zero valid.'''
+		if not self.debug:
+			return []
+		return [
+			'',
+			' ' * 8 + '-- D3 JTAG DEBUG TRANSPORT (debug.enable only). IEEE 1149.1 pins for',
+			' ' * 8 + '-- the dtm0 TAP: 5-bit IR, IDCODE/dtmcs/dmi(41)/BYPASS DRs, and the',
+			' ' * 8 + '-- TCK<->mclk crossing onto the dmi_* port above (d3_spec 1-2).',
+			' ' * 8 + '-- FAIL-SAFE: trstn low = TAP in reset = the whole transport inert, so',
+			' ' * 8 + '-- an instantiation that does not connect these pins is unaffected.',
+			' ' * 8 + '-- TCK IS ITS OWN CLOCK DOMAIN. It is declared to Genus on the dtm0',
+			' ' * 8 + '-- INSTANCE PIN, never on this port: the chip SDC generator deletes',
+			' ' * 8 + '-- every [get_ports] line and FATALs if one survives (d3_cdc_spec 5).',
+			' ' * 8 + "tck   : in  std_logic := '0';",
+			' ' * 8 + "tms   : in  std_logic := '0';",
+			' ' * 8 + "tdi   : in  std_logic := '0';",
+			' ' * 8 + 'tdo   : out std_logic;',
+			' ' * 8 + "trstn : in  std_logic := '0'",
 		]
 
 	def emitDebugDecls(self):
@@ -3148,6 +3194,31 @@ class McuVhdEmitter():
 			self.sigDecl('dbg_halted', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + nm1 + ' downto 1);'),
 			self.sigDecl('dbg_unavail', 'std_logic_vector(' + nm1 + ' downto 0);'),
+			'',
+			' ' * 8 + '-- D3 DMI OR-MERGE (d3_cdc_spec 7). THE CONTRACT, IN ONE SENTENCE:',
+			' ' * 8 + '-- the external dmi_* ports are RETAINED and merged with the DTM by',
+			' ' * 8 + '-- valid-gated OR-composition -- both request buses reach the one',
+			' ' * 8 + '-- Debug Module and its responses are fanned out to BOTH masters --',
+			' ' * 8 + '-- so a bench driving the raw port and a debugger driving TCK are',
+			' ' * 8 + "-- never simultaneously active by construction: an idle DTM's valid",
+			' ' * 8 + '-- is low, which makes the merge transparent.',
+			' ' * 8 + '-- WHY IT IS DESIGNED THIS WAY AND NOT TRIPWIRED AROUND: a DTM that',
+			' ' * 8 + '-- simply took over the DM inputs would leave every force at the MCU',
+			' ' * 8 + '-- formal resolving by NAME while reaching nothing -- silent for the',
+			' ' * 8 + '-- VHDL bench that associates them, merely misattributed for the tcl',
+			' ' * 8 + '-- harnesses that force them (d3_probe P4.4).',
+			self.sigDecl('dm_req_valid', 'std_logic;'),
+			self.sigDecl('dm_req_op', 'std_logic_vector(1 downto 0);'),
+			self.sigDecl('dm_req_addr', 'std_logic_vector(6 downto 0);'),
+			self.sigDecl('dm_req_data', 'std_logic_vector(31 downto 0);'),
+			self.sigDecl('dm_req_ready', 'std_logic;'),
+			self.sigDecl('dm_rsp_valid', 'std_logic;'),
+			self.sigDecl('dm_rsp_data', 'std_logic_vector(31 downto 0);'),
+			self.sigDecl('dm_rsp_op', 'std_logic_vector(1 downto 0);'),
+			self.sigDecl('dtm_req_valid', 'std_logic;'),
+			self.sigDecl('dtm_req_op', 'std_logic_vector(1 downto 0);'),
+			self.sigDecl('dtm_req_addr', 'std_logic_vector(6 downto 0);'),
+			self.sigDecl('dtm_req_data', 'std_logic_vector(31 downto 0);'),
 		]
 
 	def emitDebugInstance(self):
@@ -3183,14 +3254,17 @@ class McuVhdEmitter():
 			'        port map (',
 			'            clk    => mclk,',
 			'            resetn => resetn,',
-			'            dmi_req_valid => dmi_req_valid,',
-			'            dmi_req_op    => dmi_req_op,',
-			'            dmi_req_addr  => dmi_req_addr,',
-			'            dmi_req_data  => dmi_req_data,',
-			'            dmi_req_ready => dmi_req_ready,',
-			'            dmi_rsp_valid => dmi_rsp_valid,',
-			'            dmi_rsp_data  => dmi_rsp_data,',
-			'            dmi_rsp_op    => dmi_rsp_op,',
+			'            -- D3: the MERGED request bus, not the entity ports (see the',
+			'            -- OR-merge below). The RESPONSES are the DM\'s own outputs and',
+			'            -- are fanned out to the entity ports AND to dtm0.',
+			'            dmi_req_valid => dm_req_valid,',
+			'            dmi_req_op    => dm_req_op,',
+			'            dmi_req_addr  => dm_req_addr,',
+			'            dmi_req_data  => dm_req_data,',
+			'            dmi_req_ready => dm_req_ready,',
+			'            dmi_rsp_valid => dm_rsp_valid,',
+			'            dmi_rsp_data  => dm_rsp_data,',
+			'            dmi_rsp_op    => dm_rsp_op,',
 			'            dbg_haltreq      => dbg_haltreq,',
 			'            dbg_resethaltreq => dbg_resethaltreq,',
 			'            dbg_halted       => dbg_halted,',
@@ -3211,7 +3285,105 @@ class McuVhdEmitter():
 			'    arb_lrsc(' + str(2 * k + 1) + ' downto ' + str(2 * k) + ') <= "00";',
 			"    arb_lock(" + ks + ") <= '0';",
 		]
+		lines += self.emitJtagInstance()
 		return lines
+
+	def emitJtagInstance(self):
+		'''D3: the JTAG DTM beside dm0, and the OR-merge that lets the raw
+		dmi_* ports and the TAP both reach the one Debug Module.
+
+		THE MERGE IS VALID-GATED, and the external port WINS a simultaneity
+		that cannot occur: the DTM's valid is low unless a debugger has
+		clocked a dmi Update-DR through TCK, and every bench that forces the
+		raw port leaves trstn at its default (TAP in reset). Writing it as a
+		select rather than a bitwise OR also keeps an undriven bus from
+		merging X into the DM.
+
+		IDCODE is a per-chip CONSTANT chosen by chip identity in generate.py
+		(R-DD4(1)), not a schema knob -- there is no configuration in which a
+		user should be able to make their chip claim to be another one.'''
+		if not self.debug:
+			return []
+		return [
+			'',
+			'    -- D3 JTAG DTM (dtm0). Assembly level, beside dm0 -- never inside a',
+			'    -- tile: TCK must reach the transport while any hart is power-gated,',
+			'    -- and the tile SDC has no clock-to-clock false paths to disturb.',
+			'    -- The TCK domain is asynchronous to mclk and crosses on ONE toggle',
+			'    -- each way with the payload HELD (the UART flags_cdc_proc idiom);',
+			'    -- its mclk-side master is a ONE-SHOT that retires on dmi_req_ready,',
+			'    -- because the DM\'s re-capture lockout is a 9-cycle TIMER and a held',
+			'    -- request level would earn a second, duplicate accept.',
+			'    dtm0: entity work.jtag_dtm',
+			'        generic map (ENABLE_DEBUG => CORE_ENABLE_DEBUG,',
+			'                     IDCODE      => x"' + self.jtagIdcode() + '",',
+			'                     IDLE_CYCLES => ' + str(self.jtagIdleCycles()) + ')',
+			'        port map (',
+			'            tck    => tck,',
+			'            tms    => tms,',
+			'            tdi    => tdi,',
+			'            tdo    => tdo,',
+			'            trstn  => trstn,',
+			'            clk    => mclk,',
+			'            resetn => resetn,',
+			'            dmi_req_valid => dtm_req_valid,',
+			'            dmi_req_op    => dtm_req_op,',
+			'            dmi_req_addr  => dtm_req_addr,',
+			'            dmi_req_data  => dtm_req_data,',
+			'            dmi_req_ready => dm_req_ready,',
+			'            dmi_rsp_valid => dm_rsp_valid,',
+			'            dmi_rsp_data  => dm_rsp_data,',
+			'            dmi_rsp_op    => dm_rsp_op);',
+			'',
+			'    -- THE OR-MERGE ITSELF. Requests: valid-gated OR of the two masters.',
+			'    -- Responses: the DM\'s outputs fanned out to the entity ports AND to',
+			'    -- dtm0, so an accept or a response is visible to whichever master',
+			'    -- issued it -- and to any instrument watching the port.',
+			'    dm_req_valid <= dmi_req_valid or dtm_req_valid;',
+			"    dm_req_op    <= dmi_req_op   when dmi_req_valid = '1' else dtm_req_op;",
+			"    dm_req_addr  <= dmi_req_addr when dmi_req_valid = '1' else dtm_req_addr;",
+			"    dm_req_data  <= dmi_req_data when dmi_req_valid = '1' else dtm_req_data;",
+			'    dmi_req_ready <= dm_req_ready;',
+			'    dmi_rsp_valid <= dm_rsp_valid;',
+			'    dmi_rsp_data  <= dm_rsp_data;',
+			'    dmi_rsp_op    <= dm_rsp_op;',
+		]
+
+	def jtagIdcode(self):
+		'''D3: the JTAG IDCODE as eight hex digits, selected by CHIP IDENTITY
+		(R-DD4(1) -- USER values, deliberately NOT a schema knob).
+
+		Castalia 0x1CA57EEF / Argus 0x1A265EEF: version 1, partnum
+		0xCA57/0xA265, manufid 0x777 (the Spike-precedent deliberately invalid
+		JEP106 code -- honest for a non-commercial chip), LSB 1 as 1149.1
+		mandates.
+
+		THE DISCRIMINATOR IS DELIBERATELY BOTH: the config's own chipName OR
+		numHarts == 18. The acceptance instruments key on the hart count (it
+		is the only chip discriminator a harness has in band), and CHIP_NAME
+		is a DOCS-ONLY env override -- so a name-only rule would let a
+		documentation switch change an RTL constant, and a count-only rule
+		would be silent about what it means. Every shipped config agrees under
+		both halves.'''
+		if self.isArgusFamily():
+			return '1A265EEF'
+		return '1CA57EEF'
+
+	def isArgusFamily(self):
+		name = str(self.chipNameConfigured or '')
+		return self.nHarts() == 18 or name.lower().startswith('argus')
+
+	def jtagIdleCycles(self):
+		'''D3: dtmcs.idle [14:12], in TCK cycles, and it is TRUTHFUL (Spike
+		advertises 0 while enforcing a hidden requirement -- the one behaviour
+		d3_cdc_spec 4 says not to copy). The derivation is written out in
+		jtag_dtm.vhd's header: 3 TCK cycles of response synchroniser plus the
+		mclk round trip (8-10 mclk for a register access, tens more for the
+		three PROXIED addresses through mp_arbiter), against the stated
+		assumption TCK <= 7.14 MHz with mclk at 24 MHz. 7 covers the worst
+		class with a cycle of margin and is the maximum the 3-bit field can
+		express, so rounding up costs nothing but debugger throughput.'''
+		return 7
 
 	def masterW(self):
 		'''mp_arbiter s_master / mutex_bank / irq_router master width (A2: the MW
@@ -4317,6 +4489,8 @@ class McuVhdEmitter():
 			return self.emitOwInstance()
 		if name == 'dmi-ports':
 			return self.emitDmiPorts()
+		if name == 'jtag-ports':
+			return self.emitJtagPorts()
 		if name == 'debug-decls':
 			return self.emitDebugDecls()
 		if name == 'debug-instance':
@@ -4447,8 +4621,11 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# mutex-instance / irq-router-instance / sh-master-decl)
 		'dma-decls', 'dma-instance',
 		# D2: the Debug Module -- entity ports, decls, instance. All three
-		# emit NOTHING when debug.enable is off.
-		'dmi-ports', 'debug-decls', 'debug-instance',
+		# emit NOTHING when debug.enable is off. D3 adds the JTAG port group
+		# (which becomes the LAST entity port group and so carries the
+		# no-trailing-`;` responsibility); the DTM instance and the OR-merge
+		# ride the debug-instance marker beside dm0, on the same knob.
+		'dmi-ports', 'jtag-ports', 'debug-decls', 'debug-instance',
 		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
 		'i2ct-decls', 'i2ct-instance',
 		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900
