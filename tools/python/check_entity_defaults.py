@@ -81,6 +81,11 @@ VHDL_DECL_FILES = [
     # instantiates it otherwise" silently becomes a behaviour the day someone
     # does, and gates get removed.
     "hdl/common/debug_module.vhd",
+    # D3: the JTAG DTM is a FOURTH entity carrying ENABLE_DEBUG, and it is the
+    # one whose OFF value has an external consequence -- with the knob off the
+    # whole transport must fold, TDO included.  Same rule-15 argument as the
+    # Debug Module: the DECLARATION is what a hand instantiation inherits.
+    "hdl/common/jtag_dtm.vhd",
 ]
 
 VHDL_INST_FILES = [
