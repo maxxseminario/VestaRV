@@ -40,8 +40,9 @@
 #        from a victim that advanced too far.
 #
 # THE DEBUG-ENTRY TRIPWIRE -- the part of this file that is a real detector
-#   Every victim, and hart 0 itself, PLANTS a 4-instruction stub in its own
-#   private TCM at DEBUG_ENTRY_ADDR before it does anything else.  The stub
+#   HART 0 plants a short stub at DEBUG_ENTRY_ADDR -- since 2026-08-05 in the
+#   SHARED window, so one plant covers every hart -- before it launches
+#   anybody.  The stub
 #   writes a hart-identifying magic into the shared word DBGMARK and spins.
 #   Today the stub is dead code: nothing ever jumps to DEBUG_ENTRY_ADDR,
 #   because there is no debug mode.  After D1 it is STILL dead code on a
@@ -60,32 +61,42 @@
 #   the whole build tree for every suite (CLAUDE.md), and this instrument is
 #   not worth that.  The stub therefore contains no PC-relative reference to
 #   anything outside itself; its one internal branch is a self-loop, whose
-#   offset is relocation-invariant.
+#   offset is relocation-invariant.  Since the 2026-08-05 migration the
+#   destination is the SHARED window, so ONE plant by hart 0 serves every
+#   hart and the victims plant nothing.
 #
-# DEBUG_ENTRY_ADDR = 0xBE00 -- PROPOSED HERE, AND THE SPEC OWES A RULING.
-#   d1_spec.md section 1 leaves the value to the implementer ("inside the TCM
-#   park region; implementer proposes the value with the memory-map argument"),
-#   but an acceptance test that plants code at that address cannot be written
-#   without it.  The argument for 0xBE00, from verification/env/p/link.ld:
-#       0x8000       .ivt              (through 0x8154 + the CLINT/meip tail)
-#       0x8200       .text.init ...    (grows upward with the test)
-#       0xB000       .npu0_yhat
-#       0xB100       .isr_meip
-#       0xB200-0xBAFF the 256-byte ISR bank
-#       0xBB00       the parked-IVT-slot target (DEFINE_IVT)
-#       0xBC00       .isr_afe_shared
-#       0xBD00       .isr_eis
-#       0xBE00-0xBFEF UNCLAIMED
-#       0xBFF0       stack top, growing DOWN
-#   0xBE00 is the first free 256-byte slot above the last claimed one, it
-#   follows the bank's own 0x100 granularity, it is inside the 4096-word
-#   MP_STAGE_IMAGE window so a tile gets its stub from the ordinary image copy,
-#   and it leaves 0xBF00-0xBFEF as headroom between the stub and the stack.
-#   0xBB00 was rejected on purpose: it is the parking target for every unused
-#   IVT slot, so a stub there would also be entered by a stray interrupt, and
-#   a tripwire that two different mechanisms can trip is not a tripwire.
-#   IF THE IMPLEMENTER PICKS A DIFFERENT VALUE, three #defines change
-#   (DBG_ENTRY here, in dbghaltmp.S and in dbgstepmp.S) and nothing else.
+# DEBUG_ENTRY_ADDR = 0x10780 -- MIGRATED 2026-08-05 FROM TCM 0xBE00.
+#   D1 froze DEBUG_ENTRY_ADDR at 0xBE00, inside this hart's PRIVATE TCM
+#   (R-D1-1(2), on this file's own memory-map argument).  D2's probe then
+#   proved, four independent ways, that a tile's TCM is UNREACHABLE from the
+#   shared bus -- no slave port, no second RAM port, the arbiter's default arm
+#   literally commented "no slave (TCM page, unmapped)".  A Debug Module
+#   therefore CANNOT place code at 0xBE00, and an abstract command is a
+#   code-execution mechanism; so R-DD3 moved debug entry into the shared
+#   window and R-D2-1(3) set it to 0x10780 for every debug-ON build.
+#
+#   WHAT CHANGED HERE, and what did not.  The stub is still planted by
+#   COOPERATING FIRMWARE with an ordinary store loop -- shared RAM is writable
+#   by this test exactly as the TCM was, the plant happens after boot and
+#   inside the bootrom's zero range, and no linker section is added (a new
+#   section changes build/.imgset and wipes every rv32ua image).  What DID
+#   change is that the entry page is now GLOBAL rather than per-hart, so
+#   HART 0 PLANTS IT ONCE before it launches anybody, instead of every hart
+#   planting its own private copy.  That is strictly stronger for this file's
+#   purpose: the tripwire is in place before any victim exists, so no hart can
+#   reach a must-trap encoding untripwired -- which is what the old
+#   plant-before-your-primary discipline was for.
+#
+#   EXECUTION FROM SHARED IS PROVEN, NOT ASSUMED: shexec.S is the M10
+#   instrument for it (a payload fetched from the shared window, with a
+#   backward branch inside it), and all four harts already reset-fetch the
+#   shared boot ROM.  The constraint that comes with it is `.option norvc`,
+#   which this file already sets: compressed/misaligned execution from shared
+#   is UNTESTED (CLAUDE.md's shexec bullet).
+#
+#   IF THE RULING MOVES AGAIN, one #define changes here, one in dbghaltmp.S,
+#   one in dbgstepmp.S and one `set DBG_ENTRY` in dbg_rst.tcl -- that fourth
+#   site is easy to miss and is named here for that reason.
 #
 # THE SLOT ARGUMENT (the idcsrmp construction; read before "simplifying")
 #   A must-trap encoding CONSUMES a victim: on the shipped default a trap lands
@@ -193,7 +204,10 @@
 #     0x10058  GPROG     hart 3's stepped progress word
 #     0x1005C  POSPROG   hart 0's positive-half leg counter
 #     0x10060  DBGMARK   the debug-entry tripwire (must stay 0)
-#   These five sit inside the 12-word D1 band 0x10050-0x1007C claimed in
+#   Plus, since the 2026-08-05 migration, the SHARED DEBUG ENTRY PAGE at
+#   0x10780-0x1087F (d2_spec section 1 as amended by R-D2-2(3)), where the
+#   tripwire stub is planted.  This file's stub is 7 words.
+#   These five data words sit inside the 12-word D1 band 0x10050-0x1007C in
 #   CLAUDE.md's ledger for the three D1 debug tests jointly; the band is
 #   REUSED with different meanings by dbghaltmp.S and dbgstepmp.S, which is
 #   safe for the same reason shdma and wdma share theirs -- one image per sim,
@@ -214,14 +228,16 @@
 #define SH_POSPROG   0x1005C
 #define SH_DBGMARK   0x10060
 
-/* d1_spec.md section 1 leaves this to the implementer; see the header for the
-   memory-map argument and for what changes if the ruling differs.          */
-#define DBG_ENTRY    0xBE00
+/* R-D2-1(3): the debug entry page in the SHARED window.  See the header for
+   why it moved off the TCM and what else changes if the ruling moves again.
+   The 7-word tripwire stub fits inside the 64-word entry page
+   0x10780-0x1087F (R-D2-2(3)) many times over.                                      */
+#define DBG_ENTRY    0x10780
 
 /* 1024 words = 0x8000-0x8FFF, which covers the IVT and the whole image (the
-   linked size is ~0x87D0).  The debug stub does NOT need to ride the staged
-   copy: every hart, tile or not, plants its own with dd_plant before it does
-   anything else.  A full-TCM 4096-word stage would add ~7 ms of serialized
+   linked size is ~0x87D0).  The debug stub does NOT ride the staged copy at
+   all any more: since the migration it lives in the SHARED window and hart 0
+   plants it once.  A full-TCM 4096-word stage would add ~7 ms of serialized
    arbiter traffic for nothing.                                             */
 #define TILE_WORDS   1024
 #define ARM_BUDGET   12000
@@ -281,9 +297,11 @@ RVTEST_CODE_BEGIN
     lw   t1, 0(s6)
     bnez t1, dd_fail
 
-    # hart 0 plants its own tripwire stub too: if the ORCHESTRATOR enters
-    # debug mode, the verdict path itself is running in debug mode, and that
-    # has to be visible.
+    # THE PLANT.  Since the migration to the shared window the entry page is
+    # GLOBAL: hart 0 plants it once, here, before anything else and long
+    # before any victim exists.  It covers the orchestrator too -- if hart 0
+    # itself enters debug mode the verdict path is running in debug mode, and
+    # that has to be visible.
     jal  ra, dd_plant
 
     li   s7, 0                      # POSPROG register shadow
@@ -404,11 +422,13 @@ dd_fail:
     RVTEST_FAIL                     # a0 = 0xDEADBEEF
 
     # =====================================================================
-    # dd_plant -- copy the tripwire stub to DEBUG_ENTRY_ADDR in THIS hart's
-    # private TCM.  No arguments: the stub identifies its own hart by reading
-    # mhartid, so ONE copy of the stub source serves all four.  Clobbers
-    # t0-t3.  Called by hart 0 and by every victim before its primary
-    # encoding, so no hart can reach a must-trap instruction untripwired.
+    # dd_plant -- copy the tripwire stub to DEBUG_ENTRY_ADDR in the SHARED
+    # window.  No arguments: the stub identifies its own hart by reading
+    # mhartid, so ONE copy serves all four.  Clobbers t0-t3.
+    # MIGRATION NOTE (2026-08-05): the entry page is now global, so this is
+    # called ONCE, by hart 0, BEFORE any victim is launched.  The victims no
+    # longer plant -- there is nothing per-hart left to plant -- and the
+    # tripwire is in place strictly earlier than it used to be.
     # =====================================================================
 dd_plant:
     la   t0, dd_stub_start
@@ -445,7 +465,10 @@ dd_stub_end:
     # ---- tile harts enter here (loader ABI: only sp is defined) ----------
 tile_entry:
     li   sp, 0xBFF0
-    jal  ra, dd_plant               # plant the tripwire FIRST, always
+    # No plant here since the migration: the entry page is SHARED and hart 0
+    # planted it before this hart was launched.  (Planting again would be
+    # harmless -- identical bytes -- but it would suggest the page were
+    # per-hart, which is exactly the misreading the migration exists to end.)
     .option push
     .option arch, +zicsr
     csrr t3, mhartid
