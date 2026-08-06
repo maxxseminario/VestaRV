@@ -37,6 +37,9 @@
     "pmp": false,
     "pmpEntries": 16
   },
+  "debug": {
+    "enable": false
+  },
   "memory": {
     "romSize": 16384,
     "tcmSizePerHart": 16384,

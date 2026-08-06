@@ -75,6 +75,12 @@ import sys
 VHDL_DECL_FILES = [
     "hdl/common/vesta/vesta.vhd",
     "hdl/common/hart_tile.vhd",
+    # D2: the Debug Module is a THIRD entity carrying ENABLE_DEBUG.  It is
+    # knob-gated so the generator only ever instantiates it with the knob on,
+    # but rule 15 is about the DECLARATION: a default justified by "nothing
+    # instantiates it otherwise" silently becomes a behaviour the day someone
+    # does, and gates get removed.
+    "hdl/common/debug_module.vhd",
 ]
 
 VHDL_INST_FILES = [
@@ -147,7 +153,7 @@ def scan_decls(root, generic, files):
     return out
 
 
-def scan_insts(root, generic, files, targets=("vesta", "hart_tile")):
+def scan_insts(root, generic, files, targets=("vesta", "hart_tile", "debug_module")):
     """Instantiations of the target entities: MAP (explicit) or OMIT."""
     pat = re.compile(r"^\s*" + re.escape(generic) + r"\s*=>\s*([^,\s]+)",
                      re.IGNORECASE)

@@ -3767,6 +3767,7 @@ m.McuMpGeometry = {
 	'trng': trngPresent,        # digperiphs (TRNG): True = TRNG0 ring-oscillator entropy source + harvest engine in MUTEX-page sub-slot 9 (0x6900); raw-strobe shim, sibling u_ro TrngRoEnsemble instance, vector 121, source list grows to 122 (A5 global vector rule)
 	'trngRings': trngRings,     # digperiphs (TRNG): TRNG0 NRO generic {4,8} (consulted only when trng); the register map is NRO-invariant
 	'eventFabric': eventFabricPresent,  # digperiphs (EVFAB): True = EVFAB0 event/trigger fabric in MUTEX-page sub-slot 11 (0x6B00); raw-strobe shim, VECTORLESS (no vector spend), plus the producer/consumer tap port maps on RTC0/PWM0/TIMER0/TIMER1/UART0/NFC0/DMA0/TRNG0/I2CT0/GPIO0/NPU0/pwr0 (every absent source tied '0', D23)
+	'debug': _debug['enable'],  # D2: True = the Debug Module (dm0) + the eight MCU-entity dmi_* ports + the per-tile dbg_* hookup + DEBUG_ENTRY_ADDR => 0x00010780. dm0 is the SECOND new arbiter MASTER after the DMA (index nMasters-1, i.e. numHarts when the DMA is off and numHarts+1 when it is on), so it drags the same fabric widening the DMA documents. OFF (the default) emits NO TRACE: no ports, no decls, no instance, no clamp row -- check_mcu_vhd.py STRICT is the bar.
 }
 
 
@@ -3861,6 +3862,15 @@ _resolvedConfig = [
 	('registerFileDualPort', _regsDualPort),
 	('isa', _isa),
 	('priv', _priv),
+	# D2: the resolved dump gains the debug branch (d2_probe finding 10 /
+	# d2_spec 6). Until now a debug-ON build's ChipConfig.resolved.json was
+	# byte-indistinguishable from a debug-OFF one -- in the very artifact
+	# CLAUDE.md calls a LIVE INPUT to the lockstep oracle -- so nothing
+	# downstream could derive from the knob. verify_stage.py's config_tags()
+	# is the first consumer; oracle_isa.py is deliberately NOT keyed on it
+	# (its derive_triggers() says so and returns 0 unconditionally), so no
+	# oracle behaviour changes.
+	('debug', _debug),
 	('memory', [
 		('romSize', _romSize),
 		('tcmSizePerHart', _tcmSize),
