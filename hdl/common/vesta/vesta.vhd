@@ -1172,6 +1172,14 @@ architecture struct of vesta is
     -- a different question: not "does this ebreak divert" but "is this hart
     -- allowed to leave debug mode through a trap at all".
     signal dbg_exc_take           : std_logic;
+    -- D2 / F-D2-1 (R-D2-3(3)). Interrupt delivery is suppressed in debug
+    -- mode, on BOTH paths. Deliberately a SEPARATE signal from dbg_exc_take
+    -- even though the predicate is identical: they are two separately-ruled
+    -- findings with two separate detectors, and either must be revertible
+    -- without touching the other. The duplicate term is combinational and
+    -- costs nothing -- the same argument the dbg_halt_pend comment above
+    -- makes for its own duplicate of dbg_halt_take.
+    signal dbg_irq_block          : std_logic;
     -- The en_clk_cpu ungate (F-D0P1-3). Same expression as dbg_halt_take; a
     -- separate name because it is consumed in a DIFFERENT domain question
     -- (does this hart get a clock at all) and conflating the two is how a
@@ -2337,7 +2345,14 @@ architecture struct of vesta is
     -- exports STATE only; the pending decision is made HERE.
     --   take = mstatus.MIE and ((meip and MEIE) or (msip and MSIE) or (mtip and MTIE))
     -- mie_bits is the frozen {MEIE(2), MTIE(1), MSIE(0)} packing.
-    std_irq_take <= '1' when (std_mode = '1' and trap_mstatus_mie = '1' and
+    -- F-D2-1 (R-D2-3(3)): dbg_irq_block suppresses STANDARD delivery in debug
+    -- mode. It sits here, at the single source, rather than on the 13
+    -- recognition arms -- a fix applied arm-by-arm is a fix that can be
+    -- half-applied, and the detector is built to catch exactly that.
+    -- The interrupt stays LEVEL-pending; it is delivered after the dret,
+    -- which is the required behaviour, not a side effect.
+    std_irq_take <= '1' when (std_mode = '1' and dbg_irq_block = '0' and
+                              trap_mstatus_mie = '1' and
                               ((trap_irq_meip = '1' and trap_mie_bits(2) = '1') or
                                (trap_irq_msip = '1' and trap_mie_bits(0) = '1') or
                                (trap_irq_mtip = '1' and trap_mie_bits(1) = '1')))
@@ -2467,7 +2482,16 @@ architecture struct of vesta is
     -- what lets the new std_irq_take arms sit BESIDE the existing irq_save arms
     -- without a priority fight. Statically the identity function when
     -- ENABLE_TRAPCSR is off.
-    irq_en_eff <= irq_en when std_mode = '0' else (others => '0');
+    -- F-D2-1 (R-D2-3(3)): the SAME neutralization mechanism, extended to debug
+    -- mode. Masking every enable pins the handler FSM in IDLE, so irq_save can
+    -- never fire while the hart is in debug mode -- the legacy half of the
+    -- fix, and it reuses the proven idiom rather than inventing a second one.
+    -- The IRQ sources are LEVEL, so nothing is lost: unmasking at the dret
+    -- re-presents whatever is still pending.
+    -- Statically the identity function when ENABLE_DEBUG is off (dbg_irq_block
+    -- folds to '0'), so an OFF build keeps exactly the P1 expression.
+    irq_en_eff <= irq_en when (std_mode = '0' and dbg_irq_block = '0')
+                  else (others => '0');
 
     -- ==========================================
     -- P2 standard WFI wake rule (ENABLE_TRAPCSR)
@@ -2579,6 +2603,21 @@ architecture struct of vesta is
     -- Statically '0' when ENABLE_DEBUG is off, so every new arm constant-
     -- folds and the OFF FSM is bit-identical -- the dbg_halt_take argument.
     dbg_exc_take <= '1' when (ENABLE_DEBUG and debug_mode = '1') else '0';
+
+    -- THE INTERRUPT BLOCK (D2, F-D2-1, ruled R-D2-3(3)).
+    -- d1_spec.md 2 froze "interrupts NOT taken (all recognition qualified by
+    -- `not debug_mode`)" and the RTL never carried the qualifier: dbg_halt_take
+    -- sits ABOVE irq_save and std_irq_take in all 13 recognition chains but
+    -- does not BLOCK them -- in debug mode it is '0' and the chain falls
+    -- straight through to the interrupt arms. MEASURED: a halted hart spinning
+    -- at DEBUG_ENTRY_ADDR reached IRQ_JUMP 200 ns after msip rose, vectored
+    -- through IVT slot 83 into the ROM's loader ISR and looped there, with
+    -- dbg_halted asserted throughout.
+    -- The suppression is applied at the two SOURCES rather than at the 13
+    -- chains, so it cannot be half-applied: see std_irq_take and irq_en_eff.
+    -- Statically '0' when ENABLE_DEBUG is off; both consumers then reduce to
+    -- their pre-D2 expressions exactly.
+    dbg_irq_block <= '1' when (ENABLE_DEBUG and debug_mode = '1') else '0';
 
     -- THE EBREAK TAKE. dcsr.ebreakm RESETS 0 and is writable only from debug
     -- mode, so no M-mode software can ever arm it -- which is what makes
