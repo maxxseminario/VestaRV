@@ -1,0 +1,25 @@
+{
+  "_comment": "D2 (2026-08-06): the 30th matrix row, and the ONLY N=18 proof of the Debug Module. The standing Argus gate (config/argus.json) is debug-OFF BY OMISSION and always will be -- running it proves the DM is ABSENT at 18 harts, not that it works there (d2_probe P2 correction). This row is argus.json plus debug.enable, so it elaborates the generator-driven 18-hart MCU.vhd WITH dm0: hartsel widens to 5 implemented bits, haltsum0 still fits one 32-bit word (18 <= 32), halt-group membership is 3 b x 18, the iso clamps gain an 18th dbg_halted row, and the arbiter master count goes 18 -> 19 (MW stays 5, so Argus pays LESS fabric widening than Castalia, where MW goes 2 -> 3). priv is INHERITED, deliberately: J5's dcsr.prv U-mode instrument is a Castalia obligation and has no N=18 counterpart (R-D2-2(2)), so this row stays minimal. NOTE hdl/argus/ is a FROZEN snapshot and is NOT touched by this row -- it is not the Argus gate any more (F-K7-4) and the DM must never be added to it. Prove with: SUITE=full MAX_PARALLEL=6 make verify CONFIG=config/argus_debug.json",
+  "chipName": "ArgusDebug",
+  "numHarts": 18,
+  "numMutexes": 32,
+  "memory": {
+    "romSize": 16384,
+    "tcmSizePerHart": 16384,
+    "sharedBulkRamSize": 131072
+  },
+  "peripherals": {
+    "npu": false
+  },
+  "isa": {
+    "compressed": true,
+    "mul": true,
+    "fastMul": true,
+    "div": true,
+    "atomics": true,
+    "bitmanip": true,
+    "counters": false,
+    "counters64": false
+  },
+  "debug": { "enable": true }
+}

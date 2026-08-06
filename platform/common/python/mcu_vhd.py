@@ -873,6 +873,9 @@ class McuVhdEmitter():
 		# ({4,8}) is the shared NRO generic for BOTH trng0 and u_ro (the register map is
 		# NRO-invariant). Default false => every TRNG region is inert (byte-identical
 		# default).
+		# D2: the Debug Module. Assembly level, always-on mclk, knob-gated by
+		# debug.enable -- and the SECOND new arbiter MASTER after the DMA.
+		self.debug = geo.get('debug', False)
 		self.trng = geo.get('trng', False)
 		self.trngRings = geo.get('trngRings', 8)
 		if self.trng and self.trngRings not in (4, 8):
@@ -2845,7 +2848,7 @@ class McuVhdEmitter():
 		'''digperiphs #6: arbiter MASTER count = numHarts (+ 1 for the DMA engine when
 		present). The DMA is master index numHarts (the LAST slice). Degenerates to
 		numHarts when dma is off (byte-identical default; Argus is unaffected).'''
-		return self.nHarts() + (1 if self.dma else 0)
+		return self.nHarts() + (1 if self.dma else 0) + (1 if self.debug else 0)
 
 	def hartsWord(self):
 		'''Count prose for "identical on all <N> tiles".'''
@@ -2878,8 +2881,11 @@ class McuVhdEmitter():
 	def emitA0Ports(self):
 		n = self.nHarts()
 		lines = [' ' * 8 + '-- M3b: per-hart pass/fail observation (a0 of the ' + str(n - 1) + ' private-memory harts)']
+		# D2: when the DMI ports follow (debug.enable), the LAST a0_N port is no
+		# longer the last port in the entity and needs its separator.
+		last = ';' if self.debug else ''
 		for h in range(1, n):
-			lines.append(' ' * 8 + 'a0_' + str(h) + ' : out std_logic_vector(31 downto 0)' + (';' if h != n - 1 else ''))
+			lines.append(' ' * 8 + 'a0_' + str(h) + ' : out std_logic_vector(31 downto 0)' + (';' if h != n - 1 else last))
 		return lines
 
 	def emitArbFabricDecls(self):
@@ -2899,6 +2905,8 @@ class McuVhdEmitter():
 		masterComment = ' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles'
 		if self.dma:
 			masterComment += '; master ' + str(n) + ' = DMA0 engine'
+		if self.debug:
+			masterComment += '; master ' + str(self.dmMasterIndex()) + ' = dm0 Debug Module'
 		masterComment += ').'
 		lines.append(masterComment)
 		lines.append(' ' * 8 + '-- we = 4 active-high byte-lane strobes per master (M4a).')
@@ -3006,13 +3014,22 @@ class McuVhdEmitter():
 		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')
 		lines.append('            ENABLE_PMP        => CORE_ENABLE_PMP,')
 		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES,')
-		# D1 core-side debug mode. DEBUG_ENTRY_ADDR is deliberately NOT named:
-		# it is frozen at the hart_tile/vesta entity default (0xBE00) and there
-		# is no config knob for it. The three dbg_* PORTS are likewise left
-		# unconnected at chip level -- at D1 no Debug Module exists to drive
-		# them, so they sit at their '0' entity defaults and a testbench force
-		# is the only way to raise a halt request.
-		lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
+		# D1/D2 core-side debug mode.
+		#   knob OFF: DEBUG_ENTRY_ADDR is NOT named -- the hart_tile/vesta entity
+		#     default (0xBE00) stands, and the three dbg_* PORTS are left
+		#     unconnected, sitting at their '0' entity defaults. That is the
+		#     bit-identical pre-D1 shape and check_mcu_vhd.py STRICT pins it.
+		#   knob ON (D2): DEBUG_ENTRY_ADDR is passed EXPLICITLY as 0x00010780 --
+		#     the shared-window debug entry page (R-DD3/R-D2-1(3)), because a
+		#     tile's TCM is unreachable from the shared bus and the Debug Module
+		#     cannot place code at 0xBE00. The VHDL declaration defaults stay
+		#     0xBE00 as the FAIL-SAFE value; this is the override, and it is
+		#     emitted by BOTH hart emitters -- the half-done-diff trap.
+		if self.debug:
+			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,')
+			lines.append('            DEBUG_ENTRY_ADDR  => x"00010780"')
+		else:
+			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -3025,6 +3042,12 @@ class McuVhdEmitter():
 		lines.append('            msip_in   => clint_msip(0),')
 		lines.append('            mtip_in   => clint_mtip(0),')
 		lines.append('            meip_in   => meip(0),')
+		if self.debug:
+			# D2: hart 0 is on the ALWAYS-ON domain, so its dbg_halted needs no
+			# isolation clamp and connects straight to the DM.
+			lines.append('            dbg_haltreq      => dbg_haltreq(0),')
+			lines.append('            dbg_resethaltreq => dbg_resethaltreq(0),')
+			lines.append('            dbg_halted       => dbg_halted(0),')
 		lines.append('            flash_mem_en  => mem_en_flash,')
 		lines.append('            flash_clk_mem => clk_mem_flash,')
 		lines.append('            flash_mab     => mab_flash,')
@@ -3049,6 +3072,145 @@ class McuVhdEmitter():
 		lines.append('            trap_flag => trap_out,')
 		lines.append('            a0        => a0')
 		lines.append('        );')
+		return lines
+
+	def dmMasterIndex(self):
+		'''D2: the Debug Module's arbiter master slice. The DMA keeps index
+		numHarts unconditionally (so a dma-on/debug-off build is byte-identical
+		to what it was), and the DM takes the slice after it -- numHarts when the
+		DMA is absent, numHarts+1 when it is present. Two masters cannot be
+		allocated by two independent nHarts() computations; this is the one
+		place the index is decided.'''
+		if not self.debug:
+			raise Exception('MCU.vhd emitter: dmMasterIndex() with debug off')
+		return self.nHarts() + (1 if self.dma else 0)
+
+
+	def emitDmiPorts(self):
+		'''D2: the eight DMI ports on the MCU entity. Emitted ONLY when
+		debug.enable -- the OFF build's MCU.vhd carries no trace of the debug
+		module at all, which is what check_mcu_vhd.py STRICT enforces.
+
+		The port shape is FROZEN at D2 and D3's JTAG DTM inherits it unchanged:
+		the DTM will drive exactly these eight nets from TCK through its own
+		toggle handshake, so the port is designed once (d2_spec 2).
+
+		Every INPUT carries a VHDL default. That is not tidiness: MCU.vhd's
+		entity is instantiated by riscv_tb.vhd (itself a make-chip product),
+		by every chip_top_* netlist and by the gate flows, and an unassociated
+		input takes its default while an unassociated output is simply open --
+		so adding these ports leaves all of them legal with no edits. It is the
+		same trick D1 used on the three hart_tile debug ports.'''
+		if not self.debug:
+			return []
+		return [
+			'',
+			' ' * 8 + '-- D2 DEBUG MODULE INTERFACE (debug.enable only). abits=7, data=32,',
+			' ' * 8 + '-- op: request 01=read 10=write, response 00=success 10=failed 11=busy',
+			' ' * 8 + '-- -- the DTM 41-bit DR arithmetic (2+32+7). One request in flight;',
+			' ' * 8 + '-- the handshake is ACK-STYLE (R-D2-4(2)): dmi_req_ready idles LOW and',
+			' ' * 8 + '-- pulses for one cycle in response to a presented request -- one accept',
+			' ' * 8 + '-- per request -- and exactly one rsp_valid follows each accepted request.',
+			' ' * 8 + "dmi_req_valid : in  std_logic := '0';",
+			' ' * 8 + 'dmi_req_op    : in  std_logic_vector(1 downto 0) := "00";',
+			' ' * 8 + "dmi_req_addr  : in  std_logic_vector(6 downto 0) := (others => '0');",
+			' ' * 8 + "dmi_req_data  : in  std_logic_vector(31 downto 0) := (others => '0');",
+			' ' * 8 + 'dmi_req_ready : out std_logic;',
+			' ' * 8 + 'dmi_rsp_valid : out std_logic;',
+			' ' * 8 + 'dmi_rsp_data  : out std_logic_vector(31 downto 0);',
+			' ' * 8 + 'dmi_rsp_op    : out std_logic_vector(1 downto 0)',
+		]
+
+	def emitDebugDecls(self):
+		'''D2: the declarative half of the Debug Module hookup.'''
+		if not self.debug:
+			return []
+		n = self.nHarts()
+		nm1 = str(n - 1)
+		return [
+			' ' * 8 + '-- D2 DEBUG MODULE (dm0). Assembly level, one per chip, always-on',
+			' ' * 8 + '-- mclk -- never inside a tile, because it must stay reachable while',
+			' ' * 8 + '-- any hart is power-gated. Three per-hart wire groups plus a fourth',
+			' ' * 8 + '-- that is NOT a tile signal at all:',
+			' ' * 8 + '--   dbg_haltreq / dbg_resethaltreq : DM -> tile (no clamp needed;',
+			' ' * 8 + '--     they are INPUTS to a gated tile and a gated tile ignores them)',
+			' ' * 8 + '--   dbg_halted                     : tile -> DM, and it CROSSES THE',
+			' ' * 8 + '--     POWER BOUNDARY, so harts 1..' + nm1 + ' land on dbg_halted_raw and pass',
+			' ' * 8 + '--     the M17 isolation clamp like every other tile output. Hart 0',
+			' ' * 8 + '--     is on the always-on domain and connects directly.',
+			' ' * 8 + '--   dbg_unavail                    : the DM\'s truth-telling input,',
+			' ' * 8 + '--     derived from the power-control state BELOW. A clamped',
+			' ' * 8 + "--     dbg_halted reads '0', which is indistinguishable from",
+			' ' * 8 + '--     "running" -- so unavail is a SEPARATE, deliberate signal and',
+			' ' * 8 + '--     the DM consults it BEFORE halted (d2_spec 5).',
+			self.sigDecl('dbg_haltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
+			self.sigDecl('dbg_resethaltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
+			self.sigDecl('dbg_halted', 'std_logic_vector(' + nm1 + ' downto 0);'),
+			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + nm1 + ' downto 1);'),
+			self.sigDecl('dbg_unavail', 'std_logic_vector(' + nm1 + ' downto 0);'),
+		]
+
+	def emitDebugInstance(self):
+		'''D2: the Debug Module instance + its unavail derivation + the arbiter
+		master-slice wiring and the D18-style lrsc/lock ties.'''
+		if not self.debug:
+			return []
+		n = self.nHarts()
+		k = self.dmMasterIndex()
+		ks = str(k)
+		kp1 = str(k + 1)
+		lines = [
+			'',
+			'    -- D2 DEBUG MODULE. dmstatus TRUTH-TELLING against PWRCTRL: a hart is',
+			'    -- unavailable when its domain is isolated or it is held in reset.',
+			'    -- HART 0 IS NOT IMMUNE -- it has no pd_rstn row, but the DP-S3 boot',
+			'    -- gate can hold it in reset through hart0_rstn, and a DM that reported',
+			'    -- hart 0 as always-available would lie about exactly the case a',
+			'    -- debugger attaches in.',
+			"    dbg_unavail(0) <= not hart0_rstn;",
+		]
+		for h in range(1, n):
+			hs = str(h)
+			lines.append('    dbg_unavail(' + hs + ') <= pd_iso_en(' + hs
+				+ ') or not tile_rstn(' + hs + ');')
+		lines += [
+			'',
+			'    dm0: entity work.debug_module',
+			'        generic map (ENABLE_DEBUG => CORE_ENABLE_DEBUG, NHARTS => ' + str(n) + ',',
+			'                     SH_AW => SH_AW,',
+			'                     DATA0_ADDR => x"00010680", FLAGS_ADDR => x"00010700",',
+			'                     ENTRY_ADDR => x"00010780")',
+			'        port map (',
+			'            clk    => mclk,',
+			'            resetn => resetn,',
+			'            dmi_req_valid => dmi_req_valid,',
+			'            dmi_req_op    => dmi_req_op,',
+			'            dmi_req_addr  => dmi_req_addr,',
+			'            dmi_req_data  => dmi_req_data,',
+			'            dmi_req_ready => dmi_req_ready,',
+			'            dmi_rsp_valid => dmi_rsp_valid,',
+			'            dmi_rsp_data  => dmi_rsp_data,',
+			'            dmi_rsp_op    => dmi_rsp_op,',
+			'            dbg_haltreq      => dbg_haltreq,',
+			'            dbg_resethaltreq => dbg_resethaltreq,',
+			'            dbg_halted       => dbg_halted,',
+			'            hart_unavail     => dbg_unavail,',
+			'            -- arbiter MASTER port: slice ' + ks + ' of arb_* (depth 0, the DMA shape)',
+			'            m_req   => arb_req(' + ks + '),',
+			'            m_we    => arb_we(' + str(4 * k + 3) + ' downto ' + str(4 * k) + '),',
+			'            m_addr  => arb_addr(' + kp1 + '*SH_AW-1 downto ' + ks + '*SH_AW),',
+			'            m_wdata => arb_wdata(' + kp1 + '*32-1 downto ' + ks + '*32),',
+			'            m_gnt   => arb_gnt(' + ks + '),',
+			'            m_done  => arb_done(' + ks + '),',
+			'            m_rdata => arb_rdata);',
+			'    -- The DM never does LR/SC and never grant-locks (the D18 DMA argument),',
+			'    -- so lrsc/lock are tied here in fabric rather than exported as ports;',
+			'    -- arb_scfail(' + ks + ')/arb_resvvld(' + ks + ') are ignored. resv_unit N=nMasters still',
+			'    -- keys cur=' + ks + ' on a DM plain write, so a DM write kills matching',
+			'    -- reservations and cross-hart LR/SC stays sound across one.',
+			'    arb_lrsc(' + str(2 * k + 1) + ' downto ' + str(2 * k) + ') <= "00";',
+			"    arb_lock(" + ks + ") <= '0';",
+		]
 		return lines
 
 	def masterW(self):
@@ -3823,6 +3985,13 @@ class McuVhdEmitter():
 				('arb_lock(' + hs + ')', 'tile' + hs + '_lock_raw', "'0'", False),
 				('a0_' + hs, 'a0_' + hs + '_raw', "(others => '0')", False),
 			]
+			# D2: dbg_halted is the EIGHTH clamped tile output. It must be here or
+			# a dark tile's unpowered output propagates into the always-on Debug
+			# Module. Clamping it to '0' is necessary and NOT sufficient -- '0' is
+			# indistinguishable from "running" -- which is why dbg_unavail exists
+			# and why the DM consults it BEFORE halted (d2_spec 5).
+			if self.debug:
+				rows.append(('dbg_halted(' + hs + ')', 'dbg_halted_raw(' + hs + ')', "'0'", False))
 			# golden-master columns: short lines pad the LHS to 24 and the RHS
 			# to 16; the long addr/wdata pair aligns to itself with 1 space
 			lhsPad, rhsPad, longPad = 24, 16, 0
@@ -3875,13 +4044,22 @@ class McuVhdEmitter():
 		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')
 		lines.append('            ENABLE_PMP        => CORE_ENABLE_PMP,')
 		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES,')
-		# D1 core-side debug mode. DEBUG_ENTRY_ADDR is deliberately NOT named:
-		# it is frozen at the hart_tile/vesta entity default (0xBE00) and there
-		# is no config knob for it. The three dbg_* PORTS are likewise left
-		# unconnected at chip level -- at D1 no Debug Module exists to drive
-		# them, so they sit at their '0' entity defaults and a testbench force
-		# is the only way to raise a halt request.
-		lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
+		# D1/D2 core-side debug mode.
+		#   knob OFF: DEBUG_ENTRY_ADDR is NOT named -- the hart_tile/vesta entity
+		#     default (0xBE00) stands, and the three dbg_* PORTS are left
+		#     unconnected, sitting at their '0' entity defaults. That is the
+		#     bit-identical pre-D1 shape and check_mcu_vhd.py STRICT pins it.
+		#   knob ON (D2): DEBUG_ENTRY_ADDR is passed EXPLICITLY as 0x00010780 --
+		#     the shared-window debug entry page (R-DD3/R-D2-1(3)), because a
+		#     tile's TCM is unreachable from the shared bus and the Debug Module
+		#     cannot place code at 0xBE00. The VHDL declaration defaults stay
+		#     0xBE00 as the FAIL-SAFE value; this is the override, and it is
+		#     emitted by BOTH hart emitters -- the half-done-diff trap.
+		if self.debug:
+			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,')
+			lines.append('            DEBUG_ENTRY_ADDR  => x"00010780"')
+		else:
+			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -3897,6 +4075,12 @@ class McuVhdEmitter():
 			lines.append('            -- registered claim/complete output (routing/masking lives in')
 			lines.append("            -- the router rows; the tile hardwires its three live slots)")
 		lines.append('            meip_in   => meip(' + hs + '),')
+		if self.debug:
+			# D2: dbg_halted leaves a GATEABLE domain, so it lands on _raw and
+			# passes the M17 iso clamp with every other tile output.
+			lines.append('            dbg_haltreq      => dbg_haltreq(' + hs + '),')
+			lines.append('            dbg_resethaltreq => dbg_resethaltreq(' + hs + '),')
+			lines.append('            dbg_halted       => dbg_halted_raw(' + hs + '),')
 		lines.append('            -- M17: outbound signals land on _raw and pass the iso clamps')
 		lines.append('            sh_req    => tile' + hs + '_req_raw,')
 		lines.append('            sh_we     => tile' + hs + '_we_raw,')
@@ -4131,6 +4315,12 @@ class McuVhdEmitter():
 			return self.emitOwDecls()
 		if name == 'ow-instance':
 			return self.emitOwInstance()
+		if name == 'dmi-ports':
+			return self.emitDmiPorts()
+		if name == 'debug-decls':
+			return self.emitDebugDecls()
+		if name == 'debug-instance':
+			return self.emitDebugInstance()
 		if name == 'dma-decls':
 			return self.emitDmaDecls()
 		if name == 'dma-instance':
@@ -4256,6 +4446,9 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# fabric widening emitted through arb-fabric-decls / arb-generic / resv-generic /
 		# mutex-instance / irq-router-instance / sh-master-decl)
 		'dma-decls', 'dma-instance',
+		# D2: the Debug Module -- entity ports, decls, instance. All three
+		# emit NOTHING when debug.enable is off.
+		'dmi-ports', 'debug-decls', 'debug-instance',
 		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
 		'i2ct-decls', 'i2ct-instance',
 		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900

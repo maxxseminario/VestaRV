@@ -791,6 +791,14 @@ def config_tags(cfg):
     # no sh-test tags change (shdma.S is a follow-up).
     if cfg.get('peripherals', {}).get('dma'):
         tags.add('dma')
+    # D2: the Debug Module. The tag exists to gate the debug_module.vhd cell
+    # (below) -- NO CATALOG ROW CARRIES IT AND NONE CAN: every D-series debug
+    # instrument needs a tcl harness to force dbg_haltreq or the DMI port, and
+    # this staging grades a0 from a plain xrun_parallel run with no harness, so
+    # a CATALOG row for one would hang or fail by construction. The DM is
+    # proven by xrun_dbg.sh + the dbg_*.tcl harnesses instead.
+    if cfg.get('debug', {}).get('enable'):
+        tags.add('debug')
     # digperiphs (TRNG): TRNG0 is a config-gated ADDED instance (default off), same
     # shape as DMA0. TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only when the
     # config enables it (below). No sh-test tags change yet -- no shared-suite test
@@ -870,6 +878,8 @@ def main():
     lines = []
     dma_seen = False
     trng_seen = False
+    dm_seen = False          # D2: debug_module.vhd was present in the base list
+    mcu_idx = None           # D2: where the staged MCU.vhd landed
     crc16_idx = None
     uart0_idx = None
     with open(BASE_CELL_LIST) as f:
@@ -880,6 +890,8 @@ def main():
             swapped = False
             for suffix, repl in swaps.items():
                 if p.endswith(suffix):
+                    if suffix == 'hdl/common/MCU.vhd':
+                        mcu_idx = len(lines)
                     lines.append(repl)
                     seen.add(suffix)
                     swapped = True
@@ -901,6 +913,14 @@ def main():
             # RTL ensemble file (TrngRoEnsemble.vhd, the genus/gate-only `rtl` arch)
             # must NEVER be referenced here -- if the base list ever carries it, drop
             # it unconditionally (behavioral flows compile the `sim` arch only, D6).
+            # D2: debug_module.vhd is compiled only when the config enables
+            # debug (the NPU.vhd / DMA.vhd gate pattern). It has no dependency
+            # beyond ieee, and MCU.vhd instantiates it as `entity work.` so a
+            # missing file is a hard error rather than a silent blackbox.
+            if p.endswith('hdl/common/debug_module.vhd'):
+                if 'debug' not in have:
+                    continue    # debug off -> MCU.vhd has no dm0 instance
+                dm_seen = True
             if p.endswith('periph/TrngRoEnsemble.vhd'):
                 continue    # the rtl (real-ring) architecture NEVER enters verify staging
             if p.endswith('periph/TrngRoEnsemble_sim.vhd') or p.endswith('periph/TRNG.vhd'):
@@ -935,6 +955,12 @@ def main():
         lines.insert(uart0_idx, sim_cell)
     # digperiphs #6: inject DMA.vhd (after CRC16.vhd, its only dependency, and well
     # before MCU.vhd) when the config enables the DMA but the base list lacks it.
+    # D2: inject debug_module.vhd (immediately before MCU.vhd, its only
+    # consumer) when the config enables debug but the base list lacks it.
+    if 'debug' in have and not dm_seen:
+        if mcu_idx is None:
+            raise SystemExit('debug config but hdl/MCU.vhd not in the staged list')
+        lines.insert(mcu_idx, '../../../hdl/common/debug_module.vhd')
     if 'dma' in have and not dma_seen:
         dma_cell = '../../../hdl/common/periph/DMA.vhd'
         if crc16_idx is None:

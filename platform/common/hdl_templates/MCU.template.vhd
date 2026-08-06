@@ -56,6 +56,7 @@ entity MCU is
         a0  : out std_logic_vector(31 downto 0);
 
         --@GEN:a0-ports@
+        --@GEN:dmi-ports@
 
     );
 end entity;
@@ -488,6 +489,7 @@ architecture behav of MCU is
         --@GEN:trng-decls@
         --@GEN:i2ct-decls@
         --@GEN:evfab-decls@
+        --@GEN:debug-decls@
         --@GEN:slot12-decls@
         --@GEN:sh-master-decl@
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
@@ -1034,6 +1036,7 @@ begin
     -- outbound tile signal. Resets all-ON -> provable NO-OP until software
     -- gates a tile. Software contract: gate only parked/quiesced tiles.
     --@GEN:pwr-instance@
+    --@GEN:debug-instance@
 
     --@GEN:slot12-instances@
 
