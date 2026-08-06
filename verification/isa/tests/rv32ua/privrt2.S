@@ -26,8 +26,9 @@
 #       the interrupt is taken at whichever U instruction retires first.
 #
 #   PHASE C — THE csr_addr(9:8) COMPARATOR vs A FULLY-OPEN mcounteren.
-#       With mcounteren = 0x1F every USER view (cycle/time/instret/
-#       hpmcounter3-4 and all five h-forms) must read in U, while the MACHINE
+#       With mcounteren = 0x1F every USER view that EXISTS (cycle/instret/
+#       hpmcounter3-4 and their h-forms — EIGHT reads since DD11-N1, see the
+#       note below) must read in U, while the MACHINE
 #       views of the same counters (0xB00 mcycle, 0xB80 mcycleh) and
 #       mcountinhibit (0x320) must still trap.  That is the one comparator
 #       doing its job with the counter gate wide open — the exact combination
@@ -37,9 +38,29 @@
 #
 #   PHASE D — mcounteren BIT INDEPENDENCE.
 #       privucsr proves CY+HPM3 together (with TM off).  Here TM and HPM4 are
-#       enabled TOGETHER while CY/IR/HPM3 stay off, then IR alone with TM off:
-#       across the two files each of the five bits is shown to gate its own
-#       CSR and only its own.  The seed p2rt_ucnttm drops the TM term.
+#       written TOGETHER while CY/IR/HPM3 stay off, then IR alone: across the
+#       two files each of the four bits that still GATES anything is shown to
+#       gate its own CSR and only its own.  TM(1) gates nothing since DD11-N1
+#       and is carried here only to prove that setting it changes nothing.
+#
+#   DD11-N1 AMENDMENT (2026-08-06) — WHY FOUR READS MOVED FROM MUST-RETIRE TO
+#   MUST-TRAP.  time (0xC01) and timeh (0xC81) are no longer KNOWN CSRs in ANY
+#   build of either chip: maindec's csr_addr_valid dropped them, because no
+#   real time source is wired to the core and reading zero was a wrong answer
+#   to a legal question.  They now raise illegal-instruction BEFORE the
+#   mcounteren gate is consulted, so they trap in M and U alike and at EVERY
+#   value of mcounteren.TM.  This file demanded they RETIRE in two legs (the
+#   all-ten leg of PHASE C at mcounteren = 0x1F, and the TM = 1 leg of PHASE
+#   D1); both are now must-TRAP legs, which is strictly MORE coverage — the
+#   TM = 1 leg is the only place in the tree proving that an ENABLED
+#   mcounteren.TM does not rescue 0xC01/0xC81.  Trap counts moved with them
+#   (PHASE C 5 -> 7, PHASE D1 3 -> 5).
+#       Consequence for the red-team seeds, recorded rather than silently
+#       inherited: `negctrl/p2rt_ucnttm_seed.patch` mutated the very
+#       ucnt_denied TM term that DD11-N1 deleted.  That seed no longer
+#       applies (its context line is gone) and its check-71 observable is no
+#       longer reachable through mcounteren at all.  The patch is kept as
+#       historical repro material; do not expect it to apply.
 #
 # EVERY failure path is a bounded compare-and-branch into RVTEST_FAIL: the U
 # code carries its own expected trap count in s11 and re-checks it after each
@@ -261,12 +282,10 @@ pv2_mb:
     mret                            # ---- U-MODE, mcounteren = 0x1F ----
 
 pv2_uc:
-    li   t4, 30                     # all TEN user views must read without a trap
-    mv   s7, s3
-    csrr t0, 0xC00                  # cycle
+    li   t4, 30                     # all EIGHT surviving user views must read
+    mv   s7, s3                     #   without a trap (time/timeh are checks
+    csrr t0, 0xC00                  # cycle        36/37 below since DD11-N1)
     csrr t0, 0xC80                  # cycleh
-    csrr t0, 0xC01                  # time
-    csrr t0, 0xC81                  # timeh
     csrr t0, 0xC02                  # instret
     csrr t0, 0xC82                  # instreth
     csrr t0, 0xC03                  # hpmcounter3
@@ -310,12 +329,26 @@ pv2_c5:
     csrr t0, 0xC85
     bne  s3, s11, pv2_fail
 
+    li   t4, 36                     # time: NOT a known CSR since DD11-N1, so it
+    addi s11, s11, 1                #   traps even here, with mcounteren.TM set.
+    la   s0, pv2_c6                 #   THE point of the leg: an enabled TM does
+pv2_c6:                             #   not rescue it -- nothing does.
+    csrr t0, 0xC01
+    bne  s3, s11, pv2_fail
+
+    li   t4, 37                     # timeh, same
+    addi s11, s11, 1
+    la   s0, pv2_c7
+pv2_c7:
+    csrr t0, 0xC81
+    bne  s3, s11, pv2_fail
+
     ecall                           # -> M
     j    pv2_fail
 
 pv2_mc:
-    li   t4, 36
-    li   t3, 5
+    li   t4, 38
+    li   t3, 7                      # DD11-N1: 5 poisons + time/timeh
     bne  s3, t3, pv2_fail
 
     # =====================================================================
@@ -335,10 +368,8 @@ pv2_mc:
     mret                            # ---- U-MODE, mcounteren = 0x12 ----
 
 pv2_ud1:
-    li   t4, 50                     # the two ENABLED views must read
-    mv   s7, s3
-    csrr t0, 0xC01                  # time      (TM = 1)
-    csrr t0, 0xC81                  # timeh
+    li   t4, 50                     # the ENABLED view that still EXISTS must read
+    mv   s7, s3                     #   (TM = 1 buys nothing -- checks 54/55)
     csrr t0, 0xC04                  # hpmcounter4  (HPM4 = 1)
     csrr t0, 0xC84                  # hpmcounter4h
     bne  s3, s7, pv2_fail
@@ -364,17 +395,34 @@ pv2_d1c:
     csrr t0, 0xC03
     bne  s3, s11, pv2_fail
 
+    li   t4, 54                     # time with TM = 1: traps anyway (DD11-N1).
+    addi s11, s11, 1                #   The ONLY leg in the tree proving that an
+    la   s0, pv2_d1d                #   ENABLED mcounteren.TM does not re-admit
+pv2_d1d:                            #   an address maindec no longer knows.
+    csrr t0, 0xC01
+    bne  s3, s11, pv2_fail
+
+    li   t4, 55                     # timeh with TM = 1: traps anyway
+    addi s11, s11, 1
+    la   s0, pv2_d1e
+pv2_d1e:
+    csrr t0, 0xC81
+    bne  s3, s11, pv2_fail
+
     ecall
     j    pv2_fail
 
 pv2_md1:
-    li   t4, 54
-    li   t3, 3
+    li   t4, 56
+    li   t3, 5                      # DD11-N1: 3 poisons + time/timeh
     bne  s3, t3, pv2_fail
 
     # =====================================================================
-    # PHASE D2 — IR only.  time must now TRAP (it read fine one phase ago),
-    # which is what makes the TM term of ucnt_denied observable.
+    # PHASE D2 — IR only.  instret/instreth read; everything else traps.  This
+    # phase USED to be where "time traps once TM drops" made the ucnt_denied TM
+    # term observable; since DD11-N1 time traps in every phase regardless, so
+    # checks 71/72 below are now an UNCHANGED-BEHAVIOUR control rather than a
+    # bit-gating proof (the gating proof that remains is IR vs CY/HPM3).
     # =====================================================================
     li   t4, 60
     li   t1, 0x00000004             # IR(2) only
@@ -396,14 +444,14 @@ pv2_ud2:
     csrr t0, 0xC82
     bne  s3, s7, pv2_fail
 
-    li   t4, 71                     # time: TM = 0 -> traps  [seed p2rt_ucnttm]
+    li   t4, 71                     # time traps (DD11-N1: unknown CSR, not TM)
     addi s11, s11, 1
     la   s0, pv2_d2a
 pv2_d2a:
     csrr t0, 0xC01
     bne  s3, s11, pv2_fail
 
-    li   t4, 72                     # timeh: TM = 0 -> traps
+    li   t4, 72                     # timeh traps, same
     addi s11, s11, 1
     la   s0, pv2_d2b
 pv2_d2b:

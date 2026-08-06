@@ -31,15 +31,36 @@
 #       CONFIG IS.  Measured on this Spike, both directions:
 #           csr 0xC00 (cycle)  rv32imac_zicsr         -> no retire (TRAP)
 #           csr 0xC00 (cycle)  rv32imac_zicsr_zicntr  -> x10 0x00000000
-#       The RTL admits all six counter CSRs UNCONDITIONALLY (maindec.vhd's
-#       `csr_addr_valid` lists CSR_CYCLE/TIME/INSTRET(+H) with no ENABLE_ gate;
-#       csr_unit.vhd reads them out).  There is NO `ENABLE_COUNTERS` generic in
-#       vesta.vhd at all -- generate.py routes `isa.counters` to a legacy
-#       picorv32 constant the vesta core never consumes.  So `isa.counters` is a
-#       DOCUMENTATION knob, not a hardware knob, and the oracle string must
-#       ALWAYS carry `_zicntr`.  Latent today only because no compared
-#       instruction in the standing gate reads a counter CSR -- and latent is
-#       precisely how F8 survived a year.
+#       The RTL admits the FOUR remaining counter CSRs UNCONDITIONALLY
+#       (maindec.vhd's `csr_addr_valid` lists CSR_CYCLE/INSTRET(+H) with no
+#       ENABLE_ gate; csr_unit.vhd reads them out).  There is NO
+#       `ENABLE_COUNTERS` generic in vesta.vhd at all -- generate.py routes
+#       `isa.counters` to a legacy picorv32 constant the vesta core never
+#       consumes.  So `isa.counters` is a DOCUMENTATION knob, not a hardware
+#       knob, and the oracle string must ALWAYS carry `_zicntr`.  Latent today
+#       only because no compared instruction in the standing gate reads a
+#       counter CSR -- and latent is precisely how F8 survived a year.
+#
+#       DD11-N1 (2026-08-06) INVERTED HALF OF THIS, and the inversion is
+#       DOCUMENTED HERE RATHER THAN FIXED because it cannot be fixed with the
+#       levers this Spike has.  `time`/`timeh` (0xC01/0xC81) are no longer
+#       KNOWN CSRs in ANY build of either chip -- they raise
+#       illegal-instruction, in M-mode and U-mode alike.  So the always-on
+#       `_zicntr` is now:
+#           RIGHT for cycle/cycleh/instret/instreth -- Spike retires, RTL retires
+#           WRONG for time/timeh                    -- Spike RETIRES rdtime,
+#                                                      the RTL TRAPS it
+#       Zicntr is an all-or-nothing march lever: there is NO Spike knob that
+#       models cycle+instret WITHOUT time, so dropping `_zicntr` would trade
+#       two wrong CSRs for four.  The always-on form stays because it is the
+#       cheaper error.
+#       It remains LATENT BY CONSTRUCTION, not by luck: no instruction in
+#       `cosim_tests.txt` or `cosim_sh_tests.txt` reads 0xC01/0xC81, and the
+#       DD11-N1 blind detector (rv32ua-p-rdtimemp) is TRAP-POISON class, which
+#       is INELIGIBLE for either cosim list by construction.  IF A FUTURE TEST
+#       EVER READS time/timeh AND ENTERS A COSIM LIST, IT WILL DIVERGE AT THAT
+#       INSTRUCTION AND THE ORACLE, NOT THE RTL, IS AT FAULT.  Disposition it
+#       here; do not "fix" the RTL to match Spike.
 #
 #   (b) `if mul or div: s += 'm'`.  A `mul=true, div=false` config therefore
 #       derives an --isa in which Spike MODELS DIV while the RTL traps it.  The

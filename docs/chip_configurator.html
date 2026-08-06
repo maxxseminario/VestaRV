@@ -773,7 +773,7 @@ const VESTA_DATA = {
       "default": true
     },
     "isa.counters": {
-      "description": "bool \u2014 Zicntr mcycle/minstret; docs/march-only on vesta (the counters are always present \u2014 this gates only the _zicntr march suffix and the legacy constants)",
+      "description": "bool \u2014 Zicntr mcycle/minstret; docs/march-only on vesta (cycle/instret and their high halves are always present \u2014 this gates only the _zicntr march suffix and the legacy constants). NOTE the march suffix over-promises since DD11-N1: time/timeh (0xC01/0xC81) are NOT implemented in any build and a read of either raises illegal-instruction, because no real time source is wired to the core",
       "type": "bool",
       "default": false
     },

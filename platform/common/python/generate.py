@@ -82,7 +82,7 @@ _CONFIG_SCHEMA = {
 	'isa.atomics':          ('bool — A extension (LR/SC + AMO)', _isBool),
 	'isa.compressed':       ('bool — C extension', _isBool),
 	'isa.bitmanip':         ('bool — Zba/Zbb/Zbs/Zbc', _isBool),
-	'isa.counters':         ('bool — Zicntr mcycle/minstret; docs/march-only on vesta (the counters are always present — this gates only the _zicntr march suffix and the legacy constants)', _isBool),
+	'isa.counters':         ('bool — Zicntr mcycle/minstret; docs/march-only on vesta (cycle/instret and their high halves are always present — this gates only the _zicntr march suffix and the legacy constants). NOTE the march suffix over-promises since DD11-N1: time/timeh (0xC01/0xC81) are NOT implemented in any build and a read of either raises illegal-instruction, because no real time source is wired to the core', _isBool),
 	'isa.counters64':       ('bool — 64-bit counter high halves (needs isa.counters); docs-only on vesta (the high halves are always present)', _isBool),
 	# ISA extensions. X1 (2026-07-17) implemented the six Tier-1 knobs below
 	# (zicond zcb zimop zihint zihpm zawrs) — default false, decode + tests +

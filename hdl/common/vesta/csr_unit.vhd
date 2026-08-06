@@ -200,7 +200,7 @@ entity csr_unit is
         -- csr_commit_we MUST be generated HERE, not reproduced at vesta level:
         -- `csr_write_en` is only the STROBE, and maindec's csr_addr_valid admits
         -- 20+ addresses that have NO storing arm in the write case (mhartid,
-        -- misa, cycle/time/instret[h], hpmcounter3-31, mhpmcounter5-31,
+        -- misa, cycle/instret[h], hpmcounter3-31, mhpmcounter5-31,
         -- mhpmevent5-31) plus CSR_MIP and CSR_MSTATUSH (both `null`). A
         -- vesta-level reproduction would log CSR writes that never committed
         -- (red-team R4 / finding F10).
@@ -563,8 +563,13 @@ begin
             when CSR_INSTRETH  => csr_read_val <= minstret(63 downto 32);
 
             -- X1 Zihpm counters 3/4 (machine + user-view alias). Read zero when
-            -- ENABLE_ZIHPM is false (signals held at reset). Counters 5-31 and
-            -- time/timeh fall through to `others` => zero (legal, no trap).
+            -- ENABLE_ZIHPM is false (signals held at reset). Counters 5-31 fall
+            -- through to `others` => zero (legal, no trap). time/timeh USED to
+            -- ride that same `others`; since DD11-N1 they are not KNOWN CSRs at
+            -- all (maindec's csr_addr_valid drops them), so 0xC01/0xC81 never
+            -- reach this decoder -- they raise illegal-instruction instead.
+            -- Adding a read arm for them here would do NOTHING without
+            -- re-admitting them in maindec first.
             when CSR_MHPMEVENT3    => csr_read_val <= mhpmevent3;
             when CSR_MHPMEVENT4    => csr_read_val <= mhpmevent4;
             when CSR_MHPMCOUNTER3  | CSR_HPMCOUNTER3  => csr_read_val <= hpm3(XLEN-1 downto 0);
