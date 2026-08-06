@@ -1189,13 +1189,21 @@ architecture struct of vesta is
     -- idiom, and the same hazard it exists for). See the assignment below.
     signal dbg_req_mask           : std_logic;
     signal dbg_haltreq_eff        : std_logic;
-    -- Halt-on-reset. dbg_rsthalt_r level-follows dbg_resethaltreq from reset
-    -- release until the FIRST debug entry, then is disarmed forever by
-    -- dbg_rst_armed. Level-following rather than a single sample at the reset
-    -- edge is deliberate: hart_tile registers the request at the tile boundary
-    -- AND holds the core in reset until its boot fetch lands, so "the first
-    -- core-clk edge after release" is not a well-defined sampling point from
-    -- inside this file.
+    -- Halt-on-reset. dbg_rsthalt_r is SAMPLED ONCE, at the first free-clk edge
+    -- after this core's reset release (dbg_rst_armed is the one-shot), and then
+    -- held until the debug entry it causes. That is d1_spec's frozen interface
+    -- -- "sampled at reset release" -- and F-D2-2 is what the earlier
+    -- level-following shape cost: a request raised on a RUNNING hart halted it,
+    -- which contradicts both d1_spec and the debug spec's setresethaltreq
+    -- ("the hart will halt upon the next deassertion of its reset").
+    -- WHY THE SAMPLE POINT IS WELL DEFINED, since D1's comment doubted it:
+    -- hart_tile's boundary flop bnd_rsthalt_r is reset by the TILE reset and
+    -- follows the request from one mclk after THAT release, while this core's
+    -- resetn is resetn_core <= boot_fetched, which cannot latch until the M12
+    -- boot fetch has crossed the arbiter and landed. The core therefore leaves
+    -- reset strictly later than the boundary flop settles, by construction and
+    -- not by a tuned delay -- the very stretch D1 cited as the obstacle is what
+    -- makes the single sample safe.
     signal dbg_rsthalt_r          : std_logic;
     signal dbg_rst_armed          : std_logic;
     -- SINGLE-STEP. Armed at the DRET that carried dcsr.step, consumed by the
@@ -2695,13 +2703,21 @@ architecture struct of vesta is
         dbg_entry_we_sig <= dbg_sv_lvl  and not dbg_sv_d;
         dbg_ret_we_sig   <= dbg_ret_lvl and not dbg_ret_d;
 
-        -- HALT ON RESET. Armed by reset, disarmed by the first debug entry.
-        -- While armed, dbg_rsthalt_r simply follows the (boundary-registered)
-        -- request line, so the halt is taken at the first recognition site the
-        -- hart reaches -- i.e. before it retires anything of its own. It is
-        -- held stable across the entry, which is what lets the cause mux report
-        -- 5 rather than 3. On the free-running clk, so a hart whose clk_cpu is
-        -- still gated cannot miss the arming.
+        -- HALT ON RESET, SAMPLED AT RESET RELEASE (F-D2-2, R-D2-6(3)).
+        -- dbg_rst_armed is a one-shot: the FIRST free-clk edge after this
+        -- core's reset release captures dbg_resethaltreq and disarms. A request
+        -- that arrives later cannot halt a running hart -- which is the whole
+        -- fix; the previous shape level-followed the request until the first
+        -- debug entry, so a debugger arming a hart it had never halted stopped
+        -- it on the spot (measured: a bootrom-parked tile halted inside 100 us
+        -- of the arm and could never be launched again).
+        -- Once captured, dbg_rsthalt_r is HELD until the entry it causes, so
+        -- the halt is still taken at the first recognition site the hart
+        -- reaches -- before it retires anything of its own -- and it is still
+        -- stable ACROSS that entry, which is what lets the cause mux report 5
+        -- rather than 3 (the clear is scheduled on the entry cycle and takes
+        -- effect after it). On the free-running clk, so a hart whose clk_cpu is
+        -- still gated cannot miss either the sample or the arming.
         -- The wait-for-release flop. Clear (release observed) has PRIORITY.
         dbg_reqmask_proc: process(clk, resetn)
         begin
@@ -2723,12 +2739,10 @@ architecture struct of vesta is
                 dbg_rst_armed <= '1';
             elsif rising_edge(clk) then
                 if dbg_rst_armed = '1' then
-                    if dbg_entry_we_sig = '1' then
-                        dbg_rst_armed <= '0';
-                        dbg_rsthalt_r <= '0';
-                    else
-                        dbg_rsthalt_r <= dbg_resethaltreq;
-                    end if;
+                    dbg_rsthalt_r <= dbg_resethaltreq;   -- the ONE sample
+                    dbg_rst_armed <= '0';
+                elsif dbg_entry_we_sig = '1' then
+                    dbg_rsthalt_r <= '0';                -- consumed by its entry
                 end if;
             end if;
         end process;

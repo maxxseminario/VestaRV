@@ -557,12 +557,17 @@ begin
     -- =========================================================================
     gen_dbg_bnd: if ENABLE_DEBUG generate
         -- NOTE dbg_resethaltreq crosses this flop too, so it is one mclk late
-        -- at the chip reset edge. That is why the core-side arming
-        -- LEVEL-FOLLOWS the request until the first debug entry instead of
-        -- sampling it once (see vesta's dbg_rsthalt_proc): the core's own reset
-        -- release is further delayed by the M12 wait-for-boot-fetch stretch, so
-        -- "the first core-clk edge after release" is not a sampling point
-        -- either side can name.
+        -- at the tile reset edge -- and that is FINE, which is the opposite of
+        -- what this comment used to say. It argued the lateness forced the
+        -- core-side arming to LEVEL-FOLLOW the request until the first debug
+        -- entry; F-D2-2 (R-D2-6(3)) is what that cost, because a request raised
+        -- on a RUNNING hart then halted it. vesta's dbg_rsthalt_proc now takes
+        -- ONE sample at its own reset release, and the sample point is well
+        -- defined precisely BECAUSE of the stretch this comment cited: the core
+        -- leaves reset at resetn_core <= boot_fetched, which cannot latch until
+        -- the M12 boot fetch has crossed the arbiter and landed -- strictly
+        -- after this flop has settled, by construction rather than by a tuned
+        -- delay.
         bnd_dbg: process(clk, resetn)
         begin
             if resetn = '0' then
