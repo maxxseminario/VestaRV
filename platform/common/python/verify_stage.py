@@ -901,6 +901,7 @@ def main():
     dma_seen = False
     trng_seen = False
     dm_seen = False          # D2: debug_module.vhd was present in the base list
+    dtm_seen = False         # D3: jtag_dtm.vhd was present in the base list
     mcu_idx = None           # D2: where the staged MCU.vhd landed
     crc16_idx = None
     uart0_idx = None
@@ -943,6 +944,15 @@ def main():
                 if 'debug' not in have:
                     continue    # debug off -> MCU.vhd has no dm0 instance
                 dm_seen = True
+            # D3: jtag_dtm.vhd rides the SAME knob as debug_module.vhd (there
+            # is no debug.jtag sub-knob) and is compiled under the same gate.
+            # It has no dependency beyond ieee; MCU.vhd instantiates it as
+            # `entity work.` so a missing file is a hard error, never a
+            # silent blackbox.
+            if p.endswith('hdl/common/jtag_dtm.vhd'):
+                if 'debug' not in have:
+                    continue    # debug off -> MCU.vhd has no dtm0 instance
+                dtm_seen = True
             if p.endswith('periph/TrngRoEnsemble.vhd'):
                 continue    # the rtl (real-ring) architecture NEVER enters verify staging
             if p.endswith('periph/TrngRoEnsemble_sim.vhd') or p.endswith('periph/TRNG.vhd'):
@@ -983,6 +993,13 @@ def main():
         if mcu_idx is None:
             raise SystemExit('debug config but hdl/MCU.vhd not in the staged list')
         lines.insert(mcu_idx, '../../../hdl/common/debug_module.vhd')
+    # D3: same injection point for the DTM (immediately before MCU.vhd, its
+    # only consumer). Done AFTER the debug_module insertion so mcu_idx is
+    # recomputed from the list it actually has to land in.
+    if 'debug' in have and not dtm_seen:
+        if 'hdl/MCU.vhd' not in lines:
+            raise SystemExit('debug config but hdl/MCU.vhd not in the staged list')
+        lines.insert(lines.index('hdl/MCU.vhd'), '../../../hdl/common/jtag_dtm.vhd')
     if 'dma' in have and not dma_seen:
         dma_cell = '../../../hdl/common/periph/DMA.vhd'
         if crc16_idx is None:

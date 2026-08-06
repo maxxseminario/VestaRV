@@ -57,6 +57,7 @@ entity MCU is
 
         --@GEN:a0-ports@
         --@GEN:dmi-ports@
+        --@GEN:jtag-ports@
 
     );
 end entity;
