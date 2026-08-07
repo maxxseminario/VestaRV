@@ -1,14 +1,25 @@
 # =============================================================================
 # dbg_trampoline.S  (D2)
 # =============================================================================
-# THE DEBUG ENTRY TRAMPOLINE -- the disclosed D4-ROM stand-in.
+# THE DEBUG ENTRY TRAMPOLINE -- planted by the Debug Module itself since D4.
 #
-# WHAT IT IS.  d2_spec 1 makes this a BUILT DELIVERABLE that the TESTBENCH
-# plants (tcl `force`, R-D2-2(1)) at DEBUG_ENTRY_ADDR = 0x00010780, the first
-# 40 words of the 64-word shared debug entry page.  The Debug Module never
-# writes it and could not: a forced word is read-only memory, which is exactly
-# what a ROM stand-in should be.  At D4 this same code moves into a real
-# shared-window debug ROM and the plant disappears; nothing else changes.
+# WHAT IT IS.  A BUILT DELIVERABLE occupying DEBUG_ENTRY_ADDR = 0x00010780, the
+# first 40 words of the 64-word shared debug entry page.
+#
+# WHO PLANTS IT, AND THE HISTORY, because the old answer is still quoted.
+#   At D2 the TESTBENCH planted it with a tcl `force` (d2_spec 1, R-D2-2(1)),
+#   and this header said the Debug Module "never writes it and could not,
+#   because a forced word is read-only".  That was true of the FORCE, never of
+#   the DM.  Since D4 (R-DD5 = DD13 option B) the DM plants it itself: the same
+#   40 words live as the constant table `TRAMP` in hdl/common/debug_module.vhd
+#   and are streamed to the page through the DM's master port -- once when
+#   `dmactive` rises, and again before the DM consumes any newly-halted hart's
+#   TOK_HALTED, which is what makes a damaged page self-repairing.
+#   There is NO debug ROM macro and there will not be one: 24 of the entry
+#   page's 64 words are written by the DM at runtime and must stay WRITABLE
+#   (d4_probe C1), so the page cannot be read-only memory at all.
+#   The tcl force still exists, but only as a liveness CONTROL arm in the D4
+#   acceptance set; it is no longer the mechanism.
 #
 # WHERE IT RUNS.  On a HALTED hart, in debug mode, fetching from the SHARED
 # window through mp_arbiter (execute-from-shared is the M10 shexec proof, and
@@ -87,8 +98,24 @@
 # holds.  The behavioural model zero-fills, so it reads 0 = first entry.  On a
 # real chip an uninitialised FLAGS[h] could send this code down the repair or
 # the dispatch path; that is the same uninitialised-shared-RAM hazard the poll
-# loop already had, it is not new here, and D4's real debug ROM (which owns its
-# own state) is where it goes away.
+# loop already had.  D4 DID NOT REMOVE IT and could not: the DM plants the 40
+# CODE words of this file, and FLAGS[h] is a DATA word at 0x10700+4h that the
+# DM deliberately does not initialise.  What D4 did remove is the neighbouring
+# and larger hazard -- that the entry CODE itself was uninitialised on silicon.
+#
+# THE SECOND KNOWN LIMIT, MEASURED AT D4 AND NEW HERE.  The plant repairs the
+# page, but a hart cannot always SEE the repair.  hart_tile holds a shared
+# access's ack for as long as the address and lane strobes are unchanged (the
+# M10 sh_acked_addr rule, which exists so a `j .` self-loop re-uses its held
+# word instead of re-arbitrating).  A hart that halts into a page whose FIRST
+# word is illegal takes an exception, re-enters at DEBUG_ENTRY_ADDR, and asks
+# for THAT SAME word again -- so the ack holds, the tile never re-reads, and it
+# spins forever on the stale value no matter how many times the DM re-plants
+# underneath it.  Corruption of any LATER word is self-healing (the hart's
+# fetch address moves, the ack drops, the repair is seen); corruption of word 0
+# is not, and the only recovery is a tile reset.  Measured 2026-08-07:
+# sh_ack_ok='1', sh_req_int='0', sh_rdata_reg=0x5EAD0000 with the RAM cell
+# already reading 0x7B241073.
 #
 # BUILD:  make -C software/dbg_trampoline
 # OUTPUT: bin/dbg_trampoline.words -- one line per 32-bit word from 0x10780
@@ -182,3 +209,22 @@ dbg_resume:
     nop
     nop
     .option pop
+
+# =============================================================================
+# PLANT CONSISTENCY -- this file is one of TWO spellings of these 40 words.
+# The other is the constant table `TRAMP` in hdl/common/debug_module.vhd, which
+# is what the Debug Module actually streams into the page (D4).  This file is
+# the ORIGINAL; the VHDL is a copy, and a copy nobody checks is a copy that
+# drifts.  So it is checked:
+#
+#     /usr/bin/python3.6 tools/cosim/check_dbg_trampoline.py
+#         rc 0 the two agree   rc 1 they differ (word index + both values)
+#         rc 2 an input is missing or unparseable -- never a silent skip
+#
+# AFTER ANY CHANGE HERE: rebuild (`make -C software/dbg_trampoline`), copy the
+# new words into debug_module.vhd's TRAMP table, and prove the checker exits 0.
+# Changing the LENGTH is a bigger deal than it looks: the dispatch above ends
+# in `jal x0, _start + 160` and the DM derives W_ABST = W_ENTRY + TRAMP_WORDS
+# from the same 40, so the two must move together or the trampoline jumps into
+# the wrong code.
+# =============================================================================
