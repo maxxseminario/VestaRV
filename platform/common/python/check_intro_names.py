@@ -154,6 +154,34 @@ def main():
         'MIE', 'MPIE', 'MPP', 'MPRV', 'TW', 'MSIE', 'MTIE', 'MEIE',
         'MSIP', 'MTIP', 'MEIP', 'BASE', 'MODE', 'LEGACY',
         'CY', 'TM', 'IR', 'HPM3', 'HPM4',
+        # D-series debug (DEBUG chapter, 2026-08). Three families, none of them
+        # memory-mapped and none of them ever knowable to the generator's
+        # memory map: the hart's Debug-Mode CSRs, the Debug Module's registers
+        # (which live behind the 7-bit DMI, not in the 32-bit address space),
+        # and the JTAG transport's data registers. Verified at the time of
+        # writing that NONE of these collides with a real generated name, so
+        # this block exempts nothing the checker was previously judging.
+        # Debug-Mode CSRs (0x7B0-0x7B3) and the fields of dcsr
+        'dcsr', 'dpc', 'dscratch0', 'dscratch1',
+        'xdebugver', 'ebreakm', 'ebreaku', 'cause', 'step', 'prv',
+        # Debug Module registers, at their DMI addresses
+        'data0', 'dmcontrol', 'dmstatus', 'hartinfo', 'haltsum0', 'haltsum1',
+        'abstractcs', 'command', 'abstractauto', 'progbuf0', 'progbuf1',
+        'dmcs2',
+        # ...dmcontrol fields
+        'dmactive', 'ndmreset', 'hartreset', 'hasel', 'haltreq', 'resumereq',
+        'hartsel', 'setresethaltreq', 'clrresethaltreq',
+        # ...dmstatus fields (the any/all pairs, and the capability bits)
+        'version', 'authenticated', 'hasresethaltreq', 'impebreak',
+        'allhalted', 'anyhalted', 'allrunning', 'anyrunning',
+        'allunavail', 'anyunavail', 'allnonexistent', 'anynonexistent',
+        'allresumeack', 'anyresumeack', 'allhavereset', 'anyhavereset',
+        # ...abstractcs and command fields
+        'busy', 'cmderr', 'datacount', 'progbufsize',
+        'aarsize', 'transfer', 'write', 'postexec', 'regno',
+        # JTAG transport: dtmcs fields and the dmi data-register fields
+        'abits', 'dmistat', 'idle', 'dmireset', 'dmihardreset',
+        'address', 'data', 'op',
     }
 
     skipped = []
@@ -165,11 +193,14 @@ def main():
         # intro filename stem -> peripheral name in the memory map, where the
         # chapter is named for the protocol but the block for its registers
         stem = {'ONEWIRE': 'OW', 'I2CT': 'I2CT', 'IRQROUTER': 'IRQROUTER'}.get(stem, stem)
-        # MULTICORE and PRIVARCH are concept chapters, not peripheral chapters:
-        # no peripheral of that name exists, so the "is this block in the
-        # configuration?" skip would silently retire their gate. Judge them
+        # MULTICORE, PRIVARCH and DEBUG are concept chapters, not peripheral
+        # chapters: no peripheral of that name exists, so the "is this block in
+        # the configuration?" skip would silently retire their gate. Judge them
         # always (their non-memory-mapped names are covered by EXEMPT above).
-        if stem not in ('MULTICORE', 'PRIVARCH') and stem not in present:
+        # DEBUG joined at the D-series TRM chapter (2026-08) -- and note it
+        # would have been SKIPPED, silently and with a reassuring message, had
+        # it not been added here. That is the failure mode this list exists for.
+        if stem not in ('MULTICORE', 'PRIVARCH', 'DEBUG') and stem not in present:
             skipped.append(fn.split('-')[0])
             continue
         with open(os.path.join(introDir, fn)) as f:

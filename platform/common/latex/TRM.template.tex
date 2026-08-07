@@ -661,7 +661,7 @@ There are several compilation flags that are suggested:
 
 \item \bashinlinehl{-I <include\_directory>} Include directory flag. Adds the specified directory to the list of directories searched for header files. Any files in the include directory may be included with the \forthinline{\#include <filename.h>} preprocessor directive.
 
-\item \bashinlinehl{-g} GDB debugger enable flag. Includes debugging symbols in the compiled output. While the VestaRV core does not support hardware debugging, adding the \bashinline{-g} flag to both the compiler and linker commands will allow disassembly listings (\bashinline{.lst} files) to show the correspondence between source code and generated assembly instructions.
+\item \bashinlinehl{-g} GDB debugger enable flag. Includes debugging symbols in the compiled output. Adding the \bashinline{-g} flag to both the compiler and linker commands will allow disassembly listings (\bashinline{.lst} files) to show the correspondence between source code and generated assembly instructions.
 
 \item \bashinlinehl{-Wall -Wextra} Warning flags. Enable comprehensive compiler warnings to catch potential issues during development. The \bashinline{-Wall} flag enables common warnings, while \bashinline{-Wextra} adds additional checks.
 \end{itemize}
@@ -698,7 +698,7 @@ There are several linker flags that are suggested:
 \item \bashinlinehl{-T linker_script.ld} Path to the linker script
 \item \bashinlinehl{-Map mapfile.map} Path to the output map file, which contains the symbol table for your project with their addresses
 \item \bashinlinehl{-L linkerfiles_dir} Path to the linker scripts directory that contains any files that are included in the main linker script
-\item \bashinlinehl{-g} GDB debugger enable flag. While the VestaRV core does not support hardware debugging, adding the \bashinline{-g} flag to both the compiler and linker commands will allow the \bashinline{.lst} file to show the assembly commands your code compiles into.
+\item \bashinlinehl{-g} GDB debugger enable flag. Adding the \bashinline{-g} flag to both the compiler and linker commands will allow the \bashinline{.lst} file to show the assembly commands your code compiles into.
 \end{itemize}
 
 
