@@ -460,6 +460,27 @@ GATE_FILES = [
      'clk_tck block, same hpin declaration -- this is the one whose product '
      'the chip SDC generator transforms, so a port-declared clock here would '
      'abort the chip flow'),
+    ('flow/MCU_castalia.v',
+     'innovus/common/MCU_castalia/in/MCU_castalia.v',
+     'the MCU_castalia chip netlist WITH the five D3 JTAG pads (47=TCK '
+     '48=TMS 49=TDI 50=TDO south, 51=TRSTn east; TCK/TRSTn PDDW16SDGZ_G '
+     'pull-DOWN, TMS/TDI/TDO PDUW16SDGZ_G pull-UP -- a distinction LEF '
+     'cannot express, so these cell names are the only record of it). '
+     'Requires a debug-ON MCU: it is an input to the DD6 re-cut, not a '
+     'netlist for the current signed-off cut'),
+    ('flow/MCU_castalia.v.pre_d3',
+     'innovus/common/MCU_castalia/in/MCU_castalia.v.pre_d3',
+     'the PRE-EDIT netlist, byte-for-byte, preserved beside the edited one '
+     '(the optS/.pre_c6 sidecar precedent). It is what the signed-off '
+     'reference cut actually describes -- and the provenance rule is that '
+     'the cut artifacts (DB/GDS/rpt) were NOT touched, so this file is the '
+     'only thing that says which netlist they came from'),
+    ('flow/chip_top_wound_padlists.tcl',
+     'innovus/common/MCU_castalia/tcl/chip_top_wound_padlists.tcl',
+     'the ONE REAL padlist copy (chip_top_wound_quad symlinks to it). '
+     'BOTTOM gains TCK/TMS/TDI/TDO at pins 47-50, RIGHT gains TRSTn at the '
+     'HEAD (the east edge runs 51-75, so 51 precedes 52). Nothing on the '
+     'north edge -- ever: it is the PRCUT-isolated analog band'),
 ]
 
 

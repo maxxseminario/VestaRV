@@ -3099,8 +3099,23 @@ def _buildPackageData(model):
 		for _ai in range(8):
 			package.AddPin(packagePinNumber=78 + _ai, name='ARSV' + str(_ai), ioType='io', powerDomain=analogPowerDomain)
 
+		# D3 (2026-08-06, R-DD4(2) -- USER): the JTAG debug port takes five of the
+		# NC balls. 47=TCK, 48=TMS, 49=TDI, 50=TDO on the SOUTH edge (pins 26-50)
+		# and 51=TRSTn at the foot of the EAST edge (51-75) -- the NC grouping's
+		# own edges, chosen so nothing lands on the NORTH band, which is the
+		# PRCUT-isolated analog island with no digital IO supply. The die-side
+		# instances and their pull-cell types live in
+		# innovus/common/MCU_castalia/in/MCU_castalia.v (TCK/TRSTn pull-DOWN,
+		# TMS/TDI/TDO pull-UP); this model is the PACKAGE authority only.
+		package.AddPin(packagePinNumber=47, name='TCK', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=48, name='TMS', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=49, name='TDI', ioType='i', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=50, name='TDO', ioType='o', powerDomain=digitalIOPowerDomain)
+		package.AddPin(packagePinNumber=51, name='TRSTn', ioType='i', powerDomain=digitalIOPowerDomain)
+
 		# Explicit NC balls (every remaining pin; Myshkin-QFN44 precedent).
-		for _ncp in ([23, 24, 25] + [26, 47, 48, 49, 50] + [51, 72, 73, 74, 75] + list(range(86, 101))):
+		# 47-51 LEFT this list at D3 -- see the JTAG block above.
+		for _ncp in ([23, 24, 25] + [26] + [72, 73, 74, 75] + list(range(86, 101))):
 			package.AddPin(packagePinNumber=_ncp, name='NC', ioType='', noConnect=True)
 
 	else:
