@@ -371,6 +371,18 @@ class LatexUserGuide():
 				('privpmp', 'ENABLE_PMP')):
 			s += '\\newif\\if' + _flag + '\n'
 			s += ('\\' + _flag + ('true' if getattr(self.Gen, _attr, False) else 'false')) + '\n'
+		# D-series debug (debug.enable). The Debug Support chapter itself
+		# ALWAYS renders -- what JTAG is and what the RISC-V debug stack does
+		# are architecture-level material a reader of any build needs, and a
+		# build WITHOUT the debug system still has something true to say (the
+		# four 0x7Bx CSRs and DRET are illegal, and there is no debug port).
+		# That is the same honesty argument as the Privileged Architecture
+		# chapter's legacy-trap opening. This conditional wraps the
+		# implementation sections, so a build documents only the debug
+		# hardware it actually contains. False at the defaults.
+		s += '\\newif\\ifdebugenable\n'
+		s += ('\\debugenabletrue' if getattr(self.Gen, 'ENABLE_DEBUG', False)
+			else '\\debugenablefalse') + '\n'
 
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)

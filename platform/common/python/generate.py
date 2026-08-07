@@ -1027,7 +1027,14 @@ m.ExtraLatexIntroFiles = ['MULTICORE-intro-castalia-2026-07.tex',
 	# vectored trap mechanism it documents is the shipping default); its
 	# standard-mode/U-mode/PMP sections are gated by \ifprivtrapcsr /
 	# \ifprivumode / \ifprivpmp, emitted from priv.* by LatexUserGuide.py.
-	'PRIVARCH-intro-castalia-2026-07.tex']
+	'PRIVARCH-intro-castalia-2026-07.tex',
+	# D-series debug support. The chapter always renders, for the same reason
+	# the privileged-architecture one does: its JTAG and debug-stack sections
+	# are architecture background, and a debug-OFF build still has a true
+	# statement to make (the 0x7Bx CSRs and DRET are illegal, there is no
+	# port). Its implementation sections are gated by \ifdebugenable, emitted
+	# from debug.enable by LatexUserGuide.GenerateDefinesFile().
+	'DEBUG-intro-castalia-2026-08.tex']
 
 # Shared window regions drawn in the TRM address space diagram (M11 map)
 m.SharedWindowSections = [
