@@ -534,6 +534,86 @@ GATE_FILES = [
      'BOTTOM gains TCK/TMS/TDI/TDO at pins 47-50, RIGHT gains TRSTn at the '
      'HEAD (the east edge runs 51-75, so 51 precedes 52). Nothing on the '
      'north edge -- ever: it is the PRCUT-isolated analog band'),
+
+    # ---- D4: the trampoline-plant acceptance set (seven tcl legs) --------
+    # Authored blind against the frozen spec and demonstrated to FAIL before
+    # the implementation existed. dbg_tramp_lib carries the no-force guard,
+    # which is CODE rather than a promise: it renames dbg_plant_trampoline to
+    # a run-failing stub, so a D4 leg that plants by force fails its own run
+    # instead of quietly proving nothing.
+    ('behavioral_mp/dbg_tramp.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tramp.tcl',
+     'THE PLANT DETECTOR, 7 checks -- reads all 40 entry-page words back '
+     "through the DM's OWN visibility (a victim executing progbuf lw), never "
+     'a tcl peek, because a plant that silently did nothing is invisible to '
+     'every pre-D4 harness. Graded poison is words 1..39: word 0 is '
+     'published-not-asserted under F-D4-1'),
+    ('behavioral_mp/dbg_tramp_lib.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tramp_lib.tcl',
+     'the D4 library -- the DM-visibility readback, the page census, the '
+     'in-band scan channel, and THE NO-FORCE GUARD (dbg_plant_trampoline is '
+     'renamed away and replaced by a failing stub; the real proc survives '
+     'only as the D4_CONTROL liveness arm, which banners itself as ungraded)'),
+    ('behavioral_mp/dbg_trpact.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_trpact.tcl',
+     '7 checks -- the dmactive 0->1 trigger ISOLATED: nothing is ever halted, '
+     'so the page can only have been repaired by the attach plant, and a '
+     'RUNNING hart s own loads are the observation. Carries the in-band '
+     'poison leg (a hart store, because a forced word is read-only and could '
+     'not be repaired by the mechanism under test)'),
+    ('behavioral_mp/dbg_trprep.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_trprep.tcl',
+     '8 checks -- dmactive -> 0 clears the plant-owed state, so a toggle is a '
+     'REAL re-plant and not a no-op (the natural implementation, one more '
+     'write-once latch beside epi_done, passes every other leg and fails only '
+     'here). R6 prices the epi_done-joins-the-clear choice'),
+    ('behavioral_mp/dbg_trpheal.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_trpheal.tcl',
+     'THE ORDERING LEG, **12 checks** (re-shaped at validation T6; any '
+     '"11/11" quotation is pre-T6 and stale). The discriminator now runs '
+     'FIRST off a proven-clean page and the wedging phase LAST -- the only '
+     'order that works on a page whose damage is shared and permanent. '
+     'Separates "no on-halt re-plant" from "plant after the token" by VALUE '
+     '(firstbad=word34) rather than by duration'),
+    ('behavioral_mp/dbg_trpsess.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_trpsess.tcl',
+     '11 checks -- a WHOLE DEBUG SESSION with zero dbg_plant_trampoline '
+     'calls, the thing D2 and D3 could never do: attach, halt, abstract '
+     'GPR/CSR round-trips, a progbuf lw/sw memory round-trip closed at both '
+     'ends over DMI, resume -- then the same again on a ROM-PARKED tile that '
+     'never executed a word of the image. N=4 and N=18'),
+    ('behavioral_mp/dbg_trpdark.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_trpdark.tcl',
+     'THE HALT-ON-RESET BACKBONE, 8 checks, N=4 AND N=18 -- neither I6 nor J6 '
+     'had ever graded a halt into an UNPLANTED page. No plant, no tile-port '
+     'force: the victim is power-cycled in band through PWRCTRL and must halt '
+     'with ZERO retires, reach the entry page, and then EXECUTE REAL PLANTED '
+     'CODE -- proven by an abstract round-trip that cannot complete unless '
+     'the DM observed the trampoline s own TOK_HALTED'),
+
+    # ---- D4: the debug-ON assembly flow (R-D4-5(2), the R-D3-5(3) shape) --
+    # genus/ is gitignored, so the flow that produces the standing debug-ON
+    # assembly pin AND the two generated inputs it reads are canonical here.
+    # Before D4 those inputs lived in a FOREIGN /tmp SCRATCHPAD: the pin was
+    # one reap from unreproducible.
+    ('flow/asm_dbgon.tcl',
+     'genus/MCU_MP/tcl/asm_dbgon.tcl',
+     'the debug-ON assembly synthesis flow -- the only producer of the '
+     'standing knob-ON pin (sequential 18,163 at the D4 close). Its header '
+     'carries the regen recipe for the two staged inputs below and the '
+     'three-constant acceptance test that tells a correct regeneration from '
+     'a castalia_debug.json one'),
+    ('flow/MCU_top_dbgon.gen.vhd',
+     'genus/common/in/MCU_top_dbgon.gen.vhd',
+     'the debug-ON MCU.vhd the pin is measured against: SHIPPED DEFAULT plus '
+     'debug.enable and nothing else (R-D2-9(3) -- deliberate isolation, so '
+     "the scored number carries no castalia_debug umode term). NOT config/"),
+    ('flow/MemoryMap_dbgon.gen.vhd',
+     'genus/common/in/MemoryMap_dbgon.gen.vhd',
+     'its MemoryMap sibling. CORE_ENABLE_DEBUG true, CORE_ENABLE_TRAPCSR '
+     'true, CORE_ENABLE_UMODE **false** -- the last of those is the shipped '
+     'default and is the isolation, NOT staleness; a regeneration reading '
+     'UMODE true used the wrong config and moves the pin'),
 ]
 
 
