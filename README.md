@@ -16,8 +16,8 @@ Beyond the single core, this repository is a **chip generator**: a family of SoC
 
 **One chip exists in silicon: Myshkin**, a single-core MCU taped out on TSMC 65nm in November 2025. Two further configurations exist as designs only — **Castalia** (4 harts) and **Argus** (18 harts, a teaching chip). Neither has been fabricated.
 
-> 📄 **[Technical Reference Manual — Castalia (revised August 4, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
-> Complete peripheral register reference, system architecture, and programming guide for the Castalia SoC — the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
+> 📄 **[Technical Reference Manual — Castalia (revised August 7, 2026)](implementations/asic/castalia/docs/TRM.pdf)**  
+> Complete peripheral register reference, system architecture, debug/JTAG chapter, and programming guide for the Castalia SoC — the 4-hart multi-core VestaRV MCU (TSMC 65nm, tape-out-ready). This is the current manual, generated from the chip configuration by `platform/common`.  
 > Also available: the [Myshkin TRM v1.0.0](implementations/asic/myshkin-2025-11/docs/TRM.pdf), documenting the first VestaRV tape-out (TSMC 65nm, November 2025).
 
 > 🏷️ **Current version: v2.11.0** — the multi-core line.  
