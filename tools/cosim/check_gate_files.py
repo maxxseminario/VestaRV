@@ -430,6 +430,36 @@ GATE_FILES = [
      'xcelium/mp_test/run_dbg_iface.sh',
      'I2 runner -- the D1 dbg_iface_tb port bench; was the one unprotected '
      'unit-bench runner (d2_probe finding 11), retro-registered at D2 C5'),
+
+    # ---------------------------------------------------------------------
+    # D3 (R-D3-5(3), 2026-08-06): THE FLOW FILES.  A DIFFERENT KIND OF ENTRY,
+    # and the reason it belongs here is exactly the reason this whole
+    # mechanism exists.  genus/ and innovus/common/ are BOTH gitignored
+    # (.gitignore:5 and :14), so these five files -- the two SDC-bearing
+    # genus tcls that declare the D3 TCK clock domain, the MCU_castalia
+    # chip netlist with its JTAG pads, its dated pre-edit sidecar, and the
+    # one real padlist copy -- cannot be committed on their own path and a
+    # `git clean -xdf` deletes them outright.  They are INPUTS to the
+    # close-of-programme re-cut (DD6): losing them silently would cost the
+    # cut its pad wiring and its clock isolation, and nothing else in the
+    # tree would notice.  Canonical copies + this table's rc-0 gate are the
+    # protection the sim gates already have.
+    # NOTE what this is NOT: it is not whole-tree protection for
+    # innovus/common/ or genus/.  Five named files, chosen because D3
+    # touched them; the general gap stays named residue in the DD package.
+    ('flow/MCU_MP.genus.tcl',
+     'genus/MCU_MP/tcl/MCU_MP.genus.tcl',
+     'the FLAT assembly synthesis flow (feeds the gate-sim SDF). Carries the '
+     'D3 clk_tck domain: create_clock -domain clk_tck_domain on hpin '
+     'dtm0/tck -- an INSTANCE PIN, never a top-level port (the chip SDC '
+     'generator deletes [get_ports] lines and FATALs on a survivor), guarded '
+     'on the dtm0 hinst so a knob-OFF netlist declares no TCK clock at all'),
+    ('flow/MCU_MP_hier.genus.tcl',
+     'genus/MCU_MP/tcl/MCU_MP_hier.genus.tcl',
+     'the HIERARCHICAL assembly synthesis flow (feeds Innovus). Same guarded '
+     'clk_tck block, same hpin declaration -- this is the one whose product '
+     'the chip SDC generator transforms, so a port-declared clock here would '
+     'abort the chip flow'),
 ]
 
 
