@@ -475,6 +475,59 @@ GATE_FILES = [
      'reference cut actually describes -- and the provenance rule is that '
      'the cut artifacts (DB/GDS/rpt) were NOT touched, so this file is the '
      'only thing that says which netlist they came from'),
+    # ---------------------------------------------------------------------
+    # D3 (2026-08-06): THE JTAG ACCEPTANCE SET. Blind-authored against the
+    # frozen specs, demonstrated to FAIL before the transport existed, and
+    # executed at N=4 AND N=18. They caught the sticky-FAILED RTL defect that
+    # four of their own number could not see -- and the wall caught six
+    # defects in the instruments themselves.
+    ('behavioral_mp/dbg_tap.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tap.tcl',
+     'the TCK-level TAP bus-functional model over the five JTAG pins -- the '
+     '16-state graph, chain-length MEASUREMENT (flush with ones, count the '
+     'shifts to a zero), and the TAP-backed dmi_xact that lets any D2 harness '
+     'be REPLAYED over JTAG unmodified'),
+    ('behavioral_mp/dbg_tapconf.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tapconf.tcl',
+     'T2, 34 checks -- graph/IR/DR conformance from the pins alone: IDCODE '
+     'out of Test-Logic-Reset with no IR load, measured chain lengths, the '
+     'unsupported-IR-selects-BYPASS deviation, and TMS-high-x5 from all '
+     'sixteen states graded individually'),
+    ('behavioral_mp/dbg_tapdtm.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tapdtm.tcl',
+     'T3, 43 checks -- dtmcs fields, BOTH sticky flavours, dmireset, '
+     'dmihardreset with its discard clause and defined all-zero shadow, '
+     'Capture-DR previous-result, and THE ONE-SHOT CLAUSE instrumented by '
+     'COUNTING ACCEPTS (a duplicate accept is invisible to any '
+     'result-reading check)'),
+    ('behavioral_mp/dbg_tapreplay.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tapreplay.tcl',
+     "T4 -- the whole-stack proof: dbg_conf.tcl's 38 checks executed BYTE FOR "
+     'BYTE with the transport swapped underneath. This is the instrument '
+     'that caught the sticky-FAILED defect (38/38 raw vs 14/38 over JTAG)'),
+    ('behavioral_mp/dbg_taphalt.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_taphalt.tcl',
+     'T5, 17 checks -- halt / abstract-read / resume of a RUNNING hart '
+     'through the pads, every claim made twice (dmstatus AND the victims own '
+     'counters), with an abstract mhartid read as the sharpest check in the '
+     'set'),
+    ('behavioral_mp/dbg_tapcoexist.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_tapcoexist.tcl',
+     'T6, 12 checks -- the OR-merge tripwire, the one instrument whose job is '
+     'to fail when the MERGE is wrong rather than when the DTM is: both port '
+     'groups resolve, the DTM is inert at its fail-safe defaults, and raw and '
+     'TAP transactions interleave against one Debug Module'),
+    ('behavioral_mp/xrun_dbg_verify.sh',
+     'xcelium/riscv_test/behavioral_mp/xrun_dbg_verify.sh',
+     'the runner that made N=18 harness proof possible at all -- it runs a '
+     'tcl debug harness against a GENERATOR-STAGED knob-ON tree and DERIVES '
+     "NHARTS from the image set's own stamp rather than guessing (a harness "
+     'graded at the wrong N silently checks the wrong chip)'),
+    ('mp_test/run_dbg_tap.sh',
+     'xcelium/mp_test/run_dbg_tap.sh',
+     'J3 runner -- dbg_tap_tb, the bench that NAMES the five JTAG formals in '
+     'VHDL (so a missing port is an elaboration error) and is the only '
+     'instrument that drives the TAP while the chip is held in system reset'),
     ('flow/chip_top_wound_padlists.tcl',
      'innovus/common/MCU_castalia/tcl/chip_top_wound_padlists.tcl',
      'the ONE REAL padlist copy (chip_top_wound_quad symlinks to it). '

@@ -126,7 +126,30 @@ proc d2_chk {cond msg} {
     }
     flush stdout
 }
-proc d2_summary {tag} {
+# R6 (R-D3-4(5), fixed at the D3 validation wave): a MINIMUM-CHECK GUARD.
+#
+# d2_summary reported success whenever the failure count was zero -- and zero
+# checks have zero failures.  So any harness in this family, run against a tree
+# WITHOUT the DMI port, printed a greppable `ALL CHECKS PASSED (0 checks)`
+# while measuring nothing at all.  Found at D3 by the acceptance author's own
+# FAIL-leg demonstration (the D3 harnesses grew tap_summary for exactly this),
+# and it is live here in tools/cosim/gate/, so it is fixed at the source.
+#
+# No harness in this set legitimately runs zero checks: a harness that finds
+# its port absent reports PORT_ABSENT / INSTRUMENT_DEAD and skips, which is
+# precisely the case that must not read as a pass.  `min` defaults to 1 so
+# every existing caller is unchanged; a caller that knows its own count may
+# pass a stricter floor.
+proc d2_summary {tag {min 1}} {
+    if {$::D2_CHECKS < $min} {
+        puts "DMILOG $tag NO_CHECKS -- only $::D2_CHECKS check(s) executed (minimum $min)."
+        puts "DMILOG   This is NOT a pass and must never be greppable as one:"
+        puts "DMILOG   zero checks have zero failures.  If the transport was"
+        puts "DMILOG   absent the log says so above; if it was present, the"
+        puts "DMILOG   harness stopped early and that is a finding."
+        flush stdout
+        return
+    }
     if {$::D2_FAILS == 0} {
         puts "DMILOG $tag ALL CHECKS PASSED ($::D2_CHECKS checks)"
     } else {
