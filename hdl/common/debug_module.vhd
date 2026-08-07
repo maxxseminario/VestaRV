@@ -10,10 +10,13 @@
 --   IS : a DMI-addressed debug module -- run control (halt/resume/halt-on-reset),
 --        dmstatus truth-telling against PWRCTRL, abstract access-register
 --        commands, a 2-word program buffer with an implicit third word, halt
---        groups, and hartsel/haltsum at N=4 AND N=18.
+--        groups, hartsel/haltsum at N=4 AND N=18, and -- since D4 -- the
+--        SELF-PLANT of the 40-word entry trampoline (the TRAMP table and
+--        S_TRAMP below; d4_spec 1, R-DD5 option B).  There is no debug ROM
+--        macro and there never will be: 24 of the entry page's 64 words are
+--        DM-written at runtime and MUST stay writable (d4_probe C1).
 --   NOT: DTM/TAP/pads (D3 drives this same port unchanged -- that is why the
---        port is frozen now), a debug ROM (D4; at D2 the trampoline is a
---        testbench-planted RAM page, disclosed), triggers (D6), gdb (D5),
+--        port is frozen now), triggers (D6), gdb (D5),
 --        System Bus Access (R-DD2: never this programme -- there is no
 --        raw-memory DMI path here BY DESIGN; memory access is progbuf lw/sw
 --        through the hart, which is DD5's answer).
@@ -61,19 +64,18 @@
 --                                  command survivable.
 --   0x10700 + 4h      FLAGS[h]  -- the per-hart DM<->hart handshake word
 --   0x10780 + 4n      the entry page, 64 words:
---                       n =  0..39  TRAMPOLINE  (planted by tcl force -- the
---                                   disclosed D4-ROM stand-in; the DM never
---                                   writes it and could not, a forced word is
---                                   read-only)
+--                       n =  0..39  TRAMPOLINE  (DM-PLANTED since D4 -- the
+--                                   constant TRAMP table below, streamed by
+--                                   S_TRAMP; see THE PLANT further down)
 --                       n = 40..47  ABSTRACT BODY   (DM-written per command)
 --                       n = 48..56  EPILOGUE        (DM-written once)
 --                       n = 57..63  spare (v2)
 -- EVERY DM-WRITTEN *DATA* WORD IS BELOW 0x10800, i.e. inside the bootrom's
 -- zero range (it zeroes 0x10000-0x107FF at every boot), so the
 -- write-before-read contract holds without the DM initialising anything. The
--- only words at or above 0x10800 are the EPILOGUE, which is pure CODE the DM
--- writes before anything can read it -- exactly the rule R-D2-2(3) attached to
--- the enlarged page.
+-- only words at or above 0x10800 are the trampoline's own tail (words 32..39)
+-- and the EPILOGUE, both pure CODE the DM writes before anything can read them
+-- -- exactly the rule R-D2-2(3) attached to the enlarged page.
 --
 -- THE HANDSHAKE, and why the hart polls rather than the DM interrupting it.
 -- A halted hart runs the trampoline, which parks in a backed-off poll of its
@@ -95,6 +97,65 @@
 -- dispatch and puts it back on re-entry, keyed off FLAGS[h]'s bit 2. The DM is
 -- deliberately ignorant of the mirror -- it never reads or writes those two
 -- words -- so nothing here depends on it beyond the token encoding below.
+--
+-- THE PLANT (D4, d4_spec 1; USER decision DD13 = R-DD5 option B).
+-- Before D4 the entry page was populated by a tcl `force` in every debug
+-- harness -- a testbench fiction with no silicon counterpart, and the DM could
+-- not have written it even if it wanted to, because a forced word is read-only.
+-- The DM now plants the 40-word trampoline itself, out of the constant TRAMP
+-- table below, through THE SAME master engine and the SAME `step`/`m_go_*`
+-- idiom that already streams EPILOGUE(0 to 8) in S_EPI. Nothing about the
+-- mechanism is new; only the table is bigger and the trigger is different.
+--
+-- TWO TRIGGERS, and they are deliberately serviced differently:
+--
+--   (1) dmactive 0 -> 1  -- an EAGER plant, taken from S_IDLE the moment the
+--       rise is seen. It has to be eager: at attach no hart need ever halt and
+--       no command need ever be written, so there is no later event to hang it
+--       on, and `setresethaltreq` can halt a hart at a reset release the DM
+--       does not schedule. It is a rise, NOT every dmcontrol write -- every
+--       status poll writes dmcontrol, and re-planting on each would leave the
+--       master engine permanently busy.
+--
+--   (2) any hart's dbg_halted RISING EDGE -- a LAZY plant, taken immediately
+--       before the DM would WAIT ON that hart's TOK_HALTED, i.e. on the way
+--       into S_WAITH from either of its two entries (the abstract-command path
+--       out of S_BODY, and the queued-resume arm in S_IDLE). d4_spec 1.2 states
+--       the requirement as an ORDERING -- "re-streams the trampoline BEFORE
+--       consuming that hart's TOK_HALTED (before any S_WAITH wait on it, before
+--       any GO/RESUME write)" -- and this is that ordering, discharged at the
+--       last possible moment rather than the first.
+--       WHY LAZY AND NOT EAGER, measured 2026-08-07 before this code existed:
+--       a plant is ~40 arbiter round trips, and while it runs the sequencer is
+--       not S_IDLE, which is a busy window. Today's busy windows answer a
+--       data0/progbuf proxy access with rsp_data = 0x00000000, rsp_op = OK and
+--       cmderr = BUSY, and a `command` write with cmderr = BUSY (measured, both
+--       with busy_r = '1' and with busy_r = '0' on the resume path). An eager
+--       on-halt plant therefore drops a fresh ~13 us busy window directly on
+--       top of the first thing every debugger does after a halt. Servicing it
+--       on the way into S_WAITH puts the whole stream INSIDE the busy window
+--       the command already owns, so the plant adds no DMI-visible window at
+--       all on the halt path -- and it still precedes the token wait, which is
+--       the only thing the clause asks for.
+--
+-- SELF-HEALING, which is why DD13 chose the on-halt variant. A hart that halts
+-- into a corrupted page takes an illegal-instruction exception, re-enters at
+-- DEBUG_ENTRY_ADDR through the F-D2-0 rider and spins with ZERO retires. It
+-- cannot publish TOK_HALTED, so a DM that planted only AFTER seeing the token
+-- would deadlock. Planting first breaks that: the page is repaired, the next
+-- re-entry executes real code, and the debugger gets its answer with no DMI
+-- action beyond the halt it already asked for. Re-streaming identical content
+-- under a hart already executing from the page is harmless by identity.
+--
+-- THE PLANT-OWED STATE CLEARS ON dmactive -> 0 (the d4_probe C4 named edit), so
+-- toggling dmactive is a real re-plant and not a no-op. `epi_done` JOINS that
+-- clear -- see its declaration for the reasoning and the priced consequence.
+--
+-- IT IS NOT SYSTEM BUS ACCESS (R-DD2 boundary, stated so it need not be
+-- re-argued). The content is fixed at synthesis, the addresses are fixed at
+-- synthesis, no DMI register exposes an arbitrary address or an arbitrary data
+-- path to memory, and every plant write lies inside [W_BAND_LO, W_BAND_HI] and
+-- is checked by the same mutex-page assertion as every other DM transaction.
 --
 -- WIRE CONTRACT (R-D1-2(1b) reconciled by R-D2-1(6)/R-D2-2(5)). D1's core
 -- collapses a HELD dbg_haltreq to exactly one entry (wait-for-release,
@@ -203,7 +264,12 @@ architecture rtl of debug_module is
     -- dispatch ends in `jal x0, _start + 4*40`, so W_ABST is 40 and not a free
     -- choice. Changing either without the other silently jumps into the wrong
     -- code; the .S header and the Makefile both say so.
-    constant W_ABST     : integer := W_ENTRY + 40;           -- 0x10820
+    -- ...so the length is written ONCE and W_ABST is derived from it. Before
+    -- D4 the 40 lived in this expression and again in the .S and again in the
+    -- Makefile; the table below makes it a fourth site, so it is named here and
+    -- the other three are mechanised against it by check_dbg_trampoline.py.
+    constant TRAMP_WORDS: integer := 40;
+    constant W_ABST     : integer := W_ENTRY + TRAMP_WORDS;  -- 0x10820
     constant W_EPILOG   : integer := W_ENTRY + 48;           -- 0x10840
 
     -- The band the mutex-page guard checks against: everything the DM may
@@ -315,6 +381,18 @@ architecture rtl of debug_module is
     type s_state_t is (S_IDLE,
                        S_PROXY,        -- a data0/progbuf DMI access in flight
                        S_PROXY_RSP,
+                       -- THE PLANT (D4). Streams the constant TRAMP table to
+                       -- W_ENTRY+0..39. Entered from three places and it knows
+                       -- where to go back WITHOUT a return-state flop: a plant
+                       -- that was owed to a TOK_HALTED wait is always entered
+                       -- with busy_r = '1' (the command path) or res_busy = '1'
+                       -- (the queued-resume path), and the eager dmactive-rise
+                       -- plant is by construction entered from an S_IDLE where
+                       -- both are '0' -- a command cannot have started (its
+                       -- accept requires mst_free, i.e. S_IDLE) and no resume
+                       -- flow can be in progress (every path that clears
+                       -- res_busy returns to S_IDLE in the same cycle).
+                       S_TRAMP,
                        S_EPI,          -- write the constant epilogue (once)
                        S_BODY,         -- write the synthesized abstract body
                        S_IMPL,         -- write the implicit progbuf word
@@ -354,7 +432,24 @@ architecture rtl of debug_module is
                        S_RESWAIT);
     signal s_state : s_state_t;
     signal step    : integer range 0 to 63;
+    -- WRITE-ONCE for the epilogue, and it now JOINS the dmactive -> 0 clear
+    -- (d4_spec 1.3 leaves the choice to the implementer and requires it to be
+    -- stated and its consequence measured). Chosen so that a dmactive toggle is
+    -- a COMPLETE recovery of everything the DM owns in the page rather than a
+    -- partial one: the trampoline would be re-planted and the epilogue would
+    -- not, which is the more surprising of the two behaviours and the harder
+    -- one to diagnose from a debugger. It is also the fail-safe direction
+    -- (rule 15) -- the cost of being wrong is nine shared writes, and the cost
+    -- of the other choice is an unrecoverable epilogue. PRICED CONSEQUENCE: the
+    -- FIRST abstract command after any dmactive toggle now takes the S_EPI path
+    -- again (9 extra master writes, ~45 mclk) instead of going straight to
+    -- S_IMPL. Measured green by dbg_trprep's R6, which exists for this clause.
     signal epi_done: std_logic;
+    -- THE TWO PLANT-OWED BITS (D4). See THE PLANT in the header for why the two
+    -- triggers are not merged into one: they are serviced at different moments,
+    -- so one bit cannot represent both without making the on-halt plant eager.
+    signal tramp_arm : std_logic;   -- dmactive rose: plant NOW, from S_IDLE
+    signal tramp_halt: std_logic;   -- a hart halted: plant before its TOK_HALTED
     signal cmd_r   : std_logic_vector(31 downto 0);
     signal cmd_hart: integer range 0 to 1023;
 
@@ -534,6 +629,85 @@ architecture rtl of debug_module is
     -- sees, and the epilogue's own ebreak is what actually terminates.
     constant I_IMPLICIT : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_EPILOG - W_IMPLICIT) * 4);
+
+    -- ------------------------------------------------------------------
+    -- THE TRAMPOLINE (D4). The entry code every halted hart executes, held as
+    -- a constant instruction table and streamed to W_ENTRY+0..39 by S_TRAMP.
+    --
+    -- THIS TABLE IS A COPY, AND THE COPY IS MECHANISED, NOT TRUSTED. The
+    -- original is software/dbg_trampoline/dbg_trampoline.S, built to
+    -- bin/dbg_trampoline.words; the words below are that artifact, word for
+    -- word. Two sources of truth for the same 40 words is a defect waiting to
+    -- happen, so `tools/cosim/check_dbg_trampoline.py` compares them and is a
+    -- standing gate. DO NOT hand-edit either side: change the .S, rebuild
+    -- (`make -C software/dbg_trampoline`), paste the new words here, and prove
+    -- the checker exits 0. The content did NOT change at D4 and a change to it
+    -- is out of D4's scope entirely (d4_spec 4).
+    --
+    -- NOT synthesized from the i_* encoders above, deliberately. Those encoders
+    -- exist so the DM's OWN emitted code has no magic hex; this table is not
+    -- the DM's code, it is a compiled artifact that a separate toolchain owns,
+    -- and re-deriving it here would create a THIRD spelling of it whose
+    -- agreement with the ELF nobody checks. The disassembly is carried as
+    -- comments so the table stays readable; the checker is what makes it true.
+    --
+    -- POSITION-DEPENDENT. It was linked at 0x00010780 and addresses FLAGS, the
+    -- mirrors and the abstract area with absolute `lui`/displacement pairs, and
+    -- word 31's `j` is the coupling to W_ABST = W_ENTRY + TRAMP_WORDS. An
+    -- instance that re-aims DATA0_ADDR/ENTRY_ADDR (dbg_iface_tb does) must
+    -- rebuild the trampoline for the new aim -- exactly as the tcl force it
+    -- replaces always had to.
+    -- ------------------------------------------------------------------
+    constant TRAMP : word_arr(0 to TRAMP_WORDS-1) := (
+        --  entry: save the scratch pair tentatively
+         0 => x"7B241073",   -- csrw   dscratch0, s0
+         1 => x"7B349073",   -- csrw   dscratch1, s1
+        --  s0 = &FLAGS[mhartid]
+         2 => x"F14024F3",   -- csrr   s1, mhartid
+         3 => x"00249493",   -- slli   s1, s1, 2
+         4 => x"00010437",   -- lui    s0, 0x10
+         5 => x"00940433",   -- add    s0, s0, s1
+        --  bit 2 of FLAGS[h] set <=> this is a RE-ENTRY (GO or DONE)
+         6 => x"70042483",   -- lw     s1, 1792(s0)      # FLAGS[h]
+         7 => x"0044F493",   -- andi   s1, s1, 4
+         8 => x"00048E63",   -- beqz   s1, halted
+        --  re-entry repair: put the ORIGINAL pair back from the mirrors (A10)
+         9 => x"000104B7",   -- lui    s1, 0x10
+        10 => x"6F04A483",   -- lw     s1, 1776(s1)      # MIRROR0
+        11 => x"7B249073",   -- csrw   dscratch0, s1
+        12 => x"000104B7",   -- lui    s1, 0x10
+        13 => x"6F44A483",   -- lw     s1, 1780(s1)      # MIRROR1
+        14 => x"7B349073",   -- csrw   dscratch1, s1
+        --  halted: publish TOK_HALTED.  THE DM WAITS ON THIS WORD (S_WAITH).
+        15 => x"00100493",   -- li     s1, 1             # TOK_HALTED
+        16 => x"70942023",   -- sw     s1, 1792(s0)
+        --  poll: dispatch on the DM's token, with a register backoff
+        17 => x"70042483",   -- lw     s1, 1792(s0)
+        18 => x"FFC48493",   -- addi   s1, s1, -4        # TOK_GO?
+        19 => x"00048E63",   -- beqz   s1, dbg_go
+        20 => x"00248493",   -- addi   s1, s1, 2         # TOK_RESUME?
+        21 => x"02048663",   -- beqz   s1, dbg_resume
+        22 => x"04000493",   -- li     s1, 64
+        23 => x"FFF48493",   -- backoff: addi s1, s1, -1
+        24 => x"FE049EE3",   -- bnez   s1, backoff
+        25 => x"FE1FF06F",   -- j      poll
+        --  dbg_go: mirror the saved pair, then jump to the abstract body
+        26 => x"000104B7",   -- lui    s1, 0x10
+        27 => x"7B202473",   -- csrr   s0, dscratch0
+        28 => x"6E84A823",   -- sw     s0, 1776(s1)      # MIRROR0
+        29 => x"7B302473",   -- csrr   s0, dscratch1
+        30 => x"6E84AA23",   -- sw     s0, 1780(s1)      # MIRROR1
+        31 => x"0240006F",   -- j      W_ABST            # = _start + 4*40
+        --  dbg_resume: restore the pair and leave debug mode
+        32 => x"7B3024F3",   -- csrr   s1, dscratch1
+        33 => x"7B202473",   -- csrr   s0, dscratch0
+        34 => x"7B200073",   -- dret
+        --  pad to exactly TRAMP_WORDS
+        35 => x"00000013",   -- nop
+        36 => x"00000013",   -- nop
+        37 => x"00000013",   -- nop
+        38 => x"00000013",   -- nop
+        39 => x"00000013");  -- nop
 
     signal body_w : word_arr(0 to 7);
 
@@ -798,6 +972,8 @@ begin
                 halted_d    <= (others => '0');
                 resume_pend <= (others => '0');
                 epi_done    <= '0';
+                tramp_arm   <= '0';
+                tramp_halt  <= '0';
                 s_state     <= S_IDLE;
                 step        <= 0;
                 cmd_r       <= (others => '0');
@@ -842,6 +1018,13 @@ begin
                     -- (if it was the one we asked to resume) closes the resume.
                     if dbg_halted(i) = '1' and halted_d(i) = '0' then
                         grp_pend(i) <= '0';
+                        -- D4: a NEW halt owes a plant. It is not taken here --
+                        -- see THE PLANT in the header for why an eager plant on
+                        -- this edge would drop a busy window on top of the first
+                        -- thing a debugger does. The bit is consumed on the way
+                        -- into S_WAITH, which is the moment the ordering clause
+                        -- actually names.
+                        tramp_halt <= '1';
                         -- HALT GROUPS: when any member of a non-zero group
                         -- halts, every OTHER member is asked to halt too. One
                         -- re-armed pulse each -- grp_pend is cleared by that
@@ -886,8 +1069,25 @@ begin
                 case s_state is
 
                     when S_IDLE =>
+                        -- D4: THE EAGER PLANT, taken first. dmactive has just
+                        -- risen and nothing else can be in flight in S_IDLE, so
+                        -- there is no ordering question here -- a queued resume
+                        -- is not dropped, only delayed by the stream (the
+                        -- R-D2-5(2) prohibition is on silent DROPS, and this is
+                        -- neither silent nor a drop: the DM returns to S_IDLE
+                        -- and picks the resume up on the next visit).
+                        -- tramp_arm is cleared by S_TRAMP itself and not here,
+                        -- so that a command accepted in the very same cycle --
+                        -- which overrides s_state further down this process --
+                        -- DEFERS the plant instead of losing it. That race is
+                        -- unreachable in practice (the accept that set dmactive
+                        -- arms rsp_hold, which blocks the next accept for eight
+                        -- cycles) but the cheap ordering is the honest one.
+                        if tramp_arm = '1' and dmactive = '1' then
+                            step    <= 0;
+                            s_state <= S_TRAMP;
                         -- Service a queued resume for a hart that is halted.
-                        if res_busy = '0' then
+                        elsif res_busy = '0' then
                             for i in 0 to NHARTS-1 loop
                                 if resume_pend(i) = '1' and dbg_halted(i) = '1'
                                    and res_busy = '0' then
@@ -906,7 +1106,16 @@ begin
                                     -- can possibly publish TOK_HALTED. Zero
                                     -- flops: poll_to already exists.
                                     poll_to  <= 0;
-                                    s_state  <= S_WAITH;
+                                    -- D4: the LAZY plant. This arm is one of
+                                    -- exactly two entries into the TOK_HALTED
+                                    -- wait, and d4_spec 1.2 puts the re-stream
+                                    -- ahead of both ("before any S_WAITH wait
+                                    -- on it, before any GO/RESUME write").
+                                    if tramp_halt = '1' then
+                                        s_state <= S_TRAMP;
+                                    else
+                                        s_state <= S_WAITH;
+                                    end if;
                                 end if;
                             end loop;
                         end if;
@@ -925,6 +1134,50 @@ begin
                             rsp_data_r <= m_rd_r;
                         end if;
                         s_state <= S_IDLE;
+
+                    -- ---- D4: stream the trampoline into the entry page ----
+                    -- Structurally S_EPI with a longer table and a computed
+                    -- exit. Same `step`, same m_go_*/m_start handshake, same
+                    -- one-word-per-m_ack cadence; `step` is already `range 0 to
+                    -- 63` and 40 <= 63, so nothing widens.
+                    when S_TRAMP =>
+                        if m_ack = '1' or step = 0 then
+                            if step <= TRAMP_WORDS-1 then
+                                if step = 0 then
+                                    -- BOTH owed-bits clear as the stream
+                                    -- STARTS, not as it finishes. A hart that
+                                    -- halts DURING the stream therefore keeps
+                                    -- its own claim on a later plant, which is
+                                    -- the direction that cannot lose one: the
+                                    -- words it fetches while the stream is
+                                    -- mid-flight may still be stale, and the
+                                    -- F-D2-0 re-entry spin is what carries it
+                                    -- to the next plant. (A hart that halts in
+                                    -- this exact cycle loses the race by one
+                                    -- clock and is covered by the same spin --
+                                    -- the stream it is racing began at or after
+                                    -- its own halt, so the page is repaired
+                                    -- either way.)
+                                    tramp_arm  <= '0';
+                                    tramp_halt <= '0';
+                                end if;
+                                m_go_we <= "1111";
+                                m_go_a  <= W_ENTRY + step;
+                                m_go_d  <= TRAMP(step);
+                                m_start <= '1';
+                                step    <= step + 1;
+                            else
+                                step <= 0;
+                                -- Where to go back. See S_TRAMP's declaration:
+                                -- these two are the signature of a plant that
+                                -- was owed to a TOK_HALTED wait.
+                                if busy_r = '1' or res_busy = '1' then
+                                    s_state <= S_WAITH;
+                                else
+                                    s_state <= S_IDLE;
+                                end if;
+                            end if;
+                        end if;
 
                     -- ---- abstract command: write the epilogue once ----
                     when S_EPI =>
@@ -967,7 +1220,23 @@ begin
                             else
                                 step     <= 0;
                                 waith_go <= '1';
-                                s_state  <= S_WAITH;
+                                -- D4: the LAZY plant, the other of the two
+                                -- entries into the TOK_HALTED wait. It sits
+                                -- here rather than at the command accept on
+                                -- purpose: the whole stream then runs INSIDE
+                                -- the busy window this command already owns,
+                                -- so it costs the debugger no window of its
+                                -- own. It is also after S_BODY and not before
+                                -- it, so the abstract area (words 40..47) and
+                                -- the trampoline (words 0..39) are written in
+                                -- an order that leaves both correct -- they do
+                                -- not overlap, but a reader should not have to
+                                -- re-derive that.
+                                if tramp_halt = '1' then
+                                    s_state <= S_TRAMP;
+                                else
+                                    s_state <= S_WAITH;
+                                end if;
                             end if;
                         end if;
 
@@ -1127,9 +1396,36 @@ begin
                 -- armed here and asserted one cycle later, then held
                 -- RSP_HOLD_CYCLES. See the ready/rsp commentary above the
                 -- process for the measurements behind each of those three.
+                --
+                -- S_TRAMP JOINS S_PROXY/S_PROXY_RSP IN THE EXCLUSION, and this
+                -- is a MEASURED correction, not a precaution (2026-08-07).
+                -- The plant is an internal, bounded, ATOMIC multi-word
+                -- operation that owns the master engine -- the same class as a
+                -- proxy access, which is why the same answer applies: the DM
+                -- simply does not raise `ready` while it runs, and the master
+                -- waits. It is over in ~40 arbiter round trips (~13 us), far
+                -- less than one JTAG DMI round trip.
+                -- WHAT HAPPENS WITHOUT IT, measured on the existing D1/D2/D3
+                -- instrument matrix: the attach-time plant fires on the first
+                -- dmcontrol write, and a debugger that issues an abstract
+                -- command a few microseconds later -- which is what every one
+                -- of them does -- is told cmderr = BUSY for something it did
+                -- nothing to deserve. cmderr is STICKY and `command` writes are
+                -- ignored while it is set, so ONE such answer at attach
+                -- silently disables every abstract command for the rest of the
+                -- session: dbg_abs went 10-of-13 red, dbg_conf 5-of-38,
+                -- dbg_prv 4-of-6. The control that named the cause is
+                -- dbg_tapreplay, which runs dbg_conf's SAME 38 checks over the
+                -- TAP and passed 38/38 -- slow transport, no collision.
+                -- This does not redefine any busy semantic: the two windows
+                -- that existed before D4 (busy_r = '1' under a command, and the
+                -- resume path's S_WAITH with busy_r = '0') still answer exactly
+                -- as they were measured to. The plant is simply not a
+                -- DMI-visible window at all, which is what `ready` is for.
                 -- ==========================================================
                 if dmi_req_valid = '1' and rsp_hold = 0 and rsp_arm = '0'
-                   and s_state /= S_PROXY and s_state /= S_PROXY_RSP then
+                   and s_state /= S_PROXY and s_state /= S_PROXY_RSP
+                   and s_state /= S_TRAMP then
                     ready_r  <= '1';       -- one-cycle acknowledge
                     a   := dmi_req_addr;
                     d   := dmi_req_data;
@@ -1160,7 +1456,25 @@ begin
                                 resume_pend <= (others => '0');
                                 busy_r      <= '0';
                                 cmderr_r    <= ERR_NONE;
+                                -- D4 (the d4_probe C4 named edit). The
+                                -- plant-owed bits and the epilogue's write-once
+                                -- latch all clear here, so a dmactive toggle
+                                -- really does re-plant everything the DM owns
+                                -- in the page. Before D4 epi_done cleared ONLY
+                                -- on resetn, which made "toggle dmactive to
+                                -- recover" a no-op; see epi_done's declaration
+                                -- for the priced consequence of adding it.
+                                tramp_arm   <= '0';
+                                tramp_halt  <= '0';
+                                epi_done    <= '0';
                             else
+                                -- THE RISE, and only the rise. Every dmstatus
+                                -- poll writes dmcontrol with dmactive set, so a
+                                -- plant armed on the LEVEL would re-arm forever
+                                -- and pin the master engine.
+                                if dmactive = '0' then
+                                    tramp_arm <= '1';
+                                end if;
                                 haltreq_r <= d(31);
                                 hartsel_r <= d(25 downto 16);
                                 hs := conv_integer(d(25 downto 16));
