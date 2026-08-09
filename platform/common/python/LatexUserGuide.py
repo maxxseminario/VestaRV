@@ -74,6 +74,18 @@ class LatexUserGuide():
 		self.GenerateIrqClaimCompleteDiagram()
 		self.GenerateMutexClaimDiagram()
 		self.GenerateTimerCaptureDiagram()
+		# D-series debug figures. Emitted unconditionally; the chapter decides
+		# which of them render, by placing the gated \input inside its own
+		# \ifdebugenable (an unused include costs nothing and keeps the gating
+		# rule in exactly one place).
+		self.GenerateDebugStackDiagram()
+		self.GenerateTapStateDiagram()
+		self.GenerateJtagScanDiagram()
+		self.GenerateDmiCrossingDiagram()
+		self.GenerateDebugSwimlaneDiagram()
+		self.GenerateDmiFieldDiagram()
+		self.GenerateDebugPageDiagram()
+		self.GenerateDebugModeStateDiagram()
 		self.GeneratePackagePinoutDiagram()
 		self.GenerateInterruptsTable()
 		self.GeneratePackagePinsConfigurationTable()
@@ -1565,6 +1577,481 @@ class LatexUserGuide():
 			os.makedirs(self.IncludeDirectory)
 		with open(self.IncludeDirectory + '/' + name, 'w') as f:
 			f.write(contents)
+		return
+
+	# -----------------------------------------------------------------
+	# D-series debug figures (2026-08). All eight are emitted unconditionally:
+	# the chapter decides what renders, by placing the \input for the gated
+	# ones inside its own \ifdebugenable. Emitting them always keeps this file
+	# free of a second copy of the gating rule, and an unused include costs
+	# nothing. The two ALWAYS-RENDERED figures (debug stack, TAP graph, JTAG
+	# scan) are architecture-level and appear in every build.
+	#
+	# SOURCES — do not edit these from memory of the RTL:
+	#   hdl/common/jtag_dtm.vhd       (TAP table, IR/DR, the crossing, idle)
+	#   hdl/common/debug_module.vhd   (DMI map, the entry page, THE PLANT)
+	#   ~/vesta_docs/d_series/d3_spec.md, d3_cdc_spec.md, d4_spec.md
+	# -----------------------------------------------------------------
+
+	def GenerateDebugStackDiagram(self):
+		'''include/DebugStackDiagram.tex — the whole debug path, probe to hart.
+		   CONFIGURATION-DRIVEN (numHarts). The clock-domain crossing is drawn
+		   explicitly as a wall crossed by exactly TWO toggle paths, which is
+		   what hdl/common/jtag_dtm.vhd:45-63 describes: one source toggle each
+		   way, payload held while the toggle is in flight, three destination
+		   flops. The OR-merge junction is mcu_vhd.py's valid-gated select, so
+		   the raw dmi_* ports still reach the DM with the DTM present.
+		   The trampoline-plant arrow is D4 (debug_module.vhd, THE PLANT).'''
+		N = self.Gen.NumHarts
+		# Draw every tile up to five; only elide beyond that (Argus is 18). At
+		# N=4 all four are drawn -- an elided four-hart chip would be a picture
+		# of a chip that does not exist.
+		if N <= 5:
+			shown = list(range(N))
+		else:
+			shown = [0, 1, 2, None, N - 1]
+
+		s = '% Generated debug stack block diagram (numHarts=' + str(N) + ')\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, font=\\sffamily\\small},\n'
+		s += '\ttile/.style={blk, fill=black!4},\n'
+		s += '\tunit/.style={blk, fill=black!8},\n'
+		s += '\tmem/.style={blk, fill=black!8},\n'
+		s += '\tpage/.style={blk, fill=black!22},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\tsig/.style={->, >=Stealth, thick},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left},\n'
+		s += '\tctr/.style={font=\\sffamily\\scriptsize, align=center}]\n'
+
+		# --- top row: probe -> pins -> DTM -| wall |- merge -> DM
+		s += '\\node[blk, dashed, minimum width=2.3cm, minimum height=1.2cm] (probe) at (-1.9, 6.3) {external\\\\ debug probe};\n'
+		s += '\\node[unit, minimum width=3.0cm, minimum height=1.6cm] (dtm) at (4.5, 6.3) {\\textbf{dtm0}\\\\ TAP $+$ transport\\\\ \\scriptsize \\register{TCK} domain};\n'
+		s += '\\draw[bus] (probe.east) -- node[ctr, above, pos=0.5] {5 pins} node[ctr, below, pos=0.5] {\\scriptsize \\pin{TCK} \\pin{TMS} \\pin{TDI}\\\\ \\scriptsize \\pin{TDO} \\pin{TRSTn}} (dtm.west);\n'
+
+		# the crossing wall
+		s += '\\draw[thick, dashed, gray!75] (7.15, 4.55) -- (7.15, 7.85);\n'
+		s += '\\node[note, anchor=south east, align=center] at (7.95, 7.90) {clock-domain\\\\ crossing};\n'
+		s += '\\node[ctr, anchor=north] at (7.15, 4.50) {\\register{TCK} $\\;\\mid\\;$ \\register{mclk}};\n'
+		# exactly two toggle paths cross it
+		s += '\\draw[sig] (6.0, 6.85) -- node[ctr, above] {\\scriptsize \\register{req\\_tgl} $+$ 41\\,b hold} (8.6, 6.85);\n'
+		s += '\\draw[sig] (8.6, 5.75) -- node[ctr, below] {\\scriptsize \\register{rsp\\_tgl} $+$ 34\\,b hold} (6.0, 5.75);\n'
+
+		# OR-merge junction + external dmi_* ports
+		s += '\\node[circle, draw, thick, inner sep=1.5pt, fill=white] (merge) at (9.35, 6.3) {\\scriptsize $\\ge\\!1$};\n'
+		s += '\\node[blk, dashed, minimum width=2.6cm, minimum height=0.9cm] (ext) at (9.35, 8.35) {\\scriptsize raw \\register{dmi\\_*} ports\\\\ \\scriptsize (verification)};\n'
+		s += '\\draw[sig] (ext.south) -- (merge.north);\n'
+		s += '\\node[unit, minimum width=3.0cm, minimum height=1.6cm] (dm) at (12.2, 6.3) {\\textbf{dm0}\\\\ Debug Module\\\\ \\scriptsize run control};\n'
+		s += '\\draw[sig] (merge.east) -- (dm.west);\n'
+
+		# --- hart tiles (laid out first: everything below is placed clear of them)
+		tileW = 2.5
+		gap = 0.4
+		x = 0.0
+		xs = []
+		for t in shown:
+			w = 0.9 if t is None else tileW
+			xs.append((t, x + w / 2.0, w))
+			x += w + gap
+		tilesW = x - gap
+		# The memory column sits to the RIGHT of the last tile, never over it.
+		ramW = 4.6
+		ramCx = tilesW + 0.6 + ramW / 2.0
+		rightEdge = ramCx + ramW / 2.0
+
+		# --- arbiter: spans the tiles AND the memory column
+		arbW = rightEdge + 1.4
+		s += '\\node[blk, fill=black!15, minimum width=' + '%.2f' % arbW + 'cm, minimum height=0.8cm] (arb) at (' + '%.2f' % (arbW / 2.0 - 0.7) + ', 3.55) {\\textbf{mp\\_arbiter} --- ' + str(N) + ' harts $+$ \\textbf{dm0} as a master};\n'
+		s += '\\draw[bus] (dm.south) -- node[note, right=2pt, pos=0.55] {master} (12.2, 3.95);\n'
+
+		for t, cx, w in xs:
+			if t is None:
+				s += '\\node[font=\\sffamily\\Large] at (' + '%.2f' % cx + ', 1.35) {$\\cdots$};\n'
+				continue
+			s += '\\node[tile, minimum width=' + '%.2f' % w + 'cm, minimum height=1.35cm] (t' + str(t) + ') at (' + '%.2f' % cx + ', 1.35) {\\textbf{hart ' + str(t) + '}\\\\ \\scriptsize core $+$ TCM};\n'
+			s += '\\draw[bus] (' + '%.2f' % cx + ', 2.02) -- (' + '%.2f' % cx + ', 3.15);\n'
+
+		# --- shared RAM: title on its own line, the page block BELOW it, so the
+		# two never overprint.
+		s += '\\node[mem, minimum width=' + '%.2f' % ramW + 'cm, minimum height=2.0cm] (ram) at (' + '%.2f' % ramCx + ', 1.50) {};\n'
+		s += '\\node[font=\\sffamily\\small] at (' + '%.2f' % ramCx + ', 2.15) {shared RAM \\texttt{0x10000}};\n'
+		s += '\\node[page, minimum width=' + '%.2f' % (ramW - 0.4) + 'cm, minimum height=0.62cm] (pg) at (' + '%.2f' % ramCx + ', 1.02) {\\scriptsize debug program page\\\\ \\scriptsize \\texttt{0x10680}--\\texttt{0x1087F}};\n'
+		s += '\\draw[bus] (' + '%.2f' % ramCx + ', 2.52) -- (' + '%.2f' % ramCx + ', 3.15);\n'
+
+		# per-hart debug wires: dm0 -> tiles, direct (not through the bus).
+		# Routed BELOW everything so it crosses no block.
+		wireX = rightEdge + 0.7
+		s += '\\draw[bus, rounded corners] (dm.east) -- (' + '%.2f' % wireX + ', 6.3) -- (' + '%.2f' % wireX + ', -0.55) -- (' + '%.2f' % (xs[0][1]) + ', -0.55) -- (' + '%.2f' % (xs[0][1]) + ', 0.68);\n'
+		s += '\\node[note, anchor=south west] at (0.15, -0.48) {per-hart \\register{haltreq} / \\register{resumereq} $\\rightarrow$, \\ \\register{halted} / \\register{unavail} $\\leftarrow$ \\ (direct wires, not the bus)};\n'
+		# D4: the plant
+		plantX = rightEdge + 1.5
+		s += '\\draw[sig, rounded corners] (13.7, 5.50) -- (' + '%.2f' % plantX + ', 5.50) -- (' + '%.2f' % plantX + ', 1.02) -- (pg.east);\n'
+		s += '\\node[note, anchor=west, align=left] at (' + '%.2f' % (plantX + 0.15) + ', 3.4) {\\textbf{the plant} (D4):\\\\ \\textbf{dm0} streams its own\\\\ 40-word trampoline into\\\\ the entry page --- once at\\\\ \\register{dmactive} rise, and again\\\\ before it acts on a hart\\\\ it has just seen halt};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('DebugStackDiagram.tex', s)
+		return
+
+	# TAP state names and the transition table, TRANSCRIBED from
+	# hdl/common/jtag_dtm.vhd:185-200 (the ST_* encoding) and :204-208 (the
+	# TAP_NEXT aggregate, which that file in turn transcribed from Spike
+	# jtag_dtm.cc:60-77). next[state][tms]. If jtag_dtm.vhd changes, this
+	# changes with it -- the figure is a picture of THIS table and nothing else.
+	_TAP_STATES = ['Test-Logic-Reset', 'Run-Test/Idle',
+		'Select-DR', 'Capture-DR', 'Shift-DR', 'Exit1-DR', 'Pause-DR',
+		'Exit2-DR', 'Update-DR',
+		'Select-IR', 'Capture-IR', 'Shift-IR', 'Exit1-IR', 'Pause-IR',
+		'Exit2-IR', 'Update-IR']
+	_TAP_NEXT = [(1, 0), (1, 2), (3, 9), (4, 5),
+		(4, 5), (6, 8), (6, 7), (4, 8),
+		(1, 2), (10, 0), (11, 12), (11, 12),
+		(13, 15), (13, 14), (11, 15), (1, 2)]
+
+	def GenerateTapStateDiagram(self):
+		'''include/TapStateDiagram.tex — the 16-state IEEE 1149.1 TAP graph,
+		   every edge drawn from _TAP_NEXT (jtag_dtm.vhd:204-208). Solid edges
+		   are TMS=0, dashed are TMS=1; the two lobes are the DR column and the
+		   IR column. The five-ones recovery is emphasised because it is the
+		   only thing a debugger needs when it has lost the state.'''
+		# node positions: TLR and RTI on top, then the DR column and the IR
+		# column running down in the standard order.
+		col = {'dr': 0.0, 'ir': 5.6}
+		rows = [6.05, 4.85, 3.65, 2.45, 1.25, 0.05]   # capture..update
+		pos = {}
+		pos[0] = (-3.9, 8.5)    # TLR
+		pos[1] = (-3.9, 7.25)   # RTI
+		pos[2] = (col['dr'], 7.25)   # Select-DR
+		pos[9] = (col['ir'], 7.25)   # Select-IR
+		for k, st in enumerate([3, 4, 5, 6, 7, 8]):
+			pos[st] = (col['dr'], rows[k])
+		for k, st in enumerate([10, 11, 12, 13, 14, 15]):
+			pos[st] = (col['ir'], rows[k])
+
+		s = '% Generated TAP state graph (edges transcribed from jtag_dtm.vhd TAP_NEXT)\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tst/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, minimum width=2.05cm, minimum height=0.62cm, fill=black!4},\n'
+		s += '\ttlr/.style={st, fill=black!18, very thick},\n'
+		s += '\ttms0/.style={->, >=Stealth, semithick},\n'
+		s += '\ttms1/.style={->, >=Stealth, semithick, densely dashed},\n'
+		s += '\tel/.style={font=\\sffamily\\tiny, inner sep=1pt, fill=white},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		for i, name in enumerate(self._TAP_STATES):
+			style = 'tlr' if i == 0 else 'st'
+			s += '\\node[' + style + '] (s' + str(i) + ') at (' + '%.2f' % pos[i][0] + ', ' + '%.2f' % pos[i][1] + ') {' + name + '};\n'
+
+		# Every edge, straight from the table. Routing is chosen per edge so
+		# nothing crosses a node; the TABLE decides what is drawn, the geometry
+		# only decides how it looks.
+		route = {
+			(0, 0): ('tms1', 'loop above'),
+			(0, 1): ('tms0', 'straight'),
+			(1, 1): ('tms0', 'loop left'),
+			(1, 2): ('tms1', 'straight'),
+			(2, 3): ('tms0', 'straight'),
+			(2, 9): ('tms1', 'straight'),
+			(3, 4): ('tms0', 'straight'),
+			(3, 5): ('tms1', 'bendR'),
+			(4, 4): ('tms0', 'loop left'),
+			(4, 5): ('tms1', 'straight'),
+			(5, 6): ('tms0', 'straight'),
+			(5, 8): ('tms1', 'bendR'),
+			(6, 6): ('tms0', 'loop left'),
+			(6, 7): ('tms1', 'straight'),
+			(7, 4): ('tms0', 'bendL'),
+			(7, 8): ('tms1', 'straight'),
+			(8, 1): ('tms0', 'back'),
+			(8, 2): ('tms1', 'back2'),
+			(9, 10): ('tms0', 'straight'),
+			(9, 0): ('tms1', 'toTLR'),
+			(10, 11): ('tms0', 'straight'),
+			(10, 12): ('tms1', 'bendR'),
+			(11, 11): ('tms0', 'loop right'),
+			(11, 12): ('tms1', 'straight'),
+			(12, 13): ('tms0', 'straight'),
+			(12, 15): ('tms1', 'bendR'),
+			(13, 13): ('tms0', 'loop right'),
+			(13, 14): ('tms1', 'straight'),
+			(14, 11): ('tms0', 'bendL'),
+			(14, 15): ('tms1', 'straight'),
+			(15, 1): ('tms0', 'backIR'),
+			(15, 2): ('tms1', 'backIR2'),
+		}
+		for src in range(16):
+			for tms in (0, 1):
+				dst = self._TAP_NEXT[src][tms]
+				sty, how = route[(src, dst)]
+				lab = str(tms)
+				a, b = 's' + str(src), 's' + str(dst)
+				if how.startswith('loop'):
+					where = how.split()[1]
+					s += '\\draw[' + sty + '] (' + a + ') to[loop ' + where + ', looseness=5] node[el] {' + lab + '} (' + a + ');\n'
+				elif how == 'bendR':
+					s += '\\draw[' + sty + '] (' + a + '.east) to[bend left=32] node[el] {' + lab + '} (' + b + '.east);\n'
+				elif how == 'bendL':
+					s += '\\draw[' + sty + '] (' + a + '.west) to[bend left=32] node[el] {' + lab + '} (' + b + '.west);\n'
+				elif how == 'back':
+					s += '\\draw[' + sty + ', rounded corners] (' + a + '.west) -- (-2.35, ' + '%.2f' % pos[src][1] + ') -- (-2.35, ' + '%.2f' % pos[dst][1] + ') -- node[el, pos=0.30] {' + lab + '} (' + b + '.south);\n'
+				elif how == 'back2':
+					s += '\\draw[' + sty + ', rounded corners] (' + a + '.west) -- (-1.75, ' + '%.2f' % pos[src][1] + ') -- (-1.75, ' + '%.2f' % pos[dst][1] + ') -- node[el, pos=0.30] {' + lab + '} (' + b + '.west);\n'
+				elif how == 'backIR':
+					s += '\\draw[' + sty + ', rounded corners] (' + a + '.east) -- (7.95, ' + '%.2f' % pos[src][1] + ') -- (7.95, 8.95) -- (-3.9, 8.95) -- node[el, pos=0.93] {' + lab + '} (' + b + '.north);\n'
+				elif how == 'backIR2':
+					s += '\\draw[' + sty + ', rounded corners] (' + a + '.east) -- (8.55, ' + '%.2f' % pos[src][1] + ') -- (8.55, 9.45) -- (' + '%.2f' % pos[dst][0] + ', 9.45) -- node[el, pos=0.93] {' + lab + '} (' + b + '.north);\n'
+				elif how == 'toTLR':
+					s += '\\draw[' + sty + ', rounded corners] (' + a + '.north) -- (' + '%.2f' % pos[src][0] + ', 8.5) -- node[el, pos=0.72] {' + lab + '} (' + b + '.east);\n'
+				else:
+					s += '\\draw[' + sty + '] (' + a + ') -- node[el] {' + lab + '} (' + b + ');\n'
+
+		s += '\\node[note, anchor=north west] at (-6.35, 5.6) {Solid $=$ \\register{TMS} sampled \\textbf{0}\\\\ Dashed $=$ \\register{TMS} sampled \\textbf{1}\\\\[4pt] \\textbf{Five} \\register{TMS}$=$\\textbf{1} clocks reach\\\\ Test-Logic-Reset from \\textit{any}\\\\ state --- the recovery a\\\\ debugger uses when it has\\\\ lost track of the machine.};\n'
+		s += '\\node[note, anchor=north west] at (-6.35, 2.2) {Left column: the \\textbf{DR} lobe,\\\\ which scans a data register.\\\\[3pt] Right column: the \\textbf{IR} lobe,\\\\ identical in shape, which\\\\ scans the instruction register.};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('TapStateDiagram.tex', s)
+		return
+
+	def GenerateJtagScanDiagram(self):
+		'''include/JtagScanDiagram.tex — one four-bit DR scan, TAP states from
+		   _TAP_NEXT. TDO is drawn HALF A UNIT LATE on purpose: jtag_dtm.vhd
+		   samples TMS/TDI on the RISING TCK edge (:342, :406) and changes TDO
+		   on the FALLING edge (:500-514), so its transitions belong mid-unit.
+		   Shift is LSB-first (:222-224 declare the DR widths; the shifter runs
+		   low bit out first). Generic 1149.1 -- always rendered.'''
+		rows = [
+			('20{0.5C}',                                                   '\\pin{TCK}'),
+			('H 5L 2H 2L',                                                 '\\pin{TMS}'),
+			('3U D{b0} D{b1} D{b2} D{b3} 3U',                              '\\pin{TDI}'),
+			('3.5U D{q0} D{q1} D{q2} D{q3} 2.5U',                          '\\pin{TDO}'),
+			('D{RTI} D{Sel} D{Cap} 4D{Shift-DR} D{Ex1} D{Upd} D{RTI}',     '\\textit{TAP state}'),
+		]
+		ann = ''
+		ann += '\\draw[<->, >=Stealth] (3,{\\YBOT-0.45}) -- (7,{\\YBOT-0.45});\n'
+		ann += '\\node[ann, below] at (5,{\\YBOT-0.47}) {shift: LSB first, one bit per \\pin{TCK}};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-1.05})\n'
+		ann += '\t{\\textbf{Capture} loads the register in parallel from what it shadows; \\textbf{Update} commits\\\\[-2pt]\n'
+		ann += '\t what was shifted in. One scan therefore reads the old contents and writes the new\\\\[-2pt]\n'
+		ann += '\t ones at the same time. \\pin{TMS} is sampled on the RISING edge; \\pin{TDO} changes on the\\\\[-2pt]\n'
+		ann += '\t FALLING edge, which is why its transitions sit half a cycle after the others.};\n'
+		s = '% Generated JTAG DR-scan diagram\n'
+		s += self._cycleFigure('1.25cm', rows, 9, ann)
+		self._writeInclude('JtagScanDiagram.tex', s)
+		return
+
+	def GenerateDmiCrossingDiagram(self):
+		'''include/DmiCrossingDiagram.tex — one DMI transaction across the
+		   TCK<->mclk boundary. CYCLE-ACCURATE against hdl/common/jtag_dtm.vhd:
+		   the Update-DR of a dmi scan loads the 41-bit request hold and flips
+		   req_tgl (:55-58); the mclk side syncs through 2-FF + an edge flop
+		   (:47-49) and presents the held payload; dmi_req_valid is a ONE-SHOT
+		   held only until the REGISTERED ready is observed -- exactly two mclk
+		   (:71-75) -- because the DM re-accept lockout is a TIMER that reopens
+		   9 mclk after a capture (:67-69), so a level-held master would earn a
+		   duplicate accept. The response latches rsp_op/rsp_data into a 34-bit
+		   hold and flips rsp_tgl (:60-63). The whole budget is :79-90.
+		   TIMEBASE IS mclk; the two TCK events are annotated rather than drawn,
+		   because the TCK:mclk ratio is a board choice, not a fixed number.'''
+		rows = [
+			('24{0.5C}',                          '\\register{mclk}'),
+			('L 11H',                             '\\register{req\\_tgl} \\ \\scriptsize(\\register{TCK})'),
+			('U 11D{addr, data, op}',             'request hold, 41\\,b'),
+			('4L 8H',                             '\\register{req\\_sync} \\ \\scriptsize(3 flops)'),
+			('4L 2H 6L',                          '\\register{dmi\\_req\\_valid}'),
+			('5L H 6L',                           '\\register{dmi\\_req\\_ready}'),
+			('6L H 5L',                           '\\register{dmi\\_rsp\\_valid}'),
+			# The response hold and rsp_tgl move on the SAME mclk edge -- the DM
+			# latches rsp_op/rsp_data and flips the toggle in one clocked block,
+			# and payload-written-on-the-toggle's-own-edge IS the idiom (the
+			# request side above does the same). Drawing the toggle a cycle late
+			# would show a payload in flight ahead of its own toggle.
+			('7U 5D{op, data}',                   'response hold, 34\\,b'),
+			('7L 5H',                             '\\register{rsp\\_tgl}'),
+		]
+		ann = ''
+		# the one-shot, and why it is one
+		ann += '\\draw[<->, >=Stealth] (4,{\\YTOP+0.45}) -- (6,{\\YTOP+0.45});\n'
+		ann += '\\node[ann, above] at (5,{\\YTOP+0.47}) {\\register{valid} high exactly \\textbf{2} \\register{mclk} --- retired on the \\emph{registered} \\register{ready}};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
+		ann += '\t{The Debug Module\'s re-accept lockout is a \\textbf{timer}, not a handshake: it reopens\\\\[-2pt]\n'
+		ann += '\t 9 \\register{mclk} after a capture. A master that held \\register{valid} until its response came back would\\\\[-2pt]\n'
+		ann += '\t still be asserting it then and would earn a \\textbf{second, duplicate accept} --- two responses for\\\\[-2pt]\n'
+		ann += '\t one request, sliding every later pair by one. The symptom is not a wrong answer; it is\\\\[-2pt]\n'
+		ann += '\t the \\emph{previous} answer. Two cycles leaves seven inside the window.};\n'
+		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-2.55})\n'
+		ann += '\t{\\textbf{Where \\bitfield{idle} $=7$ comes from.} A debugger sees the result no earlier than\\\\[-2pt]\n'
+		ann += '\t 3 \\pin{TCK} (this response synchroniser) $+$ $\\lceil t_{\\mathrm{DM}} / T_{\\pin{TCK}}\\rceil$. Here $t_{\\mathrm{DM}}$ is 8--10 \\register{mclk} for a\\\\[-2pt]\n'
+		ann += '\t Debug Module register, and \\emph{tens} for \\register{data0} or a program-buffer word, which are\\\\[-2pt]\n'
+		ann += '\t proxied into shared RAM through the arbiter. At \\pin{TCK} $\\leq$ 7.14\\,MHz against a 24\\,MHz\\\\[-2pt]\n'
+		ann += '\t \\register{mclk} that is 6 cycles for the worst class; \\textbf{7} adds one of margin and is the largest\\\\[-2pt]\n'
+		ann += '\t value the 3-bit field can hold. Faster \\pin{TCK}, or a contended bus, can still report busy.};\n'
+		# mark the two TCK-domain events
+		ann += '\\node[ann, anchor=south west, align=left] at (0.05,{\\YTOP+1.05}) {\\textbf{Update-DR} (\\register{TCK}): the 41-bit\\\\[-2pt] payload is written and \\emph{held}, and \\register{req\\_tgl} flips};\n'
+		ann += '\\draw[gray!65] (1,{\\YTOP+1.02}) -- (1,\\YTOP);\n'
+		ann += '\\node[ann, anchor=south east, align=right] at (11.95,{\\YTOP+1.05}) {\\register{rsp\\_tgl} crosses back through\\\\[-2pt] 3 \\pin{TCK} flops, then the shadow updates};\n'
+		ann += '\\draw[gray!65] (7,{\\YTOP+1.02}) -- (7,\\YTOP);\n'
+		s = '% Generated DMI clock-crossing diagram (mclk timebase)\n'
+		s += self._cycleFigure('1.15cm', rows, 11, ann, shade=('4', '6'))
+		self._writeInclude('DmiCrossingDiagram.tex', s)
+		return
+
+	def GenerateDebugSwimlaneDiagram(self):
+		'''include/DebugSwimlaneDiagram.tex — the twelve numbered steps of the
+		   worked halt/read/resume, across the four agents that perform them.
+		   The numbers are the list items in the chapter, so the figure and the
+		   prose are one document.'''
+		lanes = [('debugger', 4.8), ('DTM \\ \\scriptsize(\\register{TCK})', 3.2),
+			('DM', 1.6), ('hart $h$', 0.0)]
+		# (step, lane index, x, label)
+		steps = [
+			(1, 0, 0.9, 'reset TAP,\\\\ read IDCODE'),
+			(2, 0, 2.6, 'read\\\\ DTMCS'),
+			(3, 1, 4.1, 'select\\\\ \\register{dmi} DR'),
+			(4, 2, 5.6, '\\bitfield{dmactive}\\\\ $\\leftarrow 1$'),
+			(5, 2, 7.1, '\\bitfield{haltreq},\\\\ \\bitfield{hartsel} $= h$'),
+			(6, 3, 8.6, 'halt at an\\\\ instruction\\\\ boundary'),
+			(7, 2, 10.1, 'drop\\\\ \\bitfield{haltreq}'),
+			(8, 2, 11.6, 'clear\\\\ \\bitfield{cmderr}'),
+			(9, 3, 13.1, 'run the\\\\ abstract\\\\ command'),
+			(10, 2, 14.6, 'poll\\\\ \\bitfield{busy}'),
+			(11, 0, 16.1, 'read\\\\ \\register{data0}'),
+			(12, 3, 17.6, '\\asminline{dret},\\\\ running'),
+		]
+		s = '% Generated debug halt/read/resume swimlane\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tlane/.style={font=\\sffamily\\small, anchor=east},\n'
+		s += '\tband/.style={fill=black!4},\n'
+		s += '\tstp/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, minimum width=1.30cm, minimum height=0.95cm, fill=white, inner sep=2pt},\n'
+		s += '\tnum/.style={circle, draw, thick, fill=black!12, font=\\sffamily\\scriptsize, inner sep=1.2pt},\n'
+		s += '\tflow/.style={->, >=Stealth, semithick, gray!75},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		for name, y in lanes:
+			s += '\\fill[band] (-0.2, ' + '%.2f' % (y - 0.62) + ') rectangle (18.6, ' + '%.2f' % (y + 0.62) + ');\n'
+			s += '\\node[lane] at (-0.35, ' + '%.2f' % y + ') {' + name + '};\n'
+		prev = None
+		for n, li, x, txt in steps:
+			y = lanes[li][1]
+			s += '\\node[stp] (p' + str(n) + ') at (' + '%.2f' % x + ', ' + '%.2f' % y + ') {' + txt + '};\n'
+			s += '\\node[num, anchor=center] at (' + '%.2f' % (x - 0.72) + ', ' + '%.2f' % (y + 0.50) + ') {' + str(n) + '};\n'
+			if prev is not None:
+				s += '\\draw[flow] (p' + str(prev) + ') -- (p' + str(n) + ');\n'
+			prev = n
+		s += '\\draw[->, >=Stealth, thick] (-0.2, -1.05) -- (18.6, -1.05);\n'
+		s += '\\node[note, anchor=north east] at (18.6, -1.15) {time $\\rightarrow$ (not to scale)};\n'
+		s += '\\node[note, anchor=north west] at (-0.2, -1.15) {Step numbers are the numbered list in this section.};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('DebugSwimlaneDiagram.tex', s)
+		return
+
+	def GenerateDmiFieldDiagram(self):
+		'''include/DmiFieldDiagram.tex — the 41-bit dmi data register.
+		   Field split from hdl/common/jtag_dtm.vhd:222 and :573-575:
+		   op(1 downto 0), data(33 downto 2), address(40 downto 34). Widths are
+		   drawn for legibility, not to scale -- the bit numbers carry the
+		   truth, and saying so in the caption is cheaper than a 41-cell bar.'''
+		fields = [
+			(3.4, '\\register{address}', '40:34', '7 bits --- the DMI address'),
+			(6.4, '\\register{data}', '33:2', '32 bits --- read result or write value'),
+			(2.6, '\\register{op}', '1:0', '2 bits'),
+		]
+		s = '% Generated 41-bit DMI data-register field bar\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tfld/.style={draw, thick, align=center, font=\\sffamily\\small, minimum height=1.0cm, fill=black!6},\n'
+		s += '\tbit/.style={font=\\sffamily\\scriptsize},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=center}]\n'
+		x = 0.0
+		for w, name, bits, desc in fields:
+			cx = x + w / 2.0
+			s += '\\node[fld, minimum width=' + '%.2f' % w + 'cm] at (' + '%.2f' % cx + ', 0) {' + name + '};\n'
+			s += '\\node[bit, anchor=south west] at (' + '%.2f' % x + ', 0.52) {' + bits.split(':')[0] + '};\n'
+			s += '\\node[bit, anchor=south east] at (' + '%.2f' % (x + w) + ', 0.52) {' + bits.split(':')[1] + '};\n'
+			s += '\\node[note, anchor=north] at (' + '%.2f' % cx + ', -0.55) {' + desc + '};\n'
+			x += w
+		s += '\\node[note, anchor=north west, align=left] at (0, -1.30) {\\textbf{Shifted LSB first}, so \\register{op} goes in and comes out first. On the way \\emph{in}: \\texttt{00} no-op, \\texttt{01} read, \\texttt{10} write.\\\\ On the way \\emph{out}: \\texttt{00} success, \\texttt{10} failed, \\texttt{11} busy. Field widths here are for legibility; the bit numbers are exact.};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('DmiFieldDiagram.tex', s)
+		return
+
+	def GenerateDebugPageDiagram(self):
+		'''include/DebugPageDiagram.tex — the debug program page, drawn to the
+		   LANDED ledger in hdl/common/debug_module.vhd:53-79 and its address
+		   constants at :255-278: W_DATA0 0x10680, W_PROGBUF0/1 0x10684/88,
+		   W_IMPLICIT 0x1068C, MIRROR0/1 0x106F0/F4, W_FLAGS0 0x10700,
+		   W_ENTRY 0x10780, TRAMP_WORDS 40, W_ABST 0x10820, W_EPILOG 0x10840,
+		   W_BAND_HI 0x1087F. The bootrom zeroes 0x10000-0x107FF, so the
+		   0x10800 line is where the write-before-read contract stops covering
+		   the page -- above it every word is DM-written CODE.'''
+		# (height, addr label, contents, fill)
+		segs = [
+			(0.62, '\\texttt{0x10680}', '\\register{data0} --- the abstract data word', 'black!14'),
+			(0.62, '\\texttt{0x10684}', '\\register{progbuf0}, \\register{progbuf1}, implicit third word', 'black!10'),
+			(0.62, '\\texttt{0x10690}', 'reserved for the Debug Module', 'black!4'),
+			(0.62, '\\texttt{0x106F0}', 'saved \\asminline{s0} / \\asminline{s1} --- written by the stub, never by the DM', 'black!10'),
+			(0.82, '\\texttt{0x10700}', 'per-hart handshake word \\ \\texttt{0x10700}$+4h$', 'black!14'),
+			(1.05, '\\texttt{0x10780}', '\\textbf{trampoline}, 40 words --- \\emph{planted by the Debug Module}', 'black!20'),
+			(0.62, '\\texttt{0x10820}', 'abstract command body (DM-written per command)', 'black!10'),
+			(0.62, '\\texttt{0x10840}', 'epilogue (DM-written once)', 'black!10'),
+			(0.52, '\\texttt{0x10864}', 'spare', 'black!4'),
+		]
+		W = 10.4
+		s = '% Generated debug program page map (landed D4 ledger)\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tseg/.style={draw, thick, align=center, font=\\sffamily\\small, minimum width=' + '%.2f' % W + 'cm},\n'
+		s += '\tadr/.style={font=\\sffamily\\scriptsize\\ttfamily, anchor=east},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		# LOW ADDRESS AT THE TOP, matching the table this figure sits beside:
+		# each segment's start address labels its OWN TOP edge, and the band's
+		# end address labels the bottom edge of the last one.
+		xAdr = -W / 2.0 - 0.12
+		y = 0.0
+		yTramp = None
+		for h, addr, txt, fill in segs:
+			s += '\\node[seg, minimum height=' + '%.2f' % h + 'cm, fill=' + fill + ', anchor=north] at (0, ' + '%.2f' % y + ') {};\n'
+			s += '\\node[adr] at (' + '%.2f' % xAdr + ', ' + '%.2f' % y + ') {' + addr + '};\n'
+			if 'trampoline' in txt:
+				# the 0x10800 line crosses this band, so its text sits in the
+				# UPPER part of the band, clear of the line at word 32 of 40
+				yTramp = y
+				s += '\\node[font=\\sffamily\\small, anchor=north] at (0, ' + '%.2f' % (y - 0.06) + ') {' + txt + '};\n'
+			else:
+				s += '\\node[font=\\sffamily\\small] at (0, ' + '%.2f' % (y - h / 2.0) + ') {' + txt + '};\n'
+			y -= h
+		s += '\\node[adr] at (' + '%.2f' % xAdr + ', ' + '%.2f' % y + ') {0x1087F};\n'
+		# The zero-range boundary. 0x10800 is word 32 of the 40-word trampoline,
+		# i.e. 32/40 of the way down that band -- NOT a band edge.
+		yBoundary = yTramp - 1.05 * (32.0 / 40.0)
+		xNote = W / 2.0 + 0.20
+		s += '\\draw[very thick, densely dashed] (' + '%.2f' % (-W / 2.0 - 0.05) + ', ' + '%.2f' % yBoundary + ') -- (' + '%.2f' % (W / 2.0 + 6.6) + ', ' + '%.2f' % yBoundary + ');\n'
+		# anchored ACROSS the line, so the two blocks cannot overprint
+		s += '\\node[note, anchor=south west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary + 0.10) + ') {\\textbf{\\texttt{0x10800}} --- above this line the boot ROM does \\emph{not}\\\\ zero-fill. Everything up here is CODE the Debug Module\\\\ writes before anything reads it: the trampoline\'s last\\\\ eight words, the command body and the epilogue.};\n'
+		s += '\\node[note, anchor=north west] at (' + '%.2f' % xNote + ', ' + '%.2f' % (yBoundary - 0.10) + ') {Below \\texttt{0x10800} the boot ROM zeroes \\texttt{0x10000}--\\texttt{0x107FF}\\\\ at every boot, so every DM-written \\emph{data} word starts\\\\ from a known value.};\n'
+		s += '\\node[note, anchor=north west] at (' + '%.2f' % (-W / 2.0) + ', ' + '%.2f' % (y - 0.40) + ') {The whole span \\texttt{0x10680}--\\texttt{0x1087F} is reserved. It is ordinary shared RAM --- it cannot be read-only,\\\\ because the Debug Module rewrites the command body at every abstract command.};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('DebugPageDiagram.tex', s)
+		return
+
+	def GenerateDebugModeStateDiagram(self):
+		'''include/DebugModeStateDiagram.tex — debug mode from the hart's side.
+		   Entry causes and their dcsr.cause encodings are vesta.vhd:2648-2654
+		   (1 ebreak, 3 halt request, 4 step, 5 halt-on-reset); the entry vector
+		   is DEBUG_ENTRY_ADDR, 0x00010780 on a debug-ON build (mcu_vhd.py:3037).
+		   dret is 0x7B200073 (constants.vhd:484) and is an illegal instruction
+		   outside debug mode (maindec.vhd:1112-1131).'''
+		s = '% Generated hart debug-mode state diagram\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tst/.style={draw, thick, rounded corners=3pt, align=center, font=\\sffamily\\small, minimum width=3.5cm, minimum height=1.25cm},\n'
+		s += '\trun/.style={st, fill=black!5},\n'
+		s += '\tdbg/.style={st, fill=black!16},\n'
+		s += '\tflow/.style={->, >=Stealth, thick},\n'
+		s += '\tel/.style={font=\\sffamily\\scriptsize, align=center, fill=white, inner sep=2pt},\n'
+		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		s += '\\node[run] (run) at (0, 3.2) {\\textbf{running}\\\\ \\scriptsize M-mode or U-mode};\n'
+		s += '\\node[dbg] (dbg) at (0, 0) {\\textbf{debug mode}\\\\ \\scriptsize executing the stub at\\\\ \\scriptsize \\texttt{0x00010780}};\n'
+		s += '\\draw[flow] (-1.15, 2.58) -- node[el, anchor=east, xshift=-3pt] {\\textbf{entry} --- taken at an instruction\\\\ boundary; \\register{dpc} and \\register{dcsr}.\\bitfield{cause}\\\\ are written, then the hart jumps} (-1.15, 0.62);\n'
+		s += '\\draw[flow] (1.15, 0.62) -- node[el, anchor=west, xshift=3pt] {\\asminline{dret} --- \\register{dpc} restores the\\\\ program counter, \\register{dcsr}.\\bitfield{prv} the\\\\ privilege level} (1.15, 2.58);\n'
+		s += '\\node[note, anchor=north west, align=left] at (5.9, 3.55) {\\textbf{Four ways in}, each recorded in \\register{dcsr}.\\bitfield{cause}:\\\\[3pt]\n'
+		s += '\t\\texttt{3} \\ a halt request from the Debug Module ---\\\\ \\hspace*{1.1em}unmaskable, and recognised even in the\\\\ \\hspace*{1.1em}terminal trap state\\\\[2pt]\n'
+		s += '\t\\texttt{1} \\ an \\asminline{EBREAK}, when \\register{dcsr}.\\bitfield{ebreakm} is set\\\\[2pt]\n'
+		s += '\t\\texttt{4} \\ one instruction retired with \\register{dcsr}.\\bitfield{step}\\\\[2pt]\n'
+		s += '\t\\texttt{5} \\ halt-on-reset, sampled once as the hart\\\\ \\hspace*{1.1em}leaves reset};\n'
+		s += '\\node[note, anchor=north west, align=left] at (5.9, 0.30) {While in debug mode: \\textbf{no interrupt is taken}\\\\ (they stay pending and arrive after the \\asminline{dret}),\\\\ and a synchronous exception \\textbf{re-enters} here with\\\\ \\register{dpc} and \\register{dcsr} untouched rather than wedging\\\\ the hart.};\n'
+		s += '\\draw[flow] (dbg.south west) to[out=200, in=160, looseness=4.2] node[el, anchor=east, xshift=-2pt] {exception in\\\\ debug mode} (dbg.north west);\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('DebugModeStateDiagram.tex', s)
 		return
 
 	def GeneratePackagePinoutDiagram(self):
