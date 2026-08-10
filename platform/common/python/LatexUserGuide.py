@@ -1595,13 +1595,18 @@ class LatexUserGuide():
 
 	def GenerateDebugStackDiagram(self):
 		'''include/DebugStackDiagram.tex — the whole debug path, probe to hart.
-		   CONFIGURATION-DRIVEN (numHarts). The clock-domain crossing is drawn
-		   explicitly as a wall crossed by exactly TWO toggle paths, which is
-		   what hdl/common/jtag_dtm.vhd:45-63 describes: one source toggle each
-		   way, payload held while the toggle is in flight, three destination
-		   flops. The OR-merge junction is mcu_vhd.py's valid-gated select, so
-		   the raw dmi_* ports still reach the DM with the DTM present.
-		   The trampoline-plant arrow is D4 (debug_module.vhd, THE PLANT).'''
+		   CONFIGURATION-DRIVEN (numHarts). Composed as three vertical bands:
+		   the TCK side (the probe and the transport it clocks), the wall, and
+		   the chip on mclk. The wall is crossed by exactly TWO signals, which
+		   is what hdl/common/jtag_dtm.vhd:45-63 describes: one source toggle
+		   each way, the payload held still while the toggle is in flight,
+		   three destination flops. The OR-merge junction is mcu_vhd.py's
+		   valid-gated select, so the raw dmi_* ports still reach the DM with
+		   the DTM present. dm0 then reaches the chip THREE ways, each drawn
+		   as its own arm and labelled with a verb: it halts and resumes the
+		   harts over direct wires, it reads and writes memory as one more
+		   master on mp_arbiter, and it plants its own trampoline into the
+		   debug program page (D4, debug_module.vhd, THE PLANT).'''
 		N = self.Gen.NumHarts
 		# Draw every tile up to five; only elide beyond that (Argus is 18). At
 		# N=4 all four are drawn -- an elided four-hart chip would be a picture
@@ -1611,81 +1616,133 @@ class LatexUserGuide():
 		else:
 			shown = [0, 1, 2, None, N - 1]
 
-		s = '% Generated debug stack block diagram (numHarts=' + str(N) + ')\n'
-		s += '\\begin{tikzpicture}[\n'
-		s += '\tblk/.style={draw, thick, align=center, font=\\sffamily\\small},\n'
-		s += '\ttile/.style={blk, fill=black!4},\n'
-		s += '\tunit/.style={blk, fill=black!8},\n'
-		s += '\tmem/.style={blk, fill=black!8},\n'
-		s += '\tpage/.style={blk, fill=black!22},\n'
-		s += '\tbus/.style={<->, >=Stealth, thick},\n'
-		s += '\tsig/.style={->, >=Stealth, thick},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left},\n'
-		s += '\tctr/.style={font=\\sffamily\\scriptsize, align=center}]\n'
+		def P(v):
+			return '%.2f' % v
 
-		# --- top row: probe -> pins -> DTM -| wall |- merge -> DM
-		s += '\\node[blk, dashed, minimum width=2.3cm, minimum height=1.2cm] (probe) at (-1.9, 6.3) {external\\\\ debug probe};\n'
-		s += '\\node[unit, minimum width=3.0cm, minimum height=1.6cm] (dtm) at (4.5, 6.3) {\\textbf{dtm0}\\\\ TAP $+$ transport\\\\ \\scriptsize \\register{TCK} domain};\n'
-		s += '\\draw[bus] (probe.east) -- node[ctr, above, pos=0.5] {5 pins} node[ctr, below, pos=0.5] {\\scriptsize \\pin{TCK} \\pin{TMS} \\pin{TDI}\\\\ \\scriptsize \\pin{TDO} \\pin{TRSTn}} (dtm.west);\n'
+		# ---- geometry, in cm. Everything below is derived from these anchors,
+		# so a different hart count only stretches the fabric band.
+		aX0, aX1 = 0.00, 4.90          # band A: the TCK side
+		wX0, wX1 = 4.90, 5.80          # the clock-domain wall
+		yBot, yTop = -1.60, 10.05      # band extent
+		yBan = 9.25                    # banner strip
+		yReq, yRsp = 6.10, 4.25        # the two crossings
+		gap = 0.36                     # half-height of the gaps they pass through
+		yDm = 6.10                     # the junction/dm0 row
 
-		# the crossing wall
-		s += '\\draw[thick, dashed, gray!75] (7.15, 4.55) -- (7.15, 7.85);\n'
-		s += '\\node[note, anchor=south east, align=center] at (7.95, 7.90) {clock-domain\\\\ crossing};\n'
-		s += '\\node[ctr, anchor=north] at (7.15, 4.50) {\\register{TCK} $\\;\\mid\\;$ \\register{mclk}};\n'
-		# exactly two toggle paths cross it
-		s += '\\draw[sig] (6.0, 6.85) -- node[ctr, above] {\\scriptsize \\register{req\\_tgl} $+$ 41\\,b hold} (8.6, 6.85);\n'
-		s += '\\draw[sig] (8.6, 5.75) -- node[ctr, below] {\\scriptsize \\register{rsp\\_tgl} $+$ 34\\,b hold} (6.0, 5.75);\n'
+		aCx = (aX0 + aX1) / 2.0
+		dtmX1 = aCx + 2.05             # dtm0's east edge
+		junX0, junX1 = 10.20, 12.50
+		dmX0, dmX1 = 13.20, 16.60
+		dmCx = (dmX0 + dmX1) / 2.0
+		yDmBot = yDm - 0.95
 
-		# OR-merge junction + external dmi_* ports
-		s += '\\node[circle, draw, thick, inner sep=1.5pt, fill=white] (merge) at (9.35, 6.3) {\\scriptsize $\\ge\\!1$};\n'
-		s += '\\node[blk, dashed, minimum width=2.6cm, minimum height=0.9cm] (ext) at (9.35, 8.35) {\\scriptsize raw \\register{dmi\\_*} ports\\\\ \\scriptsize (verification)};\n'
-		s += '\\draw[sig] (ext.south) -- (merge.north);\n'
-		s += '\\node[unit, minimum width=3.0cm, minimum height=1.6cm] (dm) at (12.2, 6.3) {\\textbf{dm0}\\\\ Debug Module\\\\ \\scriptsize run control};\n'
-		s += '\\draw[sig] (merge.east) -- (dm.west);\n'
+		# fabric rows
+		yArb, arbH = 2.75, 0.80
+		yTile, tileH = 0.90, 1.20
+		tileW, tileGap = 1.75, 0.28
+		fabX0 = 6.60                   # first tile's west edge
+		trunkX = 6.05                  # the halt/resume trunk's riser
+		yTrunk = -0.55                 # the halt/resume trunk, below the tiles
 
-		# --- hart tiles (laid out first: everything below is placed clear of them)
-		tileW = 2.5
-		gap = 0.4
-		x = 0.0
+		x = fabX0
 		xs = []
 		for t in shown:
-			w = 0.9 if t is None else tileW
+			w = 0.90 if t is None else tileW
 			xs.append((t, x + w / 2.0, w))
-			x += w + gap
-		tilesW = x - gap
-		# The memory column sits to the RIGHT of the last tile, never over it.
-		ramW = 4.6
-		ramCx = tilesW + 0.6 + ramW / 2.0
-		rightEdge = ramCx + ramW / 2.0
+			x += w + tileGap
+		tilesX1 = x - tileGap
 
-		# --- arbiter: spans the tiles AND the memory column
-		arbW = rightEdge + 1.4
-		s += '\\node[blk, fill=black!15, minimum width=' + '%.2f' % arbW + 'cm, minimum height=0.8cm] (arb) at (' + '%.2f' % (arbW / 2.0 - 0.7) + ', 3.55) {\\textbf{mp\\_arbiter} --- ' + str(N) + ' harts $+$ \\textbf{dm0} as a master};\n'
-		s += '\\draw[bus] (dm.south) -- node[note, right=2pt, pos=0.55] {master} (12.2, 3.95);\n'
+		ramW = 4.20
+		ramX0 = tilesX1 + 0.75
+		ramX1 = ramX0 + ramW
+		ramCx = (ramX0 + ramX1) / 2.0
+		arbX0, arbX1 = 6.30, ramX1 + 0.60
+		plantX = arbX1 + 0.70          # the plant arm's riser, clear of the bus
+		bX1 = plantX + 0.40            # band B's east edge
 
-		for t, cx, w in xs:
+		s = '% Generated debug stack block diagram (numHarts=' + str(N) + ')\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
+		s += '\ttile/.style={blk, fill=black!6},\n'
+		s += '\tunit/.style={blk, fill=black!12},\n'
+		s += '\tpage/.style={blk, fill=black!25, font=\\sffamily\\scriptsize},\n'
+		s += '\tbus/.style={<->, >=Stealth, thick},\n'
+		s += '\tsig/.style={->, >=Stealth, thick},\n'
+		s += '\tcross/.style={->, >=Stealth, line width=1.6pt},\n'
+		s += '\tban/.style={font=\\sffamily\\small\\bfseries, black!60},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=center},\n'
+		s += '\tvrb/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+
+		# ---- the three bands, drawn first so everything else sits on top
+		s += '\\fill[black!8] (' + P(aX0) + ', ' + P(yBot) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!4] (' + P(wX1) + ', ' + P(yBot) + ') rectangle (' + P(bX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!4] (' + P(wX0) + ', ' + P(yBot) + ') rectangle (' + P(wX1) + ', ' + P(yTop) + ');\n'
+		# The wall reads as a real barrier: hatched masonry, in THREE segments
+		# with a gap at each crossing height. The gaps are the point of the
+		# figure -- the only two signals in the design that cross this line
+		# are the two that pass through them.
+		for (y0, y1) in [(yBot, yRsp - gap), (yRsp + gap, yReq - gap), (yReq + gap, yTop)]:
+			s += '\\fill[black!22] (' + P(wX0) + ', ' + P(y0) + ') rectangle (' + P(wX1) + ', ' + P(y1) + ');\n'
+			s += '\\begin{scope}\n'
+			s += '\\clip (' + P(wX0) + ', ' + P(y0) + ') rectangle (' + P(wX1) + ', ' + P(y1) + ');\n'
+			s += '\\foreach \\i in {0,...,' + str(int((y1 - y0) / 0.42) + 3) + '} {\n'
+			s += '\t\\draw[black!45, line width=0.5pt] (' + P(wX0) + ', ' + P(y0 - 0.90) + '+\\i*0.42) -- (' + P(wX1) + ', ' + P(y0) + '+\\i*0.42);\n'
+			s += '}\n'
+			s += '\\end{scope}\n'
+			s += '\\draw[black!45, line width=0.9pt] (' + P(wX0) + ', ' + P(y0) + ') -- (' + P(wX0) + ', ' + P(y1) + ');\n'
+			s += '\\draw[black!45, line width=0.9pt] (' + P(wX1) + ', ' + P(y0) + ') -- (' + P(wX1) + ', ' + P(y1) + ');\n'
+		# banners
+		s += '\\fill[black!18] (' + P(aX0) + ', ' + P(yBan) + ') rectangle (' + P(aX1) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!12] (' + P(wX1) + ', ' + P(yBan) + ') rectangle (' + P(bX1) + ', ' + P(yTop) + ');\n'
+		s += '\\node[ban] at (' + P(aCx) + ', ' + P((yBan + yTop) / 2.0) + ') {the \\register{TCK} side};\n'
+		s += '\\node[ban] at (' + P((wX1 + bX1) / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') {the chip --- everything here runs on \\register{mclk}};\n'
+		s += '\\node[ban, rotate=90] at (' + P((wX0 + wX1) / 2.0) + ', 1.30) {clock-domain crossing};\n'
+
+		# ---- band A: the probe, its five pins, and the transport
+		s += '\\node[blk, dashed, minimum width=3.5cm, minimum height=1.05cm] (probe) at (' + P(aCx) + ', 8.20) {external\\\\ debug probe};\n'
+		s += '\\node[unit, minimum width=4.1cm, minimum height=3.10cm] (dtm) at (' + P(aCx) + ', 4.55) {\\textbf{dtm0}\\\\ TAP $+$ transport\\\\[2pt] \\scriptsize the sixteen-state port,\\\\ \\scriptsize the instruction register,\\\\ \\scriptsize and the \\register{dmi} shift register};\n'
+		s += '\\draw[bus] (probe.south) -- (dtm.north);\n'
+		s += '\\node[lab, fill=black!8, inner sep=2pt] at (' + P(aCx) + ', 7.05) {\\textbf{5 pins}\\\\ \\pin{TCK} \\pin{TMS} \\pin{TDI}\\\\ \\pin{TDO} \\pin{TRSTn}};\n'
+		s += '\\node[lab] at (' + P(aCx) + ', 1.30) {\\textit{on the chip, but clocked by}\\\\ \\textit{the probe --- nothing in this}\\\\ \\textit{band moves unless \\pin{TCK} does}};\n'
+
+		# ---- the two crossings: one toggle each way, payload held still
+		s += '\\draw[cross] (' + P(dtmX1) + ', ' + P(yReq) + ') -- (' + P(junX0) + ', ' + P(yReq) + ');\n'
+		s += '\\draw[cross, rounded corners] (' + P(dmCx - 1.00) + ', ' + P(yDmBot) + ') -- (' + P(dmCx - 1.00) + ', ' + P(yRsp) + ') -- (' + P(dtmX1) + ', ' + P(yRsp) + ');\n'
+		s += '\\node[lab, fill=black!4, inner sep=2.5pt] at (7.95, ' + P(yReq) + ') {\\register{req\\_tgl} $+$ a 41-bit request};\n'
+		s += '\\node[lab, fill=black!4, inner sep=2.5pt] at (7.95, ' + P(yRsp) + ') {\\register{rsp\\_tgl} $+$ a 34-bit response};\n'
+		s += '\\node[lab] at (7.95, ' + P((yReq + yRsp) / 2.0) + ') {\\textit{two signals, and no others:}\\\\ \\textit{each payload is held still}\\\\ \\textit{while its toggle crosses}};\n'
+
+		# ---- the merge, the raw ports, and the one Debug Module
+		s += '\\node[unit, minimum width=' + P(junX1 - junX0) + 'cm, minimum height=1.35cm, font=\\sffamily\\scriptsize] (jun) at (' + P((junX0 + junX1) / 2.0) + ', ' + P(yDm) + ') {\\textbf{either master}\\\\ drives the same port};\n'
+		s += '\\node[blk, dashed, minimum width=3.2cm, minimum height=1.0cm, font=\\sffamily\\scriptsize] (ext) at (' + P((junX0 + junX1) / 2.0) + ', 8.20) {raw \\register{dmi\\_*} ports\\\\ (what a bench drives)};\n'
+		s += '\\draw[sig] (ext.south) -- (jun.north);\n'
+		s += '\\node[unit, minimum width=' + P(dmX1 - dmX0) + 'cm, minimum height=1.90cm] (dm) at (' + P(dmCx) + ', ' + P(yDm) + ') {\\textbf{dm0}\\\\ the Debug Module\\\\ \\scriptsize one, for the whole chip};\n'
+		s += '\\draw[cross] (jun.east) -- (dm.west);\n'
+
+		# ---- the fabric: one arbiter, N tiles, the shared RAM, the page
+		s += '\\node[blk, fill=black!15, minimum width=' + P(arbX1 - arbX0) + 'cm, minimum height=' + P(arbH) + 'cm] (arb) at (' + P((arbX0 + arbX1) / 2.0) + ', ' + P(yArb) + ') {\\textbf{mp\\_arbiter} --- ' + str(N) + ' harts and \\textbf{dm0}, all masters on one shared bus};\n'
+		for t, tcx, w in xs:
 			if t is None:
-				s += '\\node[font=\\sffamily\\Large] at (' + '%.2f' % cx + ', 1.35) {$\\cdots$};\n'
+				s += '\\node[font=\\sffamily\\Large] at (' + P(tcx) + ', ' + P(yTile) + ') {$\\cdots$};\n'
 				continue
-			s += '\\node[tile, minimum width=' + '%.2f' % w + 'cm, minimum height=1.35cm] (t' + str(t) + ') at (' + '%.2f' % cx + ', 1.35) {\\textbf{hart ' + str(t) + '}\\\\ \\scriptsize core $+$ TCM};\n'
-			s += '\\draw[bus] (' + '%.2f' % cx + ', 2.02) -- (' + '%.2f' % cx + ', 3.15);\n'
+			s += '\\node[tile, minimum width=' + P(w) + 'cm, minimum height=' + P(tileH) + 'cm, font=\\sffamily\\scriptsize] (t' + str(t) + ') at (' + P(tcx) + ', ' + P(yTile) + ') {\\textbf{hart ' + str(t) + '}\\\\ core $+$ TCM};\n'
+			s += '\\draw[bus] (' + P(tcx) + ', ' + P(yTile + tileH / 2.0) + ') -- (' + P(tcx) + ', ' + P(yArb - arbH / 2.0) + ');\n'
+			s += '\\draw[bus] (' + P(tcx) + ', ' + P(yTrunk) + ') -- (' + P(tcx) + ', ' + P(yTile - tileH / 2.0) + ');\n'
+		s += '\\node[blk, fill=black!8, minimum width=' + P(ramW) + 'cm, minimum height=1.75cm] (ram) at (' + P(ramCx) + ', 1.03) {};\n'
+		s += '\\node[font=\\sffamily\\scriptsize] at (' + P(ramCx) + ', 1.62) {shared RAM \\texttt{0x10000}};\n'
+		s += '\\node[page, minimum width=' + P(ramW - 0.40) + 'cm, minimum height=0.62cm] (pg) at (' + P(ramCx) + ', 0.85) {\\textbf{debug program page}\\\\ \\texttt{0x10680}--\\texttt{0x1087F}};\n'
+		s += '\\draw[bus] (' + P(ramCx) + ', 1.90) -- (' + P(ramCx) + ', ' + P(yArb - arbH / 2.0) + ');\n'
 
-		# --- shared RAM: title on its own line, the page block BELOW it, so the
-		# two never overprint.
-		s += '\\node[mem, minimum width=' + '%.2f' % ramW + 'cm, minimum height=2.0cm] (ram) at (' + '%.2f' % ramCx + ', 1.50) {};\n'
-		s += '\\node[font=\\sffamily\\small] at (' + '%.2f' % ramCx + ', 2.15) {shared RAM \\texttt{0x10000}};\n'
-		s += '\\node[page, minimum width=' + '%.2f' % (ramW - 0.4) + 'cm, minimum height=0.62cm] (pg) at (' + '%.2f' % ramCx + ', 1.02) {\\scriptsize debug program page\\\\ \\scriptsize \\texttt{0x10680}--\\texttt{0x1087F}};\n'
-		s += '\\draw[bus] (' + '%.2f' % ramCx + ', 2.52) -- (' + '%.2f' % ramCx + ', 3.15);\n'
-
-		# per-hart debug wires: dm0 -> tiles, direct (not through the bus).
-		# Routed BELOW everything so it crosses no block.
-		wireX = rightEdge + 0.7
-		s += '\\draw[bus, rounded corners] (dm.east) -- (' + '%.2f' % wireX + ', 6.3) -- (' + '%.2f' % wireX + ', -0.55) -- (' + '%.2f' % (xs[0][1]) + ', -0.55) -- (' + '%.2f' % (xs[0][1]) + ', 0.68);\n'
-		s += '\\node[note, anchor=south west] at (0.15, -0.48) {per-hart \\register{haltreq} / \\register{resumereq} $\\rightarrow$, \\ \\register{halted} / \\register{unavail} $\\leftarrow$ \\ (direct wires, not the bus)};\n'
-		# D4: the plant
-		plantX = rightEdge + 1.5
-		s += '\\draw[sig, rounded corners] (13.7, 5.50) -- (' + '%.2f' % plantX + ', 5.50) -- (' + '%.2f' % plantX + ', 1.02) -- (pg.east);\n'
-		s += '\\node[note, anchor=west, align=left] at (' + '%.2f' % (plantX + 0.15) + ', 3.4) {\\textbf{the plant} (D4):\\\\ \\textbf{dm0} streams its own\\\\ 40-word trampoline into\\\\ the entry page --- once at\\\\ \\register{dmactive} rise, and again\\\\ before it acts on a hart\\\\ it has just seen halt};\n'
+		# ---- dm0's three reaches, each an arm of its own, each a verb
+		# 1. run control: direct wires, down the outside and along under the tiles
+		s += '\\draw[thick, rounded corners] (' + P(dmCx + 0.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 0.10) + ', 3.45) -- (' + P(trunkX) + ', 3.45) -- (' + P(trunkX) + ', ' + P(yTrunk) + ') -- (' + P(xs[-1][1]) + ', ' + P(yTrunk) + ');\n'
+		s += '\\node[lab, anchor=west] at (' + P(trunkX) + ', ' + P(yTrunk - 0.62) + ') {\\textbf{halts and resumes} every hart --- \\register{haltreq} / \\register{resumereq} out, \\register{halted} / \\register{unavail} back, on direct wires};\n'
+		# 2. memory: one more master on the arbiter
+		s += '\\draw[bus] (' + P(dmCx + 1.10) + ', ' + P(yDmBot) + ') -- (' + P(dmCx + 1.10) + ', ' + P(yArb + arbH / 2.0) + ');\n'
+		s += '\\node[vrb, anchor=west] at (' + P(dmCx + 1.25) + ', 4.15) {\\textbf{reads and writes memory}\\\\ as one more master on the bus};\n'
+		# 3. the plant (D4)
+		s += '\\draw[sig, rounded corners] (dm.east) -- (' + P(plantX) + ', ' + P(yDm) + ') -- (' + P(plantX) + ', 0.85) -- (' + P(ramX1 - 0.20) + ', 0.85);\n'
+		s += '\\node[vrb, anchor=east] at (' + P(plantX - 0.15) + ', 5.20) {\\textbf{plants} its own 40-word\\\\ trampoline into that page};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('DebugStackDiagram.tex', s)
 		return
@@ -1708,100 +1765,146 @@ class LatexUserGuide():
 	def GenerateTapStateDiagram(self):
 		'''include/TapStateDiagram.tex — the 16-state IEEE 1149.1 TAP graph,
 		   every edge drawn from _TAP_NEXT (jtag_dtm.vhd:204-208). Solid edges
-		   are TMS=0, dashed are TMS=1; the two lobes are the DR column and the
-		   IR column. The five-ones recovery is emphasised because it is the
-		   only thing a debugger needs when it has lost the state.'''
-		# node positions: TLR and RTI on top, then the DR column and the IR
-		# column running down in the standard order.
-		col = {'dr': 0.0, 'ir': 5.6}
-		rows = [6.05, 4.85, 3.65, 2.45, 1.25, 0.05]   # capture..update
-		pos = {}
-		pos[0] = (-3.9, 8.5)    # TLR
-		pos[1] = (-3.9, 7.25)   # RTI
-		pos[2] = (col['dr'], 7.25)   # Select-DR
-		pos[9] = (col['ir'], 7.25)   # Select-IR
+		   are TMS=0, dashed are TMS=1; the five-ones recovery is emphasised
+		   because it is the only thing a debugger needs when it has lost the
+		   state.
+
+		   LAYOUT is the canonical datasheet one, and it is chosen to keep the
+		   edges apart rather than to look tidy on paper: a TOP ROW of
+		   Test-Logic-Reset, Run-Test/Idle, Select-DR, Select-IR (so the TMS=1
+		   chain runs left to right along it), with the two seven-state lobes
+		   hanging below their Select. Every remaining edge then has a channel
+		   of its own -- forward skips down the INNER flank of each lobe, the
+		   Exit2 back edge and the self-loops on the OUTER flank, the two
+		   Update->Select-DR returns over the top and up the middle, the two
+		   Update->Run-Test/Idle returns along the bottom. Edge labels are
+		   placed at computed points rather than by `pos=', so no label ever
+		   lands on another edge.'''
+		HW, HH = 1.35, 0.36            # half width / half height of a state box
+		TOP = 0.00                     # the top row
+		xTLR, xRTI = 0.00, 3.80
+		cx = {'dr': 7.90, 'ir': 14.40}
+		rows = [-1.75, -3.10, -4.45, -5.80, -7.15, -8.50]   # capture .. update
+		yWrapT, yWrapS = 1.60, 2.60    # the two returns over the top
+		yRetD, yRetI = -9.80, -10.60   # the two returns along the bottom
+		xRiseD, xRiseI = 11.05, 18.45  # the two Update -> Select-DR risers
+
+		pos = {0: (xTLR, TOP), 1: (xRTI, TOP), 2: (cx['dr'], TOP), 9: (cx['ir'], TOP)}
 		for k, st in enumerate([3, 4, 5, 6, 7, 8]):
-			pos[st] = (col['dr'], rows[k])
+			pos[st] = (cx['dr'], rows[k])
 		for k, st in enumerate([10, 11, 12, 13, 14, 15]):
-			pos[st] = (col['ir'], rows[k])
+			pos[st] = (cx['ir'], rows[k])
+
+		def P(v):
+			return '%.2f' % v
 
 		s = '% Generated TAP state graph (edges transcribed from jtag_dtm.vhd TAP_NEXT)\n'
 		s += '\\begin{tikzpicture}[\n'
-		s += '\tst/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\scriptsize, minimum width=2.05cm, minimum height=0.62cm, fill=black!4},\n'
+		s += '\tst/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, minimum width=' + P(2 * HW) + 'cm, minimum height=' + P(2 * HH) + 'cm, fill=black!4},\n'
 		s += '\ttlr/.style={st, fill=black!18, very thick},\n'
 		s += '\ttms0/.style={->, >=Stealth, semithick},\n'
 		s += '\ttms1/.style={->, >=Stealth, semithick, densely dashed},\n'
-		s += '\tel/.style={font=\\sffamily\\tiny, inner sep=1pt, fill=white},\n'
-		s += '\tnote/.style={font=\\sffamily\\scriptsize, align=left}]\n'
+		s += '\tel/.style={font=\\sffamily\\scriptsize, inner sep=1.5pt, fill=white},\n'
+		s += '\tkey/.style={font=\\sffamily\\small, align=left, text width=4.0cm},\n'
+		s += '\tkeylab/.style={font=\\sffamily\\small, anchor=west}]\n'
 		for i, name in enumerate(self._TAP_STATES):
 			style = 'tlr' if i == 0 else 'st'
-			s += '\\node[' + style + '] (s' + str(i) + ') at (' + '%.2f' % pos[i][0] + ', ' + '%.2f' % pos[i][1] + ') {' + name + '};\n'
+			s += '\\node[' + style + '] (s' + str(i) + ') at (' + P(pos[i][0]) + ', ' + P(pos[i][1]) + ') {' + name + '};\n'
 
-		# Every edge, straight from the table. Routing is chosen per edge so
-		# nothing crosses a node; the TABLE decides what is drawn, the geometry
-		# only decides how it looks.
-		route = {
-			(0, 0): ('tms1', 'loop above'),
-			(0, 1): ('tms0', 'straight'),
-			(1, 1): ('tms0', 'loop left'),
-			(1, 2): ('tms1', 'straight'),
-			(2, 3): ('tms0', 'straight'),
-			(2, 9): ('tms1', 'straight'),
-			(3, 4): ('tms0', 'straight'),
-			(3, 5): ('tms1', 'bendR'),
-			(4, 4): ('tms0', 'loop left'),
-			(4, 5): ('tms1', 'straight'),
-			(5, 6): ('tms0', 'straight'),
-			(5, 8): ('tms1', 'bendR'),
-			(6, 6): ('tms0', 'loop left'),
-			(6, 7): ('tms1', 'straight'),
-			(7, 4): ('tms0', 'bendL'),
-			(7, 8): ('tms1', 'straight'),
-			(8, 1): ('tms0', 'back'),
-			(8, 2): ('tms1', 'back2'),
-			(9, 10): ('tms0', 'straight'),
-			(9, 0): ('tms1', 'toTLR'),
-			(10, 11): ('tms0', 'straight'),
-			(10, 12): ('tms1', 'bendR'),
-			(11, 11): ('tms0', 'loop right'),
-			(11, 12): ('tms1', 'straight'),
-			(12, 13): ('tms0', 'straight'),
-			(12, 15): ('tms1', 'bendR'),
-			(13, 13): ('tms0', 'loop right'),
-			(13, 14): ('tms1', 'straight'),
-			(14, 11): ('tms0', 'bendL'),
-			(14, 15): ('tms1', 'straight'),
-			(15, 1): ('tms0', 'backIR'),
-			(15, 2): ('tms1', 'backIR2'),
-		}
-		for src in range(16):
-			for tms in (0, 1):
-				dst = self._TAP_NEXT[src][tms]
-				sty, how = route[(src, dst)]
-				lab = str(tms)
-				a, b = 's' + str(src), 's' + str(dst)
-				if how.startswith('loop'):
-					where = how.split()[1]
-					s += '\\draw[' + sty + '] (' + a + ') to[loop ' + where + ', looseness=5] node[el] {' + lab + '} (' + a + ');\n'
-				elif how == 'bendR':
-					s += '\\draw[' + sty + '] (' + a + '.east) to[bend left=32] node[el] {' + lab + '} (' + b + '.east);\n'
-				elif how == 'bendL':
-					s += '\\draw[' + sty + '] (' + a + '.west) to[bend left=32] node[el] {' + lab + '} (' + b + '.west);\n'
-				elif how == 'back':
-					s += '\\draw[' + sty + ', rounded corners] (' + a + '.west) -- (-2.35, ' + '%.2f' % pos[src][1] + ') -- (-2.35, ' + '%.2f' % pos[dst][1] + ') -- node[el, pos=0.30] {' + lab + '} (' + b + '.south);\n'
-				elif how == 'back2':
-					s += '\\draw[' + sty + ', rounded corners] (' + a + '.west) -- (-1.75, ' + '%.2f' % pos[src][1] + ') -- (-1.75, ' + '%.2f' % pos[dst][1] + ') -- node[el, pos=0.30] {' + lab + '} (' + b + '.west);\n'
-				elif how == 'backIR':
-					s += '\\draw[' + sty + ', rounded corners] (' + a + '.east) -- (7.95, ' + '%.2f' % pos[src][1] + ') -- (7.95, 8.95) -- (-3.9, 8.95) -- node[el, pos=0.93] {' + lab + '} (' + b + '.north);\n'
-				elif how == 'backIR2':
-					s += '\\draw[' + sty + ', rounded corners] (' + a + '.east) -- (8.55, ' + '%.2f' % pos[src][1] + ') -- (8.55, 9.45) -- (' + '%.2f' % pos[dst][0] + ', 9.45) -- node[el, pos=0.93] {' + lab + '} (' + b + '.north);\n'
-				elif how == 'toTLR':
-					s += '\\draw[' + sty + ', rounded corners] (' + a + '.north) -- (' + '%.2f' % pos[src][0] + ', 8.5) -- node[el, pos=0.72] {' + lab + '} (' + b + '.east);\n'
-				else:
-					s += '\\draw[' + sty + '] (' + a + ') -- node[el] {' + lab + '} (' + b + ');\n'
+		# Every edge below is one row of TAP_NEXT. `emit' draws the path and
+		# then drops the sampled-TMS label at an explicitly chosen point; the
+		# TABLE decides what is drawn, the geometry only decides where.
+		edges = []
 
-		s += '\\node[note, anchor=north west] at (-6.35, 5.6) {Solid $=$ \\register{TMS} sampled \\textbf{0}\\\\ Dashed $=$ \\register{TMS} sampled \\textbf{1}\\\\[4pt] \\textbf{Five} \\register{TMS}$=$\\textbf{1} clocks reach\\\\ Test-Logic-Reset from \\textit{any}\\\\ state --- the recovery a\\\\ debugger uses when it has\\\\ lost track of the machine.};\n'
-		s += '\\node[note, anchor=north west] at (-6.35, 2.2) {Left column: the \\textbf{DR} lobe,\\\\ which scans a data register.\\\\[3pt] Right column: the \\textbf{IR} lobe,\\\\ identical in shape, which\\\\ scans the instruction register.};\n'
+		def emit(src, tms, path, lx, ly):
+			dst = self._TAP_NEXT[src][tms]
+			edges.append((src, dst))
+			sty = 'tms1' if tms else 'tms0'
+			s_ = '\\draw[' + sty + ', rounded corners] ' + path + ';\n'
+			s_ += '\\node[el] at (' + P(lx) + ', ' + P(ly) + ') {' + str(tms) + '};\n'
+			return s_
+
+		def loop(src, tms, sgn):
+			'''A self-loop on the OUTWARD-facing side of the node.'''
+			dst = self._TAP_NEXT[src][tms]
+			edges.append((src, dst))
+			sty = 'tms1' if tms else 'tms0'
+			out, inn = (340, 20) if sgn > 0 else (200, 160)
+			x, y = pos[src]
+			s_ = '\\draw[' + sty + '] (s' + str(src) + ') to[loop, out=' + str(out) + ', in=' + str(inn) + ', looseness=6] (s' + str(src) + ');\n'
+			s_ += '\\node[el] at (' + P(x + sgn * (HW + 0.95)) + ', ' + P(y) + ') {' + str(tms) + '};\n'
+			return s_
+
+		# ---- the top row ------------------------------------------------
+		s += loop(0, 1, -1)                                   # TLR holds on 1
+		s += emit(0, 0, '(s0.east) -- (s1.west)', (xTLR + HW + xRTI - HW) / 2.0, TOP)
+		s += '\\draw[tms0] (s1) to[loop, out=115, in=65, looseness=6] (s1);\n'
+		edges.append((1, self._TAP_NEXT[1][0]))
+		s += '\\node[el] at (' + P(xRTI) + ', ' + P(TOP + 0.98) + ') {0};\n'
+		s += emit(1, 1, '(s1.east) -- (s2.west)', (xRTI + HW + cx['dr'] - HW) / 2.0, TOP)
+		s += emit(2, 0, '(s2.south) -- (s3.north)', cx['dr'], (TOP - HH + rows[0] + HH) / 2.0)
+		s += emit(2, 1, '(s2.east) -- (s9.west)', (cx['dr'] + HW + cx['ir'] - HW) / 2.0 + 1.00, TOP)
+		s += emit(9, 0, '(s9.south) -- (s10.north)', cx['ir'], (TOP - HH + rows[0] + HH) / 2.0)
+		# Select-IR on a 1 is the last hop of the five-ones recovery.
+		s += emit(9, 1, '(s9.north) -- (' + P(cx['ir']) + ', ' + P(yWrapT) + ') -- (' + P(xTLR) + ', ' + P(yWrapT) + ') -- (s0.north)',
+			(cx['ir'] + xTLR) / 2.0 + 2.60, yWrapT)
+
+		# ---- the two lobes, identical in shape --------------------------
+		# sgn = which side is the OUTWARD one for this lobe.
+		for lobe, sgn, base in (('dr', -1.0, 3), ('ir', +1.0, 10)):
+			c = cx[lobe]
+			cap, shf, ex1, pau, ex2, upd = [base + k for k in range(6)]
+			xOut = c + sgn * (HW + 1.50)      # Exit2 -> Shift, on the outside
+			xIn = c - sgn * (HW + 0.80)       # the two forward skips, inside
+			aOut = 'west' if sgn < 0 else 'east'
+			aIn = 'east' if sgn < 0 else 'west'
+
+			# straight down the spine
+			s += emit(cap, 0, '(s%d.south) -- (s%d.north)' % (cap, shf), c, (rows[0] - HH + rows[1] + HH) / 2.0)
+			s += emit(shf, 1, '(s%d.south) -- (s%d.north)' % (shf, ex1), c, (rows[1] - HH + rows[2] + HH) / 2.0)
+			s += emit(ex1, 0, '(s%d.south) -- (s%d.north)' % (ex1, pau), c, (rows[2] - HH + rows[3] + HH) / 2.0)
+			s += emit(pau, 1, '(s%d.south) -- (s%d.north)' % (pau, ex2), c, (rows[3] - HH + rows[4] + HH) / 2.0)
+			s += emit(ex2, 1, '(s%d.south) -- (s%d.north)' % (ex2, upd), c, (rows[4] - HH + rows[5] + HH) / 2.0)
+			# the two self-loops, outward
+			s += loop(shf, 0, sgn)
+			s += loop(pau, 0, sgn)
+			# Capture -> Exit1 and Exit1 -> Update: forward skips, inner flank
+			s += emit(cap, 1, '(s%d.%s) -- (%s, %s) -- (%s, %s) -- (s%d.north %s)'
+				% (cap, aIn, P(xIn), P(rows[0]), P(xIn), P(rows[2] + HH), ex1, aIn), xIn, (rows[0] + rows[2]) / 2.0)
+			s += emit(ex1, 1, '(s%d.south %s) -- (%s, %s) -- (%s, %s) -- (s%d.north %s)'
+				% (ex1, aIn, P(xIn), P(rows[2] - HH), P(xIn), P(rows[5] + HH), upd, aIn), xIn, (rows[2] + rows[5]) / 2.0)
+			# Exit2 -> Shift: the retry path, outer flank, clear of the loops
+			s += emit(ex2, 0, '(s%d.%s) -- (%s, %s) -- (%s, %s) -- (s%d.south %s)'
+				% (ex2, aOut, P(xOut), P(rows[4]), P(xOut), P(rows[1] - HH), shf, aOut), xOut, (rows[1] + rows[4]) / 2.0)
+
+		# ---- the four returns, two along the bottom and two up top -------
+		# Update-DR -> Run-Test/Idle, and Update-DR -> Select-DR up the middle
+		s += emit(8, 0, '(s8.south) -- (' + P(cx['dr']) + ', ' + P(yRetD) + ') -- (' + P(xRTI) + ', ' + P(yRetD) + ') -- (s1.south)',
+			xRTI, (yRetD + TOP) / 2.0 + 1.20)
+		s += emit(8, 1, '(s8.east) -- (' + P(xRiseD) + ', ' + P(rows[5]) + ') -- (' + P(xRiseD) + ', ' + P(TOP - HH) + ') -- (s2.south east)',
+			xRiseD, (rows[5] + TOP) / 2.0)
+		# Update-IR -> Run-Test/Idle, and Update-IR -> Select-DR over the top
+		s += emit(15, 0, '(s15.south) -- (' + P(cx['ir']) + ', ' + P(yRetI) + ') -- (' + P(xRTI - HW) + ', ' + P(yRetI) + ') -- (s1.south west)',
+			xRTI - HW, (yRetI + TOP) / 2.0 - 1.20)
+		s += emit(15, 1, '(s15.east) -- (' + P(xRiseI) + ', ' + P(rows[5]) + ') -- (' + P(xRiseI) + ', ' + P(yWrapS) + ') -- (' + P(cx['dr']) + ', ' + P(yWrapS) + ') -- (s2.north)',
+			(xRiseI + cx['dr']) / 2.0 + 1.40, yWrapS)
+
+		# The figure IS the table: assert that here, so a change to TAP_NEXT
+		# that this routing does not cover fails the build instead of quietly
+		# dropping an edge.
+		expected = [(i, self._TAP_NEXT[i][t]) for i in range(16) for t in (0, 1)]
+		if sorted(edges) != sorted(expected):
+			raise Exception('TapStateDiagram: drew %d edges, TAP_NEXT has %d'
+				% (len(edges), len(expected)))
+
+		# The key lives in the one large empty region the layout leaves: below
+		# Test-Logic-Reset, inside the two bottom returns' risers.
+		kx = xTLR - HW - 0.70
+		s += '\\draw[tms0] (' + P(kx) + ', -2.40) -- (' + P(kx + 0.90) + ', -2.40);\n'
+		s += '\\node[keylab] at (' + P(kx + 1.05) + ', -2.40) {\\pin{TMS} sampled \\textbf{0}};\n'
+		s += '\\draw[tms1] (' + P(kx) + ', -3.15) -- (' + P(kx + 0.90) + ', -3.15);\n'
+		s += '\\node[keylab] at (' + P(kx + 1.05) + ', -3.15) {\\pin{TMS} sampled \\textbf{1}};\n'
+		s += '\\node[key, anchor=north west] at (' + P(kx) + ', -4.05) {\\textbf{Five} \\pin{TMS}$=$\\textbf{1} clocks reach Test-Logic-Reset from \\textit{any} state in the graph --- the recovery a debugger uses when it has lost track of the machine.};\n'
 		s += '\\end{tikzpicture}\n'
 		self._writeInclude('TapStateDiagram.tex', s)
 		return
