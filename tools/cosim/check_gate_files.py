@@ -591,6 +591,46 @@ GATE_FILES = [
      'CODE -- proven by an abstract round-trip that cannot complete unless '
      'the DM observed the trampoline s own TOK_HALTED'),
 
+    # ---- D5: THE TRANSPORT (d5_spec 2, architecture ruled at R-D5-1(3)) ----
+    # These four are the reason a debugger can reach this chip at all, and
+    # every one of them lives in the gitignored `xcelium/` tree. Losing them
+    # to a `git clean -xdf` would not cost a test -- it would cost the
+    # transport, and with it the ability to re-run any D5 evidence.
+    ('behavioral_mp/dbg_rbb_bridge.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_rbb_bridge.tcl',
+     'THE BRIDGE. xmsim\'s OWN Tcl interpreter listens on the OpenOCD '
+     'remote_bitbang TCP port and drives the five JTAG formals -- no '
+     'co-process, no DPI. Honours eleven frozen protocol clauses, each '
+     'annotated in the header with the measurement that bought it (never '
+     '-buffering none, 24 us/char; chunked reads, 6.5x; a NONZERO run between '
+     'pin-set bytes, because same-time forces COLLAPSE; lazy forcing; a '
+     'heartbeat carrying pending_out, the ONLY discriminator between a benign '
+     'wait-for-debugger and a deadlocked bridge). Event-driven on two '
+     'channels; the second is PASSIVE-ONLY and whitelisted'),
+    ('behavioral_mp/dbg_rbbsmoke.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_rbbsmoke.tcl',
+     'the bridge\'s own smoke leg: stands the server up, serves ONE client, '
+     'reports. Separates "the bridge works" from "the debugger stack works", '
+     'which are two claims and the first has to be true first. Proves the '
+     'PHASE -- a one-phase-late TDO sample returns the stream shifted by '
+     'exactly one bit, which looks structured and blames the RTL'),
+    ('behavioral_mp/dbg_sessrun.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_sessrun.tcl',
+     'the graded session harness -- dbg_sessgrade.tcl with the bridge\'s '
+     'service loop where its `run` calls are. Carries the DRIVER CONTRACT: '
+     'the fixed snapshot labels a gdb script must send over the control '
+     'channel, enforced by sess_grade_summary refusing to say passed while '
+     'NOT-GRADED > 0, so a driver that skips an instant produces a named gap '
+     'rather than a quiet green'),
+    ('behavioral_mp/dbg_rbbunit.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_rbbunit.tcl',
+     'unit proof for the bridge\'s decode shadow, in a STANDALONE tclsh -- no '
+     'simulator, no license, no elaboration. 11 checks, every one asserting a '
+     'KNOWN-NONZERO value. It caught two real bridge defects before the '
+     'bridge touched the chip, the sharper being an int-vs-string compare '
+     'that sized EVERY DR as BYPASS and would have pinned dmiresets at 0 -- '
+     'the F1 false-reassurance class exactly'),
+
     # ---- D4: the debug-ON assembly flow (R-D4-5(2), the R-D3-5(3) shape) --
     # genus/ is gitignored, so the flow that produces the standing debug-ON
     # assembly pin AND the two generated inputs it reads are canonical here.
