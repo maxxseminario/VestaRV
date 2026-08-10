@@ -20,6 +20,14 @@
 --        System Bus Access (R-DD2: never this programme -- there is no
 --        raw-memory DMI path here BY DESIGN; memory access is progbuf lw/sw
 --        through the hart, which is DD5's answer).
+--        D5 NOTE, because A_SBCS now appears in the address list below and a
+--        reader will otherwise draw the wrong conclusion: `sbcs` (0x38) is
+--        ANSWERED, with all-zeros, and answering zeros is not SBA. Zeros are
+--        the encoding for "sbversion 0, sbasize 0, no sbaccess width
+--        supported" -- i.e. the register whose whole content is the sentence
+--        "this DM has no system bus". No sbaddress and no sbdata register
+--        exists, at any address, and 0x39-0x3F still answer `failed`. The
+--        R-DD2 / d4_spec 1.5 NOT-SBA ruling is untouched by that reply.
 --
 -- WHY THE DM IS AN ARBITER MASTER, and why that is not optional.
 -- A tile's TCM is UNREACHABLE from the shared bus (d2_probe P5, four proofs):
@@ -51,7 +59,11 @@
 -- assertion rather than a silent stray claim.
 --
 -- CLAIMED SHARED BAND (CLAUDE.md ledger, d2_spec 1; claim /= use):
---   0x10680           DATA0     -- hartinfo.dataaddr, the abstract data word
+--   0x10680           DATA0     -- the abstract data word (DATA0_ADDR).
+--                                  NOT `hartinfo.dataaddr` any more: since D5
+--                                  hartinfo is the null claim and advertises
+--                                  no address at all. This word is the DM's
+--                                  OWN master-engine target and nothing else.
 --   0x10684           PROGBUF0  -- DMI-proxied
 --   0x10688           PROGBUF1  -- DMI-proxied
 --   0x1068C           IMPLICIT  -- the third progbuf word (impebreak = 1);
@@ -312,6 +324,7 @@ architecture rtl of debug_module is
     constant A_PROGBUF0  : std_logic_vector(6 downto 0) := "0100000";  -- 0x20
     constant A_PROGBUF1  : std_logic_vector(6 downto 0) := "0100001";  -- 0x21
     constant A_DMCS2     : std_logic_vector(6 downto 0) := "0110010";  -- 0x32
+    constant A_SBCS      : std_logic_vector(6 downto 0) := "0111000";  -- 0x38
     constant A_HALTSUM0  : std_logic_vector(6 downto 0) := "1000000";  -- 0x40
 
     constant OP_OK   : std_logic_vector(1 downto 0) := "00";
@@ -1544,10 +1557,54 @@ begin
                         rsp_data_r <= rsp;
 
                     elsif a = A_HARTINFO then
-                        rsp(11 downto 0)  := DATA0_ADDR(11 downto 0);  -- dataaddr
-                        rsp(15 downto 12) := x"1";                     -- datasize
-                        rsp(16)           := '1';                      -- dataaccess
-                        rsp_data_r <= rsp;
+                        -- ==================================================
+                        -- hartinfo (0x12): THE NULL CLAIM. All four fields
+                        -- read zero -- nscratch = 0, dataaccess = 0,
+                        -- datasize = 0, dataaddr = 0 -- which says "I make no
+                        -- claim about scratch registers or a shadowed data
+                        -- region; use the program buffer." That is the path
+                        -- this design intends (DD5) and the only one it has.
+                        --
+                        -- It replaces a claim that was measured to be wrong in
+                        -- BOTH halves, and each half is worth stating because
+                        -- either alone would have justified this:
+                        --
+                        --  (1) THE ADDRESS WAS NEVER 0x10680. dataaddr is 12
+                        --      bits and was driven from DATA0_ADDR(11:0), so
+                        --      the wire carried 0x680. The debug spec
+                        --      SIGN-EXTENDS dataaddr; bit 11 of 0x680 is 0, so
+                        --      a debugger obtains the positive address 0x680 --
+                        --      not a truncation it could detect, but a real,
+                        --      resolvable, WRONG address that lands inside the
+                        --      shared boot ROM (0x0-0x3FFF, a READ-ONLY
+                        --      arbiter slave). A debugger trusting it writes
+                        --      nothing and reads ROM. R-D2-8 R6 feared the
+                        --      encoding; the measurement found the encoding
+                        --      names somewhere else that exists.
+                        --
+                        --  (2) NOBODY WAS EVER GOING TO READ IT ANYWAY -- and
+                        --      that is why this is the fix rather than a wider
+                        --      dataaddr field. OpenOCD consumes dataaddr in
+                        --      exactly one place, scratch_reserve(), and only
+                        --      under `if (info->dataaccess == 1)`
+                        --      (riscv-013.c:1147). Clearing that ONE BIT makes
+                        --      the 12-bit problem evaporate instead of being
+                        --      tolerated: the consumer is never reached, so
+                        --      R-D2-8 R6 closes by EMISSION, not by a
+                        --      debugger's forbearance.
+                        --
+                        -- nscratch = 0 belongs with it. The old pairing
+                        -- (nscratch 0 WITH dataaccess 1) told a debugger "no
+                        -- scratch GPRs, but shadowed data RAM over there",
+                        -- which is precisely the input that steers
+                        -- scratch_reserve() at the memory option. Zero and
+                        -- zero together steer it at progbuf/work-area scratch.
+                        --
+                        -- DATA0_ADDR the generic is deliberately NOT touched:
+                        -- the DM's own master engine still targets that word.
+                        -- What changes is that the DM no longer ADVERTISES it.
+                        -- ==================================================
+                        rsp_data_r <= (others => '0');
 
                     elsif a = A_HALTSUM0 then
                         -- One 32-bit register covers both chips (4 <= 32,
@@ -1561,6 +1618,48 @@ begin
                     elsif a = A_HALTSUM1 then
                         -- reads zero SUCCESS, stated in d2_spec 2 because a
                         -- debugger probes it and Spike answers `failed`.
+                        rsp_data_r <= (others => '0');
+
+                    elsif a = A_SBCS then
+                        -- ==================================================
+                        -- sbcs (0x38): READ-ZERO-SUCCESS, WRITES IGNORED-
+                        -- SUCCESS. This is the haltsum1 carve-out directly
+                        -- above, extended for the same reason -- except that
+                        -- here the reason was MEASURED, not anticipated, and
+                        -- it is the difference between a chip gdb attaches to
+                        -- and one it does not.
+                        --
+                        -- OpenOCD's examine() reads this address ONCE PER HART
+                        -- and a failed read ABORTS EXAMINATION:
+                        --     riscv-013.c:1653-1654
+                        --       if (dmi_read(target, &info->sbcs, DM_SBCS)
+                        --               != ERROR_OK)
+                        --           return ERROR_FAIL;
+                        -- There is no `sba`-absent guard around it and NO .cfg
+                        -- knob that suppresses it (d5_toolchain_probe claim 20,
+                        -- measured: 1 read of 0x38 at N=1, 4 at N=4). Note this
+                        -- is CONTROL FLOW, not transport state -- so it is a
+                        -- different problem from the DTM's sticky gate, which
+                        -- OpenOCD does recover from automatically by writing
+                        -- dtmcs.dmireset (probe claim 22). Only one of the two
+                        -- was ever survivable, and it was not this one.
+                        --
+                        -- Zeros are the honest answer, not a placation:
+                        -- sbversion = 0, sbasize = 0, and every sbaccess*
+                        -- width bit clear is the debug spec's own encoding for
+                        -- "no system bus access", and it is what Spike itself
+                        -- returns at --dm-sba=0 (measured: `sbcs -> 0x0`).
+                        -- R-DD2 / d4_spec 1.5 stand: answering zeros is not
+                        -- SBA. 0x39-0x3F remain unimplemented and still answer
+                        -- `failed`.
+                        --
+                        -- A write completes SUCCESS and has NO effect: there
+                        -- is no state behind this address to write. Both
+                        -- halves matter -- OpenOCD writes sbcs to clear
+                        -- sberror, and a FAILED write would be one more
+                        -- gratuitous sticky event on a transport that has a
+                        -- uniform drop-while-sticky gate.
+                        -- ==================================================
                         rsp_data_r <= (others => '0');
 
                     elsif a = A_ABSTRACTCS then
