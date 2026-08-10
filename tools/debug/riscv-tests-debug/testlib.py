@@ -70,12 +70,20 @@ class Spike:
             isa=None, progbufsize=None, dmi_rti=None, abstract_rti=None,
             support_hasel=True, support_abstract_csr=True,
             support_abstract_fpr=False,
-            support_haltgroups=True, vlen=128, elen=64, harts=None):
+            support_haltgroups=True, vlen=128, elen=64, harts=None,
+            # VESTARV LOCAL DELTA (D5, 2026-08-10) -- three kwargs, all
+            # defaulting to the upstream behaviour, so every vendored target
+            # builds a byte-identical spike command line.  See VENDORED.md.
+            dm_auth=True, sba_bits=64, priv=None):
         """Launch spike. Return tuple of its process and the port it's running
         on."""
         self.process = None
         self.isa = isa
         self.progbufsize = progbufsize
+        # VESTARV LOCAL DELTA (D5): see command() for the three uses.
+        self.dm_auth = dm_auth
+        self.sba_bits = sba_bits
+        self.priv = priv
         self.dmi_rti = dmi_rti
         self.abstract_rti = abstract_rti
         self.support_abstract_csr = support_abstract_csr
@@ -142,11 +150,34 @@ class Spike:
             isa += f"_Zvl{self.vlen}b_Zve{self.elen}d"
 
         cmd += ["--isa", isa]
-        cmd += ["--dm-auth"]
+
+        # VESTARV LOCAL DELTA (D5, 2026-08-10) -- three edits in this block,
+        # each restoring a degree of freedom the upstream file hard-codes.
+        # Defaults reproduce upstream exactly; only a target that passes the
+        # new kwargs sees any change.  Rationale in VENDORED.md.
+        #
+        # (1) --dm-auth was emitted unconditionally, which is why every
+        #     vendored .cfg carries the authdata handshake.  VestaRV drives
+        #     dmstatus.authenticated=1 and implements no authdata register,
+        #     so its .cfg must NOT do the handshake -- and a VestaRV-shaped
+        #     Spike baseline must be launchable without it.
+        if self.dm_auth:
+            cmd += ["--dm-auth"]
 
         if not self.progbufsize is None:
             cmd += ["--dm-progsize", str(self.progbufsize)]
-            cmd += ["--dm-sba", "64"]
+            # (2) --dm-sba 64 was welded to --dm-progsize, so the harness
+            #     could not express a no-SBA target at all.  VestaRV has no
+            #     system bus access by design (DD5/R-DD2); sba_bits=0 makes
+            #     the baseline match.
+            cmd += ["--dm-sba", str(self.sba_bits)]
+
+        # (3) --priv was never passed, so misa always carried S+U.  VestaRV's
+        #     default build is M-only (misa 0x40001105); without this the
+        #     baseline's CheckMisa disagrees with the target declaration for
+        #     a reason that has nothing to do with the debugger.
+        if self.priv:
+            cmd += ["--priv", self.priv]
 
         if not self.dmi_rti is None:
             cmd += ["--dmi-rti", str(self.dmi_rti)]

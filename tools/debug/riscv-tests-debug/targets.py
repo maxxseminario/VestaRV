@@ -6,6 +6,20 @@ import tempfile
 
 import testlib
 
+# VESTARV LOCAL DELTA (D5, 2026-08-10) -- encoding.h resolution.
+# Upstream compiles programs/ with a literal `-I ../env`, because upstream's
+# debug/ directory sits beside riscv-tests' own env/.  Here it does not, and
+# `encoding.h` was never vendored, so every harness compile failed with
+#   programs/entry.S:1:10: fatal error: encoding.h: No such file or directory
+# The file already exists in this repo at verification/env/encoding.h, so we
+# POINT AT IT rather than vendor a second copy (R-DD6(3): no duplicate
+# vendoring).  Derived from __file__, not from the cwd, so it survives being
+# invoked by absolute path.  Note that programs/ itself remains cwd-relative
+# upstream behaviour -- the harness must still be run from this directory.
+VESTA_ENV_DIR = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "..", "..", "verification", "env"))
+
 class Hart:
     # XLEN of the hart. May be overridden with --32 or --64 command line
     # options.
@@ -208,7 +222,8 @@ class Target:
                 f"-DCLINT={self.clint_addr}",
                 "programs/entry.S", "programs/init.c",
                 f"-DNHARTS={len(self.harts)}",
-                "-I", "../env",
+                # VESTARV LOCAL DELTA (D5): was "../env" -- see VESTA_ENV_DIR.
+                "-I", VESTA_ENV_DIR,
                 "-T", hart.link_script_path,
                 "-nostartfiles",
                 "-mcmodel=medany",
