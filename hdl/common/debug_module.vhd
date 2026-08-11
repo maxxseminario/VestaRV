@@ -285,6 +285,16 @@ architecture rtl of debug_module is
     constant W_PROGBUF0 : integer := w(DATA0_ADDR) + 1;      -- 0x10684
     constant W_PROGBUF1 : integer := w(DATA0_ADDR) + 2;      -- 0x10688
     constant W_IMPLICIT : integer := w(DATA0_ADDR) + 3;      -- 0x1068C
+    -- F-D5-2 (R-DD9): the program-buffer stubs, inside the band the ledger
+    -- already reserves for DM use (0x10690-0x106FC) and clear of MIRROR0/1 at
+    -- 0x106F0/F4.  PB_ENTER is 3 words and PB_LEAVE is 11 (it grew by the two
+    -- restore words the blind detector forced -- see PB_LEAVE below), so the
+    -- pair occupies 0x10690-0x106C4 and leaves 0x106C8-0x106EC still free.
+    -- PBSTUB_WORDS below is the ONE number S_EPI streams from; keep the three
+    -- in step, and note the arithmetic is checked by nothing but this comment.
+    constant W_PBSTUB   : integer := w(DATA0_ADDR) + 4;      -- 0x10690
+    constant W_PB_LEAVE : integer := W_PBSTUB + 3;           -- 0x1069C
+    constant PBSTUB_WORDS : integer := 14;                   -- 3 + 11
     constant W_FLAGS0   : integer := w(FLAGS_ADDR);          -- 0x10700
     constant W_ENTRY    : integer := w(ENTRY_ADDR);          -- 0x10780
     -- THE TRAMPOLINE'S OWN LENGTH IS THE COUPLING. It occupies words 0..39
@@ -326,6 +336,15 @@ architecture rtl of debug_module is
     constant TOK_RESUME : integer := 2;
     constant TOK_GO     : integer := 4;
     constant TOK_DONE   : integer := 12;
+    -- F-D5-2 (R-DD9): the PROGRAM-BUFFER completion token. 8 is chosen for one
+    -- reason and it is the whole trick: BIT 2 IS CLEAR. The trampoline's
+    -- re-entry test is `andi s1,s1,REENTRY_BIT(4)` -- set in GO(4) and
+    -- DONE(12), clear in 0/1/2 -- so a bit-2-clear token takes the FIRST-ENTRY
+    -- path, where the tentative `dscratch <- s0/s1` save at trampoline words
+    -- 0..1 STANDS instead of being repaired from the mirror. That is exactly
+    -- "adopt the values the program buffer left", obtained with no new branch
+    -- and WITHOUT CHANGING ONE OF THE 40 TRAMPOLINE WORDS.
+    constant TOK_PBDONE : integer := 8;
 
     -- ------------------------------------------------------------------
     -- DMI register addresses (debug_defines.h; d2_probe P6 quoted them).
@@ -630,6 +649,15 @@ architecture rtl of debug_module is
     constant OFF_BASE : integer := conv_integer(DATA0_ADDR(31 downto 12)) * 4096;
     constant O_DATA0  : integer := conv_integer(DATA0_ADDR) - OFF_BASE;
     constant O_FLAGS  : integer := conv_integer(FLAGS_ADDR) - OFF_BASE;
+    -- F-D5-2 (R-DD9), the D-B half.  The DM writes these ONLY where the DM is
+    -- itself the author of the new dscratch value (an abstract WRITE to s0/s1);
+    -- the trampoline still owns them everywhere else.  That is the narrowest
+    -- possible widening of "the DM is deliberately ignorant of the mirror" and
+    -- it is deliberate: without it, a debugger's register write is reverted by
+    -- the very next re-entry repair, because MIRROR was captured at dbg_go
+    -- BEFORE the body ran.
+    constant O_MIRROR0: integer := 16#6F0#;
+    constant O_MIRROR1: integer := 16#6F4#;
 
     -- ------------------------------------------------------------------
     -- THE EPILOGUE, constant. Reached from the abstract body (directly, when
@@ -658,7 +686,7 @@ architecture rtl of debug_module is
     -- still stores its DONE token: "implicit ebreak" is what the DEBUGGER
     -- sees, and the epilogue's own ebreak is what actually terminates.
     constant I_IMPLICIT : std_logic_vector(31 downto 0) :=
-        i_jal(0, (W_EPILOG - W_IMPLICIT) * 4);
+        i_jal(0, (W_PB_LEAVE - W_IMPLICIT) * 4);
 
     -- ------------------------------------------------------------------
     -- F-D5-1 (R-DD8): THE SUBSTITUTED PROGRAM-BUFFER TERMINATORS.
@@ -683,10 +711,66 @@ architecture rtl of debug_module is
     -- jals must land on the SAME absolute word (W_EPILOG), so their offsets
     -- differ by exactly the 4 bytes between the two slots.
     -- ------------------------------------------------------------------
+    -- ------------------------------------------------------------------
+    -- F-D5-2 (R-DD9): THE TWO PROGRAM-BUFFER STUBS.
+    --
+    -- They live in the DM-reserved band at 0x10690 rather than in the entry
+    -- page, and that is forced rather than chosen: the page's 64 words are
+    -- trampoline 0..39, abstract body 40..44, EPILOGUE 48..56, leaving only
+    -- ten free words in two non-adjacent runs -- not enough for both stubs.
+    -- 0x10690 is already claimed "reserved for DM use" and is clear of
+    -- MIRROR0/1 at 0x106F0/F4.  Everything below 0x10800 stays reachable from
+    -- a `lui 0x10` base with a 12-bit displacement, which is why the whole
+    -- band was placed there.
+    --
+    -- PB_ENTER -- restore the debugger's s0/s1 before the program buffer runs.
+    -- It is reached from the abstract body's TAIL, i.e. strictly AFTER the
+    -- body's transfer work, so a `transfer+postexec` command's freshly written
+    -- dscratch is what gets restored.  Without it the program buffer runs on
+    -- whatever scratch the DM's own body happened to leave in s0/s1.
+    constant PB_ENTER : word_arr(0 to 2) := (
+        0 => i_csrr(R_S0, CSR_DSCRATCH0),
+        1 => i_csrr(R_S1, CSR_DSCRATCH1),
+        2 => i_jal (0, (W_PROGBUF0 - (W_PBSTUB + 2)) * 4));
+
+    -- PB_LEAVE -- adopt what the program buffer computed, then publish PBDONE.
+    --
+    -- THE ORDER OF THE FIRST TWO WORDS IS LOAD-BEARING AND LOOKS SWAPPABLE.
+    -- The stub must publish a per-hart FLAGS word, which means recomputing the
+    -- row base from mhartid -- and that needs a scratch register, which can
+    -- only be s0/s1, the very pair it exists to preserve.  So it SAVES FIRST
+    -- and MARKS SECOND: once dscratch holds the adopted values, s0/s1 are free
+    -- to be destroyed.  Marking first would leave nothing to adopt.
+    --
+    -- It deliberately does NOT fall into EPILOGUE: the epilogue restores s0/s1
+    -- FROM dscratch before its ebreak, which would overwrite the program
+    -- buffer's results with the pre-command values -- the exact interaction
+    -- that makes the naive version of this fix a no-op.
+    -- WORDS 9..10 ARE NOT OPTIONAL, and leaving them out is a mistake this
+    -- file's author actually made and the blind detector caught (C2/A1/E2 stayed
+    -- red while C1/B1 went green).  Words 2..7 CLOBBER s0/s1 to compute the
+    -- per-hart FLAGS address -- and the trampoline's re-entry begins with a
+    -- TENTATIVE `dscratch <- s0/s1` save.  Ebreak-ing with clobbered registers
+    -- therefore writes `&FLAGS[h]` and the token straight over the values just
+    -- adopted.  Restoring from dscratch first makes that tentative save a
+    -- no-op, which is exactly why EPILOGUE ends the same way.
+    constant PB_LEAVE : word_arr(0 to 10) := (
+        0 => i_csrw(CSR_DSCRATCH0, R_S0),     -- adopt s0
+        1 => i_csrw(CSR_DSCRATCH1, R_S1),     -- adopt s1  (now free to clobber)
+        2 => i_csrr(R_S1, CSR_MHARTID),
+        3 => i_slli(R_S1, R_S1, 2),
+        4 => i_lui (R_S0, HI20),
+        5 => i_add (R_S0, R_S0, R_S1),        -- s0 = &FLAGS[h]
+        6 => i_addi(R_S1, 0, TOK_PBDONE),
+        7 => i_sw  (R_S1, R_S0, O_FLAGS),
+        8 => i_csrr(R_S1, CSR_DSCRATCH1),     -- put the adopted pair BACK in
+        9 => i_csrr(R_S0, CSR_DSCRATCH0),     --   the arch regs before ebreak
+       10 => I_EBREAK);
+
     constant I_PB0_JAL : std_logic_vector(31 downto 0) :=
-        i_jal(0, (W_EPILOG - W_PROGBUF0) * 4);
+        i_jal(0, (W_PB_LEAVE - W_PROGBUF0) * 4);
     constant I_PB1_JAL : std_logic_vector(31 downto 0) :=
-        i_jal(0, (W_EPILOG - W_PROGBUF1) * 4);
+        i_jal(0, (W_PB_LEAVE - W_PROGBUF1) * 4);
 
     -- ------------------------------------------------------------------
     -- THE TRAMPOLINE (D4). The entry code every halted hart executes, held as
@@ -923,7 +1007,7 @@ begin
             -- postexec -> jump to the program buffer, whose implicit third
             -- word jumps on to the epilogue; else straight to the epilogue.
             if cmd_r(18) = '1' then
-                tail := i_jal(0, (W_PROGBUF0 - (W_ABST + 4)) * 4);
+                tail := i_jal(0, (W_PBSTUB - (W_ABST + 4)) * 4);
             else
                 tail := i_jal(0, (W_EPILOG   - (W_ABST + 4)) * 4);
             end if;
@@ -931,7 +1015,7 @@ begin
                 -- transfer = 0: postexec only. (`when/else` inside a process is
                 -- VHDL-2008 and this tree compiles -V200X, so it is an if.)
                 if cmd_r(18) = '1' then
-                    body_w(0) <= i_jal(0, (W_PROGBUF0 - W_ABST) * 4);
+                    body_w(0) <= i_jal(0, (W_PBSTUB - W_ABST) * 4);
                 else
                     body_w(0) <= i_jal(0, (W_EPILOG - W_ABST) * 4);
                 end if;
@@ -962,20 +1046,23 @@ begin
                     body_w(0) <= i_lui (R_S1, HI20);
                     body_w(1) <= i_lw  (R_S0, R_S1, O_DATA0);
                     body_w(2) <= i_csrw(CSR_DSCRATCH0, R_S0);
+                    body_w(3) <= i_sw  (R_S0, R_S1, O_MIRROR0);
                 elsif isgpr and n = R_S1 then
                     body_w(0) <= i_lui (R_S1, HI20);
                     body_w(1) <= i_lw  (R_S0, R_S1, O_DATA0);
                     body_w(2) <= i_csrw(CSR_DSCRATCH1, R_S0);
+                    body_w(3) <= i_sw  (R_S0, R_S1, O_MIRROR1);
                 elsif isgpr then
                     body_w(0) <= i_lui (R_S1, HI20);
                     body_w(1) <= i_lw  (n, R_S1, O_DATA0);
                     body_w(2) <= i_addi(0, 0, 0);
+                    body_w(3) <= i_addi(0, 0, 0);
                 else
                     body_w(0) <= i_lui (R_S1, HI20);
                     body_w(1) <= i_lw  (R_S0, R_S1, O_DATA0);
                     body_w(2) <= i_csrw(regno, R_S0);
+                    body_w(3) <= i_addi(0, 0, 0);
                 end if;
-                body_w(3) <= i_addi(0, 0, 0);
                 body_w(4) <= tail;
             end if;
         end process;
@@ -1246,6 +1333,23 @@ begin
                                 m_go_d  <= EPILOGUE(step);
                                 m_start <= '1';
                                 step    <= step + 1;
+                            elsif step <= 8 + PBSTUB_WORDS then
+                                -- F-D5-2 (R-DD9): the two program-buffer stubs
+                                -- ride the SAME stream, deliberately.  A new
+                                -- plant state would have widened the state
+                                -- encoding and put the zero-flop claim at risk
+                                -- for no benefit; `step` is already `range 0 to
+                                -- 63` and 8 + 12 = 20 fits with room to spare.
+                                m_go_we <= "1111";
+                                if step <= 11 then
+                                    m_go_a <= W_PBSTUB + (step - 9);
+                                    m_go_d <= PB_ENTER(step - 9);
+                                else
+                                    m_go_a <= W_PB_LEAVE + (step - 12);
+                                    m_go_d <= PB_LEAVE(step - 12);
+                                end if;
+                                m_start <= '1';
+                                step    <= step + 1;
                             else
                                 epi_done <= '1';
                                 step     <= 0;
@@ -1377,6 +1481,15 @@ begin
                         end if;
                         if m_ack = '1' then
                             if m_rd_r = conv_std_logic_vector(TOK_DONE, 32) then
+                                cmderr_r <= ERR_NONE;
+                                s_state  <= S_FIN;
+                            elsif m_rd_r = conv_std_logic_vector(TOK_PBDONE, 32) then
+                                -- F-D5-2: a PROGRAM-BUFFER completion.  It is
+                                -- accepted exactly where DONE is and nowhere
+                                -- else -- never as a halt publication (that is
+                                -- HALTED) and never as a dispatch token
+                                -- (GO/RESUME are DM->hart).  It is as TRANSIENT
+                                -- as DONE, which this poll already handles.
                                 cmderr_r <= ERR_NONE;
                                 s_state  <= S_FIN;
                             elsif m_rd_r = conv_std_logic_vector(TOK_HALTED, 32) then

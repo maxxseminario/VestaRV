@@ -29,16 +29,33 @@
 # THE REGISTER CONTRACT, and it is the whole design.  A halted hart's
 # architectural state belongs to the debugger, so the trampoline may not
 # clobber it.  It has exactly two places to hide things -- dscratch0 and
-# dscratch1 -- so it saves s0/s1 there ONCE PER HALTED SESSION and owns them
-# for the whole session.  Everything downstream inherits that:
+# dscratch1 -- so the pair {s0, s1} lives there for the whole halt: dscratch is
+# their SINGLE HOME while the hart is halted (d5_spec 1.6, R-DD9).  Everything
+# downstream inherits that:
 #   * the DM's synthesized abstract body may use s0 and s1 freely, with no
 #     save/restore of its own (Spike's sequence saves s0 per command; ours
 #     does not need to);
 #   * an abstract read of s0 or s1 THEMSELVES is serviced out of the dscratch
-#     copy, so the debugger sees the interrupted value and not the
-#     trampoline's working value -- the DM synthesizes that case explicitly;
+#     copy -- the DM synthesizes that case explicitly -- so the debugger never
+#     sees the trampoline's working value;
 #   * the epilogue restores the pair before its terminating ebreak, so the
 #     NORMAL re-entry re-saves the SAME values and is idempotent.
+#
+# WHAT F-D5-2 CHANGED, and this is a CORRECTION to what this header used to
+# claim, not a refinement of it (2026-08-11, d5_spec 1.6).  Two sentences stood
+# here until now: that the pair is saved "ONCE PER HALTED SESSION and owns them
+# for the whole session", and that an abstract read of s0/s1 shows "the
+# INTERRUPTED value".  Both became WRONG the moment the program buffer was
+# allowed to write s0/s1, and a wrong record is worse than none:
+#   * a program-buffer program's s0/s1 results are ADOPTED into dscratch when it
+#     returns, so the pair CAN change within one halted session.  Once per
+#     session was always the SAVE CADENCE; it was never an invariant on the
+#     VALUES, and reading it as one is what the old wording invited.
+#   * consequently an abstract read of s0/s1 after a postexec command returns
+#     WHAT THE PROGRAM BUFFER COMPUTED.  That round-trip across the command
+#     boundary is d5_spec 1.6 clause (c), and it is the whole point of the fix.
+# The interrupted value is still exactly what a plain halt+resume preserves
+# (clause (e)).  It is no longer what an abstract read is guaranteed to show.
 #
 # ONCE PER SESSION, NOT ONCE PER ENTRY -- and that distinction is a MEASURED
 # DEFECT FIX, not a refinement (2026-08-06, J3's A10, confirm-before-fix).
@@ -68,16 +85,27 @@
 #     DM   writes  4 = GO        "run the abstract body"
 #     DM   writes  2 = RESUME    "dret"
 #     hart writes 12 = DONE      "the sequence reached its epilogue"
+#     hart writes  8 = PBDONE    "a PROGRAM-BUFFER sequence finished" (F-D5-2)
 # The token VALUES are implementer latitude (d2_spec 1) and NO instrument
 # encodes them -- everything is graded through DMI responses and through
 # architectural effects the victim itself reports.  They are chosen so that
-#     RE-ENTRY  <=>  FLAGS has bit 2 set
-# because the only values FLAGS can hold when the hart re-enters are GO (an
-# exception before the epilogue) and DONE (the epilogue's own ebreak), while
-# the only values it can hold at a FIRST entry are 0 (the bootrom zeroes
-# 0x10000-0x107FF) and RESUME (left by the previous session's resume -- the
-# hart cannot leave debug mode by any other route).  One `andi`, no second
-# scratch register.
+#     REPAIR THE PAIR FROM THE MIRROR  <=>  FLAGS has bit 2 set
+# GO (an exception before the epilogue) and DONE (the epilogue's own ebreak)
+# both set bit 2, so both discard whatever s0/s1 the re-entering code left and
+# put the mirror back.  A FIRST entry can only find 0 (the bootrom zeroes
+# 0x10000-0x107FF) or RESUME (left by the previous session's resume -- the hart
+# cannot leave debug mode by any other route), and neither sets it.  One `andi`,
+# no second scratch register.
+#
+# PBDONE IS DELIBERATELY BIT-2-CLEAR, and that is the mechanism rather than an
+# accident of numbering (F-D5-2).  A program-buffer return must ADOPT whatever
+# s0/s1 the debugger's own code left behind -- which is precisely what the
+# bit-2-clear path already does, because the TENTATIVE save at words 0..1 STANDS
+# instead of being repaired from the mirror.  The adoption therefore rides the
+# test this file already performs: no new branch, no second scratch register,
+# and NOT ONE OF THESE 40 WORDS CHANGED to get it.
+# Read the `andi` below as "should I DISCARD what is in s0/s1?" and not as "is
+# this a re-entry?".  A program-buffer return IS a re-entry, and answers no.
 #
 # WHY THE POLL IS BACKED OFF.  A halted hart polling a shared word is a master
 # on the same round-robin arbiter as every RUNNING hart.  The D2 headline
@@ -89,6 +117,13 @@
 # SHARED WORDS THIS FILE OWNS, inside "0x10690-0x106FC reserved for DM use":
 #     0x106F0  MIRROR0   the session's saved s0, written at each dispatch
 #     0x106F4  MIRROR1   the session's saved s1
+# "OWNS" WAS NARROWED AT F-D5-2, and the narrowing is deliberate and small: the
+# DM writes this pair too, in exactly one place -- an abstract WRITE to s0 or
+# s1, where the DM is itself the author of the new dscratch value.  Without
+# that, the mirror captured at dispatch (BEFORE the body ran) would revert the
+# debugger's register write on the very next re-entry repair, which is the
+# second half of F-D5-2 and is why `set $s0 = X` used to be lost silently.
+# Nothing else in the DM touches them.
 # Both are BELOW 0x10800, i.e. inside the bootrom's zero range, so the
 # write-before-read contract holds with no initialisation: a mirror is only
 # ever READ on the re-entry path, which can only be reached after a dispatch
