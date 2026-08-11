@@ -96,11 +96,28 @@
 --   FLAGS = TOK_RESUME  -> restore s0/s1 and `dret`
 -- and the trampoline writes back TOK_HALTED on entry and TOK_DONE from the
 -- epilogue. THE DONE TOKEN IS THE EXCEPTION DETECTOR: the epilogue stores it
--- BEFORE its terminating `ebreak`, so a synchronous exception anywhere in the
--- body or the program buffer re-enters the trampoline (F-D2-0's core rider)
--- with the token still reading TOK_GO -- which is how `cmderr` becomes
--- EXCEPTION with the hart still halted and NOT wedged. There is no new core
--- signal for it and there does not need to be.
+-- BEFORE its terminating `ebreak`, so a body that does not reach the epilogue
+-- cannot have stored DONE -- which is how `cmderr` becomes EXCEPTION with the
+-- hart still halted and NOT wedged. There is no new core signal for it and
+-- there does not need to be.
+--
+-- CORRECTED 2026-08-10 (R-DD8 rider, method rule 12). This paragraph used to
+-- say the re-entry left "the token still reading TOK_GO". That was never
+-- measured, and it is wrong. TOK_DONE IS TRANSIENT: the epilogue stores it,
+-- the hart re-enters the trampoline, and the trampoline's entry publishes
+-- TOK_HALTED over it. So what a reader sees in FLAGS[h] depends on WHEN they
+-- look, and the DM's verdict is taken from the window in between.
+--
+-- Measured, two samples per leg on a halted hart that stayed halted and
+-- healthy throughout:
+--   * a program returning through the EPILOGUE: FLAGS[h] reads TOK_DONE (12)
+--     immediately, and TOK_HALTED (1) once the hart has re-entered.
+--   * pre-fix, a debugger's own `ebreak`: TOK_HALTED (1) ALREADY at the early
+--     sample -- it re-entered sooner precisely because it skipped the epilogue,
+--     which is the same fact the cmderr=EXCEPTION was reporting.
+-- The two readings that first looked contradictory were one sampling instant
+-- apart. `cmderr` does not depend on any of this: it reports EXCEPTION for
+-- anything that did not store DONE.
 -- The SECOND half of that story lives in the trampoline, not here, and it was
 -- a measured defect (J3's A10, 2026-08-06): the exception re-entry re-runs the
 -- trampoline's entry save with the FAULTING code's s0/s1, so without a repair
@@ -642,6 +659,34 @@ architecture rtl of debug_module is
     -- sees, and the epilogue's own ebreak is what actually terminates.
     constant I_IMPLICIT : std_logic_vector(31 downto 0) :=
         i_jal(0, (W_EPILOG - W_IMPLICIT) * 4);
+
+    -- ------------------------------------------------------------------
+    -- F-D5-1 (R-DD8): THE SUBSTITUTED PROGRAM-BUFFER TERMINATORS.
+    --
+    -- A debugger writing its OWN `ebreak` into the program buffer is legal and
+    -- routine: riscv_program_ebreak() relies on impebreak only when the program
+    -- FILLS the buffer, so stock OpenOCD appends one to every program shorter
+    -- than progbufsize -- which is every memory access it makes (one real
+    -- instruction in a two-word buffer).  That ebreak terminates execution
+    -- WITHOUT passing through the epilogue, so the DONE token is never stored
+    -- and the DM reports cmderr = EXCEPTION for a command that in fact
+    -- completed.  Measured 2026-08-10 in a real OpenOCD 0.12.0-7 + gdb 13.2
+    -- session: every memory access failed at every address class, while the
+    -- data itself MOVED correctly (0x00000000 -> 0xD5B7EA11 with cmderr=3).
+    -- Reported-and-recoverable, not terminal -- and fatal to gdb anyway, since
+    -- SBA is out by design and cmdtype 2 answers NOT_SUPPORTED, so the program
+    -- buffer is the only memory path there is.
+    --
+    -- The substitution below stores a POSITION-CORRECT jump to the epilogue in
+    -- place of that ebreak, so the debugger's program terminates the way the
+    -- implicit third word already does.  PER-SLOT, not a shared constant: both
+    -- jals must land on the SAME absolute word (W_EPILOG), so their offsets
+    -- differ by exactly the 4 bytes between the two slots.
+    -- ------------------------------------------------------------------
+    constant I_PB0_JAL : std_logic_vector(31 downto 0) :=
+        i_jal(0, (W_EPILOG - W_PROGBUF0) * 4);
+    constant I_PB1_JAL : std_logic_vector(31 downto 0) :=
+        i_jal(0, (W_EPILOG - W_PROGBUF1) * 4);
 
     -- ------------------------------------------------------------------
     -- THE TRAMPOLINE (D4). The entry code every halted hart executes, held as
@@ -1787,7 +1832,33 @@ begin
                             end if;
                             if wr then
                                 m_go_we <= "1111";
-                                m_go_d  <= d;
+                                -- F-D5-1 (R-DD8): a debugger's own 32-bit
+                                -- ebreak becomes the position-correct jump to
+                                -- the epilogue.  SCOPE, and every clause of it
+                                -- is deliberate: progbuf0/1 PROXY WRITES only
+                                -- (data0 is untouched -- it carries operands,
+                                -- not instructions); EXACT 32-bit encoding
+                                -- only, so a word one bit away stores verbatim
+                                -- and a compressed c.ebreak pair is out of
+                                -- scope by construction (the entry page is
+                                -- norvc and OpenOCD emits the 32-bit form);
+                                -- and the substituted word is what a readback
+                                -- returns, because there is no shadow of the
+                                -- original anywhere -- the honest answer, and
+                                -- the .cfg comments and the TRM say so.
+                                -- What this does NOT touch: the exception
+                                -- detector.  A program that genuinely traps
+                                -- still never reaches the epilogue, still
+                                -- leaves the token /= DONE, and still reports
+                                -- EXCEPTION.  Only the debugger's own
+                                -- terminator changes meaning.
+                                if a = A_PROGBUF0 and d = I_EBREAK then
+                                    m_go_d <= I_PB0_JAL;
+                                elsif a = A_PROGBUF1 and d = I_EBREAK then
+                                    m_go_d <= I_PB1_JAL;
+                                else
+                                    m_go_d <= d;
+                                end if;
                             else
                                 m_go_we <= "0000";
                                 m_go_d  <= (others => '0');
