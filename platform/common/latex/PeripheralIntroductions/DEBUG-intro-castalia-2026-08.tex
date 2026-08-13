@@ -351,7 +351,7 @@ able to place instructions where a hart will fetch them --- it is also a
 \texttt{0x04} & \register{data0} & The single abstract-command data word. Backed by shared memory, not by a flip-flop. \\
 \rowcolor{tablehighlightcolor} \texttt{0x10} & \register{dmcontrol} & Run control: enable the module, select a hart, halt it, resume it. \\
 \texttt{0x11} & \register{dmstatus} & The selected hart's state, and the module's capabilities. Read-only. \\
-\rowcolor{tablehighlightcolor} \texttt{0x12} & \register{hartinfo} & Where \register{data0} lives, so a debugger can find it. Read-only. \\
+\rowcolor{tablehighlightcolor} \texttt{0x12} & \register{hartinfo} & Reads \texttt{0x00000000}: no scratch registers, no debugger-visible \register{data0} address. Read-only, and the zero is deliberate --- see below. \\
 \texttt{0x13} & \register{haltsum1} & Reads zero. Present, and answering successfully, because debuggers probe it. \\
 \rowcolor{tablehighlightcolor} \texttt{0x16} & \register{abstractcs} & Abstract-command status: busy, error code, and the module's sizes. \\
 \texttt{0x17} & \register{command} & Write to start an abstract command. Reads zero. \\
@@ -363,6 +363,19 @@ able to place instructions where a hart will fetch them --- it is also a
 \hline
 \end{longtable}
 \end{center}
+
+\textbf{\register{hartinfo} reads zero on purpose, and a debugger should want it
+to.} The register exists to advertise per-hart scratch registers and the address
+of \register{data0}, so that a debugger can use them directly. This
+implementation advertises neither: its \texttt{nscratch}, \texttt{dataaccess},
+\texttt{datasize} and \texttt{dataaddr} fields are all zero. With
+\texttt{dataaccess}~$=0$ a conforming debugger does not consult
+\texttt{dataaddr} at all and reaches memory through the program buffer and its
+own work area instead, which is the only path this chip supports anyway (there is
+no System Bus Access --- Section \ref{ss:debug-limits}). Advertising an address
+here would also have been actively wrong: the field is twelve bits wide, and the
+real \register{data0} address does not fit in it. A truthful zero is better than
+a truncated pointer into somebody else's memory.
 
 \textbf{Any other DMI address returns \textit{failed}}, which --- because
 \bitfield{dmistat} is sticky --- will also stall the transport until the debugger
@@ -558,12 +571,12 @@ software does not collide with it.
 \begin{center}
 \begin{tabular}{ l p{9.6cm} }
 	\textbf{Address} & \textbf{Contents} \\ \hline
-	\texttt{0x10680} & \register{data0} --- the abstract-command data word. This is the address \register{hartinfo} reports. \\
+	\texttt{0x10680} & \register{data0} --- the abstract-command data word. \\
 	\rowcolor{tablehighlightcolor} \texttt{0x10684} & \register{progbuf0} \\
 	\texttt{0x10688} & \register{progbuf1} \\
 	\rowcolor{tablehighlightcolor} \texttt{0x1068C} & The implicit third program-buffer word, written by the Debug Module. \\
 	\texttt{0x10690}--\texttt{0x106EC} & Reserved for the Debug Module. \\
-	\rowcolor{tablehighlightcolor} \texttt{0x106F0}, \texttt{0x106F4} & The halted session's saved \asminline{s0} and \asminline{s1}. \\
+	\rowcolor{tablehighlightcolor} \texttt{0x106F0}, \texttt{0x106F4} & The entry stub's private repair copies of \asminline{s0} and \asminline{s1}. They are not where a debugger reads those registers from --- see below. \\
 	\texttt{0x10700}\,$+$\,$4h$ & The per-hart handshake word between the Debug Module and hart $h$. \\
 	\rowcolor{tablehighlightcolor} \texttt{0x10780}--\texttt{0x1087F} & The debug entry page, 64 words: the entry stub, the area into which the Debug Module writes each abstract command, and the common exit sequence. \\ \hline
 \end{tabular}
@@ -589,10 +602,26 @@ halted hart is executing.
 Two details matter to anyone writing code that runs \textit{in} that page. It is
 assembled without compressed instructions, because execution of compressed or
 misaligned instructions from the shared window is outside the tested envelope
-(Section \ref{s:multicore}). And the debug system's use of \asminline{s0} and
-\asminline{s1} is why those two registers, uniquely, are served from their saved
-copies when a debugger reads them: you see the interrupted program's values, not
-the stub's working values.
+(Section \ref{s:multicore}).
+
+And the debug system needs two working registers of its own, which is why
+\asminline{s0} and \asminline{s1} are handled differently from every other
+register. While a hart is halted, \textbf{the single home of the interrupted
+program's \asminline{s0} and \asminline{s1} is the pair of CSRs
+\register{dscratch0} and \register{dscratch1}}. A debugger that reads
+\asminline{s0} gets the value out of \register{dscratch0}; one that writes
+\asminline{s0} writes \register{dscratch0}; and code in the program buffer that
+changes \asminline{s0} has that change survive to the debugger's next read,
+because the exit sequence adopts the architectural pair into
+the \register{dscratch0}/\register{dscratch1} pair before it does anything else. The two words at
+\texttt{0x106F0} and \texttt{0x106F4} are the entry stub's own repair copies,
+used to rebuild that pair if a hart re-enters debug mode from inside
+the page; the Debug Module writes them only when it is itself the author of a
+new value, and nothing else should read them at all. The visible consequence is
+the one that matters: \textbf{you see the interrupted program's values, not the
+stub's working values}, and a plain halt-and-resume with no debugger register
+writes leaves the program's \asminline{s0} and \asminline{s1} exactly as it
+found them.
 
 \subsection{A Worked Halt, Read and Resume} \label{ss:debug-worked}
 
@@ -636,6 +665,71 @@ If a scan ever returns \bitfield{op}~$=$~\texttt{10} or \texttt{11}, the
 transport has latched a sticky status and is dropping further scans. Read
 DTMCS, write \bitfield{dmireset}, and reissue.
 
+\subsection{Connecting a Debugger} \label{ss:debug-connect}
+
+The sequences above are at the DMI level. In practice a debugger generates them,
+and this part has been brought up end to end against stock, unmodified tools:
+\textbf{OpenOCD 0.12.0} and \textbf{\texttt{riscv-none-elf-gdb} 13.2}. Nothing in
+either was patched. Four facts about that combination are worth knowing before
+the first session, because each of them is invisible until it costs an afternoon.
+
+\paragraph{Clock the adapter at 3\,MHz or below.} The Debug Transport Module
+reports \bitfield{idle}~$=7$, meaning it needs seven Run-Test/Idle cycles after a
+DMI scan before the result is ready. A debugger that honours that field may clock
+TCK at up to the port's rated \SI{7.14}{\mega\hertz}. \textbf{Stock OpenOCD does
+not honour it}: it learns the required delay by observing failures, starting from
+zero. What sets the safe speed is then the requirement that three TCK periods
+cover one DMI transaction's time in the module's own clock domain,
+$3\,T_{\mathrm{TCK}} \ge t_{\mathrm{DM}}$, which gives
+
+\begin{center}
+\begin{tabular}{ l l l }
+	\textbf{Traffic} & \textbf{Minimum $T_{\mathrm{TCK}}$} & \textbf{Maximum $f_{\mathrm{TCK}}$} \\ \hline
+	Register-class (\register{dmcontrol}, \register{dmstatus}, \ldots) & \SI{139}{\nano\second} & \SI{7.19}{\mega\hertz} \\
+	\rowcolor{tablehighlightcolor} Program-buffer class (all memory access) & \SI{278}{\nano\second} & \SI{3.60}{\mega\hertz} \\ \hline
+\end{tabular}
+\end{center}
+
+The program-buffer figure is the one that binds, because every memory access and
+every software breakpoint goes through the program buffer, and it shrinks further
+when other harts are contending for the shared bus. \textbf{Set the adapter to
+\SI{3}{\mega\hertz} or below}; \SI{3.60}{\mega\hertz} is a hard bound, not a
+target. The \SI{7.14}{\mega\hertz} rating applies only to a master that honours
+\bitfield{idle}.
+
+\paragraph{\texttt{reset halt} succeeds and resets nothing.} The Debug Module has
+no system reset (\bitfield{ndmreset} is unimplemented), so the command degrades:
+it asserts halt on every hart, re-reads the ID code, and \textbf{reports
+success}. Nothing is reset --- memory keeps its contents, harts keep their
+execution state, and a running hart's counters carry on from where they were
+rather than restarting. The failure is silent, so do not infer a reset from the
+absence of an error. Where a genuine halt-on-reset is needed, arm
+\bitfield{setresethaltreq} for the hart and power-cycle its tile through the
+power controller (Section \ref{s:multicore}).
+
+\paragraph{That recovery works for harts 1 to $N-1$ only.} The per-tile power
+controller is the lever behind every recovery procedure here --- the wedged-first-word
+case of Section \ref{ss:debug-limits}, and halt-on-reset above. \textbf{Hart 0 has
+no such lever}: it is always on, its power-controller bit ignores writes, and
+\bitfield{ndmreset} and \bitfield{hartreset} read zero. The only thing that
+resets hart 0 is the \pin{resetn} pin, which also resets the Debug Module and
+therefore ends the debug session. Plan accordingly when choosing which hart to
+experiment on.
+
+\paragraph{An \asminline{EBREAK} written into the program buffer becomes a jump.}
+Debuggers terminate short program-buffer sequences with an explicit
+\asminline{EBREAK}. On this Debug Module a program must instead leave through the
+common exit sequence, which is what signals completion and restores
+\register{dscratch0} and \register{dscratch1}; an \asminline{EBREAK} that bypasses it would be reported as
+an exception even though the work had been done. So a DMI write of exactly the
+32-bit \asminline{EBREAK} encoding into \register{progbuf0} or \register{progbuf1}
+stores a jump to that exit sequence instead. Reading the word back returns the
+jump, not the \asminline{EBREAK} --- the substitution is not hidden. Only that
+exact encoding in those two registers is affected: \register{data0} stores
+whatever it is given, and a word one bit away from \asminline{EBREAK} is stored
+verbatim. A program that genuinely traps still never reaches the exit sequence
+and is still reported as an exception, so this does not blunt error reporting.
+
 \subsection{Limitations and Status} \label{ss:debug-limits}
 
 This section states plainly what the debug system does not do, and what is not
@@ -649,7 +743,7 @@ yet finished.
 	\item \textbf{\bitfield{ndmreset} and \bitfield{hartreset} are not implemented.} A debugger cannot reset the system or an individual hart through the Debug Module; they read zero and ignore writes. Resetting the chip is done with the \pin{resetn} pin (Section \ref{s:startup}).
 	\item \textbf{Resume groups are not implemented.} Halt groups stop a set of harts together; resuming them is done one at a time.
 	\item \textbf{The entry page is volatile, and a wrong first word wedges the hart that halts into it.} The code a hart runs when it enters debug mode occupies \texttt{0x10780} onwards, and the Debug Module places it there itself --- once when a debugger raises \bitfield{dmactive}, and again before it acts on any hart it has just seen halt. A production part therefore needs nothing staged in advance, and there is no debug ROM: that page \textit{cannot} be read-only memory, because the Debug Module rewrites part of it at every abstract command. What it is instead is ordinary shared RAM, so any master on the chip can overwrite it. Most such damage repairs itself, because the next halt rewrites the page before the Debug Module depends on it --- but not damage to the \textbf{first} word. A hart that halts into a wrong first word takes an exception, re-enters at that same address, and asks the bus for the same word again; the tile answers from the copy it is already holding, so it never observes the repair and spins there, retiring nothing. Recovering that hart requires a power cycle of its tile through the power controller (Section \ref{s:multicore}); \bitfield{ndmreset}, being unimplemented, cannot do it.
-	\item \textbf{Debugger software support is not yet available.} No OpenOCD configuration or GDB integration is published for this part. The sequences in Section \ref{ss:debug-worked} are at the DMI level and are what such a configuration would generate.
+	\item \textbf{Debugger support exists, and its rough edges are known.} Stock OpenOCD 0.12.0 and GDB 13.2 attach, enumerate every hart, halt and resume individually, read and write registers and memory, set software breakpoints and single-step (Section \ref{ss:debug-connect}). Two limits are worth stating with it. The adapter must be clocked at \SI{3}{\mega\hertz} or below, for the reason given in that section. And \textbf{bulk memory writes are not yet usable}: \register{abstractauto} is unimplemented, and a debugger that assumes it --- as OpenOCD's burst-write path does --- writes only the first word of a block and silently drops the rest, which is why loading a program image over the debug port does not currently work. One word at a time is correct; a block is not. Single-stepping is also slow enough that data watchpoints implemented by stepping are impractical.
 	\item \textbf{The debug port is not yet part of a signed-off physical implementation.} The five pins exist in the chip-level netlist and in the LQFP-100 package definition, but the current signed-off layout predates them.
 \end{itemize}
 
