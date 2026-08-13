@@ -125,7 +125,8 @@ if {[llength [info procs tap_run]] == 0} {
 
 # --- knobs ------------------------------------------------------------------
 # RBB_STEP_NS is the HALF period: two runs per TCK, so the JTAG period is
-# 2*RBB_STEP_NS = 140 ns by default (~7.14 MHz).
+# 2*RBB_STEP_NS = 420 ns by default (~2.38 MHz).  See the measurement below
+# for why the default is not the 140 ns floor.
 #
 # DO NOT SHORTEN THIS WITHOUT A SEPARATE MEASUREMENT.  jtag_dtm.vhd's dtmcs
 # `idle` = 7 is DERIVED from a stated assumption of T_TCK >= 140 ns against
@@ -134,7 +135,43 @@ if {[llength [info procs tap_run]] == 0} {
 # change to a CDC contract (d3_cdc_spec), and d5_spec 2.8 puts it out of scope.
 # The ipc probe measured that halving the period would beat DPI outright
 # (C21); that is a real lever and it is deliberately untaken here.
-set ::RBB_STEP_NS [expr {[info exists ::env(D5_STEP_NS)] ? $::env(D5_STEP_NS) : 70}]
+#
+# THE DEFAULT IS 210 (420 ns period) AS AN INTERIM WORKAROUND, NOT AS "THE
+# OPERATING RATE".  140 ns is a FLOOR: the contract forbids SHORTENING, and
+# lengthening needs no authorisation (method rule 15 -- the fail-safe
+# direction, because at 70 the failure is not a slow session but a SILENTLY
+# CORRUPT one that reads as a chip defect).
+#
+# THE MECHANISM IS MEASURED, AND IT IS NOT THIS BRIDGE'S TIMING.  Do not
+# "fix" this by shortening the period back.  Measured 2026-08-10:
+#
+#   1. jtag_dtm.vhd advertises dtmcs.idle = 7 and DERIVES its CDC margin from
+#      the debugger dwelling that many Run-Test/Idle cycles after a DMI scan.
+#   2. The three-phase BFM (dbg_tap.tcl) honours it -- dbg_gateidc reports
+#      dwell=8 -- and at 140 ns the chip is CLEAN: dbg_abs 13/13 including
+#      A7a "POSTEXEC ran the program buffer with cmderr = 0" and A7b, the
+#      progbuf actually moving a word through the hart's own bus.  So the
+#      chip is not the problem at its own stated floor.
+#   3. STOCK OPENOCD DOES NOT HONOUR dtmcs.idle.  Measured ON THE WIRE by the
+#      RTI census below, at 140 ns: dwell histogram
+#         0:424  1:12  2:168  3:45  4:96  5:27  6:157  7:53  8:54
+#      -- 929 of 1036 inter-scan gaps (90%) BELOW the advertised 7, and 424
+#      of them (41%) with NO idle cycle at all.
+#   4. A too-early scan makes the DTM report BUSY and set sticky, and
+#      DEVIATION 4 (jtag_dtm.vhd) then SILENTLY DROPS every non-NOP Update-DR
+#      while sticky.  So an intermediate progbuf WRITE is dropped while
+#      OpenOCD believes it landed; its dmireset+retry recovers the scan it
+#      knows about, not the one it never learned was lost.
+#   5. postexec then executes a HALF-WRITTEN program buffer, the hart traps,
+#      and the DM correctly reports cmderr=3 EXCEPTION -- which surfaces as
+#      "Failed to read MISA from hart N".
+#
+# At 420 ns the absolute inter-scan time covers the DM's turnaround even with
+# ZERO idle cycles, so step 4 never fires: ALL FOUR harts examine
+# (misa 0x40101107, dmiresets 8), reproduced twice.  That is why this works
+# and why it is a WORKAROUND: the interop hazard is unresolved and is a
+# finding above this file.  See the D5 implementation report.
+set ::RBB_STEP_NS [expr {[info exists ::env(D5_STEP_NS)] ? $::env(D5_STEP_NS) : 210}]
 set ::RBB_PORT    [expr {[info exists ::env(D5_RBBPORT)] ? $::env(D5_RBBPORT) : 0}]
 set ::RBB_PORTFILE [expr {[info exists ::env(D5_PORTFILE)] ? $::env(D5_PORTFILE) : ""}]
 set ::RBB_BEAT_TCK [expr {[info exists ::env(D5_BEAT_TCK)] ? $::env(D5_BEAT_TCK) : 2000}]
@@ -159,6 +196,7 @@ set ::RBB_PENDING    0   ;# reply bytes built but not yet written+flushed
 set ::RBB_ROUNDTRIPS 0
 set ::RBB_TCK        0
 set ::RBB_FORCES     0
+set ::RBB_FORCE_ERRS 0
 set ::RBB_RUNS       0
 set ::RBB_DMIRESETS  0
 set ::RBB_DMI_XACT   0
@@ -208,6 +246,25 @@ set ::RBB_S_SHIFTDR  [tap_sidx SHIFT_DR]
 set ::RBB_S_UPDATEDR [tap_sidx UPDATE_DR]
 set ::RBB_S_SHIFTIR  [tap_sidx SHIFT_IR]
 set ::RBB_S_UPDATEIR [tap_sidx UPDATE_IR]
+set ::RBB_S_RTI      [tap_sidx RUN_TEST_IDLE]
+# THE RTI CENSUS.  dtmcs.idle = 7 is a REQUEST: jtag_dtm.vhd's CDC margin is
+# derived assuming the debugger dwells that many Run-Test/Idle cycles after a
+# DMI scan.  Whether a given debugger actually does so is a MEASUREMENT, not a
+# property of the field, and it must be taken from the wire rather than from
+# the debugger's own log annotation.  This counts the dwell between leaving RTI
+# and re-entering it, so the histogram answers "was idle=7 honoured" directly.
+set ::RBB_RTIDWELL 0
+array set ::RBB_RTIHIST {}
+# THE NAVIGATION-GAP CENSUS.  The idle DERIVATION in jtag_dtm.vhd's header
+# MODELS the debugger's navigation as "Update + idle + 3 TCK" (Update-DR ->
+# Run-Test/Idle, `idle` cycles, then Select-DR -> Capture-DR).  That 3 is a
+# model of a debugger, so it is measured here rather than assumed: this counts
+# the rising edges from entering Update-DR to entering the next Capture-DR,
+# which is the window the DM actually has to turn a transaction around.
+set ::RBB_S_CAPTUREDR [tap_sidx CAPTURE_DR]
+set ::RBB_GAP 0
+set ::RBB_GAPACT 0
+array set ::RBB_GAPHIST {}
 
 proc rbb_fsm_edge {tms tdi} {
     # Called on each TCK RISING edge with the TMS/TDI that were set up on the
@@ -219,6 +276,23 @@ proc rbb_fsm_edge {tms tdi} {
         set ::RBB_IR [expr {(($::RBB_IR >> 1) | ($tdi << 4)) & 0x1F}]
     }
     set ::RBB_ST [lindex [lindex $::TAP_NEXT $s] $tms]
+    # RTI dwell census -- see the declaration above.  A rising edge that both
+    # starts and ends in Run-Test/Idle is one inserted idle cycle.
+    if {$::RBB_ST == $::RBB_S_RTI && $s == $::RBB_S_RTI} {
+        incr ::RBB_RTIDWELL
+    } elseif {$::RBB_ST != $::RBB_S_RTI && $s == $::RBB_S_RTI} {
+        incr ::RBB_RTIHIST($::RBB_RTIDWELL)
+        set ::RBB_RTIDWELL 0
+    }
+    # navigation gap: rising edges from entering Update-DR to entering the
+    # next Capture-DR -- the window the DM actually gets.
+    if {$::RBB_GAPACT} { incr ::RBB_GAP }
+    if {$::RBB_ST == $::RBB_S_UPDATEDR && $s != $::RBB_S_UPDATEDR} {
+        set ::RBB_GAP 0 ; set ::RBB_GAPACT 1
+    } elseif {$::RBB_GAPACT && $::RBB_ST == $::RBB_S_CAPTUREDR} {
+        incr ::RBB_GAPHIST($::RBB_GAP)
+        set ::RBB_GAPACT 0
+    }
     # entering Shift-DR: size the register the IR selected, and reset BOTH
     # shadows -- the request we are shifting in and the response coming out.
     if {$::RBB_ST == $::RBB_S_SHIFTDR && $s != $::RBB_S_SHIFTDR} {
@@ -283,6 +357,25 @@ proc rbb_update_dr {} {
 # ---------------------------------------------------------------------------
 # rbb_set_pins -- clauses 6 and 7.
 # ---------------------------------------------------------------------------
+# rbb_force -- force ONE pin lazily, and never lie about whether it took.
+# Returns 1 if the pin was (re)forced, 0 if it was already at that value.
+proc rbb_force {path want shadowvar} {
+    upvar #0 $shadowvar cur
+    if {$want == $cur} { return 0 }
+    if {[catch {force $path [expr {$want ? "'1'" : "'0'"}]} err]} {
+        incr ::RBB_FORCE_ERRS
+        puts "RBBERROR force FAILED on $path -> $want <$err>.  The shadow is NOT"
+        puts "RBBERROR   updated, so the next byte will retry.  If this is tck, the"
+        puts "RBBERROR   TAP saw NO EDGE and any TDO sampled since is stale."
+        puts "RBBERROR   force_errs=$::RBB_FORCE_ERRS"
+        flush stdout
+        return 0
+    }
+    incr ::RBB_FORCES
+    set cur $want
+    return 1
+}
+
 proc rbb_set_pins {v} {
     set tck [expr {($v >> 2) & 1}]
     set tms [expr {($v >> 1) & 1}]
@@ -290,10 +383,31 @@ proc rbb_set_pins {v} {
     set rising [expr {$tck && !$::RBB_TCKV}]
     # LAZY (clause 7): in a DR shift TMS is constant and TDI changes about half
     # the time, so this is ~1.5 forces per byte instead of 3.
-    if {$tck != $::RBB_TCKV} { catch {force $::TAP_TCK [expr {$tck ? "'1'" : "'0'"}]} ; incr ::RBB_FORCES }
-    if {$tms != $::RBB_TMSV} { catch {force $::TAP_TMS [expr {$tms ? "'1'" : "'0'"}]} ; incr ::RBB_FORCES }
-    if {$tdi != $::RBB_TDIV} { catch {force $::TAP_TDI [expr {$tdi ? "'1'" : "'0'"}]} ; incr ::RBB_FORCES }
-    set ::RBB_TCKV $tck ; set ::RBB_TMSV $tms ; set ::RBB_TDIV $tdi
+    # A SWALLOWED FORCE ERROR IS THE WORST POSSIBLE FAILURE HERE, AND THE FIRST
+    # draft swallowed it.  `catch {force ...}` with the shadow updated
+    # unconditionally means a force that did NOT take leaves the bridge
+    # believing the pin moved -- and because the forcing is LAZY, the bridge
+    # then never re-forces that pin until its shadow changes again.  On tck
+    # that is a STOPPED CLOCK: the DUT's TAP freezes, TDO holds its last value,
+    # and every subsequent 'R' returns the same bit, so a whole scan comes back
+    # all-zeros or all-ones while the transport looks perfectly healthy.  That
+    # is precisely the shape of a corrupt DMI read, so it would be diagnosed as
+    # a chip defect.  rbb_force reports and REFUSES to update the shadow, so a
+    # failed force is a named error and self-heals on the next byte.
+    # DATA PINS BEFORE THE CLOCK, always.  All three forces land at the SAME
+    # simulation time (there is no `run` between them), so ordering them this
+    # way is free; the reverse order asks the TAP's rising_edge(tck) process to
+    # read tms/tdi that changed in the same instant, which is a delta race
+    # rather than a setup time.  It costs nothing to not have that argument.
+    rbb_force $::TAP_TMS $tms ::RBB_TMSV
+    rbb_force $::TAP_TDI $tdi ::RBB_TDIV
+    set tck_took [rbb_force $::TAP_TCK $tck ::RBB_TCKV]
+    if {$rising && !$tck_took} {
+        # The shadow said we were low and the force did not take, so there was
+        # no edge.  Do not count one: a phantom rising edge would desynchronise
+        # the FSM shadow from the DUT for the rest of the session.
+        set rising 0
+    }
     # Clause 6: a NONZERO run, every byte.  `run 0 ns` does not propagate and
     # same-time forces collapse.  This line is not an optimisation target.
     rbb_advance $::RBB_STEP_NS
@@ -328,8 +442,9 @@ proc rbb_beat_now {why} {
     # unaccountable second actor in the measurement.
     set ctl ""
     if {[info exists ::RBB_CTL_IN]} {
-        set ctl [format " ctl_in=%d ctl_snaps=%d ctl_rejected=%d" \
-                 $::RBB_CTL_IN $::RBB_CTL_SNAPS $::RBB_CTL_REJ]
+        set ctl [format " ctl_in=%d ctl_snaps=%d ctl_rejected=%d reentry=%d force_errs=%d" \
+                 $::RBB_CTL_IN $::RBB_CTL_SNAPS $::RBB_CTL_REJ \
+                 $::RBB_REENTRY $::RBB_FORCE_ERRS]
     }
     puts [format "RBBSTAT %s verdict=%s bytes_in=%d bytes_out=%d pending_out=%d roundtrips=%d tck_count=%d dmi_xact=%d dmiresets=%d same_dmi=%d forces=%d runs=%d sim_time=%s%s" \
           $why [rbb_verdict] $::RBB_BYTES_IN $::RBB_BYTES_OUT $::RBB_PENDING \
@@ -414,20 +529,45 @@ set ::RBB_CTL_SNAPS 0
 set ::RBB_CTL_REJ   0
 set ::RBB_CLI       ""
 set ::RBB_CTL       ""
+set ::RBB_INCB      0
+set ::RBB_REENTRY   0
 
 # --- the JTAG channel -------------------------------------------------------
 
 proc rbb_on_rbb {S} {
+    # RE-ENTRANCY IS THE ONE STRUCTURAL DIFFERENCE BETWEEN THIS TRANSPORT AND
+    # THE BFM THAT IS PROVEN GOOD, AND IT IS GUARDED HERE.
+    #
+    # rbb_process advances simulation time (`run`) from INSIDE a fileevent
+    # callback.  Tcl is free to service the event loop while that call is in
+    # progress, so a byte arriving mid-chunk can re-enter this callback and
+    # interleave a second chunk's pin-sets and TDO samples with the first
+    # one's.  The result is not a crash: it is a handful of scrambled bits in
+    # an otherwise healthy session -- a scan that reads back all-zeros or
+    # all-ones -- which is indistinguishable from a chip returning garbage,
+    # and it gets WORSE as the per-byte `run` gets longer, because the window
+    # is the run.
+    #
+    # Returning without reading is safe and is why this is a guard rather than
+    # a queue: the channel is still readable, so Tcl re-fires the event as soon
+    # as the outer call returns, and the outer call's own `read` drains
+    # whatever arrived meanwhile.  RBB_REENTRY counts the events, so the
+    # heartbeat says whether this ever actually happened instead of leaving it
+    # an argument.
+    if {$::RBB_INCB} { incr ::RBB_REENTRY ; return }
+    set ::RBB_INCB 1
     # Clause 10: an error raised inside a socket callback goes to bgerror and
     # is SILENT here.  The ipc probe hit exactly this and the symptom was a
     # hang with no error.  Every callback body is catch-wrapped and REPORTS.
     if {[catch {rbb_process $S} err]} {
+        set ::RBB_INCB 0
         puts "RBBERROR rbb handler: <$err>"
         puts "RBBERROR $::errorInfo"
         flush stdout
         catch {close $S}
         set ::RBB_DONE 1
     }
+    set ::RBB_INCB 0
 }
 
 proc rbb_process {S} {
@@ -617,11 +757,42 @@ proc rbb_ctl_exec {S line} {
             rbb_ctl_reply $S "OK ORACLE $h"
             flush stdout
         }
+        TCM {
+            # TCM <addr> -- the word at <addr> in EVERY hart's own private TCM.
+            # Added by the fifth implementer for the T4 Z0 question: a software
+            # breakpoint is a memory write, and a tile's TCM is PRIVATE, so
+            # "the Z0 landed in the wrong hart's TCM" and "the Z0 never landed
+            # at all" are two different findings that a single-hart read cannot
+            # tell apart.  A census over all N harts distinguishes them in one
+            # line.  Passive: sess_tcm_word is a simulator peek -- no force, no
+            # run, no DMI -- so it obeys the same PASSIVE-ONLY contract as SNAP.
+            if {[llength [info procs sess_tcm_word]] == 0} {
+                rbb_ctl_reply $S "ERR TCM: dbg_sess_lib.tcl is not sourced" ; return
+            }
+            set a [lindex $args 0]
+            if {$a eq ""} { rbb_ctl_reply $S "ERR TCM: no address" ; return }
+            # NOT `expr {... ? ... : [format 0x%08X $w]}`.  Tcl's expr RE-PARSES
+            # the formatted string as a NUMBER, so the hex comes back out in
+            # decimal (0x5D500313 -> 1565524755) -- measured, in this file's
+            # first run.  It is the same trap that turned 00010004 into 4100
+            # for the fourth implementer, and it survives review because a
+            # value with a letter in it passes through untouched.  Format
+            # OUTSIDE any expr, always.
+            set out {}
+            for {set h 0} {$h < $::D5_NHARTS} {incr h} {
+                set w [sess_tcm_word $h $a]
+                if {$w eq ""} { set t "(absent)" } else { set t [format 0x%08X $w] }
+                lappend out "h$h=$t"
+            }
+            puts "DMILOG TCM CENSUS at [format 0x%05X $a]: [join $out {  }]"
+            flush stdout
+            rbb_ctl_reply $S "OK TCM $a"
+        }
         STAT { rbb_beat_now "CTL" ; rbb_ctl_reply $S "OK STAT" }
         PING { rbb_ctl_reply $S "OK PING" }
         default {
             incr ::RBB_CTL_REJ
-            rbb_ctl_reply $S "REJECTED $verb -- the control channel is PASSIVE-ONLY. Permitted: SNAP <label>, PROBE, ORACLE <hart> [addrs], STAT, PING. It performs no force, no run and no DMI, by design: anything that advanced simulation time here would make the session non-reproducible for the running tiles, and anything that drove the DM would put a second master on the port the debugger is using."
+            rbb_ctl_reply $S "REJECTED $verb -- the control channel is PASSIVE-ONLY. Permitted: SNAP <label>, PROBE, ORACLE <hart> [addrs], TCM <addr>, STAT, PING. It performs no force, no run and no DMI, by design: anything that advanced simulation time here would make the session non-reproducible for the running tiles, and anything that drove the DM would put a second master on the port the debugger is using."
             puts "RBBCTLREJ $verb (count=$::RBB_CTL_REJ)" ; flush stdout
         }
     }
@@ -654,7 +825,7 @@ proc rbb_listen {} {
         file rename -force "$::RBB_PORTFILE.tmp" $::RBB_PORTFILE
     }
     puts "Listening on port $port."
-    puts "RBBINFO control port $cport (PASSIVE-ONLY: SNAP/PROBE/ORACLE/STAT/PING)"
+    puts "RBBINFO control port $cport (PASSIVE-ONLY: SNAP/PROBE/ORACLE/TCM/STAT/PING)"
     puts "RBBINFO step=${::RBB_STEP_NS}ns period=[expr {2*$::RBB_STEP_NS}]ns beat_tck=$::RBB_BEAT_TCK wedge_n=$::RBB_WEDGE_N noflush=$::RBB_NOFLUSH"
     puts "RBBINFO expect ONE spurious 'SIMULATION TIMEOUT REACHED' REPORT/FAILURE at sim t=100ms -- the tb watchdog fires exactly once and the session continues (riscv_tb.vhd; tree probe C44/C45). Do not debug it."
     flush stdout
@@ -704,6 +875,22 @@ proc rbb_session {} {
           [expr {$us/1.0e6}] $::RBB_BYTES_IN $::RBB_BYTES_OUT $::RBB_TCK \
           $::RBB_CTL_IN $::RBB_CTL_SNAPS $::RBB_CTL_REJ \
           [expr {$::RBB_TCK > 0 ? [format "us_per_tck=%.1f" [expr {double($us)/$::RBB_TCK}]] : "us_per_tck=n/a"}]]
+    set hist {}
+    foreach k [lsort -integer [array names ::RBB_RTIHIST]] {
+        lappend hist "${k}:$::RBB_RTIHIST($k)"
+    }
+    puts "RBBRTI dwell histogram (idle_cycles:count) = [join $hist { }]"
+    set gh {}
+    foreach k [lsort -integer [array names ::RBB_GAPHIST]] {
+        lappend gh "${k}:$::RBB_GAPHIST($k)"
+    }
+    puts "RBBGAP Update-DR -> next Capture-DR, in TCK (gap:count) = [join $gh { }]"
+    puts "RBBGAP  x T_TCK = the absolute time the DM gets to turn a transaction"
+    puts "RBBGAP  around.  jtag_dtm.vhd: register access needs 417 ns, PROXIED"
+    puts "RBBGAP  access up to 833 ns.  Compare, do not assume."
+    puts "RBBRTI  dtmcs.idle advertises 7.  Any mass at dwells BELOW 7 means this"
+    puts "RBBRTI  debugger did NOT honour the advertised dwell -- measured on the"
+    puts "RBBRTI  wire, not read off the debugger's own log annotation."
     puts "RBBNOTE us_per_tck above INCLUDES the debugger's own think time and is NOT a health metric (ipc C29 measured 20,130 us/TCK on a perfectly healthy session). Health is the verdict field of RBBSTAT."
     puts "RBBEND session closed, interpreter returned to the harness (Q does not exit -- the graders run here)."
     flush stdout

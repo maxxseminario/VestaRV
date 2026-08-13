@@ -1,0 +1,2 @@
+SOFTINCLUDE /opt/cadence/XCELIUM2009/tools/xcelium/files/cds.lib
+DEFINE work ./xcelium.d/work

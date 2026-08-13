@@ -103,8 +103,23 @@ TRAMP_MK = os.path.join(REPO, 'software', 'dbg_trampoline', 'Makefile')
 #   Re-pinned .S  8695823e38ee557a4741f97f53d805aa -> 2f9d8ef4dac39f0511a8aba0426ae1cc
 #   NOT re-pinned: the Makefile and the .words pins.  They are the ones that
 #   carry the clause, and if either ever moves it is still a STOP.
+#
+# RE-PINNED A SECOND TIME, 2026-08-13, BY THE D5 VALIDATION WAVE — the same
+# class as the first, found by the D4-column re-verification (F-VALC-2):
+#
+#   D5 C5 (`d24cfa4`, the R-DD9 coherent-dscratch fix) edited dbg_trampoline.S
+#   COMMENTS-ONLY — proven at the C5 stop by non-comment-line invariance, by
+#   the .words md5 (c68684893f11b506ef7adea43b813377, UNMOVED, the pin below)
+#   and by check_dbg_trampoline 40/40 (R-D5-8).  The C5 re-pin updated
+#   check_dbg_trampoline's record but MISSED this consumer, so a tracked
+#   checker sat rc 1 on the shipped tree for two days.  The clause carriers
+#   (.words, Makefile) never moved; the .S pin was, again, tighter than the
+#   clause it enforces.
+#
+#   Re-pinned .S  2f9d8ef4dac39f0511a8aba0426ae1cc -> 4e68031181416562f2f9ff02c228460b
+#   NOT re-pinned: the Makefile and the .words pins, same reason as above.
 FREEZE = {
-    TRAMP_S: '2f9d8ef4dac39f0511a8aba0426ae1cc',
+    TRAMP_S: '4e68031181416562f2f9ff02c228460b',
     TRAMP_MK: '0e0be0ae4f1e2494de3d45f6c550c899',
     WORDS: 'c68684893f11b506ef7adea43b813377',
 }

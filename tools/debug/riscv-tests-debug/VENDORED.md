@@ -107,9 +107,40 @@ were not touched: run the harness from this directory.
 
 ### 3. `targets/VestaRV/` — the VestaRV target family
 
-*(Not present at the relocation commit. It lands with the bridge + `.cfg`
-commit later in D5; this section is filled in there rather than promised
-here.)*
+Every file here is **LOCAL**: none of it came from upstream and none of it
+should be reconciled against upstream on a re-sync. Each carries the same
+`LOCAL FILE (not vendored upstream)` marker in its own header.
+
+| file | what it is |
+|---|---|
+| `vesta_castalia.cfg` | Castalia (N=4) OpenOCD config, `-rtos hwthread` + `target smp` — the THREAD-VIEW configuration |
+| `vesta_castalia_nosmp.cfg` | Castalia, INDEPENDENT TARGETS — the halt-one-while-others-run configuration, and the one to use for anything touching a tile's PRIVATE TCM |
+| `vesta_argus.cfg` | Argus (N=18) thread-view config, **generated from `vesta_castalia.cfg` by substitution** |
+| `vesta_argus_nosmp.cfg` | Argus independent-targets config, **generated from `vesta_castalia_nosmp.cfg` by substitution** |
+| `vesta_castalia.py` | harness target: starts the Xcelium bridge, declares the chip's structural facts (no triggers, no SBA, no hasel, `timeout_sec = 120`) |
+| `vesta_argus.py` | the N=18 sibling |
+| `vesta_castalia.lds` | link script for the harness-downloaded test programs |
+| `vesta_excludes.yaml` | the STRUCTURAL exclusion list, used for BOTH the VestaRV run and the stock-Spike baseline so the two are scored over one denominator |
+
+**Neither `.cfg` in a pair is a fallback for the other**, and the reason is a
+measurement rather than taste: `target smp` halts the whole group on any halt,
+and under `-rtos hwthread` gdb's MEMORY accesses go to the connection's target
+(hart 0) while REGISTER accesses follow the selected thread — so a software
+breakpoint asked for on hart 2 is planted in hart 0's private TCM. Both files'
+headers carry the evidence.
+
+**Generated pairs must be RE-DERIVED, not hand-edited.** Edit the Castalia
+file and re-derive the Argus one (`NHARTS`, IDCODE, chip name in the prose);
+otherwise the hundred-odd shared lines drift apart.
+
+### 4. `.gitignore` — harness build artefacts
+
+The suite compiles its test programs *into this directory*, naming them
+`<target>_<program>-<misa>` with no extension (`vesta_castalia_debug-40101107`,
+`vestaspike4_checksum-40001105`, …), so a scored run leaves several
+unrelated-looking ELFs beside the vendored sources. The `.gitignore` lists
+them **by shape**, because the misa suffix varies with the target and the
+program list grows. It also covers `logs/` and `__pycache__/`.
 
 ## Known-broken upstream files, left as-is
 
