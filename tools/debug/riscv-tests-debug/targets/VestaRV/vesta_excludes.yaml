@@ -1,0 +1,47 @@
+# vesta_excludes.yaml -- the STRUCTURAL exclusion list for the vendored
+# riscv-tests/debug harness on VestaRV.  LOCAL FILE (not vendored upstream);
+# see ../../VENDORED.md.
+#
+# Tests are excluded here because they are structurally inapplicable to a
+# progbuf-only / no-SBA / NO-TRIGGER / no-FPU / M-mode-only / 32-bit target,
+# or because they were MEASURED to hang rather than skip on such a target.
+# NOTHING is excluded because it failed: a failure is a result and is
+# dispositioned in the report, never hidden here.
+#
+# THE SAME FILE IS USED FOR THE STOCK-SPIKE BASELINE RUN, deliberately.  A
+# baseline scored over a different denominator is not a baseline (R-D5-2(3):
+# the baseline is quoted in the same paragraph as the VestaRV score).
+all:
+  # --- trigger family: VestaRV has NO hardware triggers (D6 owns them) ---
+  - IcountTest              # MEASURED: hangs (>6 min, no log growth) rather than skipping
+  # MEASURED >12 min and still running: with no hardware triggers gdb's `watch`
+  # degrades to a SOFTWARE watchpoint, which single-steps the program.  At this
+  # transport's per-step cost that is not slow, it is unusable -- and it is
+  # D6's measured argument for triggers rather than an assertion (d5_spec 5.3).
+  - ProgramSwWatchpoint
+  - EtriggerTest
+  - ItriggerTest
+  - TriggerDmode
+  - TriggerExecuteInstant
+  - TriggerLoadAddressInstant
+  - TriggerStoreAddressInstant
+  - ProgramHwWatchpoint
+  - JumpHbreak
+  - TooManyHwbp
+  # --- Spike-only custom debug registers / cease instruction ---
+  - CeaseStepiTest
+  - CustomRegisterTest
+  - UnavailableCycleTest
+  - UnavailableHaltedTest
+  - UnavailableMultiTest
+  - UnavailableRunTest
+  # --- vector / FP: not in rv32imac ---
+  - VectorTest
+  - SimpleV13Test
+  - SimpleF18Test
+  # --- virtual memory: M-mode-only chip ---
+  - Sv32Test
+  - Sv39Test
+  - Sv48Test
+  # --- 64-bit only ---
+  - MemTest64

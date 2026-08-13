@@ -654,6 +654,130 @@ GATE_FILES = [
      'true, CORE_ENABLE_UMODE **false** -- the last of those is the shipped '
      'default and is the isolation, NOT staleness; a regeneration reading '
      'UMODE true used the wrong config and moves the pin'),
+
+    # ---- D5: the seven blind-authored acceptance instruments ---------------
+    # Authored against d5_spec.md by an agent barred from every fix, and every
+    # one of them was SEEN TO FAIL before it was seen to pass. They live in
+    # gitignored xcelium/, so until now a `git clean -xdf` deleted the entire
+    # evidential basis of the phase while leaving the RTL it graded in place.
+    ('behavioral_mp/dbg_dmreg.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_dmreg.tcl',
+     'the section-1 RTL detector, 10 checks over the two DM edits (sbcs '
+     'read/write, hartinfo null claim). Runs on the RAW dmi_* port, not the '
+     'TAP, so the DTM sticky gate cannot turn one real failure into a cascade '
+     'of transport artefacts. GRADES THE OP, NOT THE DATA: today\'s pre-fix '
+     'sbcs read answers op=FAILED with the SAME 0x00000000 the correct answer '
+     'carries, so a data-only leg ships a false pass on a chip gdb cannot '
+     'attach to. 7 of 10 FAILED pre-fix, 10/10 after, at BOTH N'),
+    ('behavioral_mp/dbg_sess_lib.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_sess_lib.tcl',
+     'the session grader library. Every verdict is an ORDERING BETWEEN '
+     'SNAPSHOTS, never a duration (method rule 17), and NOT-GRADED is counted '
+     'separately and is never a pass. Also the word map for the d5sess image '
+     '(PHASE/READY/LIVE0-2/MEMW/SEED at 0x10050-0x1007C) -- the liveness '
+     'counters the reset-halt disposition rests on'),
+    ('behavioral_mp/dbg_sessgrade.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_sessgrade.tcl',
+     'the debugger-less FAIL leg and the wiring template for a real session. '
+     'Its value is that it is SEEN TO FAIL by construction: with no debugger '
+     'attached it measures graded=20 failed=18 NOT-GRADED=5 with exactly two '
+     'PASSes, both declared in its header in advance as known-nonzero '
+     'controls'),
+    ('behavioral_mp/dbg_gateidc.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_gateidc.tcl',
+     'the section-6 bounded TAP leg: tap_reset + one IDCODE scan + one dtmcs '
+     'read, ~96 TCK, graded field by field. ONE FILE SERVES BOTH ARMS -- '
+     'D5_GATE=1 changes what it says and never what it checks, which is what '
+     'makes the behavioural run a control for the gate run. Carries the '
+     'one-bit-shift trap (a TDO sampled one phase late returns the whole '
+     'stream rotated, 0x1CA57EEF -> 0x0E52BF77, which looks structured and '
+     'misdirects) and the tap_init-before-tap_reset lesson'),
+    ('behavioral_mp/dbg_w2probe.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_w2probe.tcl',
+     'the chip-side half of the dropped-resume (W2) landmine: 3 graded checks '
+     'that are instrument-liveness preconditions, plus the classification. On '
+     'a WORKING chip it measures abstractcs 0x02000101, cmderr BUSY(1), '
+     'busy 0, hart resumed -- W2-SEEN. The gdb-side half measured ABSORB '
+     'against it (D5 T6)'),
+    ('behavioral_mp/dbg_pbsub.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_pbsub.tcl',
+     'the F-D5-1 blind detector, 13 checks over the progbuf ebreak->jal '
+     'substitution. VALUE AND cmderr ARE GRADED SEPARATELY because pre-fix '
+     'the memory access WORKED and was then told it faulted (0xBE00: 0 -> '
+     '0xD5B7EA11 with cmderr=3), so a data-only leg is green on the broken '
+     'chip and a cmderr-only leg could be satisfied by silencing the report. '
+     'B3 grades position-correctness WITHOUT encoding the implementer\'s '
+     'arithmetic -- the two substituted jals must resolve to one common '
+     'absolute target. 5 of 13 FAILED pre-fix ({A2,A4,B1,B2,B3}), 13/13 after'),
+    ('behavioral_mp/dbg_s0coh.tcl',
+     'xcelium/riscv_test/behavioral_mp/dbg_s0coh.tcl',
+     'the F-D5-2 blind detector, 11 checks over the coherent-dscratch '
+     'contract. Every value leg is checked against an INDEPENDENT SIMULATOR '
+     'PEEK, never a readback through the path under test -- that path is the '
+     'broken one. E1 is the leg that catches the natural wrong fix (serve the '
+     'architectural s0/s1 directly, which greens everything else while '
+     'shredding the debuggee\'s registers on every halt), and E2 exists '
+     'because E1 passes pre-fix with a ZERO WITNESS. 5 of 11 FAILED pre-fix'),
+
+    # ---- D5: the DD16 bounded gate leg (R-D5-10(1)) ------------------------
+    # The flow that carries the standing "the TAP answers through real cells"
+    # proof. Same reasoning as the D4 flow/ block above and the R-D3-5(3)
+    # shape: xcelium/ is gitignored, so a `git clean -xdf` deletes a signed-off
+    # proof and leaves nothing that says it ever existed.
+    #
+    # SCOPE, ruled deliberately: these are the files THIS PHASE CREATED. The
+    # sibling genus_mp/ (debug-OFF) gate-sim flow has no rows either and is
+    # equally exposed -- that gap is PRE-EXISTING and is named residue, not
+    # D5's to sweep (beside the R-D3-5(3) innovus/common gap).
+    ('genus_mp_dbgon/xrun_gatedbg.sh',
+     'xcelium/riscv_test/genus_mp_dbgon/xrun_gatedbg.sh',
+     'the gate-leg runner: a genus_mp sibling that elaborates the debug-ON '
+     'assembly netlist with -access +rwc and its OWN SDF. Carries the '
+     'pre-flight SDF guard AND a netlist-vs-SDF cut cross-check (a dbgon '
+     'sdfcmd beside an OFF cell list is refused before xrun starts), and '
+     'emits -sdfstats, which is what d5_sdf_live.py reads as its positive '
+     'evidence'),
+    ('genus_mp_dbgon/cell_list_genus_mp_dbgon.txt',
+     'xcelium/riscv_test/genus_mp_dbgon/cell_list_genus_mp_dbgon.txt',
+     'the leg\'s ORDER-SENSITIVE compile list. Identical to '
+     'genus_mp/cell_list_genus_mp.txt except for the one line that matters: '
+     'MCU_MP.genus.dbgon.v instead of MCU_MP.genus.v. The OFF netlist has no '
+     'TAP in it at all'),
+    ('genus_mp_dbgon/MCU_MP_dbgon.sdfcmd',
+     'xcelium/riscv_test/genus_mp_dbgon/MCU_MP_dbgon.sdfcmd',
+     'the back-annotation command file, MTM MAXIMUM, naming '
+     'MCU_MP.genus.dbgon.sdf. THIS FILE IS WHERE THE WRONG-CUT MISTAKE IS '
+     'DECIDED: annotating MCU_MP.genus.sdf produces a run that looks entirely '
+     'healthy and cannot possibly have exercised a TAP. d5_sdf_live.py '
+     '--expect-sdf catches it after the fact; this is the front door'),
+    ('genus_mp_dbgon/riscv_tb_gate.vhd',
+     'xcelium/riscv_test/genus_mp_dbgon/riscv_tb_gate.vhd',
+     'the PRIVATE testbench copy, and the leg does not elaborate without it. '
+     'genus_mp/riscv_tb_gate.vhd is byte-untouched and stays that way. '
+     'MEASURED (D5 T6/T7, the M7 question): with the component left at a0_3, '
+     'xmelab HARD-FAILS *E,CFEPLM on every unassociated Verilog INPUT (tck '
+     'tms tdi trstn dmi_req_*), while unassociated OUTPUTS are only '
+     '*W,CUFEPC -- so there is no elaborated design to force into. And once '
+     'associated, the Verilog port nets REJECT the VHDL literal dbg_tap.tcl '
+     'writes (*E,ILLNUM, silently, because every force there is '
+     'catch-wrapped) and do not take 1\'b1 either, because the port is '
+     'collapsed onto its VHDL driver. The five JTAG pins are therefore '
+     'testbench-top VHDL signals and the leg runs with TAP_PFX ":"'),
+    ('genus_mp_dbgon/cds.lib',
+     'xcelium/riscv_test/genus_mp_dbgon/cds.lib',
+     'the library mapping xrun reads out of the run directory. Two lines, and '
+     'without it the leg compiles into whatever `work` the install defaults '
+     'to'),
+    ('genus_mp_dbgon/gate_m7probe.tcl',
+     'xcelium/riscv_test/genus_mp_dbgon/gate_m7probe.tcl',
+     'the M7 measurement, and the runner\'s header makes it mandatory BEFORE '
+     'the leg. It exists because every force in dbg_tap.tcl is catch-wrapped, '
+     'so a wrong path spelling or a wrong value literal does nothing, '
+     'silently, and surfaces as IDCODE = 0x00000000 -- a harness failure that '
+     'reads as a chip failure. It resolves, forces, then READS BACK, and its '
+     'own first version is a recorded miss: it tried only the :dut-family '
+     'prefixes and returned a confident verdict about paths the leg does not '
+     'use'),
 ]
 
 

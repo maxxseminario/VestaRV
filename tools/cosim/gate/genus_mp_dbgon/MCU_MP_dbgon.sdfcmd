@@ -1,0 +1,22 @@
+// =============================================================================
+// MCU_MP_dbgon.sdfcmd -- SDF back-annotation for the D5 section-6 bounded gate
+// leg (d5_spec 6, DD16).
+//
+// THE SDF NAMED HERE IS THE DEBUG-ON CUT AND THAT IS THE WHOLE POINT.
+//   genus/MCU_MP/out/MCU_MP.genus.sdf       is the debug-OFF assembly -- it has
+//                                           NO dtm0, NO TAP, and annotating it
+//                                           here would produce a run that looks
+//                                           annotated and cannot possibly be.
+//   genus/MCU_MP/out/MCU_MP.genus.dbgon.sdf is this flow's cut, written by the
+//                                           same genus run as the netlist in
+//                                           cell_list_genus_mp_dbgon.txt.
+// tools/cosim/d5_sdf_live.py --expect-sdf MCU_MP.genus.dbgon.sdf is the checker
+// that catches the swap after the fact; this file is where it is decided.
+//
+// MTM_CONTROL = MAXIMUM, matching genus_mp/MCU_MP.sdfcmd (genus SDF carries
+// min/typ/max; the flow's standing choice is the slow corner).
+// =============================================================================
+SDF_FILE = "../../../genus/MCU_MP/out/MCU_MP.genus.dbgon.sdf",
+LOG_FILE = "./log/sdf.log",
+SCOPE = :dut,
+MTM_CONTROL = "MAXIMUM";

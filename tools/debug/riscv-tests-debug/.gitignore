@@ -1,0 +1,19 @@
+# VESTARV LOCAL DELTA (D5) -- harness build/run artefacts, see ../VENDORED.md.
+#
+# The suite COMPILES its test programs into this directory and names them
+# "<target>_<program>-<misa>" with NO extension, e.g.
+#     vesta_castalia_debug-40101107
+#     vestaspike4_checksum-40001105
+# so a scored run leaves a handful of unrelated-looking ELFs sitting next to
+# the vendored sources.  They are outputs, not code, and none of them belongs
+# in the repository.
+#
+# Listed by SHAPE rather than by name because the misa suffix changes with the
+# target and the program list grows.
+# The program list is longer than it first looks (download programs even carry
+# a random suffix: vestaspike4_download_wxzqyam0-40001105), so this matches the
+# SHAPE of every one of them -- any name ending in "-" plus an 8-hex-digit misa
+# value -- rather than enumerating programs that will keep being added.
+*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]
+logs/
+__pycache__/
