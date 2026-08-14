@@ -11,12 +11,22 @@
 -- OWNERSHIP GATE (the whole point of instantiating it per site): every access
 -- is qualified against the arbiter's granted-master index (mp_arbiter s_master,
 -- the mutex-bank / CLAIM precedent). An AFE for hart h answers only when
--- s_master = h OR s_master = 0 (hart 0 is the management hart and reaches every
--- site); the EIS engine is instantiated with OWNER_HART = 0, so its gate
--- collapses to s_master = 0 only. A DENIED read returns 0 and a DENIED write is
--- dropped — NO bus error, NO stall, NO arbiter-contract change (the gate lives
--- entirely inside this slave shim). The gate keys off s_master alone; there is
--- no cross-hart data leakage and no way to forge ownership.
+-- s_master = h OR s_master = MGMT_HART (the MANAGEMENT hart reaches every
+-- site); the EIS engine is instantiated with OWNER_HART = the management hart
+-- itself, so its gate collapses to that one master. A DENIED read returns 0 and
+-- a DENIED write is dropped — NO bus error, NO stall, NO arbiter-contract
+-- change (the gate lives entirely inside this slave shim). The gate keys off
+-- s_master alone; there is no cross-hart data leakage and no way to forge
+-- ownership.
+--
+-- CP2 (Castalia-Penta, D4): the management privilege used to be the literal
+-- `s_master = 0` — the ONE fabric privilege hart 0 held. It is now the
+-- MGMT_HART generic, defaulting to 0, so every existing configuration is
+-- bit-identical; a penta chip passes MGMT_HART => 4 and the orchestrator hart
+-- takes the privilege (and owns the EIS engine) while AFE0-3 keep OWNER_HART
+-- 0-3. The bank stays exactly four AFE sites + EIS at any hart count — there
+-- are four physical channels, and the orchestrator deliberately has no site of
+-- its own.
 --
 -- REGISTER MAP (word offset in the 16-word / 64 B sub-slot; only addr(3:0)
 -- decoded, so the block aliases every 16 words within its sub-slot):
@@ -56,9 +66,15 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity afe_stub is
     generic (
-        -- Hart that (together with hart 0) may access this block. EIS uses 0,
-        -- which makes the gate hart-0-only.
+        -- Hart that (together with MGMT_HART) may access this block. EIS is
+        -- instantiated with OWNER_HART = MGMT_HART, which makes its gate
+        -- management-hart-only.
         OWNER_HART : natural := 0;
+        -- CP2/D4: the MANAGEMENT hart — the one master that reaches every
+        -- site. Default 0 = the pre-penta behaviour (hart 0 manages), so an
+        -- omitted association is bit-identical to the literal `s_master = 0`
+        -- this replaced.
+        MGMT_HART  : natural := 0;
         -- Word registers (16 = one 64 B sub-slot). addr is 4 bits.
         NREG       : natural := 16
     );
@@ -110,7 +126,7 @@ begin
             if en = '1' then
                 -- ownership gate keyed off the arbiter's granted-master index
                 allow := (conv_integer(master) = OWNER_HART)
-                         or (conv_integer(master) = 0);
+                         or (conv_integer(master) = MGMT_HART);
                 idx := conv_integer(addr);
 
                 if allow then

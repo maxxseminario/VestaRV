@@ -24,7 +24,29 @@
 
 All \NumHartsWord{} harts are instances of the same \textit{hart tile}: an unmodified VestaRV core plus its own private TCM, replicating the proven single-core memory path, with every connection to the rest of the chip registered at the tile boundary. Since every hart sees the same address map --- shared boot ROM, shared peripherals, private TCM at the same local address --- the \NumHartsWord{} harts are architecturally identical and code is hart-portable by construction.
 
-Hart 0 is additionally the \textit{management hart}. It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{\FlashBaseAddress}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all \NumHartsWord{} harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Peripheral interrupts are uniform across harts: every hart, hart 0 included, routes and receives them through its \peripheral{IRQROUTER} row and the claim/complete mechanism (see the \peripheral{IRQROUTER} chapter).
+% CP6 — TWO typesetting traps, both measured, both invisible in the rendered
+% TEXT and both moving PDF bytes on the default (orchestrator-off) build:
+%  1. the whole clause is duplicated per branch rather than switching only the
+%     two italic words, because `\textit{...}\fi.` is NOT `\textit{...}.` —
+%     LaTeX peeks at the token after \textit to decide the italic correction,
+%     \fi hides the period from that peek, and the line re-justifies;
+%  2. `\fi{}` and not `\fi` before the following sentence — \fi is a control
+%     WORD, so it swallows the space after it and the sentence renders as
+%     ".It is the only ...".
+% With both, the default TRM is byte-identical: 243 pp, md5 d77eed78...
+\iforchpresent Hart 0 is additionally the \textit{boot hart}.\else Hart 0 is additionally the \textit{management hart}.\fi{} It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{\FlashBaseAddress}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all \NumHartsWord{} harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Peripheral interrupts are uniform across harts: every hart, hart 0 included, routes and receives them through its \peripheral{IRQROUTER} row and the claim/complete mechanism (see the \peripheral{IRQROUTER} chapter).
+
+\iforchpresent
+Hart \OrchHartIndex{} --- the highest \register{mhartid} --- is the \textit{orchestrator}, and it is the one hart that is not a corner tile. The channel harts are hardened \textit{hart tile} macros at the corners of the die; the orchestrator is soft logic placed in the centre band alongside the shared fabric, with its own 16\,KiB TCM at the same private \texttt{0x8000}--\texttt{0xBFFF} window. It is architecturally identical to the tiles --- same ISA, same private memory map, same \register{mhartid} discovery --- and differs in exactly three ways that software can observe:
+
+\begin{itemize}
+	\item \textbf{It is always on.} The orchestrator sits outside the switched-rail power fabric entirely: there are no header switches for the centre band, so \register{PWRCR} has no gate bit for it. The bit reads 0 and ignores writes, exactly as hart 0's does, which is why a blanket \register{PWRCR} write gates the channel tiles and leaves the orchestrator running (see the \peripheral{PWRCTRL} chapter).
+	\item \textbf{It does not boot the chip.} Boot mastership stays on hart 0, which is the only hart attached to the SPI-flash boot path and the extended flash region. The orchestrator is released exactly like a channel tile: it resets into the shared boot ROM, parks, and is started when hart 0 stages its image into a loader mailbox row and sends it a \peripheral{CLINT} software interrupt (Section \ref{ss:multicore-boot}). Management is therefore a hand-over that happens \textit{after} boot, not a property of the boot path.
+	\item \textbf{It holds the management privilege in hardware.} In configurations that include the analog front-end blocks, each front-end site answers to its own owner hart or to the \textit{management hart}, and the shared impedance-spectroscopy engine answers to the management hart alone. That is not a software convention: it is the \texttt{MGMT\_HART} generic on those blocks, checked against the hart that owns the in-flight bus transaction, and in this configuration it names hart \OrchHartIndex{}. A channel hart that reaches for another channel's site, or for the shared engine, reads zero and has its write dropped.
+\end{itemize}
+
+The intended firmware model follows from those three: hart 0 boots the chip, stages and ignites the orchestrator first, and hands management over; the orchestrator then starts and coordinates the channel harts, owns the front-end and its interrupts, and stays up across any power-gating of the tiles.
+\fi
 
 Software discovers which hart it is running on by reading the \register{mhartid} CSR:
 

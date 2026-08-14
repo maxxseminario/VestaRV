@@ -119,6 +119,19 @@ CATALOG = [
     # `harts_le4` because the stub bank is FOUR instances at any numHarts while
     # the test addresses AFE0 + 0x40*h -- see config_tags.
     T('rv32ui-p-shafe', 'tiles cqAfeStubs harts_le4'),
+    # CP3 (Castalia-Penta): shafe's SUCCESSOR at N>=5, and the only row carrying
+    # the `orch` tag. It selects EXACTLY where shafe is deselected -- `orch` is
+    # managementHart != 0, which comes with numHarts=5, which drops `harts_le4`
+    # -- so the AFE/EIS coverage is handed over rather than lost (CP1 D8). What
+    # it proves that shafe cannot: the management privilege is the afe_stub
+    # MGMT_HART generic now, so hart 0 is a plain CHANNEL and is DENIED on
+    # AFE1/EIS, while hart 4 (no AFE site of its own) reads all four IF words,
+    # owns the EIS engine, programs ITS OWN irq_router row for sources 55/56 and
+    # runs the msip relay. ON-POLARITY-ONLY (it cannot be built for a chip
+    # without an orchestrator), hence smoke=True by the R-DK2 knobs-on-canary
+    # rule: on an orchestrator config it is the cheapest proof the orchestrator
+    # is really there.
+    T('rv32ui-p-shorch', 'tiles cqAfeStubs orch', True),
     # digperiphs #6: shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
     # dma-enabled configs (castalia_dma NCH=2, wound NCH=4) -> tag 'dma' gates it
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
@@ -821,6 +834,15 @@ def config_tags(cfg):
     # proven by xrun_dbg.sh + the dbg_*.tcl harnesses instead.
     if cfg.get('debug', {}).get('enable'):
         tags.add('debug')
+    # CP2 (Castalia-Penta): the soft ORCHESTRATOR hart. It drives the CELL-LIST
+    # injection (orch_tile.vhd) AND, since CP3, selects the one CATALOG row that
+    # carries it -- `shorch`, the shafe successor. NOTE what the knob does to an
+    # EXISTING row: it comes with
+    # numHarts=5, so `harts_le4` drops out and `shafe` is deselected -- by
+    # plan (CP1 D8), because the AFE bank is FOUR sites at any hart count
+    # while shafe.S addresses AFE0 + 0x40*h, and h=4 would land on GPIO3.
+    if int(cfg.get('managementHart', 0)) != 0:
+        tags.add('orch')
     # digperiphs (TRNG): TRNG0 is a config-gated ADDED instance (default off), same
     # shape as DMA0. TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only when the
     # config enables it (below). No sh-test tags change yet -- no shared-suite test
@@ -901,6 +923,7 @@ def main():
     dma_seen = False
     trng_seen = False
     dm_seen = False          # D2: debug_module.vhd was present in the base list
+    orch_seen = False        # CP2: orch_tile.vhd was present in the base list
     dtm_seen = False         # D3: jtag_dtm.vhd was present in the base list
     mcu_idx = None           # D2: where the staged MCU.vhd landed
     crc16_idx = None
@@ -953,6 +976,14 @@ def main():
                 if 'debug' not in have:
                     continue    # debug off -> MCU.vhd has no dtm0 instance
                 dtm_seen = True
+            # CP2: orch_tile.vhd is compiled only when the config names a
+            # management hart (the debug_module.vhd / DMA.vhd gate pattern).
+            # It is a bare wrapper around hart_tile, so it must come AFTER
+            # hart_tile.vhd and BEFORE MCU.vhd -- both hold in the base list.
+            if p.endswith('hdl/common/orch_tile.vhd'):
+                if 'orch' not in have:
+                    continue    # no orchestrator -> MCU.vhd has no orch_tile instance
+                orch_seen = True
             if p.endswith('periph/TrngRoEnsemble.vhd'):
                 continue    # the rtl (real-ring) architecture NEVER enters verify staging
             if p.endswith('periph/TrngRoEnsemble_sim.vhd') or p.endswith('periph/TRNG.vhd'):
@@ -1000,6 +1031,13 @@ def main():
         if 'hdl/MCU.vhd' not in lines:
             raise SystemExit('debug config but hdl/MCU.vhd not in the staged list')
         lines.insert(lines.index('hdl/MCU.vhd'), '../../../hdl/common/jtag_dtm.vhd')
+    # CP2: same injection point as the DM (immediately before MCU.vhd, its only
+    # consumer, and after hart_tile.vhd which it wraps). Done after the debug
+    # insertions so the index is recomputed from the list it lands in.
+    if 'orch' in have and not orch_seen:
+        if 'hdl/MCU.vhd' not in lines:
+            raise SystemExit('orchestrator config but hdl/MCU.vhd not in the staged list')
+        lines.insert(lines.index('hdl/MCU.vhd'), '../../../hdl/common/orch_tile.vhd')
     if 'dma' in have and not dma_seen:
         dma_cell = '../../../hdl/common/periph/DMA.vhd'
         if crc16_idx is None:

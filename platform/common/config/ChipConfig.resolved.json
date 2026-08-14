@@ -3,6 +3,8 @@
   "configFile": null,
   "chipName": "Castalia",
   "numHarts": 4,
+  "managementHart": 0,
+  "powerGatedHarts": 4,
   "numMutexes": 16,
   "registerFileDualPort": true,
   "isa": {

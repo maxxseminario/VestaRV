@@ -1074,6 +1074,7 @@ begin
     -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
     -- identical on every hart.
     --@GEN:tile-instances@
+    --@GEN:orch-instance@
 
     -- System Peripheral (M19: the vectored IRQ controller is retired — only
     -- the WDT level source + the D2 router hooks remain on the IRQ side)

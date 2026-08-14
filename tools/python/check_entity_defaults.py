@@ -55,10 +55,51 @@ Deliberately NOT keyed on the trapCsr DISAGREEMENT (method rule 11: an
 instrument keyed on a defect reports success the day the defect is fixed).
 The disagreement is REPORTED, loudly, and never graded.
 
+THE SECOND AXIS: MGMT_HART (CP6, and it is a PICKUP -- this checker did not
+catch the defect class it was built for).
+---------------------------------------------------------------------------
+Everything above is about a DECLARATION drifting.  CP3 found the other half of
+the same class, and this instrument was blind to it: an INSTANTIATION that
+OMITS a generic whose entity default is silently WRONG for the configuration
+being built.  ``afe_stub.vhd`` declares
+
+    OWNER_HART : natural := 0;
+    MGMT_HART  : natural := 0;      -- CP1 D4
+
+and its access gate is ``master = OWNER_HART or master = MGMT_HART``.  The
+Castalia-Penta emitter (``mcu_vhd.py`` ``afeStubsWithMgmt``) rewrote the EIS
+engine's association to ``OWNER_HART => 4`` and left ``MGMT_HART`` OMITTED, so
+the gate elaborated as ``{4, 0}`` and **hart 0 silently kept the EIS access D4
+had moved to the orchestrator**.  Every gate stayed green -- the RTL compiled,
+the golden master was byte-identical (the association is emitted only off the
+default path), and the generated MCU.vhd read plausibly.  It was found only by
+``shorch``'s negative control, i.e. by a test that happened to look.
+
+So the MGMT_HART audit grades the PAIRING, in three places, and it is
+two-sided on purpose (the OFF polarity is a real contract too -- an emitted
+MGMT_HART association on the default path would break golden-master
+byte-identity):
+
+    DECL   ``afe_stub.vhd`` declares MGMT_HART, and its default must be 0
+           (that default is exactly what makes the default build's OMISSION
+           correct, so it is the hinge of the whole scheme)
+    MAP    an ``afe_stub`` instantiation / emitted line naming MGMT_HART
+    OMIT   one that does not -- a DECISION, correct on the mgmtHart=0 path
+           and a DEFECT on an orchestrator path
+    EMIT   the generator-side emission sites, split into the VERBATIM class
+           (module-scope golden-master text: must NEVER name MGMT_HART) and
+           the ORCHESTRATOR class (a function whose body knows about the
+           management hart: must ALWAYS name it -- this is the eis0 site)
+
+and the VHDL rule is per-file ALL-OR-NONE: within one MCU.vhd, either every
+``afe_stub`` instantiation names MGMT_HART or none does.  A MIXED file is the
+eis0 shape exactly, and is reported site by site.
+
 USAGE
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG, D1 contract
+    /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG D1 contract + the MGMT_HART axis
     /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_UMODE --require-default false
     /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_TRAPCSR --report-only
+    /usr/bin/python3.6 tools/python/check_entity_defaults.py --skip-mgmt-hart
 """
 
 from __future__ import print_function
@@ -75,6 +116,13 @@ import sys
 VHDL_DECL_FILES = [
     "hdl/common/vesta/vesta.vhd",
     "hdl/common/hart_tile.vhd",
+    # CP2: orch_tile is a FIFTH entity carrying the core generics -- a bare
+    # wrapper around hart_tile, so its declaration defaults are inherited by
+    # any instantiation that omits them (the genus `elaborate orch_tile`
+    # hardening run does exactly that). Same rule-15 argument as debug_module:
+    # a default justified by "the generator always names it" becomes a
+    # behaviour the day something else instantiates it.
+    "hdl/common/orch_tile.vhd",
     # D2: the Debug Module is a THIRD entity carrying ENABLE_DEBUG.  It is
     # knob-gated so the generator only ever instantiates it with the knob on,
     # but rule 15 is about the DECLARATION: a default justified by "nothing
@@ -90,6 +138,7 @@ VHDL_DECL_FILES = [
 
 VHDL_INST_FILES = [
     "hdl/common/hart_tile.vhd",          # the inner `vesta` instantiation
+    "hdl/common/orch_tile.vhd",          # CP2: the inner `hart_tile` pass-through
     "hdl/common/MCU.vhd",                # hart0..hart3
     "hdl/argus/MCU.vhd",                 # the FROZEN 18-tile snapshot
     "platform/common/hdl_templates/MCU.template.vhd",
@@ -113,6 +162,157 @@ EMIT_FILES = [
     "platform/common/python/mcu_vhd.py",
     "platform/common/hdl_templates/MCU.template.vhd",
 ]
+
+# ---------------------------------------------------------------------------
+# THE MGMT_HART AXIS (CP6).  A separate site map, because the sites are not the
+# core-generic sites: the generic lives on `afe_stub`, is instantiated five
+# times inside MCU.vhd, and is EMITTED by mcu_vhd.py rather than templated.
+# ---------------------------------------------------------------------------
+AFE_DECL_FILES = [
+    "hdl/common/afe_stub.vhd",
+]
+
+# MCU-class VHDL carrying `afe_stub` instantiations.  These are TRACKED files;
+# a missing one is reported, never skipped.
+AFE_INST_FILES = [
+    "hdl/common/MCU.vhd",                       # the N=4 golden master
+    "platform/common/out/hdl/MCU.vhd",          # whatever `make chip` last emitted
+]
+
+# Generated MCU.vhd copies staged under the gitignored xcelium/ tree.  These are
+# the ONLY on-disk artifacts of a NON-DEFAULT (orchestrator) build, so they are
+# where the eis0 defect actually manifested -- but they are transient, so their
+# absence is REPORTED as reduced coverage rather than graded as a violation.
+AFE_INST_OPTIONAL = [
+    "xcelium/riscv_test/verify_castaliapenta/hdl/MCU.vhd",
+    "xcelium/riscv_test/verify_pentawound/hdl/MCU.vhd",
+]
+
+AFE_EMIT_FILES = [
+    "platform/common/python/mcu_vhd.py",
+]
+
+# Measured floors, so a restructured emitter cannot pass by emitting NOTHING.
+# VERBATIM = the five golden-master `generic map (OWNER_HART => n)` lines in the
+# module-scope AFE_SLOT12_INSTANCES table.  ORCHESTRATOR = the emission sites
+# (branches, NOT instances) inside afeStubsWithMgmt: one for the EIS engine,
+# one for the four AFE sites.  Both counts are measured on the current tree.
+MGMT_MIN_VERBATIM_EMITS = 5
+MGMT_MIN_ORCH_EMITS = 2
+
+RE_AFE_INST = re.compile(
+    r"^\s*(\w+)\s*:\s*entity\s+work\.afe_stub\s*$", re.IGNORECASE)
+RE_GENERIC_OWNER = re.compile(r"generic\s+map\s*\(\s*OWNER_HART\s*=>", re.IGNORECASE)
+RE_PYDEF = re.compile(r"^(\s*)def\s+(\w+)\s*\(")
+
+
+def scan_afe_insts(root, files, optional=False):
+    """`afe_stub` instantiations: does each name MGMT_HART, or inherit it?
+
+    Returns (kind, rel, lineno, label, detail) with kind in MAP / OMIT /
+    MISSING / SKIPPED.  The OWNER_HART value is carried in `detail` because the
+    eis0 shape is precisely "OWNER_HART moved, MGMT_HART did not".
+    """
+    out = []
+    for rel in files:
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path):
+            out.append(("SKIPPED" if optional else "MISSING", rel, 0, None,
+                        "<not on disk>"))
+            continue
+        lines = _read(path)
+        for num, line in enumerate(lines, 1):
+            hit = RE_AFE_INST.match(line)
+            if not hit:
+                continue
+            label = hit.group(1)
+            # the association list is the next few lines, up to the `port map`
+            owner, mgmt = None, None
+            probe = num                      # 0-based index of the NEXT line
+            while probe < len(lines) and probe < num + 6:
+                body = lines[probe]
+                if re.search(r"port\s+map", body, re.IGNORECASE):
+                    break
+                got = re.search(r"OWNER_HART\s*=>\s*([^,\s)]+)", body, re.IGNORECASE)
+                if got:
+                    owner = got.group(1)
+                got = re.search(r"MGMT_HART\s*=>\s*([^,\s)]+)", body, re.IGNORECASE)
+                if got:
+                    mgmt = got.group(1)
+                probe += 1
+            detail = "OWNER_HART => %s, MGMT_HART %s" % (
+                owner if owner is not None else "<inherited>",
+                ("=> " + mgmt) if mgmt is not None else "<inherited := entity default>")
+            out.append(("MAP" if mgmt is not None else "OMIT",
+                        rel, num, "%s : afe_stub" % label, detail))
+    return out
+
+
+def scan_mgmt_emitters(root, files):
+    """The generator-side emission sites, classified by EMITTING SCOPE.
+
+    A site is a source line that EMITS a `generic map (OWNER_HART => ...)`
+    string -- an `.append(...)` call or a bare string element of a module-scope
+    table.  Matcher lines (`if s.startswith('generic map (OWNER_HART =>')`) and
+    comments are NOT sites; they describe the text, they do not produce it.
+
+    Scope decides the rule:
+      <module>      the VERBATIM golden-master table -- must NOT name MGMT_HART
+      <function>    orchestrator-aware iff its own body mentions MGMT_HART or
+                    mgmtHart -- then it MUST name MGMT_HART on every site
+    """
+    out = []
+    for rel in files:
+        path = os.path.join(root, rel)
+        if not os.path.isfile(path):
+            out.append(("MISSING", rel, 0, None, None, None))
+            continue
+        lines = _read(path)
+        # pass 1: scope per line
+        scopes = []
+        scope = "<module>"
+        indents = []              # (indent, name) stack of open defs
+        for line in lines:
+            if line.strip() and not line[0].isspace():
+                scope = "<module>"
+                indents = []
+            hit = RE_PYDEF.match(line)
+            if hit:
+                ind = len(hit.group(1).expandtabs(4))
+                while indents and indents[-1][0] >= ind:
+                    indents.pop()
+                indents.append((ind, hit.group(2)))
+                scope = hit.group(2)
+            elif indents and line.strip():
+                cur = len(line[:len(line) - len(line.lstrip())].expandtabs(4))
+                while indents and cur <= indents[-1][0]:
+                    indents.pop()
+                scope = indents[-1][1] if indents else "<module>"
+            scopes.append(scope)
+        # pass 2: which scopes know about the management hart
+        bodies = {}
+        for line, sc in zip(lines, scopes):
+            bodies[sc] = bodies.get(sc, "") + line + "\n"
+        # pass 3: the sites
+        for num, (line, sc) in enumerate(zip(lines, scopes), 1):
+            if not RE_GENERIC_OWNER.search(line):
+                continue
+            stripped = line.strip()
+            emits = (".append(" in line
+                     or stripped.startswith("'") or stripped.startswith('"'))
+            if not emits:
+                continue
+            if sc == "<module>":
+                cls = "VERBATIM"
+            else:
+                body = bodies.get(sc, "")
+                cls = ("ORCH" if ("MGMT_HART" in body or "mgmtHart" in body)
+                       else "PLAIN")
+            named = "MGMT_HART" in line
+            out.append(("EMIT", rel, num, sc, cls,
+                        ("names MGMT_HART" if named else "OMITS MGMT_HART")
+                        + " | " + stripped[:76]))
+    return out
 
 # `entity <name> is` ... `end entity;`  and  `component <name>` ... `end component;`
 RE_DECL_BLOCK = re.compile(
@@ -264,6 +464,117 @@ def scan_py(root, generic, files):
     return out
 
 
+def audit_mgmt_hart(root, report_only=False):
+    """The MGMT_HART axis (CP6).  Returns an exit code contribution.
+
+    0 = the pairing holds everywhere.  1 = a violation.  2 = the scanner found
+    too few sites to be believed (method rule 4 again: a restructured emitter
+    that produces no matches must not read as "clean").
+    """
+    print()
+    print("== MGMT_HART (afe_stub ownership gate; CP1 D4 / the CP3 eis0 pickup) ==")
+
+    rc = 0
+
+    # ---- 1. the DECLARATION, which is the hinge of the whole scheme --------
+    decls = scan_decls(root, "MGMT_HART", AFE_DECL_FILES)
+    owner_decls = scan_decls(root, "OWNER_HART", AFE_DECL_FILES)
+    for kind, rel, num, unit, val in owner_decls + decls:
+        print("   %-8s %-52s:%-5s %-22s %s" %
+              (kind, rel, num or "-", unit or "", val if val is not None else ""))
+    real_decls = [r for r in decls if r[0] == "DECL"]
+    if not real_decls:
+        print("FAIL: MGMT_HART is DECLARED NOWHERE in %s -- the OMIT sites below "
+              "inherit nothing and this audit is meaningless."
+              % ", ".join(AFE_DECL_FILES))
+        rc = 1
+    for _, rel, num, unit, val in real_decls:
+        if (val or "").strip() != "0":
+            print("FAIL: %s:%s (%s) declares MGMT_HART := %s, require 0 -- the "
+                  "default build OMITS the association, so a non-zero default "
+                  "would silently move the management privilege on EVERY chip."
+                  % (rel, num, unit, val))
+            rc = 1
+    if [r for r in decls if r[0] == "MISSING"]:
+        rc = 1
+
+    # ---- 2. the VHDL instantiations: per-file ALL-OR-NONE ------------------
+    print("   -- afe_stub instantiations (per file: all name MGMT_HART, or none)")
+    rows = (scan_afe_insts(root, AFE_INST_FILES)
+            + scan_afe_insts(root, AFE_INST_OPTIONAL, optional=True))
+    perfile = {}
+    for kind, rel, num, unit, val in rows:
+        print("   %-8s %-52s:%-5s %-22s %s" %
+              (kind, rel, num or "-", unit or "", val or ""))
+        if kind in ("MAP", "OMIT"):
+            perfile.setdefault(rel, []).append((kind, num, unit, val))
+        elif kind == "MISSING":
+            print("   MISSING FILE: %s -- the audit is INCOMPLETE" % rel)
+            rc = 1
+    for rel in sorted(perfile):
+        kinds = set(k for k, _, _, _ in perfile[rel])
+        if len(kinds) > 1:
+            print("FAIL: %s MIXES named and inherited MGMT_HART across its "
+                  "afe_stub instantiations -- this is the eis0 shape (an owner "
+                  "moved, the management hart did not).  The omitting site(s):"
+                  % rel)
+            for kind, num, unit, val in perfile[rel]:
+                if kind == "OMIT":
+                    print("        %s:%s  %s  (%s)" % (rel, num, unit, val))
+            rc = 1
+
+    # ---- 3. the GENERATOR emission sites ----------------------------------
+    print("   -- generator emission sites (mcu_vhd.py), by emitting scope")
+    emits = scan_mgmt_emitters(root, AFE_EMIT_FILES)
+    nverb = norch = 0
+    for row in emits:
+        if row[0] == "MISSING":
+            print("   MISSING FILE: %s -- the audit is INCOMPLETE" % row[1])
+            rc = 1
+            continue
+        _kind, rel, num, scope, cls, val = row
+        print("   %-8s %-52s:%-5s %-22s %s" % (cls, rel, num, scope, val))
+        if cls == "VERBATIM":
+            nverb += 1
+            if "names MGMT_HART" in val:
+                print("FAIL: %s:%s emits MGMT_HART from the VERBATIM golden-master "
+                      "table -- the default (mgmtHart=0) build would stop being "
+                      "byte-identical to hdl/common/MCU.vhd." % (rel, num))
+                rc = 1
+        elif cls == "ORCH":
+            norch += 1
+            if "OMITS MGMT_HART" in val:
+                print("FAIL: %s:%s (in %s) emits an OWNER_HART association with NO "
+                      "MGMT_HART.  On an orchestrator config that site elaborates "
+                      "with MGMT_HART = the entity default 0, so hart 0 keeps an "
+                      "access CP1 D4 moved to the management hart.  THIS IS THE "
+                      "eis0 DEFECT." % (rel, num, scope))
+                rc = 1
+
+    print()
+    print("   MGMT_HART: DECL=%d  MAP=%d  OMIT=%d  EMIT(verbatim)=%d  EMIT(orch)=%d"
+          % (len(real_decls),
+             len([r for r in rows if r[0] == "MAP"]),
+             len([r for r in rows if r[0] == "OMIT"]),
+             nverb, norch))
+
+    if nverb < MGMT_MIN_VERBATIM_EMITS or norch < MGMT_MIN_ORCH_EMITS:
+        print("FATAL: only %d verbatim / %d orchestrator emission sites found "
+              "(require >= %d / >= %d).  The emitter has been restructured and "
+              "this audit no longer reaches it -- re-derive the site map instead "
+              "of reading the silence as clean."
+              % (nverb, norch, MGMT_MIN_VERBATIM_EMITS, MGMT_MIN_ORCH_EMITS))
+        return 2
+
+    if report_only:
+        return 0
+    if rc == 0:
+        print("PASS: MGMT_HART is declared with default 0, every afe_stub "
+              "instantiation file is all-or-none, and every orchestrator "
+              "emission site pairs OWNER_HART with MGMT_HART.")
+    return rc
+
+
 def collect(root, generic):
     rows = []
     rows += scan_decls(root, generic, VHDL_DECL_FILES)
@@ -294,6 +605,10 @@ def main():
                     help="liveness-control generic (must be present)")
     ap.add_argument("--control-min", type=int, default=6,
                     help="minimum control sites for the scanner to be live")
+    ap.add_argument("--skip-mgmt-hart", action="store_true",
+                    help="skip the MGMT_HART axis (afe_stub ownership gate). It "
+                         "runs by DEFAULT: it is the second half of this "
+                         "checker's contract, not an option (see the header).")
     ap.add_argument("--root", default=os.environ.get("VESTA_ROOT"),
                     help="repo root (default: two levels above this file)")
     args = ap.parse_args()
@@ -348,6 +663,12 @@ def main():
     for _, rel, _, _, _ in missing:
         print("   MISSING FILE: %s (renamed or moved -- the audit is INCOMPLETE)" % rel)
 
+    mgmt_rc = 0
+    if not args.skip_mgmt_hart:
+        mgmt_rc = audit_mgmt_hart(root, report_only=args.report_only)
+        if mgmt_rc == 2:
+            return 2
+
     if args.report_only:
         return 0
 
@@ -385,6 +706,8 @@ def main():
     if rc == 0:
         print("PASS: every %s declaration site carries the required default."
               % args.generic)
+    if mgmt_rc:
+        rc = mgmt_rc
     return rc
 
 

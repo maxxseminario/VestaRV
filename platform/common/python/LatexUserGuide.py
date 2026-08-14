@@ -42,6 +42,19 @@ class LatexUserGuide():
 	SaveDirectory = None	# {chip root directory}/latex/TRM
 	IncludeDirectory = None	# {SaveDirectory}/include
 
+	# CP6 ANALOG-CHAPTER LINEAGE (see CopyAnalogChapter).
+	#   <lower-cased chipName>  ->  <lower-cased chipName whose analog/ it shares>
+	# One entry = one deliberate statement that two chip configurations are the
+	# SAME SILICON from the analog front-end's point of view. Castalia-Penta is a
+	# digital re-configuration of Castalia (a fifth soft hart in the centre band);
+	# the AFE/EIS front-end, the bias generator and every Monte-Carlo figure in
+	# implementations/asic/castalia/analog/ describe it unchanged.
+	# NEVER make this a prefix/substring rule: the whole point is that inheriting
+	# measured analog data is an explicit, per-chip decision.
+	AnalogChapterLineage = {
+		'castaliapenta': 'castalia',
+	}
+
 	def __init__(self, gen, outDirectoryPath):
 		self.Gen = gen
 		if not os.path.isdir(outDirectoryPath):
@@ -165,8 +178,36 @@ class LatexUserGuide():
 		#
 		# The directory is keyed on the lower-cased chip name, which is the existing
 		# implementations/asic/ naming convention (Castalia -> castalia).
-		src = os.path.abspath(self.ThisFileDirectory + '/../../../implementations/asic/'
-		                      + self.Gen.AsicName.lower() + '/analog')
+		#
+		# CP6 LINEAGE FALLBACK. That key is the chip NAME, and a chip config that
+		# only changes the DIGITAL configuration is still the same silicon as far
+		# as the analog front-end is concerned. Castalia-Penta is exactly that
+		# case: `chipName: CastaliaPenta` looked for implementations/asic/
+		# castaliapenta/analog/, found nothing, and dropped the analog chapter
+		# SILENTLY -- 218 pages against Castalia's 243, with the only trace a
+		# "no analog chapter" line in a build log nobody reads as a defect.
+		#
+		# The fallback is an EXPLICIT TABLE and deliberately not a prefix or
+		# fuzzy match: inheriting somebody else's measured analog data is a claim
+		# about silicon, so it is made once, by name, in this table -- a future
+		# chip whose name merely begins with an existing one must NOT quietly
+		# acquire that chip's bias-generator characterization. And it is never
+		# silent: the inheritance prints its own build-time note below, naming
+		# both the chip that asked and the lineage parent that answered.
+		key = self.Gen.AsicName.lower()
+		asicRoot = os.path.abspath(self.ThisFileDirectory + '/../../../implementations/asic')
+		src = os.path.join(asicRoot, key, 'analog')
+		inheritedFrom = None
+		if not os.path.isdir(src) and key in self.AnalogChapterLineage:
+			parent = self.AnalogChapterLineage[key]
+			cand = os.path.join(asicRoot, parent, 'analog')
+			if os.path.isdir(cand):
+				inheritedFrom = parent
+				src = cand
+			else:
+				print('[LatexUserGuide] NOTE: ' + self.Gen.AsicName + ' inherits its analog'
+				      + ' chapter from lineage parent "' + parent + '", but ' + cand
+				      + ' does not exist either - TRM built without one')
 		dst = self.IncludeDirectory + '/analog'
 
 		# Purge first, ALWAYS. latex/TRM/ is reused across chips (`make chip
@@ -185,7 +226,16 @@ class LatexUserGuide():
 		if not os.path.isdir(dst):
 			os.makedirs(dst)
 		copytree(src, dst, dirs_exist_ok=True)
-		print('[LatexUserGuide] analog chapter copied from ' + src)
+		if inheritedFrom is None:
+			print('[LatexUserGuide] analog chapter copied from ' + src)
+		else:
+			# CP6: the fallback announces itself. A build that silently borrows
+			# another chip's analog measurements is the failure this exists to
+			# prevent, so the note names both ends of the inheritance.
+			print('[LatexUserGuide] analog chapter INHERITED: ' + self.Gen.AsicName
+			      + ' has no implementations/asic/' + self.Gen.AsicName.lower()
+			      + '/analog, so the chapter is taken from lineage parent "'
+			      + inheritedFrom + '" (' + src + ') - explicit CP6 lineage mapping')
 
 		return
 
@@ -395,6 +445,16 @@ class LatexUserGuide():
 		s += '\\newif\\ifdebugenable\n'
 		s += ('\\debugenabletrue' if getattr(self.Gen, 'ENABLE_DEBUG', False)
 			else '\\debugenablefalse') + '\n'
+		# CP6 (Castalia-Penta): the soft ORCHESTRATOR hart. False at the
+		# defaults, so every orchestrator sentence in the multi-core chapter
+		# folds away and the default TRM is byte-identical — the same
+		# "inert unless declared" discipline as \ifcqanalog above.
+		# \OrchHartIndex is defined UNCONDITIONALLY (the \PmpEntries precedent)
+		# so the macro can never dangle inside a folded branch.
+		_mgmtHart = getattr(self.Gen, 'MgmtHart', 0)
+		s += '\\newcommand{\\OrchHartIndex}{' + str(_mgmtHart) + '}\n'
+		s += '\\newif\\iforchpresent\n'
+		s += ('\\orchpresenttrue' if _mgmtHart else '\\orchpresentfalse') + '\n'
 
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
@@ -853,7 +913,7 @@ class LatexUserGuide():
 		# at the pre-X-series key set, so X-series ISA, priv, newer-peripheral and
 		# package knobs never appeared in the TRM config table). Keep in sync with
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
-		keyOrder = ['chipName', 'numHarts', 'numMutexes', 'registerFileDualPort',
+		keyOrder = ['chipName', 'numHarts', 'managementHart', 'numMutexes', 'registerFileDualPort',
 			'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed',
 			'isa.bitmanip', 'isa.counters', 'isa.counters64',
 			'isa.zicond', 'isa.zcb', 'isa.zimop', 'isa.zihint', 'isa.zihpm',
