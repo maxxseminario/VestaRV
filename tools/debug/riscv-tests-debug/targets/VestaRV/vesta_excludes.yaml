@@ -45,3 +45,25 @@ all:
   - Sv48Test
   # --- 64-bit only ---
   - MemTest64
+  # --- D5 close dispositions (R-D5-12, d5_user_decisions2.md) ---
+  # These four entered by USER decision at the D5 close.  Each is excluded
+  # for a STRUCTURAL reason, not because it failed; the failures themselves
+  # are dispositioned in d5_t5_collection.md / d5_val_t5.md.
+  #
+  # No bus-error path exists on this fabric: every in-window address hits a
+  # slave, and >=0x20000 answers without stalling BY DESIGN.  "A read of a
+  # bad address errors" is not a behaviour this chip can exhibit.  (The old
+  # bad_address 0x1FF00 was moreover INSIDE the shared bulk RAM -- see the
+  # target files.)
+  - MemTestReadInvalid
+  - MemTestBlockReadInvalid
+  # Halt-from-reset: the chip's halt-on-reset story is the per-tile PWRCTRL
+  # procedure (DD14, the deliberate D5 disposition), not the instant halt at
+  # PC 0x0 this row assumes; OpenOCD's `reset halt` degrades silently.
+  # Ruled a DOCUMENTED DEVIATION at the close.
+  - InstantHaltTest
+  # The .lds RAM window is 16 KB (0x14000-0x17FFF), boxed in by the image
+  # staging area at 0x18000 -- contiguous widening is not available, and the
+  # row's program size is a harness artefact.  Independent of DD21 /
+  # abstractauto: `load` must fit the window either way.
+  - DownloadTest
