@@ -63,7 +63,8 @@
 # REGISTER CONTRACT (standard mode pushes NOTHING; M and U share the regfile):
 #   s0   the poison's own address -- published by the U code, checked as mepc
 #   s3   poison-trap counter (handler increments)
-#   s6   CLINT mtimecmp[0] lo (0x5020);  s7  CLINT mtime lo (0x5010)
+#   s6   CLINT mtimecmp[0] lo;  s7  CLINT mtime lo — BOTH DERIVED FROM NHARTS
+#        (0x5020/0x5010 at N=4, 0x5030/0x5020 at N=5; see the defines below)
 #   s9   M-mode continuation address (handler `jr s9` on a U ECALL)
 #   s10  IRET-VEHICLE PHASE MARKER: 0 = iret in flight, expect a resume;
 #        1 = resumed.  The timer handler FAILs iff it fires with s10 = 0.
@@ -80,6 +81,17 @@
 
 #include "riscv_test.h"
 #include "test_macros.h"
+#include "mp_boot.h"                    /* NHARTS (defaults to 4) */
+
+/* CLINT layout is N-PARAMETERIZED (K5 precedent, CP1 D7): the msip array is
+ * 4*NHARTS bytes and mtime starts at 0x5000 + roundup16(4*NHARTS), so mtime lo
+ * is 0x5010 at N<=4 but 0x5020 at N=5 and 0x5050 at N=18. The old literals
+ * 0x5010/0x5020 would address OTHER HARTS' msip registers on a bigger chip
+ * (CP3: ported, not tagged away — the same fix shpause/shcmppush took). */
+#define CLINT_BASE      0x00005000
+#define MTIME_OFF       ((4*NHARTS + 15) & ~15)
+#define MTIME_LO        (CLINT_BASE + MTIME_OFF)
+#define MTIMECMP0_LO    (MTIME_LO + 0x10)
 
 .option norvc
 .option norelax
@@ -104,8 +116,8 @@ RVTEST_CODE_BEGIN
     li   s3, 0
     li   s10, 1                     # no iret in flight yet
     li   s11, 0
-    li   s6, 0x00005020             # CLINT mtimecmp[0] lo
-    li   s7, 0x00005010             # CLINT mtime lo
+    li   s6, MTIMECMP0_LO           # CLINT mtimecmp[0] lo (N-derived, not 0x5020)
+    li   s7, MTIME_LO               # CLINT mtime lo       (N-derived, not 0x5010)
 
 #ifdef CORE_ENABLE_PMP
     # P3 PMP PROLOGUE (2026-07-29): with PMP implemented, a U-mode access

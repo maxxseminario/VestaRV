@@ -1,0 +1,8 @@
+{
+  "_comment": "Castalia-Penta WOUND (CP4a): the TAPE-OUT product configuration -- config/wound.json's peripheral set VERBATIM (QSPI/I3C/NFC/RTC/PWM/OneWire/DMA/I2CTarget/TRNG/EVFAB, cqAfeStubs dropped, fieldPower/PGOOD live, castalia-lqfp100 package) -- PLUS config/penta.json's fifth hart (numHarts=5, managementHart=4: hart 4 is the always-on soft `orch_tile` orchestrator in the centre band, wired hart-0-style for power/reset and tile-style for boot/IRQ). This is the config the MCU_castalia physical lineage is built from, so it is the one the penta genus/P&R chain (genus/MCU_WOUND_PENTA, innovus/common/MCU_castalia_penta) consumes. KNOB INTERACTION NOTE: wound sets peripherals.cqAfeStubs=false, so the AFE/EIS stub bank does not exist here -- afe_stub's MGMT_HART privilege (CP1 D4) has no instance to apply to, and the `shorch` catalog row (which needs the cqAfeStubs tag) is NOT selected. The orchestrator's wound-config coverage is therefore the generic shared-fabric suite at N=5, not an orchestrator-specific test. numHarts=5 + dma=true means nMasters = 5 harts + DMA = 6 (MW=3). Build with: make chip CONFIG=config/penta_wound.json ; prove with: make verify CONFIG=config/penta_wound.json",
+  "chipName": "PentaWound",
+  "numHarts": 5,
+  "managementHart": 4,
+  "peripherals": { "cqAfeStubs": false, "qspi": true, "i3c": true, "nfc": true, "rtc": true, "pwm": true, "onewire": true, "fieldPower": true, "dma": true, "dmaChannels": 4, "i2ctarget": true, "trng": true, "eventFabric": true },
+  "package": { "model": "castalia-lqfp100", "preliminary": true }
+}

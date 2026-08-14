@@ -28,6 +28,18 @@
 # irq_router/pwr_ctrl regrow, sh_sel/SH_AW/flash move) — pwr0's instance and
 # the pd_* hookup stay 4-hart RTL until pwr_ctrl regrows at A2.
 #
+# CP2 (Castalia-Penta, 2026-08-13) adds the THIRD hart-instance emitter beside
+# emitHart0Instance and tileInstance:
+#   - orch-instance                   : the always-on SOFT ORCHESTRATOR hart,
+#     `hart<N-1> : entity work.orch_tile` — hart-0-style power/reset (no
+#     pwr_ctrl row, no iso clamps, sh_* direct into its arbiter slice) with
+#     tile-style boot/IRQ wiring. Driven by the managementHart knob; emits
+#     NOTHING at managementHart=0, which is what keeps the golden master
+#     byte-identical. The knob also (a) shortens the pd_*/tile_rstn/iso-clamp/
+#     tile-raw ranges to the GATEABLE tiles (pwrHarts) while CLINT, irq_router,
+#     debug_module and every master index stay on the full nHarts, and (b)
+#     passes afe_stub's MGMT_HART / eis0's OWNER_HART (D4).
+#
 # Division of truth (mirrors Phase 1's McuMpCompat rules):
 #   - generate.py owns the per-peripheral FACTS (slots, base addresses, sharedBus
 #     class, combinationalRead, clock domain) — change the chip there.
@@ -774,6 +786,16 @@ class McuVhdEmitter():
 		# presence drive the memory-slave regions. Castalia defaults.
 		geo = getattr(gen, 'McuMpGeometry', None) or {}
 		self.shAw = geo.get('shAw', 15)
+		# CP2 (Castalia-Penta): the MANAGEMENT / ORCHESTRATOR hart index. 0 =
+		# no orchestrator, and EVERY CP2 emitter degenerates to its pre-CP2
+		# form (check_mcu_vhd.py STRICT is the bar). Non-zero = hart mgmtHart
+		# (== numHarts-1, validated in generate.py) is the always-on soft
+		# orchestrator: emitted as `entity work.orch_tile`, wired hart-0-style
+		# for power/reset and tile-style for boot/IRQ, excluded from pwr_ctrl's
+		# rows and from the isolation clamps, and passed as afe_stub's
+		# MGMT_HART. self.orchHart is the ONE place the index lives here.
+		self.mgmtHart = geo.get('mgmtHart', 0)
+		self.orch = (self.mgmtHart != 0)
 		self.banks = geo.get('sharedRamBanks', 4)
 		self.npu = geo.get('npu', True)
 		self.npuBlocks = npuBlocks or {}
@@ -1489,9 +1511,18 @@ class McuVhdEmitter():
 
 	def emitSlot12Instances(self):
 		'''digperiphs #1: page-0 slot 12 (0x4C00) instance region. AFE + EIS
-		stubs (default, VERBATIM) OR the QSPI0 controller, else nothing.'''
+		stubs (default, VERBATIM) OR the QSPI0 controller, else nothing.
+
+		CP2/D4: with a management hart the five generic maps are rewritten —
+		AFE0-3 KEEP OWNER_HART 0..3 and GAIN `MGMT_HART => <m>`, and eis0
+		becomes OWNER_HART => <m> (the orchestrator owns the EIS engine). The
+		association is OMITTED entirely at management hart 0, so the default
+		build is the verbatim golden-master text (STRICT byte-identity), which
+		is also why afe_stub.vhd defaults MGMT_HART to 0.'''
 		if self.afeStubs:
-			return list(AFE_SLOT12_INSTANCES)
+			if not self.orch:
+				return list(AFE_SLOT12_INSTANCES)
+			return self.afeStubsWithMgmt()
 		if self.qspi:
 			return [
 				'    -- =========================================================================',
@@ -1522,6 +1553,48 @@ class McuVhdEmitter():
 				'    -- Mission B: qspi_io_in is driven from the P5.2-5 AF1 input muxes (GPIO4).',
 			]
 		return []
+
+	def afeStubsWithMgmt(self):
+		'''CP2/D4: the AFE/EIS instance block with the management-hart generic.
+		DEGRADES THE VERBATIM TEXT LINE BY LINE (the G1a idiom) rather than
+		re-transcribing it, so the two versions cannot drift: only the five
+		`generic map (...)` lines and the two narrative comment lines that name
+		hart 0 as the manager are touched.'''
+		m = str(self.mgmtHart)
+		out = []
+		for ln in AFE_SLOT12_INSTANCES:
+			s = ln.strip()
+			if s.startswith('generic map (OWNER_HART =>'):
+				# '        generic map (OWNER_HART => N)   -- comment'
+				owner = s.split('=>')[1].split(')')[0].strip()
+				isEis = 'EIS' in ln
+				if isEis:
+					# The EIS engine follows the MANAGER, not hart 0 (D4). BOTH
+					# generics must be given: MGMT_HART's entity DEFAULT is 0, so
+					# `OWNER_HART => m` alone leaves the gate at {m, 0} and hart 0
+					# keeps the EIS access D4 moved to the orchestrator -- the
+					# comment on this very line would then be false. Found at CP3
+					# by shorch's negative control (hart 0 read a seeded EIS word
+					# it must not see); the emitted text and the RTL agree only
+					# when the association is explicit.
+					out.append('        generic map (OWNER_HART => ' + m + ', MGMT_HART => ' + m + ')'
+						+ '   -- 0x7C00: EIS engine, management hart ' + m + ' only')
+				else:
+					site = ln.split('--')[1].split(':')[0].strip()
+					out.append('        generic map (OWNER_HART => ' + owner + ', MGMT_HART => ' + m + ')'
+						+ '   -- ' + site + ': hart ' + owner + ' or hart ' + m)
+				continue
+			if 'each answers only for its owner hart OR hart 0' in ln:
+				out.append(ln.replace('OR hart 0', 'OR the CP2 management hart ' + m))
+				continue
+			if 'is hart-0-only' in ln:
+				out.append(ln.replace('is hart-0-only', 'is management-hart-only'))
+				continue
+			if ln.strip().startswith('-- (OWNER_HART=0).'):
+				out.append(ln.replace('(OWNER_HART=0)', '(OWNER_HART=' + m + ')'))
+				continue
+			out.append(ln)
+		return out
 
 	def emitI3cDecls(self):
 		'''digperiphs #2: I3C0 (page-2 sub-slot 1 @0x6100) declarative region.
@@ -2857,6 +2930,33 @@ class McuVhdEmitter():
 		numHarts when dma is off (byte-identical default; Argus is unaffected).'''
 		return self.nHarts() + (1 if self.dma else 0) + (1 if self.debug else 0)
 
+	def orchHart(self):
+		'''CP2: the orchestrator hart's index, or None when there is none. The
+		ONE place the index is decided on the emitter side (the dmMasterIndex()
+		rule: two independent computations of one index is how the fabric gets
+		two masters on one slice).'''
+		if not self.orch:
+			return None
+		n = self.nHarts()
+		if self.mgmtHart != n - 1:
+			raise Exception('MCU.vhd emitter: managementHart ' + str(self.mgmtHart)
+				+ ' must be the LAST hart index (' + str(n - 1) + ') ' + EMDASH
+				+ ' pwr_ctrl keeps rows for the gateable tiles 1..N-2 only (CP1 D2)')
+		return self.mgmtHart
+
+	def pwrHarts(self):
+		'''CP2: the hart count pwr_ctrl sees. The orchestrator has NO power
+		domain (no chip-level power intent exists in the centre band), so it is
+		excluded HERE AND NOWHERE ELSE — the CLINT, the irq_router, the Debug
+		Module and every arbiter master index stay on the full nHarts().'''
+		return self.nHarts() - (1 if self.orch else 0)
+
+	def tileTop(self):
+		'''Exclusive upper bound of the hart_tile TILE loops (1..tileTop()-1).
+		Equals nHarts() without an orchestrator; one less with one, because the
+		orchestrator is emitted separately as an orch_tile.'''
+		return self.pwrHarts()
+
 	def hartsWord(self):
 		'''Count prose for "identical on all <N> tiles".'''
 		return _HARTS_WORD.get(self.nHarts(), str(self.nHarts()))
@@ -2909,7 +3009,15 @@ class McuVhdEmitter():
 		lines.append(self.sigDecl('arb_scfail', 'std_logic_vector(' + Mm1 + ' downto 0);'))
 		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + Mm1 + ' downto 0);  -- X1 Zawrs: per-master reservation-valid level'))
 		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
-		masterComment = ' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles'
+		if self.orch:
+			# CP2: the orchestrator is master nHarts-1, so the TILE range stops
+			# one short and the orchestrator is named separately (it is not a
+			# hart_tile and has no pd_*/clamp row).
+			masterComment = (' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-'
+				+ str(self.tileTop() - 1) + ' = hart tiles; master ' + str(self.orchHart())
+				+ ' = the orchestrator')
+		else:
+			masterComment = ' ' * 8 + '-- arbiter master buses (master 0 = hart 0; masters 1-' + nm1 + ' = hart tiles'
 		if self.dma:
 			masterComment += '; master ' + str(n) + ' = DMA0 engine'
 		if self.debug:
@@ -2941,16 +3049,27 @@ class McuVhdEmitter():
 			self.sigDecl('wdt_irq_complete', 'std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)')]
 
 	def emitPdDecls(self):
-		rng = 'std_logic_vector(' + str(self.nHarts() - 1) + ' downto 1);'
+		# CP2: the power-domain vectors span the GATEABLE tiles only, so an
+		# orchestrator shortens them by one (pwrHarts) — it has no pd_* row.
+		rng = 'std_logic_vector(' + str(self.pwrHarts() - 1) + ' downto 1);'
 		lines = [self.sigDecl(nm, rng) for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn', 'tile_rstn')]
 		# DP-S3: the HOLD-IN-RESET boot gate (pwr0 output, reset '1' = release)
 		# and hart 0's folded reset (hart 0 never had a fold before the gate).
 		lines.append(self.sigDecl('pgood_rstn', "std_logic := '1';"))
 		lines.append(self.sigDecl('hart0_rstn', 'std_logic;'))
+		if self.orch:
+			o = str(self.orchHart())
+			lines.append(' ' * 8 + '-- CP2: the orchestrator takes hart 0\'s reset shape exactly '
+				+ '(resetn and the')
+			lines.append(' ' * 8 + '-- DP-S3 boot gate) ' + EMDASH + ' it is ALWAYS-ON and has no pd_rstn row.')
+			lines.append(self.sigDecl('hart' + o + '_rstn', 'std_logic;'))
 		return lines
 
 	def emitTileRawDecls(self):
-		n = self.nHarts()
+		# CP2: _raw nets exist to pass the M17 isolation clamps, so they cover
+		# the CLAMPED tiles only — the orchestrator drives the arbiter and the
+		# a0_N monitor directly, exactly as hart 0 does.
+		n = self.tileTop()
 		lines = []
 		for kind, rng in [('req', 'std_logic;'), ('we', 'std_logic_vector(3 downto 0);'),
 				('addr', 'std_logic_vector(SH_AW-1 downto 0);'), ('wdata', 'std_logic_vector(31 downto 0);'),
@@ -2968,33 +3087,14 @@ class McuVhdEmitter():
 		w = self.masterW()
 		return [self.sigDecl('sh_master', 'std_logic_vector(' + str(w - 1) + ' downto 0);')]
 
-	def emitHart0Instance(self):
-		nm1 = str(self.nHarts() - 1)
+	def coreGenericLines(self):
+		'''The 24 core ISA/priv generic associations + the D1/D2 debug pair,
+		shared VERBATIM by all THREE hart-instance emitters (hart 0, the tiles,
+		and the CP2 orchestrator). It is ONE list on purpose: the orchestrator is
+		ISA-identical to the tiles by construction (CP1 D5), and three hand-kept
+		copies of this block is exactly how one instance silently ends up on a
+		different configuration (the F-K7-4 shape).'''
 		lines = []
-		lines.append('    -- =========================================================================')
-		lines.append('    -- M13 TILE EXTRACTION: hart 0 is the SAME hart_tile as harts 1-' + nm1 + ' ' + EMDASH + ' the')
-		lines.append('    -- inline core/adddec/TCM/shared-window machinery that used to live here')
-		lines.append('    -- (and that hart_tile mirrored since M3c) is folded into the tile. The')
-		lines.append('    -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the')
-		lines.append('    -- M10 clk_cpu-staged consumption register and the M9b nop-force all')
-		lines.append('    -- live in hart_tile.vhd now ' + EMDASH + " see the rationale there. Hart 0's")
-		lines.append('    -- remaining specials are pure WIRING on the identical tile:')
-		lines.append('    --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),')
-		lines.append('    --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),')
-		lines.append('    --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.')
-		lines.append('    -- M19: the IRQ interface is IDENTICAL on every hart ' + EMDASH + ' msip/mtip from')
-		lines.append("    -- the CLINT + this hart's meip row from the irq_router (SYSTEM0's")
-		lines.append('    -- vectored path and the hw_clint_en strap are retired).')
-		lines.append('    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency')
-		lines.append('    -- insensitivity at boundary depths 0/1/2; the boot fetch through the')
-		lines.append('    -- arbiter exercises the stall path on every run).')
-		lines.append('    -- =========================================================================')
-		lines.append('    hart0: entity work.hart_tile')
-		lines.append('        generic map (')
-		lines.append('            PC_RST_VAL     => x"00000000",')
-		lines.append('            SH_AW          => SH_AW,')
-		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be')
-		lines.append('            -- identical on all ' + self.hartsWord() + ' tiles -- one hardened netlist)')
 		lines.append('            ENABLE_MUL        => CORE_ENABLE_MUL,')
 		lines.append('            ENABLE_DIV        => CORE_ENABLE_DIV,')
 		lines.append('            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,')
@@ -3031,12 +3131,43 @@ class McuVhdEmitter():
 		#     tile's TCM is unreachable from the shared bus and the Debug Module
 		#     cannot place code at 0xBE00. The VHDL declaration defaults stay
 		#     0xBE00 as the FAIL-SAFE value; this is the override, and it is
-		#     emitted by BOTH hart emitters -- the half-done-diff trap.
+		#     emitted by ALL THREE hart emitters -- the half-done-diff trap
+		#     (which is precisely why they now share this one list).
 		if self.debug:
 			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,')
 			lines.append('            DEBUG_ENTRY_ADDR  => x"00010780"')
 		else:
 			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
+		return lines
+
+	def emitHart0Instance(self):
+		nm1 = str(self.nHarts() - 1)
+		lines = []
+		lines.append('    -- =========================================================================')
+		lines.append('    -- M13 TILE EXTRACTION: hart 0 is the SAME hart_tile as harts 1-' + nm1 + ' ' + EMDASH + ' the')
+		lines.append('    -- inline core/adddec/TCM/shared-window machinery that used to live here')
+		lines.append('    -- (and that hart_tile mirrored since M3c) is folded into the tile. The')
+		lines.append('    -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the')
+		lines.append('    -- M10 clk_cpu-staged consumption register and the M9b nop-force all')
+		lines.append('    -- live in hart_tile.vhd now ' + EMDASH + " see the rationale there. Hart 0's")
+		lines.append('    -- remaining specials are pure WIRING on the identical tile:')
+		lines.append('    --   * sleep + flash ports -> SPI0 (XIP; tiles have no SPI0 behind them),')
+		lines.append('    --   * tcm_pgen -> pgen_mem(1) (BLOCKPWR RAM gating),')
+		lines.append('    --   * trap_flag -> the GPIO0 trap pin; a0 -> the tb pass/fail gate.')
+		lines.append('    -- M19: the IRQ interface is IDENTICAL on every hart ' + EMDASH + ' msip/mtip from')
+		lines.append("    -- the CLINT + this hart's meip row from the irq_router (SYSTEM0's")
+		lines.append('    -- vectored path and the hw_clint_en strap are retired).')
+		lines.append('    -- The M2 wait_inj0 stall exerciser is RETIRED (M10 proved latency')
+		lines.append('    -- insensitivity at boundary depths 0/1/2; the boot fetch through the')
+		lines.append('    -- arbiter exercises the stall path on every run).')
+		lines.append('    -- =========================================================================')
+		lines.append('    hart0: entity work.hart_tile')
+		lines.append('        generic map (')
+		lines.append('            PC_RST_VAL     => x"00000000",')
+		lines.append('            SH_AW          => SH_AW,')
+		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be')
+		lines.append('            -- identical on all ' + self.hartsWord() + ' tiles -- one hardened netlist)')
+		lines.extend(self.coreGenericLines())
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -3192,7 +3323,9 @@ class McuVhdEmitter():
 			self.sigDecl('dbg_haltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_resethaltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_halted', 'std_logic_vector(' + nm1 + ' downto 0);'),
-			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + nm1 + ' downto 1);'),
+			# CP2: only the CLAMPED tiles need a _raw halted wire; hart 0 and
+			# the always-on orchestrator connect straight to the DM.
+			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + str(self.tileTop() - 1) + ' downto 1);'),
 			self.sigDecl('dbg_unavail', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			'',
 			' ' * 8 + '-- D3 DMI OR-MERGE (d3_cdc_spec 7). THE CONTRACT, IN ONE SENTENCE:',
@@ -3240,10 +3373,16 @@ class McuVhdEmitter():
 			'    -- debugger attaches in.',
 			"    dbg_unavail(0) <= not hart0_rstn;",
 		]
-		for h in range(1, n):
+		for h in range(1, self.tileTop()):
 			hs = str(h)
 			lines.append('    dbg_unavail(' + hs + ') <= pd_iso_en(' + hs
 				+ ') or not tile_rstn(' + hs + ');')
+		if self.orch:
+			# CP2: the orchestrator is debuggable and has no domain to be
+			# isolated, so its availability is exactly hart 0's question --
+			# is the boot gate holding it in reset?
+			o = str(self.orchHart())
+			lines.append('    dbg_unavail(' + o + ') <= not hart' + o + '_rstn;')
 		lines += [
 			'',
 			'    dm0: entity work.debug_module',
@@ -4070,8 +4209,18 @@ class McuVhdEmitter():
 	def emitPwrInstance(self):
 		'''pwr0 (A2): NHARTS generic emitted when != the RTL default 4. The
 		description's PWRSR word count is cross-checked against the nibble-
-		array formula ceil(N/8) (RAISES on drift, like the CLINT layout).'''
-		n = self.nHarts()
+		array formula ceil(N/8) (RAISES on drift, like the CLINT layout).
+
+		CP2: N here is pwrHarts, NOT numHarts. The orchestrator hart sits
+		outside the MTCMOS fabric (CP1 D2 — the centre band has no power
+		intent; a gateable-in-RTL orchestrator would be the hw_clint_en
+		silicon lie again), so pwr_ctrl keeps rows for the gateable tiles
+		only. Consequence, stated because software will meet it: at
+		numHarts=5 PWRCR has NO bit 4 and PWRSR has no nibble 4 — the
+		orchestrator reads back exactly like hart 0 (0, writes ignored), and
+		the harvested-boot PWRCR <- 0xFFFFFFFF gates tiles 1-3 and leaves the
+		orchestrator running, which is the wanted semantics.'''
+		n = self.pwrHarts()
 		nsrw = (n + 7) // 8
 		# DP-S3: the register set is PWRCR(0) + PWRSR words 1..ceil(N/8) +
 		# PWRWAKE(5)/PWRSTS(6) at FIXED slots — PWRSR must stay below 5 and
@@ -4136,13 +4285,20 @@ class McuVhdEmitter():
 		# pd_rstn already guarantees. pgood_rstn resets '1' and is stuck there
 		# unless a strap/software arms the gate — every normal boot unperturbed.
 		lines = ['    tile_rstn(' + str(h) + ') <= resetn and pd_rstn(' + str(h) + ') and pgood_rstn;'
-			for h in range(1, self.nHarts())]
+			for h in range(1, self.tileTop())]
 		lines.append('    -- DP-S3: hart 0 has no pd_rstn row (always-on domain) ' + EMDASH + ' only the boot gate')
 		lines.append('    hart0_rstn <= resetn and pgood_rstn;')
+		if self.orch:
+			o = str(self.orchHart())
+			lines.append('    -- CP2: neither has the orchestrator ' + EMDASH + ' same always-on shape, same fold.')
+			lines.append('    hart' + o + '_rstn <= resetn and pgood_rstn;')
 		return lines
 
 	def emitIsoClamps(self):
-		n = self.nHarts()
+		# CP2: clamps exist per POWER DOMAIN, so the orchestrator (always-on,
+		# no domain) has no clamp row — its outputs reach the arbiter and the
+		# tb directly, the hart-0 shape.
+		n = self.tileTop()
 		lines = []
 		for h in range(1, n):
 			hs = str(h)
@@ -4190,48 +4346,7 @@ class McuVhdEmitter():
 		lines.append('            SH_AW          => SH_AW,')
 		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; MUST be')
 		lines.append('            -- identical on all ' + self.hartsWord() + ' tiles -- one hardened netlist)')
-		lines.append('            ENABLE_MUL        => CORE_ENABLE_MUL,')
-		lines.append('            ENABLE_DIV        => CORE_ENABLE_DIV,')
-		lines.append('            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,')
-		lines.append('            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,')
-		lines.append('            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,')
-		lines.append('            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,')
-		lines.append('            ENABLE_ZCB        => CORE_ENABLE_ZCB,')
-		lines.append('            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,')
-		lines.append('            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,')
-		lines.append('            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,')
-		lines.append('            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,')
-		lines.append('            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,')
-		lines.append('            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,')
-		lines.append('            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,')
-		lines.append('            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,')
-		lines.append('            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,')
-		lines.append('            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,')
-		lines.append('            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,')
-		lines.append('            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,')
-		lines.append('            ENABLE_ZKN        => CORE_ENABLE_ZKN,')
-		lines.append('            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,')
-		lines.append('            -- P0 privileged-architecture scaffolding (P1/P2/P3)')
-		lines.append('            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,')
-		lines.append('            ENABLE_UMODE      => CORE_ENABLE_UMODE,')
-		lines.append('            ENABLE_PMP        => CORE_ENABLE_PMP,')
-		lines.append('            PMP_ENTRIES       => CORE_PMP_ENTRIES,')
-		# D1/D2 core-side debug mode.
-		#   knob OFF: DEBUG_ENTRY_ADDR is NOT named -- the hart_tile/vesta entity
-		#     default (0xBE00) stands, and the three dbg_* PORTS are left
-		#     unconnected, sitting at their '0' entity defaults. That is the
-		#     bit-identical pre-D1 shape and check_mcu_vhd.py STRICT pins it.
-		#   knob ON (D2): DEBUG_ENTRY_ADDR is passed EXPLICITLY as 0x00010780 --
-		#     the shared-window debug entry page (R-DD3/R-D2-1(3)), because a
-		#     tile's TCM is unreachable from the shared bus and the Debug Module
-		#     cannot place code at 0xBE00. The VHDL declaration defaults stay
-		#     0xBE00 as the FAIL-SAFE value; this is the override, and it is
-		#     emitted by BOTH hart emitters -- the half-done-diff trap.
-		if self.debug:
-			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,')
-			lines.append('            DEBUG_ENTRY_ADDR  => x"00010780"')
-		else:
-			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG')
+		lines.extend(self.coreGenericLines())
 		lines.append('        )')
 		lines.append('        port map (')
 		lines.append('            clk       => mclk,')
@@ -4281,11 +4396,110 @@ class McuVhdEmitter():
 		return lines
 
 	def emitTileInstances(self):
+		# CP2: hart_tile instances are the GATEABLE tiles only; the
+		# orchestrator is an orch_tile emitted by emitOrchInstance (its own
+		# --@GEN:orch-instance@ region, immediately below this one).
 		lines = []
-		for h in range(1, self.nHarts()):
+		for h in range(1, self.tileTop()):
 			if h > 1:
 				lines.append('')
 			lines.extend(self.tileInstance(h))
+		return lines
+
+	def emitOrchInstance(self):
+		'''CP2 (Castalia-Penta): the ORCHESTRATOR hart — the third hart-instance
+		emitter, beside emitHart0Instance and tileInstance. Emits NOTHING when
+		the config names no management hart, so check_mcu_vhd.py STRICT sees no
+		trace of it at the N=4 default.
+
+		WIRING, and every line of it is a decision:
+		  * ENTITY is `orch_tile`, not `hart_tile` (D6) — the soft core needs a
+		    module namespace disjoint from the hardened tile netlist. It is a
+		    bare wrapper, so the two are behaviourally identical.
+		  * POWER/RESET is HART 0's, not the tiles': resetn = hartN_rstn
+		    (resetn and the DP-S3 boot gate), NO pwr_ctrl row, NO isolation
+		    clamps, sh_* straight onto its arbiter slice, pd_sleep/pd_iso_en
+		    strapped '0'. The centre band has no chip-level power intent, so a
+		    gateable-in-RTL orchestrator would be a hardware lie (D2).
+		  * BOOT/IRQ is the TILES': hart_id = the index, msip/mtip from the
+		    CLINT and meip from the router row N, so it parks in the shared ROM
+		    and is ignited through the ordinary loader row + msip protocol
+		    (D3 — boot mastership stays on hart 0).
+		  * sleep '0' and the flash quartet OPEN: the flash/XIP pins belong to
+		    hart 0's tile. An orchestrator access >= 0x20000 reads zeros and
+		    never stalls, the same "undefined on unmapped" class as a tile.
+		  * tcm_pgen '0' / tcm_retn '1': its own TCM is never gated.
+		  * trap_flag open (hart 0 owns the GPIO0 trap pin); a0 straight to the
+		    a0_N observation port — MONITORED, never the pass/fail gate, which
+		    stays hart 0 (D8).'''
+		o = self.orchHart()
+		if o is None:
+			return []
+		os_ = str(o)
+		lines = ['']
+		lines.append('    -- =========================================================================')
+		lines.append('    -- CP2 ORCHESTRATOR HART (hart ' + os_ + '). Same core, same ISA, same 24 generic')
+		lines.append('    -- associations as the tiles (D5) ' + EMDASH + ' but SOFT logic in the centre band')
+		lines.append('    -- instead of a hardened corner macro, so it is instantiated through the')
+		lines.append('    -- orch_tile wrapper (D6: no module name may be shared between the tile')
+		lines.append('    -- netlist and the orchestrator netlist, or the assembly strip step')
+		lines.append('    -- deletes this subtree and gate sim sees two definitions of one module).')
+		lines.append('    -- It is ALWAYS-ON: hart 0\'s reset/power wiring, NOT the tiles\' ' + EMDASH + ' no')
+		lines.append('    -- pwr_ctrl row, no iso clamps, sh_* direct into arbiter slice ' + os_ + '. Its')
+		lines.append('    -- boot is the tiles\': park in the shared ROM, ignited by loader row')
+		lines.append('    -- 0x10500+0x10*' + os_ + ' + msip[' + os_ + ']. a0 is OBSERVED only (hart 0 stays the gate).')
+		lines.append('    -- =========================================================================')
+		lines.append('    hart' + os_ + ': entity work.orch_tile')
+		lines.append('        generic map (')
+		lines.append('            PC_RST_VAL     => x"00000000",')
+		lines.append('            SH_AW          => SH_AW,')
+		lines.append('            -- Core ISA features (config-driven, work.MemoryMap; IDENTICAL to')
+		lines.append('            -- the tiles by construction ' + EMDASH + ' the orchestrator is not a')
+		lines.append('            -- different core, only a differently-implemented one)')
+		lines.extend(self.coreGenericLines())
+		lines.append('        )')
+		lines.append('        port map (')
+		lines.append('            clk       => mclk,')
+		lines.append('            -- CP2/D2: hart-0-style reset (resetn and the DP-S3 boot gate).')
+		lines.append('            -- There is deliberately no pd_rstn term: no power domain exists')
+		lines.append('            -- for this hart, so there is nothing to hold it for.')
+		lines.append('            resetn    => hart' + os_ + '_rstn,')
+		lines.append("            -- No SPI0/XIP behind the orchestrator (D3: the flash quartet is")
+		lines.append('            -- physically hart 0\'s), so sleep is strapped and the flash ports')
+		lines.append('            -- are left open at their entity defaults.')
+		lines.append("            sleep     => '0',")
+		lines.append('            hart_id   => x"' + format(o, '08x') + '",')
+		lines.append('            msip_in   => clint_msip(' + os_ + '),')
+		lines.append('            mtip_in   => clint_mtip(' + os_ + '),')
+		lines.append('            meip_in   => meip(' + os_ + '),')
+		if self.debug:
+			lines.append('            -- D2: always-on domain ' + EMDASH + ' no clamp, straight to the DM.')
+			lines.append('            dbg_haltreq      => dbg_haltreq(' + os_ + '),')
+			lines.append('            dbg_resethaltreq => dbg_resethaltreq(' + os_ + '),')
+			lines.append('            dbg_halted       => dbg_halted(' + os_ + '),')
+		lines.append('            sh_req    => arb_req(' + os_ + '),')
+		lines.append('            sh_we     => arb_we(' + str(4 * o + 3) + ' downto ' + str(4 * o) + '),')
+		lines.append('            sh_addr   => arb_addr(' + str(o + 1) + '*SH_AW-1 downto ' + os_ + '*SH_AW),')
+		lines.append('            sh_wdata  => arb_wdata(' + str(o + 1) + '*32-1 downto ' + os_ + '*32),')
+		lines.append('            sh_gnt    => arb_gnt(' + os_ + '),')
+		lines.append('            sh_done   => arb_done(' + os_ + '),')
+		lines.append('            sh_rdata  => arb_rdata,')
+		lines.append('            sh_lrsc   => arb_lrsc(' + str(2 * o + 1) + ' downto ' + str(2 * o) + '),')
+		lines.append('            sh_scfail => arb_scfail(' + os_ + '),')
+		lines.append('            sh_resv_valid => arb_resvvld(' + os_ + '),')
+		lines.append('            sh_lock   => arb_lock(' + os_ + '),')
+		lines.append('            -- CP2: the orchestrator TCM is never gated (no domain to gate it')
+		lines.append('            -- with) and never in retention ' + EMDASH + ' a future knob if that changes.')
+		lines.append("            tcm_pgen  => '0',")
+		lines.append("            tcm_retn  => '1',")
+		lines.append('            -- CP2: MTCMOS controls strapped inactive, EXPLICITLY, per the M14')
+		lines.append('            -- netlist-boundary rule (an omitted generic/port default is how a')
+		lines.append('            -- silicon bug of the hw_clint_en class gets in).')
+		lines.append("            pd_sleep  => '0',")
+		lines.append("            pd_iso_en => '0',")
+		lines.append('            trap_flag => open,')
+		lines.append('            a0        => a0_' + os_)
+		lines.append('        );')
 		return lines
 
 	def busComment(self, instKey, spec):
@@ -4455,6 +4669,8 @@ class McuVhdEmitter():
 			return self.emitIsoClamps()
 		if name == 'tile-instances':
 			return self.emitTileInstances()
+		if name == 'orch-instance':
+			return self.emitOrchInstance()
 		if name == 'irq-signal-decls':
 			return self.emitIrqSignalDecls()
 		if name == 'irq-comb':
@@ -4646,6 +4862,9 @@ def generateMcuVhd(gen, templatePath, outPath):
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
 		'clint-instance', 'irq-router-instance', 'mutex-instance', 'pwr-instance',
 		'tile-rstn', 'iso-clamps', 'tile-instances',
+		# CP2 (Castalia-Penta): the orchestrator hart instance. Emits NOTHING
+		# without a management hart, so the N=4 golden master is untouched.
+		'orch-instance',
 		# A2 geometry / NPU-conditional regions
 		'sh-window-const', 'memslv-decls', 'pgen-decls', 'shslv-banner', 'shared-ram-banks',
 		'npu-component', 'npu-fabric-decls', 'npu-mux-decls', 'npu-sleep-comment',
