@@ -483,7 +483,10 @@ class Openocd:
         """Send the command to OpenOCD's TCL-RPC server. Return the output of
         the command, minus the prompt."""
         self.openocd_cli.write(f"{cmd}\n\x1a")
-        self.openocd_cli.expect(rb"(.*)\x1a")
+        # VESTARV LOCAL DELTA (see VENDORED.md): honor the server timeout
+        # instead of pexpect's 30 s spawn default, which deterministically
+        # kills the N=18 handshake while OpenOCD is still examining harts.
+        self.openocd_cli.expect(rb"(.*)\x1a", timeout=self.timeout)
         m = self.openocd_cli.match.group(1)
         return m
 

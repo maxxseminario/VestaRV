@@ -2,7 +2,7 @@
 
 LOCAL FILE (not vendored upstream) -- see ../../VENDORED.md.
 
-This is `vesta_castalia.py` with THREE differences and no others, which is the
+This is `vesta_castalia.py` with FOUR differences and no others, which is the
 point: the two chips come out of the same generator, so a target file that
 diverged in any further respect would be describing a chip that does not exist.
 
@@ -16,7 +16,15 @@ diverged in any further respect would be describing a chip that does not exist.
   3. NO NPU, and it does not appear here because no harness test touches it --
      recorded so the absence reads as deliberate.
 
-EVERYTHING ELSE IS DELIBERATELY IDENTICAL, including the two that are easy to
+  4. `timeout_sec = 600`, not Castalia's 120 -- a MEASURED divergence (D5
+     validation wave, agent D; R-D5-12).  The examine walks every hart, so
+     the attach cost scales with the hart count, and with `timeout_sec = 120`
+     the N=18 attach failed at 240.66 s -- the vMustReplyEmpty signature
+     AFTER all 18 harts had examined cleanly.  600 matches
+     `server_timeout_sec`, whose N=18 need was itself measured
+     (d5 implementation report 2.4).
+
+EVERYTHING ELSE IS DELIBERATELY IDENTICAL, including the one that is easy to
 get wrong:
 
   * `ram = 0x00014000`, `ram_size = 0x4000`.  The shared-window map is
@@ -24,11 +32,6 @@ get wrong:
      unclaimed at BOTH N (the N=18 bootrom loader rows end at 0x1061F and the
      debug page at 0x1087F, both far below it).  The link script is shared for
      the same reason.
-
-  * `timeout_sec = 120` -- and at N=18 this is not a formality.  The examine
-     walks every hart, so the attach cost scales with the hart count; the
-     Castalia file's docstring explains why 2 s (the targets.Target default)
-     fails on a CORRECT chip, and eighteen harts do not make that better.
 """
 
 import os
@@ -56,7 +59,7 @@ class vesta_argus(targets.Target):
     harts = [vesta_argus_hart() for _ in range(18)]
     openocd_config_path = "vesta_argus.cfg"
 
-    timeout_sec = 120
+    timeout_sec = 600                # measured: 120 fails the N=18 attach
     server_timeout_sec = 600         # the N=18 examine is 4.5x Castalia's
 
     support_memory_sampling = False       # needs SBA; VestaRV has none
