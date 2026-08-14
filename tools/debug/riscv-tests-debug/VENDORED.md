@@ -142,6 +142,20 @@ unrelated-looking ELFs beside the vendored sources. The `.gitignore` lists
 them **by shape**, because the misa suffix varies with the target and the
 program list grows. It also covers `logs/` and `__pycache__/`.
 
+### 5. `testlib.py` — TCL-RPC `command()` honors the server timeout
+
+(Same file as delta 1; separate delta, added post-D5-close per R-D5-12.)
+
+Upstream's `Openocd.command()` calls `self.openocd_cli.expect(...)` with no
+`timeout` argument, so every TCL-RPC exchange — including the spawn-time
+`Hello TCL-RPC!` handshake — runs on **pexpect's hard 30 s spawn default**,
+ignoring the target's `server_timeout_sec` entirely. At N=18 OpenOCD is still
+examining harts past 30 s, so the handshake dies deterministically (measured
+twice at 88.81 s wall, D5 validation wave, agent D). The delta is one line:
+`expect(..., timeout=self.timeout)`, where `self.timeout` is already the
+target's `server_timeout_sec` (`targets.py:205`). At the upstream default
+(`timeout=60`) behaviour is *more* patient than pristine, never less correct.
+
 ## Known-broken upstream files, left as-is
 
 Neither is used by anything VestaRV runs, and neither is ours to fix:
