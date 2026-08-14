@@ -49,7 +49,7 @@ class vesta_argus_hart(targets.Hart):
     misa = None                      # autodetected from the chip, not asserted
     ram = 0x00014000
     ram_size = 0x4000
-    bad_address = 0x1FF00
+    bad_address = 0x20000        # no address faults; see vesta_castalia.py
     instruction_hardware_breakpoint_count = 0
     reset_vectors = [0x0]
     link_script_path = "vesta_castalia.lds"

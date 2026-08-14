@@ -139,9 +139,15 @@ class vesta_castalia_hart(targets.Hart):
     # Shared bulk RAM, above everything the session image and the DM claim.
     ram = 0x00014000
     ram_size = 0x4000
-    # 0x20000 is where extended flash starts; below it and above the shared
-    # window there is no slave, which is what "bad address" needs to mean.
-    bad_address = 0x1FF00
+    # There is NO faulting read-address class on this fabric: every in-window
+    # address hits a slave, and >=0x20000 answers without stalling (zeros from
+    # a tile; flash bytes via hart 0's XIP decode).  The previous value
+    # 0x1FF00 claimed a hole that is actually shared bulk RAM bank 3
+    # (0x10000-0x1FFFF) -- the T5 "failure" was a SUCCESSFUL read of a valid
+    # zero-filled word.  The only consumers, MemTest*Invalid, are structurally
+    # excluded (R-D5-12); the field is kept because the harness requires it,
+    # pointed at the least-claimed address there is.
+    bad_address = 0x20000
     instruction_hardware_breakpoint_count = 0
     reset_vectors = [0x0]
     link_script_path = "vesta_castalia.lds"
