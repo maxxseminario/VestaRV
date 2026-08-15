@@ -33,7 +33,13 @@ All \NumHartsWord{} harts are instances of the same \textit{hart tile}: an unmod
 %  2. `\fi{}` and not `\fi` before the following sentence — \fi is a control
 %     WORD, so it swallows the space after it and the sentence renders as
 %     ".It is the only ...".
-% With both, the default TRM is byte-identical: 243 pp, md5 d77eed78...
+% Both are TYPESETTING facts about \iforchpresent branches around running prose,
+% not facts about any one build, so this comment carries no page/md5 pin: the one
+% it used to quote (243 pp, md5 d77eed78...) was measured before the five-hart
+% orchestrator became the shipped default, and a pin that re-stales at every
+% configuration change documents the measurement rather than the trap. The trap
+% is the rule above: duplicate the whole clause per branch, and end a branch with
+% \fi{} when running text follows.
 Hart 0 is additionally the \textit{management hart}.{} It is the only hart attached to the SPI-flash boot path and the extended flash region ($\geq$\,\texttt{\FlashBaseAddress}), and by convention it owns system management: the \peripheral{SYSTEM} controller's clock configuration registers reprogram the master clock that all \NumHartsWord{} harts run on, so only the management hart may touch them, and only after quiescing the other harts (see the \peripheral{SYSTEM} chapter). Peripheral interrupts are uniform across harts: every hart, hart 0 included, routes and receives them through its \peripheral{IRQROUTER} row and the claim/complete mechanism (see the \peripheral{IRQROUTER} chapter).
 
 \iforchpresent

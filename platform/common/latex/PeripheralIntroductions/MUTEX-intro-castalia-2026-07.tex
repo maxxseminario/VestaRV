@@ -32,7 +32,7 @@ Re-reading a mutex you already hold returns your own marker ($\mathrm{mhartid} +
 \begin{figure}[htpb]
 	\centering
 	\input{include/MutexClaimDiagram.tex}
-	\caption[{Two harts racing for the same mutex.}]{Two harts racing for the same mutex. The arbiter serializes the two claim reads, so the return-old-and-claim happens atomically with no retry loop: hart 0 reads 0 and thereby owns the mutex, and hart 1 reads hart 0's marker and must back off.}
+	\caption[{Two harts racing for the same mutex.}]{Two harts racing for the same mutex. The arbiter serializes the two claim reads, so the return-old-and-claim happens atomically with no retry loop: the hart the arbiter serves first reads 0 and thereby owns the mutex, and the other reads the winner's marker ($\mathrm{mhartid} + 1$) and must back off.}
 	\label{fig:mutex-claim}
 \end{figure}
 

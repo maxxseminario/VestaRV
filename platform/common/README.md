@@ -183,9 +183,11 @@ Configuration-driven TRM (2026-07-06, `make chip` = artifacts + PDF):
   count, shared RAM size, CLINT/mutex-count/IRQ-router presence) come from `numHarts=` and
   the shared-window peripherals actually created
 - New config-driven LaTeX defines: `\NumHarts`/`\NumHartsWord`/`\MaxHartIndex`,
-  `\VectorsCount`/`\PeriphVectorsCount`/`\ClintMsipVector`/`\ClintMtipVector`,
-  `\SharedWindowStartAddress`/`\SharedWindowEndAddress` — the master template's prose uses
-  these (and `\AsicNameForUserGuide`) instead of hardcoded "Castalia"/"four-hart"/"85"
+  `\VectorsCount`/`\PeriphVectorsCount`/`\ClintMsipVector`/`\ClintMtipVector` — the master
+  template's prose uses these (and `\AsicNameForUserGuide`) instead of hardcoded
+  "Castalia"/"four-hart"/"85". (`\SharedWindowStartAddress`/`\SharedWindowEndAddress` were
+  retired in the D-series figure sweep: they were min/max over the address-space diagram's
+  rows, not the RTL window's edges, and had no consumers.)
 - Hand-written extra chapters are input via generated `include/ExtraIntroChapters.tex`
   (from `ExtraLatexIntroFiles`), so chapter filenames/revisions live in generate.py
 
