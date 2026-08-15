@@ -34,6 +34,6 @@
         node[above right, font=\footnotesize, inner sep=1pt] {floor \SI{45}{\degree}};
     \end{axis}
   \end{tikzpicture}}
-  \caption[{Transimpedance loop phase margin at maximum gain over 179 converged samples of 200 (process and mismatch),\,\dots}]{Transimpedance loop phase margin at maximum gain over 179 converged samples of 200 (process and mismatch), \SI{37}{\celsius}. Every converged sample clears the \SI{45}{\degree} floor, the worst at \SI{46.6}{\degree}, which is what validates $C_f = \SI{22}{\pico\farad}$ --- the corner run behind Table~\ref{tab:tia-cl-stability} gave \SIrange{61.2}{64.9}{\degree} and carries no mismatch at all. The distribution is right-skewed, so \(p_1\)/\(p_{99}\) and worst case are quoted rather than mean \(\pm\,3\sigma\). 48 of 400 samples did not converge and are excluded (Section~\ref{sss:tia-mc}).}
+  \caption[{Transimpedance loop phase margin at maximum gain.}]{Transimpedance loop phase margin at maximum gain. \textbf{Process and mismatch} (\texttt{castalia\_pm\_25}), \SI{37}{\celsius}, 200 samples, seed 12345, LDS sampling, $N = 179$. Minimum \SI{46.6}{\degree} against a \SI{45}{\degree} criterion. Reported as percentiles and extreme sample; the distribution is right-skewed.}
   \label{fig:tia-mc-pm560k}
 \end{figure}

@@ -39,19 +39,17 @@ left unused at each rail, the shortfall is closed by raising either term: a mirr
 of 6 at the present tail current reaches \SI{33}{\micro\ampere} for
 \SI{38.5}{\micro\ampere} of supply.
 
-\item \textbf{Offset is the dominant accuracy term and misses its budget.}
-\(\sigma = \SI{4.82}{\milli\volt}\) against \(\sigma \leq \SI{2}{\milli\volt}\), process
-and mismatch together. A current-mirror amplifier adds mirror mismatch to input-pair
+\item \textbf{Input offset.} \(\sigma = \SI{4.82}{\milli\volt}\) against a design
+target of \(\sigma \leq \SI{2}{\milli\volt}\), process and mismatch together. A current-mirror amplifier adds mirror mismatch to input-pair
 mismatch, which is the expected cost of the symmetry; the \SI{3.07}{\milli\volt} measured
 on the folded-cascode design it replaced was a mismatch-only figure and is not a like-for-like
-comparison. Offset appears directly on the commanded electrode potential and needs
-trimming or chopping either way.
+comparison. Offset appears directly on the commanded electrode potential.
 
-\item \textbf{Phase margin is the binding small-signal specification.} Against the
-\SI{10}{\pico\farad} test load, 29 of 200 samples fall below the \SI{60}{\degree}
-target: \SI{85.5}{\percent} per channel, \SI{53.4}{\percent} across four. No sample is
-near instability --- the worst is \SI{59.3}{\degree} --- and the margin is larger into a
-real cell, which loads the output node. The target, not stability, is what is missed.
+\item \textbf{Phase margin.} Against the \SI{10}{\pico\farad} test load, 171 of 200
+samples meet the \SI{60}{\degree} design target: \SI{85.5}{\percent} per channel,
+\SI{53.4}{\percent} across four. The minimum sample is \SI{59.3}{\degree}. Margin into
+the cell model of Section~\ref{ss:analog-models}, which loads the output node, is
+higher.
 
 \item \textbf{Regulation error is set by loop gain at the electrode, not by the
 amplifier's own gain.} The cell reduces loop gain to \SI{7.9}{\decibel}, a factor of

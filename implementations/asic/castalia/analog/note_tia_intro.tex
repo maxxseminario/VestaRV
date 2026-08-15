@@ -33,12 +33,12 @@ current-source load, compensated by a MIM capacitor in series with a nulling res
 Two consequences run through everything below. A PMOS input pair places the common-mode
 range against \texttt{vss}, which is what holding an electrode near ground requires, at
 the cost of \SI{0.44}{\volt} at the top (Table~\ref{tab:tia-range}). And the second
-stage is class~A, so it sinks with a driven device but sources only a fixed bias
-current --- \SIrange{13.6}{15.6}{\micro\ampere} against a sinking capability this run
-does not resolve (Table~\ref{tab:tia-drive}).
+stage is class~A, so it sinks with a driven device and sources a fixed bias
+current of \SIrange{13.6}{15.6}{\micro\ampere} (Table~\ref{tab:tia-drive}). Sinking
+capability is beyond the range resolved by that measurement.
 
 The characterisation is schematic-level, with no extracted parasitics, from four
-testbenches whose scope differs in ways that matter:
+testbenches whose scope differs as follows:
 
 \begin{itemize}
 \item \texttt{UnityFeedbackTB} and \texttt{StepUnityFeedbackTB} close the amplifier in
@@ -46,15 +46,16 @@ unity feedback with a \SI{5}{\pico\farad} load: gain, margins, offset, noise, se
 \item \texttt{DriveTB} adds a swept DC load current to that configuration, giving the
 output drive limits.
 \item \texttt{SlewOpenLoopTB} drives the amplifier open-loop, giving the slew rates.
-\item \texttt{TiaFbTB} is the only bench that closes the transimpedance loop, wrapping
-$R_f = \SI{560}{\kilo\ohm}$ to WE and loading WE with \SI{1}{\micro\farad} of
-double-layer capacitance. \textbf{Every closed-loop figure comes from here, and the
-amplifier's own margins do not describe this loop.}
+\item \texttt{TiaFbTB} closes the transimpedance loop, wrapping $R_f$ from output to
+WE and loading WE with the cell model of Section~\ref{ss:analog-models}. Every
+closed-loop figure in this section is taken from it; the amplifier's own margins,
+measured in unity feedback, describe a different loop.
 \end{itemize}
 
-Three limits on coverage. Only the \emph{maximum}-gain setting was simulated, with an
-ideal resistor rather than the 16-tap string. The run is corners only, so offset,
-matching and every yield figure are uncharacterised. And the run's fifth testbench,
-\texttt{TypOpenLoopTB}, is not used: its open-loop DC operating point sits at
-\SI{0.23}{\volt} with the second stage out of its linear region, so its AC gain is not
-the open-loop gain --- Figure~\ref{fig:tia-loopgain} supersedes it.
+Coverage. The closed-loop measurements cover the \SI{35}{\kilo\ohm} and
+\SI{560}{\kilo\ohm} gain settings with an ideal resistor in place of the 16-tap string,
+over five process corners and, for the quantities in Section~\ref{sss:tia-mc}, over 200
+process-and-mismatch samples. \texttt{TypOpenLoopTB} is not used: its open-loop DC
+operating point sits at \SI{0.23}{\volt} with the second stage outside its linear
+region, so its AC gain is not the open-loop gain; Figure~\ref{fig:tia-loopgain} is used
+instead.
