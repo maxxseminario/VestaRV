@@ -336,6 +336,47 @@ def _vhdl_natural(path, name, decl='constant'):
     return None
 
 
+def _hart_tile_sh_aw_binding(mcu_path):
+    """(instances, bound) -- how many hart_tile/orch_tile instances MCU.vhd has,
+    and how many BIND the SH_AW generic explicitly.
+
+    CPR8/R7. Same reader, same reason, as mk_inject.py's (the A13 rule keeps
+    the two parsers parallel rather than merged; they already were for
+    `_vhdl_natural`). The old cross-check demanded MCU.vhd's `constant SH_AW`
+    equal hart_tile.vhd's GENERIC DEFAULT. That only ever mattered if the
+    default were what the build used -- and it is not: every generated MCU.vhd
+    binds `SH_AW => SH_AW` on every hart instance.
+
+    The promotion made this load-bearing. The shipped default is the
+    orchestrator chip at SH_AW=16 (memory map v2, flash at 0x40000) while
+    `config/castalia4.json` still emits SH_AW=15, and one entity default cannot
+    equal both. So: PROVE the binding on every instance (stronger than the
+    equality it replaces), and demand equality only when some instance leaves
+    the generic unbound -- the one case where the default can reach the RTL.
+    """
+    inst = re.compile(r'entity\s+work\.(?:hart_tile|orch_tile)\b', re.I)
+    bind = re.compile(r'\bSH_AW\s*=>')
+    endg = re.compile(r'\bport\s+map\b', re.I)
+    instances = 0
+    bound = 0
+    try:
+        with open(mcu_path) as fh:
+            lines = fh.readlines()
+    except IOError:
+        return 0, 0
+    for i, line in enumerate(lines):
+        if not inst.search(line):
+            continue
+        instances += 1
+        for j in range(i + 1, min(i + 200, len(lines))):
+            if bind.search(lines[j]):
+                bound += 1
+                break
+            if endg.search(lines[j]):
+                break
+    return instances, bound
+
+
 def derive_memory(hdl_root):
     """(spike_mem, boot_mem) as `base:size` strings, DERIVED from the RTL.
 
@@ -367,13 +408,21 @@ def derive_memory(hdl_root):
         raise OracleDerivationError(
             'cannot derive the reference memory windows: %s not found in %s / %s'
             % (', '.join(missing), mm, mcu))
-    # Same cross-check mk_inject makes, for the same reason: a silently-diverged
-    # generic default is exactly how a mis-derived window goes unnoticed.
-    if sh_aw_tile is not None and sh_aw_tile != sh_aw:
+    # Same cross-check mk_inject makes, for the same reason -- and inverted the
+    # same way at CPR8/R7: the MCU constant is authoritative WHEN every hart
+    # instance binds the generic, so prove that instead. Only an unbound
+    # instance can let the entity default reach the RTL.
+    _inst, _bound = _hart_tile_sh_aw_binding(mcu)
+    if _inst == 0:
         raise OracleDerivationError(
-            'SH_AW disagrees between MCU.vhd (%d) and hart_tile.vhd\'s generic '
+            'no hart_tile/orch_tile instance found in %s -- refusing to guess '
+            'how SH_AW reaches the tiles' % mcu)
+    if _bound != _inst and sh_aw_tile is not None and sh_aw_tile != sh_aw:
+        raise OracleDerivationError(
+            '%d of %d hart instances in MCU.vhd leave the SH_AW generic UNBOUND, '
+            'and SH_AW disagrees between MCU.vhd (%d) and hart_tile.vhd\'s generic '
             'default (%d) -- refusing to guess which one the build used'
-            % (sh_aw, sh_aw_tile))
+            % (_inst - _bound, _inst, sh_aw, sh_aw_tile))
     top = 1 << (sh_aw + 2)
     if top <= ram_start:
         raise OracleDerivationError(

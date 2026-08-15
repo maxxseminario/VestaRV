@@ -969,6 +969,7 @@ begin
             s_we    => sh_we_raw,
             s_addr  => sh_addr,
             s_wdata => sh_wdata,
+            --@GEN:arb-stall@
             s_rdata => sh_rdata_mux
         );
 
@@ -1074,7 +1075,7 @@ begin
     -- only hart 0 wires them. M19: the IRQ interface (msip/mtip/meip) is
     -- identical on every hart.
     --@GEN:tile-instances@
-    --@GEN:orch-instance@
+    --@GEN:tcm-apertures@
 
     -- System Peripheral (M19: the vectored IRQ controller is retired — only
     -- the WDT level source + the D2 router hooks remain on the IRQ side)

@@ -1,12 +1,19 @@
 -- =============================================================================
--- orch_tile.vhd  (CP2 — Castalia-Penta orchestrator hart wrapper)
+-- orch_tile.vhd  (CP2 — Castalia-Penta orchestrator hart wrapper;
+--                 renumbered to HART 0 at CPR3/R2)
 -- =============================================================================
 -- A THIN WRAPPER around hart_tile: same generics, same ports, and an
 -- architecture that is a single bare instantiation of `entity work.hart_tile`.
 -- It adds NO logic, NO registers and NO wiring difference — behaviourally an
 -- orch_tile IS a hart_tile, and a behavioural simulation cannot tell them
--- apart (that is the point: hart 4 is ISA/config-identical to the tiles, CP1
--- decision D5).
+-- apart (that is the point: the orchestrator is ISA/config-identical to the
+-- tiles, CP1 decision D5).
+--
+-- CPR3/R2 RENUMBER: the orchestrator is HART 0, and the channel tiles are
+-- harts 1..numHarts-1. Nothing in this file depends on the index — it never
+-- had one — but every sentence below that says "the corner harts" now means
+-- harts 1-4 rather than 0-3, and the instance MCU.vhd binds to this entity is
+-- `hart0`.
 --
 -- WHY IT EXISTS AT ALL (CP1 decision D6) — it is a MODULE-NAMESPACE device,
 -- not an RTL feature:
@@ -63,7 +70,7 @@ entity orch_tile is
         -- between the orchestrator and the tiles (the F-K7-4 shape), so this
         -- list is transcribed, never "tidied".
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
-        SH_AW          : natural := 15;
+        SH_AW          : natural := 16;   -- CPR8/R6: tracks hart_tile's default (15 -> 16)
 
         ENABLE_MUL        : boolean := true;
         ENABLE_DIV        : boolean := true;
@@ -136,6 +143,18 @@ entity orch_tile is
         -- Own 16 KiB TCM, never gated (D2): tcm_pgen '0', tcm_retn '1'.
         tcm_pgen  : in  std_logic := '0';
         tcm_retn  : in  std_logic := '1';
+
+        -- CPR3/R3: the READ-ONLY external TCM slave port, passed straight
+        -- through to hart_tile (CPR2 R4). The orchestrator's own TCM gets an
+        -- aperture like every other hart's -- 0x20000, the h=0 window -- for
+        -- uniform indexing, and R4-A2 names this instance as the one aperture
+        -- that is never gated (no power domain, no clamp, no zero-completion
+        -- bypass). Same defaults as hart_tile's declaration, so an
+        -- instantiation that does not name these ports is unchanged.
+        tcm_ext_req   : in  std_logic := '0';
+        tcm_ext_addr  : in  std_logic_vector(11 downto 0) := (others => '0');
+        tcm_ext_rdata : out std_logic_vector(31 downto 0);
+        tcm_ext_done  : out std_logic;
 
         -- Inert on this instance (no power domain in the centre band).
         pd_sleep  : in  std_logic := '0';
@@ -213,6 +232,10 @@ begin
             sh_lock   => sh_lock,
             tcm_pgen  => tcm_pgen,
             tcm_retn  => tcm_retn,
+            tcm_ext_req   => tcm_ext_req,
+            tcm_ext_addr  => tcm_ext_addr,
+            tcm_ext_rdata => tcm_ext_rdata,
+            tcm_ext_done  => tcm_ext_done,
             pd_sleep  => pd_sleep,
             pd_iso_en => pd_iso_en,
             trap_flag => trap_flag,

@@ -1,9 +1,9 @@
 -- MCU.vhd
--- Castalia MCU top-level integration layer (4 harts, MCU_MP)
+-- Castalia MCU top-level integration layer (5 harts, MCU_MP)
 -- Golden-master templated from the verified hdl/common/MCU.vhd: the fixed
 -- 	boilerplate comes from hdl_templates/MCU.template.vhd; the description-
 -- 	driven sections are generated from python/generate.py
--- Generated on 2026/08/05 at 15:30:24 with the generate.py chip generator
+-- Generated on 2026/08/15 at 09:41:07 with the generate.py chip generator
 -- WARNING: Do not edit or modify this file!
 -- 	Edit hdl_templates/MCU.template.vhd (fixed regions) or python/generate.py
 -- 	+ python/mcu_vhd.py (generated regions), then re-run make chip
@@ -65,10 +65,11 @@ entity MCU is
         -- Testing Purposes Only
         a0  : out std_logic_vector(31 downto 0);
 
-        -- M3b: per-hart pass/fail observation (a0 of the 3 private-memory harts)
+        -- M3b: per-hart pass/fail observation (a0 of the 4 private-memory harts)
         a0_1 : out std_logic_vector(31 downto 0);
         a0_2 : out std_logic_vector(31 downto 0);
-        a0_3 : out std_logic_vector(31 downto 0)
+        a0_3 : out std_logic_vector(31 downto 0);
+        a0_4 : out std_logic_vector(31 downto 0)
 
     );
 end entity;
@@ -505,56 +506,60 @@ architecture behav of MCU is
 
         -- M3c.2: shared window behind mp_arbiter on mclk. M5b widened SH_AW
         -- 8 -> 12 (whole pre-M11 region 4). M11 memory-map rework: SH_AW
-        -- 12 -> 15 — the arbiter word address now covers ALL of
-        -- 0x00000-0x1FFFF (word addr = data_addr(16:2)) and the slave
-        -- sub-decode selects on s_addr(14:12):
-        --   000 = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM — one
-        --         rom_hvt_pg, read-only slave; all four harts reset here)
-        --   001 = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots
-        --         at the LEGACY slot numbering, page 1 = CLINT @0x5000,
-        --         page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)
-        --   010 = dead (TCM region — tile-private, never arrives here)
-        --   011 = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)
-        --   1xx = shared bulk RAM 0x10000-0x1FFFF (4 x sram1p16k banks,
-        --         bank = s_addr(13:12))
-        constant SH_AW : natural := 15;                -- shared-window word-address width
+        -- 12 -> 16 — the arbiter word address now covers ALL of
+        -- 0x00000-0x3FFFF (word addr = data_addr(17:2)) and the slave
+        -- sub-decode selects on s_addr(15:12):
+        --   0000 = boot ROM 0x0-0x3FFF (M12: THE shared boot ROM — one
+        --          rom_hvt_pg, read-only slave; all five harts reset here)
+        --   0001 = peripheral window 0x4000-0x7FFF (page 0 = 16 x 256B slots
+        --          at the LEGACY slot numbering, page 1 = CLINT @0x5000,
+        --          page 2 = MUTEX bank @0x6000, page 3 = IRQ router @0x7000)
+        --   0010 = dead (TCM region — tile-private, never arrives here)
+        --   0011 = NPU staging RAM 0xC000-0xFFFF (one sram1p16k, NPU-muxed)
+        --   0100-0111 = shared bulk RAM 0x10000-0x1FFFF (4 x sram1p16k banks,
+        --               bank = s_addr(13:12))
+        --   1000-1100 = READ-ONLY TCM APERTURES 0x20000-0x33FFF (one 16 KiB window
+        --               per hart at 0x20000 + 0x4000*h; management hart 0 only,
+        --               read-only, a gated tile completes with zeros)
+        --   1101-1111 = unmapped (window power-of-two round-up gap; reads zero)
+        constant SH_AW : natural := 16;                -- shared-window word-address width
         -- M13: the hart-0 master-side handshake state (sh_sel/sh_acked/
         -- sh_rdata_reg/sh_rdata_cpu/...) moved into hart_tile — all four
         -- masters now carry identical tile-internal copies of it.
         -- M4b: global LR/SC reservation unit
-        signal arb_lrsc         : std_logic_vector(4*2-1 downto 0);
-        signal arb_scfail       : std_logic_vector(3 downto 0);
-        signal arb_resvvld      : std_logic_vector(3 downto 0);  -- X1 Zawrs: per-master reservation-valid level
+        signal arb_lrsc         : std_logic_vector(5*2-1 downto 0);
+        signal arb_scfail       : std_logic_vector(4 downto 0);
+        signal arb_resvvld      : std_logic_vector(4 downto 0);  -- X1 Zawrs: per-master reservation-valid level
         signal sh_we_raw        : std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating
-        -- arbiter master buses (master 0 = hart 0; masters 1-3 = hart tiles).
+        -- arbiter master buses (master 0 = the orchestrator hart; masters 1-4 = hart tiles).
         -- we = 4 active-high byte-lane strobes per master (M4a).
-        signal arb_req, arb_gnt, arb_done : std_logic_vector(3 downto 0);
+        signal arb_req, arb_gnt, arb_done : std_logic_vector(4 downto 0);
         -- M8: per-master grant-lock (cores' amo_lock) — pins the arbiter to a
         -- master across its AMO read+write transaction pair (cross-hart AMO
         -- atomicity).
-        signal arb_lock         : std_logic_vector(3 downto 0);
-        signal arb_we           : std_logic_vector(4*4-1 downto 0);
-        signal arb_addr         : std_logic_vector(4*SH_AW-1 downto 0);
-        signal arb_wdata        : std_logic_vector(4*32-1 downto 0);
+        signal arb_lock         : std_logic_vector(4 downto 0);
+        signal arb_we           : std_logic_vector(5*4-1 downto 0);
+        signal arb_addr         : std_logic_vector(5*SH_AW-1 downto 0);
+        signal arb_wdata        : std_logic_vector(5*32-1 downto 0);
         signal arb_rdata        : std_logic_vector(31 downto 0);
         -- arbiter <-> shared slave side (RAM + CLINT sub-decoded below, M5b)
         signal sh_en            : std_logic;
         signal sh_we            : std_logic_vector(3 downto 0);
         signal sh_addr          : std_logic_vector(SH_AW-1 downto 0);
         signal sh_wdata         : std_logic_vector(31 downto 0);
-        -- M11 slave fabric: page select on s_addr(14:12) (see the SH_AW
+        -- M11 slave fabric: page select on s_addr(15:12) (see the SH_AW
         -- comment above for the map). The peripheral window sub-decodes on
         -- s_addr(11:10) into 4 pages; page 0 = 16 x 256B slots at the LEGACY
         -- 0x4000 slot numbering (slot = s_addr(9:6)) — every peripheral is
-        -- back at its original Myshkin address, now shared by all 4 harts.
-        signal shslv_rom_sel    : std_logic;   -- 000 -> shared boot ROM 0x0-0x3FFF (M12)
-        signal shslv_perwin_sel : std_logic;   -- 001 -> peripheral window 0x4000-0x7FFF
+        -- back at its original Myshkin address, now shared by all 5 harts.
+        signal shslv_rom_sel    : std_logic;   -- 0000 -> shared boot ROM 0x0-0x3FFF (M12)
+        signal shslv_perwin_sel : std_logic;   -- 0001 -> peripheral window 0x4000-0x7FFF
         signal shslv_pg0_sel    : std_logic;   -- window page 0 -> the 16 slots
-        signal shslv_npuram_sel : std_logic;   -- 011 -> NPU staging RAM 0xC000-0xFFFF
-        signal shslv_bank0_sel  : std_logic;   -- 100 -> bulk RAM bank 0 (0x10000)
-        signal shslv_bank1_sel  : std_logic;   -- 101 -> bulk RAM bank 1 (0x14000)
-        signal shslv_bank2_sel  : std_logic;   -- 110 -> bulk RAM bank 2 (0x18000)
-        signal shslv_bank3_sel  : std_logic;   -- 111 -> bulk RAM bank 3 (0x1C000)
+        signal shslv_npuram_sel : std_logic;   -- 0011 -> NPU staging RAM 0xC000-0xFFFF
+        signal shslv_bank0_sel  : std_logic;   -- 0100 -> bulk RAM bank 0 (0x10000)
+        signal shslv_bank1_sel  : std_logic;   -- 0101 -> bulk RAM bank 1 (0x14000)
+        signal shslv_bank2_sel  : std_logic;   -- 0110 -> bulk RAM bank 2 (0x18000)
+        signal shslv_bank3_sel  : std_logic;   -- 0111 -> bulk RAM bank 3 (0x1C000)
         signal shslv_rom_en     : std_logic;
         signal shslv_npuram_en  : std_logic;
         signal shslv_bank0_en   : std_logic;
@@ -584,14 +589,79 @@ architecture behav of MCU is
         signal bank2_cen_n      : std_logic;
         signal bank3_cen_n      : std_logic;
         signal shmem_gwen_n     : std_logic;   -- shared-macro global write enable (active-low)
+
+        -- =====================================================================
+        -- CPR3/R3: READ-ONLY TCM APERTURES. One 16 KiB window per hart at
+        -- 0x20000 + 0x4000*h (h = 0..4), through which the MANAGEMENT HART
+        -- — hart 0, the orchestrator — reads any hart's PRIVATE TCM. The
+        -- aperture address is a TCM WORD index, sh_addr(11:0), so window word i
+        -- is that hart's byte address 0x8000 + 4*i.
+        --
+        -- THREE GATES, and all three answer with ZERO rather than a bus error,
+        -- a stall or a hang (the afe_stub idiom, implemented here rather than by
+        -- instantiating afe_stub — this is a sequencer, not a register file):
+        --   * NOT THE MANAGEMENT HART (sh_master /= 0): denied, reads 0.
+        --   * A WRITE: dropped. The windows are READ-ONLY (CPR1 R4): a write
+        --     path into a live core's memory is a coherence hazard the
+        --     architecture refuses. The tile's port has no write side at all.
+        --   * THE TARGET TILE IS DARK (R4-A2): completes IMMEDIATELY with zeros.
+        --     This is the mandatory one. A gated tile's iso clamp zeroes its
+        --     tcm_ext_done as well as its rdata, so a slave that simply waited
+        --     for done would stall the shared bus forever with the management
+        --     hart parked on it. Software still checks PWRSR before trusting a
+        --     window — zeros are a legal TCM value — but the BUS never hangs.
+        --
+        -- WHY THIS SLAVE STALLS THE ARBITER AND NOTHING ELSE DOES: a tcm_ext
+        -- read is 6 mclk request-to-done (CPR2 R4), and mp_arbiter's transaction
+        -- is a fixed IDLE/LATCH/DATA three-cycle walk built for a 1-cycle
+        -- registered-read slave. Completing on cycle 3 would hand the management
+        -- hart a fabricated word, so the aperture holds s_stall for the duration
+        -- (mp_arbiter s_stall, default '0' everywhere else). The grant was
+        -- already pinned to this master for the transaction, so nothing else is
+        -- delayed that was not already waiting.
+        -- =====================================================================
+        signal shslv_tcmw0_sel  : std_logic;   -- 1000 -> TCM aperture, hart 0 (0x20000)
+        signal shslv_tcmw1_sel  : std_logic;   -- 1001 -> TCM aperture, hart 1 (0x24000)
+        signal shslv_tcmw2_sel  : std_logic;   -- 1010 -> TCM aperture, hart 2 (0x28000)
+        signal shslv_tcmw3_sel  : std_logic;   -- 1011 -> TCM aperture, hart 3 (0x2C000)
+        signal shslv_tcmw4_sel  : std_logic;   -- 1100 -> TCM aperture, hart 4 (0x30000)
+        signal shslv_tcmw0_en   : std_logic;
+        signal shslv_tcmw1_en   : std_logic;
+        signal shslv_tcmw2_en   : std_logic;
+        signal shslv_tcmw3_en   : std_logic;
+        signal shslv_tcmw4_en   : std_logic;
+        signal shslv_rd_tcmw0   : std_logic := '0';
+        signal shslv_rd_tcmw1   : std_logic := '0';
+        signal shslv_rd_tcmw2   : std_logic := '0';
+        signal shslv_rd_tcmw3   : std_logic := '0';
+        signal shslv_rd_tcmw4   : std_logic := '0';
+        signal tcmw_rdata       : std_logic_vector(31 downto 0);
+        -- the aperture sequencer. ONE of it: the arbiter serializes, so exactly
+        -- one aperture transaction can be in flight.
+        signal tcmw_busy        : std_logic := '0';
+        signal tcmw_en_any      : std_logic;   -- any aperture addressed this cycle
+        signal tcmw_launch      : std_logic;   -- ...and it is a permitted read of a LIVE tile
+        signal tcmw_stall       : std_logic;   -- -> mp_arbiter s_stall
+        signal tcmw_target      : std_logic_vector(4 downto 0);   -- one-hot addressed aperture
+        signal tcmw_dark        : std_logic_vector(4 downto 0);   -- R4-A2: tile h cannot complete
+        signal tcmw_done_any    : std_logic;   -- the in-flight tile completed
+        signal tcmw_abort       : std_logic;   -- ...or went dark under us
+        signal tcmw_q           : std_logic_vector(31 downto 0);   -- rdata of the in-flight tile
+        -- tile-facing port nets. addr is ONE bus fanned to every tile (only the
+        -- tile whose req is high samples it); rdata/done arrive per hart, and for
+        -- harts 1..4 they arrive through the M17 isolation clamps.
+        signal tcm_ext_req      : std_logic_vector(4 downto 0);
+        signal tcm_ext_addr     : std_logic_vector(11 downto 0);
+        signal tcm_ext_rdata    : std_logic_vector(159 downto 0);
+        signal tcm_ext_done     : std_logic_vector(4 downto 0);
         -- M5b: real CLINT (M11: peripheral-window page 1 @0x5000)
         signal shslv_clint_sel  : std_logic;
         signal shslv_clint_en   : std_logic;
         signal shslv_rd_clint   : std_logic := '0'; -- registered: last access was CLINT
         signal sh_rdata_mux     : std_logic_vector(31 downto 0); -- into arbiter s_rdata
         signal clint_rdata      : std_logic_vector(31 downto 0);
-        signal clint_msip       : std_logic_vector(3 downto 0);
-        signal clint_mtip       : std_logic_vector(3 downto 0);
+        signal clint_msip       : std_logic_vector(4 downto 0);
+        signal clint_mtip       : std_logic_vector(4 downto 0);
         -- M6: shared UART0 (console) — M11: window slot 4 @0x4400 (its
         -- ORIGINAL private address, live again for all 4 harts)
         signal shslv_uart0_sel  : std_logic;
@@ -606,7 +676,7 @@ architecture behav of MCU is
         signal shslv_irtr_en    : std_logic;
         signal shslv_rd_irtr    : std_logic := '0'; -- registered: last access was irq_router
         signal irtr_rdata       : std_logic_vector(31 downto 0);
-        signal meip             : std_logic_vector(3 downto 0);
+        signal meip             : std_logic_vector(4 downto 0);
         signal wdt_irq_routed   : std_logic;   -- irq_router: source 0 enabled in some row
         signal wdt_irq_complete : std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)
         -- M17: pwr_ctrl, the MTCMOS power controller — a NATIVE slave in
@@ -620,10 +690,10 @@ architecture behav of MCU is
         signal shslv_pwr_en     : std_logic;
         signal shslv_rd_pwr     : std_logic := '0'; -- registered: last access was pwr_ctrl
         signal pwr_rdata        : std_logic_vector(31 downto 0);
-        signal pd_iso_en        : std_logic_vector(3 downto 1);
-        signal pd_sleep         : std_logic_vector(3 downto 1);
-        signal pd_rstn          : std_logic_vector(3 downto 1);
-        signal tile_rstn        : std_logic_vector(3 downto 1);
+        signal pd_iso_en        : std_logic_vector(4 downto 1);
+        signal pd_sleep         : std_logic_vector(4 downto 1);
+        signal pd_rstn          : std_logic_vector(4 downto 1);
+        signal tile_rstn        : std_logic_vector(4 downto 1);
         signal pgood_rstn       : std_logic := '1';
         signal hart0_rstn       : std_logic;
         -- M17 isolation: the tile outputs land on these _raw nets and are
@@ -636,24 +706,39 @@ architecture behav of MCU is
         signal tile1_req_raw    : std_logic;
         signal tile2_req_raw    : std_logic;
         signal tile3_req_raw    : std_logic;
+        signal tile4_req_raw    : std_logic;
         signal tile1_we_raw     : std_logic_vector(3 downto 0);
         signal tile2_we_raw     : std_logic_vector(3 downto 0);
         signal tile3_we_raw     : std_logic_vector(3 downto 0);
+        signal tile4_we_raw     : std_logic_vector(3 downto 0);
         signal tile1_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
         signal tile2_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
         signal tile3_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
+        signal tile4_addr_raw   : std_logic_vector(SH_AW-1 downto 0);
         signal tile1_wdata_raw  : std_logic_vector(31 downto 0);
         signal tile2_wdata_raw  : std_logic_vector(31 downto 0);
         signal tile3_wdata_raw  : std_logic_vector(31 downto 0);
+        signal tile4_wdata_raw  : std_logic_vector(31 downto 0);
         signal tile1_lrsc_raw   : std_logic_vector(1 downto 0);
         signal tile2_lrsc_raw   : std_logic_vector(1 downto 0);
         signal tile3_lrsc_raw   : std_logic_vector(1 downto 0);
+        signal tile4_lrsc_raw   : std_logic_vector(1 downto 0);
         signal tile1_lock_raw   : std_logic;
         signal tile2_lock_raw   : std_logic;
         signal tile3_lock_raw   : std_logic;
+        signal tile4_lock_raw   : std_logic;
+        signal tile1_tcmrd_raw  : std_logic_vector(31 downto 0);
+        signal tile1_tcmdone_raw : std_logic;
+        signal tile2_tcmrd_raw  : std_logic_vector(31 downto 0);
+        signal tile2_tcmdone_raw : std_logic;
+        signal tile3_tcmrd_raw  : std_logic_vector(31 downto 0);
+        signal tile3_tcmdone_raw : std_logic;
+        signal tile4_tcmrd_raw  : std_logic_vector(31 downto 0);
+        signal tile4_tcmdone_raw : std_logic;
         signal a0_1_raw         : std_logic_vector(31 downto 0);
         signal a0_2_raw         : std_logic_vector(31 downto 0);
         signal a0_3_raw         : std_logic_vector(31 downto 0);
+        signal a0_4_raw         : std_logic_vector(31 downto 0);
         -- M7b movers: TIMER0/1 + GPIO1/2/3 (M11: window slots 6/7/1/8/13)
         signal shslv_tim0_sel,  shslv_tim0_en   : std_logic;
         signal shslv_tim1_sel,  shslv_tim1_en   : std_logic;
@@ -777,7 +862,7 @@ architecture behav of MCU is
         -- needed sources — see the CQ2a report); aggregated here for a clean
         -- future hookup and observability.
         signal afe_eis_irq      : std_logic_vector(4 downto 0);
-        signal sh_master        : std_logic_vector(1 downto 0);
+        signal sh_master        : std_logic_vector(2 downto 0);
         -- signal inst_retired     : std_logic; -- Instruction Retired Signal from Core
         -- signal mem_access       : std_logic; -- High when memory access is occurring
 
@@ -2520,7 +2605,18 @@ begin
     sleep_cpu <= flash_ext_meming; -- Sleep while an external flash memory access is occurring
 
     -- =========================================================================
-    -- M13 TILE EXTRACTION: hart 0 is the SAME hart_tile as harts 1-3 — the
+    -- CPR3/R2 ORCHESTRATOR HART (hart 0). Same core, same ISA, same generic
+    -- associations as the tiles (CP1 D5) — but SOFT logic in the centre
+    -- band instead of a hardened corner macro, so it is instantiated through
+    -- the orch_tile wrapper (CP1 D6: no module name may be shared between the
+    -- tile netlist and the orchestrator netlist, or the assembly strip step
+    -- deletes this subtree and gate sim sees two definitions of one module).
+    -- It keeps EVERY hart-0 wiring special below, unchanged: the flash/XIP
+    -- quartet and sleep_cpu, the GPIO0 trap pin, the tb pass/fail a0 gate,
+    -- pgen_mem(1), arbiter master slice 0 with no isolation clamps, and the
+    -- DP-S3 boot-gate reset. It is the BOOT MASTER, as hart 0 always was.
+    -- =========================================================================
+    -- M13 TILE EXTRACTION: hart 0 is the SAME tile logic as harts 1-4 — the
     -- inline core/adddec/TCM/shared-window machinery that used to live here
     -- (and that hart_tile mirrored since M3c) is folded into the tile. The
     -- M12 wait-for-boot-fetch reset release, the M4b/M10 qualified ack, the
@@ -2537,12 +2633,12 @@ begin
     -- insensitivity at boundary depths 0/1/2; the boot fetch through the
     -- arbiter exercises the stall path on every run).
     -- =========================================================================
-    hart0: entity work.hart_tile
+    hart0: entity work.orch_tile
         generic map (
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
+            -- identical on all five tiles -- one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -2599,6 +2695,11 @@ begin
             sh_lock   => arb_lock(0),
             tcm_pgen  => pgen_mem(1),
             tcm_retn  => '1',
+            -- CPR3/R3: read-only TCM aperture port (window 0x20000)
+            tcm_ext_req   => tcm_ext_req(0),
+            tcm_ext_addr  => tcm_ext_addr,
+            tcm_ext_rdata => tcm_ext_rdata(31 downto 0),
+            tcm_ext_done  => tcm_ext_done(0),
             -- M17: hart 0 is ALWAYS-ON — its domain controls are strapped
             -- inactive (explicit, per the M14 netlist-boundary rule)
             pd_sleep  => '0',
@@ -2608,7 +2709,7 @@ begin
         );
 
     mp_arb0: entity work.mp_arbiter
-        generic map (N => 4, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32)
+        generic map (N => 5, ADDR_WIDTH => SH_AW, DATA_WIDTH => 32, MW => 3)
         port map (
             clk    => mclk,
             resetn => resetn,
@@ -2625,6 +2726,7 @@ begin
             s_we    => sh_we_raw,
             s_addr  => sh_addr,
             s_wdata => sh_wdata,
+            s_stall => tcmw_stall,   -- CPR3/R3: TCM aperture read in flight
             s_rdata => sh_rdata_mux
         );
 
@@ -2635,7 +2737,7 @@ begin
     -- what makes cross-hart LR/SC sound: two harts SC-ing the same word both
     -- pass their core-LOCAL checks, and only this unit can order them.
     resv0: entity work.resv_unit
-        generic map (N => 4, ADDR_WIDTH => SH_AW)
+        generic map (N => 5, ADDR_WIDTH => SH_AW)
         port map (
             clk        => mclk,
             resetn     => resetn,
@@ -2651,14 +2753,14 @@ begin
 
     -- =========================================================================
     -- M5b/M11/M12: slave-side sub-decode of the shared window. The arbiter
-    -- serializes ALL masters onto ONE slave port; the 15-bit word address
-    -- then selects which physical slave this transaction hits (s_addr(14:12)
+    -- serializes ALL masters onto ONE slave port; the 16-bit word address
+    -- then selects which physical slave this transaction hits (s_addr(15:12)
     -- pages, see the SH_AW comment):
     --   0x00000-0x03FFF -> THE shared boot ROM (M12: one rom_hvt_pg,
     --                      read-only — writes complete but are discarded)
     --   0x04000-0x07FFF -> peripheral window: page 0 = 16 x 256B slots at
     --                      the LEGACY slot numbering (every peripheral back
-    --                      at its Myshkin address, shared by all 4 harts),
+    --                      at its Myshkin address, shared by all 5 harts),
     --                      page 1 = CLINT, page 2 = MUTEX, page 3 = router
     --   0x0C000-0x0FFFF -> NPU staging RAM (sram1p16k, NPU-port-muxed)
     --   0x10000-0x1FFFF -> bulk RAM banks 0-3 (4 x sram1p16k)
@@ -2670,16 +2772,24 @@ begin
     -- DATA. resv_unit still snoops every transaction (its s_we_gated drives
     -- ALL slaves: a suppressed SC write must not touch a peripheral either).
     -- =========================================================================
-    -- M11/M12: page select on s_addr(14:12). Page 000 is the shared boot
-    -- ROM (M12 — the single rom_hvt_pg all four harts reset into);
-    -- 010 is the TCM region (tile-private, never arrives here).
-    shslv_rom_sel    <= '1' when sh_addr(14 downto 12) = "000" else '0';
-    shslv_perwin_sel <= '1' when sh_addr(14 downto 12) = "001" else '0';
-    shslv_npuram_sel <= '1' when sh_addr(14 downto 12) = "011" else '0';
-    shslv_bank0_sel  <= '1' when sh_addr(14 downto 12) = "100" else '0';
-    shslv_bank1_sel  <= '1' when sh_addr(14 downto 12) = "101" else '0';
-    shslv_bank2_sel  <= '1' when sh_addr(14 downto 12) = "110" else '0';
-    shslv_bank3_sel  <= '1' when sh_addr(14 downto 12) = "111" else '0';
+    -- M11/M12: page select on s_addr(15:12). Page 0000 is the shared boot
+    -- ROM (M12 — the single rom_hvt_pg all five harts reset into);
+    -- 0010 is the TCM region (tile-private, never arrives here).
+    shslv_rom_sel    <= '1' when sh_addr(15 downto 12) = "0000" else '0';
+    shslv_perwin_sel <= '1' when sh_addr(15 downto 12) = "0001" else '0';
+    shslv_npuram_sel <= '1' when sh_addr(15 downto 12) = "0011" else '0';
+    shslv_bank0_sel  <= '1' when sh_addr(15 downto 12) = "0100" else '0';
+    shslv_bank1_sel  <= '1' when sh_addr(15 downto 12) = "0101" else '0';
+    shslv_bank2_sel  <= '1' when sh_addr(15 downto 12) = "0110" else '0';
+    shslv_bank3_sel  <= '1' when sh_addr(15 downto 12) = "0111" else '0';
+    -- CPR3/R3: the read-only TCM apertures, one page each at 0x20000 +
+    -- 0x4000*h. Access control (management hart only, reads only, dark-tile
+    -- zero-completion) lives in the sequencer below, not in this decode.
+    shslv_tcmw0_sel  <= '1' when sh_addr(15 downto 12) = "1000" else '0';
+    shslv_tcmw1_sel  <= '1' when sh_addr(15 downto 12) = "1001" else '0';
+    shslv_tcmw2_sel  <= '1' when sh_addr(15 downto 12) = "1010" else '0';
+    shslv_tcmw3_sel  <= '1' when sh_addr(15 downto 12) = "1011" else '0';
+    shslv_tcmw4_sel  <= '1' when sh_addr(15 downto 12) = "1100" else '0';
     -- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots,
     -- page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router
     shslv_pg0_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else '0';
@@ -2699,7 +2809,7 @@ begin
     shslv_eis_sel    <= shslv_perwin_sel when sh_addr(11 downto 10) = "11" and sh_addr(9 downto 8) = "11" else '0';
     -- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering —
     -- every peripheral back at its original Myshkin address, shared by
-    -- all 4 harts
+    -- all 5 harts
     shslv_gpio0_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "0000" else '0';
     shslv_gpio1_sel  <= shslv_pg0_sel when sh_addr(9 downto 6) = "0001" else '0';
     shslv_spi0_sel   <= shslv_pg0_sel when sh_addr(9 downto 6) = "0010" else '0';
@@ -2731,6 +2841,11 @@ begin
     shslv_bank1_en   <= sh_en and shslv_bank1_sel;
     shslv_bank2_en   <= sh_en and shslv_bank2_sel;
     shslv_bank3_en   <= sh_en and shslv_bank3_sel;
+    shslv_tcmw0_en   <= sh_en and shslv_tcmw0_sel;
+    shslv_tcmw1_en   <= sh_en and shslv_tcmw1_sel;
+    shslv_tcmw2_en   <= sh_en and shslv_tcmw2_sel;
+    shslv_tcmw3_en   <= sh_en and shslv_tcmw3_sel;
+    shslv_tcmw4_en   <= sh_en and shslv_tcmw4_sel;
     shslv_clint_en   <= sh_en and shslv_clint_sel;
     shslv_mtx_en     <= sh_en and shslv_mtx_sel;
     shslv_irtr_en    <= sh_en and shslv_irtr_sel;
@@ -2766,6 +2881,11 @@ begin
             shslv_rd_bank1   <= '0';
             shslv_rd_bank2   <= '0';
             shslv_rd_bank3   <= '0';
+            shslv_rd_tcmw0   <= '0';
+            shslv_rd_tcmw1   <= '0';
+            shslv_rd_tcmw2   <= '0';
+            shslv_rd_tcmw3   <= '0';
+            shslv_rd_tcmw4   <= '0';
             shslv_rd_clint   <= '0';
             shslv_rd_mtx     <= '0';
             shslv_rd_irtr    <= '0';
@@ -2799,6 +2919,11 @@ begin
                 shslv_rd_bank1   <= shslv_bank1_sel;
                 shslv_rd_bank2   <= shslv_bank2_sel;
                 shslv_rd_bank3   <= shslv_bank3_sel;
+                shslv_rd_tcmw0   <= shslv_tcmw0_sel;
+                shslv_rd_tcmw1   <= shslv_tcmw1_sel;
+                shslv_rd_tcmw2   <= shslv_tcmw2_sel;
+                shslv_rd_tcmw3   <= shslv_tcmw3_sel;
+                shslv_rd_tcmw4   <= shslv_tcmw4_sel;
                 shslv_rd_clint   <= shslv_clint_sel;
                 shslv_rd_mtx     <= shslv_mtx_sel;
                 shslv_rd_irtr    <= shslv_irtr_sel;
@@ -2859,6 +2984,11 @@ begin
                     bank1_q        when shslv_rd_bank1   = '1' else
                     bank2_q        when shslv_rd_bank2   = '1' else
                     bank3_q        when shslv_rd_bank3   = '1' else
+                    tcmw_rdata     when shslv_rd_tcmw0   = '1' else
+                    tcmw_rdata     when shslv_rd_tcmw1   = '1' else
+                    tcmw_rdata     when shslv_rd_tcmw2   = '1' else
+                    tcmw_rdata     when shslv_rd_tcmw3   = '1' else
+                    tcmw_rdata     when shslv_rd_tcmw4   = '1' else
                     clint_rdata    when shslv_rd_clint   = '1' else
                     mtx_rdata      when shslv_rd_mtx     = '1' else
                     irtr_rdata     when shslv_rd_irtr    = '1' else
@@ -2962,13 +3092,13 @@ begin
     spi0_sh_en_n  <= not shslv_spi0_en_q;
 
     clint0: entity work.clint
-        generic map (NHARTS => 4)
+        generic map (NHARTS => 5, ADDR_W => 5)
         port map (
             clk    => mclk,
             resetn => resetn,
             en     => shslv_clint_en,
             we     => sh_we,
-            addr   => sh_addr(3 downto 0),
+            addr   => sh_addr(4 downto 0),
             wdata  => sh_wdata,
             rdata  => clint_rdata,
             msip   => clint_msip,
@@ -2978,13 +3108,13 @@ begin
     -- M19 PLIC-lite: THE peripheral interrupt controller — per-hart routing
     -- rows (any hart programs any row through the arbiter; resv-gated sh_we
     -- like the CLINT) + CLAIM/COMPLETE delivery @0x7800. The deglitched
-    -- source vector TERMINATES here; delivery to harts 0-3 is the one
+    -- source vector TERMINATES here; delivery to harts 0-4 is the one
     -- registered meip wire each (IVT slot 85). sh_master attributes claim
     -- reads (the mutex-bank idiom). Resets all-masked, so this block is a
     -- provable NO-OP until software routes an IRQ. The wdt_* hooks carry
     -- the D2 watchdog contract into SYSTEM0 (source 0's routed/EOI state).
     irtr0: entity work.irq_router
-        generic map (NHARTS => 4, NUM_SRCS => NUM_IRQ_SRCS)
+        generic map (NHARTS => 5, NUM_SRCS => NUM_IRQ_SRCS, MW => 3)
         port map (
             clk          => mclk,
             resetn       => resetn,
@@ -3007,7 +3137,7 @@ begin
     -- ADVISORY by design decision: no bus-enforced locking (no core bus-error
     -- path; stall-until-release would be a deadlock generator).
     mtx0: entity work.mutex_bank
-        generic map (NMUTEX => 16)
+        generic map (NMUTEX => 16, MW => 3)
         port map (
             clk    => mclk,
             resetn => resetn,
@@ -3029,7 +3159,7 @@ begin
     -- outbound tile signal. Resets all-ON -> provable NO-OP until software
     -- gates a tile. Software contract: gate only parked/quiesced tiles.
     pwr0: entity work.pwr_ctrl
-        generic map (T_SEQ => 4, T_RAIL => 256)
+        generic map (NHARTS => 5, T_SEQ => 4, T_RAIL => 256)
         port map (
             clk       => mclk,
             resetn    => resetn,
@@ -3054,36 +3184,36 @@ begin
     -- =========================================================================
     -- CQ2a: AFE digital register stubs + shared EIS engine stub.
     -- Four AFE sites subdivide page-0 slot 12 (0x4C00) into 64 B sub-slots
-    -- (sub-slot = sh_addr(5:4)); each answers only for its owner hart OR hart 0
+    -- (sub-slot = sh_addr(5:4)); each answers only for its owner TILE hart (1-4) OR hart 0, the orchestrator
     -- (mp_arbiter s_master gate, inside afe_stub). The EIS engine lives in the
     -- IRQ-router page top quarter (0x7C00-0x7FFF, carved in the sub-decode
-    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only
+    -- above — irq_router's ADDR_W=10 decode is inert there) and is hart-0-only (the orchestrator)
     -- (OWNER_HART=0). Reads are registered; denied reads return 0, denied
     -- writes drop — no bus error, no stall, no arbiter-contract change. Every
     -- stub resets all-zero -> a provable NO-OP (irq low) until software writes.
     -- =========================================================================
     afe0: entity work.afe_stub
-        generic map (OWNER_HART => 0)   -- 0x4C00: hart 0 only
+        generic map (OWNER_HART => 1)   -- 0x4C00: tile hart 1 or hart 0
         port map (clk => mclk, resetn => resetn, en => shslv_afe0_en,
             we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
             master => sh_master, rdata => afe0_rdata, irq => afe_eis_irq(0));
     afe1: entity work.afe_stub
-        generic map (OWNER_HART => 1)   -- 0x4C40: hart 1 or hart 0
+        generic map (OWNER_HART => 2)   -- 0x4C40: tile hart 2 or hart 0
         port map (clk => mclk, resetn => resetn, en => shslv_afe1_en,
             we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
             master => sh_master, rdata => afe1_rdata, irq => afe_eis_irq(1));
     afe2: entity work.afe_stub
-        generic map (OWNER_HART => 2)   -- 0x4C80: hart 2 or hart 0
+        generic map (OWNER_HART => 3)   -- 0x4C80: tile hart 3 or hart 0
         port map (clk => mclk, resetn => resetn, en => shslv_afe2_en,
             we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
             master => sh_master, rdata => afe2_rdata, irq => afe_eis_irq(2));
     afe3: entity work.afe_stub
-        generic map (OWNER_HART => 3)   -- 0x4CC0: hart 3 or hart 0
+        generic map (OWNER_HART => 4)   -- 0x4CC0: tile hart 4 or hart 0
         port map (clk => mclk, resetn => resetn, en => shslv_afe3_en,
             we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
             master => sh_master, rdata => afe3_rdata, irq => afe_eis_irq(3));
     eis0: entity work.afe_stub
-        generic map (OWNER_HART => 0)   -- 0x7C00: EIS engine, hart 0 only
+        generic map (OWNER_HART => 0)   -- 0x7C00: EIS engine, management hart 0 only
         port map (clk => mclk, resetn => resetn, en => shslv_eis_en,
             we => sh_we, addr => sh_addr(3 downto 0), wdata => sh_wdata,
             master => sh_master, rdata => eis_rdata, irq => afe_eis_irq(4));
@@ -3094,36 +3224,56 @@ begin
     tile_rstn(1) <= resetn and pd_rstn(1) and pgood_rstn;
     tile_rstn(2) <= resetn and pd_rstn(2) and pgood_rstn;
     tile_rstn(3) <= resetn and pd_rstn(3) and pgood_rstn;
-    -- DP-S3: hart 0 has no pd_rstn row (always-on domain) — only the boot gate
+    tile_rstn(4) <= resetn and pd_rstn(4) and pgood_rstn;
+    -- DP-S3 + CPR3/R2: hart 0 has no pd_rstn row (always-on domain) —
+    -- only the boot gate. That is true of the ORCHESTRATOR for the same
+    -- reason it was true of hart 0: there is no power intent in the centre
+    -- band, so there is no row to fold in.
     hart0_rstn <= resetn and pgood_rstn;
 
     -- M17 isolation clamps (see the _raw signal comment): every outbound
     -- tile signal is forced to its reset value while pd_iso_en(h) is high,
     -- so the arbiter and the tb never sample a floating pin of a dark
     -- domain. These gates synthesize into the ALWAYS-ON control plane.
-    arb_req(1)              <= tile1_req_raw   when pd_iso_en(1) = '0' else '0';
-    arb_we(7 downto 4)      <= tile1_we_raw    when pd_iso_en(1) = '0' else (others => '0');
+    arb_req(1)              <= tile1_req_raw     when pd_iso_en(1) = '0' else '0';
+    arb_we(7 downto 4)      <= tile1_we_raw      when pd_iso_en(1) = '0' else (others => '0');
     arb_addr(2*SH_AW-1 downto SH_AW) <= tile1_addr_raw when pd_iso_en(1) = '0' else (others => '0');
     arb_wdata(2*32-1 downto 32)      <= tile1_wdata_raw when pd_iso_en(1) = '0' else (others => '0');
-    arb_lrsc(3 downto 2)    <= tile1_lrsc_raw  when pd_iso_en(1) = '0' else "00";
-    arb_lock(1)             <= tile1_lock_raw  when pd_iso_en(1) = '0' else '0';
-    a0_1                    <= a0_1_raw        when pd_iso_en(1) = '0' else (others => '0');
+    arb_lrsc(3 downto 2)    <= tile1_lrsc_raw    when pd_iso_en(1) = '0' else "00";
+    arb_lock(1)             <= tile1_lock_raw    when pd_iso_en(1) = '0' else '0';
+    a0_1                    <= a0_1_raw          when pd_iso_en(1) = '0' else (others => '0');
+    tcm_ext_rdata(63 downto 32)      <= tile1_tcmrd_raw when pd_iso_en(1) = '0' else (others => '0');
+    tcm_ext_done(1)         <= tile1_tcmdone_raw when pd_iso_en(1) = '0' else '0';
 
-    arb_req(2)              <= tile2_req_raw   when pd_iso_en(2) = '0' else '0';
-    arb_we(11 downto 8)     <= tile2_we_raw    when pd_iso_en(2) = '0' else (others => '0');
+    arb_req(2)              <= tile2_req_raw     when pd_iso_en(2) = '0' else '0';
+    arb_we(11 downto 8)     <= tile2_we_raw      when pd_iso_en(2) = '0' else (others => '0');
     arb_addr(3*SH_AW-1 downto 2*SH_AW) <= tile2_addr_raw when pd_iso_en(2) = '0' else (others => '0');
     arb_wdata(3*32-1 downto 2*32)      <= tile2_wdata_raw when pd_iso_en(2) = '0' else (others => '0');
-    arb_lrsc(5 downto 4)    <= tile2_lrsc_raw  when pd_iso_en(2) = '0' else "00";
-    arb_lock(2)             <= tile2_lock_raw  when pd_iso_en(2) = '0' else '0';
-    a0_2                    <= a0_2_raw        when pd_iso_en(2) = '0' else (others => '0');
+    arb_lrsc(5 downto 4)    <= tile2_lrsc_raw    when pd_iso_en(2) = '0' else "00";
+    arb_lock(2)             <= tile2_lock_raw    when pd_iso_en(2) = '0' else '0';
+    a0_2                    <= a0_2_raw          when pd_iso_en(2) = '0' else (others => '0');
+    tcm_ext_rdata(95 downto 64)        <= tile2_tcmrd_raw when pd_iso_en(2) = '0' else (others => '0');
+    tcm_ext_done(2)         <= tile2_tcmdone_raw when pd_iso_en(2) = '0' else '0';
 
-    arb_req(3)              <= tile3_req_raw   when pd_iso_en(3) = '0' else '0';
-    arb_we(15 downto 12)    <= tile3_we_raw    when pd_iso_en(3) = '0' else (others => '0');
+    arb_req(3)              <= tile3_req_raw     when pd_iso_en(3) = '0' else '0';
+    arb_we(15 downto 12)    <= tile3_we_raw      when pd_iso_en(3) = '0' else (others => '0');
     arb_addr(4*SH_AW-1 downto 3*SH_AW) <= tile3_addr_raw when pd_iso_en(3) = '0' else (others => '0');
     arb_wdata(4*32-1 downto 3*32)      <= tile3_wdata_raw when pd_iso_en(3) = '0' else (others => '0');
-    arb_lrsc(7 downto 6)    <= tile3_lrsc_raw  when pd_iso_en(3) = '0' else "00";
-    arb_lock(3)             <= tile3_lock_raw  when pd_iso_en(3) = '0' else '0';
-    a0_3                    <= a0_3_raw        when pd_iso_en(3) = '0' else (others => '0');
+    arb_lrsc(7 downto 6)    <= tile3_lrsc_raw    when pd_iso_en(3) = '0' else "00";
+    arb_lock(3)             <= tile3_lock_raw    when pd_iso_en(3) = '0' else '0';
+    a0_3                    <= a0_3_raw          when pd_iso_en(3) = '0' else (others => '0');
+    tcm_ext_rdata(127 downto 96)       <= tile3_tcmrd_raw when pd_iso_en(3) = '0' else (others => '0');
+    tcm_ext_done(3)         <= tile3_tcmdone_raw when pd_iso_en(3) = '0' else '0';
+
+    arb_req(4)              <= tile4_req_raw     when pd_iso_en(4) = '0' else '0';
+    arb_we(19 downto 16)    <= tile4_we_raw      when pd_iso_en(4) = '0' else (others => '0');
+    arb_addr(5*SH_AW-1 downto 4*SH_AW) <= tile4_addr_raw when pd_iso_en(4) = '0' else (others => '0');
+    arb_wdata(5*32-1 downto 4*32)      <= tile4_wdata_raw when pd_iso_en(4) = '0' else (others => '0');
+    arb_lrsc(9 downto 8)    <= tile4_lrsc_raw    when pd_iso_en(4) = '0' else "00";
+    arb_lock(4)             <= tile4_lock_raw    when pd_iso_en(4) = '0' else '0';
+    a0_4                    <= a0_4_raw          when pd_iso_en(4) = '0' else (others => '0');
+    tcm_ext_rdata(159 downto 128)      <= tile4_tcmrd_raw when pd_iso_en(4) = '0' else (others => '0');
+    tcm_ext_done(4)         <= tile4_tcmdone_raw when pd_iso_en(4) = '0' else '0';
 
     -- =========================================================================
     -- M11: shared bulk RAM = 4 x sram1p16k macros (64 KB, 0x10000-0x1FFFF),
@@ -3225,7 +3375,7 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
+            -- identical on all five tiles -- one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3286,6 +3436,11 @@ begin
             -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
             -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
+            -- CPR3/R3: read-only TCM aperture port (window 0x24000)
+            tcm_ext_req   => tcm_ext_req(1),
+            tcm_ext_addr  => tcm_ext_addr,
+            tcm_ext_rdata => tile1_tcmrd_raw,
+            tcm_ext_done  => tile1_tcmdone_raw,
             -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
             pd_sleep  => pd_sleep(1),
             pd_iso_en => pd_iso_en(1),
@@ -3298,7 +3453,7 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
+            -- identical on all five tiles -- one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3356,6 +3511,11 @@ begin
             -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
             -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
+            -- CPR3/R3: read-only TCM aperture port (window 0x28000)
+            tcm_ext_req   => tcm_ext_req(2),
+            tcm_ext_addr  => tcm_ext_addr,
+            tcm_ext_rdata => tile2_tcmrd_raw,
+            tcm_ext_done  => tile2_tcmdone_raw,
             -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
             pd_sleep  => pd_sleep(2),
             pd_iso_en => pd_iso_en(2),
@@ -3368,7 +3528,7 @@ begin
             PC_RST_VAL     => x"00000000",
             SH_AW          => SH_AW,
             -- Core ISA features (config-driven, work.MemoryMap; MUST be
-            -- identical on all four tiles -- one hardened netlist)
+            -- identical on all five tiles -- one hardened netlist)
             ENABLE_MUL        => CORE_ENABLE_MUL,
             ENABLE_DIV        => CORE_ENABLE_DIV,
             ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
@@ -3426,12 +3586,172 @@ begin
             -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
             -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
             tcm_retn  => '1',
+            -- CPR3/R3: read-only TCM aperture port (window 0x2C000)
+            tcm_ext_req   => tcm_ext_req(3),
+            tcm_ext_addr  => tcm_ext_addr,
+            tcm_ext_rdata => tile3_tcmrd_raw,
+            tcm_ext_done  => tile3_tcmdone_raw,
             -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
             pd_sleep  => pd_sleep(3),
             pd_iso_en => pd_iso_en(3),
             trap_flag => open,
             a0        => a0_3_raw
         );
+
+    hart4: entity work.hart_tile
+        generic map (
+            PC_RST_VAL     => x"00000000",
+            SH_AW          => SH_AW,
+            -- Core ISA features (config-driven, work.MemoryMap; MUST be
+            -- identical on all five tiles -- one hardened netlist)
+            ENABLE_MUL        => CORE_ENABLE_MUL,
+            ENABLE_DIV        => CORE_ENABLE_DIV,
+            ENABLE_ATOMICS    => CORE_ENABLE_ATOMICS,
+            ENABLE_COMPRESSED => CORE_ENABLE_COMPRESSED,
+            ENABLE_BITMANIP   => CORE_ENABLE_BITMANIP,
+            ENABLE_ZICOND     => CORE_ENABLE_ZICOND,
+            ENABLE_ZCB        => CORE_ENABLE_ZCB,
+            ENABLE_ZIMOP      => CORE_ENABLE_ZIMOP,
+            ENABLE_ZIHINT     => CORE_ENABLE_ZIHINT,
+            ENABLE_ZIHPM      => CORE_ENABLE_ZIHPM,
+            ENABLE_ZAWRS      => CORE_ENABLE_ZAWRS,
+            ENABLE_ZABHA      => CORE_ENABLE_ZABHA,
+            ENABLE_ZACAS      => CORE_ENABLE_ZACAS,
+            ENABLE_ZICBOZ     => CORE_ENABLE_ZICBOZ,
+            ENABLE_ZCMP       => CORE_ENABLE_ZCMP,
+            ENABLE_ZCMT       => CORE_ENABLE_ZCMT,
+            ENABLE_ZBKB       => CORE_ENABLE_ZBKB,
+            ENABLE_ZBKC       => CORE_ENABLE_ZBKC,
+            ENABLE_ZBKX       => CORE_ENABLE_ZBKX,
+            ENABLE_ZKN        => CORE_ENABLE_ZKN,
+            ENABLE_ZFINX      => CORE_ENABLE_ZFINX,
+            -- P0 privileged-architecture scaffolding (P1/P2/P3)
+            ENABLE_TRAPCSR    => CORE_ENABLE_TRAPCSR,
+            ENABLE_UMODE      => CORE_ENABLE_UMODE,
+            ENABLE_PMP        => CORE_ENABLE_PMP,
+            PMP_ENTRIES       => CORE_PMP_ENTRIES,
+            ENABLE_DEBUG      => CORE_ENABLE_DEBUG
+        )
+        port map (
+            clk       => mclk,
+            -- M17: pwr_ctrl's cold-gate reset folds in (tile_rstn = resetn
+            -- and pd_rstn) — a gated/waking tile is held in reset
+            resetn    => tile_rstn(4),
+            sleep     => '0',
+            hart_id   => x"00000004",
+            msip_in   => clint_msip(4),
+            mtip_in   => clint_mtip(4),
+            meip_in   => meip(4),
+            -- M17: outbound signals land on _raw and pass the iso clamps
+            sh_req    => tile4_req_raw,
+            sh_we     => tile4_we_raw,
+            sh_addr   => tile4_addr_raw,
+            sh_wdata  => tile4_wdata_raw,
+            sh_gnt    => arb_gnt(4),
+            sh_done   => arb_done(4),
+            sh_rdata  => arb_rdata,
+            sh_lrsc   => tile4_lrsc_raw,
+            sh_scfail => arb_scfail(4),
+            sh_resv_valid => arb_resvvld(4),
+            sh_lock   => tile4_lock_raw,
+            -- M17: the tile's TCM macro is on the ALWAYS-ON rail but rides
+            -- its own native PGEN power-down whenever the domain gates —
+            -- tcm_pgen is a straight wire to ram0's PGEN pin (was '0')
+            tcm_pgen  => pd_sleep(4),
+            -- PG1 F2: retention strapped OFF from the ALWAYS-ON top (the macro
+            -- RETN receiver is AO — an in-tile tie was a dying-rail driver)
+            tcm_retn  => '1',
+            -- CPR3/R3: read-only TCM aperture port (window 0x30000)
+            tcm_ext_req   => tcm_ext_req(4),
+            tcm_ext_addr  => tcm_ext_addr,
+            tcm_ext_rdata => tile4_tcmrd_raw,
+            tcm_ext_done  => tile4_tcmdone_raw,
+            -- M17: MTCMOS domain controls (CPF hooks; see hart_tile.vhd)
+            pd_sleep  => pd_sleep(4),
+            pd_iso_en => pd_iso_en(4),
+            trap_flag => open,
+            a0        => a0_4_raw
+        );
+
+    -- =========================================================================
+    -- CPR3/R3: READ-ONLY TCM APERTURE SEQUENCER (see the declarations above
+    -- for the map, the three gates and the s_stall argument).
+    -- =========================================================================
+    tcmw_target(0)   <= shslv_tcmw0_en;
+    tcmw_target(1)   <= shslv_tcmw1_en;
+    tcmw_target(2)   <= shslv_tcmw2_en;
+    tcmw_target(3)   <= shslv_tcmw3_en;
+    tcmw_target(4)   <= shslv_tcmw4_en;
+    tcmw_en_any      <= '1' when tcmw_target /= "00000" else '0';
+    -- R4-A2: "dark" = exactly the state the isolation clamps key on, which is
+    -- also exactly what dbg_unavail asks about -- clamps asserted, or the tile
+    -- held in reset (pd_rstn, the DP-S3 boot gate or chip reset). Hart 0 has
+    -- no domain and is never dark.
+    tcmw_dark(0)     <= '0';
+    tcmw_dark(1)     <= pd_iso_en(1) or not tile_rstn(1);
+    tcmw_dark(2)     <= pd_iso_en(2) or not tile_rstn(2);
+    tcmw_dark(3)     <= pd_iso_en(3) or not tile_rstn(3);
+    tcmw_dark(4)     <= pd_iso_en(4) or not tile_rstn(4);
+    -- LAUNCH = addressed AND the management hart AND a read AND the target is
+    -- alive. Anything else is answered with zero in the same three cycles
+    -- every other slave takes.
+    tcmw_launch      <= tcmw_en_any when sh_we = "0000"
+                       and conv_integer(sh_master) = 0
+                       and (tcmw_target and tcmw_dark) = "00000"
+                       else '0';
+    -- The stall must already be asserted in the cycle the enable strobe
+    -- occupies (the arbiter samples s_stall at the edge that would otherwise
+    -- take it to DATA), so it is COMBINATIONAL on launch and registered only
+    -- afterwards, through busy.
+    tcmw_stall       <= tcmw_launch or tcmw_busy;
+    -- completion / abort of the IN-FLIGHT transaction (tcm_ext_req is one-hot
+    -- while busy, so these are single-term ORs, not priority chains).
+    tcmw_done_any    <= '1' when (tcm_ext_req and tcm_ext_done) /= "00000" else '0';
+    tcmw_abort       <= '1' when (tcm_ext_req and tcmw_dark) /= "00000" else '0';
+    tcmw_q           <= tcm_ext_rdata(31 downto 0) when tcm_ext_req(0) = '1' else
+                       tcm_ext_rdata(63 downto 32) when tcm_ext_req(1) = '1' else
+                       tcm_ext_rdata(95 downto 64) when tcm_ext_req(2) = '1' else
+                       tcm_ext_rdata(127 downto 96) when tcm_ext_req(3) = '1' else
+                       tcm_ext_rdata(159 downto 128) when tcm_ext_req(4) = '1' else
+                       (others => '0');
+
+    tcm_aperture: process(mclk, resetn)
+    begin
+        if resetn = '0' then
+            tcm_ext_req  <= (others => '0');
+            tcm_ext_addr <= (others => '0');
+            tcmw_busy    <= '0';
+            tcmw_rdata   <= (others => '0');
+        elsif rising_edge(mclk) then
+            if tcmw_busy = '0' then
+                if tcmw_en_any = '1' then
+                    -- One decision per access, taken in the enable-strobe cycle.
+                    -- The zeroing is the DENIED/DROPPED/DARK answer and it is
+                    -- unconditional: a refused access must never return the
+                    -- previous window's word.
+                    tcm_ext_addr <= sh_addr(11 downto 0);
+                    tcmw_rdata   <= (others => '0');
+                    if tcmw_launch = '1' then
+                        tcm_ext_req <= tcmw_target;
+                        tcmw_busy   <= '1';
+                    end if;
+                end if;
+            else
+                if tcmw_done_any = '1' then
+                    tcmw_rdata  <= tcmw_q;
+                    tcm_ext_req <= (others => '0');
+                    tcmw_busy   <= '0';
+                elsif tcmw_abort = '1' then
+                    -- R4-A2 again, for the race the static gate cannot cover: the
+                    -- tile was gated WHILE its transaction was in flight, so its
+                    -- done is now clamped and will never arrive. Complete it here.
+                    tcmw_rdata  <= (others => '0');
+                    tcm_ext_req <= (others => '0');
+                    tcmw_busy   <= '0';
+                end if;
+            end if;
+        end if;
+    end process;
 
     -- System Peripheral (M19: the vectored IRQ controller is retired — only
     -- the WDT level source + the D2 router hooks remain on the IRQ side)

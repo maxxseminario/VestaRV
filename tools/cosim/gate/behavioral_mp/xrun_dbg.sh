@@ -45,12 +45,13 @@ if [ ${#RCF} -ne 29 ]; then
 fi
 
 # NHARTS interlock, same shape as the other MCU_MP runners (M19c/K1): an
-# out-of-tree N=18 build transiting through ../rcf must never be simulated
-# against the N=4 MCU.
+# out-of-tree build transiting through ../rcf must never be simulated against
+# the MCU this flow compiles. CPR8/R7 re-pinned it 4 -> 5: this flow compiles
+# hdl/common/MCU.vhd, which IS the shipped five-hart orchestrator chip.
 NH="$(cat ../rcf/.nharts 2>/dev/null)"
-if [ "$NH" != "4" ]; then
-    echo "FATAL: ../rcf/.nharts = '${NH}' (expected 4). Rebuild with"
-    echo "  verification/isa/build_mp_images.sh 4 ../../xcelium/riscv_test/rcf"
+if [ "$NH" != "5" ]; then
+    echo "FATAL: ../rcf/.nharts = '${NH}' (expected 5). Rebuild with"
+    echo "  verification/isa/build_mp_images.sh 5 ../../xcelium/riscv_test/rcf"
     exit 2
 fi
 

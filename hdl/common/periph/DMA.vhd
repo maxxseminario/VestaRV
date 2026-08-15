@@ -161,7 +161,7 @@ entity DMA is
         -- arbiter MASTER port (slice 4 of arb_*; D2/D3, depth 0)
         m_req       : out std_logic;                     -- held through m_done, dropped via acked flop
         m_we        : out std_logic_vector(3 downto 0);  -- active-HIGH lanes; "0000" = read
-        m_addr      : out std_logic_vector(AW-1 downto 0);-- 15-bit word address = byte_ptr(16:2)
+        m_addr      : out std_logic_vector(AW-1 downto 0);-- word address = byte_ptr(16:2), zero-extended to AW
         m_wdata     : out std_logic_vector(31 downto 0);
         m_gnt       : in  std_logic;                     -- observed only (handshake waits on m_done)
         m_done      : in  std_logic;                     -- 1-cycle completion; m_rdata valid here
@@ -276,7 +276,21 @@ architecture behavioral of DMA is
     -- ---- B4 registered master-port outputs --------------------------------
     signal m_req_r   : std_logic;
     signal m_we_r    : std_logic_vector(3 downto 0);
-    signal m_addr_r  : std_logic_vector(AW-1 downto 0);
+    -- CPR3/R3: the DMA's OWN address space is fixed at 17 bits (byte pointers
+    -- 0x00000-0x1FFFF: shared ROM, the peripheral window and the bulk RAM),
+    -- which is what every check and slice below is written against, and which
+    -- is still exactly the region a DMA has any business in. The MASTER PORT is
+    -- AW = SH_AW bits wide, and SH_AW became 16 on the orchestrator configs
+    -- (the read-only TCM apertures live at 0x20000+, deliberately out of the
+    -- DMA's reach). So the register stays 15 bits and the port is ZERO-EXTENDED
+    -- on the way out. Before this the register was declared AW-wide and every
+    -- assignment fed it a 15-bit value -- fine at AW=15, a shape mismatch that
+    -- kills the sim at the first descriptor fetch at AW=16 (measured: TRASMM at
+    -- DMA.vhd:688 on config/penta_wound.json).
+    signal m_addr_r  : std_logic_vector(14 downto 0);
+    -- NULL RANGE when AW = 15, so the concatenation below is the identity and
+    -- every pre-CPR3 configuration is bit-identical.
+    constant M_ADDR_PAD : std_logic_vector(AW-1 downto 15) := (others => '0');
     signal m_wdata_r : std_logic_vector(31 downto 0);
 
     -- ---- B5 CRC chain (four chained combinational CRC16, D14) --------------
@@ -294,7 +308,7 @@ begin
     -- master-port registered outputs (D2 depth-0 slice-4).
     m_req   <= m_req_r;
     m_we    <= m_we_r;
-    m_addr  <= m_addr_r;
+    m_addr  <= M_ADDR_PAD & m_addr_r;
     m_wdata <= m_wdata_r;
 
     -- BUSY same-cycle (D8/D16): any channel busy OR any GO pending (go_pending

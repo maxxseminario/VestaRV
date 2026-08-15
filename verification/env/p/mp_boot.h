@@ -33,12 +33,17 @@
 #ifndef _ENV_MP_BOOT_H
 #define _ENV_MP_BOOT_H
 
-// Hart count (Argus A3). Default 4 = Castalia; the Argus image build passes
-// -DNHARTS=18. sh tests derive their tile-launch loop, gather bound, expected
-// totals, and (NHARTS-sized) DONE-array layout from this ONE knob so a single
-// source serves both configs at their respective hart counts.
+// Hart count (Argus A3). Default 5 since CPR8/R7 = Castalia-Penta, the shipped
+// chip: hart 0 is the always-on soft orchestrator and harts 1-4 are the
+// hardened channel tiles. (It was 4 until 2026-08-15; config/castalia4.json
+// still builds that shape, and its image set carries -DNHARTS=4 explicitly.)
+// The Argus image build passes -DNHARTS=18. sh tests derive their tile-launch
+// loop, gather bound, expected totals, and (NHARTS-sized) DONE-array layout
+// from this ONE knob so a single source serves every config at its own hart
+// count. NOTE build_mp_images.sh ALWAYS passes -DNHARTS explicitly, so this
+// fallback is only reached by a hand build.
 #ifndef NHARTS
-#define NHARTS 4
+#define NHARTS 5
 #endif
 
 #define MP_STAGE_BASE    0x18000

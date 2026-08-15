@@ -192,13 +192,20 @@ def check_vesta_region(html):
 # --------------------------------------------------------------------------
 # (c) derived() geometry
 # --------------------------------------------------------------------------
-def geometry(num_harts, shared_ram_size):
+def geometry(num_harts, shared_ram_size, orchestrator=False):
     """The A2/A0 formulas, transcribed once more FOR THE CHECK (generate.py is
-    the authority; the JS mirrors it; this catches either side moving alone)."""
+    the authority; the JS mirrors it; this catches either side moving alone).
+
+    CPR3/R3: `orchestrator` is shAw's SECOND input -- the read-only TCM
+    apertures at 0x20000 + 0x4000*h need pages 1000..1100, so the shared window
+    is forced to 16 bits of word address (0x0-0x3FFFF) and extended flash moves
+    to the strict complement 0x40000."""
     sh_aw = 0
     while (1 << sh_aw) < (0x10000 + shared_ram_size):
         sh_aw += 1
     sh_aw -= 2
+    if orchestrator and sh_aw < 16:
+        sh_aw = 16
     flash = 1 << (sh_aw + 2)
     mtime_slot = ((4 * num_harts + 15) // 16) * 4
     mtime = 0x5000 + 4 * mtime_slot
@@ -207,9 +214,15 @@ def geometry(num_harts, shared_ram_size):
 
 
 # The ledger spot values the kickoff pins down (multicore_plan / CLAUDE.md).
+# (name, numHarts, sharedBulkRamSize, orchestrator, expected)
 SPOTS = [
-    ('Castalia', 4, 0x10000, {'shAw': 15, 'flash': 0x20000, 'mtime': 0x5010, 'mtimecmp': 0x5020}),
-    ('Argus', 18, 0x20000, {'shAw': 16, 'flash': 0x40000, 'mtime': 0x5050, 'mtimecmp': 0x5060}),
+    ('Castalia', 4, 0x10000, False, {'shAw': 15, 'flash': 0x20000, 'mtime': 0x5010, 'mtimecmp': 0x5020}),
+    ('Argus', 18, 0x20000, False, {'shAw': 16, 'flash': 0x40000, 'mtime': 0x5050, 'mtimecmp': 0x5060}),
+    # CPR3/R3: the penta shape. SAME bulk RAM as Castalia (64 KiB -> derived
+    # shAw 15), but the orchestrator term lifts it to 16 and flash to 0x40000 --
+    # which is exactly the term this row exists to pin. The CLINT layout shift
+    # is the N=5 hart-count effect and is independent of it.
+    ('Castalia-Penta', 5, 0x10000, True, {'shAw': 16, 'flash': 0x40000, 'mtime': 0x5020, 'mtimecmp': 0x5030}),
 ]
 
 # Formula fragments that must survive in the JS derived() -- a silent edit to
@@ -218,6 +231,11 @@ DERIVED_FRAGMENTS = [
     'cfg.sharedRamSize / 0x4000',
     'while ((1 << shAw) < (0x10000 + cfg.sharedRamSize)) shAw++',
     'shAw -= 2',
+    # CPR3/R3: the orchestrator term, and the aperture list it implies. A silent
+    # edit that drops either would leave the JS drawing a 0x20000 flash base on
+    # a penta configuration while the generator emits 0x40000.
+    'if (cfg.orchestrator && shAw < 16) shAw = 16;',
+    '0x20000 + 0x4000*h',
     '1 << (shAw + 2)',
     'Math.floor((4*cfg.numHarts + 15) / 16) * 4',
     'mtime + 0x10',
@@ -243,15 +261,16 @@ def check_derived(html, resolved):
     for frag in DERIVED_FRAGMENTS:
         if frag not in fn:
             problem('derived() formula fragment missing from configurator JS: "%s"' % frag)
-    for (name, harts, ram, expect) in SPOTS:
-        got = geometry(harts, ram)
+    for (name, harts, ram, orch, expect) in SPOTS:
+        got = geometry(harts, ram, orch)
         for k in expect:
             if got[k] != expect[k]:
                 problem('%s geometry %s: formula gives 0x%X, ledger says 0x%X'
                         % (name, k, got[k], expect[k]))
     # and the CURRENT build's resolved derived block
     d = resolved.get('derived', {})
-    got = geometry(int(resolved['numHarts']), int(resolved['memory']['sharedBulkRamSize']))
+    got = geometry(int(resolved['numHarts']), int(resolved['memory']['sharedBulkRamSize']),
+                   bool(resolved.get('orchestrator', False)))
     checks = [
         ('sharedWindowAddrWidth', got['shAw'], d.get('sharedWindowAddrWidth')),
         ('sharedRamBanks', got['banks'], d.get('sharedRamBanks')),

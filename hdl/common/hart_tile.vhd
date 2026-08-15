@@ -74,6 +74,51 @@
 --                for the whole arbiter transaction, inside the EXECUTE cycle.
 -- M4a: sh_we carries the 4 byte-lane strobes (active-high), so sub-word
 -- shared stores (sb/sh) work — write_word is lane-positioned by the core.
+--
+-- CPR2 EXTERNAL TCM SLAVE PORT (R4, ~/vesta_docs/castalia_penta/
+-- cpr_architecture.md): a READ-ONLY window into this tile's TCM for the
+-- management hart, so hart 0 can read every tile's memory at a distinct
+-- chip address. tcm_ext_req/addr in, tcm_ext_rdata/done out — its OWN M13
+-- transaction set at its own depth-1 mclk boundary. Full detail at the
+-- implementation below; the two contracts a READER of this file needs are:
+--   * READ-ONLY IS STRUCTURAL, not a convention. The external side of the
+--     ram0 mux forces WEN="1111"/GWEN='1' and drives D with zeros — there
+--     is no encoding of the port that writes a live core's memory. The
+--     user asked for reads; a write path is a coherence hazard we refuse.
+--   * GATED-TILE CONTRACT (frozen as-built). A power-gated tile's TCM is
+--     OFF and this port's outputs are ISO-CLAMPED TO 0 on the always-on
+--     MCU side (M17a explicit clamps, same rows as every other tile
+--     output). Reads from a sleeping tile return ZEROS — by design, not by
+--     accident; there is no always-on carve-out, and the management hart
+--     checks PWRSR before trusting a word.
+--     AND THE PART THAT IS AN OBLIGATION ON THE MCU SIDE, NOT ON THIS FILE
+--     (CPR3, read this before wiring the aperture slaves): the SAME clamp
+--     that zeroes tcm_ext_rdata also zeroes tcm_ext_done, so a gated tile
+--     NEVER COMPLETES A TRANSACTION. This is the first tile port whose
+--     transaction is initiated from OUTSIDE — every existing outbound
+--     signal (sh_req and friends) clamps to a benign "not asking", which
+--     is why the class has not come up before. An aperture slave that
+--     simply waits for tcm_ext_done therefore HANGS on a sleeping tile,
+--     with the management hart stalled on the shared bus behind it. The
+--     aperture slave must synthesise its own zero-completion from the
+--     pwr_ctrl row it already has (the same bit that drives the clamp),
+--     rather than waiting on a wire that is being held low on purpose.
+--   * THE SELF-APERTURE CASE IS THE HARD ONE, and it is handled HERE
+--     (CPR3b, amendment A3). A hart reading its OWN window issues an
+--     ordinary shared-bus load; the MCU aperture sequencer answers it by
+--     driving THIS tile's tcm_ext_* port while holding the arbiter in LATCH
+--     (mp_arbiter s_stall). The requesting core is therefore frozen on
+--     mem_ready_sh for the WHOLE arbiter transaction, which is STRICTLY
+--     LONGER than the port's own 7-mclk tx_busy window. Liveness is fine
+--     (nothing in the sequencer waits on the core -- see the no-deadlock
+--     note at the FSM), but the DATA is not fine unless the Q shadow is
+--     held for the whole freeze: CPR2's `tx_busy + 1` timer expired mid-
+--     freeze and the still-frozen core consumed the aperture word off live
+--     Q as its next INSTRUCTION (measured: PC 0x83E0 -> 0x842E). The hold
+--     is now released by evidence that the core has actually taken a
+--     clk_cpu edge, not by a count -- full argument at THE Q SHADOW below.
+--     Nothing outside this file has to know: the port protocol, the
+--     latency and the pin list are all unchanged by the fix.
 -- =============================================================================
 
 library IEEE;
@@ -89,11 +134,16 @@ entity hart_tile is
     generic (
         -- M12: every hart resets to 0x0 = the shared boot ROM.
         PC_RST_VAL     : std_logic_vector(31 downto 0) := x"00000000";
-        SH_AW          : natural := 15;  -- shared-window word-address width (must match mp_arbiter;
-                                         -- M11 default 15 covers 0x00000-0x1FFFF. A2: also DRIVES the
-                                         -- sh_sel window decode and adddec's complementary flash
-                                         -- decode below — 16 = the Argus shape, window 0x0-0x3FFFF,
-                                         -- flash from 0x40000)
+        SH_AW          : natural := 16;  -- shared-window word-address width (must match mp_arbiter;
+                                         -- CPR8/R6: the DEFAULT moved 15 -> 16 with the promotion of
+                                         -- the orchestrator chip (memory map v2: window 0x0-0x3FFFF,
+                                         -- five TCM apertures, flash from 0x40000 — also the Argus
+                                         -- shape). 15 = the pre-CPR8 map (window 0x00000-0x1FFFF,
+                                         -- flash from 0x20000), still reachable via
+                                         -- config/castalia4.json, which BINDS the generic explicitly
+                                         -- like every other MCU.vhd does. A2: this generic also
+                                         -- DRIVES the sh_sel window decode and adddec's
+                                         -- complementary flash decode below)
 
         -- Core ISA feature switches, passed straight down to vesta (see
         -- vesta.vhd). Config-driven from generate.py via the MemoryMap package
@@ -230,6 +280,46 @@ entity hart_tile is
         -- macro plus uncommanded retention-mode entry). A port also gives a
         -- future retention stage (M18) its sequencing hook for free.
         tcm_retn  : in  std_logic := '1';
+
+        -- =====================================================================
+        -- CPR2 (R4): READ-ONLY EXTERNAL TCM SLAVE PORT.
+        -- mclk domain, boundary-registered at the SAME depth 1 as the req/gnt
+        -- set — but it is its OWN transaction set, exactly like the D1 debug
+        -- trio: the M13 one-depth rule is about SKEW BETWEEN SIGNALS IN ONE
+        -- TRANSACTION, and nothing here shares a transaction with sh_*.
+        --
+        -- PROTOCOL (the sh_done shape, deliberately): tcm_ext_req is held
+        -- until tcm_ext_done; tcm_ext_done is a ONE-mclk PULSE and
+        -- tcm_ext_rdata is VALID WITH IT (value-with-pulse, like sh_rdata /
+        -- sh_scfail) and then HOLDS until the next completion. tcm_ext_addr
+        -- is a TCM WORD index (12 bits = the ram0 A bus = data_addr(13:2)),
+        -- so word i is the core's byte address 0x8000 + 4*i.
+        --   AND THE HALF OF THAT CONTRACT THAT IS EASY TO DROP: after done,
+        --   tcm_ext_req MUST RETURN LOW FOR AT LEAST ONE mclk before the next
+        --   request. The sequencer's one-shot (tx_served) rearms on req being
+        --   low -- exactly the relationship sh_acked has with sh_sel -- so a
+        --   requester that holds req high across two transactions gets ONE
+        --   done and then waits forever. CPR3's aperture slave must deassert
+        --   between accesses; tcm_port_tb's T5d is the standing check that one
+        --   idle cycle is enough.
+        --
+        -- ALL THREE INPUTS CARRY DEFAULTS AND THE DEFAULTS ARE THE FAIL-SAFE
+        -- DIRECTION (hard rule 4, cpr_architecture.md 3): every EXISTING
+        -- hart_tile instantiation — MCU.vhd's four tiles, the frozen
+        -- hdl/argus/ snapshot's eighteen, dbg_iface_tb's two — names none of
+        -- these ports and must keep compiling and behaving BIT-IDENTICALLY
+        -- until CPR3 wires them. tcm_ext_req = '0' is "nobody is asking",
+        -- which leaves the stall term below constant '0' and the ram0 mux
+        -- constant on the core side.
+        --
+        -- NOT knob-gated: this is the memory architecture, not a feature
+        -- (R4). Its boundary flops move the genus `sequential` pin ONCE, at
+        -- the CPR5 re-harden, and the pin is re-measured there.
+        -- =====================================================================
+        tcm_ext_req   : in  std_logic := '0';
+        tcm_ext_addr  : in  std_logic_vector(11 downto 0) := (others => '0');
+        tcm_ext_rdata : out std_logic_vector(31 downto 0);
+        tcm_ext_done  : out std_logic;
 
         -- M17: MTCMOS domain controls — no tile RTL logic consumes them.
         -- pd_sleep is the CPF hook (cpf/hart_tile.cpf): it drives the HEAD
@@ -484,6 +574,71 @@ architecture behav of hart_tile is
     signal dbg_halted_int : std_logic;
     signal bnd_halted_r   : std_logic := '0';
 
+    -- =========================================================================
+    -- CPR2 (R4): external TCM slave port — state. Everything here is in the
+    -- FREE-RUNNING mclk domain, which is the whole point: the requester must
+    -- make progress while this tile's clk_cpu is gated off underneath it.
+    -- No synchronisers anywhere in this block and none are wanted — clk_cpu
+    -- is a GATED SUBSET of clk (M9c), so these are the same clock; and NEVER
+    -- a set_clock_groups on the pair (the M9c bug: it deletes real paths).
+    -- =========================================================================
+    -- depth-1 inbound boundary stage
+    signal tx_req_r      : std_logic := '0';
+    signal tx_addr_r     : std_logic_vector(11 downto 0) := (others => '0');
+    -- depth-1 outbound boundary stage. tx_rdata_r is SIMULTANEOUSLY the Q
+    -- landing register and the boundary register — ONE flop, not two, and
+    -- that identity is load-bearing: it is what keeps rdata aligned with the
+    -- done pulse (both are written by the same edge of the same process).
+    signal tx_rdata_r    : std_logic_vector(31 downto 0) := (others => '0');
+    signal tx_done_r     : std_logic := '0';
+
+    -- the four-state sequencer. std_logic_vector rather than an enum so the
+    -- state is dumpable into an SHM waveform DB from tcl (the enum/integer
+    -- SST2ER trap, CLAUDE.md).
+    constant TX_IDLE   : std_logic_vector(1 downto 0) := "00";
+    constant TX_SETTLE : std_logic_vector(1 downto 0) := "01";
+    constant TX_READ   : std_logic_vector(1 downto 0) := "11";
+    constant TX_LATCH  : std_logic_vector(1 downto 0) := "10";
+    signal tx_state      : std_logic_vector(1 downto 0) := TX_IDLE;
+
+    -- tx_sel is THE MUX SELECT and it is a REGISTER, never the raw request.
+    -- NPU.vhd:300-307 (NpuMuxSel) is the house precedent and its rationale is
+    -- ours verbatim: an asynchronous requester can raise its bit at an mclk
+    -- edge where the CPU that owns this SRAM port has an access in flight,
+    -- and switching the port on the raw bit eats that access.
+    signal tx_sel        : std_logic := '0';
+    signal tx_served     : std_logic := '0';   -- one-shot (req is held until done)
+    -- raw-OR-delayed, the NpuActive shape: high one full cycle BEFORE the mux
+    -- switches to the external side and one full cycle AFTER it switches back.
+    signal tx_busy       : std_logic;
+    signal tx_ext_clk    : std_logic;          -- gated mclk, one pulse per read
+    signal tx_clk_en     : std_logic;
+    signal tx_cen        : std_logic;
+
+    -- ram0 pins after the 6-pin mux
+    signal ram_clk       : std_logic;
+    signal ram_cen       : std_logic;
+    signal ram_wen       : std_logic_vector(3 downto 0);
+    signal ram_gwen      : std_logic;
+    signal ram_a         : std_logic_vector(11 downto 0);
+    signal ram_d         : std_logic_vector(31 downto 0);
+    signal tcm_q         : std_logic_vector(31 downto 0);
+
+    -- THE Q SHADOW (see the long comment at the mux). The vendor SRAM's Q is
+    -- a continuous function of its LATCHED address (ARM_IP_RAM.vhd:69), so an
+    -- external read DESTROYS whatever the frozen core was still holding on
+    -- mem_dout(1). These two signals give the core its own value back across
+    -- the window.
+    signal tcm_q_shadow  : std_logic_vector(31 downto 0) := (others => '0');
+    -- CPR3b/A3: the hold is now a TWO-FLOP HANDSHAKE across the two clocks
+    -- (one mclk flop that ARMS, one clk_cpu flop that DISARMS) instead of the
+    -- CPR2 fixed `tx_busy delayed one mclk` timer. tcm_q_hold is their
+    -- inequality. See the long comment at the shadow for why a timer cannot
+    -- cover the self-aperture case.
+    signal tcm_q_arm     : std_logic := '0';   -- mclk domain: an external read happened
+    signal tcm_q_ack     : std_logic := '0';   -- clk_cpu domain: the core has resumed
+    signal tcm_q_hold    : std_logic;
+
 begin
 
     -- M13 boundary registers. Both stages clock on the free-running mclk and
@@ -587,6 +742,38 @@ begin
         bnd_rsthalt_r <= '0';
         bnd_halted_r  <= '0';
     end generate;
+
+    -- =========================================================================
+    -- CPR2 (R4): external-TCM-port boundary stage. SAME clock, SAME reset,
+    -- SAME depth 1 as bnd_in/bnd_out and gen_dbg_bnd -- and, like the debug
+    -- trio, IT IS ITS OWN TRANSACTION SET (the D1 precedent at
+    -- gen_dbg_bnd above). The one-depth rule exists because skew BETWEEN
+    -- SIGNALS OF ONE TRANSACTION corrupts a sampled handshake; req/addr are
+    -- one transaction with each other and with nothing else here, and
+    -- rdata/done are one value-with-pulse pair with each other.
+    --
+    -- INBOUND stage (this process). OUTBOUND stage = tx_rdata_r/tx_done_r,
+    -- written by tx_port_fsm below -- they are boundary registers AND the
+    -- landing registers, deliberately the same flops (see their declaration).
+    --
+    -- Reset drives tx_req_r to '0', which is why "a request during reset is
+    -- IGNORED" is structural rather than a checked condition: the sequencer
+    -- can never see a request while resetn is low, and the SRAM is never
+    -- clocked from this side while resetn is low.
+    --
+    -- NOT in a generate: unlike D1 this port is not knob-gated (R4), so there
+    -- is no OFF arm for it to be structurally absent from.
+    -- =========================================================================
+    bnd_tcm_ext: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            tx_req_r  <= '0';
+            tx_addr_r <= (others => '0');
+        elsif rising_edge(clk) then
+            tx_req_r  <= tcm_ext_req;
+            tx_addr_r <= tcm_ext_addr;
+        end if;
+    end process;
 
     -- M19: three live slots — meip (router claim/complete stage) + this
     -- hart's own CLINT pair. Everything else is constant '0'; the enables
@@ -822,8 +1009,20 @@ begin
     sh_req_int  <= sh_sel and not sh_ack_ok and resetn;
     sh_lrsc_int <= lr_sc_bus when sh_sel = '1' else "00";
 
-    -- back-pressure into the core (identity while sh_sel='0')
-    mem_ready_sh <= (not sh_sel) or sh_ack_ok;
+    -- Back-pressure into the core. TWO independent stall sources are ANDed
+    -- here, and mem_ready is the ONLY hook either of them is allowed to use.
+    --   * the shared-window transaction (M3c.4, identity while sh_sel='0');
+    --   * CPR2's external TCM read (tx_busy, identity while nobody asks).
+    -- WHY mem_ready AND NOT `sleep` FOR THE SECOND ONE (R4, hard rule 3):
+    -- vesta.vhd:1434's en_clk_cpu makes mem_ready the TOP priority term and
+    -- puts `sleep` BELOW irq_active / std_irq_take / std_wfi_wake /
+    -- dbg_halt_pend -- i.e. an interrupt, a WFI wake or a debug halt request
+    -- OUTRANKS sleep and would un-freeze the core in the middle of an
+    -- external SRAM access, at an arbitrary instant, with the ram0 mux
+    -- pointed the other way. mem_ready has no such override. `sleep` is also
+    -- unregistered by contract (the flash/XIP race, see the header), which is
+    -- the second reason it can never carry this.
+    mem_ready_sh <= ((not sh_sel) or sh_ack_ok) and (not tx_busy);
 
     -- Read-data mux, DATA-PHASE ONLY, select registered on the tile's own gated
     -- clk_cpu — BY DESIGN (bug 4: a raw-sh_sel mux on read_data oscillates,
@@ -861,20 +1060,319 @@ begin
     mem_dout(0) <= (others => '0');
     mem_dout(2) <= (others => '0');
 
+    -- =========================================================================
+    -- CPR2 (R4): THE EXTERNAL TCM READ SEQUENCER.
+    --
+    -- Four states, one SRAM read, everything on the free-running mclk.
+    -- Cycle-by-cycle, with E = the mclk edge at which the tile's inbound
+    -- boundary register first sees the request (so the requester raised
+    -- tcm_ext_req at E-1):
+    --
+    --   edge  tx_req_r tx_state  tx_sel tx_cen  ram0            core clk_cpu
+    --   ----  -------- --------  ------ ------  --------------  ------------
+    --   E     1        IDLE      0      1       core side       LAST EDGE
+    --   E+1   1        SETTLE    1      1       mux switches    gated off
+    --   E+2   1        READ      1      0       -               gated off
+    --   E+3   1        LATCH     1      1       READ HAPPENS    gated off
+    --   E+4   1        IDLE      0      1       mux switches    gated off
+    --                            ^ tx_rdata_r <= Q, tx_done_r <= '1'
+    --   E+5   1        IDLE      0      1                       gated off
+    --                            ^ requester SAMPLES done here, drops req
+    --   E+6   0        IDLE      0      1                       gated off
+    --   E+7   0        IDLE      0      1                       RESUMES
+    --
+    -- LATENCY, exactly: FIVE mclk from the request being registered at the
+    -- tile boundary (E) to the requester sampling done (E+5); SIX from the
+    -- requester's own drive edge (E-1). The core loses SEVEN clk_cpu edges
+    -- per transaction (E+1..E+7), of which two are the deliberate lead/lag
+    -- margin and two more are the requester's own hold-until-done tail.
+    --
+    -- THE LEAD AND THE LAG, which is the whole reason tx_busy is raw-OR-
+    -- delayed (NPU.vhd:364-366, NpuActive) rather than just tx_sel:
+    --   * LEAD.  tx_busy rises at E, one full cycle before tx_sel rises at
+    --     E+1. The ClkGate latches its enable during the LOW phase
+    --     (ClkGate.vhd:25-30), so busy-at-E kills the clk_cpu edge at E+1 and
+    --     the core's last edge is E — strictly before the mux moves.
+    --   * LAG.  tx_sel falls at E+4 but tx_busy stays high until tx_req_r
+    --     falls, so the core's first edge back is E+7 at the earliest, three
+    --     cycles after the mux returned. Even a PROTOCOL-VIOLATING one-cycle
+    --     request (req not held to done) still gets a full cycle of lag:
+    --     tx_busy = tx_req_r or tx_sel is continuous across the handover.
+    --
+    -- NO DEADLOCK, INCLUDING THE SELF-ACCESS CASE (R3's "a tile reading its
+    -- own aperture address"). Suppose the core is stalled on a shared-window
+    -- transaction (mem_ready_sh low via sh_sel) at the moment a request
+    -- arrives — which is exactly what happens when this tile reads its own
+    -- window through the arbiter. Nothing in this sequencer waits on the
+    -- core: tx_state, tx_sel and the SRAM clock are all on the free-running
+    -- clk, the core's TCM clock gate is CLOSED (clk_mem(1) follows the gated
+    -- clk_cpu), and the mux owns the SRAM meanwhile. The sequencer reaches
+    -- LATCH in four edges and drops tx_sel unconditionally. Symmetrically,
+    -- the shared handshake (sh_handshake, sh_req_int, mem_ready_sh) is also
+    -- entirely on clk and completes underneath the freeze, so sh_ack_ok is
+    -- already high when tx_busy releases. Neither side can be waiting on the
+    -- other because NEITHER SIDE EVER WAITS ON THE CORE. What a back-to-back
+    -- stream of requests costs is THROUGHPUT, not liveness: the core still
+    -- gets one clk_cpu edge per request (tx_busy must go low for a full cycle
+    -- before tx_req_r can be re-registered high), so forward progress is
+    -- bounded, never zero. tcm_port_tb's T3 measures exactly that.
+    -- LIVENESS IS NOT DATA INTEGRITY, and this paragraph only ever claimed
+    -- the first: in the self-access case the core stays frozen for the whole
+    -- arbiter transaction, i.e. PAST the end of tx_busy, and what it is shown
+    -- on mem_dout(1) during that tail is amendment A3's subject. See THE Q
+    -- SHADOW below; nothing in THIS block changed.
+    --
+    -- tx_served is the one-shot. tcm_ext_req is held until done, so the
+    -- sequencer must not re-trigger on the tail of the request it already
+    -- answered; tx_served is set at LATCH and cleared whenever tx_req_r is
+    -- low. Same shape as sh_acked (sh_handshake above).
+    -- =========================================================================
+    tx_port_fsm: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            tx_state   <= TX_IDLE;
+            tx_sel     <= '0';
+            tx_served  <= '0';
+            tx_rdata_r <= (others => '0');
+            tx_done_r  <= '0';
+        elsif rising_edge(clk) then
+            tx_done_r <= '0';                 -- default: done is a 1-cycle pulse
+            case tx_state is
+                when TX_SETTLE =>
+                    -- the mux moved on the edge that entered this state; the
+                    -- SRAM is deliberately NOT clocked during it (see the
+                    -- clock-mux note at tx_ext_clk below).
+                    tx_state <= TX_READ;
+                when TX_READ =>
+                    -- tx_cen is low across THIS cycle, so the single tx_ext_clk
+                    -- pulse at the edge leaving it performs the read.
+                    tx_state <= TX_LATCH;
+                when TX_LATCH =>
+                    -- Q is valid now (the read happened at the edge that
+                    -- entered this state). ONE edge writes both outputs, which
+                    -- is what makes rdata valid-with-pulse by construction.
+                    tx_rdata_r <= tcm_q;
+                    tx_done_r  <= '1';
+                    tx_sel     <= '0';
+                    tx_served  <= '1';
+                    tx_state   <= TX_IDLE;
+                when others =>                -- TX_IDLE
+                    tx_sel <= '0';
+                    if tx_req_r = '1' and tx_served = '0' then
+                        tx_state <= TX_SETTLE;
+                        tx_sel   <= '1';
+                    end if;
+            end case;
+            -- one-shot rearm. Written after the case on purpose: at LATCH the
+            -- request is still high, so the case arm's '1' must win, and a
+            -- request that has ALREADY dropped by then simply rearms a cycle
+            -- earlier — either order is safe, this one is the readable one.
+            if tx_req_r = '0' then
+                tx_served <= '0';
+            end if;
+        end if;
+    end process;
+
+    -- raw-OR-delayed stall term (NpuActive shape). See the lead/lag note above.
+    tx_busy <= tx_req_r or tx_sel;
+
+    -- The external side's SRAM clock is a GATED mclk, not raw mclk, and that
+    -- is not a power optimisation — it is what makes the clock MUX below
+    -- glitch-free. tx_ext_clk is LOW except for exactly one pulse, at the edge
+    -- leaving TX_READ. Both mux switch instants (entering TX_SETTLE, leaving
+    -- TX_LATCH) therefore have BOTH mux inputs low: tx_ext_clk is low by
+    -- construction, and clk_mem(1) is low because the core's clk_cpu has been
+    -- gated off since the lead cycle. A mux whose two inputs are both low
+    -- cannot glitch its output when the select moves. (Switching a raw mclk
+    -- in on a rising edge would manufacture a spurious SRAM clock edge at the
+    -- switch instant; CEN inactive would make it harmless, but "harmless"
+    -- is not what you want on a memory clock.)
+    tx_clk_en <= '1' when tx_state = TX_READ else '0';
+    tx_cen    <= '0' when tx_state = TX_READ else '1';
+
+    cg_tcm_ext: entity work.ClkGate
+        port map (
+            ClkIn  => clk,
+            En     => tx_clk_en,
+            ClkOut => tx_ext_clk
+        );
+
+    -- -------------------------------------------------------------------------
+    -- THE 6-PIN ram0 MUX {CLK, CEN, WEN, GWEN, A, D} (R4; the pre-M11 NpuMuxSel
+    -- shape, NPU.vhd:293-298). Select is tx_sel — REGISTERED, never the raw
+    -- request.
+    --
+    -- READ-ONLY IS ENFORCED HERE AND ONLY HERE, structurally: on the external
+    -- side WEN is the all-inactive "1111" CONSTANT and GWEN the '1' CONSTANT,
+    -- so no state of this port, no value of tcm_ext_addr and no fault on
+    -- tcm_ext_req can produce a write. D is a don't-care in that state and is
+    -- driven to zeros rather than left on write_data, so a waveform showing
+    -- the external window shows unambiguously that nothing was offered to the
+    -- array. (Synthesis will constant-fold the WEN/GWEN arms into a plain
+    -- 2-input mux per bit; the D arm folds to an AND. That is intended -- the
+    -- constants are the specification, not the implementation.)
+    -- -------------------------------------------------------------------------
+    ram_clk  <= tx_ext_clk when tx_sel = '1' else clk_mem(1);
+    ram_cen  <= tx_cen     when tx_sel = '1' else mem_en(1);
+    ram_wen  <= "1111"     when tx_sel = '1' else wen_fe;      -- READ-ONLY
+    ram_gwen <= '1'        when tx_sel = '1' else GWEN;        -- READ-ONLY
+    ram_a    <= tx_addr_r  when tx_sel = '1' else mem_addr;
+    ram_d    <= (others => '0') when tx_sel = '1' else write_data;
+
+    -- -------------------------------------------------------------------------
+    -- THE Q SHADOW, and why the mux above is NOT sufficient on its own.
+    --
+    -- This is the one piece R4 does not name, and it is not optional. The
+    -- vendor SRAM's read data is NOT a per-access strobe -- ARM_IP_RAM.vhd:69
+    -- is `Q <= mem(conv_integer(AdrLat))`, a CONTINUOUS function of the
+    -- address latched by the last access. The core relies on that: it issues
+    -- a TCM read at clk_cpu edge k (clk_mem(1) rises, AdrLat <= mem_addr) and
+    -- CONSUMES Q combinationally through adddec's out_buff at edge k+1.
+    --
+    -- Freezing the core is therefore NOT enough to protect it. If the freeze
+    -- lands on edge k -- and it can, because an external request is
+    -- asynchronous to whatever the core is doing, unlike every pre-existing
+    -- stall in this tile (sh_sel fires only on a SHARED address, `sleep` only
+    -- on a FLASH one; neither can ever freeze the core mid-TCM-read) -- then
+    -- the external read at E+3 relatches AdrLat, Q changes underneath the
+    -- frozen core, and at its resume edge the core consumes THE EXTERNAL
+    -- WORD as its own load result or instruction. Silent data corruption in
+    -- the victim tile, caused by a read from another hart.
+    --
+    -- The fix is one register and one mux on mem_dout(1):
+    --   * tcm_q_shadow tracks Q every mclk while the port is idle, so it
+    --     always holds "what the core last read";
+    --   * tcm_q_hold selects it for exactly as long as the core is frozen with
+    --     that word still owed to it (see THE HOLD WINDOW below);
+    --   * at the resume edge the core samples the PRE-edge value of
+    --     read_data, i.e. the shadow, while the same edge re-issues its own
+    --     access and refreshes the real Q. So the hold may drop exactly
+    --     there, and does.
+    -- The core's address is held across the freeze (data_addr only changes on
+    -- clk_cpu edges, and adddec's falling-edge staging re-presents it), which
+    -- is what makes that refresh automatic rather than something we have to
+    -- replay.
+    --
+    -- INVARIANT, and it is the whole specification of this block: WHILE THE
+    -- CORE IS FROZEN, mem_dout(1) MUST NOT CHANGE. That is what an
+    -- undisturbed SRAM does on its own (Q is a function of AdrLat, and AdrLat
+    -- can only move on a core-side clk_mem(1) edge, which is a gated clk_cpu
+    -- edge). The shadow's only job is to reproduce that constant while the
+    -- external port moves AdrLat underneath it.
+    --
+    -- THE HOLD WINDOW (CPR3b, amendment A3 -- and the CPR2 timer form was the
+    -- bug). CPR2 keyed the hold on `tx_busy delayed one mclk`, i.e. the
+    -- interval (E+1, E+7], which is exactly right for the ONE freeze shape
+    -- CPR2 could produce: a core frozen BY THIS PORT, which by construction
+    -- resumes at E+7. It is wrong for every LONGER freeze, and CPR3 built the
+    -- one that matters:
+    --
+    --   THE SELF-APERTURE CASE. A hart reads its OWN TCM window
+    --   (0x20000 + 0x4000*h) as an ordinary shared-bus load. The MCU's
+    --   aperture sequencer answers it by driving THIS tile's tcm_ext_* port
+    --   and holding the arbiter in LATCH (mp_arbiter s_stall) until the tile
+    --   answers. So the core is frozen on sh_sel/mem_ready_sh for the WHOLE
+    --   arbiter transaction -- strictly longer than tx_busy, which is only
+    --   the inner 7 mclk of it. With the timer, the shadow deselected at E+7
+    --   and the still-frozen core spent the remaining cycles staring at LIVE
+    --   Q, which is now a continuous function of the EXTERNAL address. What it
+    --   consumed at its real resume edge was the aperture word: measured at
+    --   CPR3 as hart 0's PC going 0x83E0 -> 0x842E, i.e. the foreign payload
+    --   decoded as an instruction (a TCM-executing core's INSTRUCTION bus is
+    --   this same mem_dout(1), combinationally live through adddec's out_buff
+    --   while the core is frozen -- freezing a core does not disconnect it).
+    --   The load flavour of the same window is what tcm_port_tb's T6 drives.
+    --
+    -- So the release is no longer a count; it is EVIDENCE THAT THE CORE HAS
+    -- ACTUALLY TAKEN AN EDGE. Two flops, one per clock, and the hold is their
+    -- inequality:
+    --   * tcm_q_arm (mclk) toggles when tx_busy is seen and the hold is not
+    --     already up -- i.e. it ARMS on an external access and re-arming while
+    --     armed is a deliberate no-op (a second access inside one freeze must
+    --     not cancel the first);
+    --   * tcm_q_ack (clk_cpu) copies tcm_q_arm on every core edge, so it
+    --     DISARMS at the first clk_cpu edge after the freeze -- whatever ended
+    --     the freeze, and however long it was.
+    -- The two can never move on the same edge, which is what makes the
+    -- handshake safe without a synchroniser: arming requires tx_busy = '1' in
+    -- the cycle before the edge, and that is exactly the condition under which
+    -- the ClkGate has already killed that clk_cpu edge (the LEAD margin
+    -- above). clk_cpu is a gated subset of clk, so a clk_cpu flop read at an
+    -- mclk edge is the sh_dphase -> boot_fetched path this file already has.
+    -- At the disarm edge the core samples the PRE-edge mux value (the shadow)
+    -- and the same edge re-issues its own access; the mux is back on live Q
+    -- for the cycle in which that access's Q is valid.
+    --
+    -- IT CANNOT WEDGE. tcm_q_hold feeds ONE mux, on the core's read data. It
+    -- is not in any handshake, any ready, any request: not mem_ready_sh, not
+    -- sh_req_int, not the tx FSM, not tcm_ext_done. A core that never takes
+    -- another edge (parked, gated, held in reset) simply keeps being shown the
+    -- last word it read -- which is what it would have seen anyway -- while
+    -- the external port keeps completing transactions at full rate out of
+    -- tx_rdata_r, which does not pass through here. And the arm is level-
+    -- triggered on tx_busy, so no request can be "missed" into a stuck state.
+    --
+    -- tcm_port_tb's T4 is the negative control for the SHADOW: delete it, keep
+    -- everything else, and T2 reports the victim core reading the external
+    -- pattern. T6 is the negative control for THIS WINDOW: restore the CPR2
+    -- timer (tcm_q_hold <= tx_busy) and T6 fails while T1/T2/T3/T5 stay green.
+    -- -------------------------------------------------------------------------
+    tcm_q_shadow_reg: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            tcm_q_arm    <= '0';
+            tcm_q_shadow <= (others => '0');
+        elsif rising_edge(clk) then
+            -- ARM. `tcm_q_arm = tcm_q_ack` is "not currently held"; re-arming
+            -- while held would cancel the hold, which is the one thing this
+            -- handshake must never do.
+            if tx_busy = '1' and tcm_q_arm = tcm_q_ack then
+                tcm_q_arm <= not tcm_q_arm;
+            end if;
+            -- The shadow tracks Q whenever it is not the thing being shown.
+            -- Reading the PRE-edge hold is what puts its LAST capture one edge
+            -- INSIDE the freeze (E+1), where Q is still the core's own word --
+            -- the external read is at E+3.
+            if tcm_q_hold = '0' then
+                tcm_q_shadow <= tcm_q;
+            end if;
+        end if;
+    end process;
+
+    -- DISARM: the core took an edge, so it has consumed the shadow and
+    -- refreshed the real Q with its own access on that same edge.
+    tcm_q_ack_reg: process(clk_cpu, resetn)
+    begin
+        if resetn = '0' then
+            tcm_q_ack <= '0';
+        elsif rising_edge(clk_cpu) then
+            tcm_q_ack <= tcm_q_arm;
+        end if;
+    end process;
+
+    tcm_q_hold <= tcm_q_arm xor tcm_q_ack;
+
+    mem_dout(1) <= tcm_q_shadow when tcm_q_hold = '1' else tcm_q;
+
+    tcm_ext_rdata <= tx_rdata_r;
+    tcm_ext_done  <= tx_done_r;
+
     -- Private TCM (RAM0, 0x8000-0xBFFF): IVT + code + data + stack. M12: NOT
     -- preloaded — like silicon, the TCM powers up unknown, and software owns
     -- write-before-read (the bootrom's tile loader fills it before use).
     -- M13: PGEN is a port — hart 0 keeps BLOCKPWR software gating, tiles '0'.
+    -- CPR2: every pin except EMA/RETN/PGEN now arrives through the external
+    -- read port's mux above, and Q leaves through the shadow above.
     ram0: entity work.sram1p16k_hvt_pg
         port map (
-            Q     => mem_dout(1),
-            CLK   => clk_mem(1),
-            CEN   => mem_en(1),
-            WEN   => wen_fe,
-            A     => mem_addr,
-            D     => write_data,
+            Q     => tcm_q,
+            CLK   => ram_clk,
+            CEN   => ram_cen,
+            WEN   => ram_wen,
+            A     => ram_a,
+            D     => ram_d,
             EMA   => "000",
-            GWEN  => GWEN,
+            GWEN  => ram_gwen,
             RETN  => tcm_retn,
             PGEN  => tcm_pgen
         );

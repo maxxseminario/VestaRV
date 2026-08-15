@@ -6319,7 +6319,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 			"PeripheralMemorySlot": null,
 			"isGPIO": false,
 			"InterruptPriority": null,
-			"Description": "Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-3) sits in its own header-switched power domain; setting that hart's gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released --- at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. Hart 0 (the management hart: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes. Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed --- that is what cold-gating means.",
+			"Description": "Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-4) sits in its own header-switched power domain; setting that hart's gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released --- at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. Hart 0 (the always-on soft orchestrator: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes. The orchestrator sits outside the MTCMOS fabric entirely (there are no header switches for the centre band), so a gate request for it would be a hardware lie --- but it IS hart 0, so that is the same reserved bit 0 every configuration has always had, and a blanket PWRCR write gates every channel tile and leaves the orchestrator running. Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed --- that is what cold-gating means.",
 			"Registers": [
 				{
 					"RegisterName": "PWRCR",
@@ -6333,7 +6333,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 4,
+							"LSB": 5,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
@@ -6342,7 +6342,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						},
 						{
 							"BitFieldName": "PWRGATE",
-							"MSB": 3,
+							"MSB": 4,
 							"LSB": 1,
 							"Accessibility": "rw",
 							"ResetValue": 0,
@@ -6380,11 +6380,21 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 						{
 							"BitFieldName": "Unused",
 							"MSB": 31,
-							"LSB": 16,
+							"LSB": 20,
 							"Accessibility": "r0",
 							"ResetValue": 0,
 							"Unused": true,
 							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PWRST4",
+							"MSB": 19,
+							"LSB": 16,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Tile hart 4 sequencer state.",
 							"ValueDescriptions": []
 						},
 						{
@@ -9222,7 +9232,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 			"PeripheralMemorySlot": null,
 			"isGPIO": false,
 			"InterruptPriority": 83,
-			"Description": "Core-local interruptor for the four harts. Provides per-hart software interrupts (msip, the inter-processor interrupt mechanism) and a shared free-running 64-bit mtime counter with one 64-bit mtimecmp compare register per hart (timer interrupts). Lives in the shared window behind the multi-core arbiter, so any hart can raise or clear any hart's interrupts. The msip and mtip outputs are level interrupts into each hart's interrupt vector (vectors 83 and 84); the interrupt service routine must clear the level (write 0 to its MSIP register, or advance its MTIMECMP past mtime) before returning, or the interrupt re-triggers. The block decodes only its low address bits, so its registers alias every 64 bytes throughout 0x5000-0x5FFF.",
+			"Description": "Core-local interruptor for the five harts. Provides per-hart software interrupts (msip, the inter-processor interrupt mechanism) and a shared free-running 64-bit mtime counter with one 64-bit mtimecmp compare register per hart (timer interrupts). Lives in the shared window behind the multi-core arbiter, so any hart can raise or clear any hart's interrupts. The msip and mtip outputs are level interrupts into each hart's interrupt vector (vectors 83 and 84); the interrupt service routine must clear the level (write 0 to its MSIP register, or advance its MTIMECMP past mtime) before returning, or the interrupt re-triggers. The block decodes only its low address bits, so its registers alias every 128 bytes throughout 0x5000-0x5FFF.",
 			"Registers": [
 				{
 					"RegisterName": "MSIP0",
@@ -9393,13 +9403,55 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					]
 				},
 				{
-					"RegisterName": "MTIMEL",
+					"RegisterName": "MSIP4",
 					"Address": 20496,
 					"Offset": 16,
 					"RegisterMemorySlot": 4,
 					"Size": 32,
 					"ResetValue": 0,
-					"Description": "Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all four harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.",
+					"Description": "Hart 4 software interrupt (IPI) register. Any hart may write it through the shared window: writing 1 raises the software interrupt level into hart 4 (interrupt vector 83); writing 0 clears it. The interrupt is level-sensitive, so hart 4's service routine must write 0 here before returning.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 1,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "CLINTMSIPH4",
+							"MSB": 0,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Software interrupt (IPI) level for hart 4.",
+							"ValueDescriptions": [
+								[
+									0,
+									"No software interrupt pending",
+									""
+								],
+								[
+									1,
+									"Software interrupt raised",
+									""
+								]
+							]
+						}
+					]
+				},
+				{
+					"RegisterName": "MTIMEL",
+					"Address": 20512,
+					"Offset": 32,
+					"RegisterMemorySlot": 8,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Machine time counter, lower 32 bits. mtime is a free-running 64-bit counter shared by all five harts that increments once per MCLK cycle. It is writable for initialization; a write merges only the addressed 32-bit half.",
 					"BitFields": [
 						{
 							"BitFieldName": "CLINTMTIMEL",
@@ -9415,9 +9467,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMEH",
-					"Address": 20500,
-					"Offset": 20,
-					"RegisterMemorySlot": 5,
+					"Address": 20516,
+					"Offset": 36,
+					"RegisterMemorySlot": 9,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Machine time counter, upper 32 bits. Read MTIMEH, then MTIMEL, then MTIMEH again (retry if the two MTIMEH reads differ) to obtain a coherent 64-bit time value.",
@@ -9436,9 +9488,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP0L",
-					"Address": 20512,
-					"Offset": 32,
-					"RegisterMemorySlot": 8,
+					"Address": 20528,
+					"Offset": 48,
+					"RegisterMemorySlot": 12,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 0 timer compare register, lower 32 bits. The timer interrupt level for hart 0 (interrupt vector 84) is raised while mtime >= mtimecmp0. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP0H, then the new lower half, then the real upper half.",
@@ -9457,9 +9509,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP0H",
-					"Address": 20516,
-					"Offset": 36,
-					"RegisterMemorySlot": 9,
+					"Address": 20532,
+					"Offset": 52,
+					"RegisterMemorySlot": 13,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 0 timer compare register, upper 32 bits.",
@@ -9478,9 +9530,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP1L",
-					"Address": 20520,
-					"Offset": 40,
-					"RegisterMemorySlot": 10,
+					"Address": 20536,
+					"Offset": 56,
+					"RegisterMemorySlot": 14,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 1 timer compare register, lower 32 bits. The timer interrupt level for hart 1 (interrupt vector 84) is raised while mtime >= mtimecmp1. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP1H, then the new lower half, then the real upper half.",
@@ -9499,9 +9551,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP1H",
-					"Address": 20524,
-					"Offset": 44,
-					"RegisterMemorySlot": 11,
+					"Address": 20540,
+					"Offset": 60,
+					"RegisterMemorySlot": 15,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 1 timer compare register, upper 32 bits.",
@@ -9520,9 +9572,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP2L",
-					"Address": 20528,
-					"Offset": 48,
-					"RegisterMemorySlot": 12,
+					"Address": 20544,
+					"Offset": 64,
+					"RegisterMemorySlot": 16,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 2 timer compare register, lower 32 bits. The timer interrupt level for hart 2 (interrupt vector 84) is raised while mtime >= mtimecmp2. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP2H, then the new lower half, then the real upper half.",
@@ -9541,9 +9593,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP2H",
-					"Address": 20532,
-					"Offset": 52,
-					"RegisterMemorySlot": 13,
+					"Address": 20548,
+					"Offset": 68,
+					"RegisterMemorySlot": 17,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 2 timer compare register, upper 32 bits.",
@@ -9562,9 +9614,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP3L",
-					"Address": 20536,
-					"Offset": 56,
-					"RegisterMemorySlot": 14,
+					"Address": 20552,
+					"Offset": 72,
+					"RegisterMemorySlot": 18,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 3 timer compare register, lower 32 bits. The timer interrupt level for hart 3 (interrupt vector 84) is raised while mtime >= mtimecmp3. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP3H, then the new lower half, then the real upper half.",
@@ -9583,9 +9635,9 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 				},
 				{
 					"RegisterName": "MTIMECMP3H",
-					"Address": 20540,
-					"Offset": 60,
-					"RegisterMemorySlot": 15,
+					"Address": 20556,
+					"Offset": 76,
+					"RegisterMemorySlot": 19,
 					"Size": 32,
 					"ResetValue": 0,
 					"Description": "Hart 3 timer compare register, upper 32 bits.",
@@ -9598,6 +9650,48 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "mtimecmp3 bits 63:32.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "MTIMECMP4L",
+					"Address": 20560,
+					"Offset": 80,
+					"RegisterMemorySlot": 20,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 4 timer compare register, lower 32 bits. The timer interrupt level for hart 4 (interrupt vector 84) is raised while mtime >= mtimecmp4. Resets to all-ones (no interrupt). To set a new compare value without a spurious interrupt, first write all-ones to MTIMECMP4H, then the new lower half, then the real upper half.",
+					"BitFields": [
+						{
+							"BitFieldName": "CLINTMTIMECMP4L",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "mtimecmp4 bits 31:0.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "MTIMECMP4H",
+					"Address": 20564,
+					"Offset": 84,
+					"RegisterMemorySlot": 21,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 4 timer compare register, upper 32 bits.",
+					"BitFields": [
+						{
+							"BitFieldName": "CLINTMTIMECMP4H",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "mtimecmp4 bits 63:32.",
 							"ValueDescriptions": []
 						}
 					]
@@ -9655,6 +9749,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN0_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN0_H4"
 								]
 							]
 						}
@@ -9702,6 +9801,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN1_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN1_H4"
 								]
 							]
 						}
@@ -9749,6 +9853,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN2_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN2_H4"
 								]
 							]
 						}
@@ -9796,6 +9905,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN3_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN3_H4"
 								]
 							]
 						}
@@ -9843,6 +9957,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN4_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN4_H4"
 								]
 							]
 						}
@@ -9890,6 +10009,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN5_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN5_H4"
 								]
 							]
 						}
@@ -9937,6 +10061,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN6_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN6_H4"
 								]
 							]
 						}
@@ -9984,6 +10113,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN7_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN7_H4"
 								]
 							]
 						}
@@ -10031,6 +10165,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN8_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN8_H4"
 								]
 							]
 						}
@@ -10078,6 +10217,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN9_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN9_H4"
 								]
 							]
 						}
@@ -10125,6 +10269,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN10_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN10_H4"
 								]
 							]
 						}
@@ -10172,6 +10321,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN11_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN11_H4"
 								]
 							]
 						}
@@ -10219,6 +10373,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN12_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN12_H4"
 								]
 							]
 						}
@@ -10266,6 +10425,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN13_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN13_H4"
 								]
 							]
 						}
@@ -10313,6 +10477,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN14_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN14_H4"
 								]
 							]
 						}
@@ -10360,6 +10529,11 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 									4,
 									"Held by hart 3",
 									"MTXOWN15_H3"
+								],
+								[
+									5,
+									"Held by hart 4",
+									"MTXOWN15_H4"
 								]
 							]
 						}
@@ -11242,7 +11416,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 			"PeripheralMemorySlot": null,
 			"isGPIO": false,
 			"InterruptPriority": null,
-			"Description": "THE peripheral interrupt controller (M19): per-hart interrupt routing/enable rows plus a claim/complete delivery stage, programmable by any hart through the shared window. Every deglitched peripheral interrupt level terminates here; the router raises a single external-interrupt wire (meip, interrupt vector 85) to each of the four harts whenever some peripheral source is pending, enabled in that hart's row, and not already being serviced. The servicing hart reads CLAIM to atomically discover and claim the lowest-numbered such source (claims are attributed to the reading hart by the shared-bus arbiter, so simultaneous claimers are serialized and each source is delivered exactly once), runs the source's handler, clears the interrupt level at the peripheral, and writes the source number back to CLAIM (complete). A source under service is masked from every hart's meip until completed; if its level is still high at complete (a new event), it pends again. Priority is fixed: the lowest pending vector number wins. The CLINT vectors 83 (msip) and 84 (mtip) are never delivered through meip \u2014 they reach each hart on dedicated hardwired wires \u2014 so their row bits are writable but have no effect. All rows reset to 0 (everything masked), so the router is inert until software programs it. Since M19 row 0 is live: hart 0 takes meip like every other hart (the SYSTEM peripheral's vectored interrupt controller is retired).",
+			"Description": "THE peripheral interrupt controller (M19): per-hart interrupt routing/enable rows plus a claim/complete delivery stage, programmable by any hart through the shared window. Every deglitched peripheral interrupt level terminates here; the router raises a single external-interrupt wire (meip, interrupt vector 85) to each of the five harts whenever some peripheral source is pending, enabled in that hart's row, and not already being serviced. The servicing hart reads CLAIM to atomically discover and claim the lowest-numbered such source (claims are attributed to the reading hart by the shared-bus arbiter, so simultaneous claimers are serialized and each source is delivered exactly once), runs the source's handler, clears the interrupt level at the peripheral, and writes the source number back to CLAIM (complete). A source under service is masked from every hart's meip until completed; if its level is still high at complete (a new event), it pends again. Priority is fixed: the lowest pending vector number wins. The CLINT vectors 83 (msip) and 84 (mtip) are never delivered through meip \u2014 they reach each hart on dedicated hardwired wires \u2014 so their row bits are writable but have no effect. All rows reset to 0 (everything masked), so the router is inert until software programs it. Since M19 row 0 is live: hart 0 takes meip like every other hart (the SYSTEM peripheral's vectored interrupt controller is retired).",
 			"Registers": [
 				{
 					"RegisterName": "H0ENL",
@@ -11616,6 +11790,100 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"ResetValue": 0,
 							"Unused": false,
 							"Description": "Interrupt enable bits for vectors 120:96, routed to hart 3.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H4ENL",
+					"Address": 28736,
+					"Offset": 64,
+					"RegisterMemorySlot": 16,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 4 interrupt routing register, vectors 31:0. Each bit enables delivery of the corresponding interrupt vector to hart 4 via its meip wire (vector 85) and the CLAIM/COMPLETE mechanism.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH4ENL",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 31:0, routed to hart 4.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H4ENM",
+					"Address": 28740,
+					"Offset": 68,
+					"RegisterMemorySlot": 17,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 4 interrupt routing register, vectors 63:32.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH4ENM",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 63:32, routed to hart 4.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H4ENU",
+					"Address": 28744,
+					"Offset": 72,
+					"RegisterMemorySlot": 18,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 4 interrupt routing register, vectors 95:64. Unlike the retired SYSTEM IRQENU register of the single-core chip, the packing here is contiguous in both directions. Bits 19 and 20 correspond to the CLINT vectors 83 and 84, which are delivered on dedicated hardwired wires and never through meip: these two bits are writable but have no effect.",
+					"BitFields": [
+						{
+							"BitFieldName": "IRQRH4ENU",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 95:64, routed to hart 4.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "H4ENX",
+					"Address": 28748,
+					"Offset": 76,
+					"RegisterMemorySlot": 19,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Hart 4 interrupt routing register, vectors 120:96 (bits 24:0; upper bits read as 0).",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 25,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "IRQRH4ENX",
+							"MSB": 24,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Interrupt enable bits for vectors 120:96, routed to hart 4.",
 							"ValueDescriptions": []
 						}
 					]

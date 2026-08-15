@@ -24,6 +24,51 @@ LIB_PATH="$BEHAVIORAL_DIR/xcelium.d"
 MAX_PARALLEL=${MAX_PARALLEL:-8}
 
 TEST_FILES=(
+    # ---------------------------------------------------------------------------
+    # CPR8/R7 REGENERATED, 2026-08-15 -- this array is no longer hand-built.
+    #
+    # It is `platform/common/python/verify_stage.py`'s CATALOG selection for the
+    # SHIPPED DEFAULT configuration (Castalia-Penta: numHarts=5, orchestrator=true),
+    # in the catalog's own order, MINUS exactly three rows -- each excluded on
+    # evidence, not taste:
+    #
+    #   rv32ua-p-rocsrw    ON-POLARITY-ONLY. Its `#else` arm is `li a1, 0x5E10BAD0;
+    #                      j roc_fail`, so on the canonical `../rcf/` set -- which is
+    #                      BY DEFINITION the DEFINES=(none) polarity this runner reads
+    #                      -- it FAILS by construction. It is also one half of
+    #                      check_image_polarity.py's known-nonzero control, so putting
+    #                      it in a standing list would break that sweep too.
+    #   rv32ua-p-shapeq    identical shape (`#else` -> 0x5E10BAD0 -> shq_fail); the
+    #                      other half of the same control.
+    #   rv32ua-p-rocsrwmp  its own header (rv32ua/rocsrw.S:52) says "NOT in the
+    #                      standing TEST_FILES array; do not add it" -- it is a
+    #                      `make verify` CATALOG row by design. Measured PASSing on
+    #                      this polarity; excluded on the file's instruction, not on
+    #                      a failure.
+    #
+    # WHAT MOVED AT THE PROMOTION (143 -> 148):
+    #   -1  rv32ui-p-shafe   deselected at N=5. The AFE bank is FOUR sites at any
+    #                        hart count while shafe.S addresses AFE0 + 0x40*h, and
+    #                        h=4 would land on GPIO3 (`harts_le4` tag).
+    #   +1  rv32ui-p-shorch  the orchestrator test shafe hands off to (hart 0 = MGMT
+    #                        + launcher + gate, a tile is the denied prober).
+    #   +1  rv32ui-p-shtcm   the read-only TCM apertures at 0x20000 + 0x4000*h --
+    #                        THE orchestrator row that also runs on the tape-out
+    #                        configuration.
+    #   +4  wnpuconv, wxnpu, wgemm, wactf -- the four NPU workload rows. These were
+    #                        CATALOG-only before the promotion by omission, not by
+    #                        design (no header asks to be kept out, `npu` tag is
+    #                        satisfied by the default). Measured PASSing here on this
+    #                        polarity before they were added.
+    #
+    # Every standing DETECTOR the old hand-built list carried is still here --
+    # trapstor, packalias, fk51mp, dvintmin, dvbubble, idcsrmp, rdtimemp -- because
+    # all seven are CATALOG rows as well and all seven are N-agnostic.
+    #
+    # TO REGENERATE: run `SUITE=full make verify` in platform/common at the default
+    # config, then take verify_castalia/xrun_parallel.sh's TEST_FILES array, repoint
+    # `../k33/` at `../rcf/`, and drop the three rows above.
+    # ---------------------------------------------------------------------------
     "../rcf/xxxrv32ui-p-simple.rcf"
     "../rcf/xxxxrv32ui-p-shmem.rcf"
     "../rcf/xrv32ui-p-shmem_mp.rcf"
@@ -41,7 +86,12 @@ TEST_FILES=(
     "../rcf/xxxrv32ui-p-shexec.rcf"
     "../rcf/xxrv32ui-p-shexecc.rcf"
     "../rcf/xxxxrv32ui-p-shpwr.rcf"
-    "../rcf/xxxxrv32ui-p-shafe.rcf"
+    "../rcf/xxxrv32ui-p-shorch.rcf"
+    "../rcf/xxxxrv32ui-p-shtcm.rcf"
+    "../rcf/xrv32ui-p-wnpuconv.rcf"
+    "../rcf/xxxxrv32ui-p-wxnpu.rcf"
+    "../rcf/xxxxrv32ui-p-wgemm.rcf"
+    "../rcf/xxxxrv32ui-p-wactf.rcf"
     "../rcf/xxxxrv32ui-p-afsel.rcf"
     "../rcf/xxrv32ui-p-afselv2.rcf"
     "../rcf/xxxrv32ua-p-shspin.rcf"
@@ -53,7 +103,7 @@ TEST_FILES=(
     "../rcf/xxxrv32ua-p-shmixw.rcf"
     "../rcf/xxxrv32ua-p-shcboz.rcf"
     "../rcf/xxxxrv32ua-p-shcmp.rcf"
-    "../rcf/rv32ua-p-shcmppush.rcf"   # X3 Stage-D: interrupted push/pop (uninterruptible seq)
+    "../rcf/rv32ua-p-shcmppush.rcf"
     "../rcf/xxxxrv32ua-p-shcmt.rcf"
     "../rcf/xxrv32ua-p-shpause.rcf"
     "../rcf/xrv32ua-p-amoadd_w.rcf"
@@ -69,6 +119,8 @@ TEST_FILES=(
     "../rcf/xxrv32ua-p-amoor_w.rcf"
     "../rcf/xxxrv32ua-p-shlrsc.rcf"
     "../rcf/xxxxxrv32ua-p-lrsc.rcf"
+    "../rcf/xxrv32ua-p-idcsrmp.rcf"
+    "../rcf/xrv32ua-p-rdtimemp.rcf"
     "../rcf/xxxxxxrv32ui-p-add.rcf"
     "../rcf/xxxxxxxrv32ui-p-lb.rcf"
     "../rcf/xxxxxxxrv32ui-p-lh.rcf"
@@ -106,7 +158,6 @@ TEST_FILES=(
     "../rcf/xxxxxrv32ui-p-bgeu.rcf"
     "../rcf/xxxxxrv32ui-p-jalr.rcf"
     "../rcf/xxxxxxrv32ui-p-jal.rcf"
-    # rv32um — multiplication/division
     "../rcf/xxxrv32um-p-mulhsu.rcf"
     "../rcf/xxxxrv32um-p-mulhu.rcf"
     "../rcf/xxxxxrv32um-p-divu.rcf"
@@ -115,13 +166,10 @@ TEST_FILES=(
     "../rcf/xxxxxxrv32um-p-div.rcf"
     "../rcf/xxxxxxrv32um-p-mul.rcf"
     "../rcf/xxxxxxrv32um-p-rem.rcf"
-    # rv32uc — compressed (C extension)
     "../rcf/xxxxxxrv32uc-p-rvc.rcf"
-    # rv32uzba — bitmanip address generation (Zba)
     "../rcf/xrv32uzba-p-sh1add.rcf"
     "../rcf/xrv32uzba-p-sh2add.rcf"
     "../rcf/xrv32uzba-p-sh3add.rcf"
-    # rv32uzbb — bitmanip basic (Zbb)
     "../rcf/xrv32uzbb-p-sext_b.rcf"
     "../rcf/xrv32uzbb-p-sext_h.rcf"
     "../rcf/xrv32uzbb-p-zext_h.rcf"
@@ -140,11 +188,9 @@ TEST_FILES=(
     "../rcf/xxxxrv32uzbb-p-orn.rcf"
     "../rcf/xxxxrv32uzbb-p-rol.rcf"
     "../rcf/xxxxrv32uzbb-p-ror.rcf"
-    # rv32uzbc — carry-less multiply (Zbc)
     "../rcf/xrv32uzbc-p-clmulh.rcf"
     "../rcf/xrv32uzbc-p-clmulr.rcf"
     "../rcf/xxrv32uzbc-p-clmul.rcf"
-    # rv32uzbs — single-bit (Zbs)
     "../rcf/xxrv32uzbs-p-bclri.rcf"
     "../rcf/xxrv32uzbs-p-bexti.rcf"
     "../rcf/xxrv32uzbs-p-binvi.rcf"
@@ -153,9 +199,6 @@ TEST_FILES=(
     "../rcf/xxxrv32uzbs-p-bext.rcf"
     "../rcf/xxxrv32uzbs-p-binv.rcf"
     "../rcf/xxxrv32uzbs-p-bset.rcf"
-    # core-features (ENABLE_* generics): misa + per-extension adaptive probes.
-    # On this full build every one PASSES; the same images double as the
-    # stripped-build trap controls (behavioral_mp_stripped/run_extoff.sh).
     "../rcf/xrv32ua-p-extprobe.rcf"
     "../rcf/xxxrv32ua-p-extmul.rcf"
     "../rcf/xxxrv32ua-p-extdiv.rcf"
@@ -164,97 +207,16 @@ TEST_FILES=(
     "../rcf/xxxxrv32ua-p-extzb.rcf"
     "../rcf/xrv32ua-p-extzihpm.rcf"
     "../rcf/rv32ua-p-extzicond.rcf"
-    # X1 Zcb: build-time-dispatch probe. Default (Zcb-off) build compiles the
-    # OFF arm (base-ISA sanity + PASS); the ON arm + trap proof run on staged
-    # builds (see the X1-zcb self-report).
     "../rcf/xxxrv32ua-p-extzcb.rcf"
-
     "../rcf/rv32ua-p-extzihint.rcf"
-    # extzawrsx (neg-ctrl harness only, it deliberately traps).
     "../rcf/xrv32ua-p-extzawrs.rcf"
     "../rcf/xxxxrv32ua-p-shwrs.rcf"
-    # X4 Zfinx: build-time-dispatch adaptive probe. Default (Zfinx-off) build
-    # compiles the OFF arm (base-ISA sanity + PASS); the ON arm + trap proofs
-    # (extzfinx* poisons) run on staged builds (see the X4-2c self-report).
     "../rcf/xrv32ua-p-extzfinx.rcf"
-    # ---------------------------------------------------------------------
-    # K7 item 2 (2026-08-04, R-K7-1(4)): the standing-list batch. Until now
-    # every one of these detectors had ZERO standing coverage -- each was run
-    # once, by the wave that authored it, and never again. 136 -> 141.
-    #
-    # All five are POLARITY-INSENSITIVE (measured: byte-identical images in
-    # rcf/ and rcf_k17/), which is why they are safe in a suite that reads the
-    # DEFINES=(none) image set after the R-DK3 flip -- see F-K7-3.
-    #
-    # trapstor: the S-SERIES RESIDUE ITEM, retired here. It had never run in
-    #   any gate.
-    # packalias: the F-BV1 detector (zext.h decode not qualified on rs2=0, so
-    #   the Zbkb `pack` space aliased onto it). Without this row F-BV1's fix
-    #   has no standing coverage at all (R-K5-5(4)).
-    # fk51mp: F-K5-1 half (b) -- RV32 reserves shamt[5]. Committed in
-    #   R-K5-8(3)'s REGRESSION polarity: a reserved encoding that TRAPS is
-    #   PASS, one that retires is FAIL, so it is green on correct RTL.
-    # dvintmin / dvbubble: the two BLIND detectors for the K5 divide family
-    #   (defect A, the signed-magnitude wrap; defect B, the split-fetch bubble
-    #   re-arming the previous divide's selects). Both also join the lockstep
-    #   list -- their eligibility is DERIVED in k7_report.md section 2.0, not
-    #   inherited.
     "../rcf/xrv32ua-p-trapstor.rcf"
     "../rcf/rv32ua-p-packalias.rcf"
     "../rcf/xxxrv32ua-p-fk51mp.rcf"
     "../rcf/xrv32um-p-dvintmin.rcf"
     "../rcf/xrv32um-p-dvbubble.rcf"
-    # ---------------------------------------------------------------------
-    # ID4 (2026-08-04, R-ID0-3): the ID-series detector. 141 -> 142.
-    #
-    # idcsrmp: the BLIND detector for the identity-CSR hole (ID2 authored it
-    #   before the fix existed; ID3 fixed the hole at 5d7e2cc). mvendorid
-    #   0xF11 / marchid 0xF12 / mimpid 0xF13 / mconfigptr 0xF15 were absent
-    #   from maindec.vhd's csr_addr_valid map, so a plain csrr of a REQUIRED
-    #   read-only M-mode CSR raised illegal-instruction and wedged the hart in
-    #   the TERMINAL TrapState. Post-fix the four retire and read zero
-    #   (R-DID1); the same file also guards the fix from being over-wide
-    #   (0xF10 / 0xF16 must keep trapping) and over-narrow (a legal 0xF14 read
-    #   must not trap), and re-asserts that a write form aimed at the
-    #   read-only quadrant still traps in every build.
-    #
-    # POLARITY-INSENSITIVE like the five above, and for a stronger reason: it
-    # has no CORE_ENABLE_* dispatch at all (its only #ifdef is its own
-    # PASS_CONTROL rehearsal arm), so its rcf/ and rcf_k17/ images are
-    # byte-identical -- checked by tools/cosim/check_image_polarity.py, which
-    # now counts it.
-    #
-    # Its three tile victims all end in the terminal TrapState by design and
-    # never write a0_1/a0_2/a0_3, so riscv_tb reports "tile hart(s)
-    # silent/parked" -- a NOTE, not a failure (the trapstor precedent).
-    "../rcf/xxrv32ua-p-idcsrmp.rcf"
-    # ---------------------------------------------------------------------
-    # DD11-N1 (2026-08-06, R-D3-1(2)): the D-series detector. 142 -> 143.
-    #
-    # rdtimemp: the BLIND detector for the `time` CSR hole (authored before
-    #   the RTL change existed). time 0xC01 / timeh 0xC81 were admitted by
-    #   maindec.vhd's csr_addr_valid with no read arm behind them, so `rdtime`
-    #   RETIRED and returned a constant zero forever -- a stopped clock
-    #   software could not detect. DD11-N1 drops both from the map, so they
-    #   now raise illegal-instruction in every build of both chips. The same
-    #   file guards the fix from being over-wide: cycle 0xC00, instret 0xC02,
-    #   hpmcounter3 0xC03 and -- because maindec admitted 0xC81 on a SHARED
-    #   LINE with them -- cycleh 0xC80 and instreth 0xC82 must all still
-    #   retire, and a wrongly-trapped one names itself in a1 (0x0BAD0Cxx).
-    #
-    # Its polarity is trapstor's, NOT idcsrmp's: correct RTL = the victim
-    # WEDGES. Tile harts 1/2/3 are the subjects and end in the terminal
-    # TrapState by design, so riscv_tb reports "tile hart(s) silent/parked"
-    # -- a NOTE, not a failure. Hart 0 executes no 0xCxx encoding at all,
-    # which is what keeps the a0 verdict path alive under an over-wide change.
-    #
-    # POLARITY-INSENSITIVE (no CORE_ENABLE_* dispatch anywhere in the file;
-    # its only #ifdef is its own PASS_CONTROL rehearsal arm), so rcf/ and
-    # rcf_k17/ images are byte-identical -- counted by
-    # tools/cosim/check_image_polarity.py. OUT of both cosim lists by
-    # construction: trap-poison class, and the oracle --isa always carries
-    # _zicntr so Spike would retire the very reads that must trap here.
-    "../rcf/xrv32ua-p-rdtimemp.rcf"
 )
 
 # Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the

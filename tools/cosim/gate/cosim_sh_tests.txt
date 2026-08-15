@@ -3,11 +3,18 @@
 # Use with:  MULTIHART=1 COSIM_BOOT=1 BRACKET_ISR=1 \
 #              TESTS_FILE=cosim_sh_tests.txt ./xrun_cosim.sh
 #
-# BRACKET_ISR=1 IS REQUIRED for this list, not optional. shafe's HART 0 takes a
-# legacy meip trap (cause=8000007f tval=00008154 -> IVT slot 85); without hart-0
-# ISR bracketing that T record is correctly reported as a control-flow divergence
-# and the cell is a FALSE DIVERGE. Harts 1-3 are bracketed unconditionally
-# (Amendment A11 - the park window is in their stream by construction).
+# BRACKET_ISR=1 IS REQUIRED for this list, not optional. A hart-0 legacy meip
+# trap (cause=8000007f tval=00008154 -> IVT slot 85) is reported as a
+# control-flow divergence without hart-0 ISR bracketing, and the cell is a FALSE
+# DIVERGE. shafe was the founding case; shirq/shwfi carry the same shape and are
+# still on the list, so the flag stays REQUIRED. Tile harts are bracketed
+# unconditionally (Amendment A11 - the park window is in their stream by
+# construction).
+#
+# CPR8/R7 (2026-08-15): the shipped chip is FIVE harts, so MULTIHART=1 now
+# expands to COSIM_HARTS="0 1 2 3 4" and this list is 16 tests x 5 harts = 80
+# cells. It was 17 x 4 = 68; see the shafe entry below for the one row that
+# left.
 #
 # One rcf basename per line; blank lines and #-comments are ignored. Every entry
 # is 22 chars so that "../rcf/" + name is exactly the 29-char TEST_FILE generic.
@@ -74,7 +81,17 @@ xxxxrv32ui-p-shi2c.rcf
 # rather than residue. The V4-6 "stop after Stage 4" authorisation was not used.
 xxxxrv32ui-p-shwfi.rcf
 xxxxrv32ui-p-shirq.rcf
-xxxxrv32ui-p-shafe.rcf
+# ── shafe · REMOVED AT CPR8/R7 (2026-08-15), on a MEASUREMENT ────────────────
+# shafe.S addresses AFE0 + 0x40*h for the launched harts, but the AFE stub bank
+# is FOUR sites at ANY hart count. On the shipped five-hart chip hart 4 lands on
+# AFE0+0x100 = 0x4D00 = GPIO3, so the test FAILS: measured 0/1 in behavioral_mp
+# at N=5 before this line was commented out (it is the `harts_le4` CATALOG tag
+# doing the same job on the `make verify` side). It is not a lockstep finding
+# and not an RTL regression -- the test is N<=4 by construction. Its successor
+# is `shorch`, which is excluded from THIS list for the ordinary reason below.
+# Stage 5's meip-bracket result stands on the record; it was measured on shafe
+# at N=4 and nothing about it is retracted.
+#xxxxrv32ui-p-shafe.rcf
 
 # ── class B · knob-OFF stubs in the shipped N=4 image — DEFERRED ──────────────
 # Their multi-hart body is #ifdef-gated on a knob that is FALSE in this build
@@ -115,3 +132,20 @@ xxxxrv32ui-p-shafe.rcf
 # shfault — an rcf exists but NO runner references it (grep -l shfault */*.sh is
 #   empty). An unrun test in the tree; reported as its own small finding.
 # Argus N=18 — blocked by the runner's .nharts guard, which V4 does not weaken.
+#
+# ── CPR4: the ORCHESTRATOR rows, excluded BY POLICY (CPR1/R6) ────────────────
+# shtcm, shorch — CPR8/R7 UPDATE: the runner is N=5 now, so the .nharts guard
+#   no longer keeps these out by accident and the exclusion has to stand on its
+#   own reasons, below. shtcm
+#   additionally belongs to a DOCUMENTED DIVERGENCE CLASS that survives any
+#   future N=5 lockstep: it reads the TCM apertures at 0x20000+0x4000*h, and
+#   Spike models that region as PLAIN RAM — the reference would return the
+#   aperture's backing bytes where the DUT returns another hart's TCM (and
+#   ZEROS for a gated tile, which no memory model reproduces). R6 excludes
+#   aperture-reading tests from the standing lockstep lists for that reason
+#   (the shafe / BRACKET_ISR precedent) -- this is the R6 aperture-reader rule
+#   and it is PERMANENT, not a staging decision. shorch is excluded for the
+#   ordinary reason instead: it is a new multi-hart mechanism (AFE stub bank +
+#   hart-0 demux + msip hand-off) that has never been staged through the V4
+#   class ladder, and adding an unstaged mechanism to a standing gate is how a
+#   false DIVERGE becomes a pin.

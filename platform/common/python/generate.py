@@ -72,8 +72,8 @@ _CONFIG_SCHEMA = {
 	                         lambda v: isinstance(v, str) and len(v.strip()) > 0),
 	'numHarts':             ('int 1..32 — hart/tile count (4 = Castalia golden master, 18 = Argus sim-proven)',
 	                         lambda v: _isInt(v) and 1 <= v <= 32),
-	'managementHart':       ('int 0..31 — CP2 (Castalia-Penta): index of the MANAGEMENT / ORCHESTRATOR hart. 0 (the default) is the historical shape: hart 0 manages, every hart is a hart_tile, and the generated RTL is byte-identical to a build that never heard of this knob. A NON-ZERO value designates the LAST hart (it must equal numHarts-1) as the always-on soft ORCHESTRATOR: that hart is emitted as `entity work.orch_tile` (a thin wrapper whose only job is to keep the soft core\'s module names disjoint from the hardened hart_tile netlist — see orch_tile.vhd and CP1 D6), wired hart-0-style for power/reset (resetn = resetn and pgood_rstn, NO pwr_ctrl row, NO isolation clamps, sh_* straight into its arbiter slice, tcm_pgen 0 / tcm_retn 1) and tile-style for boot/IRQ (hart_id = the index, msip/mtip/meip from the CLINT and router rows, sleep 0, flash ports open — boot mastership and the flash quartet stay on hart 0, CP1 D3). pwr_ctrl therefore stays at NHARTS => numHarts-1 (rows for the GATEABLE tiles only), so PWRCR has no gate bit for the orchestrator: it reads 0 and ignores writes, exactly as hart 0\'s does, and the harvested-boot PWRCR <- 0xFFFFFFFF gates the channel tiles while leaving the orchestrator up. The management PRIVILEGE moves with the index: afe_stub\'s ownership gate becomes `s_master = OWNER_HART or s_master = MGMT_HART` and the EIS engine is owned by this hart (D4); the AFE bank stays four sites at any hart count. Everything else follows the existing single sources — nMasters()/masterW()/dmMasterIndex(), so the orchestrator is arbiter master numHarts-1 and the DMA/debug masters shift up as usual, and clint/irq_router/debug_module go NHARTS => numHarts (the CLINT layout SHIFTS: mtime 0x5010 -> 0x5020 at N=5 — firmware must derive CLINT addresses from NHARTS)',
-	                         lambda v: _isInt(v) and 0 <= v <= 31),
+	'orchestrator':         ('bool — CPR3/R1 (Castalia-Penta rework): is there an always-on soft ORCHESTRATOR hart? false (the default) is the historical shape — every hart is a hardened `hart_tile`, hart 0 is the management hart, and the generated RTL is byte-identical to a build that never heard of this knob. true makes HART 0 the orchestrator: it is emitted as `entity work.orch_tile` (a thin wrapper whose only job is to keep the soft core\'s module names disjoint from the hardened hart_tile netlist — see orch_tile.vhd and CP1 D6), keeps every hart-0 wiring special it already had (the SPI0 flash/XIP quartet, sleep => sleep_cpu, trap_flag => the GPIO0 trap pin, a0 => the tb pass/fail gate, tcm_pgen => pgen_mem(1), arbiter master slice 0 with no isolation clamps), and harts 1..numHarts-1 become FULLY UNIFORM channel tiles — hart_id 1..N-1, pwr_ctrl rows 1..N-1 (so PWRCR gains a gate bit for what used to be hart 0\'s always-on tile), iso clamps, tcm_pgen => pd_sleep(h), flash ports open, a0_h monitored. It also switches the memory map to v2 (R3): SH_AW = max(derived, 16), five READ-ONLY TCM apertures at TCMWIN[h] = 0x20000 + h*0x4000 through which the management hart (and only it — the s_master = 0 gate) reads any hart\'s private TCM, and extended flash at the automatic strict complement 0x40000. The management hart is hart 0 in BOTH shapes, so afe_stub\'s MGMT_HART generic is never overridden (its entity default 0 is correct everywhere) and only the AFE bank\'s OWNER_HART literals shift with the tiles (AFE0-3 own harts 1-4; the EIS engine stays hart-0/management-only). Everything else follows the existing single sources — nMasters()/masterW()/dmMasterIndex() and clint/irq_router/debug_module NHARTS => numHarts (the CLINT layout SHIFTS with the hart count: mtime 0x5010 -> 0x5020 at N=5 — firmware must derive CLINT addresses from NHARTS)',
+	                         _isBool),
 	'numMutexes':           ('int 1..1024 — HW mutex bank size (16 = Castalia, 32 = Argus)',
 	                         lambda v: _isInt(v) and 1 <= v <= 1024),
 	'registerFileDualPort': ('bool — docs-only on vesta (regfile is dual-port in the RTL regardless; only the legacy picorv32_* MemoryMap constant changes)',
@@ -190,11 +190,13 @@ _CONFIG_SCHEMA = {
 # ---------------------------------------------------------------------------
 _CONFIG_META = {
 	'chipName':             {'type': 'string', 'default': 'Castalia'},
-	'numHarts':             {'type': 'int', 'default': 4, 'min': 1, 'max': 32},
-	# CP2 (Castalia-Penta): 0 = no orchestrator (the historical, byte-identical
-	# shape). A non-zero value must equal numHarts-1 -- cross-checked below,
-	# because pwr_ctrl's rows assume the orchestrator is the LAST index.
-	'managementHart':       {'type': 'int', 'default': 0, 'min': 0, 'max': 31},
+	'numHarts':             {'type': 'int', 'default': 5, 'min': 1, 'max': 32},
+	# CPR3/R1: false = no orchestrator (the historical 4-hart shape, kept as a
+	# standing matrix row by config/castalia4.json). true (the DEFAULT since
+	# CPR8/R7) = hart 0 is the always-on soft orchestrator and harts 1..N-1 are
+	# the channel tiles. THE TWO-PLACES RULE: this default and the literal at
+	# the knob's _cfg site below must agree (check_config_defaults.py enforces).
+	'orchestrator':         {'type': 'bool', 'default': True},
 	'numMutexes':           {'type': 'int', 'default': 16, 'min': 1, 'max': 1024},
 	'registerFileDualPort': {'type': 'bool', 'default': True},
 	'isa.mul':              {'type': 'bool', 'default': True},
@@ -341,31 +343,23 @@ def _hexLen(nBytes):
 
 # Hart count, hoisted so the per-hart register loops below (CLINT, IRQROUTER)
 # and the ChipGenerator call share ONE value (A1 N-hart generalization).
-numHarts = _cfg('numHarts', 4)
+numHarts = _cfg('numHarts', 5)
 
-# CP2 (Castalia-Penta): the MANAGEMENT / ORCHESTRATOR hart index. 0 = the
-# historical shape (hart 0 manages, every hart is a hart_tile). Non-zero = that
-# hart is the always-on soft orchestrator (`orch_tile`) and holds the AFE/EIS
-# management privilege (afe_stub MGMT_HART). See the schema entry for the full
-# contract; the three derived values below are the ONLY places downstream code
-# reads it, so no consumer re-derives the index arithmetic:
-#   mgmtHart     -- the index itself (also the afe_stub MGMT_HART generic)
-#   orchPresent  -- is there a soft orchestrator at all?
-#   pwrHarts     -- the hart count pwr_ctrl sees = the GATEABLE tiles + hart 0.
-mgmtHart = _cfg('managementHart', 0)
-orchPresent = (mgmtHart != 0)
-if orchPresent and mgmtHart != numHarts - 1:
-	raise Exception('managementHart=' + str(mgmtHart) + ' must be 0 (no orchestrator) or numHarts-1 = '
-		+ str(numHarts - 1) + ': the orchestrator is the LAST hart index, because pwr_ctrl keeps rows '
-		+ 'for the gateable tiles 1..numHarts-2 only (CP1 D2) and a mid-list orchestrator would '
-		+ 'silently give a gateable tile the always-on wiring')
-if orchPresent and numHarts < 2:
-	raise Exception('managementHart requires numHarts >= 2')
-# pwr_ctrl's NHARTS: the orchestrator has NO power-domain row (CP1 D2 -- there
-# is no chip-level power intent in the centre band), so it is excluded here and
-# ONLY here. Everything else (CLINT, irq_router, arbiter, debug module) sees
-# the full numHarts.
-pwrHarts = numHarts - 1 if orchPresent else numHarts
+# CPR3/R1 (Castalia-Penta REWORK): the orchestrator PRESENCE boolean. False =
+# the historical shape (four identical hart_tile corners, hart 0 the management
+# hart). True = HART 0 is the always-on soft orchestrator, emitted as
+# `entity work.orch_tile`, and harts 1..numHarts-1 are the channel tiles.
+#
+# WHY THIS REPLACED `managementHart` OUTRIGHT (CPR1 R1): the old knob was an
+# INDEX whose OFF sentinel was 0, so "the orchestrator is hart 0" — the shape
+# the user asked for — is literally inexpressible in it, at five independent
+# sites. The management hart is now ALWAYS hart 0 in both shapes, which is why
+# `afe_stub`'s MGMT_HART generic is never overridden any more (its entity
+# default 0 is correct everywhere; check_entity_defaults.py grades exactly that).
+orchestrator = _cfg('orchestrator', True)
+if orchestrator and numHarts < 2:
+	raise Exception('orchestrator requires numHarts >= 2 (hart 0 is the orchestrator, '
+		+ 'harts 1..numHarts-1 are the tiles — a one-hart orchestrator has nothing to orchestrate)')
 
 # Mutex count (A2/Argus: 32 for the 18-hart course chip, 16 = the Castalia
 # default). Word-mapped at 0x6000 + 4*i; the page has room for far more, the
@@ -862,8 +856,8 @@ if _isa['counters64'] and not _isa['counters']:
 	print('[generate] WARNING: isa.counters64 without isa.counters — the 64-bit high halves need the base Zicntr counters')
 if (not _isa['atomics']) and numHarts > 1:
 	print('[generate] WARNING: isa.atomics=false on a multi-hart chip breaks the LR/SC + AMO + mutex lock infrastructure the sh tests rely on')
-if _CHIP_CONFIG and numHarts not in (4, 18):
-	print('[generate] NOTE: numHarts=' + str(numHarts) + ' — only 4 (Castalia golden master, byte-identical RTL) and 18 (Argus, boots in simulation) are verified hart counts')
+if _CHIP_CONFIG and numHarts not in (4, 5, 18):
+	print('[generate] NOTE: numHarts=' + str(numHarts) + ' — only 5 (Castalia-Penta golden master since CPR8, byte-identical RTL), 4 (the pre-CPR8 shape, config/castalia4.json) and 18 (Argus, boots in simulation) are verified hart counts')
 
 # CLINT register-layout formula (A0/A1; must match hdl/common/clint.vhd):
 # msip[h] at word h; mtime lo at word roundup16(4*numHarts)/4; mtimecmp[h]
@@ -1037,7 +1031,25 @@ if _sharedRamLen % 0x4000 != 0 or _sharedRamLen < 0x4000:
 # Castalia (64 KiB): banks=4, shAw=15, flash at 0x20000 — the M11 values.
 _sharedRamBanks = _sharedRamLen // 0x4000
 shAw = _clog2(0x10000 + _sharedRamLen) - 2
+# CPR3/R3 (memory map v2): shAw gains a SECOND input. An orchestrator config
+# carries the five READ-ONLY TCM apertures at TCMWIN[h] = 0x20000 + h*0x4000
+# (h = 0..numHarts-1), which need pages 1000..1100 of a 4-bit page field, so
+# the shared window must reach 0x3FFFF whatever the bulk-RAM size says:
+#     shAw = max(derived-from-sharedBulkRamSize, 16)
+# Peripheral page layout is UNCHANGED by the widening (proven by the Argus
+# SH_AW=16 shape: the pages widen, the addresses stay). Extended flash follows
+# automatically at the strict sh_sel complement 1 << (shAw+2) = 0x40000 — never
+# hand-set it, or the M3c.3 double-claim deadlock returns.
+if orchestrator and shAw < 16:
+	shAw = 16
 flashBase = 1 << (shAw + 2)
+# CPR3/R3: the aperture windows themselves, derived once here so no consumer
+# re-derives the arithmetic. Empty without an orchestrator.
+tcmWindows = [(0x20000 + 0x4000 * _h) for _h in range(numHarts)] if orchestrator else []
+if tcmWindows and tcmWindows[-1] + 0x4000 > flashBase:
+	raise Exception('orchestrator: ' + str(numHarts) + ' TCM apertures (top 0x%05X)' % (tcmWindows[-1] + 0x3FFF)
+		+ ' do not fit under the shared window top 0x%05X' % (flashBase - 1)
+		+ ' — widen memory.sharedBulkRamSize or reduce numHarts')
 # Watchdog passwords exposed to LatexUserGuide's \WdtUnlockPassword /
 # \WdtClearPassword defines (single source: the wdt*Password constants above,
 # which equal hdl/common/constants.vhd).
@@ -1077,6 +1089,14 @@ if npuPresent:
 		('NPU staging RAM', 0xC000, 0xFFFF, 'NPU vector staging RAM (NPU-port-muxed during a THINK)'))
 m.SharedWindowSections.append(
 	('Shared RAM', 0x10000, 0x10000 + _sharedRamLen - 1, 'Arbitrated shared bulk RAM, ' + str(_sharedRamBanks) + ' banks (locks, mailboxes, inter-hart data)'))
+# CPR3/R3: the read-only TCM apertures. One 16 KiB window per hart through
+# which the MANAGEMENT HART (hart 0, the orchestrator) reads that hart's
+# private TCM; every other master reads zero. Reads only -- a write path into a
+# live core's memory is a coherence hazard the architecture refuses (R4).
+for _h, _w in enumerate(tcmWindows):
+	m.SharedWindowSections.append(
+		('TCM aperture ' + str(_h), _w, _w + 0x3FFF,
+		 'Read-only view of hart ' + str(_h) + "'s private TCM (management hart only; a gated tile reads zero)"))
 
 
 
@@ -1842,32 +1862,34 @@ if _irqrXWords:
 
 
 ''' PWRCTRL (M17 MTCMOS power controller, peripheral-window slot 11 at 0x4B00) '''
-# CP2: every hart-count number in this block is pwrHarts, NOT numHarts — the
-# orchestrator hart (when present) has no power domain and therefore no gate
-# bit, no state nibble and no sequencer row. pwrHarts == numHarts in every
-# configuration without an orchestrator, so this is a no-op there.
+# CPR3/R2: every hart-count number in this block is numHarts again. The CP2
+# `numHarts` special case (which withheld a row from the LAST hart) is DELETED:
+# with the orchestrator renumbered to hart 0 the always-on hart is hart 0 in
+# BOTH shapes, and every hart 1..numHarts-1 is a gateable channel tile. At
+# numHarts=5 that means PWRCR GAINS bit 4 -- the ex-hart-0 tile is now gateable
+# like its siblings -- and PWRSR gains nibble 4.
 # CP2: the hart-0 clause is conditional so a NON-orchestrator build keeps the
 # historical sentence VERBATIM (this text reaches MemoryMap.json, the register
 # browser page and the TRM -- a reworded default would churn all three).
-_pwrHart0Clause = ('Hart 0 (SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes.' if orchPresent else 'Hart 0 (the management hart: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes.')
-_pwrOrchNote = (' The orchestrator hart (' + str(mgmtHart) + ') is ALSO always-on and has no bit here: the centre-band soft core sits outside the MTCMOS fabric entirely (there are no header switches for it), so a gate request for it would be a hardware lie --- it reads 0 and ignores writes exactly as hart 0 does, which is why a blanket PWRCR write gates the channel tiles and leaves the orchestrator running.' if orchPresent else '')
-p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-' + str(pwrHarts - 1) + ') sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released --- at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. ' + _pwrHart0Clause + _pwrOrchNote + ' Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed --- that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
+_pwrHart0Clause = ('Hart 0 (the always-on soft orchestrator: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes.' if orchestrator else 'Hart 0 (the management hart: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes.')
+_pwrOrchNote = (' The orchestrator sits outside the MTCMOS fabric entirely (there are no header switches for the centre band), so a gate request for it would be a hardware lie --- but it IS hart 0, so that is the same reserved bit 0 every configuration has always had, and a blanket PWRCR write gates every channel tile and leaves the orchestrator running.' if orchestrator else '')
+p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-' + str(numHarts - 1) + ') sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released --- at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. ' + _pwrHart0Clause + _pwrOrchNote + ' Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed --- that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
 m.AddPeripheralTemplate(p)
 
 r = RegisterTemplate(nameTemplate='PWRCR', registerMemorySlot=0, size=32, description='Power gate control. Setting GATE bit h powers tile hart h down (isolation, reset, rail off); clearing it powers the tile back up and cold-boots it. A request made while the sequencer is mid-sequence is honored when the sequence completes (no aborts). Bit 0 (hart 0) is reserved: always-on, reads 0, writes ignored.')
 p.AddRegisterTemplate(r)
-r.AddBitField(BitField(unused=True, msb=31, lsb=pwrHarts))
-r.AddBitField(BitField(name='PWRGATE', msb=pwrHarts - 1, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
+r.AddBitField(BitField(unused=True, msb=31, lsb=numHarts))
+r.AddBitField(BitField(name='PWRGATE', msb=numHarts - 1, lsb=1, accessibility='rw', description='Gate request per tile hart: bit h = 1 powers tile hart h down, 0 powers it up (cold boot). Poll PWRSR for sequencer completion.', valueDescriptions=[(0, 'All tile harts powered', '_NONE')]))
 r.AddBitField(BitField(name='PWRH0', msb=0, lsb=0, accessibility='r', description='Hart 0 is always-on: reads 0, writes ignored.'))
 
 # PWRSR nibble array (A2 regrow, user decision 2026-07-10): the 4-bit state
 # nibble encoding is kept and the register grows to ceil(numHarts/8)
 # consecutive words at +0x4 (PWRSR0/1/2/...). At numHarts=4 this is exactly
 # the original single PWRSR word — Castalia byte-identity for free.
-_pwrsrWords = (pwrHarts + 7) // 8
+_pwrsrWords = (numHarts + 7) // 8
 for _w in range(_pwrsrWords):
 	_h0 = 8 * _w						# first hart in this word
-	_h1 = min(8 * _w + 7, pwrHarts - 1)	# last hart in this word
+	_h1 = min(8 * _w + 7, numHarts - 1)	# last hart in this word
 	_name = 'PWRSR' if _pwrsrWords == 1 else 'PWRSR' + str(_w)
 	if _pwrsrWords == 1:
 		_desc = 'Power sequencer state, one read-only nibble per hart (bits 4h+3:4h). 0 = ON, 1 = ISO (clamps asserting), 2 = RSTOFF (reset held, rail dying), 3 = OFF (gated), 4 = RAIL (waking, rail settling), 5 = UNISO (clamps releasing). Hart 0\'s nibble always reads 0. A tile is safely gated when its nibble reads 3, and fully awake (booting or parked in the ROM) when it returns to 0.'
@@ -3807,8 +3829,9 @@ m.McuMpCompat = {
 # the SH_AW constant, the bank row and the NPU staging plumbing all derive
 # from these three values (computed with the memory sections above).
 m.McuMpGeometry = {
-	'mgmtHart': mgmtHart,       # CP2: 0 = no orchestrator (byte-identical historical shape); non-zero = hart mgmtHart (== numHarts-1) is the always-on SOFT orchestrator emitted as `entity work.orch_tile`, wired hart-0-style for power/reset and tile-style for boot/IRQ, and is the afe_stub MGMT_HART (the AFE/EIS management privilege, D4). pwr_ctrl drops to NHARTS => numHarts-1 with it; CLINT/irq_router/debug_module and every master index stay on the full numHarts through nMasters()/masterW()/dmMasterIndex()
-	'shAw': shAw,               # arbiter/tile word-address width (15 = Castalia)
+	'orchestrator': orchestrator,  # CPR3/R1: False = no orchestrator (byte-identical historical shape); True = HART 0 is the always-on SOFT orchestrator emitted as `entity work.orch_tile` (keeping every hart-0 wiring special) and harts 1..numHarts-1 are FULLY UNIFORM channel tiles -- pwr_ctrl rows 1..numHarts-1 (PWRCR gains bit numHarts-1), iso clamps on all of them, and the memory map goes to v2 (SH_AW >= 16 + the five read-only TCM apertures). The management hart is hart 0 in both shapes, so afe_stub's MGMT_HART is never overridden any more
+	'shAw': shAw,               # arbiter/tile word-address width (15 = Castalia, 16 = Argus and every orchestrator config)
+	'tcmWindows': tcmWindows,   # CPR3/R3: byte base of the read-only TCM aperture for hart h (index = h); [] = no apertures
 	'sharedRamBanks': _sharedRamBanks,  # sram1p16k banks from 0x10000 (4 = Castalia)
 	'npu': npuPresent,          # False = Argus (slot 10 + 0xC000 window read zero)
 	'i2c1': i2c1Present,        # G1a: False drops the i2c1 instance (slot 15 dead)
@@ -3921,12 +3944,13 @@ _resolvedConfig = [
 	('configFile', _cfgPath if _cfgPath else None),
 	('chipName', m.AsicName),
 	('numHarts', numHarts),
-	# CP2: the orchestrator knob and the two values derived from it. Dumped so
-	# verify_stage.py (cell list + test tags) and any script can read the shape
-	# that was actually built rather than re-deriving it -- the debug-knob
-	# precedent (d2_probe finding 10).
-	('managementHart', mgmtHart),
-	('powerGatedHarts', pwrHarts),
+	# CPR3/R1: the orchestrator knob. Dumped so verify_stage.py (cell list +
+	# test tags) and any script can read the shape that was actually built
+	# rather than re-deriving it -- the debug-knob precedent (d2_probe finding
+	# 10). `powerGatedHarts` is gone with the CP2 pwrHarts special case: every
+	# hart 1..numHarts-1 is gateable in both shapes now, so the value was
+	# numHarts unconditionally and a second name for it could only rot.
+	('orchestrator', orchestrator),
 	('numMutexes', numMutexes),
 	('registerFileDualPort', _regsDualPort),
 	('isa', _isa),
@@ -3961,6 +3985,10 @@ _resolvedConfig = [
 		('sharedRamBanks', _sharedRamBanks),
 		('flashBaseAddress', _hx(flashBase)),
 		('sharedRamEndAddress', _hx(0x10000 + _sharedRamLen - 1)),
+		# CPR3/R3: the read-only TCM apertures (orchestrator configs only).
+		# Empty list everywhere else, so a consumer keys on the list, never
+		# on the knob (the resolved dump is the shape that was BUILT).
+		('tcmWindowAddresses', [_hx(_w) for _w in tcmWindows]),
 		('vectorsCount', _vectorsCount),	# Mission B: GPIO4/5 unconditional -> 114; digperiphs #4/#5: the library tail (RTC 114, PWM 115/116) extends it per the A5 global vector rule (_libraryTailVectorsCount())
 		('meipVector', 85),
 		('clintMsipVector', 83),
@@ -3985,12 +4013,12 @@ def _od(pairs):
 
 m.ResolvedConfig = _od(_resolvedConfig)
 m.PackagePreliminary = packagePreliminary	# G4: drives the TRM §2 "Preliminary" banner (LatexUserGuide \ifpackagepreliminary)
-# CP6: the management/orchestrator hart index, for the TRM's config-driven
-# prose (LatexUserGuide \iforchpresent / \OrchHartIndex). 0 = no orchestrator,
-# and every piece of orchestrator prose folds away — the same "inert unless
-# declared" discipline as \ifcqanalog and \ifdebugenable, which is what keeps
-# the default TRM byte-identical.
-m.MgmtHart = mgmtHart
+# CPR3/R1: the orchestrator PRESENCE flag, for the TRM's config-driven prose
+# (LatexUserGuide \iforchpresent; \OrchHartIndex is now the constant 0 — the
+# orchestrator IS hart 0). False = every piece of orchestrator prose folds away
+# — the same "inert unless declared" discipline as \ifcqanalog and
+# \ifdebugenable, which is what keeps the default TRM byte-identical.
+m.Orchestrator = orchestrator
 # Schema key -> human description, for the TRM's generated Chip Configuration
 # section (documents the CONFIG= schema next to this build's resolved values)
 m.ConfigSchemaDoc = dict((k, _CONFIG_SCHEMA[k][0]) for k in _CONFIG_SCHEMA)

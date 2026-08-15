@@ -119,19 +119,26 @@ CATALOG = [
     # `harts_le4` because the stub bank is FOUR instances at any numHarts while
     # the test addresses AFE0 + 0x40*h -- see config_tags.
     T('rv32ui-p-shafe', 'tiles cqAfeStubs harts_le4'),
-    # CP3 (Castalia-Penta): shafe's SUCCESSOR at N>=5, and the only row carrying
-    # the `orch` tag. It selects EXACTLY where shafe is deselected -- `orch` is
-    # managementHart != 0, which comes with numHarts=5, which drops `harts_le4`
-    # -- so the AFE/EIS coverage is handed over rather than lost (CP1 D8). What
-    # it proves that shafe cannot: the management privilege is the afe_stub
-    # MGMT_HART generic now, so hart 0 is a plain CHANNEL and is DENIED on
-    # AFE1/EIS, while hart 4 (no AFE site of its own) reads all four IF words,
-    # owns the EIS engine, programs ITS OWN irq_router row for sources 55/56 and
-    # runs the msip relay. ON-POLARITY-ONLY (it cannot be built for a chip
-    # without an orchestrator), hence smoke=True by the R-DK2 knobs-on-canary
-    # rule: on an orchestrator config it is the cheapest proof the orchestrator
-    # is really there.
+    # CP3 (Castalia-Penta): shafe's SUCCESSOR at N>=5, REWRITTEN AND RESTORED at
+    # CPR4. The CPR3 deferral (tag `orchLegacy`, which no config_tags() produces)
+    # is retired: shorch.S no longer carries the CP2 shape (`MGMT = NHARTS-1`,
+    # hart 4 as manager, hart 0 as a plain denied CHANNEL). Per CPR3/R2 the
+    # orchestrator is hart 0, the four AFE sites belong to harts 1-4
+    # (AFE0 + 0x40*(h-1)), MGMT_HART is never overridden again (entity default 0
+    # is correct everywhere), EIS is hart-0-owned, and the NEGATIVE CONTROL
+    # INVERTS: a TILE is the denied prober now, and hart 0 is the master that can
+    # look. Still `cqAfeStubs`-gated -- the stub bank does not exist on
+    # penta_wound, which is why CPR4's `shtcm` (below) and not this file is the
+    # tape-out-config orchestrator test.
     T('rv32ui-p-shorch', 'tiles cqAfeStubs orch', True),
+    # CPR4/R6: the TCM-aperture test, and THE orchestrator row that survives onto
+    # the tape-out configuration. It keys on `orch` alone because the five
+    # read-only TCM windows at 0x20000 + 0x4000*h are the memory architecture of
+    # an orchestrator chip (R4: not knob-gated), so they exist on penta AND
+    # penta_wound -- unlike the AFE/EIS stubs shorch needs. smoke=True by the
+    # R-DK2 knobs-on rule: this row appears ONLY where the orchestrator knob is
+    # on, and there it is the cheapest proof that the apertures were built.
+    T('rv32ui-p-shtcm', 'tiles orch', True),
     # digperiphs #6: shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
     # dma-enabled configs (castalia_dma NCH=2, wound NCH=4) -> tag 'dma' gates it
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
@@ -834,14 +841,17 @@ def config_tags(cfg):
     # proven by xrun_dbg.sh + the dbg_*.tcl harnesses instead.
     if cfg.get('debug', {}).get('enable'):
         tags.add('debug')
-    # CP2 (Castalia-Penta): the soft ORCHESTRATOR hart. It drives the CELL-LIST
-    # injection (orch_tile.vhd) AND, since CP3, selects the one CATALOG row that
-    # carries it -- `shorch`, the shafe successor. NOTE what the knob does to an
-    # EXISTING row: it comes with
+    # CPR3/R1 (Castalia-Penta rework): the soft ORCHESTRATOR hart, now a
+    # PRESENCE BOOLEAN and now HART 0. It drives the CELL-LIST injection
+    # (orch_tile.vhd) AND, since CPR4, two CATALOG rows: `shtcm` (the TCM
+    # apertures, which exist on EVERY orchestrator config -- so this is the row
+    # that runs on the tape-out configuration too) and the rewritten `shorch`,
+    # which additionally needs `cqAfeStubs` and therefore stops at penta.
+    # NOTE what the knob still does to an EXISTING row: it comes with
     # numHarts=5, so `harts_le4` drops out and `shafe` is deselected -- by
     # plan (CP1 D8), because the AFE bank is FOUR sites at any hart count
     # while shafe.S addresses AFE0 + 0x40*h, and h=4 would land on GPIO3.
-    if int(cfg.get('managementHart', 0)) != 0:
+    if cfg.get('orchestrator'):
         tags.add('orch')
     # digperiphs (TRNG): TRNG0 is a config-gated ADDED instance (default off), same
     # shape as DMA0. TrngRoEnsemble_sim.vhd + TRNG.vhd are compiled only when the

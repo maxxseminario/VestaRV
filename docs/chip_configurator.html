@@ -569,8 +569,8 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
           <div class="fctl"><span id="hartBadge" class="hbadge"></span><div class="step" id="stepHarts"></div></div>
         </div>
         <div class="field">
-          <div class="flabel"><div class="fn">Orchestrator hart <code>managementHart</code></div>
-            <div class="fh">Castalia-Penta: make the LAST hart an always-on soft orchestrator (management/coordination core) instead of a fourth channel tile. It is emitted as <code>orch_tile</code>, sits outside the power-gating fabric (no PWRCR bit), and takes the AFE/EIS management privilege from hart 0. Off = 0 = today's chip.</div></div>
+          <div class="flabel"><div class="fn">Orchestrator hart <code>orchestrator</code></div>
+            <div class="fh">Castalia-Penta: make HART 0 an always-on soft orchestrator instead of a hardened corner tile, and turn every other hart into a uniform channel tile. Hart 0 is emitted as <code>orch_tile</code>, keeps the flash/XIP + boot + trap + a0 wiring it already had and sits outside the power-gating fabric; harts 1..N-1 all gain PWRCR gate bits. Also switches the memory map to v2: <code>SH_AW</code> ≥ 16, one read-only TCM aperture per hart at <code>0x20000 + 0x4000·h</code> (management hart only), extended flash at <code>0x40000</code>. Off = today's chip.</div></div>
           <div class="fctl"><label><input type="checkbox" id="orchHart"> on</label></div>
         </div>
         <div class="field">
@@ -731,16 +731,14 @@ const VESTA_DATA = {
     "numHarts": {
       "description": "int 1..32 \u2014 hart/tile count (4 = Castalia golden master, 18 = Argus sim-proven)",
       "type": "int",
-      "default": 4,
+      "default": 5,
       "min": 1,
       "max": 32
     },
-    "managementHart": {
-      "description": "int 0..31 \u2014 CP2 (Castalia-Penta): index of the MANAGEMENT / ORCHESTRATOR hart. 0 (the default) is the historical shape: hart 0 manages, every hart is a hart_tile, and the generated RTL is byte-identical to a build that never heard of this knob. A NON-ZERO value designates the LAST hart (it must equal numHarts-1) as the always-on soft ORCHESTRATOR: that hart is emitted as `entity work.orch_tile` (a thin wrapper whose only job is to keep the soft core's module names disjoint from the hardened hart_tile netlist \u2014 see orch_tile.vhd and CP1 D6), wired hart-0-style for power/reset (resetn = resetn and pgood_rstn, NO pwr_ctrl row, NO isolation clamps, sh_* straight into its arbiter slice, tcm_pgen 0 / tcm_retn 1) and tile-style for boot/IRQ (hart_id = the index, msip/mtip/meip from the CLINT and router rows, sleep 0, flash ports open \u2014 boot mastership and the flash quartet stay on hart 0, CP1 D3). pwr_ctrl therefore stays at NHARTS => numHarts-1 (rows for the GATEABLE tiles only), so PWRCR has no gate bit for the orchestrator: it reads 0 and ignores writes, exactly as hart 0's does, and the harvested-boot PWRCR <- 0xFFFFFFFF gates the channel tiles while leaving the orchestrator up. The management PRIVILEGE moves with the index: afe_stub's ownership gate becomes `s_master = OWNER_HART or s_master = MGMT_HART` and the EIS engine is owned by this hart (D4); the AFE bank stays four sites at any hart count. Everything else follows the existing single sources \u2014 nMasters()/masterW()/dmMasterIndex(), so the orchestrator is arbiter master numHarts-1 and the DMA/debug masters shift up as usual, and clint/irq_router/debug_module go NHARTS => numHarts (the CLINT layout SHIFTS: mtime 0x5010 -> 0x5020 at N=5 \u2014 firmware must derive CLINT addresses from NHARTS)",
-      "type": "int",
-      "default": 0,
-      "min": 0,
-      "max": 31
+    "orchestrator": {
+      "description": "bool \u2014 CPR3/R1 (Castalia-Penta rework): is there an always-on soft ORCHESTRATOR hart? false (the default) is the historical shape \u2014 every hart is a hardened `hart_tile`, hart 0 is the management hart, and the generated RTL is byte-identical to a build that never heard of this knob. true makes HART 0 the orchestrator: it is emitted as `entity work.orch_tile` (a thin wrapper whose only job is to keep the soft core's module names disjoint from the hardened hart_tile netlist \u2014 see orch_tile.vhd and CP1 D6), keeps every hart-0 wiring special it already had (the SPI0 flash/XIP quartet, sleep => sleep_cpu, trap_flag => the GPIO0 trap pin, a0 => the tb pass/fail gate, tcm_pgen => pgen_mem(1), arbiter master slice 0 with no isolation clamps), and harts 1..numHarts-1 become FULLY UNIFORM channel tiles \u2014 hart_id 1..N-1, pwr_ctrl rows 1..N-1 (so PWRCR gains a gate bit for what used to be hart 0's always-on tile), iso clamps, tcm_pgen => pd_sleep(h), flash ports open, a0_h monitored. It also switches the memory map to v2 (R3): SH_AW = max(derived, 16), five READ-ONLY TCM apertures at TCMWIN[h] = 0x20000 + h*0x4000 through which the management hart (and only it \u2014 the s_master = 0 gate) reads any hart's private TCM, and extended flash at the automatic strict complement 0x40000. The management hart is hart 0 in BOTH shapes, so afe_stub's MGMT_HART generic is never overridden (its entity default 0 is correct everywhere) and only the AFE bank's OWNER_HART literals shift with the tiles (AFE0-3 own harts 1-4; the EIS engine stays hart-0/management-only). Everything else follows the existing single sources \u2014 nMasters()/masterW()/dmMasterIndex() and clint/irq_router/debug_module NHARTS => numHarts (the CLINT layout SHIFTS with the hart count: mtime 0x5010 -> 0x5020 at N=5 \u2014 firmware must derive CLINT addresses from NHARTS)",
+      "type": "bool",
+      "default": true
     },
     "numMutexes": {
       "description": "int 1..1024 \u2014 HW mutex bank size (16 = Castalia, 32 = Argus)",
@@ -1052,8 +1050,8 @@ const VESTA_DATA = {
   },
   "defaults": {
     "chipName": "Castalia",
-    "numHarts": 4,
-    "managementHart": 0,
+    "numHarts": 5,
+    "orchestrator": true,
     "numMutexes": 16,
     "registerFileDualPort": true,
     "isa.mul": true,
@@ -3928,17 +3926,24 @@ const VESTA_DATA = {
   "derivedPresets": {
     "castalia": {
       "isaString": "rv32imac_zba_zbb_zbs_zbc",
-      "sharedWindowAddrWidth": 15,
+      "sharedWindowAddrWidth": 16,
       "sharedRamBanks": 4,
-      "flashBaseAddress": "0x20000",
+      "flashBaseAddress": "0x40000",
       "sharedRamEndAddress": "0x1FFFF",
+      "tcmWindowAddresses": [
+        "0x20000",
+        "0x24000",
+        "0x28000",
+        "0x2C000",
+        "0x30000"
+      ],
       "vectorsCount": 121,
       "clintMsipVector": 83,
       "clintMtipVector": 84,
       "clintLayout": {
         "msipAddress": "0x5000 + 4*hartid",
-        "mtimeAddress": "0x5010",
-        "mtimecmpBaseAddress": "0x5020"
+        "mtimeAddress": "0x5020",
+        "mtimecmpBaseAddress": "0x5030"
       },
       "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
       "stackPointerInit": "0xC000"
@@ -3949,6 +3954,7 @@ const VESTA_DATA = {
       "sharedRamBanks": 8,
       "flashBaseAddress": "0x40000",
       "sharedRamEndAddress": "0x2FFFF",
+      "tcmWindowAddresses": [],
       "vectorsCount": 114,
       "clintMsipVector": 83,
       "clintMtipVector": 84,
@@ -3962,17 +3968,24 @@ const VESTA_DATA = {
     },
     "cq": {
       "isaString": "rv32imac_zba_zbb_zbs_zbc",
-      "sharedWindowAddrWidth": 15,
+      "sharedWindowAddrWidth": 16,
       "sharedRamBanks": 4,
-      "flashBaseAddress": "0x20000",
+      "flashBaseAddress": "0x40000",
       "sharedRamEndAddress": "0x1FFFF",
+      "tcmWindowAddresses": [
+        "0x20000",
+        "0x24000",
+        "0x28000",
+        "0x2C000",
+        "0x30000"
+      ],
       "vectorsCount": 121,
       "clintMsipVector": 83,
       "clintMtipVector": 84,
       "clintLayout": {
         "msipAddress": "0x5000 + 4*hartid",
-        "mtimeAddress": "0x5010",
-        "mtimecmpBaseAddress": "0x5020"
+        "mtimeAddress": "0x5020",
+        "mtimecmpBaseAddress": "0x5030"
       },
       "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
       "stackPointerInit": "0xC000"
@@ -4043,8 +4056,43 @@ const VESTA_DATA = {
       "description": "Arbitrated shared bulk RAM, 4 banks (locks, mailboxes, inter-hart data)"
     },
     {
-      "name": "Extended flash (XIP)",
+      "name": "TCM aperture 0",
       "start": "0x20000",
+      "end": "0x23FFF",
+      "kind": "shared",
+      "description": "Read-only view of hart 0's private TCM (management hart only; a gated tile reads zero)"
+    },
+    {
+      "name": "TCM aperture 1",
+      "start": "0x24000",
+      "end": "0x27FFF",
+      "kind": "shared",
+      "description": "Read-only view of hart 1's private TCM (management hart only; a gated tile reads zero)"
+    },
+    {
+      "name": "TCM aperture 2",
+      "start": "0x28000",
+      "end": "0x2BFFF",
+      "kind": "shared",
+      "description": "Read-only view of hart 2's private TCM (management hart only; a gated tile reads zero)"
+    },
+    {
+      "name": "TCM aperture 3",
+      "start": "0x2C000",
+      "end": "0x2FFFF",
+      "kind": "shared",
+      "description": "Read-only view of hart 3's private TCM (management hart only; a gated tile reads zero)"
+    },
+    {
+      "name": "TCM aperture 4",
+      "start": "0x30000",
+      "end": "0x33FFF",
+      "kind": "shared",
+      "description": "Read-only view of hart 4's private TCM (management hart only; a gated tile reads zero)"
+    },
+    {
+      "name": "Extended flash (XIP)",
+      "start": "0x40000",
       "end": null,
       "kind": "flash",
       "description": "Hart-0 SPI flash execute-in-place window (decodes at the strict shared-window complement)"
@@ -4071,7 +4119,7 @@ const VERIFIED_HARTS  = (VESTA_DATA.verifiedHarts && VESTA_DATA.verifiedHarts.va
 /* dotted schema key -> internal knob name. The one bridge; the import path
    is its inverse and configObject() re-emits the same dotted keys. */
 const SCHEMA_TO_CFG = {
-  "chipName":"chipName", "numHarts":"numHarts", "managementHart":"managementHart",
+  "chipName":"chipName", "numHarts":"numHarts", "orchestrator":"orchestrator",
   "numMutexes":"numMutexes",
   "registerFileDualPort":"ENABLE_REGS_DUALPORT",
   "isa.mul":"ENABLE_MUL", "isa.fastMul":"ENABLE_FAST_MUL", "isa.div":"ENABLE_DIV",
@@ -4204,7 +4252,13 @@ function derived(){
   let shAw = 0;
   while ((1 << shAw) < (0x10000 + cfg.sharedRamSize)) shAw++;
   shAw -= 2;
+  // CPR3/R3 (memory map v2): shAw's SECOND input. An orchestrator config needs
+  // pages 1000..1100 for the read-only TCM apertures at 0x20000 + 0x4000*h, so
+  // the window must reach 0x3FFFF whatever the bulk-RAM size says.
+  if (cfg.orchestrator && shAw < 16) shAw = 16;
   const flashBase = 1 << (shAw + 2);
+  const tcmWindows = cfg.orchestrator
+    ? Array.from({length: cfg.numHarts}, (_, h) => 0x20000 + 0x4000*h) : [];
   const mtimeSlot = Math.floor((4*cfg.numHarts + 15) / 16) * 4;
   const mtime = 0x5000 + 4*mtimeSlot;
   const gapStart = 0x10000 + cfg.sharedRamSize;
@@ -4226,7 +4280,7 @@ function derived(){
     banks: banks, shAw: shAw, flashBase: flashBase,
     sharedEnd: 0x10000 + cfg.sharedRamSize - 1,
     gap: (gapStart < flashBase) ? [gapStart, flashBase - 1] : null,
-    mtime: mtime, mtimecmp: mtime + 0x10,
+    mtime: mtime, mtimecmp: mtime + 0x10, tcmWindows: tcmWindows,
     vectors: vhigh, msipVec: 83, mtipVec: 84,
     loaderBase: 0x10500, spInit: 0xC000,
   };
@@ -4284,11 +4338,11 @@ function render(){
   /* Cores */
   renderStepper($("#stepHarts"), cfg.numHarts,
     schemaMin("numHarts",1), schemaMax("numHarts",32),
-    v=>{cfg.numHarts=v; if(cfg.managementHart!==0) cfg.managementHart=v-1; render();});
+    v=>{cfg.numHarts=v; if(v<2) cfg.orchestrator=false; render();});
   { const oh = $("#orchHart");
-    if(oh){ oh.checked = cfg.managementHart !== 0;
+    if(oh){ oh.checked = !!cfg.orchestrator;
       oh.disabled = cfg.numHarts < 2;
-      oh.onchange = ()=>{ cfg.managementHart = oh.checked ? cfg.numHarts-1 : 0; render(); }; } }
+      oh.onchange = ()=>{ cfg.orchestrator = oh.checked; render(); }; } }
   { const hb = hartBadge(); const el = $("#hartBadge");
     if(el){ el.className = "hbadge " + hb.cls; el.textContent = hb.text; } }
   /* package model options come from the schema enum */
@@ -4826,10 +4880,11 @@ function configObject(){
     _comment: "VestaRV chip config — feed to: make chip CONFIG=config.json (from platform/common/). Every key optional; unknown keys are rejected by generate.py. Resolved result: config/ChipConfig.resolved.json.",
     chipName: cfg.chipName.trim() || "Castalia",
     numHarts: cfg.numHarts,
-    // Castalia-Penta: 0 = no orchestrator; otherwise it MUST be numHarts-1
-    // (generate.py raises otherwise -- the orchestrator is the last index
-    // because pwr_ctrl keeps rows for the gateable tiles only).
-    managementHart: cfg.managementHart,
+    // Castalia-Penta (CPR3/R1): a PRESENCE boolean, not an index. true = hart 0
+    // is the always-on soft orchestrator and harts 1..numHarts-1 are the
+    // channel tiles; it also selects memory map v2 (SH_AW >= 16, the read-only
+    // TCM apertures, flash at 0x40000). Needs numHarts >= 2.
+    orchestrator: cfg.orchestrator,
     numMutexes: cfg.numMutexes,
     registerFileDualPort: cfg.ENABLE_REGS_DUALPORT,
     isa: {

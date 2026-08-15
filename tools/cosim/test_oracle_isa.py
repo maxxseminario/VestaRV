@@ -24,8 +24,14 @@ import oracle_isa as O                                          # noqa: E402
 # The string xrun_cosim.sh has hardcoded since V0. Quoted here so the test fails
 # loudly if either side moves.
 TODAYS_SPIKE_ISA = 'rv32imac_zicsr_zba_zbb_zbs_zbc'
-TODAYS_SPIKE_MEM = '0x8000:0x18000'
-TODAYS_BOOT_MEM = '0x0:0x20000'
+# CPR8/R7 RE-PIN (2026-08-15): the shipped default became the five-hart
+# orchestrator chip, which carries memory map v2 -- SH_AW 15 -> 16, so the
+# shared space is [0, 2**18) and extended flash starts at 0x40000. Both windows
+# are DERIVED (BOOT_MEM = 0:2**(SH_AW+2), SPIKE_MEM = RamStartAddress:top-base),
+# so both moved together; the old pins were 0x8000:0x18000 / 0x0:0x20000 and are
+# still what config/castalia4.json derives.
+TODAYS_SPIKE_MEM = '0x8000:0x38000'
+TODAYS_BOOT_MEM = '0x0:0x40000'
 
 FAILURES = []
 COUNT = [0]

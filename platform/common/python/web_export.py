@@ -142,8 +142,16 @@ def _derived(cfg):
 	numHarts = int(cfg['numHarts'])
 	sharedRam = int(cfg['memory']['sharedBulkRamSize'])
 	shAw = _clog2(0x10000 + sharedRam) - 2
+	# CPR3/R3: the orchestrator term. An orchestrator config carries the
+	# read-only TCM apertures at 0x20000 + 0x4000*h, which need pages
+	# 1000..1100, so the shared window is forced to 16 bits of word address and
+	# extended flash follows to the strict complement 0x40000. Same expression
+	# as generate.py's; the cross-check below is what keeps them one formula.
+	if cfg.get('orchestrator') and shAw < 16:
+		shAw = 16
 	banks = sharedRam // 0x4000
 	flash = 1 << (shAw + 2)
+	tcmWindows = [0x20000 + 0x4000 * h for h in range(numHarts)] if cfg.get('orchestrator') else []
 	mtimeSlot = ((4 * numHarts + 15) // 16) * 4
 	mtimecmpSlot = mtimeSlot + 4
 	return {
@@ -152,6 +160,7 @@ def _derived(cfg):
 		'sharedRamBanks': banks,
 		'flashBaseAddress': _hx(flash),
 		'sharedRamEndAddress': _hx(0x10000 + sharedRam - 1),
+		'tcmWindowAddresses': [_hx(w) for w in tcmWindows],
 		# digperiphs Mission B: GPIO4/5 unconditional -> 114; digperiphs #4/#5: the
 		# library tail extends the count per the A5 GLOBAL VECTOR RULE — up to the last
 		# vector of the highest enabled block (RTC 114, PWM 115/116, ...). Mirrors
@@ -270,12 +279,13 @@ def buildWebData(gen):
 	authoritative = resolved.get('derived', {})
 	mine = _derived({
 		'numHarts': resolved['numHarts'],
+		'orchestrator': resolved.get('orchestrator', False),	# CPR3/R3: shAw's second input
 		'isa': resolved['isa'],
 		'memory': resolved['memory'],
 		'peripherals': resolved['peripherals'],	# digperiphs #4: RTC grows vectorsCount 114 -> 115
 	})
 	for k in ('sharedWindowAddrWidth', 'sharedRamBanks', 'flashBaseAddress',
-			'sharedRamEndAddress', 'isaString', 'vectorsCount',
+			'sharedRamEndAddress', 'tcmWindowAddresses', 'isaString', 'vectorsCount',
 			'clintMsipVector', 'clintMtipVector'):
 		if k in authoritative and mine[k] != authoritative[k]:
 			raise Exception('web_export._derived() disagrees with generate.py on "%s": %r vs %r'
