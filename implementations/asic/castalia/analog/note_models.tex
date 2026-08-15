@@ -30,8 +30,8 @@ resistance; it is not used by the benches reported here.
   \caption[{Component values of the electrochemical models.}]{Component values of the
   electrochemical models of Figures~\ref{fig:randles-cell} and~\ref{fig:randles-electrode}. The \texttt{randles\_cell}
   values are the subcircuit defaults, and are the values the control-amplifier
-  benches instantiate. The transimpedance benches do not use either model --- see the
-  caveat below.}
+  benches instantiate. The transimpedance benches override them; the values used are
+  stated with each measurement.}
   \label{tab:analog-models}
   \begin{tabular}{llrl}
     \toprule
@@ -56,10 +56,4 @@ response. And they are nominal --- no spread is assigned to any element, so no r
 this chapter accounts for electrode-to-electrode variation, which on a real wound
 interface is likely to exceed the process spread reported alongside it.
 
-\paragraph{The transimpedance benches do not use these models.} They load the working
-electrode with a bare \SI{1}{\micro\farad} capacitor to ground: no \(R_{\mathrm{ct}}\),
-no \(R_u\). That is a materially different load, because a real cell holds the
-summing-node impedance finite --- about \SI{31}{\kilo\ohm} at DC, falling to
-\SI{1}{\kilo\ohm} --- where a pure capacitance lets it fall without limit. The
-consequence for the peaking reported in Section~\ref{ss:tiaamp} is set out in
-Section~\ref{sss:tia-loop}.
+\paragraph{Values used by the transimpedance benches.} The closed-loop transimpedance measurements of Section~\ref{ss:tiaamp} instantiate \texttt{randles\_cell} with $R_u = \SI{100}{\ohm}$ or \SI{1}{\kilo\ohm}, $R_{\mathrm{ct}} = \SI{10}{\kilo\ohm}$ or \SI{1}{\mega\ohm}, and $C_{\mathrm{dl}} = \SI{100}{\nano\farad}$ or \SI{1}{\micro\farad}, in place of the subcircuit defaults above. The value used is stated with each measurement.

@@ -277,7 +277,7 @@
       "height": "5.6cm",
       "xlabel": "Phase margin, \\SI{10}{\\pico\\farad} load~[\\si{\\degree}]",
       "ylabel": "Samples",
-      "caption": "Phase margin driving the \\SI{10}{\\pico\\farad} test load, which is the worst case for this amplifier --- a real cell adds resistive loading that lowers the loop gain and raises the margin (Table~\\ref{tab:ctrlamp-cell-loop}). 29 of 200 samples fall below the \\SI{60}{\\degree} target: \\SI{85.5}{\\percent} per channel, \\SI{53.4}{\\percent} across four. The worst is \\SI{59.3}{\\degree}, so no sample is near instability; it is the target that is missed."
+      "caption": "Phase margin driving the \\SI{10}{\\pico\\farad} test load. A cell load adds resistive loading that lowers the loop gain and raises the margin (Table~\\ref{tab:ctrlamp-cell-loop}). 171 of 200 samples meet the \\SI{60}{\\degree} design target: \\SI{85.5}{\\percent} per channel, \\SI{53.4}{\\percent} across four. Minimum sample \\SI{59.3}{\\degree}."
     },
     {
       "id": "ctrlamp_mc_slew",
@@ -388,7 +388,7 @@
       ],
       "channels": 4,
       "digits": 2,
-      "caption": "Small-signal stability driving the \\SI{10}{\\pico\\farad} test load. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius}, 200 samples, seed 12345, LDS sampling. Percentiles and worst case are quoted rather than \\(\\pm 3\\sigma\\) for the margins, which are not normally distributed. Phase margin is the binding specification at \\SI{85.5}{\\percent} per-channel yield; gain margin and open-circuit gain pass in every sample. Note that open-circuit gain is measured with only a capacitive load and is not the gain available at the electrode --- the cell reduces it to about \\SI{8}{\\decibel} (Table~\\ref{tab:ctrlamp-cell-loop}), which is the figure that governs regulation accuracy."
+      "caption": "Small-signal stability driving the \\SI{10}{\\pico\\farad} test load. \\textbf{Process and mismatch} (\\texttt{castalia\\_pm\\_25}), \\SI{37}{\\celsius}, 200 samples, seed 12345, LDS sampling. Percentiles and worst case are quoted rather than \\(\\pm 3\\sigma\\) for the margins, which are not normally distributed."
     },
     {
       "id": "ctrlamp_mc_noise",
