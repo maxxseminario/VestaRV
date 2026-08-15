@@ -46,6 +46,14 @@
   svg .lbl-muted { fill: var(--muted); }
   svg .wire { stroke: var(--fg); stroke-width: 1.5; fill: none; }
   svg .blockbox { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+  svg .axis { stroke: var(--muted); stroke-width: 1; fill: none; }
+  svg .grid { stroke: var(--line); stroke-width: 1; fill: none; }
+  svg .curve { fill: none; stroke: var(--bad); stroke-width: 2.2; }
+  svg .curve-fix { fill: none; stroke: var(--good); stroke-width: 2.2; }
+  svg .refline { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  svg .newpart { stroke: var(--accent); stroke-width: 2.2; fill: none; }
+  svg .tick { font-size: 11px; fill: var(--muted); }
+  svg .note { font-size: 11.5px; fill: var(--fg); }
   ul { padding-left: 1.3rem; }
   li { margin: .35rem 0; }
   .footer { margin-top: 3rem; color: var(--muted); font-size: .85rem;
@@ -172,8 +180,250 @@
 <ul>
   <li><code>bts_pmos</code> output stage is class-A on the source side (current-source PMOS pull-up MM5) — check worst-case cathodic full-scale drive; if short, bump MM5's bias rather than going class-AB.</li>
   <li><code>folded_cascode_pmos</code> previously drove only a MOS gate; it now supplies the actual cell current through CE. Confirm its class-A source/sink limits against max expected wound current; add a buffer only if needed.</li>
-  <li>Loop stability of both amps with electrode impedance models (RE is now inside A1's feedback loop; WE capacitance loads A2's virtual ground).</li>
+  <li>Loop stability of both amps with electrode impedance models (RE is now inside A1's feedback loop; WE capacitance loads A2's virtual ground). <strong>Done for A2 — it does not pass. See the next section.</strong></li>
 </ul>
+
+<h2>TIA feedback compensation — the C<sub>f</sub> decision</h2>
+<p>TB-03 (<code>anatop_tb_tia</code>, run 2026-07-28) measured the A2 transimpedance loop with <code>Rf</code> = 560 kΩ and 1 µF at WE. The closed-loop transimpedance is not flat: it peaks <strong>5.0–6.4 dB at about 1 kHz</strong> across the five corners. The stage needs a feedback capacitor, an external one, or a deliberate bandwidth restriction. Which of the three is an open decision, and it changes the cell — so it has to be settled before layout.</p>
+
+<div class="callout">
+<strong>This is not an amplifier defect.</strong> A2 has 88° of phase margin in unity feedback with a 5 pF load. That is a different loop. The transimpedance loop's feedback network is <code>Rf</code> working against the electrode capacitance, and its stability has nothing to do with the unity-gain number. Confusing the two is the standard way this is missed.</div>
+
+<h3>1 · Which nodes C<sub>f</sub> goes between</h3>
+<p>C<sub>f</sub> sits <strong>in parallel with the whole feedback path</strong>: from A2's inverting input — the WE summing node, pin <code>vinm</code> on <code>anatop_tiaamp</code> — to A2's output, pin <code>vout</code>. The same two nodes <code>Rf</code> already spans.</p>
+
+<figure>
+<svg viewBox="0 0 760 300" width="760" height="300" role="img" aria-label="Where the compensation capacitor connects in the TIA">
+  <!-- Cf branch -->
+  <line class="newpart" x1="280" y1="170" x2="280" y2="50" stroke-dasharray="6 4"/>
+  <line class="newpart" x1="280" y1="50" x2="404" y2="50" stroke-dasharray="6 4"/>
+  <line class="newpart" x1="416" y1="50" x2="560" y2="50" stroke-dasharray="6 4"/>
+  <line class="newpart" x1="560" y1="50" x2="560" y2="170" stroke-dasharray="6 4"/>
+  <line class="newpart" x1="404" y1="36" x2="404" y2="64"/>
+  <line class="newpart" x1="416" y1="36" x2="416" y2="64"/>
+  <text x="410" y="26" font-size="13" text-anchor="middle" fill="currentColor" class="note"><tspan font-weight="bold">C_f  (proposed)</tspan></text>
+
+  <!-- R string feedback -->
+  <line class="wire" x1="280" y1="170" x2="280" y2="95"/>
+  <line class="wire" x1="280" y1="95" x2="300" y2="95"/>
+  <rect class="blockbox" x="300" y="86" width="170" height="18"/>
+  <circle cx="342" cy="104" r="2.6" fill="currentColor"/>
+  <circle cx="385" cy="104" r="2.6" fill="currentColor"/>
+  <circle cx="428" cy="104" r="2.6" fill="currentColor"/>
+  <line class="wire" x1="342" y1="104" x2="342" y2="126"/>
+  <line class="wire" x1="385" y1="104" x2="385" y2="126"/>
+  <line class="wire" x1="428" y1="104" x2="428" y2="126"/>
+  <line class="wire" x1="342" y1="126" x2="492" y2="126"/>
+  <text x="385" y="79" font-size="12" text-anchor="middle">Rf — 16 × 35 kΩ poly string</text>
+  <line class="wire" x1="470" y1="95" x2="492" y2="95"/>
+  <rect class="blockbox" x="492" y="84" width="58" height="52" rx="4"/>
+  <text x="521" y="105" font-size="11" text-anchor="middle">16:1</text>
+  <text x="521" y="120" font-size="11" text-anchor="middle">T-gate</text>
+  <line class="wire" x1="550" y1="110" x2="560" y2="110"/>
+  <line class="wire" x1="560" y1="110" x2="560" y2="170"/>
+
+  <!-- WE node and electrode -->
+  <circle cx="110" cy="170" r="5" fill="none" class="wire"/>
+  <text x="110" y="158" font-size="12" text-anchor="middle">WE pad</text>
+  <line class="wire" x1="115" y1="170" x2="300" y2="170"/>
+  <line class="wire" x1="110" y1="175" x2="110" y2="212"/>
+  <line class="wire" x1="94" y1="212" x2="126" y2="212"/>
+  <line class="wire" x1="94" y1="222" x2="126" y2="222"/>
+  <line class="wire" x1="110" y1="222" x2="110" y2="248"/>
+  <line class="wire" x1="98" y1="248" x2="122" y2="248"/>
+  <line class="wire" x1="103" y1="253" x2="117" y2="253"/>
+  <line class="wire" x1="107" y1="258" x2="113" y2="258"/>
+  <text x="134" y="219" font-size="12">C_dl — electrode, ≈1 µF in TB-03</text>
+  <text x="134" y="235" font-size="11" class="lbl-muted">not a chip parameter</text>
+
+  <!-- A2 -->
+  <polygon class="blockbox" points="300,130 300,210 360,170"/>
+  <text x="316" y="175" font-size="13">A2</text>
+  <text x="308" y="150" font-size="13">−</text>
+  <text x="308" y="199" font-size="13">+</text>
+  <line class="wire" x1="270" y1="192" x2="300" y2="192"/>
+  <text x="266" y="196" font-size="12" text-anchor="end">vcm</text>
+
+  <!-- output -->
+  <line class="wire" x1="360" y1="170" x2="620" y2="170"/>
+  <rect class="blockbox" x="620" y="148" width="100" height="44" rx="6"/>
+  <text x="670" y="175" font-size="12" text-anchor="middle">10-bit SAR</text>
+
+  <!-- node dots + callouts -->
+  <circle cx="280" cy="170" r="4.5" fill="currentColor"/>
+  <circle cx="560" cy="170" r="4.5" fill="currentColor"/>
+  <text x="252" y="286" font-size="12" text-anchor="middle" class="note">summing node</text>
+  <text x="252" y="272" font-size="12" text-anchor="middle" class="note"><tspan font-weight="bold">vinm</tspan> (= WE)</text>
+  <line class="axis" x1="280" y1="176" x2="270" y2="258" stroke-dasharray="3 3"/>
+  <text x="592" y="272" font-size="12" text-anchor="middle" class="note"><tspan font-weight="bold">vout</tspan></text>
+  <text x="592" y="286" font-size="12" text-anchor="middle" class="note">A2 output</text>
+  <line class="axis" x1="560" y1="176" x2="578" y2="258" stroke-dasharray="3 3"/>
+</svg>
+<figcaption>C<sub>f</sub> parallels the entire feedback path, <code>vinm</code> → <code>vout</code>, not one segment of the R string. Spanning the whole path keeps it correct at every one of the 16 gain taps and bypasses the selected T-gate's on-resistance, which otherwise adds its own pole in the feedback. <strong>Not</strong> WE to ground — capacitance there is C<sub>dl</sub>, which is what causes the problem.</figcaption>
+</figure>
+
+<h3>2 · How the error varies with frequency</h3>
+<p>The error is zero at DC, negligible to about 100 Hz, then grows fast to a resonant peak at 1 kHz before the response collapses. Measured, tt corner, <code>Rf</code> = 560 kΩ:</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Frequency</th><th>|Z<sub>t</sub>|</th><th>Error vs R<sub>f</sub></th><th></th></tr>
+  <tr><td>1 Hz</td><td>559.9 kΩ</td><td>—</td><td class="lbl-muted">DC accuracy set by R<sub>f</sub> alone</td></tr>
+  <tr><td>126 Hz</td><td>565.5 kΩ</td><td>+1 %</td><td>end of the usable flat band</td></tr>
+  <tr><td>282 Hz</td><td>588.6 kΩ</td><td>+5 %</td><td></td></tr>
+  <tr><td><strong>1.00 kHz</strong></td><td><strong>1002 kΩ</strong></td><td><strong>+79 % (5.06 dB)</strong></td><td>peak</td></tr>
+  <tr><td>1.71 kHz</td><td>396 kΩ</td><td>−29 %</td><td class="lbl-muted">the quoted &minus;3 dB point, past the peak</td></tr>
+  <tr><td>2.82 kHz</td><td>110 kΩ</td><td>−80 %</td><td></td></tr>
+</table></div>
+
+<figure>
+<svg viewBox="0 0 760 372" width="760" height="372" role="img" aria-label="Measured transimpedance against frequency, with and without a feedback capacitor">
+  <line class="grid" x1="212" y1="40" x2="212" y2="300"/>
+  <line class="grid" x1="334" y1="40" x2="334" y2="300"/>
+  <line class="grid" x1="456" y1="40" x2="456" y2="300"/>
+  <line class="grid" x1="578" y1="40" x2="578" y2="300"/>
+  <line class="grid" x1="90" y1="251.9" x2="700" y2="251.9"/>
+  <line class="grid" x1="90" y1="159.8" x2="700" y2="159.8"/>
+  <line class="grid" x1="90" y1="67.7" x2="700" y2="67.7"/>
+  <line class="axis" x1="90" y1="40" x2="90" y2="300"/>
+  <line class="axis" x1="90" y1="300" x2="700" y2="300"/>
+
+  <line class="refline" x1="90" y1="90.9" x2="700" y2="90.9"/>
+
+  <polyline class="curve" points="90.0,90.9 218.1,90.9 273.0,90.9 297.4,90.8 321.8,90.7 340.1,90.6 346.2,90.5 352.3,90.4 358.4,90.3 364.5,90.1 370.6,89.9 376.7,89.7 382.8,89.3 388.9,88.9 395.0,88.4 401.1,87.7 407.2,86.9 413.3,85.8 419.4,84.4 425.5,82.7 431.6,80.5 437.7,77.7 443.8,74.4 449.9,70.7 456.0,67.6 462.1,67.7 468.2,73.6 474.3,84.4 480.4,97.1 486.5,110.0 492.6,122.3 498.7,134.0 504.8,145.2 510.9,156.0 517.0,166.4 523.1,176.6 529.2,186.6 535.3,196.4 541.4,206.1 547.5,215.7 553.6,225.2 559.7,234.6 565.8,244.0 571.9,253.4 578.0,262.7 584.1,272.0 590.2,281.3 596.3,290.5 602.4,299.8"/>
+
+  <polyline class="curve-fix" points="90.0,90.9 300.0,90.9 380.4,90.9 402.3,91.0 419.4,91.3 431.6,91.8 441.4,92.8 451.1,94.7 460.9,98.2 470.6,103.9 480.4,112.3 490.2,123.1 499.9,135.6 509.7,149.2 519.4,163.4 529.2,177.8 539.0,192.4 548.7,207.1 558.5,221.8 568.2,236.5 578.0,251.2 587.8,265.9 597.5,280.7 607.3,295.4"/>
+
+  <circle cx="456" cy="67.6" r="4" fill="currentColor"/>
+  <text x="462" y="58" font-size="12" class="note">1.00 kHz, 1002 kΩ — +79 %</text>
+  <circle cx="346.2" cy="90.5" r="3.2" fill="currentColor"/>
+  <text x="342" y="112" font-size="11" text-anchor="middle" class="note">+1 %</text>
+  <text x="342" y="125" font-size="11" text-anchor="middle" class="tick">126 Hz</text>
+
+  <line class="curve" x1="112" y1="216" x2="146" y2="216"/>
+  <text x="154" y="220" font-size="12" class="note">measured — no C_f</text>
+  <line class="curve-fix" x1="112" y1="240" x2="146" y2="240"/>
+  <text x="154" y="244" font-size="12" class="note">with C_f ≈ 210 pF — flat to 1.3 kHz</text>
+  <line class="refline" x1="112" y1="264" x2="146" y2="264"/>
+  <text x="154" y="268" font-size="12" class="note">R_f = 560 kΩ, ideal</text>
+
+  <text x="90" y="318" font-size="11" text-anchor="middle" class="tick">1</text>
+  <text x="212" y="318" font-size="11" text-anchor="middle" class="tick">10</text>
+  <text x="334" y="318" font-size="11" text-anchor="middle" class="tick">100</text>
+  <text x="456" y="318" font-size="11" text-anchor="middle" class="tick">1k</text>
+  <text x="578" y="318" font-size="11" text-anchor="middle" class="tick">10k</text>
+  <text x="700" y="318" font-size="11" text-anchor="middle" class="tick">100k</text>
+  <text x="395" y="338" font-size="12" text-anchor="middle" class="tick">frequency [Hz]</text>
+  <text x="84" y="256" font-size="11" text-anchor="end" class="tick">10</text>
+  <text x="84" y="164" font-size="11" text-anchor="end" class="tick">100</text>
+  <text x="84" y="72" font-size="11" text-anchor="end" class="tick">1000</text>
+  <text x="30" y="175" font-size="12" text-anchor="middle" class="tick" transform="rotate(-90 30 175)">|Z_t|  [kΩ]</text>
+</svg>
+<figcaption>Measured <code>TiaFbTB</code> transimpedance, tt corner, R<sub>f</sub> = 560 kΩ, 1 µF at WE (red), against the maximally-flat response a correctly sized C<sub>f</sub> would give (green, computed). Both axes logarithmic. The 1.707 kHz &minus;3 dB frequency in the TRM table sits on the far side of the peak and is not a usable bandwidth; the honest flatness number is <strong>126 Hz to +1 %</strong>. The green curve is the textbook target, not a simulated result — see the sizing caveat below.</figcaption>
+</figure>
+
+<p>The mechanism is a feedback-path problem, not a signal-path one. C<sub>dl</sub> sits at the summing node, where the signal is an injected current, so it does not filter the signal — it attenuates the <em>feedback</em>:</p>
+<p style="text-align:center"><code>β(s) = 1 / (1 + s·R<sub>f</sub>·C<sub>dl</sub>)</code></p>
+<p>Above 1/(2π·R<sub>f</sub>·C<sub>dl</sub>) = <strong>0.28 Hz</strong> the fed-back fraction falls at 20 dB/decade, so the noise gain 1/β climbs at 20 dB/decade. A2's own open-loop gain is falling at 20 dB/decade past its 290 Hz dominant pole. The two meet at a <strong>40 dB/decade rate of closure</strong> — each slope contributing 90° of lag, so ≈180° total and almost no phase margin. Peaking is what that looks like in the closed-loop magnitude.</p>
+
+<figure>
+<svg viewBox="0 0 760 320" width="760" height="320" role="img" aria-label="Rate-of-closure construction for the transimpedance loop">
+  <line class="grid" x1="166.25" y1="40" x2="166.25" y2="260"/>
+  <line class="grid" x1="242.5" y1="40" x2="242.5" y2="260"/>
+  <line class="grid" x1="318.75" y1="40" x2="318.75" y2="260"/>
+  <line class="grid" x1="395" y1="40" x2="395" y2="260"/>
+  <line class="grid" x1="471.25" y1="40" x2="471.25" y2="260"/>
+  <line class="grid" x1="547.5" y1="40" x2="547.5" y2="260"/>
+  <line class="grid" x1="623.75" y1="40" x2="623.75" y2="260"/>
+  <line class="axis" x1="90" y1="40" x2="90" y2="260"/>
+  <line class="axis" x1="90" y1="238" x2="700" y2="238"/>
+
+  <polyline class="axis" style="stroke:var(--fg);stroke-width:2.2" points="90,52.5 354,52.5 675,238"/>
+  <text x="150" y="46" font-size="12" class="note">A(f) — A2 open loop, 84.3 dB, f_p1 = 290 Hz</text>
+
+  <polyline class="curve" points="90,238 124.6,238 431.4,61"/>
+  <text x="437" y="60" font-size="12" class="note" fill="var(--bad)">1/β, no C_f</text>
+  <text x="437" y="74" font-size="11" class="tick">+20 dB/dec</text>
+
+  <polyline class="curve-fix" points="404.9,76.3 585,76.3" stroke-dasharray="8 5" style="stroke-width:2.8"/>
+  <circle cx="404.9" cy="76.3" r="4" fill="var(--good)"/>
+  <text x="591" y="72" font-size="12" class="note" fill="var(--good)">1/β with C_f</text>
+  <text x="591" y="86" font-size="11" class="tick">flat above 1/(2πR_f C_f)</text>
+
+  <circle cx="399.9" cy="79.1" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+  <line class="axis" x1="340" y1="196" x2="392" y2="90" stroke-dasharray="3 3"/>
+  <text x="316" y="209" font-size="12" text-anchor="middle" class="note">f_x ≈ 1.2 kHz</text>
+  <text x="316" y="223" font-size="11" text-anchor="middle" class="tick">40 dB/dec closure</text>
+
+  <text x="90" y="278" font-size="11" text-anchor="middle" class="tick">0.1</text>
+  <text x="166" y="278" font-size="11" text-anchor="middle" class="tick">1</text>
+  <text x="242" y="278" font-size="11" text-anchor="middle" class="tick">10</text>
+  <text x="319" y="278" font-size="11" text-anchor="middle" class="tick">100</text>
+  <text x="395" y="278" font-size="11" text-anchor="middle" class="tick">1k</text>
+  <text x="471" y="278" font-size="11" text-anchor="middle" class="tick">10k</text>
+  <text x="548" y="278" font-size="11" text-anchor="middle" class="tick">100k</text>
+  <text x="624" y="278" font-size="11" text-anchor="middle" class="tick">1M</text>
+  <text x="700" y="278" font-size="11" text-anchor="middle" class="tick">10M</text>
+  <text x="395" y="300" font-size="12" text-anchor="middle" class="tick">frequency [Hz]</text>
+  <text x="84" y="242" font-size="11" text-anchor="end" class="tick">0</text>
+  <text x="84" y="198" font-size="11" text-anchor="end" class="tick">20</text>
+  <text x="84" y="154" font-size="11" text-anchor="end" class="tick">40</text>
+  <text x="84" y="110" font-size="11" text-anchor="end" class="tick">60</text>
+  <text x="84" y="66" font-size="11" text-anchor="end" class="tick">80</text>
+  <text x="34" y="150" font-size="12" text-anchor="middle" class="tick" transform="rotate(-90 34 150)">gain [dB]</text>
+</svg>
+<figcaption>Asymptotic construction, schematic. The loop closes where A(f) meets 1/β. Without C<sub>f</sub> the two approach at 40 dB/decade and the loop is barely stable. C<sub>f</sub> puts a pole in the noise gain at 1/(2π·R<sub>f</sub>·C<sub>f</sub>); sized for maximal flatness that pole lands on the crossing itself, dropping the closure rate to 20 dB/decade. A larger C<sub>f</sub> moves it earlier and overdamps. Predicted crossing 1.2–1.3 kHz depending on whether the gain–bandwidth asymptote (4.8 MHz) or the measured 6.4 MHz crossover is used; measured peak 1.00–1.12 kHz.</figcaption>
+</figure>
+
+<p>Consequences, in the order they will bite:</p>
+<ul>
+  <li><strong>Gain error against frequency</strong> — a 1 kHz current reads 1.8× high. Any EIS sweep through that band is wrong.</li>
+  <li><strong>Ringing on potential steps</strong> — chronoamperometry and CV apply steps; the current transient rings at ~1 kHz, lengthening settling.</li>
+  <li><strong>Excess noise</strong> — the noise-gain peak amplifies A2's input-referred noise around 1 kHz, above what the corner noise table implies.</li>
+  <li><strong>It rings, it does not oscillate.</strong> 5–6 dB of peaking is underdamped, not unstable.</li>
+</ul>
+
+<h3>3 · Sizing — and why the number is not settled</h3>
+<p>The textbook value is C<sub>f</sub> = √( C<sub>dl</sub> / (2π·R<sub>f</sub>·f<sub>u</sub>) ), which also sets the resulting flat bandwidth to 1/(2π·R<sub>f</sub>·C<sub>f</sub>). At f<sub>u</sub> = 6.387 MHz and C<sub>dl</sub> = 1 µF, across the R string:</p>
+
+<div class="tablewrap"><table>
+  <tr><th>R<sub>f</sub> tap</th><th>C<sub>f</sub></th><th>Flat bandwidth</th><th>MIM area / channel</th><th>× 4 channels</th><th>% of die</th></tr>
+  <tr><td>35 kΩ (min gain)</td><td>844 pF</td><td>5.4 kHz</td><td>0.42 mm²</td><td>1.69 mm²</td><td>19.3 %</td></tr>
+  <tr><td>140 kΩ</td><td>422 pF</td><td>2.7 kHz</td><td>0.21 mm²</td><td>0.84 mm²</td><td>9.6 %</td></tr>
+  <tr><td>560 kΩ (max gain)</td><td>211 pF</td><td>1.3 kHz</td><td>0.11 mm²</td><td>0.42 mm²</td><td>4.8 %</td></tr>
+</table></div>
+<p class="lbl-muted" style="font-size:.85rem">MIM at 2 fF/µm²; die 2960 × 2960 µm = 8.76 mm².</p>
+
+<p>Two scaling laws drive the decision, and both are counter-intuitive:</p>
+<ul>
+  <li><strong>C<sub>f</sub> ∝ 1/√R<sub>f</sub></strong> — the <em>lowest</em> gain setting needs the <em>largest</em> capacitor. A single fixed C<sub>f</sub> sized for the 35 kΩ tap costs 19 % of the die across four channels.</li>
+  <li><strong>C<sub>f</sub> ∝ √C<sub>dl</sub></strong> — 10 nF of electrode wants 21 pF, 10 µF wants 667 pF. A 30× spread over a plausible electrode range.</li>
+</ul>
+
+<div class="callout">
+<strong>Do not commit to these values.</strong> The same single-pole model that produces them predicts Q = 4741, i.e. <strong>73.5 dB</strong> of peaking at R<sub>f</sub> = 560 kΩ, against <strong>5.06 dB</strong> measured — an effective Q of 1.79. The model is wrong by 68 dB on the quantity C<sub>f</sub> is meant to fix, most likely because A2's second-stage output resistance (737 kΩ) is comparable to R<sub>f</sub> and it does not drive the feedback network from a low impedance. Treat the table as an order of magnitude. <code>TiaFbTB</code> already contains an <code>IPRB_F</code> probe and no <code>stb</code> analysis was ever run through it; that measurement — minutes of simulation — is the prerequisite for sizing anything.</div>
+
+<h3>4 · The options</h3>
+<div class="tablewrap"><table>
+  <tr><th>Option</th><th>Cost</th><th>Verdict</th></tr>
+  <tr><td><strong>External C<sub>f</sub> on the board</strong>, WE pad to a vout pad</td>
+      <td>Needs <code>vout</code> brought out per channel — <strong>+4 pads</strong> on top of the 12 electrode pads. Zero die area, no MIM.</td>
+      <td class="verdict-keep">Strongest technically — the user matches C<sub>f</sub> to their actual electrode and gain setting, which is the only way to track a C<sub>dl</sub> that is not a chip parameter. Gated on the pad budget.</td></tr>
+  <tr><td><strong>Digitally programmable on-chip bank</strong>, slaved to the 16-tap gain code</td>
+      <td>Binary bank spanning ≈4× to track C<sub>f</sub> ∝ 1/√R<sub>f</sub>. At the model's numbers, 0.42–1.69 mm² for four channels. No new pads.</td>
+      <td>Viable only if the <code>stb</code> shows the real C<sub>f</sub> is far below the model's. Tracks R<sub>f</sub> automatically but <em>cannot</em> track C<sub>dl</sub> — sized for one electrode class.</td></tr>
+  <tr><td><strong>Fixed on-chip C<sub>f</sub></strong></td>
+      <td>Sized for the worst tap: 844 pF × 4 = 19 % of the die.</td>
+      <td class="verdict-drop">Rejected on area, and wrong at 15 of the 16 gain settings.</td></tr>
+  <tr><td><strong>Accept the peaking, correct after the ADC</strong></td>
+      <td>Free.</td>
+      <td class="verdict-drop">Rejected: the correction depends on C<sub>dl</sub>, which is unknown at design time and drifts as the electrode fouls. Does not fix the ringing or the excess noise either.</td></tr>
+  <tr><td><strong>Reduce f<sub>u</sub></strong> via the existing 6-bit <code>TCBias</code> tail trim</td>
+      <td>No new silicon — the knob already exists. Lowers the peak, but f<sub>x</sub> ∝ √f<sub>u</sub> falls with it, so flat bandwidth is traded away.</td>
+      <td>Not a standalone fix (peaking Q ∝ √f<sub>u</sub> falls far too slowly), but worth sweeping alongside a C<sub>f</sub> — it is free and A2 is heavily overcompensated for this application.</td></tr>
+</table></div>
+
+<div class="callout">
+<strong>Next step, in order:</strong> (1) run the <code>stb</code> analysis through the existing <code>IPRB_F</code> probe in <code>TiaFbTB</code> to get a real phase margin and loop gain for this loop; (2) sweep R<sub>f</sub> × C<sub>dl</sub> two-dimensionally to map peaking against gain setting and electrode, since both dominate over any process variation; (3) size C<sub>f</sub> from the measurement, then pick external vs. programmable on the resulting area and the pad budget. Monte Carlo on transistor mismatch is the least informative axis for this particular spec and should follow, not precede, the <code>stb</code>.</div>
 
 <h2>Alternatives considered and rejected</h2>
 <div class="tablewrap"><table>
@@ -199,7 +449,7 @@
   <li>Castalia's <code>ic/</code> is view-only; new libraries are built and ingested via <code>~/vestarv/signoff_mp</code> (<code>make ingest BLOCK=… [LIB=…]</code>). One home per library.</li>
 </ul>
 
-<p class="footer">Sources: <code>potentiostat_pmos_sch4lay_upd.cdl</code>, <code>potentiostat_final.top_level_sch.schematic.cdl</code>, <code>Better_ADCs.NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb.schematic.cdl</code> (Myshkin LVS netlists). Strategy agreed 2026-07-20.</p>
+<p class="footer">Sources: <code>potentiostat_pmos_sch4lay_upd.cdl</code>, <code>potentiostat_final.top_level_sch.schematic.cdl</code>, <code>Better_ADCs.NEW_ADC_Main_2V5_Sync_0p13s_0p70lsb.schematic.cdl</code> (Myshkin LVS netlists). Strategy agreed 2026-07-20. Compensation section added 2026-07-30 from the TB-03 <code>anatop_tb_tia</code> corner run of 2026-07-28 (<code>Interactive.9</code>); measured curve extracted from the TRM data set <code>include/analog/data/tia_zt_00.dat</code>.</p>
 
 </main>
 </body>

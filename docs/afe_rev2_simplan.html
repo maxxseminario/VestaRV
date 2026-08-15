@@ -215,6 +215,83 @@ Forbid it in firmware; never simulate it except deliberately in TB-04 test&nbsp;
 <li>Monte Carlo tests: <i>Run Mode → Monte Carlo Sampling</i>, mismatch only, 200 points, "All" for save-allowed outputs.</li>
 </ol>
 
+<h3>0.10 Temperature sweeps — exact steps (and why <code>bg_temp</code> throws eval errors)</h3>
+<p>A tempco needs a <em>swept</em> dc analysis, not a parametric run: the
+<code>ymax()</code>/<code>ymin()</code> expressions in TB-01 operate on a waveform whose
+x-axis <em>is</em> temperature. Set the sweep inside the <code>dc</code> analysis form —
+not in <i>Sweeps &amp; Ranges</i>.</p>
+
+<ol>
+<li><i>Analyses → Choose…</i> → <b>dc</b>. Tick <b>Save DC Operating Point</b>.</li>
+<li>In the same form, tick <b>Sweep Variable → Temperature</b>.</li>
+<li><b>Sweep Range</b> = Start <code>-20</code>, Stop <code>85</code>. <b>Sweep Type</b> = Linear,
+    <b>Number of Steps</b> = <code>22</code> (≈ 5 °C per step).</li>
+<li>Leave <i>Setup → Temperature</i> at its nominal 27 °C — the sweep overrides it per point.
+    Do <b>not</b> also add <code>temperature</code> under <i>Sweeps &amp; Ranges</i>: that
+    multiplies <em>runs</em> instead of producing one waveform, and <code>ymax()</code> then
+    collapses to a single point per run.</li>
+<li>Corners: <b>C0 only</b>, per TB-01. A corner that sets its own temperature fights the sweep.</li>
+<li><i>Outputs → Setup…</i> → add each row below with <b>Type = expression</b>.
+    A bare signal name does not evaluate — that is the single most common cause of
+    <code>eval error</code> in the results table.</li>
+</ol>
+
+<p class="small">Fastest way to get the names right: <i>Outputs → From Design</i>, then click the
+wire in the schematic. Typing them by hand is what produces unresolvable signals.</p>
+
+<p><b>Which net names to use — they differ per testbench</b></p>
+<table>
+<tr><th>Quantity</th><th><code>anatop_tb_biasgen</code> (TB-01, global cell)</th><th><code>BiasGenCascWideSwing_tb</code> (imported, local cascode cell)</th></tr>
+<tr><td>N mirror</td><td><code>v("/bn!")</code></td><td><code>v("/V_BNM")</code></td></tr>
+<tr><td>N cascode</td><td><code>v("/bnc!")</code></td><td><code>v("/V_BNC")</code></td></tr>
+<tr><td>P mirror</td><td><code>v("/bp!")</code></td><td><code>v("/V_BPM")</code></td></tr>
+<tr><td>P cascode</td><td><code>v("/bpc!")</code></td><td><code>v("/V_BPC")</code></td></tr>
+</table>
+
+<div class="warn"><b>The two cells are not interchangeable.</b> <code>anatop_biasgen</code>
+publishes its rails as <em>global</em> nets (trailing <code>!</code>) with no output pins, so
+<code>v("/bn!")</code> resolves from anywhere in the hierarchy. The imported cascode cell
+(<code>anatop_biasgen_local</code>, ex-<code>leon/BiasGenCascWideSwing</code>) publishes ordinary
+<em>pins</em>, so its rails only exist on whatever net the testbench wires them to. Running
+TB-01's expression list against the imported TB gives four unresolvable signals and four
+eval errors.</div>
+
+<p><b>Tempco expression</b></p>
+<pre><code>bn_tempco     = (ymax(v("/bn!")) - ymin(v("/bn!")))                          ; volts of spread, -20..85 C
+bn_tempco_ppm = (ymax(v("/bn!")) - ymin(v("/bn!"))) / (value(v("/bn!") 27) * 105) * 1e6   ; ppm/C</code></pre>
+<p class="small">TB-01's <code>bn_tempco</code> is deliberately a <em>spread in volts</em>, not a
+normalised coefficient — it is a pass/fail screen, not a datasheet number. Use the
+<code>_ppm</code> form when you need to compare against a spec. 105 is the sweep span in °C;
+<code>value(… 27)</code> samples the waveform at nominal.</p>
+
+<p><b>Running it and viewing the results</b></p>
+<ol>
+<li>Select the test in the <i>Data View</i> pane so the edits land on it and not a sibling.</li>
+<li>In <i>Outputs Setup</i>, tick <b>Plot</b> on the four rail rows. Leave <code>bn_tempco</code>
+    unticked — it is a scalar, it belongs in the table, not on a graph.</li>
+<li>Run (<i>Simulation → Netlist and Run</i>, or the green run arrow).</li>
+<li>Anything with <b>Plot</b> ticked opens automatically in ViVA when the run finishes.
+    To plot after the fact, go to the <i>Results</i> tab, select the output rows, right-click →
+    <b>Plot</b>. For raw nets that are not set up as outputs, use
+    <i>Results → Direct Plot → Main Form → dc → Voltage</i> and click the wire in the schematic.</li>
+<li>To overlay all four rails on one graph, select all four and plot together; in ViVA use
+    <b>Append</b> rather than <b>Replace</b> so each new plot adds to the frame.</li>
+</ol>
+
+<div class="crit"><b>The check that the sweep actually took.</b> The plotted x-axis must read
+<b>temperature, −20 → 85</b>. If it comes back as a single point, or the x-axis is a design
+variable, the sweep did not apply — you almost certainly set it under
+<i>Sweeps &amp; Ranges</i> instead of inside the <code>dc</code> analysis form. Scalar
+expressions such as <code>bn_tempco</code> never plot; they appear as a number per corner in
+the <i>Results</i> table, and a blank cell there means the expression failed to evaluate, not
+that the value is zero.</div>
+
+<div class="note"><b>Two quirks in the imported testbench.</b> <code>V_MBNM</code> is a pin on the
+symbol but is not labelled on any net in <code>BiasDCOpTB</code> — label the wire before you can
+probe it by name. And the schematic carries a label <code>V_BCP</code> alongside
+<code>V_BPC</code>; <code>V_BCP</code> matches no symbol pin, so confirm it is intentional and not a
+transposed-letter typo leaving a node floating.</div>
+
 <!-- ============================================================ -->
 <h2 id="s1">TB-01 · <code>anatop_tb_biasgen</code> — run first, everything depends on it</h2>
 <p><b>DUT:</b> <code>anatop_biasgen</code> (BiasGenCascWideSwingGlobal). Outputs are the
@@ -235,7 +312,7 @@ globals <code>bn! bnc! bp! bpc!</code> — no output pins.</p>
 <table>
 <tr><th>Test</th><th>Analyses</th><th>Configuration</th><th>Corners</th></tr>
 <tr><td>bg_op <span class="tag t-dc">DC</span></td><td>dc</td><td>Save DC operating point ✓; no sweep</td><td>all 5</td></tr>
-<tr><td>bg_temp <span class="tag t-dc">DC</span></td><td>dc</td><td>Sweep temperature −20 → 85, 22 steps (linear)</td><td>C0 only (models swap per corner elsewhere)</td></tr>
+<tr><td>bg_temp <span class="tag t-dc">DC</span></td><td>dc</td><td>Sweep temperature −20 → 85, 22 steps (linear) — exact steps in §0.10</td><td>C0 only (models swap per corner elsewhere)</td></tr>
 <tr><td>bg_vdd <span class="tag t-dc">DC</span></td><td>dc</td><td>Sweep design var <code>vdd25</code> 2.0 → 2.75, 76 pts</td><td>C0</td></tr>
 <tr><td>bg_adj <span class="tag t-dc">DC</span></td><td>dc</td><td>5 manual runs, BiasAdj = 0/16/32/48/63 (re-tie bus)</td><td>C0</td></tr>
 <tr><td>bg_start <span class="tag t-tran">TRAN</span></td><td>tran</td><td>stop=5m, errpreset=conservative, V_en pulse active</td><td>C0, C1, C2</td></tr>
@@ -263,6 +340,14 @@ vdc substitutes allowed in later TBs if you choose not to instantiate the biasge
 <p><b>DUT:</b> <code>anatop_controlamp</code> (folded_cascode_pmos: vinp vinm vout
 vbp vbn vbpc vbnc). Rev-1 only ever drove a MOS gate with this amp; rev-2 makes it
 source and sink the full cell current — that is what tests B and C exist for.</p>
+
+<div class="note"><b>Pin list verified against the OA database</b> (not a symbol text scan):
+all seven terminals exist. In <code>anatop_tb_controlamp/UnityFeedbackWBiasTB</code> they bind
+as <code>vbnc→V_BNC</code>, <code>vbpc→V_BPC</code>, <code>vbn→V_BNM</code>,
+<code>vbp→V_BPM</code>, <code>vout→V_OutOL</code>, <code>vinm→net1</code>,
+<code>vinp→V_InP</code> — that harness biases from <code>anatop_biasgen_local</code> rather
+than the <code>bn!/bp!</code> globals, so all four bias rails, mirror and cascode, are
+consumed.</div>
 
 <h3>Schematic</h3>
 <table>

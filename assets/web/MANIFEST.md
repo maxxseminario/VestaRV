@@ -73,7 +73,7 @@ modified; no Cadence license was used. Method:
   SRAM macros are visible instead of an opaque top-metal power mesh, then `zoom_fit` +
   `save_image`.
 
-Strategy (a) — existing images — was checked: `innovus/common/out/chip_top_quad.*.{png,gif}`
+Strategy (a) — existing images — was checked: `innovus/common/chip_top_quad/out/chip_top_quad.*.{png,gif}`
 exist (Castalia-Quad 4-hart Innovus screenshots, 640x480, floorplan + routed). They were
 NOT promoted to the gallery because they are the CQ-respin variant and low-resolution;
 the GDS renders give higher-resolution, on-target, stylistically-consistent images for all
