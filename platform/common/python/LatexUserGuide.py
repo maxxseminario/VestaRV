@@ -100,6 +100,11 @@ class LatexUserGuide():
 		self.GenerateI2cTransactionDiagram()
 		self.GenerateIrqClaimCompleteDiagram()
 		self.GenerateMutexClaimDiagram()
+		# D-series: the PWRCTRL chapter's mechanism figure. Emitted
+		# unconditionally — the switched-tile story is true on every multi-core
+		# configuration; only hart 0's wording follows the orchestrator knob,
+		# inside the emitter.
+		self.GeneratePowerDomainDiagram()
 		self.GenerateTimerCaptureDiagram()
 		# D-series debug figures. Emitted unconditionally; the chapter decides
 		# which of them render, by placing the gated \input inside its own
@@ -345,10 +350,47 @@ class LatexUserGuide():
 		defines['NumHarts'] = str(self.Gen.NumHarts)
 		defines['NumHartsWord'] = hartWords.get(self.Gen.NumHarts, str(self.Gen.NumHarts))
 		defines['MaxHartIndex'] = str(self.Gen.NumHarts - 1)
+		# D-series: the PWRCR gate mask, so the PWRCTRL chapter can state the
+		# blanket-gate constant instead of hardcoding one hart count's value
+		# (0x1E at N=5, 0x3FFFE on Argus' eighteen). E17-style: the mask is READ
+		# OFF the register model (generate.py's PWRGATE bit field, which is what
+		# MemoryMap.h's PWRGATE_MASK and the register browser also come from) and
+		# CROSS-CHECKED against the hart count, so a change to either side that
+		# misses the other fails `make generate` instead of shipping a manual
+		# whose mask and whose hart range disagree. Defined unconditionally (the
+		# \PmpEntries precedent) so the macro can never dangle.
+		_gateMask = None
+		for _p in self.Gen.Peripherals:
+			if _p.Name != 'PWRCTRL':
+				continue
+			for _r in _p.Registers:
+				if _r.Name != 'PWRCR':
+					continue
+				for _bf in _r.BitFields:
+					if _bf.Name == 'PWRGATE':
+						_gateMask = _bf.BitMask
+		if _gateMask is not None:
+			_expect = ((1 << self.Gen.NumHarts) - 1) & ~1
+			if _gateMask != _expect:
+				raise Exception('PWRCR gate mask: the register model says 0x%X but %d harts '
+					'imply 0x%X (bits 1..%d) — the PWRCTRL chapter would document a mask that '
+					'does not match its own hart range.'
+					% (_gateMask, self.Gen.NumHarts, _expect, self.Gen.NumHarts - 1))
+		defines['PwrGateMask'] = fmthex(_gateMask if _gateMask is not None else 0, minDigits=2)
 		defines['VectorsCount'] = str(self.Gen.VectorsCount)
-		if self.Gen.SharedWindowSections:
-			defines['SharedWindowStartAddress'] = fmthex(min(sec[1] for sec in self.Gen.SharedWindowSections))
-			defines['SharedWindowEndAddress'] = fmthex(max(sec[2] for sec in self.Gen.SharedWindowSections))
+		# D-series sweep (s4): \SharedWindowStartAddress / \SharedWindowEndAddress
+		# are RETIRED. Both were min/max over SharedWindowSections -- the rows the
+		# address-space FIGURE happens to draw -- and neither was the RTL shared
+		# window they are named after. The window mp_arbiter decodes is
+		# 0x0 (the boot ROM, where every hart resets) up to the strict complement
+		# of sh_sel at (1 << (SH_AW+2)) - 1; the macros said 0x5000 (the CLINT, the
+		# lowest row that happened to be listed) and 0x33FFF (the top TCM aperture).
+		# A reader who believed either would place the shared window wrongly at both
+		# ends. They also had ZERO consumers: the whole latex tree, both templates
+		# and every intro chapter were grepped, and the only hits were this emitter
+		# and a stale README sentence (fixed with them). Nothing derived here goes
+		# unused and untrue: prose that needs those bounds should quote
+		# \RomStartAddress and \FlashBaseAddress, which ARE the window's real edges.
 		clint = None
 		for p in self.Gen.Peripherals:
 			if p.Name == 'CLINT':
@@ -1641,8 +1683,16 @@ class LatexUserGuide():
 
 	def GenerateBootFlowDiagram(self):
 		'''include/BootFlowDiagram.tex — the M12 single-ROM boot flow chart
-		   (mhartid dispatch, hart-0 SPI boot, tile WFI park + msip loader).'''
+		   (mhartid dispatch, hart-0 SPI boot, tile WFI park + msip loader).
+
+		   D-series sweep (s1): the CONTENT of the hart-0 branch is right on
+		   both polarities (hart 0 is the boot/management hart either way), so
+		   only its NAME is derived — on an orchestrator configuration the
+		   reader meets that hart as "the orchestrator" everywhere else in the
+		   manual, and an unnamed branch here is the one place it looks like a
+		   fourth anonymous tile.'''
 		N = self.Gen.NumHarts
+		orch = bool((getattr(self.Gen, 'McuMpGeometry', None) or {}).get('orchestrator'))
 		s = '% Generated boot flow chart (M12 single-ROM boot, numHarts=' + str(N) + ')\n'
 		s += '\\begin{tikzpicture}[\n'
 		s += '\tstp/.style={draw, thick, rounded corners=2pt, align=center, font=\\sffamily\\small, text width=4.6cm, inner sep=5pt},\n'
@@ -1664,7 +1714,17 @@ class LatexUserGuide():
 		s += '\\node[term] (t4) at (9.4, 1.9) {Enter \\register{ENTRY} with $\\mathtt{sp}$ at the top of the TCM --- tile runs};\n'
 		# Edges
 		s += '\\draw[flow] (rst) -- (who);\n'
-		s += '\\draw[flow] (who.west) -| node[lab, pos=0.25] {yes: hart 0} (h0a.north);\n'
+		# The naming costs width: at pos=0.25 the label sits on the horizontal run
+		# straight out of the diamond, and "yes: hart 0 (orchestrator)" on one line
+		# runs INTO the diamond (measured in the render). On the orchestrator
+		# polarity it therefore breaks in two and moves onto the vertical run,
+		# clear of both nodes; without an orchestrator the original single-line
+		# label is emitted unchanged, byte for byte.
+		if orch:
+			yesLab = 'node[lab, align=center, pos=0.62] {yes: hart 0\\\\ (orchestrator)}'
+		else:
+			yesLab = 'node[lab, pos=0.25] {yes: hart 0}'
+		s += '\\draw[flow] (who.west) -| ' + yesLab + ' (h0a.north);\n'
 		s += '\\draw[flow] (who.east) -| node[lab, pos=0.25] {no: harts 1--' + str(N - 1) + '} (t1.north);\n'
 		s += '\\draw[flow] (h0a) -- (h0b);\n'
 		s += '\\draw[flow] (h0b) -- (h0c);\n'
@@ -2414,23 +2474,336 @@ class LatexUserGuide():
 		'''include/MutexClaimDiagram.tex — the return-old-and-claim read that
 		   makes the MUTEX bank a one-instruction lock (hdl/common/mutex_bank.vhd).
 		   Two harts race for the same mutex; the arbiter serializes the two
-		   reads, so the claim is atomic with no retry loop.'''
+		   reads, so the claim is atomic with no retry loop.
+
+		   D-series sweep (s2): the racers are two CHANNEL harts, not hart 0.
+		   Hart 0 is the management/orchestrator hart on every configuration
+		   this manual is built for, and using it as one of two interchangeable
+		   racers teaches the wrong picture of the chip. The pair is DERIVED so
+		   the figure is config-agnostic: harts 1 and 2 wherever a third hart
+		   exists (every shipped configuration -- N is 4, 5 or 18), falling back
+		   to the historical 0/1 pair on a hypothetical two-hart build rather
+		   than raising. The winner's marker is its \\register{mhartid}$+1$
+		   (hdl/common/mutex_bank.vhd:108, `owner := master + 1`), so it is
+		   drawn from the racer index and never from a literal.'''
+		lo = 1 if self.Gen.NumHarts >= 3 else 0
+		hi = lo + 1
+		loS, hiS = str(lo), str(hi)
 		rows = [
 			('16{0.5C}',                                                 '\\register{mclk}'),
-			('U 2D{\\asminline{lw} MUTEX0} 4U 2D{\\asminline{sw x0}}',   'hart 0 bus'),
-			('3U 2D{\\asminline{lw} MUTEX0} 4U',                         'hart 1 bus'),
-			('3D{free} 5D{owned by hart 0} D{free}',                     '\\textit{owner}[0]'),
-			('3U D{0} 5U',                                               'hart 0 result'),
-			('5U D{1} 3U',                                               'hart 1 result'),
+			('U 2D{\\asminline{lw} MUTEX0} 4U 2D{\\asminline{sw x0}}',   'hart ' + loS + ' bus'),
+			('3U 2D{\\asminline{lw} MUTEX0} 4U',                         'hart ' + hiS + ' bus'),
+			('3D{free} 5D{owned by hart ' + loS + '} D{free}',           '\\textit{owner}[0]'),
+			('3U D{0} 5U',                                               'hart ' + loS + ' result'),
+			('5U D{' + str(lo + 1) + '} 3U',                             'hart ' + hiS + ' result'),
 		]
 		ann = ''
 		ann += '\\node[ann, align=left, anchor=north west] at (0,{\\YBOT-0.35})\n'
 		ann += '\t{\\textbf{0} = the mutex was free and is now yours. A non-zero result is the holder\'s\\\\[-2pt]\n'
-		ann += '\t \\register{mhartid}$+1$ --- hart 1 must back off and retry. Release with \\asminline{sw x0}.};\n'
+		ann += '\t \\register{mhartid}$+1$ --- hart ' + hiS + ' must back off and retry. Release with \\asminline{sw x0}.};\n'
 		s = '% Generated MUTEX claim/release diagram\n'
 		s += self._cycleFigure('1.15cm', rows, 8, ann)
 		self._writeInclude('MutexClaimDiagram.tex', s)
 		return
+
+	def GeneratePowerDomainDiagram(self):
+		'''include/PowerDomainDiagram.tex — the chip's power architecture: ONE
+		   always-on domain and N-1 switched tile rails, and what a PWRCR gate
+		   bit actually does to one of them.
+
+		   DRAWN FROM THE RTL, every claim cited:
+		     * hdl/common/pwr_ctrl.vhd — the pd_iso_en/pd_sleep/pd_rstn rows are
+		       (NHARTS-1 downto 1), hart 0 has NO row; PWRCR bit 0 reads 0 and
+		       ignores writes; the sequencer order is iso -> rstn -> sleep on the
+		       gate and sleep -> T_RAIL -> iso -> rstn on the wake, with the six
+		       PWRSR nibble states S_ON/S_ISO/S_RSTOFF/S_OFF/S_RAIL/S_UNISO.
+		     * mcu_vhd.py emitIsoClamps() — the clamps are EXPLICIT RTL AND gates
+		       on the ALWAYS-ON side (`... when pd_iso_en(h) = '0' else 0`), which
+		       is why the clamp layer is drawn above the boundary and not inside
+		       the tile; the clamped list is that emitter's row list.
+		     * mcu_vhd.py emitTileRstn() — tile_rstn(h) = resetn and pd_rstn(h)
+		       and pgood_rstn, i.e. the cold-gate reset AND the DP-S3 boot gate.
+		     * mcu_vhd.py tileInstance() — tcm_pgen => pd_sleep(h): the TCM macro
+		       power-gates itself off the same wire, which is why it is drawn
+		       inside the switched band even though its VDD pin is always-on.
+		     * cpf/hart_tile.cpf — PD_AO / PD_GATED, the HEADBUF16MA10TH switch
+		       rule (PSW_TILE), VDD -> VDD_SW, and the explicit NO-RETENTION
+		       decision that makes wake a cold boot (the M12/M17a contract).
+		     * mcu_vhd.py emitTcmApertures() — tcmw_dark(h) = pd_iso_en(h) or not
+		       tile_rstn(h): a dark tile's aperture completes with zeros (R4-A2).
+
+		   UNGATED on purpose: tiles 1..N-1 are gateable on every configuration
+		   this manual is built for. What DOES switch is hart 0's own story --- an
+		   always-on SOFT orchestrator with no header switches, or an always-on
+		   hart TILE whose pd_* controls are simply tied inactive --- so the
+		   hart-0 box derives its wording from the orchestrator knob and nothing
+		   else in the figure moves.
+
+		   E17: the drawn PWRCR bit map is enumerable from the hart count, so it
+		   is collected while drawing and cross-checked against the REGISTER
+		   MODEL (generate.py's PWRGATE / PWRH0 bit fields, the same source
+		   MemoryMap.h's PWRGATE_MASK comes from). The tile columns are checked
+		   against N-1 including the elided ones.
+
+		   LAYOUT is a GRID, and that is the whole readability argument: the four
+		   horizontal layers are the mechanism (clamps / header switches / the
+		   tile / its TCM), the columns are the tiles, so "every tile has all
+		   four" is a property of the drawing rather than a sentence. The long
+		   explanations live in the left margin at each layer's own height and
+		   are kept to what fits there --- pass 1 of this figure put five-sentence
+		   labels in that column and they overprinted each other and the band
+		   banner. Anything longer belongs in the caption.'''
+		N = self.Gen.NumHarts
+		if N < 2:
+			# Degrade, never raise: a single-hart build has no switched domain to
+			# draw. The chapter's \input still resolves.
+			self._writeInclude('PowerDomainDiagram.tex',
+				'% numHarts=' + str(N) + ': no switchable tile domains — figure suppressed.\n')
+			return
+		orch = bool((getattr(self.Gen, 'McuMpGeometry', None) or {}).get('orchestrator'))
+		apertures = bool(self._TcmApertureWindows())
+		tcmKiB = self.Gen.RamMemorySlotSize // 1024
+
+		def P(v):
+			return '%.2f' % v
+
+		# ---- which tile columns are drawn. Every channel tile up to four; only
+		# beyond that is the row elided (Argus has seventeen). An elided
+		# four-tile chip would be a picture of a chip that does not exist.
+		tiles = list(range(1, N))
+		if len(tiles) > 4:
+			shown = [tiles[0], tiles[1], None, tiles[-1]]
+		else:
+			shown = list(tiles)
+		drawnTiles = [t for t in shown if t is not None]
+		elided = len(tiles) - len(drawnTiles)
+
+		tileW, elW, gap = 2.95, 1.05, 0.40
+		xCol0 = 6.10
+		cols = []
+		x = xCol0
+		for t in shown:
+			w = elW if t is None else tileW
+			cols.append((t, x + w / 2.0, w))
+			x += w + gap
+		colsX1 = x - gap
+
+		# ---- the PWRCR bit strip: one cell per bit N-1..0 plus the reserved
+		# cell above them. This is the enumerable content the assertion guards.
+		cellW = 0.64 if N <= 8 else 0.42
+		cellH, resW = 0.62, 1.75
+		xStrip0 = xCol0
+		strip = [('reserved', None, resW)]
+		for b in range(N - 1, -1, -1):
+			strip.append(('gate' if b >= 1 else 'ro', b, cellW))
+		stripW = sum(c[2] for c in strip)
+		# --- E17 cross-check against the register model -------------------
+		drawnMask = 0
+		for role, b, _w in strip:
+			if role == 'gate':
+				drawnMask |= 1 << b
+		modelMask, h0Field = None, None
+		for p in self.Gen.Peripherals:
+			if p.Name != 'PWRCTRL':
+				continue
+			for r in p.Registers:
+				if r.Name != 'PWRCR':
+					continue
+				for bf in r.BitFields:
+					if bf.Name == 'PWRGATE':
+						modelMask = bf.BitMask
+					if bf.Name == 'PWRH0':
+						h0Field = bf
+		if modelMask is None or h0Field is None:
+			raise Exception('PowerDomainDiagram: the configuration has no PWRCTRL PWRCR '
+				'PWRGATE/PWRH0 bit fields to check the drawn bit map against.')
+		if drawnMask != modelMask:
+			raise Exception('PowerDomainDiagram: the figure draws gate bits 0x%X but the '
+				'PWRCR register model says 0x%X — the picture and the register table '
+				'would disagree.' % (drawnMask, modelMask))
+		if not (h0Field.MSB == 0 and h0Field.LSB == 0 and h0Field.Accessibility == 'r'):
+			raise Exception('PowerDomainDiagram: PWRH0 is %s bits %d:%d, not a read-only '
+				'bit 0 — the figure draws hart 0 as the reserved always-on bit.'
+				% (h0Field.Accessibility, h0Field.MSB, h0Field.LSB))
+		if len(drawnTiles) + elided != N - 1:
+			raise Exception('PowerDomainDiagram: %d tile columns drawn + %d elided is not the '
+				'%d switchable domains pwr_ctrl instantiates.' % (len(drawnTiles), elided, N - 1))
+
+		noteW, pwrW, margin = 4.60, 4.70, 0.25
+		# The shared-fabric box carries the most text in the picture, so the
+		# figure width has a FLOOR as well as a content-derived value: at N=4 the
+		# columns and the bit strip are both short, the fabric box was squeezed to
+		# 4.4 cm, and it grew vertically straight through the banner above it and
+		# the bit strip below (caught by rendering the castalia4 manual, not by
+		# any gate). 7.20 cm is the measured width at which its text fits the row.
+		W = max(colsX1, xStrip0 + stripW + 0.30 + noteW,
+			xCol0 + 7.20 + 0.55 + pwrW) + margin
+
+		# ---- vertical anchors, in cm (everything below derives from these)
+		yTop, yBan = 16.05, 15.25      # always-on banner strip
+		yBoxT, yBoxB = 15.00, 11.90    # the always-on row of three
+		yStrip = 10.85                 # PWRCR bit strip centre line
+		yHead = 9.20                   # per-column header row (two lines)
+		yClT, yClB = 8.85, 7.70        # the isolation-clamp layer
+		yBnd = 7.30                    # THE domain boundary
+		yHdT, yHdB = 6.95, 5.90        # the header-switch layer
+		yCoT, yCoB = 5.55, 3.75        # the tile core layer
+		yTcT, yTcB = 3.40, 2.10        # the TCM layer
+		ySwB, ySwBan = 0.70, 1.50      # switched band floor + its banner strip
+		xLab0, xLab1 = 0.20, 5.30      # the left label column
+		xRis = 5.60                    # the always-on control riser
+		yRis = 11.72                   # its horizontal run, under the AO boxes
+
+		s = '% Generated power-domain diagram (numHarts=' + str(N) + ', orchestrator='
+		s += ('yes' if orch else 'no') + ', gate mask ' + fmthex(drawnMask, minDigits=2) + ')\n'
+		s += '\\begin{tikzpicture}[\n'
+		s += '\tblk/.style={draw, thick, align=center, fill=white, font=\\sffamily\\small},\n'
+		s += '\tunit/.style={blk, fill=black!12},\n'
+		s += '\taob/.style={blk, fill=black!6},\n'
+		s += '\tclamp/.style={blk, fill=black!16, font=\\sffamily\\scriptsize},\n'
+		s += '\thead/.style={blk, fill=black!22, font=\\sffamily\\scriptsize},\n'
+		s += '\tcore/.style={blk, fill=white, font=\\sffamily\\scriptsize},\n'
+		s += '\ttcm/.style={blk, fill=black!8, font=\\sffamily\\scriptsize},\n'
+		s += '\tcell/.style={draw, thick, fill=white, font=\\sffamily\\scriptsize, '
+		s += 'minimum height=' + P(cellH) + 'cm, inner sep=0pt},\n'
+		s += '\tctrl/.style={->, >=Stealth, thick},\n'
+		s += '\tban/.style={font=\\sffamily\\small\\bfseries, black!60},\n'
+		s += '\tlab/.style={font=\\sffamily\\scriptsize, align=left},\n'
+		s += '\tkey/.style={draw, thick, dashed, align=left, font=\\sffamily\\scriptsize, '
+		s += 'fill=white, inner sep=4pt}]\n'
+
+		# ---- the two bands, drawn first so everything sits on top of them
+		s += '\\fill[black!7] (0, ' + P(yBnd) + ') rectangle (' + P(W) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!14] (0, ' + P(yBan) + ') rectangle (' + P(W) + ', ' + P(yTop) + ');\n'
+		s += '\\fill[black!3] (0, ' + P(ySwB) + ') rectangle (' + P(W) + ', ' + P(yBnd) + ');\n'
+		s += '\\fill[black!10] (0, ' + P(ySwB) + ') rectangle (' + P(W) + ', ' + P(ySwBan) + ');\n'
+		s += '\\node[ban] at (' + P(W / 2.0) + ', ' + P((yBan + yTop) / 2.0) + ') '
+		s += '{the always-on domain --- \\texttt{VDD}, never switched};\n'
+		s += '\\node[ban] at (' + P(W / 2.0) + ', ' + P((ySwB + ySwBan) / 2.0) + ') '
+		s += '{' + _numberWord(len(tiles)) + ' switched tile rails --- \\texttt{VDD\\_SW}, '
+		s += 'one per channel tile, each gated on its own};\n'
+		# THE boundary: a real line, labelled, with the one true claim on it
+		s += '\\draw[line width=1.4pt, black!60] (0, ' + P(yBnd) + ') -- (' + P(W) + ', ' + P(yBnd) + ');\n'
+		s += '\\node[font=\\sffamily\\scriptsize\\bfseries, black!60, fill=black!5, inner sep=2pt] '
+		s += 'at (' + P(W - 3.10) + ', ' + P(yBnd) + ') {the power-domain boundary};\n'
+
+		# ---- band A: hart 0, the fabric it shares, and the controller
+		h0W = xLab1 - xLab0
+		if orch:
+			h0 = ('{\\textbf{hart 0} --- the orchestrator\\\\[2pt] soft core $+$ '
+				+ str(tcmKiB) + '\\,KiB TCM,\\\\ in the always-on centre band\\\\[3pt] '
+				'\\scriptsize no header switches exist\\\\ \\scriptsize for it: no gate bit, '
+				'no clamps,\\\\ \\scriptsize no sequencer row}')
+		else:
+			h0 = ('{\\textbf{hart 0} --- the management hart\\\\[2pt] the same hart tile as the '
+				'others,\\\\ wired always-on\\\\[3pt] \\scriptsize its \\texttt{pd\\_*} controls '
+				'are tied\\\\ \\scriptsize inactive and \\texttt{pwr\\_ctrl}\\\\ '
+				'\\scriptsize gives it no row}')
+		s += '\\node[aob, minimum width=' + P(h0W) + 'cm, minimum height=' + P(yBoxT - yBoxB)
+		s += 'cm] at (' + P((xLab0 + xLab1) / 2.0) + ', ' + P((yBoxT + yBoxB) / 2.0) + ') ' + h0 + ';\n'
+
+		pwX1 = W - margin
+		pwX0 = pwX1 - pwrW
+		fbX0, fbX1 = xCol0, pwX0 - 0.55
+		s += '\\node[aob, minimum width=' + P(fbX1 - fbX0) + 'cm, minimum height=' + P(yBoxT - yBoxB)
+		s += 'cm, text width=' + P(fbX1 - fbX0 - 0.50) + 'cm] at (' + P((fbX0 + fbX1) / 2.0) + ', '
+		s += P((yBoxT + yBoxB) / 2.0) + ') {\\textbf{the shared fabric}\\\\[2pt] '
+		s += '\\texttt{mp\\_arbiter}, the boot ROM every hart resets into, the peripheral window, '
+		s += '\\peripheral{CLINT}, the mutexes, the interrupt router, the shared RAM banks '
+		s += 'and the pad ring\\\\[3pt] \\scriptsize all on \\texttt{VDD}: gating a tile '
+		s += 'costs the rest of the chip nothing};\n'
+		s += '\\node[unit, minimum width=' + P(pwX1 - pwX0) + 'cm, minimum height=' + P(yBoxT - yBoxB)
+		s += 'cm, text width=' + P(pwX1 - pwX0 - 0.50) + 'cm] (pwr) at (' + P((pwX0 + pwX1) / 2.0) + ', '
+		s += P((yBoxT + yBoxB) / 2.0) + ') {\\textbf{\\texttt{pwr\\_ctrl}} at \\texttt{0x4B00}\\\\[2pt] '
+		s += '\\register{PWRCR} gate bits\\\\ \\register{PWRSR} state nibbles\\\\[3pt] '
+		s += '\\scriptsize one sequencing FSM per tile, on the always-on \\register{mclk}};\n'
+
+		# ---- the PWRCR bit strip (enumerated above, asserted above)
+		xc = xStrip0
+		for role, b, w in strip:
+			cx = xc + w / 2.0
+			if role == 'reserved':
+				body, fill, tick = '{\\textbf{31:' + str(N) + '}}', 'fill=black!5', 'resv'
+			elif role == 'ro':
+				body, fill, tick = '{\\textbf{0}}', 'fill=black!30', 'hart 0'
+			else:
+				body, fill, tick = '{\\textbf{' + str(b) + '}}', 'fill=black!12', 'tile ' + str(b)
+			s += '\\node[cell, ' + fill + ', minimum width=' + P(w) + 'cm] at ('
+			s += P(cx) + ', ' + P(yStrip) + ') ' + body + ';\n'
+			s += '\\node[font=\\sffamily\\tiny, rotate=90, anchor=east] at (' + P(cx) + ', '
+			s += P(yStrip - 0.36) + ') {' + tick + '};\n'
+			xc += w
+		s += '\\node[lab, anchor=west, text width=' + P(noteW) + 'cm] at ('
+		s += P(xStrip0 + stripW + 0.30) + ', ' + P(yStrip) + ') '
+		s += '{\\register{PWRCR}: bits 1--' + str(N - 1) + ' (mask \\texttt{'
+		s += fmthex(drawnMask, minDigits=2) + '}) request a gate; bit 0 is read-only 0 --- '
+		s += 'hart 0 has no domain to switch.};\n'
+
+		# ---- the left label column: what each layer IS, at that layer's height
+		def leftLabel(yTopL, yBotL, text):
+			return ('\\node[lab, anchor=west, text width=' + P(xLab1 - xLab0) + 'cm] at ('
+				+ P(xLab0) + ', ' + P((yTopL + yBotL) / 2.0) + ') {' + text + '};\n')
+
+		s += leftLabel(yClT, yClB, '\\register{pd\\_iso\\_en}$(h)$ \\textbf{clamps.} AND gates on '
+			'the \\emph{always-on} side: every outbound signal of tile $h$ reads 0.')
+		s += leftLabel(yHdT, yHdB, '\\register{pd\\_sleep}$(h)$ \\textbf{opens the switches.} '
+			'A \\texttt{HEADBUF16} chain carries \\texttt{VDD} to the tile\'s \\texttt{VDD\\_SW}.')
+		s += leftLabel(yCoT, yCoB, '\\register{pd\\_rstn}$(h)$ \\textbf{holds it in reset.} '
+			'\\register{tile\\_rstn}$(h)$ = \\register{resetn} AND \\register{pd\\_rstn}$(h)$ AND '
+			'the field-power boot gate --- asserted \\emph{before} the rail goes, released '
+			'\\emph{after} it is back.')
+		tcmText = ('\\register{tcm\\_pgen} \\textbf{gates the macro.} The TCM runs off the same '
+			'\\register{pd\\_sleep}$(h)$, so it dies with the rail: a wake is a cold boot.')
+		if apertures:
+			tcmText += (' Its aperture then reads \\emph{zeros} --- check \\register{PWRSR} first.')
+		s += leftLabel(yTcT, yTcB, tcmText)
+
+		# ---- the sequencer key, in the dead space under the hart-0 box
+		s += '\\node[key, anchor=north west, text width=' + P(xLab1 - xLab0 - 0.35) + 'cm] at ('
+		s += P(xLab0) + ', ' + P(yBoxB - 0.35) + ') {\\textbf{the sequencer, both ways}\\\\[2pt] '
+		s += 'gate: clamp $\\rightarrow$ reset $\\rightarrow$ switches open\\\\[1pt] '
+		s += 'wake: switches close $\\rightarrow$ rail settles $\\rightarrow$ unclamp $\\rightarrow$ '
+		s += 'reset released\\\\[2pt] '
+		s += '\\register{PWRSR} $h$: 0 ON, 1 ISO, 2 RSTOFF, 3 OFF, 4 RAIL, 5 UNISO};\n'
+
+		# ---- the always-on control riser, and its four reaches
+		s += '\\draw[thick] (pwr.south) -- (' + P((pwX0 + pwX1) / 2.0) + ', ' + P(yRis)
+		s += ') -- (' + P(xRis) + ', ' + P(yRis) + ') -- (' + P(xRis) + ', '
+		s += P((yTcT + yTcB) / 2.0) + ');\n'
+		for yA, yB in ((yClT, yClB), (yHdT, yHdB), (yCoT, yCoB), (yTcT, yTcB)):
+			y = (yA + yB) / 2.0
+			s += '\\draw[ctrl] (' + P(xRis) + ', ' + P(y) + ') -- (' + P(xCol0 - 0.06) + ', ' + P(y) + ');\n'
+
+		# ---- the columns: one per channel tile, four layers deep
+		for t, cx, w in cols:
+			if t is None:
+				s += '\\node[font=\\sffamily\\scriptsize, align=center] at (' + P(cx) + ', '
+				s += P(yHead) + ') {' + str(elided) + '\\\\ more};\n'
+				for y in ((yClT + yClB) / 2.0, (yHdT + yHdB) / 2.0,
+						(yCoT + yCoB) / 2.0, (yTcT + yTcB) / 2.0):
+					s += '\\node[font=\\sffamily\\Large] at (' + P(cx) + ', ' + P(y) + ') {$\\cdots$};\n'
+				continue
+			ts = str(t)
+			s += '\\node[font=\\sffamily\\scriptsize, align=center] at (' + P(cx) + ', ' + P(yHead)
+			s += ') {\\textbf{tile ' + ts + '}\\\\ {\\tiny \\register{PWRCR} bit ' + ts
+			s += ' $\\cdot$ \\register{PWRSR} nibble ' + ts + '}};\n'
+			s += '\\node[clamp, minimum width=' + P(w) + 'cm, minimum height=' + P(yClT - yClB)
+			s += 'cm, text width=' + P(w - 0.35) + 'cm] at (' + P(cx) + ', ' + P((yClT + yClB) / 2.0)
+			s += ') {clamps on tile ' + ts + '\'s outputs\\\\ \\texttt{AND} $\\rightarrow$ 0};\n'
+			s += '\\node[head, minimum width=' + P(w) + 'cm, minimum height=' + P(yHdT - yHdB)
+			s += 'cm, text width=' + P(w - 0.35) + 'cm] at (' + P(cx) + ', ' + P((yHdT + yHdB) / 2.0)
+			s += ') {\\texttt{HEADBUF16} bank\\\\ \\texttt{VDD} $\\rightarrow$ \\texttt{VDD\\_SW}};\n'
+			s += '\\node[core, minimum width=' + P(w) + 'cm, minimum height=' + P(yCoT - yCoB)
+			s += 'cm, text width=' + P(w - 0.35) + 'cm] at (' + P(cx) + ', ' + P((yCoT + yCoB) / 2.0)
+			s += ') {\\textbf{\\normalsize tile ' + ts + '}\\\\[3pt] core, CSRs, register file,\\\\ '
+			s += 'boundary registers, clock tree};\n'
+			s += '\\node[tcm, minimum width=' + P(w) + 'cm, minimum height=' + P(yTcT - yTcB)
+			s += 'cm, text width=' + P(w - 0.35) + 'cm] at (' + P(cx) + ', ' + P((yTcT + yTcB) / 2.0)
+			s += ') {private TCM, ' + str(tcmKiB) + '\\,KiB\\\\ \\emph{no retention}};\n'
+		s += '\\end{tikzpicture}\n'
+		self._writeInclude('PowerDomainDiagram.tex', s)
+		return
+
 
 	def GenerateTimerCaptureDiagram(self):
 		'''include/TimerCaptureDiagram.tex — input capture (TIMER chapter had no
